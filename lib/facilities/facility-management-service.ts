@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseFacilityTypeFromAbout } from "./address";
 import { logFacilityTenantDebug } from "./tenant-scope";
-import type { FacilityAssignedWorker, FacilityManagementItem, FacilitiesListResponse } from "./types";
+import type {
+  FacilityAssignedWorker,
+  FacilityAssignableCandidate,
+  FacilityManagementItem,
+  FacilitiesListResponse,
+} from "./types";
 
 type FacilityRow = {
   id: string;
@@ -35,6 +40,7 @@ type WorkerRow = {
   status: string | null;
   city: string | null;
   state: string | null;
+  email?: string | null;
 };
 
 async function loadAssignmentCountsByFacility(
@@ -224,6 +230,94 @@ export async function loadAssignedWorkersForFacility(
   });
 
   return results;
+}
+
+function workerDisplayName(worker: Pick<WorkerRow, "first_name" | "last_name">): string {
+  const name = `${worker.first_name ?? ""} ${worker.last_name ?? ""}`.trim();
+  return name || "Unnamed candidate";
+}
+
+export async function loadAssignableCandidatesForFacility(
+  supabase: SupabaseClient,
+  tenantId: string,
+  facilityId: string
+): Promise<FacilityAssignableCandidate[]> {
+  const { data: facility, error: facilityError } = await supabase
+    .from("facility")
+    .select("id")
+    .eq("id", facilityId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (facilityError) throw facilityError;
+  if (!facility?.id) {
+    throw new Error("Facility not found.");
+  }
+
+  const { data: shiftRows, error: shiftError } = await supabase
+    .from("shifts")
+    .select("id, facility_id")
+    .eq("tenant_id", tenantId)
+    .eq("facility_id", facilityId);
+  if (shiftError) throw shiftError;
+
+  const shiftIds = ((shiftRows ?? []) as ShiftRow[]).map((row) => row.id).filter(Boolean);
+  const assignedWorkerKeys = new Set<string>();
+
+  if (shiftIds.length > 0) {
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from("worker_shift_assignments")
+      .select("worker_id")
+      .eq("tenant_id", tenantId)
+      .in("shift_id", shiftIds);
+    if (assignmentError) throw assignmentError;
+
+    for (const row of (assignmentRows ?? []) as Array<{ worker_id?: string | null }>) {
+      const workerKey = String(row.worker_id ?? "").trim();
+      if (workerKey) assignedWorkerKeys.add(workerKey);
+    }
+  }
+
+  const { data: workerRows, error: workerError } = await supabase
+    .from("worker")
+    .select("id, user_id, first_name, last_name, email, job_role, status, city, state")
+    .eq("tenant_id", tenantId)
+    .order("first_name", { ascending: true })
+    .order("last_name", { ascending: true })
+    .limit(500);
+  if (workerError) throw workerError;
+
+  const candidates: FacilityAssignableCandidate[] = [];
+
+  for (const worker of (workerRows ?? []) as WorkerRow[]) {
+    const workerId = String(worker.id);
+    const userId = worker.user_id ? String(worker.user_id) : "";
+    const alreadyAssigned =
+      assignedWorkerKeys.has(workerId) || (userId ? assignedWorkerKeys.has(userId) : false);
+    if (alreadyAssigned) continue;
+
+    const city = worker.city?.trim() || null;
+    const state = worker.state?.trim() || null;
+    const location = [city, state].filter(Boolean).join(", ") || "—";
+
+    candidates.push({
+      workerId,
+      name: workerDisplayName(worker),
+      email: worker.email?.trim() || null,
+      jobRole: worker.job_role?.trim() || null,
+      status: worker.status?.trim() || null,
+      location,
+      hasLinkedAccount: Boolean(userId),
+    });
+  }
+
+  logFacilityTenantDebug("load-assignable-candidates", {
+    tenantId,
+    facilityId,
+    candidateCount: candidates.length,
+    assignableWithAccount: candidates.filter((item) => item.hasLinkedAccount).length,
+  });
+
+  return candidates;
 }
 
 export function filterFacilitiesBySearch(

@@ -3,7 +3,7 @@
 import { useId, useRef } from "react"
 import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types"
 
-export type AddressAutocompleteFieldVariant = "signup" | "onboarding"
+export type AddressAutocompleteFieldVariant = "signup" | "onboarding" | "facility"
 
 type Props = {
   label: string
@@ -31,6 +31,9 @@ const signupInputClass =
 
 const onboardingInputClass =
   "h-[56px] w-full rounded-[8px] border bg-white px-[14px] text-[16px] font-normal leading-[24px] tracking-normal"
+
+const facilityInputClass =
+  "h-11 w-full rounded-md border bg-white px-3 text-sm text-[#111827] outline-none transition placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]"
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" }
 const signupInputTypographyStyle = {
@@ -66,18 +69,26 @@ export default function AddressAutocompleteField({
   const borderClass = error
     ? variant === "signup"
       ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
+      : variant === "facility"
+        ? "border-[#FCA5A5] text-[#B91C1C] focus:border-[#EF4444] focus:ring-[#EF4444]"
       : "border-[#ff5c7a] text-[#0f172a] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
     : isVerified
       ? variant === "signup"
         ? "border-[#3fb27f] text-[#0f172a] focus:border-[#3fb27f] focus:ring-[#3fb27f]/20"
+        : variant === "facility"
+          ? "border-[color:color-mix(in_srgb,var(--brand-primary)_45%,#86EFAC)]"
         : "border-[#3fb27f] text-[#0f172a] focus:border-[#3fb27f] focus:ring-[#3fb27f]/20"
       : variant === "signup"
         ? "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
+        : variant === "facility"
+          ? "border-[#D1D5DB]"
         : "border-[#cbd5e1] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
 
   const inputClassName =
     variant === "signup"
       ? `${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${borderClass}`
+      : variant === "facility"
+        ? `${facilityInputClass} disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${borderClass}`
       : `${onboardingInputClass} outline-none transition placeholder:text-[#94a3b8] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${borderClass}`
 
   const handleBlur = () => {
@@ -93,6 +104,8 @@ export default function AddressAutocompleteField({
         className={
           variant === "signup"
             ? "mb-[10px] flex items-center justify-between gap-3"
+            : variant === "facility"
+              ? "mb-2 flex items-center justify-between gap-2"
             : "mb-[8px] flex items-center justify-between gap-2"
         }
       >
@@ -100,6 +113,8 @@ export default function AddressAutocompleteField({
           className={
             variant === "signup"
               ? "block text-[13px] font-normal leading-[18px] tracking-normal text-[#0f172a] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]"
+              : variant === "facility"
+                ? "block text-sm text-[#6B7280]"
               : "block text-[14px] font-normal leading-[20px] text-[#0f172a]"
           }
           style={interStyle}
@@ -112,6 +127,8 @@ export default function AddressAutocompleteField({
             className={
               variant === "signup"
                 ? "text-[9px] font-normal leading-none text-[#8a98aa]"
+                : variant === "facility"
+                  ? "shrink-0 text-xs text-[#9CA3AF]"
                 : "shrink-0 text-[12px] font-normal leading-[16px] text-[#94a3b8]"
             }
             style={variant === "onboarding" ? interStyle : undefined}
@@ -151,6 +168,8 @@ export default function AddressAutocompleteField({
             className={
               variant === "signup"
                 ? "absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[240px] overflow-y-auto rounded-[8px] border border-[#d7e0ea] bg-white shadow-md"
+                : variant === "facility"
+                  ? "absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-56 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white shadow-lg"
                 : "absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[240px] overflow-y-auto rounded-[8px] border border-[#cbd5e1] bg-white shadow-md"
             }
           >
