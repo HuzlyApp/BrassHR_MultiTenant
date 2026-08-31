@@ -2751,8 +2751,12 @@ export function JobFormFooter({
                 ) : (
                   <span className="font-medium text-[color:var(--brand-primary)]">Terms</span>
                 )}
+                {" "}
+                and{" "}
+                {/* Cookie policy link removed — not shown in job create flow
                 ,{" "}
                 <span className="font-medium text-[color:var(--brand-primary)]">Cookie</span>, and{" "}
+                */}
                 {privacyHref ? (
                   <Link
                     href={privacyHref}

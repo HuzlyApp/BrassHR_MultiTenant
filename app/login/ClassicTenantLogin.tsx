@@ -37,6 +37,7 @@ type ClassicTenantLoginProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   forgotReturnTo?: string;
   termsHref?: string;
+  privacyHref?: string;
 };
 
 export default function ClassicTenantLogin({
@@ -57,6 +58,7 @@ export default function ClassicTenantLogin({
   onSubmit,
   forgotReturnTo,
   termsHref,
+  privacyHref,
 }: ClassicTenantLoginProps) {
   const router = useRouter();
   const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && form.agree;
@@ -199,6 +201,22 @@ export default function ClassicTenantLogin({
                     Terms &amp; Conditions
                   </span>
                 )}
+                {" "}and{" "}
+                {privacyHref ? (
+                  <Link
+                    href={privacyHref}
+                    className="font-medium underline"
+                    style={{ color: "var(--brand-primary)" }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    Privacy Policy
+                  </Link>
+                ) : (
+                  <span className="font-medium" style={{ color: "var(--brand-primary)" }}>
+                    Privacy Policy
+                  </span>
+                )}
+                .
               </span>
             </OnboardingCheckbox>
           </div>

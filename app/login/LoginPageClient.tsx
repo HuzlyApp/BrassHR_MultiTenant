@@ -704,6 +704,10 @@ function LoginPageContent() {
       withTenant(LEGAL_ROUTES.tenantTerms, tenantSlug),
       adminReturnHref
     );
+    const privacyPolicyHref = legalReturnHref(
+      withTenant(LEGAL_ROUTES.privacyPolicy, tenantSlug),
+      adminReturnHref
+    );
 
     return (
       <TenantBrandingProvider branding={brand}>
@@ -729,6 +733,7 @@ function LoginPageContent() {
           onSubmit={handleClassicSubmit}
           forgotReturnTo="/admin"
           termsHref={tenantTermsHref}
+          privacyHref={privacyPolicyHref}
         />
       </TenantBrandingProvider>
     );
