@@ -2,10 +2,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WorkerStatusMetrics = {
   total: number;
+  employment_total: number;
   active: number;
+  employment_new: number;
   on_leave: number;
   inactive: number;
   terminated: number;
+  pipeline_total: number;
+  pipeline_active: number;
+  pipeline_new: number;
+  pipeline_inactive: number;
+  pipeline_terminated: number;
   applications: number;
   offer_extended: number;
   hires: number;
@@ -14,10 +21,17 @@ export type WorkerStatusMetrics = {
 
 const EMPTY: WorkerStatusMetrics = {
   total: 0,
+  employment_total: 0,
   active: 0,
+  employment_new: 0,
   on_leave: 0,
   inactive: 0,
   terminated: 0,
+  pipeline_total: 0,
+  pipeline_active: 0,
+  pipeline_new: 0,
+  pipeline_inactive: 0,
+  pipeline_terminated: 0,
   applications: 0,
   offer_extended: 0,
   hires: 0,
@@ -39,10 +53,17 @@ export async function fetchWorkerStatusMetrics(
   const row = (data ?? {}) as Partial<WorkerStatusMetrics>;
   return {
     total: Number(row.total ?? 0),
+    employment_total: Number(row.employment_total ?? 0),
     active: Number(row.active ?? 0),
+    employment_new: Number(row.employment_new ?? 0),
     on_leave: Number(row.on_leave ?? 0),
     inactive: Number(row.inactive ?? 0),
     terminated: Number(row.terminated ?? 0),
+    pipeline_total: Number(row.pipeline_total ?? 0),
+    pipeline_active: Number(row.pipeline_active ?? 0),
+    pipeline_new: Number(row.pipeline_new ?? 0),
+    pipeline_inactive: Number(row.pipeline_inactive ?? 0),
+    pipeline_terminated: Number(row.pipeline_terminated ?? 0),
     applications: Number(row.applications ?? 0),
     offer_extended: Number(row.offer_extended ?? 0),
     hires: Number(row.hires ?? 0),
