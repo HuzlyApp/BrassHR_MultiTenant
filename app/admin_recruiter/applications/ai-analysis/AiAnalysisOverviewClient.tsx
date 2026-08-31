@@ -138,13 +138,22 @@ function copyText(value: string, success: string) {
   toast.success(success);
 }
 
-function MatchRing({ percent, label, strokeColor }: { percent: number; label: string; strokeColor: string }) {
+function MatchRing({
+  percent,
+  label,
+  strokeColor,
+}: {
+  percent: number | null;
+  label: string;
+  strokeColor: string;
+}) {
   const outer = 139;
   const size = 121;
   const stroke = 10;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.min(100, Math.max(0, percent)) / 100) * circumference;
+  const fill = percent == null ? 0 : Math.min(100, Math.max(0, percent));
+  const offset = circumference - (fill / 100) * circumference;
 
   return (
     <div className="relative shrink-0" style={{ width: outer, height: outer }}>
@@ -178,7 +187,9 @@ function MatchRing({ percent, label, strokeColor }: { percent: number; label: st
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex w-[79px] flex-col items-center text-center">
-          <span className="h-9 text-[30px] font-semibold leading-9 text-black">{percent}%</span>
+          <span className="h-9 text-[30px] font-semibold leading-9 text-black">
+            {percent == null ? "—" : `${percent}%`}
+          </span>
           <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
         </div>
       </div>
@@ -635,7 +646,10 @@ export function AiAnalysisOverviewClient({
   }
 
   const app = data?.application;
-  const matchScore = app?.ai_match_score ?? 0;
+  const matchScore =
+    isAnalyzed && app?.ai_match_score != null && Number.isFinite(Number(app.ai_match_score))
+      ? Number(app.ai_match_score)
+      : null;
   const matchLabel =
     app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Not analyzed";
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
@@ -781,7 +795,7 @@ export function AiAnalysisOverviewClient({
             <div className="flex flex-col items-center gap-5 border-b border-[#E5E7EB] px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
               <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center sm:w-auto sm:flex-row sm:items-center sm:gap-5 sm:text-left">
                 <MatchRing
-                  percent={Math.round(Number(matchScore) || 0)}
+                  percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
                 />
@@ -794,7 +808,7 @@ export function AiAnalysisOverviewClient({
                     >
                       {matchLabel}
                     </span>
-                    {confidencePercent != null ? (
+                    {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
                         Confidence {confidencePercent}%
                       </span>
