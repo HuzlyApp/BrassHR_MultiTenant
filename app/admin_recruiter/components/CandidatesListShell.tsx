@@ -66,6 +66,8 @@ export type CandidatesListShellProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   totalFiltered: number;
+  /** When false, hides the Highlight Multi-Job Applicants toggle (legacy candidates page). */
+  showMultiJobHighlight?: boolean;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -280,6 +282,7 @@ export function CandidatesListShell({
   onPageChange,
   onPageSizeChange,
   totalFiltered,
+  showMultiJobHighlight = true,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
@@ -328,26 +331,26 @@ export function CandidatesListShell({
   const rangeStart = totalFiltered === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const rangeEnd = Math.min(safePage * pageSize, totalFiltered);
 
-  const totalText = advancedSearchActive ? (
-    <>
-      Total:{" "}
-      <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span> Results
-      {advancedSearchPlace ? (
-        <>
-          {" "}
-          found in <span className="font-semibold text-[#203130]">{advancedSearchPlace}</span>
-        </>
-      ) : null}
-    </>
-  ) : (
-    <>
-      Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span>{" "}
-      {loading ? "" : totalLabel}
-    </>
-  );
+  // const totalText = advancedSearchActive ? (
+  //   <>
+  //     Total:{" "}
+  //     <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span> Results
+  //     {advancedSearchPlace ? (
+  //       <>
+  //         {" "}
+  //         found in <span className="font-semibold text-[#203130]">{advancedSearchPlace}</span>
+  //       </>
+  //     ) : null}
+  //   </>
+  // ) : (
+  //   <>
+  //     Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span>{" "}
+  //     {loading ? "" : totalLabel}
+  //   </>
+  // );
 
   return (
-    <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8">
+    <div className="box-border w-full min-w-0 max-w-full px-3 pb-4 pt-4 sm:px-5 sm:pt-5 lg:px-8">
       <CandidatesSubTabs />
 
       <CandidatesPageHeader
@@ -532,16 +535,18 @@ export function CandidatesListShell({
           </div>
         </div>
 
-        <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
+        {showMultiJobHighlight ? (
+          <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
+        ) : null}
 
-        <div className="flex w-full items-center px-3 pb-2 sm:px-5">
+        {/* <div className="flex w-full items-center px-3 pb-2 sm:px-5">
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
-        </div>
+        </div> */}
 
-        <div className="bg-white px-3 pb-5 sm:px-5">{children}</div>
+        <div className="w-full bg-white">{children}</div>
 
         {totalFiltered > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-4 sm:px-5 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4">
+          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-3 sm:px-5 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4">
             <p className="text-sm text-[#64748B]">
               Showing {rangeStart}-{rangeEnd} of {totalFiltered} results
             </p>
@@ -566,7 +571,7 @@ export function CandidatesListShell({
         ) : null}
       </div>
 
-      {highlightMultiJob && multiJobApplicantCount > 0 ? (
+      {showMultiJobHighlight && highlightMultiJob && multiJobApplicantCount > 0 ? (
         <MultiJobApplicantsBanner count={multiJobApplicantCount} onViewAll={onViewAllMultiJobApplicants} />
       ) : null}
 

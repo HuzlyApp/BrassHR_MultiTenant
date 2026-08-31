@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, UserPlus, Users } from "lucide-react";
+import { Check, MoreHorizontal, UserPlus, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import type { StaffAccountStatus, StaffConsoleRole, StaffDirectoryRow } from "@/lib/admin/staff-directory-types";
 
@@ -456,13 +456,20 @@ export default function AdminConsolePanel() {
                 <option value="admin">Admin</option>
               </select>
             </label>
-            <label className="mt-3 flex items-start gap-2 text-sm text-[#334155]">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={requirePasswordChange}
-                onChange={(event) => setRequirePasswordChange(event.target.checked)}
-              />
+            <label className="mt-3 flex items-start gap-3 text-sm text-[#334155]">
+              <span className="relative mt-0.5 inline-flex h-5 w-5 shrink-0">
+                <input
+                  type="checkbox"
+                  className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-checkbox,var(--brand-primary))] checked:bg-[color:var(--brand-checkbox,var(--brand-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-checkbox,var(--brand-primary))_30%,transparent)]"
+                  checked={requirePasswordChange}
+                  onChange={(event) => setRequirePasswordChange(event.target.checked)}
+                />
+                <Check
+                  className="pointer-events-none absolute inset-0 m-auto hidden h-3 w-3 text-white peer-checked:block"
+                  strokeWidth={3}
+                  aria-hidden
+                />
+              </span>
               <span>Require password setup before first login (recommended). They activate with a one-time email link.</span>
             </label>
             {formError ? <p className="mt-3 text-sm text-[#B91C1C]">{formError}</p> : null}

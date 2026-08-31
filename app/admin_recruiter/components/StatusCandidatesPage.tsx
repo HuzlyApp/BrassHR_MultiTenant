@@ -21,6 +21,10 @@ import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
 import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
+import {
+  resolveCandidatesListTotal,
+  withWorkersListFetchLimit,
+} from "@/lib/workers/candidates-list-fetch";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
@@ -166,12 +170,11 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const resolvedUrl = (() => {
-        const sep = fetchUrl.includes("?") ? "&" : "?";
-        return fetchUrl.includes("includePhotoUrls=")
+      const resolvedUrl = withWorkersListFetchLimit(
+        fetchUrl.includes("includePhotoUrls=")
           ? fetchUrl
-          : `${fetchUrl}${sep}includePhotoUrls=1`;
-      })();
+          : `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}includePhotoUrls=1`
+      );
       const res = await fetch(resolvedUrl, { cache: "no-store" });
       const data = await res.json();
       const authError =
@@ -298,6 +301,28 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     return out;
   }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
 
+  const hasActiveListFilters = useMemo(
+    () =>
+      Boolean(
+        query.trim() ||
+          jobRoleFilter ||
+          statusFilter ||
+          locationFilter ||
+          dateFilter
+      ),
+    [query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+  );
+
+  const listDisplayTotal = useMemo(
+    () =>
+      resolveCandidatesListTotal({
+        totalFromApi,
+        visibleCount: filtered.length,
+        hasClientFilters: hasActiveListFilters,
+      }),
+    [totalFromApi, filtered.length, hasActiveListFilters]
+  );
+
   useEffect(() => {
     setPage(1);
   }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
@@ -408,14 +433,14 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onExportCsv={() => exportCandidatesCsv(filtered)}
         onExportXls={() => exportCandidatesXls(filtered)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
-        totalCount={totalFromApi}
+        totalCount={listDisplayTotal}
         loading={loading}
         totalLabel={`${statusLabel} applicants`}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
-        totalFiltered={filtered.length}
+        totalFiltered={listDisplayTotal}
       >
         {(() => {
           const formatDate = formatDateShort;
@@ -430,7 +455,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           if (view === "list") {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
-              <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+              <div className="w-full overflow-hidden">
                 <CandidateBulkSelectionBar
                   selectedCount={selection.selectedCount}
                   eligibleCount={selection.selectedEligibleCount}
@@ -439,8 +464,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                   onClaim={openClaimConfirm}
                   onClear={selection.clearSelection}
                 />
-                <div className="overflow-auto">
-                  <table className="min-w-[820px] w-full border-collapse">
+                <div className="w-full overflow-auto">
+                  <table className="w-full min-w-[820px] border-collapse">
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -503,7 +528,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
                 <CandidateGridCard
                   key={c.id}
