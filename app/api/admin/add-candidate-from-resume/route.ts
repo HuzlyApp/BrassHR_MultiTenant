@@ -3,10 +3,12 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { adminAddCandidateFromResume } from "@/lib/jobs/admin-add-candidate-from-resume";
 import { JobValidationError } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
-import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
+import { enforceRateLimit, envRateLimit } from "@/lib/security/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
+
+const CREATE_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_ADD_CANDIDATE_PER_HOUR", 80);
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof JobValidationError) return error.message;
@@ -20,12 +22,21 @@ export async function POST(req: NextRequest) {
 
   const limited = await enforceRateLimit(req, {
     namespace: "admin-add-candidate-from-resume",
-    key: getClientIp(req),
-    limit: Number(process.env.RATE_LIMIT_AI_PER_HOUR ?? 20),
+    key: auth.userId,
+    limit: CREATE_LIMIT,
     windowMs: 60 * 60 * 1000,
-    failClosed: true,
   });
-  if (limited) return limited;
+  if (limited) {
+    const retryAfterSec = Number(limited.headers.get("Retry-After") ?? 3600);
+    const seconds = Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec : 3600;
+    const minutes = Math.max(1, Math.ceil(seconds / 60));
+    return NextResponse.json(
+      {
+        error: `Too many candidate uploads right now. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      },
+      { status: 429, headers: limited.headers }
+    );
+  }
 
   const supabase = createServiceRoleClient();
   if (!supabase) {

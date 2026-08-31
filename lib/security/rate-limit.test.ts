@@ -1,5 +1,9 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { __resetRateLimitForTests, checkRateLimit } from "@/lib/security/rate-limit";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import {
+  __resetRateLimitForTests,
+  checkRateLimit,
+  envRateLimit,
+} from "@/lib/security/rate-limit";
 
 describe("checkRateLimit", () => {
   beforeEach(() => {
@@ -31,5 +35,32 @@ describe("checkRateLimit", () => {
     await expect(
       checkRateLimit({ namespace: "b", key: "same", limit: 1, windowMs: 60_000 })
     ).resolves.toMatchObject({ allowed: true });
+  });
+});
+
+describe("envRateLimit", () => {
+  const ENV_NAME = "RATE_LIMIT_TEST_VALUE";
+
+  afterEach(() => {
+    delete process.env[ENV_NAME];
+  });
+
+  it("uses the fallback when unset, empty, or non-positive", () => {
+    delete process.env[ENV_NAME];
+    expect(envRateLimit(ENV_NAME, 80)).toBe(80);
+
+    process.env[ENV_NAME] = "";
+    expect(envRateLimit(ENV_NAME, 80)).toBe(80);
+
+    process.env[ENV_NAME] = "0";
+    expect(envRateLimit(ENV_NAME, 80)).toBe(80);
+
+    process.env[ENV_NAME] = "-1";
+    expect(envRateLimit(ENV_NAME, 80)).toBe(80);
+  });
+
+  it("reads a positive integer from env", () => {
+    process.env[ENV_NAME] = "120";
+    expect(envRateLimit(ENV_NAME, 80)).toBe(120);
   });
 });
