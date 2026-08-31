@@ -8,6 +8,7 @@ import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applican
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { isUuid } from "@/lib/validation/uuid";
+import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 
 export const runtime = "nodejs";
 
@@ -40,9 +41,10 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  const db = supabase;
 
   try {
-    const tenantId = await resolveStaffTenantId(supabase, auth);
+    const tenantId = await resolveStaffTenantId(db, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
     const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
     const applicationSelect = `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
     function buildListQuery() {
-      let query = supabase
+      let query = db
         .from("job_applications")
         .select(applicationSelect)
         .eq("tenant_id", tenantId);
