@@ -6,6 +6,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { JobDetailPanel } from "@/app/jobs/JobDetailPanel";
 import { JobResultCard } from "@/app/jobs/JobResultCard";
 import { JobsBoardFilters } from "@/app/jobs/JobsBoardFilters";
+import { JobsBoardSortMenu } from "@/app/jobs/JobsBoardSortMenu";
 import { NO_OPEN_POSITIONS_MESSAGE } from "@/lib/jobs/public-application-routing";
 import {
   buildJobsBoardHref,
@@ -18,7 +19,6 @@ import {
   resolveSelectedJobToken,
   sortPublicBoardJobs,
   type JobsBoardActiveChip,
-  type JobsBoardSort,
   type JobsBoardUrlState,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
@@ -78,6 +78,7 @@ export default function JobsPortalClient() {
   const [locationDraft, setLocationDraft] = useState(boardState.location);
   const [selectedToken, setSelectedToken] = useState<string | null>(boardState.job);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(boardState.panel === "detail");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,21 +99,50 @@ export default function JobsPortalClient() {
     setLocationDraft(boardState.location);
   }, [boardState.q, boardState.location]);
 
+  const boardStateRef = useRef(boardState);
+  useEffect(() => {
+    boardStateRef.current = boardState;
+  }, [boardState]);
+
   const lastHrefRef = useRef("");
+  useEffect(() => {
+    if (!tenant) return;
+    lastHrefRef.current = buildJobsBoardHref({
+      tenant,
+      q: boardState.q,
+      professionId: boardState.professionId,
+      specialtyId: boardState.specialtyId,
+      location: boardState.location,
+      employmentType: boardState.employmentType,
+      locationType: boardState.locationType,
+      sort: boardState.sort,
+      page: boardState.page,
+      job: selectedToken ?? boardState.job,
+      panel: mobileDetailOpen && !isDesktop ? "detail" : null,
+    });
+  }, [
+    boardState,
+    isDesktop,
+    mobileDetailOpen,
+    selectedToken,
+    tenant,
+  ]);
+
   const replaceBoardUrl = useCallback(
     (patch: BoardUrlPatch) => {
       if (!tenant) return;
+      const current = boardStateRef.current;
       const href = buildJobsBoardHref({
         tenant,
-        q: patch.q ?? boardState.q,
-        professionId: patch.professionId ?? boardState.professionId,
-        specialtyId: patch.specialtyId ?? boardState.specialtyId,
-        location: patch.location ?? boardState.location,
-        employmentType: patch.employmentType ?? boardState.employmentType,
-        locationType: patch.locationType ?? boardState.locationType,
-        sort: patch.sort ?? boardState.sort,
-        page: patch.page ?? boardState.page,
-        job: patch.job === undefined ? selectedToken ?? boardState.job : patch.job,
+        q: "q" in patch ? (patch.q ?? "") : current.q,
+        professionId: "professionId" in patch ? (patch.professionId ?? "") : current.professionId,
+        specialtyId: "specialtyId" in patch ? (patch.specialtyId ?? "") : current.specialtyId,
+        location: "location" in patch ? (patch.location ?? "") : current.location,
+        employmentType: "employmentType" in patch ? (patch.employmentType ?? "") : current.employmentType,
+        locationType: "locationType" in patch ? (patch.locationType ?? "") : current.locationType,
+        sort: "sort" in patch ? patch.sort! : current.sort,
+        page: "page" in patch ? patch.page! : current.page,
+        job: patch.job === undefined ? selectedToken ?? current.job : patch.job,
         panel:
           patch.panel === undefined
             ? mobileDetailOpen && !isDesktop
@@ -124,7 +154,7 @@ export default function JobsPortalClient() {
       lastHrefRef.current = href;
       router.replace(href, { scroll: false });
     },
-    [boardState, isDesktop, mobileDetailOpen, router, selectedToken, tenant]
+    [isDesktop, mobileDetailOpen, router, selectedToken, tenant]
   );
   const replaceBoardUrlRef = useRef(replaceBoardUrl);
   useEffect(() => {
@@ -133,11 +163,20 @@ export default function JobsPortalClient() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (queryDraft.trim() === boardState.q && locationDraft.trim() === boardState.location) return;
-      replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 });
+      const current = boardStateRef.current;
+      if (queryDraft.trim() === current.q && locationDraft.trim() === current.location) return;
+      replaceBoardUrlRef.current({
+        q: queryDraft,
+        location: locationDraft,
+        page: 1,
+        professionId: current.professionId,
+        specialtyId: current.specialtyId,
+        employmentType: current.employmentType,
+        locationType: current.locationType,
+      });
     }, JOBS_BOARD_INPUT_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [boardState.location, boardState.q, locationDraft, queryDraft, replaceBoardUrl]);
+  }, [boardState.location, boardState.q, locationDraft, queryDraft]);
 
   useEffect(() => {
     if (!tenant) {
@@ -260,18 +299,48 @@ export default function JobsPortalClient() {
     });
   };
 
-  const clearSecondary = () =>
-    replaceBoardUrl({
+  const clearSecondary = useCallback(() => {
+    if (!tenant) return;
+    const current = boardStateRef.current;
+    const nextState = {
+      ...current,
       professionId: "",
       specialtyId: "",
       employmentType: "",
       locationType: "",
       page: 1,
+    };
+    boardStateRef.current = nextState;
+    const href = buildJobsBoardHref({
+      tenant,
+      q: nextState.q,
+      professionId: "",
+      specialtyId: "",
+      employmentType: "",
+      locationType: "",
+      location: nextState.location,
+      sort: nextState.sort,
+      page: 1,
+      job: selectedToken ?? nextState.job,
+      panel: mobileDetailOpen && !isDesktop ? "detail" : null,
     });
+    lastHrefRef.current = href;
+    router.replace(href, { scroll: false });
+  }, [isDesktop, mobileDetailOpen, router, selectedToken, tenant]);
 
   const clearAllSearchAndFilters = () => {
     setQueryDraft("");
     setLocationDraft("");
+    boardStateRef.current = {
+      ...boardStateRef.current,
+      q: "",
+      location: "",
+      professionId: "",
+      specialtyId: "",
+      employmentType: "",
+      locationType: "",
+      page: 1,
+    };
     replaceBoardUrl({
       q: "",
       location: "",
@@ -284,10 +353,20 @@ export default function JobsPortalClient() {
   };
 
   const removeChip = (key: JobsBoardActiveChip["key"]) => {
-    if (key === "professionId") replaceBoardUrl({ professionId: "", specialtyId: "", page: 1 });
-    else if (key === "specialtyId") replaceBoardUrl({ specialtyId: "", page: 1 });
-    else if (key === "employmentType") replaceBoardUrl({ employmentType: "", page: 1 });
-    else replaceBoardUrl({ locationType: "", page: 1 });
+    const current = boardStateRef.current;
+    if (key === "professionId") {
+      boardStateRef.current = { ...current, professionId: "", specialtyId: "", page: 1 };
+      replaceBoardUrl({ professionId: "", specialtyId: "", page: 1 });
+    } else if (key === "specialtyId") {
+      boardStateRef.current = { ...current, specialtyId: "", page: 1 };
+      replaceBoardUrl({ specialtyId: "", page: 1 });
+    } else if (key === "employmentType") {
+      boardStateRef.current = { ...current, employmentType: "", page: 1 };
+      replaceBoardUrl({ employmentType: "", page: 1 });
+    } else {
+      boardStateRef.current = { ...current, locationType: "", page: 1 };
+      replaceBoardUrl({ locationType: "", page: 1 });
+    }
   };
 
   return (
@@ -298,12 +377,69 @@ export default function JobsPortalClient() {
       <header className="shrink-0 border-b border-slate-200/80 bg-white">
         <div className="h-1 w-full" style={{ backgroundColor: primaryHex }} />
         <div className="mx-auto w-full max-w-[1440px] px-4 py-3 sm:px-6 min-[1280px]:px-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]">
-            {companyName}
-          </p>
-          <h1 className="mt-0.5 text-lg font-semibold text-slate-900 sm:text-xl">Open positions</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Find a published role that matches your background.</p>
-          <div className="mt-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]">
+                {companyName}
+              </p>
+              <h1 className="mt-0.5 text-lg font-semibold text-slate-900 sm:text-xl">Open positions</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Find a published role that matches your background.</p>
+            </div>
+            <button
+              type="button"
+              data-testid="jobs-mobile-search-toggle"
+              aria-expanded={mobileSearchOpen}
+              aria-controls="jobs-board-filters"
+              onClick={() => setMobileSearchOpen((open) => !open)}
+              className={`relative inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:hidden ${
+                mobileSearchOpen
+                  ? "border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[color:var(--brand-primary)]"
+                  : hasActiveFilters
+                    ? "border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] bg-white text-[color:var(--brand-primary)]"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              {mobileSearchOpen ? (
+                <>
+                  <span aria-hidden>×</span>
+                  Hide
+                </>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden
+                    className="shrink-0"
+                  >
+                    <path
+                      d="M2.5 4.5H13.5M4.5 8H11.5M6.5 11.5H9.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  Search
+                </>
+              )}
+              {hasActiveFilters && !mobileSearchOpen ? (
+                <span
+                  className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)] ring-2 ring-white"
+                  aria-hidden
+                />
+              ) : null}
+              <span className="sr-only">
+                {mobileSearchOpen ? "Hide search and filters" : "Show search and filters"}
+              </span>
+            </button>
+          </div>
+          <div
+            id="jobs-board-filters"
+            className={`mt-3 ${mobileSearchOpen ? "block" : "hidden"} lg:block`}
+          >
             <JobsBoardFilters
               query={queryDraft}
               location={locationDraft}
@@ -319,7 +455,10 @@ export default function JobsPortalClient() {
               onSpecialtyChange={(value) => replaceBoardUrl({ specialtyId: value, page: 1 })}
               onEmploymentTypeChange={(value) => replaceBoardUrl({ employmentType: value, page: 1 })}
               onLocationTypeChange={(value) => replaceBoardUrl({ locationType: value, page: 1 })}
-              onSearch={() => replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 })}
+              onSearch={() => {
+                replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 });
+                if (!isDesktop) setMobileSearchOpen(false);
+              }}
               onClearSecondary={clearSecondary}
               onRemoveChip={removeChip}
             />
@@ -327,7 +466,7 @@ export default function JobsPortalClient() {
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col px-4 py-3 sm:px-6 min-[1280px]:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col px-3 py-3 sm:px-6 min-[1280px]:px-8">
         {error ? (
           <div
             role="alert"
@@ -341,38 +480,29 @@ export default function JobsPortalClient() {
         <div
           data-testid="jobs-split-view"
           data-layout={isDesktop ? "split" : "stack"}
-          className="flex min-h-0 flex-1 overflow-hidden lg:flex"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row"
         >
           <section
             data-testid="jobs-results-panel"
             aria-label="Job results"
-            className={`min-h-0 w-full flex-col lg:flex lg:w-[40%] lg:max-w-[42%] lg:pr-4 ${
-              showMobileDetail ? "hidden" : "flex"
+            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,28rem)] lg:max-w-[42%] lg:flex-none lg:pr-4 xl:w-[38%] ${
+              showMobileDetail ? "hidden" : "flex flex-1"
             }`}
           >
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+            <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <p className="text-sm font-medium text-slate-700" aria-live="polite">
                 {total} {total === 1 ? "job" : "jobs"}
               </p>
-              <label className="flex items-center gap-2 text-sm text-slate-500">
-                <span className="sr-only">Sort jobs</span>
-                <select
-                  aria-label="Sort jobs"
-                  value={boardState.sort}
-                  onChange={(event) =>
-                    replaceBoardUrl({ sort: event.target.value as JobsBoardSort })
-                  }
-                  className="min-h-11 rounded-lg border-0 bg-transparent text-sm text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_28%,transparent)]"
-                >
-                  <option value="recent">Most recent</option>
-                  <option value="relevant">Most relevant</option>
-                </select>
-              </label>
+              <JobsBoardSortMenu
+                value={boardState.sort}
+                onChange={(sort) => replaceBoardUrl({ sort })}
+              />
             </div>
-            <div
-              ref={listScrollRef}
-              className="jobs-board-scroll min-h-0 flex-1 overflow-y-auto pr-1"
-            >
+            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm lg:rounded-xl lg:border-slate-200/60 lg:shadow-none">
+              <div
+                ref={listScrollRef}
+                className="jobs-board-scroll h-full min-h-0 overflow-y-auto"
+              >
               {loading ? (
                 <div data-testid="jobs-loading" className="space-y-2" aria-busy="true" aria-label="Loading jobs">
                   {Array.from({ length: 6 }).map((_, index) => (
@@ -422,13 +552,14 @@ export default function JobsPortalClient() {
                   })}
                 </div>
               ) : null}
+              </div>
             </div>
-            <div className="flex shrink-0 justify-center gap-3 pt-3">
+            <div className="flex shrink-0 gap-2 pt-3 sm:justify-center">
               <button
                 type="button"
                 disabled={boardState.page <= 1 || loading}
                 onClick={() => replaceBoardUrl({ page: Math.max(1, boardState.page - 1) })}
-                className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 disabled:opacity-40"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:min-w-[7.5rem]"
               >
                 Previous
               </button>
@@ -436,19 +567,17 @@ export default function JobsPortalClient() {
                 type="button"
                 disabled={boardState.page >= pageCount || loading}
                 onClick={() => replaceBoardUrl({ page: Math.min(pageCount, boardState.page + 1) })}
-                className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 disabled:opacity-40"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:min-w-[7.5rem]"
               >
                 Next
               </button>
             </div>
           </section>
 
-          <div className="hidden w-px bg-slate-200 lg:block" aria-hidden />
-
           <section
             aria-label="Selected job details"
-            className={`min-h-0 w-full flex-col bg-white lg:flex lg:w-[60%] lg:min-w-[58%] lg:rounded-2xl lg:border lg:border-slate-200/80 ${
-              showMobileDetail ? "flex" : "hidden"
+            className={`min-h-0 w-full flex-col bg-white lg:flex lg:min-h-0 lg:min-w-0 lg:flex-1 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200/80 ${
+              showMobileDetail ? "fixed inset-0 z-40 flex lg:static lg:z-auto" : "hidden"
             }`}
           >
             <JobDetailPanel

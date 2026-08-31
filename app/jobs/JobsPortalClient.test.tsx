@@ -129,8 +129,8 @@ describe("JobsPortalClient", () => {
     await renderBoard();
     const split = await screen.findByTestId("jobs-split-view");
     expect(split.className).toContain("lg:flex");
-    expect(screen.getByTestId("jobs-results-panel").className).toContain("lg:w-[40%]");
-    expect(screen.getByLabelText("Selected job details").className).toContain("lg:w-[60%]");
+    expect(screen.getByTestId("jobs-results-panel").className).toContain("lg:max-w-[42%]");
+    expect(screen.getByLabelText("Selected job details").className).toContain("lg:flex-1");
     expect(await screen.findByTestId("job-card-rn-1")).toBeInTheDocument();
     expect(screen.queryByText(/Page \d+ of \d+/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("jobs-split-view")).toHaveAttribute("data-layout", "split");
@@ -204,14 +204,15 @@ describe("JobsPortalClient", () => {
   });
 
   it.each([
-    ["Profession", "prof-nursing", "professionId=prof-nursing"],
+    ["Profession", "Nursing", "professionId=prof-nursing"],
     ["Employment type", "Contract", "employmentType=Contract"],
-  ])("filters by %s from the compact chip row", async (aria, value, expected) => {
+  ])("filters by %s from the compact chip row", async (aria, optionLabel, expected) => {
     const user = userEvent.setup();
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
     nav.replace.mockClear();
-    await user.selectOptions(screen.getByLabelText(aria), value);
+    await user.click(screen.getByRole("button", { name: aria }));
+    await user.click(screen.getByRole("option", { name: optionLabel }));
     expect(nav.replace).toHaveBeenCalledWith(
       expect.stringContaining(expected),
       expect.objectContaining({ scroll: false })
@@ -224,7 +225,9 @@ describe("JobsPortalClient", () => {
     await screen.findByTestId("job-card-rn-1");
     nav.replace.mockClear();
     await user.click(screen.getByTestId("jobs-all-filters"));
-    await user.selectOptions(await screen.findByLabelText("Specialty"), "spec-icu");
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Specialty" }));
+    await user.click(screen.getByRole("option", { name: "ICU" }));
     expect(nav.replace).toHaveBeenCalledWith(
       expect.stringContaining("specialtyId=spec-icu"),
       expect.objectContaining({ scroll: false })
@@ -237,9 +240,9 @@ describe("JobsPortalClient", () => {
       "tenant=zipstaff&q=RN&professionId=prof-nursing&specialtyId=spec-icu&location=Dallas&employmentType=W2&job=rn-2"
     );
     expect(await screen.findByLabelText("Search jobs, titles, or keywords")).toHaveValue("RN");
-    expect(screen.getByLabelText("Profession")).toHaveValue("prof-nursing");
+    expect(screen.getByRole("button", { name: "Profession" })).toHaveTextContent("Nursing");
     expect(screen.getByLabelText("Location")).toHaveValue("Dallas");
-    expect(screen.getByLabelText("Employment type")).toHaveValue("W2");
+    expect(screen.getByRole("button", { name: "Employment type" })).toHaveTextContent("W2");
     expect(screen.getByTestId("jobs-active-chip-specialtyId")).toHaveTextContent("ICU");
     await waitFor(() =>
       expect(screen.getByTestId("job-card-rn-2")).toHaveAttribute("aria-pressed", "true")
@@ -264,7 +267,9 @@ describe("JobsPortalClient", () => {
     const cleared = String(nav.replace.mock.calls.at(-1)?.[0]);
     expect(cleared).toContain("q=RN");
     expect(cleared).not.toContain("professionId=");
+    expect(cleared).not.toContain("specialtyId=");
     expect(cleared).not.toContain("employmentType=");
+    expect(cleared).not.toContain("locationType=");
   });
 
   it("removes an active filter chip", async () => {
@@ -410,6 +415,31 @@ describe("JobsPortalClient", () => {
     expect(screen.getByLabelText("Selected job details").className).toContain("hidden");
   });
 
+  it("collapses search and filters on mobile until toggled open", async () => {
+    const user = userEvent.setup();
+    await renderBoard("tenant=zipstaff", false);
+    await screen.findByTestId("job-card-rn-1");
+    const toggle = screen.getByTestId("jobs-mobile-search-toggle");
+    const filtersPanel = document.getElementById("jobs-board-filters");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(filtersPanel?.className).toContain("hidden");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(filtersPanel?.className).toContain("block");
+    expect(filtersPanel?.className).not.toContain("hidden");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(filtersPanel?.className).toContain("hidden");
+  });
+
+  it("keeps search and filters visible on desktop without a toggle", async () => {
+    await renderBoard();
+    await screen.findByTestId("job-card-rn-1");
+    expect(screen.getByTestId("jobs-mobile-search-toggle").className).toContain("lg:hidden");
+    expect(document.getElementById("jobs-board-filters")?.className).toContain("lg:block");
+    expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+  });
+
   it("opens All filters and restores focus when closed", async () => {
     const user = userEvent.setup();
     await renderBoard();
@@ -436,6 +466,8 @@ describe("JobsPortalClient", () => {
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
     expect(screen.getByTestId("jobs-results-panel").querySelector(".jobs-board-scroll")).toBeTruthy();
-    expect(screen.getByTestId("jobs-detail-panel").querySelector(".jobs-board-scroll")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("jobs-detail-panel").querySelector(".jobs-board-scroll")).toBeTruthy();
+    });
   });
 });

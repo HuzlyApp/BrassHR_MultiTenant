@@ -45,7 +45,7 @@ export function JobResultCard({
         aria-current={selected ? "true" : undefined}
         aria-label={`${title}${selected ? ", selected" : ""}`}
         onClick={onSelect}
-        className={`relative w-full rounded-xl px-3.5 py-3 text-left transition motion-reduce:transition-none min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
+        className={`relative w-full rounded-none px-3.5 py-3 text-left transition motion-reduce:transition-none min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
           selected
             ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_7%,white)]"
             : "bg-white hover:bg-slate-50"

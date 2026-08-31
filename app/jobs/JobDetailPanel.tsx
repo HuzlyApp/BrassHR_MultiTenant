@@ -111,7 +111,7 @@ export function JobDetailPanel({
   const facts = [job.employment_type, workplace, profession, specialty].filter(Boolean);
 
   return (
-    <article className="flex h-full min-h-0 flex-col" data-testid="jobs-detail-panel" aria-labelledby="jobs-detail-title">
+    <article className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="jobs-detail-panel" aria-labelledby="jobs-detail-title">
       <style>{DESCRIPTION_STYLES}</style>
       <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 min-[1024px]:px-6">
         {onBack && stacked ? (
