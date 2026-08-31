@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import {
   buildMatchAnalysisRepairPrompt,
   buildMatchAnalysisUserPrompt,
-  MATCH_ANALYSIS_SYSTEM_PROMPT,
+  systemPromptForMode,
   truncateStrengthsAndGaps,
   type MatchAnalysisUserPromptInput,
 } from "./prompts";
@@ -189,10 +189,12 @@ export async function generateMatchAnalysisWithGrok(
 ): Promise<GrokMatchAnalysisResult> {
   const resumeLen = input.resumeText.length;
   const maxTokens = resumeLen > LONG_RESUME_CHARS ? LONG_RESUME_MAX_TOKENS : BASE_MAX_TOKENS;
-  const userPrompt = buildMatchAnalysisUserPrompt(input);
+  const analysisMode = input.analysisMode === "deep" ? "deep" : "analyze";
+  const system = systemPromptForMode(analysisMode);
+  const userPrompt = buildMatchAnalysisUserPrompt({ ...input, analysisMode });
 
   const rawText = await callGrok({
-    system: MATCH_ANALYSIS_SYSTEM_PROMPT,
+    system,
     user: userPrompt,
     maxTokens,
   });
@@ -205,9 +207,10 @@ export async function generateMatchAnalysisWithGrok(
     const repairUser = buildMatchAnalysisRepairPrompt({
       badJson: rawText,
       validationErrors: parsed.errors,
+      analysisMode,
     });
     const repairedText = await callGrok({
-      system: MATCH_ANALYSIS_SYSTEM_PROMPT,
+      system,
       user: repairUser,
       maxTokens,
     });
@@ -219,7 +222,7 @@ export async function generateMatchAnalysisWithGrok(
     }
   }
 
-  const truncated = truncateStrengthsAndGaps(parsed.data, resumeLen);
+  const truncated = truncateStrengthsAndGaps(parsed.data, resumeLen, analysisMode);
   const analysis = rescoreMatchAnalysis(truncated);
 
   return {

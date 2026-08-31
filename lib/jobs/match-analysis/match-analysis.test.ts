@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { parseAndValidateMatchAnalysis } from "./parse";
 import { applyFairnessOutcomes, rescoreMatchAnalysis } from "./score";
 import { sanitizeResumeForMatchAnalysis } from "./sanitize-resume";
+import {
+  ANALYZE_RESPONSE_SCHEMA,
+  ANALYZE_SYSTEM_PROMPT,
+  DEEP_ANALYSIS_SYSTEM_PROMPT,
+  buildMatchAnalysisUserPrompt,
+  systemPromptForMode,
+} from "./prompts";
 import type { MatchAnalysisResponse, RequirementItem } from "./schema";
 
 function baseAnalysis(
@@ -116,6 +123,87 @@ describe("parseAndValidateMatchAnalysis", () => {
     if (!parsed.ok) {
       expect(parsed.errors.some((e) => e.includes("match_category"))).toBe(true);
     }
+  });
+
+  it("hydrates lean Analyze JSON into the full match-analysis shape", () => {
+    const lean = {
+      recommended_overall_match_score: 68,
+      match_category: "POSSIBLE_MATCH",
+      recommended_action: "CALL_AND_VERIFY",
+      mandatory_requirements: [
+        {
+          requirement: "Active TX RN license",
+          status: "PARTIAL",
+          evidence: "Lists RN license without state or expiry.",
+        },
+        {
+          requirement: "2 years ICU",
+          status: "CONFIRMED",
+          evidence: "ICU RN at Memorial 2022-2024.",
+        },
+      ],
+      preferred_requirements: [
+        {
+          requirement: "Travel experience",
+          status: "NOT_FOUND",
+          evidence: "",
+        },
+      ],
+      screening_questions: ["Confirm TX compact license status.", "Verify ICU unit type."],
+      items_to_verify: ["Work authorization"],
+      blocking_requirements: [],
+    };
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(lean));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.candidate_match.match_category).toBe("POSSIBLE_MATCH");
+      expect(parsed.data.candidate_match.recommended_action).toBe("CALL_AND_VERIFY");
+      expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(68);
+      expect(parsed.data.mandatory_requirements).toHaveLength(2);
+      expect(parsed.data.mandatory_requirements[0]?.candidate_evidence).toContain("RN license");
+      expect(parsed.data.mandatory_requirements[0]?.requirement_outcome).toBe("VERIFY");
+      expect(parsed.data.mandatory_requirements[1]?.requirement_outcome).toBe("MET");
+      expect(parsed.data.screening_questions).toHaveLength(2);
+      expect(parsed.data.screening_questions[0]?.question).toContain("compact license");
+      expect(parsed.data.submission_readiness.items_to_verify_before_submission).toEqual([
+        "Work authorization",
+      ]);
+      expect(parsed.data.strengths).toEqual([]);
+      expect(parsed.data.gaps_and_risks).toEqual([]);
+    }
+  });
+});
+
+describe("analyze vs deep prompts", () => {
+  const sampleInput = {
+    jobId: "job-1",
+    jobTitle: "ICU RN",
+    structured: {
+      mandatoryRequirements: ["Active TX RN license"],
+      preferredRequirements: ["Travel experience"],
+      requiredLicenses: ["RN"],
+      requiredCertifications: ["BLS"],
+      educationRequirements: ["BSN"],
+    },
+    fullJobDescription: "Need an ICU RN in Texas.",
+    resumeText: "ICU RN at Memorial 2022-2024.",
+  };
+
+  it("defaults to the Analyze prompt and lean JSON schema", () => {
+    expect(systemPromptForMode("analyze")).toBe(ANALYZE_SYSTEM_PROMPT);
+    expect(systemPromptForMode("deep")).toBe(DEEP_ANALYSIS_SYSTEM_PROMPT);
+    const prompt = buildMatchAnalysisUserPrompt(sampleInput);
+    expect(prompt).toContain(ANALYZE_RESPONSE_SCHEMA);
+    expect(prompt).toContain("no more than 4 focused screening questions");
+    expect(prompt).not.toContain("recruiter_decision_summary");
+    expect(prompt).not.toContain("experience_calculation_notes");
+  });
+
+  it("uses the deep schema only when analysisMode is deep", () => {
+    const prompt = buildMatchAnalysisUserPrompt({ ...sampleInput, analysisMode: "deep" });
+    expect(prompt).toContain("recruiter_decision_summary");
+    expect(prompt).toContain("experience_calculation_notes");
+    expect(prompt).toContain("no more than 5 focused screening questions");
   });
 });
 

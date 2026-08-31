@@ -9,20 +9,27 @@ export {
   RECOMMENDED_ACTION_LABELS,
   MATCH_ANALYSIS_ERROR,
   matchAnalysisResponseSchema,
+  analyzeMatchResponseSchema,
   requirementItemSchema,
   structuredJobRequirementsSchema,
   type MatchAnalysisResponse,
+  type AnalyzeMatchResponse,
   type RequirementItem,
   type StructuredJobRequirements,
   type MatchCategory,
   type RecommendedAction,
+  type AnalysisMode,
   type AiMatchPipelineStatus,
   type PipelineProgressStep,
 } from "./schema";
 
 export {
+  ANALYZE_SYSTEM_PROMPT,
+  DEEP_ANALYSIS_SYSTEM_PROMPT,
   MATCH_ANALYSIS_SYSTEM_PROMPT,
+  ANALYZE_RESPONSE_SCHEMA,
   MATCH_ANALYSIS_RESPONSE_SCHEMA_TEXT,
+  systemPromptForMode,
   buildMatchAnalysisUserPrompt,
   buildMatchAnalysisRepairPrompt,
 } from "./prompts";
