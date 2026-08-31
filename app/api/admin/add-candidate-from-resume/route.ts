@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
     const resumeTitle = String(form.get("resumeTitle") ?? "").trim();
     const firstName = String(form.get("firstName") ?? "").trim();
     const lastName = String(form.get("lastName") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim();
+    const phone = String(form.get("phone") ?? "").trim();
     const resumeFile = form.get("resume");
     const file = resumeFile instanceof File && resumeFile.size > 0 ? resumeFile : null;
 
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
       resumeTitle: resumeTitle || null,
       firstName: firstName || null,
       lastName: lastName || null,
+      email: email || null,
+      phone: phone || null,
     });
 
     return NextResponse.json(

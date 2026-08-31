@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { parsed } = await prepareResumeCandidate({
+    const { parsed, qualityOk, qualityMessage } = await prepareResumeCandidate({
       resumeFile: file,
       resumeText: resumeText || null,
       resumeTitle: resumeTitle || null,
@@ -58,7 +58,12 @@ export async function POST(req: NextRequest) {
       location: [parsed.city, parsed.state].map((part) => part.trim()).filter(Boolean).join(", "),
     };
 
-    return NextResponse.json({ ok: true, parsed: preview });
+    return NextResponse.json({
+      ok: true,
+      parsed: preview,
+      qualityOk,
+      warning: qualityOk ? null : qualityMessage,
+    });
   } catch (error) {
     if (error instanceof JobValidationError) {
       return NextResponse.json({ error: error.message }, { status: 422 });
