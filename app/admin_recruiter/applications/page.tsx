@@ -170,6 +170,7 @@ type JobOption = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const MATCH_ANALYSIS_BULK_CHUNK = 25;
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const ADD_CANDIDATE_BUTTON_CLASS =
@@ -601,6 +602,7 @@ export default function JobApplicationsPage() {
     }>
   >([]);
   const [matchAnalyzingId, setMatchAnalyzingId] = useState<string | null>(null);
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1258,6 +1260,16 @@ export default function JobApplicationsPage() {
     [selectedIds, rows, currentUserId]
   );
 
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedIds.has(row.id)),
+    [rows, selectedIds]
+  );
+  const selectedAllAnalyzed =
+    selectedRows.length > 0 && selectedRows.every((row) => row.ai_match_status === "ANALYZED");
+  const pageAllAnalyzed =
+    paginatedRows.length > 0 && paginatedRows.every((row) => row.ai_match_status === "ANALYZED");
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
+
   const locationOptions = useMemo(() => {
     const set = new Set<string>();
     for (const row of rows) {
@@ -1778,6 +1790,120 @@ export default function JobApplicationsPage() {
     }
   }
 
+  type BulkMatchAnalysisItem = {
+    jobApplicationId: string;
+    result: {
+      status?: string;
+      score?: number | null;
+      category?: string | null;
+      action?: string | null;
+      readiness?: string | null;
+      error?: string | null;
+      analysis?: { candidate_match?: { display_category?: string } } | null;
+    };
+  };
+
+  function applyBulkMatchItem(row: ApplicationRow, item: BulkMatchAnalysisItem): ApplicationRow {
+    const result = item.result ?? {};
+    if (result.status === "FAILED") {
+      return { ...row, ai_match_status: "FAILED" };
+    }
+    return {
+      ...row,
+      ai_match_status: result.status ?? row.ai_match_status,
+      ai_match_score: result.score ?? row.ai_match_score,
+      ai_match_category: result.category ?? row.ai_match_category,
+      ai_match_action: result.action ?? row.ai_match_action,
+      ai_match_readiness: result.readiness ?? row.ai_match_readiness,
+      ai_match_display_category:
+        result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+    };
+  }
+
+  async function runBulkMatchAnalyze(ids: string[]) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error("Select candidates to analyze");
+      return;
+    }
+    if (bulkAnalyzeBusy || matchAnalyzingId) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setRows((current) =>
+      current.map((row) =>
+        uniqueIds.includes(row.id) ? { ...row, ai_match_status: "ANALYZING" } : row
+      )
+    );
+
+    let analyzed = 0;
+    let needsReview = 0;
+    let failed = 0;
+
+    try {
+      for (let offset = 0; offset < uniqueIds.length; offset += MATCH_ANALYSIS_BULK_CHUNK) {
+        const chunk = uniqueIds.slice(offset, offset + MATCH_ANALYSIS_BULK_CHUNK);
+        const response = await fetch("/api/admin/job-applications/match-analysis/bulk", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobApplicationIds: chunk }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          results?: BulkMatchAnalysisItem[];
+        };
+        if (!response.ok) {
+          throw new Error(payload.error || "Bulk match analysis failed");
+        }
+
+        const results = payload.results ?? [];
+        const byId = new Map(results.map((item) => [item.jobApplicationId, item]));
+        setRows((current) =>
+          current.map((row) => {
+            const item = byId.get(row.id);
+            return item ? applyBulkMatchItem(row, item) : row;
+          })
+        );
+
+        for (const id of chunk) {
+          const status = byId.get(id)?.result?.status;
+          if (status === "ANALYZED") analyzed += 1;
+          else if (status === "NEEDS_REVIEW") needsReview += 1;
+          else failed += 1;
+        }
+      }
+
+      if (analyzed && !needsReview && !failed) {
+        toast.success(
+          analyzed === 1
+            ? "Match analysis complete"
+            : `Analyzed ${analyzed} candidates`,
+          { duration: ACTION_TOAST_DURATION_MS }
+        );
+      } else {
+        const parts = [
+          analyzed ? `${analyzed} analyzed` : null,
+          needsReview ? `${needsReview} need résumé text` : null,
+          failed ? `${failed} failed` : null,
+        ].filter(Boolean);
+        toast.error(parts.join(" · ") || "Match analysis failed");
+      }
+    } catch (analyzeError) {
+      setRows((current) =>
+        current.map((row) =>
+          uniqueIds.includes(row.id) && row.ai_match_status === "ANALYZING"
+            ? { ...row, ai_match_status: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
+    }
+  }
+
   function renderCell(colId: ApplicationColumnId, row: ApplicationRow) {
     switch (colId) {
       case "candidates": {
@@ -1843,7 +1969,7 @@ export default function JobApplicationsPage() {
           <MatchScoreCell
             status={row.ai_match_status}
             score={row.ai_match_score}
-            analyzing={matchAnalyzingId === row.id}
+            analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={() => void runMatchAnalyze(row.id)}
           />
         );
@@ -1997,14 +2123,19 @@ export default function JobApplicationsPage() {
         );
       }
       case "evaluation": {
+        const analyzing = matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id);
         const analyzed = row.ai_match_status === "ANALYZED";
         return (
           <span
             className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
-              analyzed ? "bg-[#EFF6FF] text-[#2563EB]" : "bg-[#F1F5F9] text-[#64748B]"
+              analyzing
+                ? "bg-[#F1F5F9] text-[#64748B]"
+                : analyzed
+                  ? "bg-[#EFF6FF] text-[#2563EB]"
+                  : "bg-[#F1F5F9] text-[#64748B]"
             }`}
           >
-            {analyzed ? "Analyzed" : "Not Yet"}
+            {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
           </span>
         );
       }
@@ -2341,6 +2472,10 @@ export default function JobApplicationsPage() {
           onSortByChange={setSortBy}
           onOpenMoreFilters={() => setEditFiltersOpen(true)}
           onClaimCandidates={handleClaimCandidates}
+          onAnalyzeAll={() => void runBulkMatchAnalyze(paginatedRows.map((row) => row.id))}
+          analyzeAllLabel={pageAllAnalyzed ? "Reanalyze all" : "Analyze all"}
+          analyzeBusy={bulkAnalyzeBusy}
+          analyzeDisabled={paginatedRows.length === 0 || Boolean(matchAnalyzingId)}
           onEditColumns={() => setEditColumnsOpen(true)}
           showResetFilters={hasActiveModalFilters}
           onResetFilters={handleResetModalFilters}
@@ -2387,7 +2522,18 @@ export default function JobApplicationsPage() {
                 : `${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} selected on this page`
           }
           claimBusy={claimBusy}
+          analyzeBusy={bulkAnalyzeBusy || Boolean(matchAnalyzingId)}
+          analyzeLabel={
+            selectedAllAnalyzed
+              ? selectedIds.size === 1
+                ? "Reanalyze"
+                : "Reanalyze selected"
+              : selectedIds.size === 1
+                ? "Analyze"
+                : "Analyze selected"
+          }
           onClaim={handleClaimCandidates}
+          onAnalyze={() => void runBulkMatchAnalyze([...selectedIds])}
           onClear={() => setSelectedIds(new Set())}
         />
 
@@ -2594,7 +2740,9 @@ export default function JobApplicationsPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
-          analyzing={matchAnalyzingId === rowActionsMenu.rowId}
+          analyzing={
+            matchAnalyzingId === rowActionsMenu.rowId || bulkAnalyzingIds.has(rowActionsMenu.rowId)
+          }
           hired={normalizeApplicationStatus(
             rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
           ) === "hired"}
