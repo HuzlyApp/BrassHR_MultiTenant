@@ -8,7 +8,7 @@ import { JobValidationError } from "@/lib/jobs/types";
 import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
 import { preExtractResumeFields } from "@/lib/resume/normalize-resume-text";
 import {
-  evaluateResumeParseQuality,
+  hasAdminCandidateIdentity,
   normalizeParsedResume,
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
@@ -178,31 +178,24 @@ async function parseExtractedResumeText(extractedText: string): Promise<{
   const contentError = validateExtractedResumeText(extractedText);
   const fallback = normalizeParsedResume(preExtractResumeFields(extractedText));
 
-  if (contentError) {
-    return {
-      parsed: fallback,
-      qualityOk: false,
-      qualityMessage: contentError,
-    };
-  }
-
   let parsed = fallback;
-  try {
-    parsed = await grokParseResumeCached(extractedText);
-  } catch (parseError) {
-    console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
-    parsed = fallback;
+  if (!contentError) {
+    try {
+      parsed = normalizeParsedResume(await grokParseResumeCached(extractedText));
+    } catch (parseError) {
+      console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
+      parsed = fallback;
+    }
   }
 
-  const quality = evaluateResumeParseQuality(parsed);
-  if (quality.ok) {
-    return { parsed: quality.normalized, qualityOk: true, qualityMessage: null };
+  if (hasAdminCandidateIdentity(parsed)) {
+    return { parsed, qualityOk: true, qualityMessage: null };
   }
 
   return {
     parsed,
     qualityOk: false,
-    qualityMessage: quality.message ?? RESUME_PARSE_FAILED_USER_MESSAGE,
+    qualityMessage: contentError ?? RESUME_PARSE_FAILED_USER_MESSAGE,
   };
 }
 

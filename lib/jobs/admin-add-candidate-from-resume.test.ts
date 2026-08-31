@@ -79,7 +79,7 @@ describe("prepareResumeCandidate", () => {
     extractResumeTextFromUploadMock.mockReset();
   });
 
-  it("returns parsed fields when the ATS quality gate fails instead of blocking", async () => {
+  it("treats name and email as a successful recruiter parse even without an address", async () => {
     grokParseResumeCachedMock.mockResolvedValue(PARTIAL_PARSE);
 
     const result = await prepareResumeCandidate({
@@ -87,11 +87,25 @@ describe("prepareResumeCandidate", () => {
       resumeTitle: "Jordan Lee resume",
     });
 
-    expect(result.qualityOk).toBe(false);
-    expect(result.qualityMessage).toBeTruthy();
+    expect(result.qualityOk).toBe(true);
+    expect(result.qualityMessage).toBeNull();
     expect(result.parsed.first_name).toBe("Jordan");
     expect(result.parsed.email).toBe("jordan.lee@clinic.org");
     expect(result.parsedJson.email).toBe("jordan.lee@clinic.org");
+  });
+
+  it("repairs common PDF email typos such as gmail.cor", async () => {
+    grokParseResumeCachedMock.mockResolvedValue({
+      ...PARTIAL_PARSE,
+      email: "korrapatipragathi2709@gmail.cor",
+    });
+
+    const result = await prepareResumeCandidate({
+      resumeText: READABLE_RESUME,
+    });
+
+    expect(result.qualityOk).toBe(true);
+    expect(result.parsed.email).toBe("korrapatipragathi2709@gmail.com");
   });
 
   it("falls back to regex extraction when Grok throws", async () => {
@@ -101,7 +115,7 @@ describe("prepareResumeCandidate", () => {
       resumeText: READABLE_RESUME,
     });
 
-    expect(result.qualityOk).toBe(false);
+    expect(result.qualityOk).toBe(true);
     expect(result.parsed.email).toBe("jordan.lee@clinic.org");
     expect(result.parsed.phone).toContain("404");
   });

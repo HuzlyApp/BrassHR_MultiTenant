@@ -210,16 +210,18 @@ export default function AddCandidateModal({
           setPhone(preview.phone ?? "");
         }
 
-        const qualityOk = response.ok && payload.qualityOk !== false && Boolean(preview);
-        if (!qualityOk) {
-          setParseState("failed");
-          setParseError(
-            payload.warning?.trim() || payload.error?.trim() || PARSE_FAILED_FALLBACK
-          );
+        const hasIdentity = Boolean(
+          preview?.firstName?.trim() && preview?.lastName?.trim() && preview?.email?.trim()
+        );
+        if (response.ok && hasIdentity) {
+          setParseState("parsed");
           return;
         }
 
-        setParseState("parsed");
+        setParseState("failed");
+        setParseError(
+          payload.warning?.trim() || payload.error?.trim() || PARSE_FAILED_FALLBACK
+        );
       } catch {
         if (parseRequestRef.current !== requestId) return;
         setParseState("failed");
@@ -484,7 +486,7 @@ export default function AddCandidateModal({
                 {activeTab === "files" ? (
                   <div
                     className={`rounded-[10px] border-2 border-dashed bg-white p-4 transition ${
-                      fileError
+                      fileError || parseState === "failed"
                         ? "border-[#FCA5A5]"
                         : dragActive
                           ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"

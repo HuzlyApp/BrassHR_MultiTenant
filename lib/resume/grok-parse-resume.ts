@@ -72,7 +72,9 @@ Schema:
 Rules:
 - Split full name into first_name and last_name when not already known.
 - Extract ZIP / postal code into zip when present.
-- Detect healthcare roles such as CNA, RN, LPN, Caregiver, Medical Assistant.
+- City and state are enough for location. Extract "City, ST" from the header even when there is no street address.
+- job_role is the current or most recent title (any industry, not only healthcare).
+- Repair obvious OCR/PDF typos in emails (gmail.cor → gmail.com, .con → .com on well-known providers).
 - If a field is already known below, only change it when the snippet clearly contradicts it; otherwise return the known value or fill missing fields.
 - If a field is missing return an empty string.
 
@@ -115,7 +117,7 @@ export async function grokParseResume(fullText: string): Promise<GrokParseResume
   const result = completion.choices?.[0]?.message?.content || ""
   const extracted = extractJsonObjectFromModelText(result)
   const fromGrok = normalizeParsedResume(extracted ?? {})
-  const normalized = mergeParsedFields(preExtracted, fromGrok)
+  const normalized = normalizeParsedResume(mergeParsedFields(preExtracted, fromGrok))
 
   logResumeTiming("process-resume", "grok-response", { aiParseMs })
 

@@ -22,6 +22,20 @@ jane.doe@example.com
     expect(fields.last_name).toBe("Doe")
     expect(fields.zip).toBe("78701")
   })
+
+  it("repairs gmail.cor OCR typos in extracted emails", () => {
+    const fields = preExtractResumeFields(`
+Pragathi Korrapati
+Syracuse, NY
+korrapatipragathi2709@gmail.cor
++1 (315) 316-2771
+Senior Full Stack .Net Developer
+`.trim())
+
+    expect(fields.email).toBe("korrapatipragathi2709@gmail.com")
+    expect(fields.city).toBe("Syracuse")
+    expect(fields.state).toBe("NY")
+  })
 })
 
 describe("buildGrokResumeSnippet", () => {
