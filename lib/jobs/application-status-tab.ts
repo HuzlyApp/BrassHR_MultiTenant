@@ -37,6 +37,14 @@ export function isApplicationRowArchived(
   return isArchivedApplicationStatus(row.status);
 }
 
+/** Same set as the Job candidates "All" tab: every application for the job. */
+export function isVisibleOnJobCandidatesAllTab(
+  _row: ApplicationStatusTabRow,
+  _options: ApplicationStatusTabOption[] = []
+): boolean {
+  return true;
+}
+
 /**
  * Dashboard KPI counts are keyed by application_statuses.id.
  * Rows with a status_id must match that id only — the legacy `status` column
@@ -48,7 +56,7 @@ export function matchesApplicationStatusTab(
   options: ApplicationStatusTabOption[]
 ): boolean {
   const archived = isApplicationRowArchived(row, options);
-  if (tab === "all") return !archived;
+  if (tab === "all") return true;
 
   const option =
     options.find((item) => item.id === tab) ??

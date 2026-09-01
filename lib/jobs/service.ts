@@ -17,8 +17,10 @@ import {
   validatePublishableJob,
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
-import { isStrongAiMatchScore } from "@/lib/jobs/match-analysis/display";
-import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import {
+  tallyApplicationMetrics,
+  type JobListApplicationMetricRow,
+} from "@/lib/jobs/job-list-application-metrics";
 import {
   formatDateOnlyUtc,
   isJobRequisitionOpen,
@@ -893,7 +895,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(count)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -908,68 +910,26 @@ export async function listInternalJobs(
   const jobs = data ?? [];
   if (!jobs.length) return jobs;
 
-  const jobIds = jobs.map((job) => String(job.id));
-  const { data: applicationRows, error: applicationError } = await supabase
-    .from("job_applications")
-    .select(
-      "job_requisition_id, status, ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at"
-    )
-    .eq("tenant_id", tenantId)
-    .in("job_requisition_id", jobIds);
-  if (applicationError) throw applicationError;
-
-  type JobListMetricCounts = {
-    newCount: number;
-    analyzedCount: number;
-    strongCount: number;
-    readyCount: number;
-    hiredCount: number;
-  };
-  const metricsByJob = new Map<string, JobListMetricCounts>();
-  for (const row of applicationRows ?? []) {
-    const id = String(row.job_requisition_id ?? "");
-    if (!id) continue;
-    const current = metricsByJob.get(id) ?? {
-      newCount: 0,
-      analyzedCount: 0,
-      strongCount: 0,
-      readyCount: 0,
-      hiredCount: 0,
-    };
-    const status = String(row.status ?? "").toLowerCase();
-    if (status === "new" || status === "submitted") current.newCount += 1;
-    if (normalizeApplicationStatus(status) === "hired") current.hiredCount += 1;
-
-    const matchStatus = String(row.ai_match_status ?? "");
-    const score = Number(row.ai_match_score);
-    const hasMatchScore = Number.isFinite(score);
-    const analysisDone =
-      matchStatus === "ANALYZED" || hasMatchScore || Boolean(row.ai_analyzed_at);
-
-    if (analysisDone) current.analyzedCount += 1;
-    if (isStrongAiMatchScore(row.ai_match_score)) current.strongCount += 1;
-    if (analysisDone && String(row.ai_match_readiness ?? "") === "READY_TO_SUBMIT") {
-      current.readyCount += 1;
-    }
-    metricsByJob.set(id, current);
-  }
-
   const creatorIds = jobs
     .map((job) => (job as { created_by?: string | null }).created_by)
     .filter((id): id is string => Boolean(id));
   const creatorsById = await loadStaffUsersByIds(supabase, tenantId, creatorIds);
 
   return jobs.map((job) => {
-    const metrics = metricsByJob.get(String(job.id));
+    const nested = Array.isArray(job.job_applications)
+      ? (job.job_applications as JobListApplicationMetricRow[])
+      : [];
+    const metrics = tallyApplicationMetrics(nested);
     const createdByUserId = (job as { created_by?: string | null }).created_by;
     return {
       ...job,
       status: normalizeJobRequisitionStatus(String(job.status ?? "")),
-      new_application_count: metrics?.newCount ?? 0,
-      analyzed_application_count: metrics?.analyzedCount ?? 0,
-      strong_match_count: metrics?.strongCount ?? 0,
-      ready_to_submit_count: metrics?.readyCount ?? 0,
-      hired_application_count: metrics?.hiredCount ?? 0,
+      job_applications: [{ count: metrics.applicantCount }],
+      new_application_count: metrics.newCount,
+      analyzed_application_count: metrics.analyzedCount,
+      strong_match_count: metrics.strongCount,
+      ready_to_submit_count: metrics.readyCount,
+      hired_application_count: metrics.hiredCount,
       createdBy: createdByUserId
         ? creatorsById.get(String(createdByUserId)) ?? null
         : null,

@@ -8,6 +8,7 @@ import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applican
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { isUuid } from "@/lib/validation/uuid";
+import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 
 export const runtime = "nodejs";
@@ -66,11 +67,9 @@ export async function GET(req: NextRequest) {
         .eq("tenant_id", tenantId);
 
       if (jobId) {
-        query = query
-          .eq("job_requisition_id", jobId)
-          .not("status", "in", '("rejected","withdrawn")');
+        query = query.eq("job_requisition_id", jobId);
       } else if (workerId) {
-        query = query.eq("worker_id", workerId).not("status", "in", '("rejected","withdrawn")');
+        query = query.eq("worker_id", workerId);
       }
 
       if (statusId) {
@@ -161,7 +160,7 @@ export async function GET(req: NextRequest) {
         .select("worker_id")
         .eq("tenant_id", tenantId)
         .in("worker_id", workerIds)
-        .not("status", "in", '("rejected","withdrawn")');
+        .not("status", "in", JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER);
       for (const app of workerApps ?? []) {
         const workerIdValue = (app as { worker_id?: string | null }).worker_id;
         if (!workerIdValue) continue;

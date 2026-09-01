@@ -69,8 +69,8 @@ export type CandidateListSearchRow = {
   /** All applied job titles joined for search (matches applications list job title). */
   applicationJobTitlesText?: string | null;
   /**
-   * Searchable text from non-archived applications (same fields as the applications list).
-   * Includes withdrawn applications; excludes archived (All tab parity).
+   * Searchable text from applications (same fields as the applications list).
+   * Includes withdrawn and archived applications (All tab parity).
    */
   applicationSearchText?: string | null;
 };

@@ -4,10 +4,7 @@ import {
   type ApplicationListSearchRow,
 } from "@/lib/admin/candidate-list-search";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
-import {
-  isApplicationRowArchived,
-  type ApplicationStatusTabOption,
-} from "@/lib/jobs/application-status-tab";
+import type { ApplicationStatusTabOption } from "@/lib/jobs/application-status-tab";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 type ApplicationSearchRow = ApplicationListSearchRow & {
@@ -22,12 +19,12 @@ type ApplicationSearchRow = ApplicationListSearchRow & {
 
 const APPLICATION_SEARCH_SELECT = `id, worker_id, status, status_id, job_requisition_id, application_statuses(id, system_key), job_requisitions(public_title, source_job_title, location, facility, facility_name, internal_requisition_number), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
-/** Same inclusion rules as the applications screen “All” tab (non-archived rows). */
+/** Same inclusion rules as the applications screen “All” tab. */
 export function isApplicationIncludedInAllTabSearch(
-  row: ApplicationSearchRow,
-  statusOptions: ApplicationStatusTabOption[]
+  _row: ApplicationSearchRow,
+  _statusOptions: ApplicationStatusTabOption[]
 ): boolean {
-  return !isApplicationRowArchived(row, statusOptions);
+  return true;
 }
 
 export function mergeApplicationSearchFields(existing: string[], fields: string[]): string[] {

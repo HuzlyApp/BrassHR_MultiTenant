@@ -1123,9 +1123,9 @@ export default function JobApplicationsPage() {
     const counts: Record<string, number> = { all: 0 };
     for (const option of statusOptions) counts[option.id] = 0;
     for (const row of rows) {
-      const archived = isRowArchived(row, statusOptions);
-      if (!archived) counts.all += 1;
+      counts.all += 1;
 
+      const archived = isRowArchived(row, statusOptions);
       const statusId = rowStatusId(row);
       if (statusId && statusId in counts) {
         counts[statusId] += 1;

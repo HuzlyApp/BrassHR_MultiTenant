@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesApplicationStatusTab } from "@/lib/jobs/application-status-tab";
+import { matchesApplicationStatusTab, isVisibleOnJobCandidatesAllTab } from "@/lib/jobs/application-status-tab";
 
 const options = [
   { id: "s-new", name: "New / Not Contacted", systemKey: "new" },
@@ -30,5 +30,34 @@ describe("matchesApplicationStatusTab", () => {
     expect(matchesApplicationStatusTab(row, "s-hired", options)).toBe(true);
     expect(matchesApplicationStatusTab(row, "hired", options)).toBe(true);
     expect(matchesApplicationStatusTab(row, "s-new", options)).toBe(false);
+  });
+
+  it("keeps archived applications on the All tab", () => {
+    const archived = {
+      status: "archived",
+      status_id: "s-archived",
+      application_statuses: { id: "s-archived", system_key: "archived" as const },
+    };
+    const optionsWithArchived = [
+      ...options,
+      { id: "s-archived", name: "Position Closed", systemKey: "archived" },
+    ];
+    expect(matchesApplicationStatusTab(archived, "all", optionsWithArchived)).toBe(true);
+    expect(matchesApplicationStatusTab(archived, "s-archived", optionsWithArchived)).toBe(true);
+    expect(matchesApplicationStatusTab(archived, "s-new", optionsWithArchived)).toBe(false);
+  });
+});
+
+describe("isVisibleOnJobCandidatesAllTab", () => {
+  it("includes archived, rejected, and withdrawn on All", () => {
+    expect(isVisibleOnJobCandidatesAllTab({ status: "new" })).toBe(true);
+    expect(isVisibleOnJobCandidatesAllTab({ status: "rejected" })).toBe(true);
+    expect(isVisibleOnJobCandidatesAllTab({ status: "withdrawn" })).toBe(true);
+    expect(
+      isVisibleOnJobCandidatesAllTab({
+        status: "new",
+        application_statuses: { system_key: "archived" },
+      })
+    ).toBe(true);
   });
 });

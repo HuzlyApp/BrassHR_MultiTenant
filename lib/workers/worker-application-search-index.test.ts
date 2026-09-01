@@ -12,7 +12,7 @@ describe("worker application search index", () => {
     { id: "status-archived", systemKey: "archived" },
   ];
 
-  it("includes withdrawn applications and excludes archived (applications All tab parity)", () => {
+  it("includes withdrawn and archived applications (applications All tab parity)", () => {
     const rows = [
       {
         worker_id: "worker-1",
@@ -37,11 +37,11 @@ describe("worker application search index", () => {
     ];
 
     expect(isApplicationIncludedInAllTabSearch(rows[0], statusOptions)).toBe(true);
-    expect(isApplicationIncludedInAllTabSearch(rows[1], statusOptions)).toBe(false);
+    expect(isApplicationIncludedInAllTabSearch(rows[1], statusOptions)).toBe(true);
 
     const indexed = indexApplicationSearchRows(rows, statusOptions);
     expect(indexed.get("worker-1")).toContain("COBOL");
-    expect(indexed.get("worker-1")).not.toContain("Legacy COBOL Role");
+    expect(indexed.get("worker-1")).toContain("Legacy COBOL Role");
   });
 
   it("indexes source_job_title when public_title is empty", () => {

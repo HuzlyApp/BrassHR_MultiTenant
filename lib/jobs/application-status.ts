@@ -138,10 +138,25 @@ export function isArchivedApplicationStatus(
   return String(status ?? "").trim().toLowerCase() === "archived";
 }
 
+/**
+ * Statuses omitted from job candidate lists and job-card CAND counts.
+ * Rejected/withdrawn rows stay in the table so the same person can re-apply
+ * (partial unique indexes exclude these statuses).
+ */
+export const JOB_CANDIDATE_LIST_HIDDEN_STATUSES = ["rejected", "withdrawn"] as const;
+
+/** PostgREST `.not("status", "in", ...)` value for {@link JOB_CANDIDATE_LIST_HIDDEN_STATUSES}. */
+export const JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER = '("rejected","withdrawn")';
+
+export function isHiddenFromJobCandidateList(status: string | null | undefined): boolean {
+  const normalized = String(status ?? "").trim().toLowerCase();
+  return (JOB_CANDIDATE_LIST_HIDDEN_STATUSES as readonly string[]).includes(normalized);
+}
+
 export function matchesApplicationStatusTab(
   status: string,
   tab: ApplicationStatusTab
 ): boolean {
-  if (tab === "all") return !isArchivedApplicationStatus(status);
+  if (tab === "all") return true;
   return normalizeApplicationStatus(status) === tab;
 }
