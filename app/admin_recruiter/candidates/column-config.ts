@@ -3,6 +3,8 @@ export type CandidateColumnId =
   | "status"
   | "reference"
   | "jobRole"
+  | "matchJob"
+  | "jobMatch"
   | "createdDate"
   | "location"
   | "city"
@@ -35,6 +37,8 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
   { id: "status", label: "Status" },
   { id: "reference", label: "Reference" },
   { id: "jobRole", label: "Job Role" },
+  { id: "matchJob", label: "Match Job" },
+  { id: "jobMatch", label: "Job Match" },
   { id: "createdDate", label: "Created Date" },
   { id: "location", label: "Location" },
   { id: "city", label: "City" },
@@ -68,11 +72,30 @@ export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "status",
   "reference",
   "jobRole",
+  "matchJob",
+  "jobMatch",
   "createdDate",
   "location",
 ]
 
 const STORAGE_KEY = "nexus-candidates-list-columns"
+
+/** Ensure saved column layouts include newer default columns. */
+function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
+  let next = [...order]
+
+  const insertAfter = (anchor: CandidateColumnId, columnId: CandidateColumnId) => {
+    if (next.includes(columnId)) return
+    const anchorIndex = next.indexOf(anchor)
+    if (anchorIndex >= 0) next.splice(anchorIndex + 1, 0, columnId)
+    else next.push(columnId)
+  }
+
+  insertAfter("jobRole", "matchJob")
+  insertAfter("matchJob", "jobMatch")
+
+  return next
+}
 
 export function loadColumnOrder(): CandidateColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_CANDIDATE_COLUMNS]
@@ -83,7 +106,8 @@ export function loadColumnOrder(): CandidateColumnId[] {
     if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_CANDIDATE_COLUMNS]
     const allowed = new Set(CANDIDATE_COLUMN_OPTIONS.map((c) => c.id))
     const cleaned = parsed.filter((id): id is CandidateColumnId => typeof id === "string" && allowed.has(id as CandidateColumnId))
-    return cleaned.length ? cleaned : [...DEFAULT_CANDIDATE_COLUMNS]
+    const order = cleaned.length ? cleaned : [...DEFAULT_CANDIDATE_COLUMNS]
+    return ensureDefaultCandidateColumns(order)
   } catch {
     return [...DEFAULT_CANDIDATE_COLUMNS]
   }
@@ -105,5 +129,7 @@ export function columnLabel(id: CandidateColumnId): string {
 export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
+  if (colId === "jobMatch") return "min-w-[88px] whitespace-nowrap"
+  if (colId === "matchJob") return "min-w-[200px] max-w-[320px]"
   return ""
 }

@@ -8,7 +8,7 @@ import {
 } from "@/lib/jobs/application-applicant-display";
 
 export const CANDIDATE_LIST_SEARCH_PLACEHOLDER =
-  "Search name, email, phone, job code, location…";
+  "Search name, email, phone, job code, job role, location…";
 
 function oneEmbedded(value: EmbeddedRecord): Record<string, unknown> {
   if (!value) return {};
@@ -23,9 +23,21 @@ export function normalizeCandidateSearchQuery(query: string): { text: string; di
   };
 }
 
+function normalizeSearchComparable(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function includesText(value: string, text: string): boolean {
   if (!text) return false;
-  return value.trim().toLowerCase().includes(text);
+  const hay = normalizeSearchComparable(value);
+  const needle = normalizeSearchComparable(text);
+  if (!needle) return false;
+  return hay.includes(needle);
 }
 
 function includesDigits(value: string, digits: string): boolean {
@@ -52,6 +64,15 @@ export type CandidateListSearchRow = {
   zip?: string;
   address?: string;
   role?: string;
+  /** Latest applied job title from job application (when available). */
+  applicationJobTitle?: string | null;
+  /** All applied job titles joined for search (matches applications list job title). */
+  applicationJobTitlesText?: string | null;
+  /**
+   * Searchable text from non-archived applications (same fields as the applications list).
+   * Includes withdrawn applications; excludes archived (All tab parity).
+   */
+  applicationSearchText?: string | null;
 };
 
 export function matchesCandidateListSearch(row: CandidateListSearchRow, query: string): boolean {
@@ -59,6 +80,7 @@ export function matchesCandidateListSearch(row: CandidateListSearchRow, query: s
   if (!text && !digits) return true;
 
   const locationLine = [row.city, row.state].filter(Boolean).join(", ");
+  const jobRole = row.role?.trim() === "N/A" ? "" : (row.role ?? "");
 
   if (
     matchesTextFields(text, [
@@ -73,7 +95,10 @@ export function matchesCandidateListSearch(row: CandidateListSearchRow, query: s
       row.state ?? "",
       row.zip ?? "",
       row.address ?? "",
-      row.role ?? "",
+      jobRole,
+      row.applicationSearchText ?? "",
+      row.applicationJobTitle ?? "",
+      row.applicationJobTitlesText ?? "",
       locationLine,
     ])
   ) {
@@ -110,26 +135,29 @@ export function resolveApplicationJobLocation(row: ApplicationListSearchRow): st
   );
 }
 
+/** Fields searched on the applications list — reused for candidate list parity. */
+export function collectApplicationListSearchFields(row: ApplicationListSearchRow): string[] {
+  const job = oneEmbedded(row.job_requisitions);
+  const jobTitle = String(job.public_title ?? job.source_job_title ?? "").trim();
+
+  return [
+    resolveApplicationApplicantName(row),
+    resolveApplicationApplicantEmail(row),
+    resolveApplicationApplicantPhone(row),
+    resolveApplicationJobCode(row),
+    resolveApplicationJobLocation(row),
+    resolveApplicationApplicantLocation(row),
+    jobTitle,
+    row.id,
+    row.job_requisition_id,
+  ];
+}
+
 export function matchesApplicationListSearch(row: ApplicationListSearchRow, query: string): boolean {
   const { text, digits } = normalizeCandidateSearchQuery(query);
   if (!text && !digits) return true;
 
-  const job = oneEmbedded(row.job_requisitions);
-  const jobTitle = String(job.public_title ?? job.source_job_title ?? "").trim();
-
-  if (
-    matchesTextFields(text, [
-      resolveApplicationApplicantName(row),
-      resolveApplicationApplicantEmail(row),
-      resolveApplicationApplicantPhone(row),
-      resolveApplicationJobCode(row),
-      resolveApplicationJobLocation(row),
-      resolveApplicationApplicantLocation(row),
-      jobTitle,
-      row.id,
-      row.job_requisition_id,
-    ])
-  ) {
+  if (matchesTextFields(text, collectApplicationListSearchFields(row))) {
     return true;
   }
 

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
+import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 export async function resolveWorkerProfilePhotoUrl(
   supabase: SupabaseClient,
@@ -25,12 +26,15 @@ export async function attachWorkerProfilePhotoUrls<T extends Record<string, unkn
       new Set(rows.map((row) => (row.id != null ? String(row.id) : "")).filter(Boolean))
     );
     if (workerIds.length > 0) {
-      const { data, error } = await supabase
-        .from("worker")
-        .select("id, profile_photo")
-        .in("id", workerIds);
+      const { data, error } = await queryInChunks(workerIds, async (chunk) => {
+        const result = await supabase.from("worker").select("id, profile_photo").in("id", chunk);
+        return {
+          data: (result.data ?? []) as Array<{ id?: string | null; profile_photo?: unknown }>,
+          error: result.error,
+        };
+      });
       if (!error) {
-        for (const row of data ?? []) {
+        for (const row of data) {
           const id = row.id != null ? String(row.id) : "";
           if (id) photoByWorkerId.set(id, (row as { profile_photo?: unknown }).profile_photo);
         }

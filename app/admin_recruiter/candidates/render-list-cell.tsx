@@ -8,6 +8,8 @@ import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
+import { MatchScoreCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
+import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 
 const BRAND_ICON = "var(--brand-primary)"
 /** Figma: Text/text-link — fixed email color under applicant name */
@@ -19,9 +21,15 @@ export function renderListCell(
   col: CandidateColumnId,
   c: CandidateRow,
   formatDate: (iso: string | null) => string,
-  options?: { highlightMultiJob?: boolean }
+  options?: {
+    highlightMultiJob?: boolean
+    matchAnalyzingApplicationIds?: Set<string>
+    onAnalyzeMatch?: (applicationId: string) => void
+  }
 ): ReactNode {
   const highlightMultiJob = options?.highlightMultiJob ?? false;
+  const matchAnalyzingApplicationIds = options?.matchAnalyzingApplicationIds;
+  const onAnalyzeMatch = options?.onAnalyzeMatch;
   const appliedJobCount = Number(c.appliedJobCount ?? 1);
 
   switch (col) {
@@ -95,6 +103,32 @@ export function renderListCell(
       return <span className="text-sm text-[#374151]">{c.reference}</span>
     case "jobRole":
       return <span className="text-sm text-[#374151]">{c.role}</span>
+    case "matchJob": {
+      const title = resolveCandidateMatchJobTitle(c)
+      return title ? (
+        <p className="line-clamp-2 text-left text-xs leading-4 text-[#64748B]" title={title}>
+          {title}
+        </p>
+      ) : (
+        <span className="text-sm text-[#94A3B8]">—</span>
+      )
+    }
+    case "jobMatch": {
+      const applicationId = c.matchApplicationId?.trim() ?? "";
+      if (!applicationId) {
+        return <span className="text-sm text-[#94A3B8]">—</span>;
+      }
+      return (
+        <MatchScoreCell
+          status={c.aiMatchStatus}
+          score={c.aiMatchScore}
+          category={c.aiMatchCategory}
+          displayCategory={c.aiMatchDisplayCategory}
+          analyzing={Boolean(applicationId && matchAnalyzingApplicationIds?.has(applicationId))}
+          onAnalyze={onAnalyzeMatch ? () => onAnalyzeMatch(applicationId) : undefined}
+        />
+      )
+    }
     case "createdDate":
       return <span className="text-sm text-[#374151]">{formatDate(c.createdAt)}</span>
     case "location":
