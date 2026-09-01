@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       jobRequisitionId,
       staffUserId: auth.devBypass ? null : auth.userId,
       resumeFile: file,
-      resumeText: resumeText || null,
+      resumeText: file ? null : resumeText || null,
       resumeTitle: resumeTitle || null,
       firstName: firstName || null,
       lastName: lastName || null,

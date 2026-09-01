@@ -14,6 +14,7 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
   type NormalizedParsedResume,
 } from "@/lib/resumeParseQuality";
+import { resumeTextToPdfBuffer } from "@/lib/resume/resume-text-to-pdf";
 import {
   resolveResumeFileType,
   validateExtractedResumeText,
@@ -211,8 +212,8 @@ export async function prepareResumeCandidate(input: {
 }): Promise<PreparedResumeCandidate> {
   let extractedText = "";
   let resumeBytes: Buffer | null = null;
-  let resumeFileName = "resume.txt";
-  let resumeContentType = "text/plain";
+  let resumeFileName = "resume.pdf";
+  let resumeContentType = "application/pdf";
   let resumeFileType: ReturnType<typeof resolveResumeFileType> = "unknown";
 
   if (input.resumeFile && input.resumeFile.size > 0) {
@@ -256,12 +257,12 @@ export async function prepareResumeCandidate(input: {
       );
     }
     extractedText = text;
-    resumeFileName = sanitizeFileName(String(input.resumeTitle ?? "").trim() || "pasted-resume.txt");
-    if (!resumeFileName.toLowerCase().endsWith(".txt")) {
-      resumeFileName = `${resumeFileName}.txt`;
-    }
-    resumeBytes = Buffer.from(text, "utf8");
-    resumeFileType = "unknown";
+    const titleBase = sanitizeFileName(String(input.resumeTitle ?? "").trim() || "pasted-resume");
+    resumeFileName = titleBase.toLowerCase().endsWith(".pdf") ? titleBase : `${titleBase}.pdf`;
+    // UTF-8 placeholder — converted to PDF only when uploading to storage.
+    resumeBytes = Buffer.from(extractedText, "utf8");
+    resumeContentType = "application/pdf";
+    resumeFileType = "pdf";
   }
 
   if (!resumeBytes) {
@@ -331,10 +332,15 @@ export async function adminAddCandidateFromResume(
     phone,
   });
 
+  const uploadBytes =
+    !input.resumeFile?.size && input.resumeText?.trim()
+      ? await resumeTextToPdfBuffer(extractedText)
+      : resumeBytes;
+
   const uploaded = await uploadResumeBytes(
     supabase,
     input.tenantId,
-    resumeBytes,
+    uploadBytes,
     resumeFileName,
     resumeContentType
   );

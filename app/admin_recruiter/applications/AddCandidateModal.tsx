@@ -89,6 +89,11 @@ function ResumeTabBar({
   );
 }
 
+function buildResumeTitle(firstName: string, lastName: string): string {
+  const title = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+  return title ? `${title} Resume` : "";
+}
+
 function ParseStatusBadge({ state }: { state: ParseState }) {
   if (state === "idle") return null;
 
@@ -198,6 +203,7 @@ export default function AddCandidateModal({
           warning?: string | null;
           qualityOk?: boolean;
           parsed?: AdminResumeParsePreview;
+          extractedText?: string | null;
         };
         if (parseRequestRef.current !== requestId) return;
 
@@ -208,6 +214,14 @@ export default function AddCandidateModal({
           setLastName(preview.lastName ?? "");
           setEmail(preview.email ?? "");
           setPhone(preview.phone ?? "");
+          const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
+          if (autoTitle) setResumeTitle(autoTitle);
+          const extracted = payload.extractedText?.trim();
+          if (source.file && extracted) {
+            setResumeText(extracted);
+          } else if (source.text?.trim()) {
+            setResumeText(source.text.trim());
+          }
         }
 
         const hasIdentity = Boolean(
@@ -343,7 +357,8 @@ export default function AddCandidateModal({
       return;
     }
 
-    if (activeTab === "files") {
+    const uploadFromFile = Boolean(resumeFile);
+    if (uploadFromFile) {
       if (!resumeFile) {
         setFileError("Please select a resume file to upload.");
         return;
@@ -368,7 +383,7 @@ export default function AddCandidateModal({
     const emailError = validateAddCandidateField("email", { email });
     if (nameError || emailError) {
       const message = nameError || emailError || "Fill in the candidate name and email.";
-      if (activeTab === "files") setFileError(message);
+      if (uploadFromFile) setFileError(message);
       else setPasteError(message);
       return;
     }
@@ -377,7 +392,7 @@ export default function AddCandidateModal({
     try {
       const form = new FormData();
       form.set("jobId", jobId.trim());
-      if (activeTab === "files" && resumeFile) {
+      if (resumeFile) {
         form.set("resume", resumeFile);
       } else {
         form.set("resumeText", resumeText.trim());
@@ -421,11 +436,12 @@ export default function AddCandidateModal({
   }
 
   const hasResumeSource =
-    activeTab === "files"
-      ? Boolean(resumeFile)
-      : resumeText.trim().length >= MIN_PASTED_RESUME_LENGTH;
+    Boolean(resumeFile) || resumeText.trim().length >= MIN_PASTED_RESUME_LENGTH;
   const hasIdentity = Boolean(firstName.trim() && lastName.trim() && email.trim());
-  const showIdentityFields = hasResumeSource && parseState !== "parsing";
+  const showIdentityFields =
+    parseState !== "parsing" &&
+    hasResumeSource &&
+    (parseState === "parsed" || parseState === "failed" || hasIdentity);
   const canUpload = !uploading && parseState !== "parsing" && hasResumeSource && hasIdentity;
 
   if (!open && !successOpen && !errorOpen && !uploading) return null;
@@ -478,7 +494,6 @@ export default function AddCandidateModal({
                   setActiveTab(tab);
                   setFileError(null);
                   setPasteError(null);
-                  resetParse();
                 }}
               />
 

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { parsed, qualityOk, qualityMessage } = await prepareResumeCandidate({
+    const { parsed, qualityOk, qualityMessage, extractedText } = await prepareResumeCandidate({
       resumeFile: file,
       resumeText: resumeText || null,
       resumeTitle: resumeTitle || null,
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       parsed: preview,
+      extractedText: extractedText.trim() || null,
       qualityOk,
       warning: qualityOk ? null : qualityMessage,
     });

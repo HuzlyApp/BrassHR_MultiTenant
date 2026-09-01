@@ -92,6 +92,9 @@ describe("prepareResumeCandidate", () => {
     expect(result.parsed.first_name).toBe("Jordan");
     expect(result.parsed.email).toBe("jordan.lee@clinic.org");
     expect(result.parsedJson.email).toBe("jordan.lee@clinic.org");
+    expect(result.resumeContentType).toBe("application/pdf");
+    expect(result.resumeFileName.toLowerCase()).toMatch(/\.pdf$/);
+    expect(result.resumeFileType).toBe("pdf");
   });
 
   it("repairs common PDF email typos such as gmail.cor", async () => {

@@ -41,10 +41,10 @@ const APPLICATIONS_HREF = "/admin_recruiter/applications";
 const CANDIDATES_HREF = "/admin_recruiter/candidates";
 
 const JOBS_VIEW_ALL_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]";
+  "inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)] sm:w-auto";
 
 const JOBS_CREATE_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]";
+  "inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:w-auto";
 
 const STATUS_KPI_ICONS: Record<string, KpiIcon> = {
   new: { src: `${JOBS_ICONS}/kpi-bi-people.svg`, bg: "#DFFFD3", leafWidth: 30, leafHeight: 30 },
@@ -211,6 +211,56 @@ function ShowMoreIcon() {
   );
 }
 
+function JobWorkspaceSearch({
+  query,
+  onQueryChange,
+  className = "",
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <label
+      className={`flex h-8 min-w-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 ${className}`}
+    >
+      <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${JOBS_ICONS}/search.svg`}
+          alt=""
+          width={16.67}
+          height={16.67}
+          className="size-[16.67px] shrink-0"
+          aria-hidden
+        />
+      </span>
+      <input
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        placeholder="Search by title of job"
+        className="min-w-0 flex-1 bg-transparent font-[Inter,sans-serif] text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+      />
+    </label>
+  );
+}
+
+function JobWorkspaceActions({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 ${className}`}>
+      <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+        View All Jobs
+      </Link>
+      <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+        View All Jobs Candidates
+      </Link>
+      <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
+        Create a job
+      </Link>
+    </div>
+  );
+}
+
 export function JobsDashboard({
   jobs,
   loading,
@@ -302,41 +352,58 @@ export function JobsDashboard({
       ) : null}
 
       <section className="flex w-full min-w-0 flex-col gap-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">Job Workspace</h2>
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex h-8 w-full items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 sm:w-[274px]">
-              <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`${JOBS_ICONS}/search.svg`}
-                  alt=""
-                  width={16.67}
-                  height={16.67}
-                  className="size-[16.67px] shrink-0"
-                  aria-hidden
-                />
-              </span>
-              <input
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
+        <div className="flex w-full min-w-0 flex-col gap-3 overflow-hidden">
+          {/* Mobile / tablet (< lg): title + search, then buttons */}
+          <div className="flex w-full min-w-0 flex-col gap-3 lg:hidden">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
+                Job Workspace
+              </h2>
+              <JobWorkspaceSearch
+                query={query}
+                onQueryChange={(value) => {
+                  setQuery(value);
                   setVisibleCount(WORKSPACE_PAGE_SIZE);
                 }}
-                placeholder="Search by title of job"
-                className="min-w-0 flex-1 bg-transparent font-[Inter,sans-serif] text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                className="w-full sm:w-[274px] sm:shrink-0"
               />
-            </label>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-                View All
-              </Link>
-              <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-                View all jobs applicants
-              </Link>
-              <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
-                Create a job
-              </Link>
+            </div>
+            <JobWorkspaceActions className="w-full sm:justify-end" />
+          </div>
+
+          {/* Laptop (lg – xl): row 1 title + search right; row 2 buttons right */}
+          <div className="hidden w-full min-w-0 flex-col gap-3 lg:flex xl:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
+                Job Workspace
+              </h2>
+              <JobWorkspaceSearch
+                query={query}
+                onQueryChange={(value) => {
+                  setQuery(value);
+                  setVisibleCount(WORKSPACE_PAGE_SIZE);
+                }}
+                className="w-[274px] shrink-0"
+              />
+            </div>
+            <JobWorkspaceActions className="w-full justify-end flex-nowrap" />
+          </div>
+
+          {/* Desktop web (xl+): single row — title | search + buttons */}
+          <div className="hidden w-full min-w-0 items-center justify-between gap-3 xl:flex">
+            <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
+              Job Workspace
+            </h2>
+            <div className="flex min-w-0 shrink-0 items-center gap-3">
+              <JobWorkspaceSearch
+                query={query}
+                onQueryChange={(value) => {
+                  setQuery(value);
+                  setVisibleCount(WORKSPACE_PAGE_SIZE);
+                }}
+                className="w-[274px] shrink-0"
+              />
+              <JobWorkspaceActions className="shrink-0 flex-nowrap" />
             </div>
           </div>
         </div>
