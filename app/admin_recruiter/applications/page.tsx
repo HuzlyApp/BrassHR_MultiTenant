@@ -82,6 +82,14 @@ import {
 } from "@/lib/jobs/application-status-tab";
 import { isUuid } from "@/lib/validation/uuid";
 import toast from "react-hot-toast";
+import {
+  bulkAnalyzeSelectedLabel,
+  bulkReanalyzeSelectedLabel,
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+  type BulkMatchAnalysisItem,
+} from "@/lib/admin/bulk-match-analysis";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
   APPLICATION_EDITABLE_COLUMNS,
@@ -175,7 +183,6 @@ type JobOption = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-const MATCH_ANALYSIS_BULK_CHUNK = 25;
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const ADD_CANDIDATE_BUTTON_CLASS =
@@ -1265,8 +1272,10 @@ export default function JobApplicationsPage() {
     () => rows.filter((row) => selectedIds.has(row.id)),
     [rows, selectedIds]
   );
-  const selectedAllAnalyzed =
-    selectedRows.length > 0 && selectedRows.every((row) => row.ai_match_status === "ANALYZED");
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
+    partitionMatchAnalysisTargets(
+      selectedRows.map((row) => ({ applicationId: row.id, status: row.ai_match_status }))
+    );
   const pageAllAnalyzed =
     paginatedRows.length > 0 && paginatedRows.every((row) => row.ai_match_status === "ANALYZED");
   const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
@@ -1814,19 +1823,6 @@ export default function JobApplicationsPage() {
     }
   }
 
-  type BulkMatchAnalysisItem = {
-    jobApplicationId: string;
-    result: {
-      status?: string;
-      score?: number | null;
-      category?: string | null;
-      action?: string | null;
-      readiness?: string | null;
-      error?: string | null;
-      analysis?: { candidate_match?: { display_category?: string } } | null;
-    };
-  };
-
   function applyBulkMatchItem(row: ApplicationRow, item: BulkMatchAnalysisItem): ApplicationRow {
     const result = item.result ?? {};
     if (result.status === "FAILED") {
@@ -1859,58 +1855,21 @@ export default function JobApplicationsPage() {
       )
     );
 
-    let analyzed = 0;
-    let needsReview = 0;
-    let failed = 0;
-
     try {
-      for (let offset = 0; offset < uniqueIds.length; offset += MATCH_ANALYSIS_BULK_CHUNK) {
-        const chunk = uniqueIds.slice(offset, offset + MATCH_ANALYSIS_BULK_CHUNK);
-        const response = await fetch("/api/admin/job-applications/match-analysis/bulk", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobApplicationIds: chunk }),
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          error?: string;
-          results?: BulkMatchAnalysisItem[];
-        };
-        if (!response.ok) {
-          throw new Error(payload.error || "Bulk match analysis failed");
-        }
-
-        const results = payload.results ?? [];
-        const byId = new Map(results.map((item) => [item.jobApplicationId, item]));
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
         setRows((current) =>
           current.map((row) => {
             const item = byId.get(row.id);
             return item ? applyBulkMatchItem(row, item) : row;
           })
         );
-
-        for (const id of chunk) {
-          const status = byId.get(id)?.result?.status;
-          if (status === "ANALYZED") analyzed += 1;
-          else if (status === "NEEDS_REVIEW") needsReview += 1;
-          else failed += 1;
-        }
-      }
-
-      if (analyzed && !needsReview && !failed) {
-        toast.success(
-          analyzed === 1
-            ? "Match analysis complete"
-            : `Analyzed ${analyzed} candidates`,
-          { duration: ACTION_TOAST_DURATION_MS }
-        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
       } else {
-        const parts = [
-          analyzed ? `${analyzed} analyzed` : null,
-          needsReview ? `${needsReview} need résumé text` : null,
-          failed ? `${failed} failed` : null,
-        ].filter(Boolean);
-        toast.error(parts.join(" · ") || "Match analysis failed");
+        toast.error(outcome.message);
       }
     } catch (analyzeError) {
       setRows((current) =>
@@ -2548,16 +2507,18 @@ export default function JobApplicationsPage() {
           }
           claimBusy={claimBusy}
           analyzeBusy={bulkAnalyzeBusy || Boolean(matchAnalyzingId)}
-          analyzeLabel={
-            selectedAllAnalyzed
-              ? selectedIds.size === 1
-                ? "Reanalyze"
-                : "Reanalyze selected"
-              : selectedIds.size === 1
-                ? "Analyze"
-                : "Analyze selected"
+          analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
+          reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
+          onAnalyze={
+            selectedAnalyzeIds.length > 0
+              ? () => void runBulkMatchAnalyze(selectedAnalyzeIds)
+              : undefined
           }
-          onAnalyze={() => void runBulkMatchAnalyze([...selectedIds])}
+          onReanalyze={
+            selectedReanalyzeIds.length > 0
+              ? () => void runBulkMatchAnalyze(selectedReanalyzeIds)
+              : undefined
+          }
           hideClaim
           onClear={() => setSelectedIds(new Set())}
         />

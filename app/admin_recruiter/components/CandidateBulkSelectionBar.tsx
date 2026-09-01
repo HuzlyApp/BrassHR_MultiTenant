@@ -7,9 +7,11 @@ type CandidateBulkSelectionBarProps = {
   claimBusy?: boolean;
   analyzeBusy?: boolean;
   analyzeLabel?: string;
+  reanalyzeLabel?: string;
   hideClaim?: boolean;
   onClaim?: () => void;
   onAnalyze?: () => void;
+  onReanalyze?: () => void;
   onClear: () => void;
 };
 
@@ -19,10 +21,12 @@ export function CandidateBulkSelectionBar({
   scopeLabel,
   claimBusy = false,
   analyzeBusy = false,
-  analyzeLabel = "Analyze",
+  analyzeLabel = "Analyze selected",
+  reanalyzeLabel = "Reanalyze selected",
   hideClaim = false,
   onClaim,
   onAnalyze,
+  onReanalyze,
   onClear,
 }: CandidateBulkSelectionBarProps) {
   if (selectedCount <= 0) return null;
@@ -64,6 +68,16 @@ export function CandidateBulkSelectionBar({
             className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {analyzeBusy ? "Analyzing…" : analyzeLabel}
+          </button>
+        ) : null}
+        {onReanalyze ? (
+          <button
+            type="button"
+            onClick={onReanalyze}
+            disabled={busy || selectedCount === 0}
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {analyzeBusy ? "Analyzing…" : reanalyzeLabel}
           </button>
         ) : null}
         {!hideClaim && onClaim ? (

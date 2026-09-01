@@ -34,6 +34,12 @@ import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "./claim-client";
+import { runCandidateListBulkMatchAnalyze } from "./run-bulk-match-analyze";
+import {
+  bulkAnalyzeSelectedLabel,
+  bulkReanalyzeSelectedLabel,
+  partitionMatchAnalysisTargets,
+} from "@/lib/admin/bulk-match-analysis";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
@@ -524,6 +530,28 @@ export default function CandidatesPage() {
   });
   clearSelectionRef.current = selection.clearSelection;
 
+  const selectedCandidates = useMemo(
+    () => candidates.filter((row) => selection.selectedIds.has(row.id)),
+    [candidates, selection.selectedIds]
+  );
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
+    partitionMatchAnalysisTargets(
+      selectedCandidates.map((row) => ({
+        applicationId: row.matchApplicationId,
+        status: row.aiMatchStatus,
+      }))
+    );
+  const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
+
+  async function runSelectedMatchAnalyze(applicationIds: string[]) {
+    if (bulkAnalyzeBusy) return;
+    await runCandidateListBulkMatchAnalyze({
+      applicationIds,
+      setCandidates,
+      setAnalyzingIds: setMatchAnalyzingApplicationIds,
+    });
+  }
+
   function openClaimConfirm() {
     if (selection.selectedEligibleCount === 0) {
       toast("Select eligible unclaimed candidates first.");
@@ -746,6 +774,21 @@ export default function CandidatesPage() {
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
+                  analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
+                  reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
+                  onAnalyze={
+                    selectedAnalyzeIds.length > 0
+                      ? () => void runSelectedMatchAnalyze(selectedAnalyzeIds)
+                      : selection.selectedCount > 0 && selectedReanalyzeIds.length === 0
+                        ? () => void runSelectedMatchAnalyze([])
+                        : undefined
+                  }
+                  onReanalyze={
+                    selectedReanalyzeIds.length > 0
+                      ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
+                      : undefined
+                  }
                   onClaim={openClaimConfirm}
                   onClear={selection.clearSelection}
                 />
