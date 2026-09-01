@@ -425,8 +425,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
-        onAddCandidate={() => toast("Open a job posting to add a candidate.")}
-        onClaimCandidates={openClaimConfirm}
+        hideAddCandidate
+        hideClaimCandidates
+        exportInToolbar
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}

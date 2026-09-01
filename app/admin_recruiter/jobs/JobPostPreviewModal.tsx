@@ -23,8 +23,7 @@ import {
   JOB_POSTING_PAGE_TITLE_CLASS,
 } from "./job-posting-typography";
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
-
-const JOB_POST_PREVIEW_ICON_SRC = "/job-post-preview-icon.svg";
+import { JobPostPreviewIcon } from "./JobPostPreviewIcon";
 
 function formatPreviewDescriptionHtml(raw: string): string {
   const trimmed = raw.trim();
@@ -84,15 +83,8 @@ export function JobPostPreviewModal({
           style={brandVars}
         >
           <div className="relative flex items-start gap-2.5 px-3 pb-2 pt-4 pr-12 min-[700px]:gap-3 min-[700px]:px-5 min-[700px]:pb-3 min-[700px]:pt-5 min-[700px]:pr-14">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] min-[700px]:h-11 min-[700px]:w-11">
-              <img
-                src={JOB_POST_PREVIEW_ICON_SRC}
-                alt=""
-                width={24}
-                height={24}
-                className="h-5 w-5 min-[700px]:h-6 min-[700px]:w-6"
-                aria-hidden
-              />
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)] min-[700px]:h-11 min-[700px]:w-11">
+              <JobPostPreviewIcon className="h-5 w-5 min-[700px]:h-6 min-[700px]:w-6" />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
               <Dialog.Title className="text-sm font-semibold text-[#1D2739]">

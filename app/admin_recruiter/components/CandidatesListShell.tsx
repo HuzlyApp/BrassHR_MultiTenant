@@ -68,6 +68,11 @@ export type CandidatesListShellProps = {
   totalFiltered: number;
   /** When false, hides the Highlight Multi-Job Applicants toggle (legacy candidates page). */
   showMultiJobHighlight?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide Add Candidate in the page header. */
+  hideAddCandidate?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide Claim Candidates and show Export in the toolbar. */
+  hideClaimCandidates?: boolean;
+  exportInToolbar?: boolean;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -283,6 +288,9 @@ export function CandidatesListShell({
   onPageSizeChange,
   totalFiltered,
   showMultiJobHighlight = true,
+  hideAddCandidate = false,
+  hideClaimCandidates = false,
+  exportInToolbar = false,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
@@ -358,15 +366,21 @@ export function CandidatesListShell({
         title="Candidates"
         subtitle="Manage candidates in one place"
         actions={
-          <>
-            <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
-              <AddPlusIcon />
-              Add Candidate
-            </button>
-            <div className="max-lg:w-full max-lg:[&_button]:w-full">
-              <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
-            </div>
-          </>
+          !hideAddCandidate && onAddCandidate || !exportInToolbar ? (
+            <>
+              {!hideAddCandidate && onAddCandidate ? (
+                <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
+                  <AddPlusIcon />
+                  Add Candidate
+                </button>
+              ) : null}
+              {!exportInToolbar ? (
+                <div className="max-lg:w-full max-lg:[&_button]:w-full">
+                  <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
+                </div>
+              ) : null}
+            </>
+          ) : undefined
         }
       />
 
@@ -379,15 +393,27 @@ export function CandidatesListShell({
       <div className="mt-4 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white sm:mt-5">
         <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
           <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
-            <button
-              type="button"
-              onClick={onClaimCandidates}
-              className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
-            >
-              <ClaimClipboardIcon />
-              <span className="max-[380px]:hidden">Claim Candidates</span>
-              <span className="hidden max-[380px]:inline">Claim</span>
-            </button>
+            {exportInToolbar ? (
+              <div className="min-w-0 shrink-0 flex-1 lg:flex-none">
+                <ListExportDropdown
+                  variant="brand"
+                  onExportCsv={onExportCsv}
+                  onExportXls={onExportXls}
+                />
+              </div>
+            ) : null}
+            {/* Claim Candidates — hidden on legacy /admin_recruiter/candidates */}
+            {!hideClaimCandidates && onClaimCandidates ? (
+              <button
+                type="button"
+                onClick={onClaimCandidates}
+                className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
+              >
+                <ClaimClipboardIcon />
+                <span className="max-[380px]:hidden">Claim Candidates</span>
+                <span className="hidden max-[380px]:inline">Claim</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onEditColumns}

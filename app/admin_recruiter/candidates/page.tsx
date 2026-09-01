@@ -663,8 +663,9 @@ export default function CandidatesPage() {
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
-        onAddCandidate={() => toast("Open a job posting to add a candidate.")}
-        onClaimCandidates={openClaimConfirm}
+        hideAddCandidate
+        hideClaimCandidates
+        exportInToolbar
         deleteButton={
           <BulkDeleteToolbarButton
             count={selection.selectedCount}
