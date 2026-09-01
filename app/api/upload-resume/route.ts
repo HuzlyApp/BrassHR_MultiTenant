@@ -17,6 +17,7 @@ import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 import { JobValidationError } from "@/lib/jobs/types"
 import { startOrResumeJobApplication } from "@/lib/jobs/service"
 import { isResumeUploadValidationError } from "@/lib/resume/validate-resume-upload"
+import { normalizeResumeWhitespace } from "@/lib/jobs/match-analysis/sanitize-resume"
 
 export const runtime = "nodejs"
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
@@ -82,7 +83,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
 
   if (mime === "application/pdf" || lower.endsWith(".pdf")) {
     const pdf = await pdfParse(buffer)
-    return pdf.text
+    return normalizeResumeWhitespace(pdf.text || "")
   }
 
   if (
@@ -91,7 +92,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
     lower.endsWith(".docx")
   ) {
     const result = await mammoth.extractRawText({ buffer })
-    return result.value
+    return normalizeResumeWhitespace(result.value || "")
   }
 
   if (mime === "application/msword" || lower.endsWith(".doc")) {

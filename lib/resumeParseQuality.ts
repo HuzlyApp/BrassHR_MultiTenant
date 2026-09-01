@@ -36,8 +36,8 @@ export type NormalizedParsedResume = {
 
 function s(v: unknown): string {
   if (v == null) return ""
-  if (typeof v === "string") return v.trim()
-  return String(v).trim()
+  const text = typeof v === "string" ? v : String(v)
+  return text.replace(/\u0000/g, "").trim()
 }
 
 const WELL_KNOWN_EMAIL_DOMAINS = new Set([

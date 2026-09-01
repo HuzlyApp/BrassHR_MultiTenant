@@ -4,10 +4,12 @@
  * Does not strip city/state/zip needed for location matching.
  */
 
+import { stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
+
 const MULTILINE_WS = /\r\n?/g;
 
 export function normalizeResumeWhitespace(text: string): string {
-  return text
+  return stripNullBytes(text)
     .replace(MULTILINE_WS, "\n")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")

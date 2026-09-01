@@ -139,4 +139,19 @@ describe("prepareResumeCandidate", () => {
   it("still requires a resume file or pasted text", async () => {
     await expect(prepareResumeCandidate({})).rejects.toBeInstanceOf(JobValidationError);
   });
+
+  it("strips NUL bytes from pasted resume text before parse", async () => {
+    grokParseResumeCachedMock.mockResolvedValue({
+      ...PARTIAL_PARSE,
+      first_name: "Almog",
+      last_name: "Arazi",
+    });
+
+    const result = await prepareResumeCandidate({
+      resumeText: "Almog\u0000 Arazi\njordan.lee@clinic.org",
+    });
+
+    expect(result.extractedText).toBe("Almog Arazi\njordan.lee@clinic.org");
+    expect(result.extractedText).not.toContain("\u0000");
+  });
 });

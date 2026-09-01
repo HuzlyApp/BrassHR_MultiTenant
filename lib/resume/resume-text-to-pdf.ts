@@ -1,9 +1,9 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
 
 /** Strip control chars and map non–WinAnsi code points so pdf-lib can draw pasted resume text. */
 export function sanitizeTextForPdfDrawing(text: string): string {
-  return text
-    .replace(/\u0000/g, "")
+  return stripNullBytes(text)
     .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .replace(/[^\t\n\r\x20-\xFF]/g, "?");
 }

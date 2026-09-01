@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
 import type { ResumeUploaderRole } from "@/lib/resume/resume-upload-limit";
+import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
 
 export type WorkerResumeParsingStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -75,18 +76,23 @@ function buildResumeRow(
     tenant_id: tenantId,
     file_url: opts.fileUrl.trim(),
     storage_path: opts.fileUrl.trim(),
-    original_file_name: opts.originalFileName?.trim() || null,
-    file_name: opts.originalFileName?.trim() || null,
+    original_file_name: opts.originalFileName?.trim()
+      ? stripNullBytes(opts.originalFileName.trim())
+      : null,
+    file_name: opts.originalFileName?.trim()
+      ? stripNullBytes(opts.originalFileName.trim())
+      : null,
     file_type: opts.fileType ?? null,
     file_size_bytes: opts.fileSizeBytes ?? null,
-    parsed_data: opts.parsedData ?? {},
+    parsed_data: sanitizePostgresJson(opts.parsedData ?? {}),
     parsing_status: parsingStatus,
     parse_status: parsingStatus,
     parsed_at: parsingStatus === "completed" ? now : null,
     uploaded_at: now,
     text_length: opts.textLength ?? null,
     extraction_ms: opts.extractionMs ?? null,
-    extracted_text: opts.extractedText ?? null,
+    extracted_text:
+      opts.extractedText != null ? stripNullBytes(opts.extractedText) : null,
     parse_started_at: opts.parseStartedAt ?? (parsingStatus === "processing" ? now : null),
     parse_completed_at: parsingStatus === "completed" ? now : null,
     parse_error: null,

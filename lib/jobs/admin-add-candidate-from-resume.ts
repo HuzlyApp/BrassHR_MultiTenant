@@ -15,6 +15,7 @@ import {
   type NormalizedParsedResume,
 } from "@/lib/resumeParseQuality";
 import { resumeTextToPdfBuffer } from "@/lib/resume/resume-text-to-pdf";
+import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
 import {
   resolveResumeFileType,
   validateExtractedResumeText,
@@ -92,41 +93,37 @@ async function persistWorkerResumeByWorkerId(
   }
 ): Promise<void> {
   const now = new Date().toISOString();
+  const parsedData = sanitizePostgresJson(opts.parsedData ?? {});
   const row = {
     worker_id: workerId,
     tenant_id: tenantId,
     file_url: opts.fileUrl.trim(),
     storage_path: opts.fileUrl.trim(),
-    original_file_name: opts.originalFileName?.trim() || null,
-    file_name: opts.originalFileName?.trim() || null,
+    original_file_name: opts.originalFileName?.trim()
+      ? stripNullBytes(opts.originalFileName.trim())
+      : null,
+    file_name: opts.originalFileName?.trim()
+      ? stripNullBytes(opts.originalFileName.trim())
+      : null,
     file_type: opts.fileType ?? null,
     file_size_bytes: opts.fileSizeBytes ?? null,
-    parsed_data: opts.parsedData ?? {},
+    parsed_data: parsedData,
     parsing_status: "completed" as const,
     parse_status: "completed" as const,
     parsed_at: now,
     uploaded_at: now,
     text_length: opts.textLength ?? null,
-    extracted_text: opts.extractedText ?? null,
+    extracted_text:
+      opts.extractedText != null ? stripNullBytes(opts.extractedText) : null,
     parse_started_at: now,
     parse_completed_at: now,
     parse_error: null,
-    parsed_json: opts.parsedData ?? null,
+    parsed_json: parsedData,
     job_application_id: opts.jobApplicationId?.trim() || null,
   };
 
-  const { data: existing } = await supabase
-    .from("worker_resumes")
-    .select("id")
-    .eq("worker_id", workerId)
-    .maybeSingle();
-
-  if (existing?.id) {
-    const { error } = await supabase.from("worker_resumes").update(row).eq("id", existing.id);
-    if (error) throw error;
-    return;
-  }
-
+  // Always insert. Workers can have multiple resumes; `.maybeSingle()` throws
+  // when more than one row already exists (PGRST116).
   const { error } = await supabase.from("worker_resumes").insert(row);
   if (error) throw error;
 }
@@ -239,7 +236,9 @@ export async function prepareResumeCandidate(input: {
 
     resumeBytes = Buffer.from(await file.arrayBuffer());
     try {
-      extractedText = await extractResumeTextFromUpload(resumeBytes, file.name);
+      extractedText = stripNullBytes(
+        await extractResumeTextFromUpload(resumeBytes, file.name)
+      );
     } catch (extractError) {
       console.error("[admin-add-candidate-from-resume] resume extraction failed", extractError);
       extractedText = "";
@@ -256,7 +255,7 @@ export async function prepareResumeCandidate(input: {
         "RESUME_REQUIRED"
       );
     }
-    extractedText = text;
+    extractedText = stripNullBytes(text);
     const titleBase = sanitizeFileName(String(input.resumeTitle ?? "").trim() || "pasted-resume");
     resumeFileName = titleBase.toLowerCase().endsWith(".pdf") ? titleBase : `${titleBase}.pdf`;
     // UTF-8 placeholder — converted to PDF only when uploading to storage.

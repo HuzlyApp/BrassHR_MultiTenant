@@ -43,3 +43,19 @@ describe("hasAdminCandidateIdentity", () => {
     ).toBe(false)
   })
 })
+
+describe("normalizeParsedResume", () => {
+  it("strips NUL bytes from parsed names extracted from PDFs", () => {
+    expect(
+      normalizeParsedResume({
+        first_name: "Almog\u0000",
+        last_name: "Arazi",
+        email: "almog@example.com",
+      })
+    ).toMatchObject({
+      first_name: "Almog",
+      last_name: "Arazi",
+      email: "almog@example.com",
+    })
+  })
+})
