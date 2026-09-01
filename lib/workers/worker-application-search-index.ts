@@ -12,7 +12,7 @@ import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 type ApplicationSearchRow = ApplicationListSearchRow & {
   worker_id: string | null;
-  status?: string;
+  status: string;
   status_id?: string | null;
   application_statuses?:
     | { id?: string; system_key?: string | null }

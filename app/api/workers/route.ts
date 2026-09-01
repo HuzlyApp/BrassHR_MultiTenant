@@ -272,7 +272,11 @@ export async function GET(req: Request) {
             }
           );
           if (employmentErr && !isMissingColumnErr(employmentErr)) {
-            error = { message: employmentErr.message, code: (employmentErr as { code?: string }).code };
+            const sbEmploymentErr = employmentErr as SbErr;
+            error = {
+              message: sbEmploymentErr.message || "Supabase query failed",
+              code: sbEmploymentErr.code,
+            };
           } else {
             const convertedIds = new Set(
               ((employmentRows as { candidate_id?: string }[] | null) ?? [])
