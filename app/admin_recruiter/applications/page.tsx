@@ -107,6 +107,7 @@ import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants"
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
 import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
+import { matchesApplicationListSearch } from "@/lib/admin/candidate-list-search";
 
 type ApplicationStatus = string;
 
@@ -178,7 +179,7 @@ const MATCH_ANALYSIS_BULK_CHUNK = 25;
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const ADD_CANDIDATE_BUTTON_CLASS =
-  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
+  "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50 lg:w-auto lg:justify-start";
 const FILTER_SELECT_CLASS = `${FORM_SURFACE_CLASS} h-8 cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0`;
 const FILTER_SELECT_CHEVRON = {
   backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
@@ -1142,13 +1143,9 @@ export default function JobApplicationsPage() {
         return loc.toLowerCase().includes(locationFilter.toLowerCase());
       });
     }
-    const query = candidateSearchQuery.trim().toLowerCase();
+    const query = candidateSearchQuery.trim();
     if (query) {
-      next = next.filter((row) => {
-        const name = applicantName(row).toLowerCase();
-        const email = applicantEmail(row).toLowerCase();
-        return name.includes(query) || email.includes(query);
-      });
+      next = next.filter((row) => matchesApplicationListSearch(row, query));
     }
     if (listingStatusFilter) {
       next = next.filter((row) => rowStatusId(row) === listingStatusFilter);
@@ -2434,7 +2431,7 @@ export default function JobApplicationsPage() {
       </div>
 
       <nav
-        className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="applications-status-tabs-scroll mb-4 w-full min-w-0 overflow-x-auto"
         aria-label="Candidates status"
       >
         <div className="flex w-max flex-nowrap items-center justify-start gap-5">
@@ -2754,6 +2751,10 @@ export default function JobApplicationsPage() {
         open={editFiltersOpen}
         onOpenChange={setEditFiltersOpen}
         value={editFiltersValue}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        scoreSort={scoreSort}
+        onScoreSortChange={handleScoreSortChange}
         options={{
           statuses: listingStatusOptions,
           stages: listingStageOptions,

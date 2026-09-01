@@ -1,6 +1,7 @@
 "use client";
 
 import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
+import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 
 const JOBS_ICONS = "/icons/jobs-icons";
 
@@ -180,44 +181,52 @@ export function ApplicationsListToolbar({
 }: ApplicationsListToolbarProps) {
   return (
     <>
-      <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-between">
+        <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
           <ListExportDropdown
             variant="brand"
             onExportCsv={onExportCsv}
             onExportXls={onExportXls}
           />
           {!hideClaimCandidates && onClaimCandidates ? (
-            <button type="button" onClick={onClaimCandidates} className={PRIMARY_TOOLBAR_BUTTON_CLASS}>
+            <button type="button" onClick={onClaimCandidates} className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} w-full lg:w-auto`}>
               <ClaimClipboardIcon />
               Claim Candidates
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={onAnalyzeAll}
-            disabled={analyzeBusy || analyzeDisabled}
-            className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            <AnalyzeSparklesIcon />
-            {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
-          </button>
-          <button type="button" onClick={onEditColumns} className={OUTLINE_TOOLBAR_BUTTON_CLASS}>
-            <ColumnsIcon />
-            Columns
-          </button>
+          <div className="flex w-full items-center gap-3 lg:w-auto">
+            <button
+              type="button"
+              onClick={onAnalyzeAll}
+              disabled={analyzeBusy || analyzeDisabled}
+              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none lg:w-auto disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <AnalyzeSparklesIcon />
+              {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+            </button>
+            <button
+              type="button"
+              onClick={onEditColumns}
+              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none lg:w-auto`}
+            >
+              <ColumnsIcon />
+              Columns
+            </button>
+          </div>
           {showResetFilters ? (
-            <button type="button" onClick={onResetFilters} className={OUTLINE_TOOLBAR_BUTTON_CLASS}>
+            <button type="button" onClick={onResetFilters} className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} w-full lg:w-auto`}>
               Reset Filters
             </button>
           ) : null}
           {deleteButton}
         </div>
-        {addCandidateButton}
+        <div className="w-full shrink-0 lg:ml-3 lg:w-auto [&_button]:w-full lg:[&_button]:w-auto">
+          {addCandidateButton}
+        </div>
       </div>
 
-      <div className="flex w-full flex-wrap items-center gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:gap-3 sm:px-5">
-        <label className="flex h-8 w-full min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 sm:w-[252px] sm:max-w-[252px]">
+      <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5 lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
+        <label className="flex h-8 w-full min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 lg:min-w-[200px]">
           <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -229,36 +238,62 @@ export function ApplicationsListToolbar({
             />
           </span>
           <input
-            type="search"
+            type="text"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder="Search applicants..."
-            aria-label="Search applicants"
+            placeholder={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
+            aria-label={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
             className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
           />
+          {searchQuery.trim() ? (
+            <button
+              type="button"
+              onClick={() => onSearchQueryChange("")}
+              className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-[#94A3B8] transition hover:text-[#64748B]"
+              aria-label="Clear search"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                <path
+                  d="M9 3L3 9M3 3l6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
         </label>
 
-        <CompactFilterSelect
-          ariaLabel="Location"
-          placeholder="Location"
-          value={locationFilter}
-          onChange={onLocationFilterChange}
-          options={locationOptions.map((location) => ({ value: location, label: location }))}
-        />
-        <CompactFilterSelect
-          ariaLabel="Sort by apply date"
-          placeholder="Apply date (Newest first)"
-          value={sortBy === "newest" || sortBy === "oldest" ? sortBy : ""}
-          onChange={(value) => {
-            if (value === "newest" || value === "oldest") onSortByChange(value);
-          }}
-          options={[
-            { value: "newest", label: "Apply date (Newest first)" },
-            { value: "oldest", label: "Apply date (Oldest first)" },
-          ]}
-        />
+        <button
+          type="button"
+          onClick={onOpenMoreFilters}
+          className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:hidden"
+        >
+          <MoreFiltersIcon />
+          All Filters
+        </button>
 
-        <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto sm:justify-end sm:gap-3">
+        <div className="hidden shrink-0 flex-wrap items-center gap-3 lg:flex lg:flex-nowrap">
+          <CompactFilterSelect
+            ariaLabel="Location"
+            placeholder="Location"
+            value={locationFilter}
+            onChange={onLocationFilterChange}
+            options={locationOptions.map((location) => ({ value: location, label: location }))}
+          />
+          <CompactFilterSelect
+            ariaLabel="Sort by apply date"
+            placeholder="Apply date (Newest first)"
+            value={sortBy === "newest" || sortBy === "oldest" ? sortBy : ""}
+            onChange={(value) => {
+              if (value === "newest" || value === "oldest") onSortByChange(value);
+            }}
+            options={[
+              { value: "newest", label: "Apply date (Newest first)" },
+              { value: "oldest", label: "Apply date (Oldest first)" },
+            ]}
+          />
           <CompactFilterSelect
             ariaLabel="Score"
             placeholder="Score (high-low)"

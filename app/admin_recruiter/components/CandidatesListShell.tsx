@@ -16,6 +16,7 @@ import {
   EMPTY_CANDIDATES_FILTERS,
   type CandidatesFilterValues,
 } from "@/app/admin_recruiter/candidates/EditCandidatesFiltersModal";
+import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -486,8 +487,8 @@ export function CandidatesListShell({
               type="search"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Search applicants..."
-              aria-label="Search applicants"
+              placeholder={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
+              aria-label={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
               className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
             />
           </label>

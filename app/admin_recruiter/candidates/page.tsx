@@ -28,6 +28,7 @@ import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
 // import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
+import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
@@ -420,21 +421,9 @@ export default function CandidatesPage() {
 
   const filtered = useMemo(() => {
     let out = candidates;
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (q) {
-      out = out.filter((c) => {
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.role.toLowerCase().includes(q) ||
-          c.reference.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q) ||
-          c.zip.toLowerCase().includes(q) ||
-          c.state.toLowerCase().includes(q)
-        );
-      });
+      out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);

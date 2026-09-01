@@ -21,6 +21,7 @@ import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
 import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
+import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import {
   resolveCandidatesListTotal,
   withWorkersListFetchLimit,
@@ -268,21 +269,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
   const filtered = useMemo(() => {
     let out = candidates;
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (q) {
-      out = out.filter((c) => {
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.role.toLowerCase().includes(q) ||
-          c.reference.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q) ||
-          c.zip.toLowerCase().includes(q) ||
-          c.state.toLowerCase().includes(q)
-        );
-      });
+      out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
