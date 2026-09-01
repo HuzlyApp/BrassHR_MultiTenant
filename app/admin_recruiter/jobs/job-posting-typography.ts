@@ -86,4 +86,9 @@ export const JOB_POSTING_DESCRIPTION_CSS = `
     margin-bottom: 0.2rem;
     font-weight: 400;
   }
+  .job-posting-description.job-description-html strong,
+  .job-posting-description.job-description-html b {
+    font-weight: 600;
+    color: #1d2739;
+  }
 `;

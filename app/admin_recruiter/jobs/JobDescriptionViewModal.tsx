@@ -3,14 +3,11 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
-import { boldJobDescriptionSectionTitles, sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
-import {
-  ensureJobDescriptionBulletLists,
-  stripJobDescriptionBenefitsSection,
-} from "@/lib/jobs/job-description-html";
+import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { JOB_FORM_OUTLINE_BUTTON_CLASS } from "./job-form-shared";
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
 import { JobPostPreviewIcon } from "./JobPostPreviewIcon";
+import { JOB_POSTING_DESCRIPTION_CSS } from "./job-posting-typography";
 
 type Props = {
   open: boolean;
@@ -19,19 +16,9 @@ type Props = {
   brandVars?: CSSProperties;
 };
 
-function formatViewDescriptionHtml(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  return ensureJobDescriptionBulletLists(
-    boldJobDescriptionSectionTitles(
-      stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(trimmed))
-    )
-  );
-}
-
 /** Read-only job description viewer for the create-job review screen. */
 export function JobDescriptionViewModal({ open, onOpenChange, html, brandVars }: Props) {
-  const content = useMemo(() => formatViewDescriptionHtml(html), [html]);
+  const content = useMemo(() => formatStoredJobDescriptionHtml(html), [html]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -65,84 +52,7 @@ export function JobDescriptionViewModal({ open, onOpenChange, html, brandVars }:
           <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-1 min-[700px]:px-5">
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 min-[700px]:p-5">
               <div className="max-h-[min(420px,55dvh)] overflow-y-auto pr-1 min-[700px]:max-h-[480px]">
-                <style>{`
-                  .job-description-view.job-description-html > :first-child {
-                    margin-top: 0 !important;
-                  }
-                  .job-description-view.job-description-html h2,
-                  .job-description-view.job-description-html h3,
-                  .job-description-view.job-description-html h4 {
-                    margin-top: 1.5rem;
-                    margin-bottom: 0.5rem;
-                    font-size: 14px;
-                    line-height: 1.5rem;
-                    font-weight: 600;
-                    color: #1D2739;
-                  }
-                  .job-description-view.job-description-html h2 strong,
-                  .job-description-view.job-description-html h2 b,
-                  .job-description-view.job-description-html h3 strong,
-                  .job-description-view.job-description-html h3 b,
-                  .job-description-view.job-description-html h4 strong,
-                  .job-description-view.job-description-html h4 b {
-                    font-weight: 600;
-                  }
-                  .job-description-view.job-description-html p,
-                  .job-description-view.job-description-html ul,
-                  .job-description-view.job-description-html ol {
-                    margin-top: 0;
-                    margin-bottom: 0;
-                    color: #667085;
-                    font-size: 14px;
-                    line-height: 1.5rem;
-                  }
-                  .job-description-view.job-description-html ul {
-                    list-style-type: disc;
-                    list-style-position: outside;
-                    padding-left: 1.25rem;
-                    margin-top: 0.25rem;
-                  }
-                  .job-description-view.job-description-html ol {
-                    list-style-type: decimal;
-                    list-style-position: outside;
-                    padding-left: 1.25rem;
-                    margin-top: 0.25rem;
-                  }
-                  .job-description-view.job-description-html li {
-                    display: list-item;
-                    margin-top: 0.25rem;
-                    margin-bottom: 0.25rem;
-                    color: #667085;
-                  }
-                  .job-description-view.job-description-html p + h2,
-                  .job-description-view.job-description-html p + h3,
-                  .job-description-view.job-description-html p + h4,
-                  .job-description-view.job-description-html ul + h2,
-                  .job-description-view.job-description-html ul + h3,
-                  .job-description-view.job-description-html ul + h4,
-                  .job-description-view.job-description-html ol + h2,
-                  .job-description-view.job-description-html ol + h3,
-                  .job-description-view.job-description-html ol + h4 {
-                    margin-top: 1.5rem;
-                  }
-                  .job-description-view.job-description-html p:has(> strong:only-child),
-                  .job-description-view.job-description-html p:has(> b:only-child) {
-                    margin-top: 1.5rem;
-                    margin-bottom: 0.5rem;
-                    font-size: 14px;
-                    line-height: 1.5rem;
-                    font-weight: 600;
-                    color: #1D2739;
-                  }
-                  .job-description-view.job-description-html p:has(> strong:only-child) > strong,
-                  .job-description-view.job-description-html p:has(> b:only-child) > b {
-                    font-weight: 600;
-                  }
-                  .job-description-view.job-description-html > p:has(> strong:only-child):first-child,
-                  .job-description-view.job-description-html > p:has(> b:only-child):first-child {
-                    margin-top: 0;
-                  }
-                `}</style>
+                <style>{JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".job-description-view")}</style>
                 <JobDescriptionHtml
                   html={content}
                   className="job-description-view mt-0"

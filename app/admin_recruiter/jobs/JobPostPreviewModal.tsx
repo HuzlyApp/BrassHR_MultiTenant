@@ -4,11 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
-import { boldJobDescriptionSectionTitles, sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
-import {
-  ensureJobDescriptionBulletLists,
-  stripJobDescriptionBenefitsSection,
-} from "@/lib/jobs/job-description-html";
+import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
   formatPaySummary,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
@@ -24,16 +20,6 @@ import {
 } from "./job-posting-typography";
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
 import { JobPostPreviewIcon } from "./JobPostPreviewIcon";
-
-function formatPreviewDescriptionHtml(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  return ensureJobDescriptionBulletLists(
-    boldJobDescriptionSectionTitles(
-      stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(trimmed))
-    )
-  );
-}
 
 type Props = {
   open: boolean;
@@ -63,8 +49,11 @@ export function JobPostPreviewModal({
   const locationType = ui.jobLocationType?.trim() || "";
   const locationLine = [locationType, location].filter(Boolean).join(" · ");
   const descriptionHtml = useMemo(
-    () => formatPreviewDescriptionHtml(job.publicDescription ?? ""),
-    [job.publicDescription]
+    () =>
+      formatStoredJobDescriptionHtml(job.publicDescription ?? "", {
+        stripBenefits: ui.selectedBenefits.length > 0,
+      }),
+    [job.publicDescription, ui.selectedBenefits.length]
   );
   const compensationLabel = [ui.compensationType, ui.currency].filter(Boolean).join(", ");
   const paySummary = formatPaySummary(job, ui);

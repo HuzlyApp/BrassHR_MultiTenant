@@ -17,6 +17,9 @@ const ALLOWED_TAGS = new Set([
 
 const HEADING_AS_PARAGRAPH = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
+/** contentEditable often saves lines as <div>; normalize to <p> for safe display. */
+const BLOCK_AS_PARAGRAPH = new Set([...HEADING_AS_PARAGRAPH, "div"]);
+
 function decodeBasicEntities(value: string): string {
   return value
     .replace(/&amp;nbsp;/gi, " ")
@@ -63,7 +66,7 @@ export function sanitizeJobDescriptionHtml(raw: string): string {
 
     const full = match[0];
     const isClosing = full.startsWith("</");
-    if (tagName && HEADING_AS_PARAGRAPH.has(tagName)) {
+    if (tagName && BLOCK_AS_PARAGRAPH.has(tagName)) {
       parts.push(isClosing ? "</p>" : "<p>");
       continue;
     }

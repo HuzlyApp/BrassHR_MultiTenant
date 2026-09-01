@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { boldJobDescriptionSectionTitles, sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
-import {
-  ensureJobDescriptionBulletLists,
-  JobDescriptionHtml,
-  stripJobDescriptionBenefitsSection,
-} from "@/lib/jobs/job-description-html";
+import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { getPublishedJobByToken } from "@/lib/jobs/service";
@@ -31,12 +26,7 @@ function relationName(value: unknown): string {
 }
 
 function formatPublicDescriptionHtml(raw: string, hasSeparateBenefits: boolean): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  const withoutDupBenefits = hasSeparateBenefits
-    ? stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(trimmed))
-    : sanitizeJobDescriptionHtml(trimmed);
-  return ensureJobDescriptionBulletLists(boldJobDescriptionSectionTitles(withoutDupBenefits));
+  return formatStoredJobDescriptionHtml(raw, { stripBenefits: hasSeparateBenefits });
 }
 
 function benefitItems(value: unknown): string[] {

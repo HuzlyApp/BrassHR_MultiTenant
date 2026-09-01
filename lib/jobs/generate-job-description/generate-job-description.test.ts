@@ -55,6 +55,14 @@ describe("sanitizeJobDescriptionHtml", () => {
     expect(clean).not.toContain("&nbsp;");
   });
 
+  it("converts contentEditable div blocks to paragraphs", () => {
+    const clean = sanitizeJobDescriptionHtml(
+      '<div><strong>Systems Engineer</strong></div><div>Location: Dallas, TX (Hybrid)</div>'
+    );
+    expect(clean).toBe("<p><strong>Systems Engineer</strong></p><p>Location: Dallas, TX (Hybrid)</p>");
+    expect(clean).not.toContain("<div");
+  });
+
   it("converts sanitized html to plain text", () => {
     const plain = htmlToPlainText("<h3>About the Role</h3><p>Lead care.<br>More</p>");
     expect(plain).toContain("About the Role");
