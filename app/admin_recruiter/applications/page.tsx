@@ -22,6 +22,10 @@ import {
 } from "@/app/admin_recruiter/applications/ApplicationsJobHeaderCard";
 import { ApplicationsListToolbar } from "@/app/admin_recruiter/applications/ApplicationsListToolbar";
 import {
+  exportApplicationsCsv,
+  exportApplicationsXls,
+} from "@/app/admin_recruiter/applications/export-applications";
+import {
   applicationMatchesDateAppliedFilter,
   applicationMatchesMatchScoreFilter,
   EditApplicationsFiltersModal,
@@ -1270,6 +1274,29 @@ export default function JobApplicationsPage() {
     paginatedRows.length > 0 && paginatedRows.every((row) => row.ai_match_status === "ANALYZED");
   const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
+  const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
+
+  function rowsForExport() {
+    return filteredRows.map((row) => ({
+      ...row,
+      statusName: rowStatusName(row, statusOptions),
+    }));
+  }
+
+  function handleExportApplicationsCsv() {
+    exportApplicationsCsv(rowsForExport(), {
+      includeJob: !jobId,
+      filename: `${exportFilenameBase}.csv`,
+    });
+  }
+
+  function handleExportApplicationsXls() {
+    exportApplicationsXls(rowsForExport(), {
+      includeJob: !jobId,
+      filename: `${exportFilenameBase}.xls`,
+    });
+  }
+
   const locationOptions = useMemo(() => {
     const set = new Set<string>();
     for (const row of rows) {
@@ -2471,7 +2498,8 @@ export default function JobApplicationsPage() {
           sortBy={sortBy}
           onSortByChange={setSortBy}
           onOpenMoreFilters={() => setEditFiltersOpen(true)}
-          onClaimCandidates={handleClaimCandidates}
+          onExportCsv={handleExportApplicationsCsv}
+          onExportXls={handleExportApplicationsXls}
           onAnalyzeAll={() => void runBulkMatchAnalyze(paginatedRows.map((row) => row.id))}
           analyzeAllLabel={pageAllAnalyzed ? "Reanalyze all" : "Analyze all"}
           analyzeBusy={bulkAnalyzeBusy}
@@ -2532,8 +2560,8 @@ export default function JobApplicationsPage() {
                 ? "Analyze"
                 : "Analyze selected"
           }
-          onClaim={handleClaimCandidates}
           onAnalyze={() => void runBulkMatchAnalyze([...selectedIds])}
+          hideClaim
           onClear={() => setSelectedIds(new Set())}
         />
 

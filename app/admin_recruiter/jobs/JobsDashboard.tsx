@@ -331,6 +331,9 @@ export function JobsDashboard({
               <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
                 View All
               </Link>
+              <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+                View all jobs applicants
+              </Link>
               <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
                 Create a job
               </Link>

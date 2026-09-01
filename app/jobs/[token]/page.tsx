@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
+import { formatStoredJobDescriptionHtml, JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { getPublishedJobByToken } from "@/lib/jobs/service";

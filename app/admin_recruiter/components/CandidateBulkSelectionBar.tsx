@@ -7,7 +7,8 @@ type CandidateBulkSelectionBarProps = {
   claimBusy?: boolean;
   analyzeBusy?: boolean;
   analyzeLabel?: string;
-  onClaim: () => void;
+  hideClaim?: boolean;
+  onClaim?: () => void;
   onAnalyze?: () => void;
   onClear: () => void;
 };
@@ -19,6 +20,7 @@ export function CandidateBulkSelectionBar({
   claimBusy = false,
   analyzeBusy = false,
   analyzeLabel = "Analyze",
+  hideClaim = false,
   onClaim,
   onAnalyze,
   onClear,
@@ -39,7 +41,7 @@ export function CandidateBulkSelectionBar({
       <div className="min-w-0">
         <p className="text-sm font-semibold text-[#0F766E]">{selectedLabel}</p>
         {scopeLabel ? <p className="text-xs text-[#64748B]">{scopeLabel}</p> : null}
-        {eligibleCount < selectedCount ? (
+        {!hideClaim && eligibleCount < selectedCount ? (
           <p className="text-xs text-[#B45309]">
             {eligibleCount} eligible to claim · {selectedCount - eligibleCount} will be skipped
           </p>
@@ -64,14 +66,16 @@ export function CandidateBulkSelectionBar({
             {analyzeBusy ? "Analyzing…" : analyzeLabel}
           </button>
         ) : null}
-        <button
-          type="button"
-          onClick={onClaim}
-          disabled={busy || eligibleCount === 0}
-          className="inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {claimBusy ? "Claiming…" : claimLabel}
-        </button>
+        {!hideClaim && onClaim ? (
+          <button
+            type="button"
+            onClick={onClaim}
+            disabled={busy || eligibleCount === 0}
+            className="inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {claimBusy ? "Claiming…" : claimLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 "use client";
 
+import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
+
 const JOBS_ICONS = "/icons/jobs-icons";
-const CANDIDATES_ICONS = "/icons/candidates-icons";
 
 const PRIMARY_TOOLBAR_BUTTON_CLASS =
   "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95";
@@ -46,7 +47,7 @@ function ListingGlyph({
 
 function ClaimClipboardIcon() {
   return (
-    <ListingGlyph src={`${CANDIDATES_ICONS}/claim-clipboard.svg`} outer={16} leafWidth={10.83} leafHeight={13.5} />
+    <ListingGlyph src={`/icons/candidates-icons/claim-clipboard.svg`} outer={16} leafWidth={10.83} leafHeight={13.5} />
   );
 }
 
@@ -125,7 +126,10 @@ export type ApplicationsListToolbarProps = {
   sortBy: "newest" | "oldest" | "matchScore" | "matchScoreAsc";
   onSortByChange: (value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") => void;
   onOpenMoreFilters: () => void;
-  onClaimCandidates: () => void;
+  hideClaimCandidates?: boolean;
+  onClaimCandidates?: () => void;
+  onExportCsv: () => void;
+  onExportXls: () => void;
   onAnalyzeAll: () => void;
   analyzeAllLabel: string;
   analyzeBusy?: boolean;
@@ -159,7 +163,10 @@ export function ApplicationsListToolbar({
   sortBy,
   onSortByChange,
   onOpenMoreFilters,
+  hideClaimCandidates = true,
   onClaimCandidates,
+  onExportCsv,
+  onExportXls,
   onAnalyzeAll,
   analyzeAllLabel,
   analyzeBusy = false,
@@ -175,10 +182,17 @@ export function ApplicationsListToolbar({
     <>
       <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={onClaimCandidates} className={PRIMARY_TOOLBAR_BUTTON_CLASS}>
-            <ClaimClipboardIcon />
-            Claim Candidates
-          </button>
+          <ListExportDropdown
+            variant="brand"
+            onExportCsv={onExportCsv}
+            onExportXls={onExportXls}
+          />
+          {!hideClaimCandidates && onClaimCandidates ? (
+            <button type="button" onClick={onClaimCandidates} className={PRIMARY_TOOLBAR_BUTTON_CLASS}>
+              <ClaimClipboardIcon />
+              Claim Candidates
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onAnalyzeAll}
