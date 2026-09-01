@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { matchesApplicationStatusTab } from "@/lib/jobs/application-status-tab";
+import { resolveApplicationStatusFromPayload } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 
 type StatusOption = { id: string; name: string; systemKey: string | null };
 
@@ -45,5 +46,25 @@ describe("job candidates status filtering", () => {
   it("treats blank notes as omitted", () => {
     const note = "   ".trim() || undefined;
     expect(note).toBeUndefined();
+  });
+});
+
+describe("resolveApplicationStatusFromPayload", () => {
+  const options: StatusOption[] = [
+    { id: "s-new", name: "New", systemKey: "new" },
+    { id: "s-attempted", name: "Attempted Contacted", systemKey: "attempted_contacted" },
+  ];
+
+  it("resolves by status_id for the current job application", () => {
+    const resolved = resolveApplicationStatusFromPayload(
+      { status: "new", status_id: "s-attempted" },
+      options
+    );
+    expect(resolved).toEqual({ statusId: "s-attempted", statusName: "Attempted Contacted" });
+  });
+
+  it("falls back to systemKey when status_id is missing", () => {
+    const resolved = resolveApplicationStatusFromPayload({ status: "new", status_id: null }, options);
+    expect(resolved).toEqual({ statusId: "s-new", statusName: "New" });
   });
 });

@@ -50,6 +50,7 @@ import {
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
+import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 
@@ -822,9 +823,10 @@ export function AiAnalysisOverviewClient({
                 </div>
               </div>
               <div className="flex w-full shrink-0 flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3">
-                <button type="button" className={HEADER_OUTLINE_BTN}>
-                  Attempted Contacted
-                </button>
+                <CandidateApplicationStatusControl
+                  applicationId={applicationId}
+                  buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
+                />
                 <button
                   type="button"
                   className={HEADER_PRIMARY_BTN}

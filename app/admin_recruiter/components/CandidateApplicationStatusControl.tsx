@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
 
-type StatusOption = {
+export type StatusOption = {
   id: string;
   name: string;
   systemKey: string | null;
@@ -28,12 +28,59 @@ type ApplicationContext = {
 };
 
 type CandidateApplicationStatusControlProps = {
-  workerId: string;
+  workerId?: string;
+  /** When set, updates this job application instead of the worker’s primary/ambiguous lookup. */
+  applicationId?: string | null;
   /** Fallback label when no application status exists (e.g. worker pipeline label). */
   fallbackStatus?: string | null;
   compact?: boolean;
+  /** Override chip classes (e.g. AI Analysis Overview header). */
+  buttonClassName?: string;
   onStatusChanged?: (next: { statusName: string; statusId: string }) => void;
 };
+
+function firstRelation(value: unknown): Record<string, unknown> | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  return row && typeof row === "object" ? (row as Record<string, unknown>) : null;
+}
+
+export function mapApplicationStatusOptions(payload: unknown): StatusOption[] {
+  const rows =
+    payload && typeof payload === "object" && Array.isArray((payload as { statuses?: unknown }).statuses)
+      ? ((payload as { statuses: Array<Record<string, unknown>> }).statuses)
+      : [];
+  return rows.map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    systemKey: typeof row.systemKey === "string" ? row.systemKey : null,
+  }));
+}
+
+export function resolveApplicationStatusFromPayload(
+  application: { status?: unknown; status_id?: unknown },
+  options: StatusOption[]
+): { statusId: string | null; statusName: string | null } {
+  const statusId = application.status_id != null && application.status_id !== ""
+    ? String(application.status_id)
+    : null;
+  const byId = statusId ? options.find((option) => option.id === statusId) : undefined;
+  if (byId) return { statusId: byId.id, statusName: byId.name };
+  const key = String(application.status ?? "").trim().toLowerCase();
+  const byKey = key
+    ? options.find((option) => (option.systemKey ?? "").toLowerCase() === key)
+    : undefined;
+  if (byKey) return { statusId: byKey.id, statusName: byKey.name };
+  return {
+    statusId,
+    statusName: String(application.status ?? "").trim() || null,
+  };
+}
+
+export function jobTitleFromApplicationPayload(application: Record<string, unknown>): string | null {
+  const job = firstRelation(application.job_requisitions);
+  const title = job?.public_title;
+  return typeof title === "string" && title.trim() ? title.trim() : null;
+}
 
 function formatHistoryDate(iso: string): string {
   const date = new Date(iso);
@@ -49,8 +96,10 @@ function formatHistoryDate(iso: string): string {
 
 export function CandidateApplicationStatusControl({
   workerId,
+  applicationId: applicationIdProp,
   fallbackStatus,
   compact = true,
+  buttonClassName,
   onStatusChanged,
 }: CandidateApplicationStatusControlProps) {
   const [ctx, setCtx] = useState<ApplicationContext | null>(null);
@@ -62,19 +111,47 @@ export function CandidateApplicationStatusControl({
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!workerId) return;
+    const scopedApplicationId = applicationIdProp?.trim() || "";
+    const scopedWorkerId = workerId?.trim() || "";
+    if (!scopedApplicationId && !scopedWorkerId) return;
     setLoading(true);
     try {
-      const [ctxRes, statusRes] = await Promise.all([
-        fetch(`/api/admin/workers/${encodeURIComponent(workerId)}/application-status`, {
-          cache: "no-store",
-        }),
-        fetch("/api/admin/application-statuses?activeOnly=1", { cache: "no-store" }),
-      ]);
-      const ctxPayload = await ctxRes.json();
+      const statusRes = await fetch("/api/admin/application-statuses?activeOnly=1", {
+        cache: "no-store",
+      });
       const statusPayload = await statusRes.json();
-      if (!ctxRes.ok) throw new Error(ctxPayload.error || "Failed to load application status");
       if (!statusRes.ok) throw new Error(statusPayload.error || "Failed to load statuses");
+      const nextOptions = mapApplicationStatusOptions(statusPayload);
+      setOptions(nextOptions);
+
+      if (scopedApplicationId) {
+        const appRes = await fetch(
+          `/api/admin/job-applications/${encodeURIComponent(scopedApplicationId)}`,
+          { cache: "no-store" }
+        );
+        const appPayload = await appRes.json();
+        if (!appRes.ok) throw new Error(appPayload.error || "Failed to load application");
+        const application =
+          appPayload.application && typeof appPayload.application === "object"
+            ? (appPayload.application as Record<string, unknown>)
+            : {};
+        const resolved = resolveApplicationStatusFromPayload(application, nextOptions);
+        setCtx({
+          applicationId: scopedApplicationId,
+          ambiguous: false,
+          statusId: resolved.statusId,
+          statusName: resolved.statusName,
+          jobTitle: jobTitleFromApplicationPayload(application),
+        });
+        return;
+      }
+
+      const ctxRes = await fetch(
+        `/api/admin/workers/${encodeURIComponent(scopedWorkerId)}/application-status`,
+        { cache: "no-store" }
+      );
+      const ctxPayload = await ctxRes.json();
+      if (!ctxRes.ok) throw new Error(ctxPayload.error || "Failed to load application status");
 
       setCtx({
         applicationId: ctxPayload.applicationId ?? null,
@@ -83,20 +160,13 @@ export function CandidateApplicationStatusControl({
         statusName: ctxPayload.status?.name ?? null,
         jobTitle: ctxPayload.jobTitle ?? null,
       });
-      setOptions(
-        ((statusPayload.statuses ?? []) as Array<Record<string, unknown>>).map((row) => ({
-          id: String(row.id),
-          name: String(row.name),
-          systemKey: (row.systemKey as string | null) ?? null,
-        }))
-      );
     } catch (error) {
       console.error(error);
       setCtx(null);
     } finally {
       setLoading(false);
     }
-  }, [workerId]);
+  }, [applicationIdProp, workerId]);
 
   useEffect(() => {
     void load();
@@ -167,13 +237,21 @@ export function CandidateApplicationStatusControl({
     }
   }
 
-  const chipClass = compact
-    ? "inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-md border border-[#D1D5DB] bg-white px-1.5 text-center text-[10px] font-semibold leading-4 text-[#111827] min-[700px]:max-w-none min-[700px]:flex-none min-[700px]:px-3 min-[700px]:text-xs disabled:opacity-50"
-    : "inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] disabled:opacity-50";
+  const chipClass =
+    buttonClassName ??
+    (compact
+      ? "inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-md border border-[#D1D5DB] bg-white px-1.5 text-center text-[10px] font-semibold leading-4 text-[#111827] min-[700px]:max-w-none min-[700px]:flex-none min-[700px]:px-3 min-[700px]:text-xs disabled:opacity-50"
+      : "inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] disabled:opacity-50");
 
   return (
     <>
-      <div className="relative min-w-0 flex-1 min-[700px]:flex-none">
+      <div
+        className={
+          buttonClassName
+            ? "relative shrink-0"
+            : "relative min-w-0 flex-1 min-[700px]:flex-none"
+        }
+      >
         <button
           type="button"
           disabled={loading || busy || !ctx?.applicationId}
