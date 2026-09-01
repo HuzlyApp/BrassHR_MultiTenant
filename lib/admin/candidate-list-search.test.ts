@@ -22,13 +22,34 @@ describe("matchesCandidateListSearch", () => {
     role: "RN",
   };
 
-  it("matches by name, email, phone, reference, and location", () => {
+  it("matches by name, email, phone, reference, job role, and location", () => {
     expect(matchesCandidateListSearch(row, "jordan")).toBe(true);
     expect(matchesCandidateListSearch(row, "jordan.lee@clinic.org")).toBe(true);
     expect(matchesCandidateListSearch(row, "4045550100")).toBe(true);
     expect(matchesCandidateListSearch(row, "abc1234")).toBe(true);
     expect(matchesCandidateListSearch(row, "dallas")).toBe(true);
     expect(matchesCandidateListSearch(row, "TX")).toBe(true);
+    expect(matchesCandidateListSearch(row, "rn")).toBe(true);
+  });
+
+  it("matches job role with punctuation normalized", () => {
+    expect(
+      matchesCandidateListSearch(
+        { ...row, role: "Senior AI-ML Engineer" },
+        "ai ml"
+      )
+    ).toBe(true);
+    expect(
+      matchesCandidateListSearch(
+        {
+          ...row,
+          role: "N/A",
+          applicationSearchText:
+            "Mainframe Developer / Engineer - COBOL | CICS | DB2 | z/OS | Westlake, TX",
+        },
+        "cobol"
+      )
+    ).toBe(true);
   });
 
   it("returns true for empty query", () => {

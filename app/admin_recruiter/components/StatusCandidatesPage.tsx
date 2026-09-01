@@ -23,8 +23,8 @@ import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import {
+  fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
-  withWorkersListFetchLimit,
 } from "@/lib/workers/candidates-list-fetch";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
@@ -56,6 +56,15 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
   assigned_recruiter_user_id?: string | null;
+  application_id?: string | null;
+  application_job_title?: string | null;
+  application_job_titles_text?: string | null;
+  application_search_text?: string | null;
+  match_application_id?: string | null;
+  ai_match_status?: string | null;
+  ai_match_score?: number | null;
+  ai_match_category?: string | null;
+  ai_match_display_category?: string | null;
 };
 
 type StatusCandidatesPageProps = {
@@ -143,6 +152,16 @@ function resolveCandidateContact(item: WorkerProfile) {
   return { email: selectedEmail, phone: selectedPhone };
 }
 
+function mapWorkerMatchFields(item: WorkerProfile) {
+  return {
+    matchApplicationId: item.match_application_id ?? item.application_id ?? null,
+    aiMatchStatus: item.ai_match_status ?? null,
+    aiMatchScore: item.ai_match_score ?? null,
+    aiMatchCategory: item.ai_match_category ?? null,
+    aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+  };
+}
+
 export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: StatusCandidatesPageProps) {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
@@ -162,6 +181,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   useEffect(() => {
@@ -171,32 +193,12 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const resolvedUrl = withWorkersListFetchLimit(
-        fetchUrl.includes("includePhotoUrls=")
-          ? fetchUrl
-          : `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}includePhotoUrls=1`
-      );
-      const res = await fetch(resolvedUrl, { cache: "no-store" });
-      const data = await res.json();
-      const authError =
-        res.status === 401 ||
-        res.status === 403 ||
-        String(data?.error ?? "").toLowerCase() === "unauthorized" ||
-        String(data?.detail ?? "").toLowerCase().includes("staff role required");
-      if (authError) {
-        setCandidates([]);
-        setTotalFromApi(0);
-        setPage(1);
-        return;
-      }
-      if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
+      const baseUrl = fetchUrl.includes("includePhotoUrls=")
+        ? fetchUrl
+        : `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}includePhotoUrls=1`;
 
-      const rows: WorkerProfile[] = Array.isArray(data?.workers)
-        ? data.workers
-        : Array.isArray(data)
-          ? data
-          : [];
-      setTotalFromApi(typeof data?.total === "number" ? data.total : rows.length);
+      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(baseUrl);
+      setTotalFromApi(total);
 
       const mapped: CandidateRow[] = rows.map((item) => {
         const { email, phone } = resolveCandidateContact(item);
@@ -206,6 +208,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         firstName: item.first_name ?? "",
         lastName: item.last_name ?? "",
         role: item.job_role || "N/A",
+        applicationJobTitle: item.application_job_title ?? null,
+        applicationJobTitlesText: item.application_job_titles_text ?? null,
+        applicationSearchText: item.application_search_text ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -222,6 +227,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
         assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+        ...mapWorkerMatchFields(item),
         });
       });
 
@@ -359,6 +365,48 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     }
     setClaimError(null);
     setClaimConfirmOpen(true);
+  }
+
+  async function runMatchAnalyze(applicationId: string) {
+    const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
+    setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
+    try {
+      const response = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Match analysis failed");
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId === applicationId
+            ? {
+                ...row,
+                aiMatchStatus: payload.status ?? row.aiMatchStatus,
+                aiMatchScore: payload.score ?? row.aiMatchScore,
+                aiMatchCategory: payload.category ?? row.aiMatchCategory,
+                aiMatchDisplayCategory:
+                  payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              }
+            : row
+        )
+      );
+      if (payload.status === "NEEDS_REVIEW") {
+        toast.error(payload.error || "Needs résumé text before analysis");
+      } else {
+        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`);
+      }
+    } catch (analyzeError) {
+      toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
+    } finally {
+      setMatchAnalyzingApplicationIds((current) => {
+        const next = new Set(current);
+        next.delete(applicationId);
+        return next;
+      });
+    }
   }
 
   async function confirmClaimCandidates() {
@@ -504,7 +552,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                               key={colId}
                               className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnClassName(colId)}`}
                             >
-                              {renderListCell(colId, c, formatDate)}
+                              {renderListCell(colId, c, formatDate, {
+                                matchAnalyzingApplicationIds,
+                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                              })}
                             </td>
                           ))}
                         </tr>

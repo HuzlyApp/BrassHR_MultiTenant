@@ -5,6 +5,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getApplicationStatusSummariesForWorkers } from "@/lib/jobs/application-statuses/attach-worker-application-status";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
 import {
   isApprovedPendingConversion,
@@ -14,6 +15,12 @@ import {
 import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 import { getAppliedJobCountsByWorker } from "@/lib/workers/applied-job-count";
+import {
+  getApplicationJobTitlesByWorker,
+  joinApplicationJobTitles,
+} from "@/lib/workers/worker-application-job-titles";
+import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summary";
+import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
 
 type SbErr = { message: string; code?: string };
@@ -131,8 +138,8 @@ export async function GET(req: Request) {
       conversionFilter === "pending" ||
       status == null ||
       (status === "approved" && conversionFilter !== "all");
-    const queryLimit = needsConversionFilter && !headOnly ? 500 : limit;
-    const queryOffset = needsConversionFilter && !headOnly ? 0 : offset;
+    const queryLimit = limit;
+    const queryOffset = offset;
 
     const url = getSupabaseUrl();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -251,10 +258,19 @@ export async function GET(req: Request) {
           const candidateIds = normalized
             .map((row) => (typeof row.id === "string" ? row.id : ""))
             .filter(Boolean);
-          const { data: employmentRows, error: employmentErr } = await supabase
-            .from("workers")
-            .select("candidate_id")
-            .in("candidate_id", candidateIds);
+          const { data: employmentRows, error: employmentErr } = await queryInChunks(
+            candidateIds,
+            async (chunk) => {
+              const result = await supabase
+                .from("workers")
+                .select("candidate_id")
+                .in("candidate_id", chunk);
+              return {
+                data: (result.data ?? []) as Array<{ candidate_id?: string }>,
+                error: result.error,
+              };
+            }
+          );
           if (employmentErr && !isMissingColumnErr(employmentErr)) {
             error = { message: employmentErr.message, code: (employmentErr as { code?: string }).code };
           } else {
@@ -279,12 +295,20 @@ export async function GET(req: Request) {
         }
 
         const filteredTotal = normalized.length;
-        const paged =
-          shouldFilterConversion && !headOnly
-            ? normalized.slice(offset, offset + limit)
-            : normalized;
-        const total = shouldFilterConversion ? filteredTotal : (count ?? paged.length);
-        const hasMore = !headOnly && offset + paged.length < total;
+        const paged = normalized;
+        const total = shouldFilterConversion ? (count ?? filteredTotal) : (count ?? paged.length);
+        const hasMore = !headOnly && queryOffset + (data?.length ?? 0) < (count ?? 0);
+
+        if (error) {
+          const errMsg = error.message || "Supabase query failed";
+          lastMessage = errMsg;
+          console.error("Supabase error:", error);
+          const retry = errMsg === "Invalid API key" && key === serviceKey && anonKey;
+          if (!retry) {
+            return Response.json({ error: errMsg }, { status: 500 });
+          }
+          continue;
+        }
 
         const withContacts = async () => {
           if (headOnly) return [];
@@ -308,34 +332,48 @@ export async function GET(req: Request) {
 
           let usersById = new Map<string, ContactLookupRow>();
           if (userIds.length > 0) {
-            const { data: usersData, error: usersError } = await supabase
-              .from("users")
-              .select("id, email, phone")
-              .in("id", userIds);
+            const { data: usersData, error: usersError } = await queryInChunks(
+              userIds,
+              async (chunk) => {
+                const result = await supabase
+                  .from("users")
+                  .select("id, email, phone")
+                  .in("id", chunk);
+                return {
+                  data: (result.data ?? []) as ContactLookupRow[],
+                  error: result.error,
+                };
+              }
+            );
             if (usersError) {
-              console.warn("Failed to load users contact data:", usersError.message);
+              console.warn("Failed to load users contact data:", usersError);
             } else {
               usersById = new Map(
-                ((usersData as ContactLookupRow[] | null) ?? [])
-                  .filter((u) => Boolean(u.id))
-                  .map((u) => [String(u.id), u])
+                usersData.filter((u) => Boolean(u.id)).map((u) => [String(u.id), u])
               );
             }
           }
 
           let applicantsById = new Map<string, ContactLookupRow>();
           if (workerIds.length > 0) {
-            const { data: applicantsData, error: applicantsError } = await supabase
-              .from("applicants")
-              .select("id, email, phone")
-              .in("id", workerIds);
+            const { data: applicantsData, error: applicantsError } = await queryInChunks(
+              workerIds,
+              async (chunk) => {
+                const result = await supabase
+                  .from("applicants")
+                  .select("id, email, phone")
+                  .in("id", chunk);
+                return {
+                  data: (result.data ?? []) as ContactLookupRow[],
+                  error: result.error,
+                };
+              }
+            );
             if (applicantsError) {
-              console.warn("Failed to load applicants contact data:", applicantsError.message);
+              console.warn("Failed to load applicants contact data:", applicantsError);
             } else {
               applicantsById = new Map(
-                ((applicantsData as ContactLookupRow[] | null) ?? [])
-                  .filter((a) => Boolean(a.id))
-                  .map((a) => [String(a.id), a])
+                applicantsData.filter((a) => Boolean(a.id)).map((a) => [String(a.id), a])
               );
             }
           }
@@ -356,21 +394,31 @@ export async function GET(req: Request) {
         };
 
         const enriched = await withContacts();
-        const withPhotos = headOnly
-          ? []
-          : includePhotoUrls
-            ? await attachWorkerProfilePhotoUrls(supabase, enriched as Record<string, unknown>[])
-            : (enriched as Record<string, unknown>[]).map((row) => ({
-                ...row,
-                profile_photo_url:
-                  typeof row.profile_photo === "string" && row.profile_photo.startsWith("http")
-                    ? row.profile_photo
-                    : null,
-              }));
+        let withPhotos: Record<string, unknown>[] = headOnly ? [] : enriched;
+        if (!headOnly && includePhotoUrls) {
+          try {
+            withPhotos = await attachWorkerProfilePhotoUrls(
+              supabase,
+              enriched as Record<string, unknown>[]
+            );
+          } catch (photoErr) {
+            console.warn("[api/workers] failed to attach profile photo urls", photoErr);
+            withPhotos = (enriched as Record<string, unknown>[]).map((row) => ({
+              ...row,
+              profile_photo_url: null,
+            }));
+          }
+        } else if (!headOnly) {
+          withPhotos = (enriched as Record<string, unknown>[]).map((row) => ({
+            ...row,
+            profile_photo_url:
+              typeof row.profile_photo === "string" && row.profile_photo.startsWith("http")
+                ? row.profile_photo
+                : null,
+          }));
+        }
 
-        let workersOut: Record<string, unknown>[] = headOnly
-          ? []
-          : (withPhotos as Record<string, unknown>[]);
+        let workersOut: Record<string, unknown>[] = headOnly ? [] : withPhotos;
 
         if (!headOnly && workersOut.length > 0) {
           try {
@@ -383,17 +431,34 @@ export async function GET(req: Request) {
             const workerIds = workersOut
               .map((row) => (typeof row.id === "string" ? row.id : ""))
               .filter(Boolean);
-            const [summaries, appliedJobCounts] = await Promise.all([
+            const [summaries, appliedJobCounts, matchSummaries, jobTitlesByWorker, searchTextByWorker] =
+              await Promise.all([
               getApplicationStatusSummariesForWorkers(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
               getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIds),
+              getWorkerJobMatchSummaries(supabase, {
+                tenantId: tenantIdForApps,
+                workerIds,
+              }),
+              getApplicationJobTitlesByWorker(supabase, {
+                tenantId: tenantIdForApps,
+                workerIds,
+              }),
+              getApplicationSearchTextByWorker(supabase, {
+                tenantId: tenantIdForApps,
+                workerIds,
+              }),
             ]);
             workersOut = workersOut.map((row) => {
               const id = typeof row.id === "string" ? row.id : "";
               const summary = id ? summaries.get(id) : undefined;
               const appliedJobCount = id ? appliedJobCounts.get(id) ?? 1 : 1;
+              const match = id ? matchSummaries.get(id) : undefined;
+              const jobTitles = id ? jobTitlesByWorker.get(id) : undefined;
+              const applicationJobTitlesText = joinApplicationJobTitles(jobTitles);
+              const applicationSearchText = id ? searchTextByWorker.get(id) : undefined;
               return {
                 ...row,
                 applied_job_count: appliedJobCount,
@@ -404,6 +469,20 @@ export async function GET(req: Request) {
                       application_status_name: summary.statusName,
                       application_status_key: summary.systemKey,
                       application_status_ambiguous: summary.ambiguous,
+                      application_job_title: summary.jobTitle,
+                    }
+                  : {}),
+                ...(applicationJobTitlesText
+                  ? { application_job_titles_text: applicationJobTitlesText }
+                  : {}),
+                ...(applicationSearchText ? { application_search_text: applicationSearchText } : {}),
+                ...(match
+                  ? {
+                      match_application_id: match.applicationId,
+                      ai_match_status: match.status,
+                      ai_match_score: match.score,
+                      ai_match_category: match.category,
+                      ai_match_display_category: match.displayCategory,
                     }
                   : {}),
               };

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 /** Count job applications per worker id within a tenant. */
 export async function getAppliedJobCountsByWorker(
@@ -9,15 +10,17 @@ export async function getAppliedJobCountsByWorker(
   const counts = new Map<string, number>();
   if (workerIds.length === 0) return counts;
 
-  let query = supabase.from("job_applications").select("worker_id").in("worker_id", workerIds);
-  if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await queryInChunks(workerIds, async (chunk) => {
+    let query = supabase.from("job_applications").select("worker_id").in("worker_id", chunk);
+    if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    }
+    const result = await query;
+    return { data: (result.data ?? []) as Array<{ worker_id?: string | null }>, error: result.error };
+  });
   if (error) throw error;
 
-  for (const row of data ?? []) {
+  for (const row of data) {
     const workerId = String((row as { worker_id?: string | null }).worker_id ?? "").trim();
     if (!workerId) continue;
     counts.set(workerId, (counts.get(workerId) ?? 0) + 1);
