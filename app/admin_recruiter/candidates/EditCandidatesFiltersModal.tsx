@@ -42,6 +42,7 @@ type FilterOptions = {
   statusOptions: string[];
   locationOptions: string[];
   jobOptions?: string[];
+  stageOptions?: string[];
 };
 
 type EditCandidatesFiltersModalProps = {
@@ -51,7 +52,7 @@ type EditCandidatesFiltersModalProps = {
   options: FilterOptions;
   onSave: (next: CandidatesFilterValues) => void;
   onAdvancedSearch?: () => void;
-  /** Legacy All candidates: hide Score, Work Type, and Stages fields. */
+  /** Legacy All candidates: hide Score and Work Type fields. */
   simplifiedFilters?: boolean;
 };
 
@@ -210,15 +211,6 @@ export function EditCandidatesFiltersModal({
                 ))}
               </ModalFilterField>
 
-              {!simplifiedFilters ? (
-                <ModalFilterField
-                  label="Stages"
-                  value={draft.stageFilter}
-                  onChange={(v) => setField("stageFilter", v)}
-                  placeholder="Stages"
-                />
-              ) : null}
-
               <ModalFilterField
                 label="Location"
                 value={draft.locationFilter}
@@ -228,6 +220,19 @@ export function EditCandidatesFiltersModal({
                 {options.locationOptions.map((location) => (
                   <option key={location} value={location}>
                     {location}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <ModalFilterField
+                label="Current Stage"
+                value={draft.stageFilter}
+                onChange={(v) => setField("stageFilter", v)}
+                placeholder="All Stages"
+              >
+                {(options.stageOptions ?? []).map((stage) => (
+                  <option key={stage} value={stage}>
+                    {stage}
                   </option>
                 ))}
               </ModalFilterField>

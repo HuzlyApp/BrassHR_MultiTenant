@@ -49,6 +49,9 @@ export type CandidatesListShellProps = {
   jobFilter?: string;
   onJobFilterChange?: (value: string) => void;
   jobOptions?: string[];
+  stageFilter?: string;
+  onStageFilterChange?: (value: string) => void;
+  stageOptions?: string[];
   jobRoleOptions: string[];
   locationOptions: string[];
   view: "card" | "list";
@@ -79,7 +82,7 @@ export type CandidatesListShellProps = {
   /** Legacy `/admin_recruiter/candidates`: hide Claim Candidates and show Export in the toolbar. */
   hideClaimCandidates?: boolean;
   exportInToolbar?: boolean;
-  /** Legacy `/admin_recruiter/candidates`: hide Score, Work Types, and Stages toolbar filters. */
+  /** Legacy `/admin_recruiter/candidates`: hide Score and Work Types toolbar filters. */
   simplifiedToolbarFilters?: boolean;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
@@ -278,6 +281,9 @@ export function CandidatesListShell({
   jobFilter: jobFilterProp,
   onJobFilterChange,
   jobOptions = [],
+  stageFilter: stageFilterProp,
+  onStageFilterChange,
+  stageOptions = [],
   jobRoleOptions,
   locationOptions,
   view,
@@ -315,7 +321,9 @@ export function CandidatesListShell({
   const [internalJobFilter, setInternalJobFilter] = useState("");
   const jobFilter = jobFilterProp ?? internalJobFilter;
   const setJobFilter = onJobFilterChange ?? setInternalJobFilter;
-  const [stageFilter, setStageFilter] = useState("");
+  const [internalStageFilter, setInternalStageFilter] = useState("");
+  const stageFilter = stageFilterProp ?? internalStageFilter;
+  const setStageFilter = onStageFilterChange ?? setInternalStageFilter;
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
@@ -336,7 +344,8 @@ export function CandidatesListShell({
   );
 
   const activeFilterCount = simplifiedToolbarFilters
-    ? [statusFilter, jobFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean).length
+    ? [statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean)
+        .length
     : countActiveCandidatesFilters(filterValues);
 
   function applyFilterValues(next: CandidatesFilterValues) {
@@ -354,6 +363,7 @@ export function CandidatesListShell({
     if (simplifiedToolbarFilters) {
       onStatusFilterChange?.("");
       setJobFilter("");
+      setStageFilter("");
       onLocationFilterChange("");
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
@@ -498,8 +508,8 @@ export function CandidatesListShell({
           </div>
         </div>
 
-        <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
-          <label className="flex h-8 min-w-[200px] flex-1 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 max-lg:min-w-0">
+        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 max-[449px]:flex-col min-[450px]:flex-row min-[450px]:flex-nowrap min-[450px]:items-center sm:px-5 lg:gap-3">
+          <label className="flex h-8 w-full min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 min-[450px]:flex-1 lg:w-[320px] lg:flex-none xl:w-[400px]">
             <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -523,7 +533,7 @@ export function CandidatesListShell({
           <button
             type="button"
             onClick={() => setFiltersModalOpen(true)}
-            className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:hidden"
+            className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] min-[450px]:ml-auto min-[450px]:w-auto lg:hidden"
           >
             <MoreFiltersIcon />
             Filters
@@ -534,7 +544,7 @@ export function CandidatesListShell({
             ) : null}
           </button>
 
-          <div className="hidden lg:contents">
+          <div className="hidden min-w-0 flex-1 flex-nowrap items-center gap-3 lg:flex">
             {/* Score + Work Types — hidden on All candidates screen */}
             {!simplifiedToolbarFilters ? (
               <>
@@ -578,23 +588,24 @@ export function CandidatesListShell({
                 placeholder="Stages"
                 value={stageFilter}
                 onChange={setStageFilter}
-                options={[]}
+                options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
               />
             ) : null}
-            <button
-              type="button"
-              onClick={() => setFiltersModalOpen(true)}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
-            >
-              <MoreFiltersIcon />
-              More Filters
-              {activeFilterCount > 0 ? (
-                <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
-                  {activeFilterCount}
-                </span>
-              ) : null}
-            </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setFiltersModalOpen(true)}
+            className="hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:inline-flex"
+          >
+            <MoreFiltersIcon />
+            More Filters
+            {activeFilterCount > 0 ? (
+              <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
         </div>
 
         {showMultiJobHighlight ? (
@@ -647,6 +658,7 @@ export function CandidatesListShell({
           statusOptions,
           locationOptions,
           jobOptions,
+          stageOptions,
         }}
         simplifiedFilters={simplifiedToolbarFilters}
         onSave={applyFilterValues}

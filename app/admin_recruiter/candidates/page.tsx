@@ -43,6 +43,10 @@ import {
 } from "@/lib/workers/candidate-status-label";
 import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
 import {
+  buildCandidateStageOptions,
+  candidateMatchesStageFilter,
+} from "@/lib/admin/candidate-list-stage";
+import {
   EMPTY_CANDIDATE_LIST_SORT,
   isCandidateListSortableColumn,
   sortCandidateRows,
@@ -206,6 +210,7 @@ export default function CandidatesPage() {
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [jobFilter, setJobFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -443,6 +448,8 @@ export default function CandidatesPage() {
     return Array.from(titles).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
+  const stageOptions = useMemo(() => buildCandidateStageOptions(candidates), [candidates]);
+
   const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
 
   const filtered = useMemo(() => {
@@ -454,6 +461,7 @@ export default function CandidatesPage() {
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
     if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
+    if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
@@ -461,7 +469,7 @@ export default function CandidatesPage() {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, locationFilter, appliedDateFrom, appliedDateTo]);
+  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]);
 
   // const multiJobApplicantCount = useMemo(
   //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
@@ -481,11 +489,12 @@ export default function CandidatesPage() {
           jobRoleFilter ||
           statusFilter ||
           jobFilter ||
+          stageFilter ||
           locationFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, jobFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const listDisplayTotal = useMemo(
@@ -505,7 +514,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, jobFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -551,6 +560,7 @@ export default function CandidatesPage() {
         jobRoleFilter,
         statusFilter,
         jobFilter,
+        stageFilter,
         locationFilter,
         appliedDateFrom,
         appliedDateTo,
@@ -563,6 +573,7 @@ export default function CandidatesPage() {
       jobRoleFilter,
       statusFilter,
       jobFilter,
+      stageFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -756,6 +767,9 @@ export default function CandidatesPage() {
         jobFilter={jobFilter}
         onJobFilterChange={setJobFilter}
         jobOptions={jobOptions}
+        stageFilter={stageFilter}
+        onStageFilterChange={setStageFilter}
+        stageOptions={stageOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
