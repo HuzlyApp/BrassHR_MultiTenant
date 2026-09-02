@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 export type StatusOption = {
   id: string;
@@ -94,6 +104,113 @@ function formatHistoryDate(iso: string): string {
   });
 }
 
+const MENU_MIN_WIDTH = 192;
+const MENU_MAX_HEIGHT = 256;
+
+function StatusOptionsMenu({
+  anchor,
+  options,
+  currentStatusId,
+  onSelect,
+  onClose,
+}: {
+  anchor: HTMLElement;
+  options: StatusOption[];
+  currentStatusId: string | null;
+  onSelect: (option: StatusOption) => void;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const branding = useTenantBranding();
+  const brandVars = brandingToCssVars(branding) as CSSProperties;
+  const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
+
+  const updatePosition = useCallback(() => {
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.max(
+      MENU_MIN_WIDTH,
+      Math.min(Math.max(rect.width, MENU_MIN_WIDTH), window.innerWidth - 16)
+    );
+    let top = rect.bottom + 4;
+    if (top + MENU_MAX_HEIGHT > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - MENU_MAX_HEIGHT - 4);
+    }
+    let left = rect.right - width;
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+    setStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      maxHeight: MENU_MAX_HEIGHT,
+      visibility: "visible",
+    });
+  }, [anchor]);
+
+  useLayoutEffect(() => {
+    updatePosition();
+  }, [updatePosition]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [updatePosition]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (anchor.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      onClose();
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [anchor, onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label="Application statuses"
+      style={{ ...brandVars, ...style }}
+      className="z-[200] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg"
+    >
+      {options.length ? (
+        options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="menuitem"
+            onClick={() => onSelect(option)}
+            className="flex min-h-9 w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+          >
+            <span>{option.name}</span>
+            {option.id === currentStatusId ? (
+              <Check className="h-4 w-4 text-[color:var(--brand-primary)]" />
+            ) : null}
+          </button>
+        ))
+      ) : (
+        <p className="px-3 py-2 text-sm text-[#98A2B3]">No statuses available</p>
+      )}
+    </div>,
+    document.body
+  );
+}
+
 export function CandidateApplicationStatusControl({
   workerId,
   applicationId: applicationIdProp,
@@ -109,6 +226,8 @@ export function CandidateApplicationStatusControl({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const load = useCallback(async () => {
     const scopedApplicationId = applicationIdProp?.trim() || "";
@@ -243,18 +362,23 @@ export function CandidateApplicationStatusControl({
       ? "inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-md border border-[#D1D5DB] bg-white px-1.5 text-center text-[10px] font-semibold leading-4 text-[#111827] min-[700px]:max-w-none min-[700px]:flex-none min-[700px]:px-3 min-[700px]:text-xs disabled:opacity-50"
       : "inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] disabled:opacity-50");
 
+  const canChangeStatus = Boolean(ctx?.applicationId) && !ctx?.ambiguous && !loading && !busy;
+
   return (
     <>
       <div
         className={
           buttonClassName
-            ? "relative shrink-0"
-            : "relative min-w-0 flex-1 min-[700px]:flex-none"
+            ? "relative z-20 shrink-0"
+            : "relative z-20 min-w-0 flex-1 min-[700px]:flex-none"
         }
       >
         <button
+          ref={buttonRef}
           type="button"
           disabled={loading || busy || !ctx?.applicationId}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
           className={chipClass}
           title={
@@ -266,31 +390,23 @@ export function CandidateApplicationStatusControl({
           }
         >
           <span className="min-w-0 truncate">{label}</span>
-          {ctx?.applicationId && !ctx.ambiguous ? (
+          {canChangeStatus ? (
             <ChevronDown className={`h-3.5 w-3.5 shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
           ) : null}
         </button>
-        {menuOpen ? (
-          <div className="absolute right-0 z-30 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg">
-            {options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => beginChange(option)}
-                className="flex min-h-9 w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                <span>{option.name}</span>
-                {option.id === ctx?.statusId ? (
-                  <Check className="h-4 w-4 text-[color:var(--brand-primary)]" />
-                ) : null}
-              </button>
-            ))}
-          </div>
+        {menuOpen && buttonRef.current ? (
+          <StatusOptionsMenu
+            anchor={buttonRef.current}
+            options={options}
+            currentStatusId={ctx?.statusId ?? null}
+            onSelect={beginChange}
+            onClose={closeMenu}
+          />
         ) : null}
       </div>
 
       {pending ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/40 p-4">
           <div
             role="dialog"
             aria-modal="true"

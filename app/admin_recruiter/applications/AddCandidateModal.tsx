@@ -16,6 +16,7 @@ import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 
@@ -144,6 +145,7 @@ export default function AddCandidateModal({
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Ignore responses from parses the recruiter has already superseded. */
@@ -265,7 +267,7 @@ export default function AddCandidateModal({
   }, [open, resetForm]);
 
   function handleClose() {
-    if (uploading) return;
+    if (uploading || importOpen) return;
     resetForm();
     onClose();
   }
@@ -444,7 +446,7 @@ export default function AddCandidateModal({
     (parseState === "parsed" || parseState === "failed" || hasIdentity);
   const canUpload = !uploading && parseState !== "parsing" && hasResumeSource && hasIdentity;
 
-  if (!open && !successOpen && !errorOpen && !uploading) return null;
+  if (!open && !successOpen && !errorOpen && !uploading && !importOpen) return null;
 
   return (
     <>
@@ -482,11 +484,24 @@ export default function AddCandidateModal({
 
             <div className="px-6 py-5">
               {jobTitle ? (
-                <p className="mb-4 text-sm text-[#64748B]">
+                <p className="mb-2 text-sm text-[#64748B]">
                   Adding candidate for{" "}
                   <span className="font-medium text-[#334155]">{jobTitle}</span>
                 </p>
               ) : null}
+              <p className="mb-4 text-sm text-[#64748B]">
+                Upload multiple résumés or import existing candidates from your talent database.
+              </p>
+
+              <button
+                type="button"
+                disabled={uploading || !jobId.trim()}
+                onClick={() => setImportOpen(true)}
+                className="mb-4 inline-flex h-10 w-full items-center justify-center rounded-lg border px-4 text-sm font-medium transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                style={{ borderColor: primaryColor, color: primaryColor }}
+              >
+                Import Candidates
+              </button>
 
               <ResumeTabBar
                 activeTab={activeTab}
@@ -749,6 +764,18 @@ export default function AddCandidateModal({
           </div>
         </div>
       ) : null}
+
+      <ImportCandidatesModal
+        open={importOpen}
+        jobId={jobId}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false);
+          resetForm();
+          onClose();
+          onSuccess?.();
+        }}
+      />
 
       {uploading ? (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/30 backdrop-blur-[1px]">

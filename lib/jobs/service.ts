@@ -1332,7 +1332,7 @@ function splitCandidateFullName(fullName: string): { firstName: string; lastName
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
-async function attachWorkflowInstanceToApplication(
+export async function attachWorkflowInstanceToApplication(
   supabase: DbClient,
   input: {
     tenantId: string;

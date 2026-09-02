@@ -69,7 +69,7 @@ const PRIMARY_BTN =
 const OUTLINE_BTN =
   "inline-flex items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_OUTLINE_BTN =
-  "inline-flex h-8 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
+  "inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-60";
 const HEADER_PRIMARY_BTN =
   "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
@@ -790,11 +790,11 @@ export function AiAnalysisOverviewClient({
         AI Analysis Overview
       </h1>
 
-      <div className="mt-6 grid items-start gap-5 sm:gap-[30px] lg:grid-cols-[minmax(0,1fr)_350px]">
+      <div className="mt-6 grid items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0 space-y-5">
-          <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex flex-col items-center gap-5 border-b border-[#E5E7EB] px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
-              <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center sm:w-auto sm:flex-row sm:items-center sm:gap-5 sm:text-left">
+          <section className="overflow-visible rounded-[12px] border border-[#E5E7EB] bg-white">
+            <div className="flex flex-col items-center gap-4 border-b border-[#E5E7EB] px-4 py-2.5 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-center min-[900px]:justify-between sm:px-5">
+              <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center min-[900px]:w-auto min-[900px]:flex-row min-[900px]:items-center min-[900px]:gap-5 min-[900px]:text-left">
                 <MatchRing
                   percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
@@ -803,7 +803,7 @@ export function AiAnalysisOverviewClient({
                 <div className="min-w-0">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
-                  <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                  <div className="mt-3 flex flex-wrap justify-center gap-2 min-[900px]:justify-start">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-normal leading-[15px] ${overviewMatchTagClass(app?.ai_match_category)}`}
                     >
@@ -822,7 +822,7 @@ export function AiAnalysisOverviewClient({
                   </div>
                 </div>
               </div>
-              <div className="flex w-full shrink-0 flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3">
+              <div className="relative z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-2 min-[480px]:w-auto min-[480px]:justify-end min-[900px]:gap-3">
                 <CandidateApplicationStatusControl
                   applicationId={applicationId}
                   buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
@@ -863,7 +863,7 @@ export function AiAnalysisOverviewClient({
               </div>
             </SectionHeaderBlock>
 
-            <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <div className="flex w-max flex-nowrap items-center gap-2">
                 {FILTERS.map((item) => {
@@ -886,7 +886,7 @@ export function AiAnalysisOverviewClient({
                 })}
                 </div>
               </div>
-              <label className="relative w-full sm:max-w-[260px]">
+              <label className="relative w-full shrink-0 sm:max-w-[260px] xl:w-[240px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#98A2B3]" />
                 <input
                   value={query}
