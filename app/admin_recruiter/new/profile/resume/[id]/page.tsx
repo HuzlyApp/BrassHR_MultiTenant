@@ -104,12 +104,17 @@ export default function NewApplicantProfileResumePage() {
     return parts.length ? parts.join(", ") : "—";
   }, [w?.city, w?.state]);
 
-  const isPdf =
-    resumePath?.toLowerCase().endsWith(".pdf") ||
-    resumeUrl?.toLowerCase().includes(".pdf");
+  const lowerPath = resumePath?.toLowerCase() ?? "";
+  const lowerUrl = resumeUrl?.toLowerCase() ?? "";
+  const canEmbedPreview =
+    lowerPath.endsWith(".pdf") ||
+    lowerPath.endsWith(".docx") ||
+    lowerUrl.includes(".pdf") ||
+    lowerUrl.includes(".docx");
   const previewUrl = applicantId
     ? `/api/admin/worker-resume-preview?workerId=${encodeURIComponent(applicantId)}`
     : null;
+  const embedUrl = previewUrl ?? resumeUrl;
 
   useEffect(() => {
     setResumePreviewError(null);
@@ -124,8 +129,8 @@ export default function NewApplicantProfileResumePage() {
     const key = `resume-mobile-open:${applicantId}`;
     if (sessionStorage.getItem(key) === "1") return;
     sessionStorage.setItem(key, "1");
-    window.open(resumeUrl, "_blank", "noopener,noreferrer");
-  }, [applicantId, error, loading, resumeUrl]);
+    window.open(embedUrl || resumeUrl, "_blank", "noopener,noreferrer");
+  }, [applicantId, embedUrl, error, loading, resumeUrl]);
 
   const sidebarItems = useMemo(
     () => [
@@ -294,7 +299,7 @@ export default function NewApplicantProfileResumePage() {
                   <div className="h-11 flex items-center px-4 text-white/85 bg-black/15 text-xs justify-between gap-3">
                     <span className="min-w-0 truncate">{fileLabel(resumePath)}</span>
                     <a
-                      href={resumeUrl}
+                      href={embedUrl ?? resumeUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="shrink-0 text-teal-300 hover:text-white underline"
@@ -302,7 +307,7 @@ export default function NewApplicantProfileResumePage() {
                       Open in new tab
                     </a>
                   </div>
-                  {isPdf ? (
+                  {canEmbedPreview ? (
                     <>
                       {/* Mobile: prefer native/new-tab PDF viewer — iframe preview clips badly */}
                       <div className="block space-y-4 bg-white px-5 py-8 text-center md:hidden">
@@ -310,7 +315,7 @@ export default function NewApplicantProfileResumePage() {
                           On mobile, the resume opens in a new tab for a clearer view.
                         </p>
                         <a
-                          href={resumeUrl}
+                          href={embedUrl ?? resumeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white"
@@ -320,8 +325,8 @@ export default function NewApplicantProfileResumePage() {
                       </div>
                       <div className="hidden bg-zinc-100 md:block">
                         <iframe
-                          title="Resume PDF"
-                          src={previewUrl ?? resumeUrl}
+                          title="Resume preview"
+                          src={embedUrl ?? resumeUrl}
                           className="h-[calc(100dvh-260px)] min-h-[700px] w-full"
                           onError={() =>
                             setResumePreviewError(
@@ -338,7 +343,7 @@ export default function NewApplicantProfileResumePage() {
                     </>
                   ) : (
                     <div className="p-8 text-center text-white/90 text-sm">
-                      <p className="mb-4">Preview is available for PDF files. This file is not a PDF.</p>
+                      <p className="mb-4">Preview is available for PDF and Word (.docx) files.</p>
                       <a
                         href={resumeUrl}
                         target="_blank"

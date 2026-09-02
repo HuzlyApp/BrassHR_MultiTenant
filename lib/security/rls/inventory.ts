@@ -54,7 +54,15 @@ export const RECRUITING_RESOURCES: ResourceInventory[] = [
     policyCount: 0,
     tenantSource: "direct.tenant_id",
     securityClass: "deny-by-default",
-    notes: "RLS on, no policies → PostgREST deny-all. Membership writes go through service role.",
+    notes: "RLS on, no policies → PostgREST deny-all. Membership writes go through service role. is_active suspends tenant membership.",
+  },
+  {
+    resource: "staff_invitations",
+    rls: "on",
+    policyCount: 0,
+    tenantSource: "direct.tenant_id",
+    securityClass: "deny-by-default",
+    notes: "RLS on, no policies, grants revoked from anon/authenticated. Invite metadata only; activation tokens stay in Auth.",
   },
   {
     resource: "worker",
@@ -311,6 +319,8 @@ export const FK_SPOOF_CANDIDATE_TABLES = [
 ] as const;
 
 export const ACCESS_MATRIX = [
+  { resource: "User Management", role: "Admin", own: "ALLOW", other: "DENY" },
+  { resource: "User Management", role: "Recruiter", own: "DENY", other: "DENY" },
   { resource: "Jobs", role: "Admin", own: "ALLOW", other: "DENY" },
   { resource: "Jobs", role: "Recruiter", own: "ALLOW", other: "DENY" },
   { resource: "Workers", role: "Admin", own: "ALLOW", other: "DENY" },

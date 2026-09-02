@@ -67,6 +67,9 @@ export const PIPELINE_PROGRESS_STEPS = [
   "failed",
 ] as const;
 
+export const ANALYSIS_MODES = ["analyze", "deep"] as const;
+
+export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
 export type MatchCategory = (typeof MATCH_CATEGORIES)[number];
 export type RecommendedAction = (typeof RECOMMENDED_ACTIONS)[number];
 export type ReadinessStatus = (typeof READINESS_STATUSES)[number];
@@ -103,6 +106,27 @@ export const screeningQuestionSchema = z.object({
   reason: z.string().max(1000).default(""),
   related_requirement: z.string().max(1000).default(""),
 });
+
+/** Lean Analyze-mode requirement row (evidence-only; expanded to RequirementItem after parse). */
+export const analyzeRequirementItemSchema = z.object({
+  requirement: z.string().trim().min(1).max(2000),
+  status: z.enum(REQUIREMENT_STATUSES),
+  evidence: z.string().max(4000).default(""),
+});
+
+/** Lean Analyze-mode model output. Hydrated into MatchAnalysisResponse after validation. */
+export const analyzeMatchResponseSchema = z.object({
+  recommended_overall_match_score: clampedScore.default(0),
+  match_category: z.enum(MATCH_CATEGORIES),
+  recommended_action: z.enum(RECOMMENDED_ACTIONS),
+  mandatory_requirements: z.array(analyzeRequirementItemSchema).max(60).default([]),
+  preferred_requirements: z.array(analyzeRequirementItemSchema).max(60).default([]),
+  screening_questions: z.array(z.string().max(1000)).max(4).default([]),
+  items_to_verify: z.array(z.string().max(1000)).max(30).default([]),
+  blocking_requirements: z.array(z.string().max(1000)).max(30).default([]),
+});
+
+export type AnalyzeMatchResponse = z.infer<typeof analyzeMatchResponseSchema>;
 
 export const matchAnalysisResponseSchema = z.object({
   analysis_version: z.string().default("1.0"),

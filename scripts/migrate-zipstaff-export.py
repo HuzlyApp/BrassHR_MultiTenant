@@ -972,7 +972,7 @@ def migrate(export_path: Path, skip_files: bool) -> None:
                 "to_status_id": to_id,
                 "to_status_name": to_name[:200],
                 "changed_by_user_id": staff_or_none(staff, log.get("performed_by_user_id")),
-                "note": None,
+                "note": clean(meta.get("note")),
                 "created_at": log.get("created_at"),
             }
         )

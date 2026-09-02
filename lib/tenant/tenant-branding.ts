@@ -161,6 +161,16 @@ const DEFAULT_HEADING_COLOR = "#0F172A";
 const DEFAULT_MUTED_COLOR = "#64748B";
 const DEFAULT_BUTTON_TEXT = "Sign in";
 
+export function sanitizeAuthButtonText(
+  value: string | null | undefined,
+  fallback: string = DEFAULT_BUTTON_TEXT
+): string {
+  const text = value?.trim();
+  if (!text) return fallback;
+  if (text.includes("@")) return fallback;
+  return text;
+}
+
 const FONT_FAMILY_BY_ID: Record<TenantBrandingFontId, string> = {
   inter: "var(--font-tenant-branding-inter, ui-sans-serif), Inter, system-ui, sans-serif",
   impact: "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
@@ -343,7 +353,7 @@ export function brandingFromTenantRow(
     fontColor: row.font_color?.trim() || typography.fontColor,
     headingColor: row.heading_color?.trim() || typography.headingColor,
     mutedTextColor: row.muted_text_color?.trim() || typography.mutedTextColor,
-    buttonText: row.button_text?.trim() || typography.buttonText,
+    buttonText: sanitizeAuthButtonText(row.button_text, typography.buttonText),
     buttonColor: row.button_color?.trim() || primaryHex,
   };
 }

@@ -12,6 +12,7 @@ type Body = {
   applicantId?: string;
   tenantSlug?: string;
   jobApplicationId?: string;
+  jobToken?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -30,7 +31,13 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const result = await submitOnboardingApplication(supabase, { applicantId, tenantSlug });
+    const result = await submitOnboardingApplication(supabase, {
+      applicantId,
+      tenantSlug,
+      jobApplicationId:
+        typeof body.jobApplicationId === "string" ? body.jobApplicationId.trim() : undefined,
+      jobToken: typeof body.jobToken === "string" ? body.jobToken.trim() : undefined,
+    });
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });

@@ -21,11 +21,22 @@ import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
 import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
+import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
+import {
+  fetchAllWorkersFromApi,
+  resolveCandidatesListTotal,
+} from "@/lib/workers/candidates-list-fetch";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "./ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "../candidates/claim-client";
+import { runCandidateListBulkMatchAnalyze } from "../candidates/run-bulk-match-analyze";
+import {
+  bulkAnalyzeSelectedLabel,
+  bulkReanalyzeSelectedLabel,
+  partitionMatchAnalysisTargets,
+} from "@/lib/admin/bulk-match-analysis";
 import toast from "react-hot-toast";
 
 type WorkerProfile = {
@@ -51,6 +62,15 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
   assigned_recruiter_user_id?: string | null;
+  application_id?: string | null;
+  application_job_title?: string | null;
+  application_job_titles_text?: string | null;
+  application_search_text?: string | null;
+  match_application_id?: string | null;
+  ai_match_status?: string | null;
+  ai_match_score?: number | null;
+  ai_match_category?: string | null;
+  ai_match_display_category?: string | null;
 };
 
 type StatusCandidatesPageProps = {
@@ -138,6 +158,16 @@ function resolveCandidateContact(item: WorkerProfile) {
   return { email: selectedEmail, phone: selectedPhone };
 }
 
+function mapWorkerMatchFields(item: WorkerProfile) {
+  return {
+    matchApplicationId: item.match_application_id ?? item.application_id ?? null,
+    aiMatchStatus: item.ai_match_status ?? null,
+    aiMatchScore: item.ai_match_score ?? null,
+    aiMatchCategory: item.ai_match_category ?? null,
+    aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+  };
+}
+
 export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: StatusCandidatesPageProps) {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
@@ -157,6 +187,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   useEffect(() => {
@@ -166,33 +199,12 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const resolvedUrl = (() => {
-        const sep = fetchUrl.includes("?") ? "&" : "?";
-        return fetchUrl.includes("includePhotoUrls=")
-          ? fetchUrl
-          : `${fetchUrl}${sep}includePhotoUrls=1`;
-      })();
-      const res = await fetch(resolvedUrl, { cache: "no-store" });
-      const data = await res.json();
-      const authError =
-        res.status === 401 ||
-        res.status === 403 ||
-        String(data?.error ?? "").toLowerCase() === "unauthorized" ||
-        String(data?.detail ?? "").toLowerCase().includes("staff role required");
-      if (authError) {
-        setCandidates([]);
-        setTotalFromApi(0);
-        setPage(1);
-        return;
-      }
-      if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
+      const baseUrl = fetchUrl.includes("includePhotoUrls=")
+        ? fetchUrl
+        : `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}includePhotoUrls=1`;
 
-      const rows: WorkerProfile[] = Array.isArray(data?.workers)
-        ? data.workers
-        : Array.isArray(data)
-          ? data
-          : [];
-      setTotalFromApi(typeof data?.total === "number" ? data.total : rows.length);
+      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(baseUrl);
+      setTotalFromApi(total);
 
       const mapped: CandidateRow[] = rows.map((item) => {
         const { email, phone } = resolveCandidateContact(item);
@@ -202,6 +214,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         firstName: item.first_name ?? "",
         lastName: item.last_name ?? "",
         role: item.job_role || "N/A",
+        applicationJobTitle: item.application_job_title ?? null,
+        applicationJobTitlesText: item.application_job_titles_text ?? null,
+        applicationSearchText: item.application_search_text ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -218,6 +233,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
         assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+        ...mapWorkerMatchFields(item),
         });
       });
 
@@ -265,21 +281,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
   const filtered = useMemo(() => {
     let out = candidates;
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (q) {
-      out = out.filter((c) => {
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.role.toLowerCase().includes(q) ||
-          c.reference.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q) ||
-          c.zip.toLowerCase().includes(q) ||
-          c.state.toLowerCase().includes(q)
-        );
-      });
+      out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
@@ -297,6 +301,28 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     }
     return out;
   }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
+
+  const hasActiveListFilters = useMemo(
+    () =>
+      Boolean(
+        query.trim() ||
+          jobRoleFilter ||
+          statusFilter ||
+          locationFilter ||
+          dateFilter
+      ),
+    [query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+  );
+
+  const listDisplayTotal = useMemo(
+    () =>
+      resolveCandidatesListTotal({
+        totalFromApi,
+        visibleCount: filtered.length,
+        hasClientFilters: hasActiveListFilters,
+      }),
+    [totalFromApi, filtered.length, hasActiveListFilters]
+  );
 
   useEffect(() => {
     setPage(1);
@@ -338,6 +364,28 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     clearKey: selectionClearKey,
   });
 
+  const selectedCandidates = useMemo(
+    () => candidates.filter((row) => selection.selectedIds.has(row.id)),
+    [candidates, selection.selectedIds]
+  );
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
+    partitionMatchAnalysisTargets(
+      selectedCandidates.map((row) => ({
+        applicationId: row.matchApplicationId,
+        status: row.aiMatchStatus,
+      }))
+    );
+  const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
+
+  async function runSelectedMatchAnalyze(applicationIds: string[]) {
+    if (bulkAnalyzeBusy) return;
+    await runCandidateListBulkMatchAnalyze({
+      applicationIds,
+      setCandidates,
+      setAnalyzingIds: setMatchAnalyzingApplicationIds,
+    });
+  }
+
   function openClaimConfirm() {
     if (selection.selectedEligibleCount === 0) {
       toast("Select eligible unclaimed candidates first.");
@@ -345,6 +393,48 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     }
     setClaimError(null);
     setClaimConfirmOpen(true);
+  }
+
+  async function runMatchAnalyze(applicationId: string) {
+    const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
+    setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
+    try {
+      const response = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Match analysis failed");
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId === applicationId
+            ? {
+                ...row,
+                aiMatchStatus: payload.status ?? row.aiMatchStatus,
+                aiMatchScore: payload.score ?? row.aiMatchScore,
+                aiMatchCategory: payload.category ?? row.aiMatchCategory,
+                aiMatchDisplayCategory:
+                  payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              }
+            : row
+        )
+      );
+      if (payload.status === "NEEDS_REVIEW") {
+        toast.error(payload.error || "Needs résumé text before analysis");
+      } else {
+        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`);
+      }
+    } catch (analyzeError) {
+      toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
+    } finally {
+      setMatchAnalyzingApplicationIds((current) => {
+        const next = new Set(current);
+        next.delete(applicationId);
+        return next;
+      });
+    }
   }
 
   async function confirmClaimCandidates() {
@@ -400,22 +490,23 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
-        onAddCandidate={() => toast("Open a job posting to add a candidate.")}
-        onClaimCandidates={openClaimConfirm}
+        hideAddCandidate
+        hideClaimCandidates
+        exportInToolbar
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
         onExportCsv={() => exportCandidatesCsv(filtered)}
         onExportXls={() => exportCandidatesXls(filtered)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
-        totalCount={totalFromApi}
+        totalCount={listDisplayTotal}
         loading={loading}
         totalLabel={`${statusLabel} applicants`}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
-        totalFiltered={filtered.length}
+        totalFiltered={listDisplayTotal}
       >
         {(() => {
           const formatDate = formatDateShort;
@@ -430,17 +521,32 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           if (view === "list") {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
-              <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+              <div className="w-full overflow-hidden">
                 <CandidateBulkSelectionBar
                   selectedCount={selection.selectedCount}
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
+                  analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
+                  reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
+                  onAnalyze={
+                    selectedAnalyzeIds.length > 0
+                      ? () => void runSelectedMatchAnalyze(selectedAnalyzeIds)
+                      : selection.selectedCount > 0 && selectedReanalyzeIds.length === 0
+                        ? () => void runSelectedMatchAnalyze([])
+                        : undefined
+                  }
+                  onReanalyze={
+                    selectedReanalyzeIds.length > 0
+                      ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
+                      : undefined
+                  }
                   onClaim={openClaimConfirm}
                   onClear={selection.clearSelection}
                 />
-                <div className="overflow-auto">
-                  <table className="min-w-[820px] w-full border-collapse">
+                <div className="w-full overflow-auto">
+                  <table className="w-full min-w-[820px] border-collapse">
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -489,7 +595,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                               key={colId}
                               className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnClassName(colId)}`}
                             >
-                              {renderListCell(colId, c, formatDate)}
+                              {renderListCell(colId, c, formatDate, {
+                                matchAnalyzingApplicationIds,
+                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                              })}
                             </td>
                           ))}
                         </tr>
@@ -503,7 +612,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
                 <CandidateGridCard
                   key={c.id}

@@ -42,6 +42,23 @@ function avgStatusScore(items: RequirementItem[]): number | null {
   return scores.reduce((a, b) => a + b, 0) / scores.length;
 }
 
+/** "Not listed / not found on résumé" is missing information, not a proven inability. */
+export function isAbsenceOnlyEvidence(evidence: string): boolean {
+  const e = evidence.trim();
+  if (!e) return true;
+  return /\b(not (found|listed|mentioned|documented|provided|included|shown|present|noted|stated)|no .{0,120}(listed|mentioned|documented|found|shown|provided|in (the )?(résumé|resume)|on (the )?(résumé|resume))|zero documented|does not (appear|mention|list|show|include)|none (listed|mentioned|documented)|no evidence|absence of|(résumé|resume) (does not|doesn't) (list|mention|show|include)|no .{0,80}(experience|license|certification|credential) (documented|listed|mentioned))\b/i.test(
+    e
+  );
+}
+
+/** Explicit contradiction or inability — not merely missing from the résumé. */
+export function isExplicitInability(evidence: string): boolean {
+  if (isAbsenceOnlyEvidence(evidence)) return false;
+  return /\b(unable to|cannot |can't |will not |won't |unwilling|not authorized|not eligible|not willing|refuses to|ineligible|expired|revoked|surrendered)\b/i.test(
+    evidence
+  );
+}
+
 /**
  * Fairness: missing / NOT_FOUND / NOT_MET without clear evidence → VERIFY.
  * Absence ≠ absence of capability.
@@ -76,15 +93,8 @@ export function applyFairnessOutcomes(items: RequirementItem[]): RequirementItem
       };
     }
 
-    // PARTIAL / NOT_FOUND: prefer VERIFY unless clear hard conflict already handled
     const evidence = item.candidate_evidence?.trim() ?? "";
-    const claimedNotMet = item.requirement_outcome === "NOT_MET";
-    const hasClearNegativeEvidence =
-      claimedNotMet &&
-      evidence.length > 0 &&
-      /\b(no|not|never|unable|cannot|can't|do not|don't|lack|without)\b/i.test(evidence);
-
-    if (hasClearNegativeEvidence) {
+    if (isExplicitInability(evidence)) {
       return {
         ...item,
         requirement_outcome: "NOT_MET" as RequirementOutcome,
@@ -171,8 +181,36 @@ function looksLikeWorkSetting(text: string): boolean {
   );
 }
 
+function applyMandatoryGapCaps(score: number, mandatory: RequirementItem[]): number {
+  const notFound = mandatory.filter(
+    (r) => r.status === "NOT_FOUND" && r.requirement_outcome !== "NOT_APPLICABLE"
+  );
+  const blocked = mandatory.filter(
+    (r) => r.requirement_outcome === "NOT_MET" || r.requirement_outcome === "CONFLICT"
+  );
+  let capped = score;
+  if (blocked.length > 0 || notFound.length >= 2) {
+    capped = Math.min(capped, 45);
+  } else if (notFound.length === 1) {
+    capped = Math.min(capped, 59);
+  }
+  return clamp(capped);
+}
+
+function confidenceFromRequirements(
+  mandatory: RequirementItem[],
+  preferred: RequirementItem[],
+  fallback: number
+): number {
+  const items = [...mandatory, ...preferred].filter((r) => r.status !== "NOT_APPLICABLE");
+  if (!items.length) return clamp(fallback);
+  const avg = items.reduce((sum, item) => sum + (Number(item.confidence) || 0), 0) / items.length;
+  return clamp(avg || fallback);
+}
+
 /**
  * Deterministic rescoring. Do not trust model scores as final.
+ * Missing résumé evidence is VERIFY (score pressure), not a 0% knockout.
  */
 export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisResponse {
   const mandatory = applyFairnessOutcomes(
@@ -188,77 +226,7 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
       (r.status === "CONFLICTING" && r.requirement_outcome === "CONFLICT")
   );
 
-  // Hard knockout: any mandatory clearly NOT_MET
-  const mandatoryNotMet = mandatory.filter((r) => r.requirement_outcome === "NOT_MET");
-  if (mandatoryNotMet.length > 0) {
-    const category: MatchCategory = "NOT_CURRENTLY_SUBMITTABLE";
-    const readiness = readinessFromAnalysis(category, mandatory, raw);
-    return {
-      ...raw,
-      mandatory_requirements: mandatory,
-      preferred_requirements: preferred,
-      candidate_match: {
-        ...raw.candidate_match,
-        recommended_overall_match_score: 0,
-        match_category: category,
-        display_category: MATCH_CATEGORY_LABELS[category],
-        mandatory_requirement_override: true,
-        recommended_action: "STOP_FOR_THIS_JOB",
-        recruiter_decision_summary:
-          raw.candidate_match.recruiter_decision_summary ||
-          `Mandatory requirement not met: ${mandatoryNotMet.map((r) => r.requirement).join("; ")}`,
-      },
-      subscores: {
-        mandatory_requirements_score: clamp(avgStatusScore(mandatory) ?? 0),
-        specialty_experience_score: clamp(raw.subscores.specialty_experience_score),
-        clinical_skills_score: clamp(raw.subscores.clinical_skills_score),
-        licenses_certifications_score: clamp(raw.subscores.licenses_certifications_score),
-        work_setting_equipment_score: clamp(raw.subscores.work_setting_equipment_score),
-        preferred_qualifications_score: clamp(avgStatusScore(preferred) ?? 0),
-      },
-      submission_readiness: {
-        ...raw.submission_readiness,
-        ...readiness,
-        blocking_requirements: mandatoryNotMet.map((r) => r.requirement),
-      },
-    };
-  }
-
   const completeness = raw.data_quality.resume_completeness;
-  const allVerify =
-    mandatory.length > 0 &&
-    mandatory.every(
-      (r) =>
-        r.requirement_outcome === "VERIFY" ||
-        r.requirement_outcome === "NOT_APPLICABLE" ||
-        r.status === "NOT_FOUND" ||
-        r.status === "PARTIAL"
-    );
-
-  if (completeness === "LOW" || (allVerify && mandatory.length >= 2)) {
-    const category: MatchCategory = "NEEDS_MORE_INFORMATION";
-    const readiness = readinessFromAnalysis(category, mandatory, raw);
-    return {
-      ...raw,
-      mandatory_requirements: mandatory,
-      preferred_requirements: preferred,
-      candidate_match: {
-        ...raw.candidate_match,
-        recommended_overall_match_score: clamp(avgStatusScore(mandatory) ?? 40),
-        match_category: category,
-        display_category: MATCH_CATEGORY_LABELS[category],
-        mandatory_requirement_override: false,
-        recommended_action: "CALL_AND_VERIFY",
-        recruiter_decision_summary:
-          raw.candidate_match.recruiter_decision_summary ||
-          "Résumé completeness is too low or most mandatory items need verification.",
-      },
-      submission_readiness: {
-        ...raw.submission_readiness,
-        ...readiness,
-      },
-    };
-  }
 
   const mandatoryScore = avgStatusScore(mandatory) ?? 50;
   const preferredScore = avgStatusScore(preferred) ?? 50;
@@ -273,15 +241,14 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
       !looksLikeWorkSetting(r.requirement)
   );
 
-  const licensesScore = avgStatusScore(licenseItems) ?? raw.subscores.licenses_certifications_score;
-  const specialtyScore =
-    avgStatusScore(specialtyItems) ?? raw.subscores.specialty_experience_score;
-  const workSettingScore =
-    avgStatusScore(workSettingItems) ?? raw.subscores.work_setting_equipment_score;
-  const clinicalScore =
-    avgStatusScore(otherMandatory) ?? raw.subscores.clinical_skills_score;
+  // Empty buckets inherit the mandatory average. Defaulting to 0 made most
+  // non-clinical (and many clinical) scores collapse toward 0.
+  const licensesScore = avgStatusScore(licenseItems) ?? mandatoryScore;
+  const specialtyScore = avgStatusScore(specialtyItems) ?? mandatoryScore;
+  const workSettingScore = avgStatusScore(workSettingItems) ?? mandatoryScore;
+  const clinicalScore = avgStatusScore(otherMandatory) ?? mandatoryScore;
 
-  const overall = clamp(
+  let overall = clamp(
     mandatoryScore * WEIGHTS.mandatory +
       specialtyScore * WEIGHTS.specialty +
       clinicalScore * WEIGHTS.clinical +
@@ -289,17 +256,58 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
       workSettingScore * WEIGHTS.workSetting +
       preferredScore * WEIGHTS.preferred
   );
+  overall = applyMandatoryGapCaps(overall, mandatory);
 
-  let category = categoryFromScore(overall);
+  if (completeness === "LOW" && mandatory.length > 0) {
+    const category: MatchCategory = "NEEDS_MORE_INFORMATION";
+    const readiness = readinessFromAnalysis(category, mandatory, raw);
+    return {
+      ...raw,
+      mandatory_requirements: mandatory,
+      preferred_requirements: preferred,
+      candidate_match: {
+        ...raw.candidate_match,
+        recommended_overall_match_score: overall,
+        match_category: category,
+        display_category: MATCH_CATEGORY_LABELS[category],
+        confidence_score: confidenceFromRequirements(
+          mandatory,
+          preferred,
+          raw.candidate_match.confidence_score
+        ),
+        mandatory_requirement_override: false,
+        recommended_action: "CALL_AND_VERIFY",
+        recruiter_decision_summary:
+          raw.candidate_match.recruiter_decision_summary ||
+          "Résumé completeness is too low for a reliable assessment.",
+      },
+      subscores: {
+        mandatory_requirements_score: clamp(mandatoryScore),
+        specialty_experience_score: clamp(specialtyScore),
+        clinical_skills_score: clamp(clinicalScore),
+        licenses_certifications_score: clamp(licensesScore),
+        work_setting_equipment_score: clamp(workSettingScore),
+        preferred_qualifications_score: clamp(preferredScore),
+      },
+      submission_readiness: {
+        ...raw.submission_readiness,
+        ...readiness,
+      },
+    };
+  }
 
-  // STRONG with unverified mandatory → downgrade to GOOD
-  const unverifiedMandatory = mandatory.some(
-    (r) =>
-      r.requirement_outcome === "VERIFY" ||
-      (r.verification_required && r.requirement_outcome !== "MET")
-  );
-  if (category === "STRONG_MATCH" && unverifiedMandatory) {
-    category = "GOOD_MATCH";
+  let category: MatchCategory = categoryFromScore(overall);
+  if (hardKnockouts.length > 0) {
+    category = "NOT_CURRENTLY_SUBMITTABLE";
+  } else {
+    const unverifiedMandatory = mandatory.some(
+      (r) =>
+        r.requirement_outcome === "VERIFY" ||
+        (r.verification_required && r.requirement_outcome !== "MET")
+    );
+    if (category === "STRONG_MATCH" && unverifiedMandatory) {
+      category = "GOOD_MATCH";
+    }
   }
 
   const action = actionFromCategory(category);
@@ -314,6 +322,11 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
       recommended_overall_match_score: overall,
       match_category: category,
       display_category: MATCH_CATEGORY_LABELS[category],
+      confidence_score: confidenceFromRequirements(
+        mandatory,
+        preferred,
+        raw.candidate_match.confidence_score
+      ),
       mandatory_requirement_override: hardKnockouts.length > 0,
       recommended_action: action,
     },

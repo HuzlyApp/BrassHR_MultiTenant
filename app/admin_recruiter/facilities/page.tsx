@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Building2, Plus, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CreateFacilityModal from "@/app/admin_recruiter/components/CreateFacilityModal";
+import AssignCandidateToFacilityModal from "@/app/admin_recruiter/components/AssignCandidateToFacilityModal";
 import { CandidatesViewToggle } from "@/app/admin_recruiter/components/CandidatesListShell";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import {
@@ -329,6 +330,7 @@ export default function FacilitiesPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAssignCandidateModal, setShowAssignCandidateModal] = useState(false);
   const [assignedCandidatesView, setAssignedCandidatesView] = useState<"card" | "list">("card");
 
   const loadFacilities = useCallback(async () => {
@@ -542,11 +544,20 @@ export default function FacilitiesPage() {
                       </p>
                     ) : null}
                   </div>
-                  <CandidatesViewToggle
-                    view={assignedCandidatesView}
-                    onViewChange={setAssignedCandidatesView}
-                    size="sm"
-                  />
+                  <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowAssignCandidateModal(true)}
+                      className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
+                    >
+                      Assign Candidate
+                    </button>
+                    <CandidatesViewToggle
+                      view={assignedCandidatesView}
+                      onViewChange={setAssignedCandidatesView}
+                      size="sm"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -593,6 +604,18 @@ export default function FacilitiesPage() {
               if (facilityId) setSelectedFacilityId(facilityId);
             });
             toast.success("Facility created successfully.");
+          }}
+        />
+      ) : null}
+
+      {showAssignCandidateModal && selectedFacility ? (
+        <AssignCandidateToFacilityModal
+          open={showAssignCandidateModal}
+          facilityId={selectedFacility.id}
+          facilityName={selectedFacility.name}
+          onClose={() => setShowAssignCandidateModal(false)}
+          onAssigned={async () => {
+            await Promise.all([loadFacilities(), loadAssignments(selectedFacility.id)]);
           }}
         />
       ) : null}

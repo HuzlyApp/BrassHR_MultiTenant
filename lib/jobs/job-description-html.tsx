@@ -1,5 +1,7 @@
 /** Shared helpers for job description HTML vs plain text. */
 
+import { sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
+
 export function looksLikeHtml(value: string): boolean {
   return /<\/?[a-z][\s\S]*>/i.test(value);
 }
@@ -184,6 +186,19 @@ export function ensureJobDescriptionBulletLists(value: string): string {
   return rebuilt || content;
 }
 
+/** Render stored editor HTML as-is (sanitize only; optional benefits strip for duplicate UI blocks). */
+export function formatStoredJobDescriptionHtml(
+  raw: string,
+  options?: { stripBenefits?: boolean }
+): string {
+  const sanitized = sanitizeJobDescriptionHtml((raw ?? "").trim());
+  if (!sanitized) return "";
+  if (options?.stripBenefits) {
+    return stripJobDescriptionBenefitsSection(sanitized);
+  }
+  return sanitized;
+}
+
 export function JobDescriptionHtml({
   html,
   className = "",
@@ -202,7 +217,7 @@ export function JobDescriptionHtml({
 
   return (
     <div
-      className={`job-description-html prose prose-sm max-w-none text-sm leading-6 text-slate-700 ${className}`}
+      className={`job-description-html max-w-none text-sm leading-6 text-slate-700 ${className}`}
       dangerouslySetInnerHTML={{ __html: content }}
     />
   );

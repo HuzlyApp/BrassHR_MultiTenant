@@ -1,18 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
+import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
+import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import {
   AddressField,
   FIELD,
   FieldLabel,
-  SelectField,
   TextField,
-  US_STATES,
 } from "../account/components/account-form-fields";
 import AccountCheckbox from "../account/components/AccountCheckbox";
 import type { FacilityFormInput, FacilityListItem } from "@/lib/facilities/types";
+import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
+import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
+import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  emailValidationMessage,
+  phoneValidationMessage,
+} from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
 
 type Props = {
   open: boolean;
@@ -36,6 +45,8 @@ const EMPTY_FORM: FacilityFormInput = {
   notes: "",
 };
 
+type StateRow = { code: string; name: string };
+
 export default function CreateFacilityModal({
   open,
   workerId,
@@ -49,6 +60,17 @@ export default function CreateFacilityModal({
   const [duplicateFacility, setDuplicateFacility] = useState<FacilityListItem | null>(null);
   const [assigningDuplicate, setAssigningDuplicate] = useState(false);
   const [assignToCandidate, setAssignToCandidate] = useState(true);
+  const [stateRows, setStateRows] = useState<StateRow[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+
+  const addressAutocomplete = useAddressAutocomplete(form.streetAddress, {
+    city: form.city,
+    state: form.state,
+    zipCode: form.zipCode,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +81,113 @@ export default function CreateFacilityModal({
     setAssignToCandidate(true);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    let active = true;
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_states")
+          .select("code, name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (!active || error || !data?.length) return;
+
+        const states = data.map((row) => ({
+          code: String(row.code),
+          name: String(row.name),
+        }));
+        setStateRows(states);
+        setStateOptions(states.map((row) => row.name));
+      } finally {
+        if (active) setLocationLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  const selectedStateCode = useMemo(() => {
+    const fromRows = stateRows.find((row) => row.name === form.state)?.code;
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(form.state);
+    if (fromName) return fromName;
+    const trimmed = form.state.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
+    return "";
+  }, [form.state, stateRows]);
+
+  useEffect(() => {
+    if (!open || !selectedStateCode || selectedStateCode.length !== 2) {
+      setCityOptions([]);
+      setCitiesLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCitiesLoading(true);
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true });
+
+        if (!active) return;
+        if (error) {
+          setCityOptions([]);
+          return;
+        }
+
+        setCityOptions((data ?? []).map((row) => String(row.city_name)));
+      } catch {
+        if (active) setCityOptions([]);
+      } finally {
+        if (active) setCitiesLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [open, selectedStateCode]);
+
+  const effectiveCityOptions = useMemo(() => {
+    const current = form.city.trim();
+    if (!current || cityOptions.includes(current)) return cityOptions;
+    return [...cityOptions, current].sort((a, b) => a.localeCompare(b));
+  }, [form.city, cityOptions]);
+
+  const effectiveStateOptions = useMemo(() => {
+    const current = form.state.trim();
+    if (!current) return stateOptions;
+    if (stateOptions.includes(current)) return stateOptions;
+    const fromCode = getStateNameFromCode(current);
+    if (fromCode && stateOptions.includes(fromCode)) return stateOptions;
+    return [...stateOptions, fromCode || current].sort((a, b) => a.localeCompare(b));
+  }, [form.state, stateOptions]);
+
+  const displayStateValue = useMemo(() => {
+    const raw = form.state.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw) || effectiveStateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && (stateOptions.includes(fromCode) || effectiveStateOptions.includes(fromCode))) {
+      return fromCode;
+    }
+    return raw;
+  }, [effectiveStateOptions, form.state, stateOptions]);
+
+  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
+  const cityOptionsUnavailable =
+    Boolean(displayStateValue) && !citiesLoading && effectiveCityOptions.length === 0;
+
   if (!open) return null;
 
   function updateField<K extends keyof FacilityFormInput>(key: K, value: FacilityFormInput[K]) {
@@ -67,13 +196,49 @@ export default function CreateFacilityModal({
     if (duplicateFacility) setDuplicateFacility(null);
   }
 
+  function handleStateChange(value: string) {
+    setForm((current) => ({ ...current, state: value, city: "" }));
+    setErrors((current) => ({ ...current, state: undefined, city: undefined }));
+    if (duplicateFacility) setDuplicateFacility(null);
+  }
+
+  function handleSelectAddressSuggestion(suggestion: AddressSuggestion) {
+    const components = addressAutocomplete.selectSuggestion(suggestion);
+    const stateName = components.state
+      ? getStateNameFromCode(components.state) ?? components.state
+      : "";
+
+    setForm((current) => ({
+      ...current,
+      streetAddress: components.address1 || current.streetAddress,
+      city: components.city || current.city,
+      state: stateName || current.state,
+      zipCode: components.zipCode || current.zipCode,
+    }));
+    setErrors((current) => ({
+      ...current,
+      streetAddress: undefined,
+      city: undefined,
+      state: undefined,
+      zipCode: undefined,
+    }));
+    if (duplicateFacility) setDuplicateFacility(null);
+  }
+
   function validateClient(): boolean {
     const nextErrors: Partial<Record<keyof FacilityFormInput, string>> = {};
     if (!form.name.trim()) nextErrors.name = "Facility name is required.";
     if (!form.streetAddress.trim()) nextErrors.streetAddress = "Street address is required.";
+    if (!displayStateValue.trim()) nextErrors.state = "State is required.";
     if (!form.city.trim()) nextErrors.city = "City is required.";
-    if (!form.state.trim()) nextErrors.state = "State is required.";
     if (!form.zipCode.trim()) nextErrors.zipCode = "ZIP code is required.";
+
+    const phoneError = phoneValidationMessage(form.phone ?? "", { required: false });
+    if (phoneError) nextErrors.phone = phoneError;
+
+    const emailError = emailValidationMessage(form.email ?? "", { required: false });
+    if (emailError) nextErrors.email = emailError;
+
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -86,6 +251,9 @@ export default function CreateFacilityModal({
     try {
       const payload: Record<string, unknown> = {
         ...form,
+        state: displayStateValue || form.state,
+        phone: form.phone ? normalizePhoneInput(form.phone) : "",
+        email: form.email?.trim().toLowerCase() ?? "",
         assignToWorker: workerId ? assignToCandidate : false,
       };
       if (workerId) payload.workerId = workerId;
@@ -197,49 +365,76 @@ export default function CreateFacilityModal({
             required
             value={form.name}
             onChange={(value) => updateField("name", value)}
+            error={errors.name}
           />
-          {errors.name ? <p className="-mt-3 text-sm text-red-600">{errors.name}</p> : null}
 
-          <AddressField
+          <AddressAutocompleteField
+            variant="facility"
             label="Primary Address / Street Address"
             required
             value={form.streetAddress}
             onChange={(value) => updateField("streetAddress", value)}
+            onSelectSuggestion={handleSelectAddressSuggestion}
+            suggestions={addressAutocomplete.suggestions}
+            isLoading={addressAutocomplete.isLoading}
+            isOpen={addressAutocomplete.isOpen}
+            onFocus={addressAutocomplete.openSuggestions}
+            onCloseSuggestions={addressAutocomplete.closeSuggestions}
+            isVerified={addressAutocomplete.isAddressVerified}
+            searchError={addressAutocomplete.searchError}
+            placeholder="Start typing your street address"
+            helperText="Start typing to search"
+            error={errors.streetAddress}
           />
-          {errors.streetAddress ? (
-            <p className="-mt-3 text-sm text-red-600">{errors.streetAddress}</p>
-          ) : null}
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <div>
-              <TextField label="City" required value={form.city} onChange={(value) => updateField("city", value)} />
-              {errors.city ? <p className="mt-1 text-sm text-red-600">{errors.city}</p> : null}
-            </div>
-            <div>
-              <SelectField
-                label="State"
-                required
-                value={form.state}
-                onChange={(value) => updateField("state", value)}
-              >
-                <option value="">Select state</option>
-                {US_STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
-              </SelectField>
-              {errors.state ? <p className="mt-1 text-sm text-red-600">{errors.state}</p> : null}
-            </div>
-            <div>
-              <TextField
-                label="ZIP Code"
-                required
-                value={form.zipCode}
-                onChange={(value) => updateField("zipCode", value)}
-              />
-              {errors.zipCode ? <p className="mt-1 text-sm text-red-600">{errors.zipCode}</p> : null}
-            </div>
+            <SearchableSelectField
+              label="State"
+              required
+              loading={locationLoading}
+              disabled={locationLoading || stateOptionsUnavailable}
+              value={displayStateValue}
+              onChange={handleStateChange}
+              placeholder={
+                locationLoading
+                  ? "Loading…"
+                  : stateOptionsUnavailable
+                    ? "No states found"
+                    : "Search state"
+              }
+              searchPlaceholder="Type to search states"
+              options={effectiveStateOptions}
+              error={errors.state}
+              emptyMessage="No states found. Try another search."
+            />
+            <SearchableSelectField
+              label="City"
+              required
+              disabled={!displayStateValue || stateOptionsUnavailable || cityOptionsUnavailable}
+              loading={citiesLoading}
+              value={form.city}
+              onChange={(value) => updateField("city", value)}
+              placeholder={
+                stateOptionsUnavailable || cityOptionsUnavailable
+                  ? "No cities found"
+                  : !displayStateValue
+                    ? "Select state first"
+                    : citiesLoading
+                      ? "Loading…"
+                      : "Search city"
+              }
+              searchPlaceholder="Type to search cities"
+              options={effectiveCityOptions}
+              error={errors.city}
+              emptyMessage="No cities found. Try another search."
+            />
+            <TextField
+              label="ZIP Code"
+              required
+              value={form.zipCode}
+              onChange={(value) => updateField("zipCode", value.replace(/\D/g, "").slice(0, 5))}
+              error={errors.zipCode}
+            />
           </div>
 
           <AddressField
@@ -258,13 +453,16 @@ export default function CreateFacilityModal({
               label="Phone Number"
               type="tel"
               value={form.phone ?? ""}
-              onChange={(value) => updateField("phone", value)}
+              onChange={(value) => updateField("phone", formatPhoneNumber(value))}
+              placeholder="(555) 555-5555"
+              error={errors.phone}
             />
             <TextField
               label="Email"
               type="email"
               value={form.email ?? ""}
               onChange={(value) => updateField("email", value)}
+              error={errors.email}
             />
             <TextField
               label="Contact Person"

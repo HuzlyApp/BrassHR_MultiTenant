@@ -102,6 +102,7 @@ export type JobListRow = {
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
   job_applications: { count?: number }[] | null
+  /** Candidate count — from listInternalJobs, same set as the Job candidates All tab. */
   /** Candidates with status new/submitted — from listInternalJobs. */
   new_application_count?: number
   /** Applications with completed AI match analysis. */
@@ -191,6 +192,7 @@ export function jobCommissionFeeSortValue(job: JobListRow): number {
   return -1
 }
 
+/** Active candidates for the job — every application, same as the Job candidates All tab. */
 export function applicantCount(job: JobListRow): number {
   return job.job_applications?.[0]?.count ?? 0
 }

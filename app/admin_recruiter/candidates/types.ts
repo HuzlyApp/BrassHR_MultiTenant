@@ -23,4 +23,12 @@ export type CandidateRow = {
   appliedJobCount?: number
   assignedRecruiterUserId?: string | null
   assignedRecruiterName?: string | null
+  applicationJobTitle?: string | null
+  applicationJobTitlesText?: string | null
+  applicationSearchText?: string | null
+  matchApplicationId?: string | null
+  aiMatchStatus?: string | null
+  aiMatchScore?: number | null
+  aiMatchCategory?: string | null
+  aiMatchDisplayCategory?: string | null
 }

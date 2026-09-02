@@ -5,7 +5,13 @@ type CandidateBulkSelectionBarProps = {
   eligibleCount: number;
   scopeLabel?: string;
   claimBusy?: boolean;
-  onClaim: () => void;
+  analyzeBusy?: boolean;
+  analyzeLabel?: string;
+  reanalyzeLabel?: string;
+  hideClaim?: boolean;
+  onClaim?: () => void;
+  onAnalyze?: () => void;
+  onReanalyze?: () => void;
   onClear: () => void;
 };
 
@@ -14,7 +20,13 @@ export function CandidateBulkSelectionBar({
   eligibleCount,
   scopeLabel,
   claimBusy = false,
+  analyzeBusy = false,
+  analyzeLabel = "Analyze selected",
+  reanalyzeLabel = "Reanalyze selected",
+  hideClaim = false,
   onClaim,
+  onAnalyze,
+  onReanalyze,
   onClear,
 }: CandidateBulkSelectionBarProps) {
   if (selectedCount <= 0) return null;
@@ -22,6 +34,7 @@ export function CandidateBulkSelectionBar({
   const selectedLabel =
     selectedCount === 1 ? "1 candidate selected" : `${selectedCount} candidates selected`;
   const claimLabel = eligibleCount === 1 ? "Claim Candidate" : "Claim Candidates";
+  const busy = claimBusy || analyzeBusy;
 
   return (
     <div
@@ -32,7 +45,7 @@ export function CandidateBulkSelectionBar({
       <div className="min-w-0">
         <p className="text-sm font-semibold text-[#0F766E]">{selectedLabel}</p>
         {scopeLabel ? <p className="text-xs text-[#64748B]">{scopeLabel}</p> : null}
-        {eligibleCount < selectedCount ? (
+        {!hideClaim && eligibleCount < selectedCount ? (
           <p className="text-xs text-[#B45309]">
             {eligibleCount} eligible to claim · {selectedCount - eligibleCount} will be skipped
           </p>
@@ -42,19 +55,41 @@ export function CandidateBulkSelectionBar({
         <button
           type="button"
           onClick={onClear}
-          disabled={claimBusy}
+          disabled={busy}
           className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Clear Selection
         </button>
-        <button
-          type="button"
-          onClick={onClaim}
-          disabled={claimBusy || eligibleCount === 0}
-          className="inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {claimBusy ? "Claiming…" : claimLabel}
-        </button>
+        {onAnalyze ? (
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={busy || selectedCount === 0}
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {analyzeBusy ? "Analyzing…" : analyzeLabel}
+          </button>
+        ) : null}
+        {onReanalyze ? (
+          <button
+            type="button"
+            onClick={onReanalyze}
+            disabled={busy || selectedCount === 0}
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {analyzeBusy ? "Analyzing…" : reanalyzeLabel}
+          </button>
+        ) : null}
+        {!hideClaim && onClaim ? (
+          <button
+            type="button"
+            onClick={onClaim}
+            disabled={busy || eligibleCount === 0}
+            className="inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {claimBusy ? "Claiming…" : claimLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );

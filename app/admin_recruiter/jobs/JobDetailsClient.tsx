@@ -14,9 +14,8 @@ import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
+  formatStoredJobDescriptionHtml,
   JobDescriptionHtml,
-  ensureJobDescriptionBulletLists,
-  stripJobDescriptionBenefitsSection,
 } from "@/lib/jobs/job-description-html";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobStatus } from "@/lib/jobs/types";
@@ -28,6 +27,7 @@ import {
   primaryButtonStyle,
 } from "./job-form-shared";
 import {
+  JOB_POSTING_DESCRIPTION_CSS,
   JOB_POSTING_METADATA_CLASS,
   JOB_POSTING_PAGE_TITLE_CLASS,
 } from "./job-posting-typography";
@@ -78,7 +78,7 @@ function SummaryList({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
   return (
     <section className="mt-8">
-      <h3 className="text-base font-semibold text-[#1D2739]">{title}</h3>
+      <h3 className="text-sm font-semibold text-[#1D2739]">{title}</h3>
       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-[#667085]">
         {items.map((item) => (
           <li key={`${title}-${item}`}>{item}</li>
@@ -104,7 +104,11 @@ function CandidateCard({
   secondaryColor: string;
 }) {
   return (
-    <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+    <Link
+      href={linkHref}
+      aria-label={`${linkLabel}: ${count} ${label}`}
+      className="flex min-h-[120px] cursor-pointer flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm transition hover:border-[#D0D5DD] hover:shadow-md"
+    >
       <div className="flex items-start gap-3">
         <BrandedSvgIcon
           src={iconSrc}
@@ -120,15 +124,14 @@ function CandidateCard({
           </p>
         </div>
       </div>
-      <Link
-        href={linkHref}
-        className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px] transition hover:opacity-80"
+      <span
+        className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px]"
         style={{ color: secondaryColor }}
       >
         {linkLabel}
         <BrandBackIcon flip />
-      </Link>
-    </div>
+      </span>
+    </Link>
   );
 }
 
@@ -259,8 +262,10 @@ export default function JobDetailsClient({ jobId }: Props) {
   const workLocation = job ? formatWorkLocationLabel(job) : "—";
   const summaryHtml = useMemo(() => {
     const raw = job?.public_description?.trim() || "";
-    return ensureJobDescriptionBulletLists(stripJobDescriptionBenefitsSection(raw));
-  }, [job?.public_description]);
+    return formatStoredJobDescriptionHtml(raw, {
+      stripBenefits: benefits.length > 0,
+    });
+  }, [job?.public_description, benefits.length]);
 
   const performanceMetrics = [
     { value: String(stats?.impressions ?? 0), label: "Impressions" },
@@ -531,7 +536,7 @@ export default function JobDetailsClient({ jobId }: Props) {
             </section>
 
             <section className="mt-8">
-              <h2 className="text-lg font-semibold text-[#1D2739]">Job post summary</h2>
+              <h2 className="text-sm font-semibold text-[#1D2739]">Job post summary</h2>
               <div className="mt-4 max-h-[560px] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-[#FCFCFD] p-5 sm:p-6">
                 <p className="text-sm text-[#334155]">
                   <span className="font-medium text-[#1D2739]">Date posted:</span> {posted}
@@ -541,88 +546,11 @@ export default function JobDetailsClient({ jobId }: Props) {
                 </p>
 
                 <section className="mt-6">
-                  <h3 className="mb-4 text-base font-semibold text-[#1D2739]">Job Summary</h3>
-                  <style>{`
-                    .job-summary-description.job-description-html > :first-child {
-                      margin-top: 0 !important;
-                    }
-                    .job-summary-description.job-description-html h2,
-                    .job-summary-description.job-description-html h3,
-                    .job-summary-description.job-description-html h4 {
-                      margin-top: 2rem;
-                      margin-bottom: 0.5rem;
-                      font-size: 1rem;
-                      line-height: 1.5rem;
-                      font-weight: 600;
-                      color: #1D2739;
-                    }
-                    .job-summary-description.job-description-html h2 strong,
-                    .job-summary-description.job-description-html h2 b,
-                    .job-summary-description.job-description-html h3 strong,
-                    .job-summary-description.job-description-html h3 b,
-                    .job-summary-description.job-description-html h4 strong,
-                    .job-summary-description.job-description-html h4 b {
-                      font-weight: 600;
-                    }
-                    .job-summary-description.job-description-html p,
-                    .job-summary-description.job-description-html ul,
-                    .job-summary-description.job-description-html ol {
-                      margin-top: 0;
-                      margin-bottom: 0;
-                      color: #667085;
-                      font-size: 0.875rem;
-                      line-height: 1.5rem;
-                    }
-                    .job-summary-description.job-description-html ul {
-                      list-style-type: disc;
-                      list-style-position: outside;
-                      padding-left: 1.25rem;
-                      margin-top: 0.25rem;
-                    }
-                    .job-summary-description.job-description-html ol {
-                      list-style-type: decimal;
-                      list-style-position: outside;
-                      padding-left: 1.25rem;
-                      margin-top: 0.25rem;
-                    }
-                    .job-summary-description.job-description-html li {
-                      display: list-item;
-                      margin-top: 0.25rem;
-                      margin-bottom: 0.25rem;
-                      color: #667085;
-                    }
-                    .job-summary-description.job-description-html p + h2,
-                    .job-summary-description.job-description-html p + h3,
-                    .job-summary-description.job-description-html p + h4,
-                    .job-summary-description.job-description-html ul + h2,
-                    .job-summary-description.job-description-html ul + h3,
-                    .job-summary-description.job-description-html ul + h4,
-                    .job-summary-description.job-description-html ol + h2,
-                    .job-summary-description.job-description-html ol + h3,
-                    .job-summary-description.job-description-html ol + h4 {
-                      margin-top: 2rem;
-                    }
-                    .job-summary-description.job-description-html p:has(> strong:only-child),
-                    .job-summary-description.job-description-html p:has(> b:only-child) {
-                      margin-top: 2rem;
-                      margin-bottom: 0.5rem;
-                      font-size: 1rem;
-                      line-height: 1.5rem;
-                      font-weight: 600;
-                      color: #1D2739;
-                    }
-                    .job-summary-description.job-description-html p:has(> strong:only-child) > strong,
-                    .job-summary-description.job-description-html p:has(> b:only-child) > b {
-                      font-weight: 600;
-                    }
-                    .job-summary-description.job-description-html > p:has(> strong:only-child):first-child,
-                    .job-summary-description.job-description-html > p:has(> b:only-child):first-child {
-                      margin-top: 0;
-                    }
-                  `}</style>
+                  <h3 className="mb-4 text-sm font-semibold text-[#1D2739]">Job Summary</h3>
+                  <style>{JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".job-summary-description")}</style>
                   <JobDescriptionHtml
                     html={summaryHtml}
-                    className="job-summary-description text-sm leading-6 text-[#667085]"
+                    className="job-summary-description mt-0 text-[#667085]"
                     emptyLabel="No job summary added yet."
                   />
                 </section>
@@ -633,7 +561,7 @@ export default function JobDetailsClient({ jobId }: Props) {
 
                 {benefits.length ? (
                   <section className="mt-8">
-                    <h3 className="text-base font-semibold text-[#1D2739]">Benefits</h3>
+                    <h3 className="text-sm font-semibold text-[#1D2739]">Benefits</h3>
                     <p className="mt-2 text-sm leading-6 text-[#667085]">
                       {benefits.join(", ")}
                     </p>
@@ -641,7 +569,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                 ) : null}
 
                 <section className="mt-8">
-                  <h3 className="text-base font-semibold text-[#1D2739]">Work Location</h3>
+                  <h3 className="text-sm font-semibold text-[#1D2739]">Work Location</h3>
                   <p className="mt-2 text-sm leading-6 text-[#667085]">{workLocation}</p>
                 </section>
               </div>

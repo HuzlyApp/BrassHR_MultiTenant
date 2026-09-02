@@ -133,6 +133,10 @@ type EditApplicationsFiltersModalProps = {
   value: ApplicationsExtendedFilterValues;
   options: FilterOptions;
   onSave: (next: ApplicationsExtendedFilterValues) => void;
+  sortBy?: "newest" | "oldest" | "matchScore" | "matchScoreAsc";
+  onSortByChange?: (value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") => void;
+  scoreSort?: string;
+  onScoreSortChange?: (value: string) => void;
 };
 
 const FIELD_SURFACE =
@@ -180,14 +184,24 @@ export function EditApplicationsFiltersModal({
   value,
   options,
   onSave,
+  sortBy = "newest",
+  onSortByChange,
+  scoreSort = "",
+  onScoreSortChange,
 }: EditApplicationsFiltersModalProps) {
   const branding = useTenantBranding();
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const [draft, setDraft] = useState<ApplicationsExtendedFilterValues>(value);
+  const [draftSortBy, setDraftSortBy] = useState(sortBy);
+  const [draftScoreSort, setDraftScoreSort] = useState(scoreSort);
 
   useEffect(() => {
-    if (open) setDraft(value);
-  }, [open, value]);
+    if (open) {
+      setDraft(value);
+      setDraftSortBy(sortBy);
+      setDraftScoreSort(scoreSort);
+    }
+  }, [open, value, sortBy, scoreSort]);
 
   function setField<K extends keyof ApplicationsExtendedFilterValues>(
     key: K,
@@ -210,7 +224,8 @@ export function EditApplicationsFiltersModal({
           <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4">
             <div className="min-w-0 pr-3">
               <Dialog.Title className="truncate text-lg font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
-                Edit Filters
+                <span className="lg:hidden">All Filters</span>
+                <span className="hidden lg:inline">Edit Filters</span>
               </Dialog.Title>
               <Dialog.Description className="sr-only">
                 Choose additional filters to narrow the candidates list.
@@ -226,6 +241,35 @@ export function EditApplicationsFiltersModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] sm:px-6 sm:py-6">
             <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 sm:gap-5">
+              <div className="contents lg:hidden">
+                <ModalFilterField
+                  label="Apply date"
+                  value={draftSortBy === "newest" || draftSortBy === "oldest" ? draftSortBy : ""}
+                  onChange={(next) => {
+                    setDraftSortBy(next === "newest" || next === "oldest" ? next : "newest");
+                    if (next === "newest" || next === "oldest") setDraftScoreSort("");
+                  }}
+                  placeholder="Apply date (Newest first)"
+                >
+                  <option value="newest">Apply date (Newest first)</option>
+                  <option value="oldest">Apply date (Oldest first)</option>
+                </ModalFilterField>
+
+                <ModalFilterField
+                  label="Score"
+                  value={draftScoreSort}
+                  onChange={(next) => {
+                    setDraftScoreSort(next);
+                    if (next === "high-low") setDraftSortBy("matchScore");
+                    else if (next === "low-high") setDraftSortBy("matchScoreAsc");
+                  }}
+                  placeholder="Score (high-low)"
+                >
+                  <option value="high-low">Score (high-low)</option>
+                  <option value="low-high">Score (low-high)</option>
+                </ModalFilterField>
+              </div>
+
               <ModalFilterField
                 label="Status"
                 value={draft.status}
@@ -329,7 +373,11 @@ export function EditApplicationsFiltersModal({
           <div className="flex shrink-0 gap-2 border-t border-zinc-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
             <button
               type="button"
-              onClick={() => setDraft({ ...EMPTY_APPLICATIONS_EXTENDED_FILTERS })}
+              onClick={() => {
+                setDraft({ ...EMPTY_APPLICATIONS_EXTENDED_FILTERS });
+                setDraftSortBy("newest");
+                setDraftScoreSort("");
+              }}
               className="h-12 flex-1 rounded-lg border border-[#CBD5E1] px-4 text-sm font-medium text-[#475569] transition hover:bg-zinc-50 sm:h-auto sm:flex-none sm:px-5 sm:py-2"
             >
               Reset Filters
@@ -346,6 +394,8 @@ export function EditApplicationsFiltersModal({
               type="button"
               onClick={() => {
                 onSave(draft);
+                if (onSortByChange) onSortByChange(draftSortBy);
+                if (onScoreSortChange) onScoreSortChange(draftScoreSort);
                 onOpenChange(false);
               }}
               className="h-12 flex-1 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:h-auto sm:flex-none sm:px-5 sm:py-2"

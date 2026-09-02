@@ -36,8 +36,48 @@ export type NormalizedParsedResume = {
 
 function s(v: unknown): string {
   if (v == null) return ""
-  if (typeof v === "string") return v.trim()
-  return String(v).trim()
+  const text = typeof v === "string" ? v : String(v)
+  return text.replace(/\u0000/g, "").trim()
+}
+
+const WELL_KNOWN_EMAIL_DOMAINS = new Set([
+  "gmail",
+  "googlemail",
+  "yahoo",
+  "outlook",
+  "hotmail",
+  "icloud",
+  "protonmail",
+  "live",
+  "msn",
+  "aol",
+  "me",
+])
+
+const EMAIL_TLD_TYPOS: Record<string, string> = {
+  cor: "com",
+  con: "com",
+  cpm: "com",
+  comm: "com",
+  vom: "com",
+  coml: "com",
+  comn: "com",
+}
+
+/** Repair common PDF/OCR typos such as gmail.cor → gmail.com. */
+export function sanitizeResumeEmail(email: string): string {
+  const trimmed = email.trim()
+  const match = trimmed.match(/^([^@\s]+)@([A-Za-z0-9-]+)\.([A-Za-z]{2,})$/)
+  if (!match) return trimmed
+  const [, local, domain, tld] = match
+  const fixedTld = EMAIL_TLD_TYPOS[tld.toLowerCase()]
+  if (!fixedTld || !WELL_KNOWN_EMAIL_DOMAINS.has(domain.toLowerCase())) return trimmed
+  return `${local}@${domain}.${fixedTld}`
+}
+
+/** Recruiter add-candidate only needs identity, not a full ATS address profile. */
+export function hasAdminCandidateIdentity(parsed: NormalizedParsedResume): boolean {
+  return Boolean(parsed.first_name.trim() && parsed.last_name.trim() && parsed.email.trim())
 }
 
 /** Normalize common parser / storage shapes to snake_case strings. */
@@ -46,7 +86,7 @@ export function normalizeParsedResume(raw: unknown): NormalizedParsedResume {
   return {
     first_name: s(o.first_name ?? o.firstName ?? o.FirstName),
     last_name: s(o.last_name ?? o.lastName ?? o.LastName),
-    email: s(o.email ?? o.Email),
+    email: sanitizeResumeEmail(s(o.email ?? o.Email)),
     phone: s(o.phone ?? o.Phone),
     address1: s(o.address1 ?? o.address ?? o.Address),
     address2: s(o.address2 ?? o.Address2),

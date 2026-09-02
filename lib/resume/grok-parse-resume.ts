@@ -33,10 +33,10 @@ function mergeParsedFields(
     last_name: pick(fromGrok.last_name, pre.last_name),
     email: pick(fromGrok.email, pre.email),
     phone: pick(fromGrok.phone, pre.phone),
-    address1: fromGrok.address1,
-    address2: fromGrok.address2,
-    city: fromGrok.city,
-    state: fromGrok.state,
+    address1: pick(fromGrok.address1, pre.address1),
+    address2: pick(fromGrok.address2, pre.address2),
+    city: pick(fromGrok.city, pre.city),
+    state: pick(fromGrok.state, pre.state),
     zip: pick(fromGrok.zip, pre.zip),
     job_role: pick(fromGrok.job_role, pre.job_role),
   }
@@ -72,7 +72,9 @@ Schema:
 Rules:
 - Split full name into first_name and last_name when not already known.
 - Extract ZIP / postal code into zip when present.
-- Detect healthcare roles such as CNA, RN, LPN, Caregiver, Medical Assistant.
+- City and state are enough for location. Extract "City, ST" from the header even when there is no street address.
+- job_role is the current or most recent title (any industry, not only healthcare).
+- Repair obvious OCR/PDF typos in emails (gmail.cor → gmail.com, .con → .com on well-known providers).
 - If a field is already known below, only change it when the snippet clearly contradicts it; otherwise return the known value or fill missing fields.
 - If a field is missing return an empty string.
 
@@ -115,7 +117,7 @@ export async function grokParseResume(fullText: string): Promise<GrokParseResume
   const result = completion.choices?.[0]?.message?.content || ""
   const extracted = extractJsonObjectFromModelText(result)
   const fromGrok = normalizeParsedResume(extracted ?? {})
-  const normalized = mergeParsedFields(preExtracted, fromGrok)
+  const normalized = normalizeParsedResume(mergeParsedFields(preExtracted, fromGrok))
 
   logResumeTiming("process-resume", "grok-response", { aiParseMs })
 

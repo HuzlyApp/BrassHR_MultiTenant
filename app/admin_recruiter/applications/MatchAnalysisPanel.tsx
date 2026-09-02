@@ -449,3 +449,20 @@ export function MatchScoreCell(props: {
     </button>
   );
 }
+
+export function RequirementOutcomeCountCell(props: {
+  value: number | null | undefined;
+  tone: "conf" | "verify" | "notMet";
+  analyzed?: boolean;
+}) {
+  if (!props.analyzed || props.value == null) {
+    return <span className="text-sm text-[#94A3B8]">—</span>;
+  }
+  const color =
+    props.tone === "conf"
+      ? "text-[#16A34A]"
+      : props.tone === "verify"
+        ? "text-[#EA580C]"
+        : "text-[#DC2626]";
+  return <span className={`text-sm font-semibold tabular-nums ${color}`}>{props.value}</span>;
+}

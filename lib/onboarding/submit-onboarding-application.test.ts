@@ -90,8 +90,8 @@ vi.mock("@/lib/onboarding/resolve-onboarding-worker", () => ({
   resolveOnboardingWorker: vi.fn(),
 }));
 
-vi.mock("@/lib/onboarding/load-tenant-config", () => ({
-  loadTenantOnboardingConfig: vi.fn(),
+vi.mock("@/lib/onboarding/resolve-applicant-submit-config", () => ({
+  resolveApplicantConfigForSubmit: vi.fn(),
 }));
 
 vi.mock("@/lib/onboarding/ensure-worker-progress", () => ({
@@ -99,7 +99,7 @@ vi.mock("@/lib/onboarding/ensure-worker-progress", () => ({
 }));
 
 import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
-import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { resolveApplicantConfigForSubmit } from "@/lib/onboarding/resolve-applicant-submit-config";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 
 describe("submitOnboardingApplication", () => {
@@ -117,7 +117,7 @@ describe("submitOnboardingApplication", () => {
       return null;
     });
 
-    vi.mocked(loadTenantOnboardingConfig).mockResolvedValue(config);
+    vi.mocked(resolveApplicantConfigForSubmit).mockResolvedValue(config);
 
     vi.mocked(ensureWorkerOnboardingProgress)
       .mockResolvedValueOnce(progressPayload())
@@ -182,6 +182,46 @@ describe("submitOnboardingApplication", () => {
       expect(result.error).toMatch(/required steps/i);
     }
     expect(updateCalls).toHaveLength(0);
+  });
+
+  it("submits when workflow steps are complete even if legacy tenant auth step is absent", async () => {
+    const workflowOnlyConfig: TenantOnboardingConfig = {
+      ...config,
+      steps: config.steps.filter((step) => step.step_key !== "authorizations"),
+    };
+
+    vi.mocked(resolveApplicantConfigForSubmit).mockResolvedValue(workflowOnlyConfig);
+    vi.mocked(ensureWorkerOnboardingProgress).mockReset();
+    vi.mocked(ensureWorkerOnboardingProgress)
+      .mockResolvedValueOnce(
+        progressPayload({
+          steps: [
+            { onboarding_step_id: "s1", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s2", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s3", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s5", status: "pending", completed_at: null, data: {} },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        progressPayload({
+          submittedAt: "2026-07-01T12:00:00.000Z",
+          submittedWithIncompleteSteps: false,
+          incompleteStepKeys: [],
+        })
+      );
+
+    const supabase = createSupabaseMock();
+    const result = await submitOnboardingApplication(supabase, {
+      applicantId: "user-1",
+      tenantSlug: TEN,
+      jobApplicationId: "app-1",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.submittedWithIncompleteSteps).toBe(false);
+    }
   });
 
   it("submits when all required steps are complete", async () => {

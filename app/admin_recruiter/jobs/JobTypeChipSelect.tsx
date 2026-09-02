@@ -13,7 +13,7 @@ type JobTypeChipSelectProps = {
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null;
-  return <span className="mt-1 block text-xs text-rose-600">{error}</span>;
+  return <span className="mt-1 block text-sm text-rose-600">{error}</span>;
 }
 
 export function JobTypeChipSelect({

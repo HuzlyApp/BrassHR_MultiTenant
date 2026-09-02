@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import type { QualificationFilter, QualificationRequirement } from "@/lib/jobs/match-analysis/workspace";
 import {
+  countQualificationOutcomes,
   filterQualificationRequirements,
   qualificationDisplayStatus,
   recruiterActionLabel,
@@ -15,6 +16,7 @@ const FILTERS: Array<{ id: QualificationFilter; label: string }> = [
   { id: "preferred", label: "Preferred" },
   { id: "confirmed", label: "Confirmed" },
   { id: "needs_verification", label: "Needs Verification" },
+  { id: "not_met", label: "Not Met" },
   { id: "blocking", label: "Blocking" },
 ];
 
@@ -41,10 +43,33 @@ export function QualificationChecklist(props: {
 }) {
   const [filter, setFilter] = useState<QualificationFilter>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const counts = useMemo(
+    () => countQualificationOutcomes(props.requirements, props.blockingTexts),
+    [props.requirements, props.blockingTexts]
+  );
   const rows = useMemo(
     () => filterQualificationRequirements(props.requirements, filter, props.blockingTexts),
     [props.requirements, filter, props.blockingTexts]
   );
+
+  const filterCount = (id: QualificationFilter): number => {
+    switch (id) {
+      case "mandatory":
+        return counts.mandatory;
+      case "preferred":
+        return counts.preferred;
+      case "confirmed":
+        return counts.confirmed;
+      case "needs_verification":
+        return counts.verify;
+      case "not_met":
+        return counts.notMet;
+      case "blocking":
+        return counts.blocking;
+      default:
+        return counts.total;
+    }
+  };
 
   return (
     <section className="rounded-xl border border-[#E2E8F0] bg-white p-4">
@@ -62,7 +87,7 @@ export function QualificationChecklist(props: {
                 : "bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0]"
             }`}
           >
-            {item.label}
+            {item.label} ({filterCount(item.id)})
           </button>
         ))}
       </div>

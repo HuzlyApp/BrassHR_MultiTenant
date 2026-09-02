@@ -93,4 +93,36 @@ describe("runResumeParseJob", () => {
     expect(supabase.row.parsing_status).toBe("failed")
     expect(supabase.row.parse_error).toBeTruthy()
   })
+
+  it("strips NUL bytes before writing extracted_text and parsed_data", async () => {
+    grokParseResumeMock.mockResolvedValue({
+      normalized: {
+        first_name: "Almog",
+        last_name: "Arazi",
+        email: "almog@example.com",
+        phone: "555-0100",
+        address1: "1 Main St",
+        address2: "",
+        city: "Denver",
+        state: "CO",
+        zip: "80202",
+        job_role: "Engineer",
+      },
+      preExtracted: { first_name: "Almog\u0000" },
+      aiParseMs: 80,
+      grokSnippet: "snippet",
+      grokSnippetReduced: false,
+    })
+
+    const supabase = createSupabaseMock({ id: "resume-nul", parsing_status: "processing" })
+    await runResumeParseJob({
+      supabase: supabase as never,
+      resumeId: "resume-nul",
+      text: "Almog\u0000 Arazi resume",
+    })
+
+    expect(supabase.row.extracted_text).toBe("Almog Arazi resume")
+    expect(JSON.stringify(supabase.row.parsed_data)).not.toContain("\\u0000")
+    expect((supabase.row.parsed_data as { text: string }).text).toBe("Almog Arazi resume")
+  })
 })

@@ -22,6 +22,10 @@ import {
 } from "@/app/admin_recruiter/applications/ApplicationsJobHeaderCard";
 import { ApplicationsListToolbar } from "@/app/admin_recruiter/applications/ApplicationsListToolbar";
 import {
+  exportApplicationsCsv,
+  exportApplicationsXls,
+} from "@/app/admin_recruiter/applications/export-applications";
+import {
   applicationMatchesDateAppliedFilter,
   applicationMatchesMatchScoreFilter,
   EditApplicationsFiltersModal,
@@ -68,11 +72,24 @@ import {
   applicationCurrentStageMeta,
   applicationStatusDotClassName,
   applicationStatusLabel,
-  isArchivedApplicationStatus,
   normalizeApplicationStatus,
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
+import {
+  applicationRowStatusId,
+  isApplicationRowArchived,
+  matchesApplicationStatusTab,
+} from "@/lib/jobs/application-status-tab";
+import { isUuid } from "@/lib/validation/uuid";
 import toast from "react-hot-toast";
+import {
+  bulkAnalyzeSelectedLabel,
+  bulkReanalyzeSelectedLabel,
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+  type BulkMatchAnalysisItem,
+} from "@/lib/admin/bulk-match-analysis";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
   APPLICATION_EDITABLE_COLUMNS,
@@ -91,13 +108,18 @@ import {
   type ApplicationStatusOption,
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
-import { MatchScoreCell } from "./MatchAnalysisPanel";
+import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
 import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
+import {
+  listingRequirementOutcomeCounts,
+  type ListingRequirementOutcomeCounts,
+} from "@/lib/jobs/match-analysis/workspace";
 import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
 import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
+import { matchesApplicationListSearch } from "@/lib/admin/candidate-list-search";
 
 type ApplicationStatus = string;
 
@@ -124,6 +146,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
   assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
   application_statuses?:
@@ -135,6 +158,31 @@ type ApplicationRow = {
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
   worker?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
+
+function requirementCountsFromAnalyzePayload(payload: {
+  requirementCounts?: ListingRequirementOutcomeCounts | null;
+  requirements?: Array<{
+    requirement_type?: string;
+    status?: string;
+    requirement_outcome?: string;
+    verification_required?: boolean;
+    recruiter_verified?: boolean;
+  }>;
+}): ListingRequirementOutcomeCounts | null {
+  if (payload.requirementCounts) return payload.requirementCounts;
+  if (Array.isArray(payload.requirements) && payload.requirements.length) {
+    return listingRequirementOutcomeCounts(
+      payload.requirements.map((row) => ({
+        requirement_type: String(row.requirement_type ?? ""),
+        status: String(row.status ?? ""),
+        requirement_outcome: String(row.requirement_outcome ?? ""),
+        verification_required: Boolean(row.verification_required),
+        recruiter_verified: Boolean(row.recruiter_verified),
+      }))
+    );
+  }
+  return null;
+}
 
 type JobHeader = {
   id: string;
@@ -168,7 +216,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const ADD_CANDIDATE_BUTTON_CLASS =
-  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
+  "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50 lg:w-auto lg:justify-start";
 const FILTER_SELECT_CLASS = `${FORM_SURFACE_CLASS} h-8 cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0`;
 const FILTER_SELECT_CHEVRON = {
   backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
@@ -342,8 +390,7 @@ function oneStatusJoin(
 }
 
 function rowStatusId(row: ApplicationRow): string | null {
-  const joined = oneStatusJoin(row.application_statuses);
-  return row.status_id?.trim() || joined?.id?.trim() || null;
+  return applicationRowStatusId(row);
 }
 
 function rowStatusName(row: ApplicationRow, options: ApplicationStatusOption[]): string {
@@ -365,11 +412,7 @@ function rowStatusDotColor(row: ApplicationRow, options: ApplicationStatusOption
 }
 
 function isRowArchived(row: ApplicationRow, options: ApplicationStatusOption[]): boolean {
-  const joined = oneStatusJoin(row.application_statuses);
-  if (joined?.system_key === "archived") return true;
-  const option = options.find((item) => item.id === rowStatusId(row));
-  if (option?.systemKey === "archived") return true;
-  return isArchivedApplicationStatus(row.status);
+  return isApplicationRowArchived(row, options);
 }
 
 function matchesTab(
@@ -377,21 +420,7 @@ function matchesTab(
   tab: ApplicationTab,
   options: ApplicationStatusOption[]
 ): boolean {
-  const archived = isRowArchived(row, options);
-  if (tab === "all") return !archived;
-
-  const statusId = rowStatusId(row);
-  if (statusId && statusId === tab) return true;
-
-  const option = options.find((item) => item.id === tab);
-  if (option?.systemKey === "archived") return archived;
-  if (archived) return false;
-
-  if (option?.systemKey) {
-    return normalizeApplicationStatus(row.status) === option.systemKey;
-  }
-  // Legacy URL tab keys (new/reviewing/…)
-  return normalizeApplicationStatus(row.status) === tab;
+  return matchesApplicationStatusTab(row, tab, options);
 }
 
 function formatTimeAgo(iso: string): string {
@@ -577,7 +606,9 @@ export default function JobApplicationsPage() {
   const [listingStageFilter, setListingStageFilter] = useState("");
   const [evaluationFilter, setEvaluationFilter] = useState("");
   const [workflowFilter, setWorkflowFilter] = useState("");
-  const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [matchScoreFilter, setMatchScoreFilter] = useState(
+    () => searchParams.get("matchScore")?.trim() || ""
+  );
   const [dateAppliedFilter, setDateAppliedFilter] = useState("");
   const [highlightMultiJobApplicants, setHighlightMultiJobApplicants] = useState(false);
   const [rowActionsMenu, setRowActionsMenu] = useState<{
@@ -613,6 +644,7 @@ export default function JobApplicationsPage() {
     }>
   >([]);
   const [matchAnalyzingId, setMatchAnalyzingId] = useState<string | null>(null);
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -680,6 +712,11 @@ export default function JobApplicationsPage() {
     const byKey = statusOptions.find((option) => option.systemKey === tabParam);
     setActiveTab(byKey?.id ?? tabParam);
   }, [searchParams, statusOptions]);
+
+  useEffect(() => {
+    const next = searchParams.get("matchScore")?.trim() || "";
+    setMatchScoreFilter((current) => (current === next ? current : next));
+  }, [searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -796,8 +833,22 @@ export default function JobApplicationsPage() {
     let cancelled = false;
     async function run() {
       const requestJobId = jobId;
+      const tabParam = searchParams.get("tab")?.trim() || "all";
+      let statusId = "";
+      if (tabParam !== "all") {
+        if (isUuid(tabParam)) {
+          statusId = tabParam;
+        } else {
+          const byKey = statusOptions.find((option) => option.systemKey === tabParam);
+          if (!byKey && statusOptions.length === 0) return;
+          statusId = byKey?.id ?? "";
+        }
+      }
+      const matchScore = searchParams.get("matchScore")?.trim() || "";
       const params = new URLSearchParams();
       if (requestJobId) params.set("jobId", requestJobId);
+      if (statusId) params.set("statusId", statusId);
+      if (matchScore) params.set("matchScore", matchScore);
       setLoading(true);
       try {
         const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
@@ -823,7 +874,7 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId, applicationsRefreshNonce]);
+  }, [jobId, applicationsRefreshNonce, searchParams, statusOptions]);
 
   function openAddCandidateModal() {
     if (!jobId) {
@@ -1102,9 +1153,9 @@ export default function JobApplicationsPage() {
     const counts: Record<string, number> = { all: 0 };
     for (const option of statusOptions) counts[option.id] = 0;
     for (const row of rows) {
-      const archived = isRowArchived(row, statusOptions);
-      if (!archived) counts.all += 1;
+      counts.all += 1;
 
+      const archived = isRowArchived(row, statusOptions);
       const statusId = rowStatusId(row);
       if (statusId && statusId in counts) {
         counts[statusId] += 1;
@@ -1129,13 +1180,9 @@ export default function JobApplicationsPage() {
         return loc.toLowerCase().includes(locationFilter.toLowerCase());
       });
     }
-    const query = candidateSearchQuery.trim().toLowerCase();
+    const query = candidateSearchQuery.trim();
     if (query) {
-      next = next.filter((row) => {
-        const name = applicantName(row).toLowerCase();
-        const email = applicantEmail(row).toLowerCase();
-        return name.includes(query) || email.includes(query);
-      });
+      next = next.filter((row) => matchesApplicationListSearch(row, query));
     }
     if (listingStatusFilter) {
       next = next.filter((row) => rowStatusId(row) === listingStatusFilter);
@@ -1250,6 +1297,41 @@ export default function JobApplicationsPage() {
       }).length,
     [selectedIds, rows, currentUserId]
   );
+
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedIds.has(row.id)),
+    [rows, selectedIds]
+  );
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
+    partitionMatchAnalysisTargets(
+      selectedRows.map((row) => ({ applicationId: row.id, status: row.ai_match_status }))
+    );
+  const pageAllAnalyzed =
+    paginatedRows.length > 0 && paginatedRows.every((row) => row.ai_match_status === "ANALYZED");
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
+
+  const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
+
+  function rowsForExport() {
+    return filteredRows.map((row) => ({
+      ...row,
+      statusName: rowStatusName(row, statusOptions),
+    }));
+  }
+
+  function handleExportApplicationsCsv() {
+    exportApplicationsCsv(rowsForExport(), {
+      includeJob: !jobId,
+      filename: `${exportFilenameBase}.csv`,
+    });
+  }
+
+  function handleExportApplicationsXls() {
+    exportApplicationsXls(rowsForExport(), {
+      includeJob: !jobId,
+      filename: `${exportFilenameBase}.xls`,
+    });
+  }
 
   const locationOptions = useMemo(() => {
     const set = new Set<string>();
@@ -1404,6 +1486,7 @@ export default function JobApplicationsPage() {
           ai_match_action: null,
           ai_match_readiness: null,
           ai_match_display_category: null,
+          ai_requirement_counts: null,
         };
       })
     );
@@ -1447,6 +1530,7 @@ export default function JobApplicationsPage() {
                   ai_match_action: matchPayload.action ?? null,
                   ai_match_readiness: matchPayload.readiness ?? null,
                   ai_match_display_category: matchPayload.displayCategory ?? null,
+                  ai_requirement_counts: requirementCountsFromAnalyzePayload(matchPayload),
                 }
               : row
           )
@@ -1751,6 +1835,8 @@ export default function JobApplicationsPage() {
                 ai_match_display_category:
                   payload.analysis?.candidate_match?.display_category ??
                   row.ai_match_display_category,
+                ai_requirement_counts:
+                  requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
               }
             : row
         )
@@ -1768,6 +1854,71 @@ export default function JobApplicationsPage() {
       );
     } finally {
       setMatchAnalyzingId(null);
+    }
+  }
+
+  function applyBulkMatchItem(row: ApplicationRow, item: BulkMatchAnalysisItem): ApplicationRow {
+    const result = item.result ?? {};
+    if (result.status === "FAILED") {
+      return { ...row, ai_match_status: "FAILED" };
+    }
+    return {
+      ...row,
+      ai_match_status: result.status ?? row.ai_match_status,
+      ai_match_score: result.score ?? row.ai_match_score,
+      ai_match_category: result.category ?? row.ai_match_category,
+      ai_match_action: result.action ?? row.ai_match_action,
+      ai_match_readiness: result.readiness ?? row.ai_match_readiness,
+      ai_match_display_category:
+        result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
+    };
+  }
+
+  async function runBulkMatchAnalyze(ids: string[]) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error("Select candidates to analyze");
+      return;
+    }
+    if (bulkAnalyzeBusy || matchAnalyzingId) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setRows((current) =>
+      current.map((row) =>
+        uniqueIds.includes(row.id) ? { ...row, ai_match_status: "ANALYZING" } : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setRows((current) =>
+          current.map((row) => {
+            const item = byId.get(row.id);
+            return item ? applyBulkMatchItem(row, item) : row;
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setRows((current) =>
+        current.map((row) =>
+          uniqueIds.includes(row.id) && row.ai_match_status === "ANALYZING"
+            ? { ...row, ai_match_status: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
     }
   }
 
@@ -1836,8 +1987,32 @@ export default function JobApplicationsPage() {
           <MatchScoreCell
             status={row.ai_match_status}
             score={row.ai_match_score}
-            analyzing={matchAnalyzingId === row.id}
+            analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={() => void runMatchAnalyze(row.id)}
+          />
+        );
+      case "conf":
+        return (
+          <RequirementOutcomeCountCell
+            tone="conf"
+            analyzed={row.ai_match_status === "ANALYZED"}
+            value={row.ai_requirement_counts?.confirmed}
+          />
+        );
+      case "verify":
+        return (
+          <RequirementOutcomeCountCell
+            tone="verify"
+            analyzed={row.ai_match_status === "ANALYZED"}
+            value={row.ai_requirement_counts?.verify}
+          />
+        );
+      case "notMet":
+        return (
+          <RequirementOutcomeCountCell
+            tone="notMet"
+            analyzed={row.ai_match_status === "ANALYZED"}
+            value={row.ai_requirement_counts?.notMet}
           />
         );
       case "location": {
@@ -1990,14 +2165,19 @@ export default function JobApplicationsPage() {
         );
       }
       case "evaluation": {
+        const analyzing = matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id);
         const analyzed = row.ai_match_status === "ANALYZED";
         return (
           <span
             className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
-              analyzed ? "bg-[#EFF6FF] text-[#2563EB]" : "bg-[#F1F5F9] text-[#64748B]"
+              analyzing
+                ? "bg-[#F1F5F9] text-[#64748B]"
+                : analyzed
+                  ? "bg-[#EFF6FF] text-[#2563EB]"
+                  : "bg-[#F1F5F9] text-[#64748B]"
             }`}
           >
-            {analyzed ? "Analyzed" : "Not Yet"}
+            {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
           </span>
         );
       }
@@ -2269,7 +2449,7 @@ export default function JobApplicationsPage() {
       </div>
 
       <nav
-        className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="applications-status-tabs-scroll mb-4 w-full min-w-0 overflow-x-auto"
         aria-label="Candidates status"
       >
         <div className="flex w-max flex-nowrap items-center justify-start gap-5">
@@ -2333,7 +2513,12 @@ export default function JobApplicationsPage() {
           sortBy={sortBy}
           onSortByChange={setSortBy}
           onOpenMoreFilters={() => setEditFiltersOpen(true)}
-          onClaimCandidates={handleClaimCandidates}
+          onExportCsv={handleExportApplicationsCsv}
+          onExportXls={handleExportApplicationsXls}
+          onAnalyzeAll={() => void runBulkMatchAnalyze(paginatedRows.map((row) => row.id))}
+          analyzeAllLabel={pageAllAnalyzed ? "Reanalyze all" : "Analyze all"}
+          analyzeBusy={bulkAnalyzeBusy}
+          analyzeDisabled={paginatedRows.length === 0 || Boolean(matchAnalyzingId)}
           onEditColumns={() => setEditColumnsOpen(true)}
           showResetFilters={hasActiveModalFilters}
           onResetFilters={handleResetModalFilters}
@@ -2380,7 +2565,20 @@ export default function JobApplicationsPage() {
                 : `${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} selected on this page`
           }
           claimBusy={claimBusy}
-          onClaim={handleClaimCandidates}
+          analyzeBusy={bulkAnalyzeBusy || Boolean(matchAnalyzingId)}
+          analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
+          reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
+          onAnalyze={
+            selectedAnalyzeIds.length > 0
+              ? () => void runBulkMatchAnalyze(selectedAnalyzeIds)
+              : undefined
+          }
+          onReanalyze={
+            selectedReanalyzeIds.length > 0
+              ? () => void runBulkMatchAnalyze(selectedReanalyzeIds)
+              : undefined
+          }
+          hideClaim
           onClear={() => setSelectedIds(new Set())}
         />
 
@@ -2573,6 +2771,10 @@ export default function JobApplicationsPage() {
         open={editFiltersOpen}
         onOpenChange={setEditFiltersOpen}
         value={editFiltersValue}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        scoreSort={scoreSort}
+        onScoreSortChange={handleScoreSortChange}
         options={{
           statuses: listingStatusOptions,
           stages: listingStageOptions,
@@ -2587,7 +2789,9 @@ export default function JobApplicationsPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
-          analyzing={matchAnalyzingId === rowActionsMenu.rowId}
+          analyzing={
+            matchAnalyzingId === rowActionsMenu.rowId || bulkAnalyzingIds.has(rowActionsMenu.rowId)
+          }
           hired={normalizeApplicationStatus(
             rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
           ) === "hired"}
@@ -2636,6 +2840,11 @@ export default function JobApplicationsPage() {
             setActionTargetRowId(row.id);
             setInterviewError(null);
             setInterviewOpen(true);
+          }}
+          onViewStatusHistory={() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            if (!row) return;
+            void openStatusHistory(row);
           }}
           onDeleteCandidate={() => beginDeleteCandidate(rowActionsMenu.rowId)}
           onMarkAsHired={() =>

@@ -38,18 +38,21 @@ import {
   RECRUITER_DECISION_LABELS,
   VERIFIED_INFO_CATEGORIES,
   VERIFIED_INFO_CATEGORY_LABELS,
+  countQualificationOutcomes,
   filterQualificationRequirements,
   isVerifiedInfoCategory,
   qualificationDisplayStatus,
   recruiterActionLabel,
   type QualificationDisplayStatus,
   type QualificationFilter,
+  type QualificationOutcomeCounts,
   type QualificationRequirement,
   type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
+import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 
@@ -68,7 +71,7 @@ const PRIMARY_BTN =
 const OUTLINE_BTN =
   "inline-flex items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_OUTLINE_BTN =
-  "inline-flex h-8 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
+  "inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-60";
 const HEADER_PRIMARY_BTN =
   "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
@@ -122,6 +125,7 @@ const FILTERS = [
   "Preferred",
   "Confirmed",
   "Needs Verification",
+  "Not Met",
   "Blocking",
 ] as const;
 
@@ -138,13 +142,22 @@ function copyText(value: string, success: string) {
   toast.success(success);
 }
 
-function MatchRing({ percent, label, strokeColor }: { percent: number; label: string; strokeColor: string }) {
+function MatchRing({
+  percent,
+  label,
+  strokeColor,
+}: {
+  percent: number | null;
+  label: string;
+  strokeColor: string;
+}) {
   const outer = 139;
   const size = 121;
   const stroke = 10;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.min(100, Math.max(0, percent)) / 100) * circumference;
+  const fill = percent == null ? 0 : Math.min(100, Math.max(0, percent));
+  const offset = circumference - (fill / 100) * circumference;
 
   return (
     <div className="relative shrink-0" style={{ width: outer, height: outer }}>
@@ -178,7 +191,9 @@ function MatchRing({ percent, label, strokeColor }: { percent: number; label: st
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex w-[79px] flex-col items-center text-center">
-          <span className="h-9 text-[30px] font-semibold leading-9 text-black">{percent}%</span>
+          <span className="h-9 text-[30px] font-semibold leading-9 text-black">
+            {percent == null ? "—" : `${percent}%`}
+          </span>
           <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
         </div>
       </div>
@@ -192,6 +207,7 @@ const FILTER_TO_QUAL: Record<FilterId, QualificationFilter> = {
   Preferred: "preferred",
   Confirmed: "confirmed",
   "Needs Verification": "needs_verification",
+  "Not Met": "not_met",
   Blocking: "blocking",
 };
 
@@ -397,6 +413,52 @@ function statusBadgeClass(status: QualificationDisplayStatus) {
   if (status === "Blocking") return "bg-[#DC2626]";
   if (status === "Not Met") return "bg-[#EA580C]";
   return "bg-[#CA8A04]";
+}
+
+const OUTCOME_STAT_CARDS = [
+  {
+    filter: "Confirmed" as const,
+    label: "CONF.",
+    title: "Confirmed requirements",
+    valueClass: "text-[#16A34A]",
+    countKey: "confirmed" as const,
+  },
+  {
+    filter: "Needs Verification" as const,
+    label: "VERIFY",
+    title: "Requirements to verify",
+    valueClass: "text-[#EA580C]",
+    countKey: "verify" as const,
+  },
+  {
+    filter: "Not Met" as const,
+    label: "NOT MET",
+    title: "Requirements not met",
+    valueClass: "text-[#DC2626]",
+    countKey: "notMet" as const,
+  },
+];
+
+function filterCount(
+  item: FilterId,
+  counts: QualificationOutcomeCounts
+): number {
+  switch (item) {
+    case "All":
+      return counts.total;
+    case "Mandatory":
+      return counts.mandatory;
+    case "Preferred":
+      return counts.preferred;
+    case "Confirmed":
+      return counts.confirmed;
+    case "Needs Verification":
+      return counts.verify;
+    case "Not Met":
+      return counts.notMet;
+    case "Blocking":
+      return counts.blocking;
+  }
 }
 
 function ringStrokeColor(score: number | null | undefined): string {
@@ -635,7 +697,10 @@ export function AiAnalysisOverviewClient({
   }
 
   const app = data?.application;
-  const matchScore = app?.ai_match_score ?? 0;
+  const matchScore =
+    isAnalyzed && app?.ai_match_score != null && Number.isFinite(Number(app.ai_match_score))
+      ? Number(app.ai_match_score)
+      : null;
   const matchLabel =
     app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Not analyzed";
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
@@ -692,6 +757,11 @@ export function AiAnalysisOverviewClient({
   const analyzedResumeId = useMemo(
     () => resolveAnalyzedResumeId(resumes, app?.ai_analyzed_at, isAnalyzed),
     [resumes, app?.ai_analyzed_at, isAnalyzed]
+  );
+
+  const outcomeCounts = useMemo(
+    () => countQualificationOutcomes(data?.requirements ?? [], blocking),
+    [data?.requirements, blocking]
   );
 
   const filteredRequirements = useMemo(() => {
@@ -775,26 +845,26 @@ export function AiAnalysisOverviewClient({
         AI Analysis Overview
       </h1>
 
-      <div className="mt-6 grid items-start gap-5 sm:gap-[30px] lg:grid-cols-[minmax(0,1fr)_350px]">
+      <div className="mt-6 grid items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0 space-y-5">
-          <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex flex-col items-center gap-5 border-b border-[#E5E7EB] px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
-              <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center sm:w-auto sm:flex-row sm:items-center sm:gap-5 sm:text-left">
+          <section className="overflow-visible rounded-[12px] border border-[#E5E7EB] bg-white">
+            <div className="flex flex-col items-center gap-4 border-b border-[#E5E7EB] px-4 py-2.5 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-center min-[900px]:justify-between sm:px-5">
+              <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center min-[900px]:w-auto min-[900px]:flex-row min-[900px]:items-center min-[900px]:gap-5 min-[900px]:text-left">
                 <MatchRing
-                  percent={Math.round(Number(matchScore) || 0)}
+                  percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
                 />
                 <div className="min-w-0">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
-                  <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                  <div className="mt-3 flex flex-wrap justify-center gap-2 min-[900px]:justify-start">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-normal leading-[15px] ${overviewMatchTagClass(app?.ai_match_category)}`}
                     >
                       {matchLabel}
                     </span>
-                    {confidencePercent != null ? (
+                    {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
                         Confidence {confidencePercent}%
                       </span>
@@ -805,12 +875,50 @@ export function AiAnalysisOverviewClient({
                       </span>
                     ) : null}
                   </div>
+                  {isAnalyzed && outcomeCounts.total > 0 ? (
+                    <div
+                      className="mt-3 flex flex-wrap justify-center gap-2 min-[900px]:justify-start"
+                      aria-label="Requirement outcome counts"
+                    >
+                      {OUTCOME_STAT_CARDS.map((card) => {
+                        const active = filter === card.filter;
+                        return (
+                          <button
+                            key={card.label}
+                            type="button"
+                            title={card.title}
+                            aria-pressed={active}
+                            onClick={() => {
+                              setFilter(card.filter);
+                              document.getElementById("qualification-checklist")?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            }}
+                            className={`inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-1.5 transition ${
+                              active
+                                ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                                : "border-[#E5E7EB] bg-[#F8FAFC] hover:border-[#D0D5DD]"
+                            }`}
+                          >
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#667085]">
+                              {card.label}
+                            </span>
+                            <span className={`text-base font-semibold tabular-nums leading-5 ${card.valueClass}`}>
+                              {outcomeCounts[card.countKey]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               </div>
-              <div className="flex w-full shrink-0 flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3">
-                <button type="button" className={HEADER_OUTLINE_BTN}>
-                  Attempted Contacted
-                </button>
+              <div className="relative z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-2 min-[480px]:w-auto min-[480px]:justify-end min-[900px]:gap-3">
+                <CandidateApplicationStatusControl
+                  applicationId={applicationId}
+                  buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
+                />
                 <button
                   type="button"
                   className={HEADER_PRIMARY_BTN}
@@ -833,7 +941,7 @@ export function AiAnalysisOverviewClient({
             ) : null}
           </section>
 
-          <section className={CARD}>
+          <section className={CARD} id="qualification-checklist">
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -847,7 +955,7 @@ export function AiAnalysisOverviewClient({
               </div>
             </SectionHeaderBlock>
 
-            <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <div className="flex w-max flex-nowrap items-center gap-2">
                 {FILTERS.map((item) => {
@@ -864,13 +972,13 @@ export function AiAnalysisOverviewClient({
                       }`}
                       style={active ? undefined : { color: branding.secondaryHex }}
                     >
-                      {item}
+                      {item} ({filterCount(item, outcomeCounts)})
                     </button>
                   );
                 })}
                 </div>
               </div>
-              <label className="relative w-full sm:max-w-[260px]">
+              <label className="relative w-full shrink-0 sm:max-w-[260px] xl:w-[240px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#98A2B3]" />
                 <input
                   value={query}

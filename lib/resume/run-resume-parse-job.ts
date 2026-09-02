@@ -5,6 +5,7 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
 import { grokParseResume } from "@/lib/resume/grok-parse-resume"
+import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
 
@@ -32,6 +33,7 @@ export async function runResumeParseJob(params: {
   continuationEmail?: ResumeParseContinuationEmailParams
 }): Promise<ResumeParseJobResult> {
   const { supabase, resumeId, text } = params
+  const safeText = stripNullBytes(text)
   const jobTimer = createTimer()
   const now = new Date().toISOString()
 
@@ -52,7 +54,7 @@ export async function runResumeParseJob(params: {
 
   let aiParseMs = 0
   try {
-    const grok = await grokParseResume(text)
+    const grok = await grokParseResume(safeText)
     aiParseMs = grok.aiParseMs
 
     const qualityTimer = createTimer()
@@ -65,8 +67,10 @@ export async function runResumeParseJob(params: {
       qualityPassed: quality.ok,
     })
 
-    const parsedJson = normalizedResumeToStoredJson(
-      quality.ok ? quality.normalized : grok.normalized,
+    const parsedJson = sanitizePostgresJson(
+      normalizedResumeToStoredJson(
+        quality.ok ? quality.normalized : grok.normalized,
+      ),
     )
     const completedAt = new Date().toISOString()
 
@@ -77,8 +81,8 @@ export async function runResumeParseJob(params: {
           parsing_status: "completed",
           parse_status: "completed",
           parsed_json: parsedJson,
-          parsed_data: { text, pre_extracted: grok.preExtracted },
-          extracted_text: text,
+          parsed_data: sanitizePostgresJson({ text: safeText, pre_extracted: grok.preExtracted }),
+          extracted_text: safeText,
           parse_error: null,
           parse_completed_at: completedAt,
           parsed_at: completedAt,
@@ -100,7 +104,7 @@ export async function runResumeParseJob(params: {
           resumeId: params.continuationEmail.resumeId,
           origin: params.continuationEmail.origin,
           tenantSlug: params.continuationEmail.tenantSlug ?? null,
-          extractedText: text,
+          extractedText: safeText,
           parsedResume: parsedJson,
           trigger: "resume_parse",
           request: params.continuationEmail.request,
@@ -123,8 +127,8 @@ export async function runResumeParseJob(params: {
         parsing_status: "failed",
         parse_status: "failed",
         parsed_json: parsedJson,
-        parsed_data: { text, pre_extracted: grok.preExtracted },
-        extracted_text: text,
+        parsed_data: sanitizePostgresJson({ text: safeText, pre_extracted: grok.preExtracted }),
+        extracted_text: safeText,
         parse_error: parseError,
         parse_completed_at: completedAt,
         parsed_at: null,

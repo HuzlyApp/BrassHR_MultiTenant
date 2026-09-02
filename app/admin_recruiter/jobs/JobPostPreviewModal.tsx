@@ -4,11 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
-import { boldJobDescriptionSectionTitles } from "@/lib/jobs/generate-job-description/sanitize-html";
-import {
-  ensureJobDescriptionBulletLists,
-  stripJobDescriptionBenefitsSection,
-} from "@/lib/jobs/job-description-html";
+import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
   formatPaySummary,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
@@ -23,16 +19,7 @@ import {
   JOB_POSTING_PAGE_TITLE_CLASS,
 } from "./job-posting-typography";
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
-
-const JOB_POST_PREVIEW_ICON_SRC = "/job-post-preview-icon.svg";
-
-function formatPreviewDescriptionHtml(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  return ensureJobDescriptionBulletLists(
-    boldJobDescriptionSectionTitles(stripJobDescriptionBenefitsSection(trimmed))
-  );
-}
+import { JobPostPreviewIcon } from "./JobPostPreviewIcon";
 
 type Props = {
   open: boolean;
@@ -62,8 +49,11 @@ export function JobPostPreviewModal({
   const locationType = ui.jobLocationType?.trim() || "";
   const locationLine = [locationType, location].filter(Boolean).join(" · ");
   const descriptionHtml = useMemo(
-    () => formatPreviewDescriptionHtml(job.publicDescription ?? ""),
-    [job.publicDescription]
+    () =>
+      formatStoredJobDescriptionHtml(job.publicDescription ?? "", {
+        stripBenefits: ui.selectedBenefits.length > 0,
+      }),
+    [job.publicDescription, ui.selectedBenefits.length]
   );
   const compensationLabel = [ui.compensationType, ui.currency].filter(Boolean).join(", ");
   const paySummary = formatPaySummary(job, ui);
@@ -82,21 +72,14 @@ export function JobPostPreviewModal({
           style={brandVars}
         >
           <div className="relative flex items-start gap-2.5 px-3 pb-2 pt-4 pr-12 min-[700px]:gap-3 min-[700px]:px-5 min-[700px]:pb-3 min-[700px]:pt-5 min-[700px]:pr-14">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] min-[700px]:h-11 min-[700px]:w-11">
-              <img
-                src={JOB_POST_PREVIEW_ICON_SRC}
-                alt=""
-                width={24}
-                height={24}
-                className="h-5 w-5 min-[700px]:h-6 min-[700px]:w-6"
-                aria-hidden
-              />
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)] min-[700px]:h-11 min-[700px]:w-11">
+              <JobPostPreviewIcon className="h-5 w-5 min-[700px]:h-6 min-[700px]:w-6" />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <Dialog.Title className="text-base font-semibold text-[#1D2739] min-[700px]:text-lg">
+              <Dialog.Title className="text-sm font-semibold text-[#1D2739]">
                 Job post preview
               </Dialog.Title>
-              <Dialog.Description className="mt-0.5 text-xs leading-5 text-[#64748B] min-[700px]:text-sm">
+              <Dialog.Description className="mt-0.5 text-sm leading-5 text-[#64748B]">
                 The live post people view may look slightly different.
               </Dialog.Description>
             </div>

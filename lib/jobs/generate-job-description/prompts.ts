@@ -19,7 +19,7 @@ Use these sections:
 
 Use short paragraphs and bullet points. Do not include introductory commentary such as ‘Here is the description.’
 
-Wrap each section title in <strong> tags, for example: <p><strong>About the Role</strong></p>, <p><strong>Key Responsibilities</strong></p>, <p><strong>Required Qualifications</strong></p>, <p><strong>Work Location and Schedule</strong></p>, and <p><strong>Benefits</strong></p> when those sections are included. Do not bold the body text under each section.
+Wrap each section title in <strong> tags, for example: <p><strong>About the Role</strong></p>, <p><strong>Key Responsibilities</strong></p>, <p><strong>Required Qualifications</strong></p>, <p><strong>Work Location and Schedule</strong></p>, and <p><strong>Benefits</strong></p> when those sections are included. Do not bold the body text under each section. Do not use heading tags (h1–h6), font tags, inline font-size, or any other size styling — all description text must be one size.
 
 MSP source rules (only when sourceType is "MSP"):
 - Write "About the Role" as 2–3 candidate-facing sentences. Tailor the opening to placementType:

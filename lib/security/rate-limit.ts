@@ -64,12 +64,21 @@ function getMemoryRetryAfterSec(key: string): number {
   return Math.max(1, Math.ceil((bucket.expiresAt - Date.now()) / 1000));
 }
 
+async function expireIfMissing(
+  ttl: number,
+  expire: () => Promise<unknown>
+): Promise<void> {
+  // INCR on a key whose expire was lost returns a growing counter that never resets.
+  if (ttl <= 0) await expire();
+}
+
 async function createUpstashStore(url: string, token: string): Promise<RateLimitStore> {
   const redis = new UpstashRedis({ url, token });
   return {
     async increment(key, windowSeconds) {
       const count = await redis.incr(key);
-      if (count === 1) await redis.expire(key, windowSeconds);
+      const ttl = await redis.ttl(key);
+      await expireIfMissing(ttl, () => redis.expire(key, windowSeconds));
       return count;
     },
   };
@@ -101,7 +110,10 @@ async function createNodeRedisStore(url: string): Promise<RateLimitStore> {
   return {
     async increment(key, windowSeconds) {
       const count = await withRedisTimeout(client.incr(key), "rate-limit-incr");
-      if (count === 1) await withRedisTimeout(client.expire(key, windowSeconds), "rate-limit-expire");
+      const ttl = await withRedisTimeout(client.ttl(key), "rate-limit-ttl");
+      await expireIfMissing(ttl, () =>
+        withRedisTimeout(client.expire(key, windowSeconds), "rate-limit-expire")
+      );
       return count;
     },
   };
@@ -136,6 +148,13 @@ export function getClientIp(req: Request): string {
   const realIp = req.headers.get("x-real-ip")?.trim();
   const cfIp = req.headers.get("cf-connecting-ip")?.trim();
   return forwarded || realIp || cfIp || "unknown";
+}
+
+/** Positive integer from env, otherwise the fallback. Treats 0 / NaN / negatives as unset. */
+export function envRateLimit(name: string, fallback: number): number {
+  const raw = Number(process.env[name]);
+  if (!Number.isFinite(raw) || raw <= 0) return fallback;
+  return Math.floor(raw);
 }
 
 export async function checkRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
@@ -177,6 +196,10 @@ export async function enforceRateLimit(
     const subject = options.key ?? getClientIp(req);
     const result = await checkRateLimit({ ...options, key: subject });
     if (result.allowed) return null;
+
+    console.warn(
+      `[rate-limit] blocked namespace=${options.namespace} limit=${result.limit} remaining=${result.remaining} retryAfterSec=${result.retryAfterSec} store=${result.store}`
+    );
 
     return NextResponse.json(
       { error: "Too many requests" },

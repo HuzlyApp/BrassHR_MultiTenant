@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { parseAndValidateMatchAnalysis } from "./parse";
 import { applyFairnessOutcomes, rescoreMatchAnalysis } from "./score";
 import { sanitizeResumeForMatchAnalysis } from "./sanitize-resume";
+import {
+  ANALYZE_RESPONSE_SCHEMA,
+  ANALYZE_SYSTEM_PROMPT,
+  DEEP_ANALYSIS_SYSTEM_PROMPT,
+  buildMatchAnalysisUserPrompt,
+  systemPromptForMode,
+} from "./prompts";
 import type { MatchAnalysisResponse, RequirementItem } from "./schema";
 
 function baseAnalysis(
@@ -117,6 +124,87 @@ describe("parseAndValidateMatchAnalysis", () => {
       expect(parsed.errors.some((e) => e.includes("match_category"))).toBe(true);
     }
   });
+
+  it("hydrates lean Analyze JSON into the full match-analysis shape", () => {
+    const lean = {
+      recommended_overall_match_score: 68,
+      match_category: "POSSIBLE_MATCH",
+      recommended_action: "CALL_AND_VERIFY",
+      mandatory_requirements: [
+        {
+          requirement: "Active TX RN license",
+          status: "PARTIAL",
+          evidence: "Lists RN license without state or expiry.",
+        },
+        {
+          requirement: "2 years ICU",
+          status: "CONFIRMED",
+          evidence: "ICU RN at Memorial 2022-2024.",
+        },
+      ],
+      preferred_requirements: [
+        {
+          requirement: "Travel experience",
+          status: "NOT_FOUND",
+          evidence: "",
+        },
+      ],
+      screening_questions: ["Confirm TX compact license status.", "Verify ICU unit type."],
+      items_to_verify: ["Work authorization"],
+      blocking_requirements: [],
+    };
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(lean));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.candidate_match.match_category).toBe("POSSIBLE_MATCH");
+      expect(parsed.data.candidate_match.recommended_action).toBe("CALL_AND_VERIFY");
+      expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(68);
+      expect(parsed.data.mandatory_requirements).toHaveLength(2);
+      expect(parsed.data.mandatory_requirements[0]?.candidate_evidence).toContain("RN license");
+      expect(parsed.data.mandatory_requirements[0]?.requirement_outcome).toBe("VERIFY");
+      expect(parsed.data.mandatory_requirements[1]?.requirement_outcome).toBe("MET");
+      expect(parsed.data.screening_questions).toHaveLength(2);
+      expect(parsed.data.screening_questions[0]?.question).toContain("compact license");
+      expect(parsed.data.submission_readiness.items_to_verify_before_submission).toEqual([
+        "Work authorization",
+      ]);
+      expect(parsed.data.strengths).toEqual([]);
+      expect(parsed.data.gaps_and_risks).toEqual([]);
+    }
+  });
+});
+
+describe("analyze vs deep prompts", () => {
+  const sampleInput = {
+    jobId: "job-1",
+    jobTitle: "ICU RN",
+    structured: {
+      mandatoryRequirements: ["Active TX RN license"],
+      preferredRequirements: ["Travel experience"],
+      requiredLicenses: ["RN"],
+      requiredCertifications: ["BLS"],
+      educationRequirements: ["BSN"],
+    },
+    fullJobDescription: "Need an ICU RN in Texas.",
+    resumeText: "ICU RN at Memorial 2022-2024.",
+  };
+
+  it("defaults to the Analyze prompt and lean JSON schema", () => {
+    expect(systemPromptForMode("analyze")).toBe(ANALYZE_SYSTEM_PROMPT);
+    expect(systemPromptForMode("deep")).toBe(DEEP_ANALYSIS_SYSTEM_PROMPT);
+    const prompt = buildMatchAnalysisUserPrompt(sampleInput);
+    expect(prompt).toContain(ANALYZE_RESPONSE_SCHEMA);
+    expect(prompt).toContain("no more than 4 focused screening questions");
+    expect(prompt).not.toContain("recruiter_decision_summary");
+    expect(prompt).not.toContain("experience_calculation_notes");
+  });
+
+  it("uses the deep schema only when analysisMode is deep", () => {
+    const prompt = buildMatchAnalysisUserPrompt({ ...sampleInput, analysisMode: "deep" });
+    expect(prompt).toContain("recruiter_decision_summary");
+    expect(prompt).toContain("experience_calculation_notes");
+    expect(prompt).toContain("no more than 5 focused screening questions");
+  });
 });
 
 describe("sanitizeResumeForMatchAnalysis", () => {
@@ -167,10 +255,34 @@ describe("applyFairnessOutcomes", () => {
     ]);
     expect(result.requirement_outcome).toBe("VERIFY");
   });
+
+  it("does not treat 'not listed on résumé' as a hard NOT_MET knockout", () => {
+    const [result] = applyFairnessOutcomes([
+      req({
+        requirement: "Active RN license",
+        status: "NOT_FOUND",
+        requirement_outcome: "NOT_MET",
+        candidate_evidence: "No RN license listed; only CNA and BLS shown",
+      }),
+    ]);
+    expect(result.requirement_outcome).toBe("VERIFY");
+  });
+
+  it("keeps NOT_MET only for explicit inability", () => {
+    const [result] = applyFairnessOutcomes([
+      req({
+        requirement: "Must work onsite in Plano",
+        status: "CONFLICTING",
+        requirement_outcome: "NOT_MET",
+        candidate_evidence: "Candidate stated they cannot work onsite and are unwilling to relocate.",
+      }),
+    ]);
+    expect(result.requirement_outcome).toBe("CONFLICT");
+  });
 });
 
 describe("rescoreMatchAnalysis", () => {
-  it("forces NOT_CURRENTLY_SUBMITTABLE on mandatory NOT_MET knockout", () => {
+  it("does not zero the score when a mandatory item is merely missing from the résumé", () => {
     const analysis = baseAnalysis({
       mandatory_requirements: [
         req({
@@ -179,14 +291,46 @@ describe("rescoreMatchAnalysis", () => {
           requirement_outcome: "NOT_MET",
           candidate_evidence: "Candidate has no nursing license listed",
         }),
+        req({
+          requirement: "2 years ICU experience",
+          status: "NOT_FOUND",
+          requirement_outcome: "NOT_MET",
+          candidate_evidence: "No ICU experience documented in résumé",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis);
+    expect(rescored.candidate_match.match_category).not.toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThan(0);
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeLessThanOrEqual(45);
+    expect(rescored.mandatory_requirements.every((r) => r.requirement_outcome === "VERIFY")).toBe(
+      true
+    );
+  });
+
+  it("caps explicit inability as not currently submittable without collapsing to 0%", () => {
+    const analysis = baseAnalysis({
+      mandatory_requirements: [
+        req({
+          requirement: "Must work onsite in Dallas",
+          status: "CONFLICTING",
+          requirement_outcome: "CONFLICT",
+          candidate_evidence: "Candidate stated they cannot work onsite.",
+        }),
+        req({
+          requirement: "5 years CNA experience",
+          status: "CONFIRMED",
+          requirement_outcome: "MET",
+          candidate_evidence: "CNA at Chatham Health 2020-current",
+        }),
       ],
     });
     const rescored = rescoreMatchAnalysis(analysis);
     expect(rescored.candidate_match.match_category).toBe("NOT_CURRENTLY_SUBMITTABLE");
     expect(rescored.candidate_match.recommended_action).toBe("STOP_FOR_THIS_JOB");
     expect(rescored.candidate_match.mandatory_requirement_override).toBe(true);
-    expect(rescored.candidate_match.recommended_overall_match_score).toBe(0);
-    expect(rescored.submission_readiness.readiness_status).toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThan(0);
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeLessThanOrEqual(45);
   });
 
   it("sets NEEDS_MORE_INFORMATION when resume completeness is LOW", () => {
@@ -210,6 +354,7 @@ describe("rescoreMatchAnalysis", () => {
     const rescored = rescoreMatchAnalysis(analysis);
     expect(rescored.candidate_match.match_category).toBe("NEEDS_MORE_INFORMATION");
     expect(rescored.candidate_match.recommended_action).toBe("CALL_AND_VERIFY");
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThan(0);
   });
 
   it("downgrades STRONG to GOOD when mandatory items need verification", () => {
@@ -274,5 +419,28 @@ describe("rescoreMatchAnalysis", () => {
     });
     const rescored = rescoreMatchAnalysis(analysis);
     expect(rescored.candidate_match.recommended_overall_match_score).toBeLessThan(99);
+  });
+
+  it("does not collapse score to 0 when license/specialty buckets are empty", () => {
+    const analysis = baseAnalysis({
+      subscores: {
+        mandatory_requirements_score: 0,
+        specialty_experience_score: 0,
+        clinical_skills_score: 0,
+        licenses_certifications_score: 0,
+        work_setting_equipment_score: 0,
+        preferred_qualifications_score: 0,
+      },
+      mandatory_requirements: [
+        req({
+          requirement: "5 years Microsoft Sentinel administration",
+          status: "CONFIRMED",
+          requirement_outcome: "MET",
+          candidate_evidence: "Sentinel engineer at Contoso 2019-2024",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis);
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThanOrEqual(75);
   });
 });

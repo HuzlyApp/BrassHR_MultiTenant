@@ -1,13 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeIncompleteStepKeys, stepTitlesForKeys } from "@/lib/onboarding/compute-incomplete-step-keys";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
-import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { resolveApplicantConfigForSubmit } from "@/lib/onboarding/resolve-applicant-submit-config";
 import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
+import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import type { WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 
 export type SubmitOnboardingApplicationInput = {
   applicantId: string;
   tenantSlug: string;
+  jobApplicationId?: string | null;
+  jobToken?: string | null;
 };
 
 export type SubmitOnboardingApplicationResult =
@@ -40,10 +43,13 @@ export async function submitOnboardingApplication(
     return { ok: false, status: 404, error: "Worker not found for this tenant" };
   }
 
-  const config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, { workerFacing: true });
-  if (!config) {
-    return { ok: false, status: 400, error: "No onboarding configuration for tenant" };
-  }
+  const config = await resolveApplicantConfigForSubmit(supabase, {
+    tenantId: ctx.tenantId,
+    tenantSlug,
+    workerId: ctx.workerId,
+    jobApplicationId: input.jobApplicationId,
+    jobToken: input.jobToken,
+  });
 
   const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
 
@@ -58,7 +64,7 @@ export async function submitOnboardingApplication(
     };
   }
 
-  const enabledSteps = config.steps.filter((s) => s.is_enabled);
+  const enabledSteps = getEnabledTenantSteps(config);
   const requiredIncompleteKeys = computeIncompleteStepKeys(enabledSteps, progress.steps);
   if (requiredIncompleteKeys.length > 0) {
     const labels = stepTitlesForKeys(enabledSteps, requiredIncompleteKeys);

@@ -4,6 +4,7 @@ export type SidebarIconType =
   | "Mail"
   | "Chat"
   | "Schedule"
+  | "Shifts"
   | "Tickets"
   | "Reports"
   | "Finance"

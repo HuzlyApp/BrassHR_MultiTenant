@@ -6,12 +6,16 @@ import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-r
 import { createAdminJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
+import { preExtractResumeFields } from "@/lib/resume/normalize-resume-text";
 import {
-  evaluateResumeParseQuality,
+  hasAdminCandidateIdentity,
+  normalizeParsedResume,
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
   type NormalizedParsedResume,
 } from "@/lib/resumeParseQuality";
+import { resumeTextToPdfBuffer } from "@/lib/resume/resume-text-to-pdf";
+import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
 import {
   resolveResumeFileType,
   validateExtractedResumeText,
@@ -30,6 +34,8 @@ export type AdminAddCandidateFromResumeInput = {
   resumeTitle?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
 };
 
 export type AdminAddCandidateFromResumeResult = {
@@ -87,41 +93,37 @@ async function persistWorkerResumeByWorkerId(
   }
 ): Promise<void> {
   const now = new Date().toISOString();
+  const parsedData = sanitizePostgresJson(opts.parsedData ?? {});
   const row = {
     worker_id: workerId,
     tenant_id: tenantId,
     file_url: opts.fileUrl.trim(),
     storage_path: opts.fileUrl.trim(),
-    original_file_name: opts.originalFileName?.trim() || null,
-    file_name: opts.originalFileName?.trim() || null,
+    original_file_name: opts.originalFileName?.trim()
+      ? stripNullBytes(opts.originalFileName.trim())
+      : null,
+    file_name: opts.originalFileName?.trim()
+      ? stripNullBytes(opts.originalFileName.trim())
+      : null,
     file_type: opts.fileType ?? null,
     file_size_bytes: opts.fileSizeBytes ?? null,
-    parsed_data: opts.parsedData ?? {},
+    parsed_data: parsedData,
     parsing_status: "completed" as const,
     parse_status: "completed" as const,
     parsed_at: now,
     uploaded_at: now,
     text_length: opts.textLength ?? null,
-    extracted_text: opts.extractedText ?? null,
+    extracted_text:
+      opts.extractedText != null ? stripNullBytes(opts.extractedText) : null,
     parse_started_at: now,
     parse_completed_at: now,
     parse_error: null,
-    parsed_json: opts.parsedData ?? null,
+    parsed_json: parsedData,
     job_application_id: opts.jobApplicationId?.trim() || null,
   };
 
-  const { data: existing } = await supabase
-    .from("worker_resumes")
-    .select("id")
-    .eq("worker_id", workerId)
-    .maybeSingle();
-
-  if (existing?.id) {
-    const { error } = await supabase.from("worker_resumes").update(row).eq("id", existing.id);
-    if (error) throw error;
-    return;
-  }
-
+  // Always insert. Workers can have multiple resumes; `.maybeSingle()` throws
+  // when more than one row already exists (PGRST116).
   const { error } = await supabase.from("worker_resumes").insert(row);
   if (error) throw error;
 }
@@ -134,7 +136,66 @@ export type PreparedResumeCandidate = {
   resumeFileType: ReturnType<typeof resolveResumeFileType>;
   parsed: NormalizedParsedResume;
   parsedJson: Record<string, string>;
+  qualityOk: boolean;
+  qualityMessage: string | null;
 };
+
+export function resolveAdminCandidateIdentity(
+  parsed: NormalizedParsedResume,
+  input: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }
+): {
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  phone: string;
+} {
+  const firstName = input.firstName?.trim() || parsed.first_name.trim();
+  const lastName = input.lastName?.trim() || parsed.last_name.trim();
+  const email = input.email?.trim() || parsed.email.trim();
+  const phone = input.phone?.trim() || parsed.phone.trim();
+  return {
+    firstName,
+    lastName,
+    fullName: formatFullName(firstName, lastName),
+    email,
+    phone,
+  };
+}
+
+async function parseExtractedResumeText(extractedText: string): Promise<{
+  parsed: NormalizedParsedResume;
+  qualityOk: boolean;
+  qualityMessage: string | null;
+}> {
+  const contentError = validateExtractedResumeText(extractedText);
+  const fallback = normalizeParsedResume(preExtractResumeFields(extractedText));
+
+  let parsed = fallback;
+  if (!contentError) {
+    try {
+      parsed = normalizeParsedResume(await grokParseResumeCached(extractedText));
+    } catch (parseError) {
+      console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
+      parsed = fallback;
+    }
+  }
+
+  if (hasAdminCandidateIdentity(parsed)) {
+    return { parsed, qualityOk: true, qualityMessage: null };
+  }
+
+  return {
+    parsed,
+    qualityOk: false,
+    qualityMessage: contentError ?? RESUME_PARSE_FAILED_USER_MESSAGE,
+  };
+}
 
 /**
  * Validate, extract, and AI-parse a resume upload (or pasted text).
@@ -148,8 +209,8 @@ export async function prepareResumeCandidate(input: {
 }): Promise<PreparedResumeCandidate> {
   let extractedText = "";
   let resumeBytes: Buffer | null = null;
-  let resumeFileName = "resume.txt";
-  let resumeContentType = "text/plain";
+  let resumeFileName = "resume.pdf";
+  let resumeContentType = "application/pdf";
   let resumeFileType: ReturnType<typeof resolveResumeFileType> = "unknown";
 
   if (input.resumeFile && input.resumeFile.size > 0) {
@@ -175,15 +236,12 @@ export async function prepareResumeCandidate(input: {
 
     resumeBytes = Buffer.from(await file.arrayBuffer());
     try {
-      extractedText = await extractResumeTextFromUpload(resumeBytes, file.name);
-    } catch (extractError) {
-      throw new JobValidationError(
-        extractError instanceof Error
-          ? extractError.message
-          : "Could not read resume. Please upload a PDF or DOCX resume.",
-        {},
-        "RESUME_EXTRACTION_FAILED"
+      extractedText = stripNullBytes(
+        await extractResumeTextFromUpload(resumeBytes, file.name)
       );
+    } catch (extractError) {
+      console.error("[admin-add-candidate-from-resume] resume extraction failed", extractError);
+      extractedText = "";
     }
 
     resumeFileName = file.name;
@@ -197,33 +255,20 @@ export async function prepareResumeCandidate(input: {
         "RESUME_REQUIRED"
       );
     }
-    extractedText = text;
-    resumeFileName = sanitizeFileName(String(input.resumeTitle ?? "").trim() || "pasted-resume.txt");
-    if (!resumeFileName.toLowerCase().endsWith(".txt")) {
-      resumeFileName = `${resumeFileName}.txt`;
-    }
-    resumeBytes = Buffer.from(text, "utf8");
-    resumeFileType = "unknown";
-  }
-
-  const contentError = validateExtractedResumeText(extractedText);
-  if (contentError) {
-    throw new JobValidationError(contentError, {}, "INVALID_RESUME_CONTENT");
-  }
-
-  const normalized = await grokParseResumeCached(extractedText);
-  const quality = evaluateResumeParseQuality(normalized);
-  if (!quality.ok) {
-    throw new JobValidationError(
-      quality.message ?? RESUME_PARSE_FAILED_USER_MESSAGE,
-      {},
-      "RESUME_PARSE_FAILED"
-    );
+    extractedText = stripNullBytes(text);
+    const titleBase = sanitizeFileName(String(input.resumeTitle ?? "").trim() || "pasted-resume");
+    resumeFileName = titleBase.toLowerCase().endsWith(".pdf") ? titleBase : `${titleBase}.pdf`;
+    // UTF-8 placeholder — converted to PDF only when uploading to storage.
+    resumeBytes = Buffer.from(extractedText, "utf8");
+    resumeContentType = "application/pdf";
+    resumeFileType = "pdf";
   }
 
   if (!resumeBytes) {
     throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
   }
+
+  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(extractedText);
 
   return {
     extractedText,
@@ -231,8 +276,10 @@ export async function prepareResumeCandidate(input: {
     resumeFileName,
     resumeContentType,
     resumeFileType,
-    parsed: quality.normalized,
-    parsedJson: normalizedResumeToStoredJson(quality.normalized),
+    parsed,
+    parsedJson: normalizedResumeToStoredJson(parsed),
+    qualityOk,
+    qualityMessage,
   };
 }
 
@@ -252,31 +299,47 @@ export async function adminAddCandidateFromResume(
     resumeContentType,
     resumeFileType,
     parsed,
-    parsedJson,
   } = await prepareResumeCandidate({
     resumeFile: input.resumeFile,
     resumeText: input.resumeText,
     resumeTitle: input.resumeTitle,
   });
 
-  const resolvedFirstName = input.firstName?.trim() || parsed.first_name.trim();
-  const resolvedLastName = input.lastName?.trim() || parsed.last_name.trim();
-  const fullName = formatFullName(resolvedFirstName, resolvedLastName);
-  const email = parsed.email.trim();
-  const phone = parsed.phone.trim();
+  const { firstName: resolvedFirstName, lastName: resolvedLastName, fullName, email, phone } =
+    resolveAdminCandidateIdentity(parsed, input);
 
-  if (!fullName || !email || !phone) {
+  if (!fullName) {
     throw new JobValidationError(
-      RESUME_PARSE_FAILED_USER_MESSAGE,
-      {},
-      "RESUME_PARSE_FAILED"
+      "First and last name are required. Fill them in and try again.",
+      { name: "Name is required." },
+      "NAME_REQUIRED"
     );
   }
+  if (!email) {
+    throw new JobValidationError(
+      "Email is required. Fill it in and try again.",
+      { email: "Email is required." },
+      "EMAIL_REQUIRED"
+    );
+  }
+
+  const parsedJson = normalizedResumeToStoredJson({
+    ...parsed,
+    first_name: resolvedFirstName,
+    last_name: resolvedLastName,
+    email,
+    phone,
+  });
+
+  const uploadBytes =
+    !input.resumeFile?.size && input.resumeText?.trim()
+      ? await resumeTextToPdfBuffer(extractedText)
+      : resumeBytes;
 
   const uploaded = await uploadResumeBytes(
     supabase,
     input.tenantId,
-    resumeBytes,
+    uploadBytes,
     resumeFileName,
     resumeContentType
   );

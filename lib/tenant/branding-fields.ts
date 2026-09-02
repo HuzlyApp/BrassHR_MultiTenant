@@ -111,7 +111,8 @@ export function buildTenantBrandingUpdate(body: TenantBrandingUpdateInput): Bran
     patch.signup_subheadline = normalizeBrandingText(body.signupSubheadline, 200);
   }
   if ("buttonText" in body) {
-    patch.button_text = normalizeBrandingText(body.buttonText, 40);
+    const normalized = normalizeBrandingText(body.buttonText, 40);
+    patch.button_text = normalized && normalized.includes("@") ? null : normalized;
   }
 
   if ("authBackgroundImageUrl" in body) {

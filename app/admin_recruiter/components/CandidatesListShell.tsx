@@ -16,6 +16,7 @@ import {
   EMPTY_CANDIDATES_FILTERS,
   type CandidatesFilterValues,
 } from "@/app/admin_recruiter/candidates/EditCandidatesFiltersModal";
+import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -66,6 +67,13 @@ export type CandidatesListShellProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   totalFiltered: number;
+  /** When false, hides the Highlight Multi-Job Applicants toggle (legacy candidates page). */
+  showMultiJobHighlight?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide Add Candidate in the page header. */
+  hideAddCandidate?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide Claim Candidates and show Export in the toolbar. */
+  hideClaimCandidates?: boolean;
+  exportInToolbar?: boolean;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -280,6 +288,10 @@ export function CandidatesListShell({
   onPageChange,
   onPageSizeChange,
   totalFiltered,
+  showMultiJobHighlight = true,
+  hideAddCandidate = false,
+  hideClaimCandidates = false,
+  exportInToolbar = false,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
@@ -328,26 +340,26 @@ export function CandidatesListShell({
   const rangeStart = totalFiltered === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const rangeEnd = Math.min(safePage * pageSize, totalFiltered);
 
-  const totalText = advancedSearchActive ? (
-    <>
-      Total:{" "}
-      <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span> Results
-      {advancedSearchPlace ? (
-        <>
-          {" "}
-          found in <span className="font-semibold text-[#203130]">{advancedSearchPlace}</span>
-        </>
-      ) : null}
-    </>
-  ) : (
-    <>
-      Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span>{" "}
-      {loading ? "" : totalLabel}
-    </>
-  );
+  // const totalText = advancedSearchActive ? (
+  //   <>
+  //     Total:{" "}
+  //     <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span> Results
+  //     {advancedSearchPlace ? (
+  //       <>
+  //         {" "}
+  //         found in <span className="font-semibold text-[#203130]">{advancedSearchPlace}</span>
+  //       </>
+  //     ) : null}
+  //   </>
+  // ) : (
+  //   <>
+  //     Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalCount ?? totalFiltered}</span>{" "}
+  //     {loading ? "" : totalLabel}
+  //   </>
+  // );
 
   return (
-    <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8">
+    <div className="box-border w-full min-w-0 max-w-full px-3 pb-4 pt-4 sm:px-5 sm:pt-5 lg:px-8">
       <CandidatesSubTabs />
 
       <CandidatesPageHeader
@@ -355,15 +367,21 @@ export function CandidatesListShell({
         title="Candidates"
         subtitle="Manage candidates in one place"
         actions={
-          <>
-            <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
-              <AddPlusIcon />
-              Add Candidate
-            </button>
-            <div className="max-lg:w-full max-lg:[&_button]:w-full">
-              <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
-            </div>
-          </>
+          !hideAddCandidate && onAddCandidate || !exportInToolbar ? (
+            <>
+              {!hideAddCandidate && onAddCandidate ? (
+                <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
+                  <AddPlusIcon />
+                  Add Candidate
+                </button>
+              ) : null}
+              {!exportInToolbar ? (
+                <div className="max-lg:w-full max-lg:[&_button]:w-full">
+                  <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
+                </div>
+              ) : null}
+            </>
+          ) : undefined
         }
       />
 
@@ -376,15 +394,27 @@ export function CandidatesListShell({
       <div className="mt-4 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white sm:mt-5">
         <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
           <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
-            <button
-              type="button"
-              onClick={onClaimCandidates}
-              className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
-            >
-              <ClaimClipboardIcon />
-              <span className="max-[380px]:hidden">Claim Candidates</span>
-              <span className="hidden max-[380px]:inline">Claim</span>
-            </button>
+            {exportInToolbar ? (
+              <div className="min-w-0 shrink-0 flex-1 lg:flex-none">
+                <ListExportDropdown
+                  variant="brand"
+                  onExportCsv={onExportCsv}
+                  onExportXls={onExportXls}
+                />
+              </div>
+            ) : null}
+            {/* Claim Candidates — hidden on legacy /admin_recruiter/candidates */}
+            {!hideClaimCandidates && onClaimCandidates ? (
+              <button
+                type="button"
+                onClick={onClaimCandidates}
+                className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
+              >
+                <ClaimClipboardIcon />
+                <span className="max-[380px]:hidden">Claim Candidates</span>
+                <span className="hidden max-[380px]:inline">Claim</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onEditColumns}
@@ -457,8 +487,8 @@ export function CandidatesListShell({
               type="search"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Search applicants..."
-              aria-label="Search applicants"
+              placeholder={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
+              aria-label={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
               className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
             />
           </label>
@@ -532,16 +562,18 @@ export function CandidatesListShell({
           </div>
         </div>
 
-        <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
+        {showMultiJobHighlight ? (
+          <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
+        ) : null}
 
-        <div className="flex w-full items-center px-3 pb-2 sm:px-5">
+        {/* <div className="flex w-full items-center px-3 pb-2 sm:px-5">
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
-        </div>
+        </div> */}
 
-        <div className="bg-white px-3 pb-5 sm:px-5">{children}</div>
+        <div className="w-full bg-white">{children}</div>
 
         {totalFiltered > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-4 sm:px-5 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4">
+          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-3 sm:px-5 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4">
             <p className="text-sm text-[#64748B]">
               Showing {rangeStart}-{rangeEnd} of {totalFiltered} results
             </p>
@@ -566,7 +598,7 @@ export function CandidatesListShell({
         ) : null}
       </div>
 
-      {highlightMultiJob && multiJobApplicantCount > 0 ? (
+      {showMultiJobHighlight && highlightMultiJob && multiJobApplicantCount > 0 ? (
         <MultiJobApplicantsBanner count={multiJobApplicantCount} onViewAll={onViewAllMultiJobApplicants} />
       ) : null}
 

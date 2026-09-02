@@ -1,4 +1,4 @@
-import type { NormalizedParsedResume } from "@/lib/resumeParseQuality"
+import { sanitizeResumeEmail, type NormalizedParsedResume } from "@/lib/resumeParseQuality"
 
 const EMAIL_RE =
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g
@@ -7,6 +7,15 @@ const PHONE_RE =
   /(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g
 
 const ZIP_RE = /\b\d{5}(?:-\d{4})?\b/
+
+const CITY_STATE_RE =
+  /\b([A-Z][a-zA-Z.'-]+(?:\s+[A-Z][a-zA-Z.'-]+){0,2}),\s*([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?\b/
+
+const US_STATE_CODES = new Set([
+  "AL","AK","AZ","AR","CA","CO","CT","DC","DE","FL","GA","HI","IA","ID","IL","IN","KS","KY",
+  "LA","MA","MD","ME","MI","MN","MO","MS","MT","NC","ND","NE","NH","NJ","NM","NV","NY","OH",
+  "OK","OR","PA","RI","SC","SD","TN","TX","UT","VA","VT","WA","WI","WV","WY",
+])
 
 const JOB_TITLE_HINTS =
   /\b(CNA|RN|LPN|LVN|Caregiver|Medical Assistant|Nurse|Nursing Assistant|Home Health Aide|HHA)\b/i
@@ -43,11 +52,22 @@ export function preExtractResumeFields(text: string): Partial<NormalizedParsedRe
   const trimmed = text.trim()
   if (!trimmed) return {}
 
-  const email = firstMatch(EMAIL_RE, trimmed)
+  const email = sanitizeResumeEmail(firstMatch(EMAIL_RE, trimmed))
   const phone = firstMatch(PHONE_RE, trimmed)
   const zip = firstMatch(ZIP_RE, trimmed)
 
   const allLines = lines(trimmed)
+  let city = ""
+  let state = ""
+  for (const line of allLines.slice(0, 8)) {
+    const cityStateMatch = line.match(CITY_STATE_RE)
+    if (cityStateMatch && US_STATE_CODES.has(cityStateMatch[2] ?? "")) {
+      city = cityStateMatch[1] ?? ""
+      state = cityStateMatch[2] ?? ""
+      break
+    }
+  }
+
   const nameLine = allLines[0] ?? ""
   const nameParts = nameLine.split(/\s+/).filter(Boolean)
   const first_name = nameParts[0] ?? ""
@@ -66,6 +86,8 @@ export function preExtractResumeFields(text: string): Partial<NormalizedParsedRe
     last_name,
     email,
     phone,
+    city,
+    state,
     zip,
     job_role,
   }

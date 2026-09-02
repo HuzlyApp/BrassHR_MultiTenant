@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import AdminConsolePanel from "@/app/admin_recruiter/settings/AdminConsolePanel";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
 import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
@@ -29,6 +30,13 @@ function SettingsContent() {
           including worker sign-in.
         </p>
       </div>
+
+      <section aria-labelledby="admin-console-heading">
+        <h2 id="admin-console-heading" className="sr-only">
+          Admin Console
+        </h2>
+        <AdminConsolePanel />
+      </section>
 
       <section aria-labelledby="branding-heading">
         <h2 id="branding-heading" className="sr-only">

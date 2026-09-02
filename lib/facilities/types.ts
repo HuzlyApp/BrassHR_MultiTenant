@@ -83,6 +83,16 @@ export type FacilityAssignedWorker = {
   location: string;
 };
 
+export type FacilityAssignableCandidate = {
+  workerId: string;
+  name: string;
+  email: string | null;
+  jobRole: string | null;
+  status: string | null;
+  location: string;
+  hasLinkedAccount: boolean;
+};
+
 export type FacilitiesListResponse = {
   facilities: FacilityManagementItem[];
   meta: { tenantId: string; total: number };

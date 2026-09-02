@@ -8,7 +8,9 @@ import { resolveGodAdminServer } from "@/lib/auth/resolve-god-admin-server";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
 import { resolveRecruiterOnboardingStatus } from "@/lib/auth/recruiter-onboarding-status.server";
 import { sendSupabaseLoginOtp } from "@/lib/auth/send-login-otp-email";
+import { loadStaffAccessFlags, staffAccessDeniedMessage } from "@/lib/admin/staff-access";
 import { createEphemeralAuthClient } from "@/lib/supabase/ephemeral-auth-client";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
@@ -81,6 +83,19 @@ export async function POST(req: NextRequest) {
         if (!isStaffRole(role)) {
           await auth.auth.signOut();
           return loginAuthErrorResponse(STAFF_ACCESS_DENIED_MESSAGE, "STAFF_ROLE_REQUIRED", 403);
+        }
+        const svc = createServiceRoleClient();
+        if (svc) {
+          const flags = await loadStaffAccessFlags(svc, signInData.user.id);
+          const denied = staffAccessDeniedMessage(flags);
+          if (denied) {
+            await auth.auth.signOut();
+            return loginAuthErrorResponse(
+              denied,
+              flags.mustChangePassword ? "PASSWORD_SETUP_REQUIRED" : "ACCOUNT_DISABLED",
+              403
+            );
+          }
         }
       } catch (roleErr) {
         console.error("[auth/login-otp/send] staff role check", roleErr);

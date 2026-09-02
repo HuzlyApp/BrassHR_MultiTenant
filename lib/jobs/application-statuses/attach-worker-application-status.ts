@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 export type WorkerApplicationStatusSummary = {
   applicationId: string;
@@ -56,24 +57,27 @@ export async function getApplicationStatusSummariesForWorkers(
   const result = new Map<string, WorkerApplicationStatusSummary>();
   if (workerIds.length === 0) return result;
 
-  let query = supabase
-    .from("job_applications")
-    .select(
-      "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title)"
-    )
-    .in("worker_id", workerIds)
-    .not("status", "in", '("rejected","withdrawn")')
-    .order("updated_at", { ascending: false });
+  const { data, error } = await queryInChunks(workerIds, async (chunk) => {
+    let query = supabase
+      .from("job_applications")
+      .select(
+        "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title)"
+      )
+      .in("worker_id", chunk)
+      .not("status", "in", '("rejected","withdrawn")')
+      .order("updated_at", { ascending: false });
 
-  if (args.tenantId) {
-    query = query.eq("tenant_id", args.tenantId);
-  }
+    if (args.tenantId) {
+      query = query.eq("tenant_id", args.tenantId);
+    }
 
-  const { data, error } = await query;
+    const result = await query;
+    return { data: (result.data ?? []) as AppRow[], error: result.error };
+  });
   if (error) throw error;
 
   const byWorker = new Map<string, AppRow[]>();
-  for (const row of (data ?? []) as AppRow[]) {
+  for (const row of data) {
     const workerId = row.worker_id?.trim();
     if (!workerId) continue;
     const list = byWorker.get(workerId) ?? [];

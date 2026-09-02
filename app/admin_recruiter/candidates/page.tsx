@@ -26,13 +26,24 @@ import { formatCandidateStatusLabel } from "./candidate-status-badge";
 import { buildCandidateKpis } from "./candidate-kpis";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
-import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
+// import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
+import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "./claim-client";
+import { runCandidateListBulkMatchAnalyze } from "./run-bulk-match-analyze";
+import {
+  bulkAnalyzeSelectedLabel,
+  bulkReanalyzeSelectedLabel,
+  partitionMatchAnalysisTargets,
+} from "@/lib/admin/bulk-match-analysis";
+import {
+  fetchAllWorkersFromApi,
+  resolveCandidatesListTotal,
+} from "@/lib/workers/candidates-list-fetch";
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
@@ -60,6 +71,15 @@ type WorkerProfile = {
   profile_photo_url?: string | null;
   applied_job_count?: number | null;
   assigned_recruiter_user_id?: string | null;
+  application_id?: string | null;
+  application_job_title?: string | null;
+  application_job_titles_text?: string | null;
+  application_search_text?: string | null;
+  match_application_id?: string | null;
+  ai_match_status?: string | null;
+  ai_match_score?: number | null;
+  ai_match_category?: string | null;
+  ai_match_display_category?: string | null;
 };
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -143,6 +163,16 @@ function resolveCandidateContact(item: WorkerProfile) {
   return { email: selectedEmail, phone: selectedPhone };
 }
 
+function mapWorkerMatchFields(item: WorkerProfile) {
+  return {
+    matchApplicationId: item.match_application_id ?? item.application_id ?? null,
+    aiMatchStatus: item.ai_match_status ?? null,
+    aiMatchScore: item.ai_match_score ?? null,
+    aiMatchCategory: item.ai_match_category ?? null,
+    aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+  };
+}
+
 export default function CandidatesPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
@@ -164,14 +194,18 @@ export default function CandidatesPage() {
   const [rowActionsMenu, setRowActionsMenu] = useState<{ rowId: string; anchor: HTMLElement } | null>(
     null
   );
-  const [highlightMultiJob, setHighlightMultiJob] = useState(false);
-  const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
+  // Highlight Multi-Job Applicants is disabled on the legacy /admin_recruiter/candidates screen.
+  // const [highlightMultiJob, setHighlightMultiJob] = useState(false);
+  // const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
 
@@ -266,6 +300,9 @@ export default function CandidatesPage() {
           firstName: item.first_name ?? "",
           lastName: item.last_name ?? "",
           role: item.job_role || "N/A",
+          applicationJobTitle: item.application_job_title ?? null,
+          applicationJobTitlesText: item.application_job_titles_text ?? null,
+          applicationSearchText: item.application_search_text ?? null,
           email,
           phone,
           address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -282,6 +319,7 @@ export default function CandidatesPage() {
           profilePhotoUrl: item.profile_photo_url ?? null,
           appliedJobCount: Number(item.applied_job_count ?? 1),
           assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+          ...mapWorkerMatchFields(item),
           });
         });
 
@@ -291,28 +329,10 @@ export default function CandidatesPage() {
         return;
       }
 
-      const res = await fetch("/api/workers?includePhotoUrls=1", { cache: "no-store" });
-      const data = await res.json();
-      const authError =
-        res.status === 401 ||
-        res.status === 403 ||
-        String(data?.error ?? "").toLowerCase() === "unauthorized" ||
-        String(data?.detail ?? "").toLowerCase().includes("staff role required");
-      if (authError) {
-        setCandidates([]);
-        setTotalFromApi(0);
-        clearSelectionRef.current();
-        setPage(1);
-        return;
-      }
-      if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
-
-      const rows: WorkerProfile[] = Array.isArray(data?.workers)
-        ? data.workers
-        : Array.isArray(data)
-          ? data
-          : [];
-      setTotalFromApi(typeof data?.total === "number" ? data.total : rows.length);
+      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(
+        "/api/workers?includePhotoUrls=1"
+      );
+      setTotalFromApi(total);
 
       const mapped: CandidateRow[] = rows.map((item) => {
         const { email, phone } = resolveCandidateContact(item);
@@ -322,6 +342,9 @@ export default function CandidatesPage() {
         firstName: item.first_name ?? "",
         lastName: item.last_name ?? "",
         role: item.job_role || "N/A",
+        applicationJobTitle: item.application_job_title ?? null,
+        applicationJobTitlesText: item.application_job_titles_text ?? null,
+        applicationSearchText: item.application_search_text ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -336,8 +359,9 @@ export default function CandidatesPage() {
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
-        appliedJobCount: 1,
+        appliedJobCount: Number(item.applied_job_count ?? 1),
         assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+        ...mapWorkerMatchFields(item),
         });
       });
 
@@ -387,21 +411,9 @@ export default function CandidatesPage() {
 
   const filtered = useMemo(() => {
     let out = candidates;
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (q) {
-      out = out.filter((c) => {
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.role.toLowerCase().includes(q) ||
-          c.reference.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q) ||
-          c.zip.toLowerCase().includes(q) ||
-          c.state.toLowerCase().includes(q)
-        );
-      });
+      out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
@@ -420,19 +432,47 @@ export default function CandidatesPage() {
     return out;
   }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
 
-  const multiJobApplicantCount = useMemo(
-    () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
-    [filtered]
+  // const multiJobApplicantCount = useMemo(
+  //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
+  //   [filtered]
+  // );
+
+  // const visibleCandidates = useMemo(() => {
+  //   if (!filterMultiJobOnly) return filtered;
+  //   return filtered.filter((candidate) => Number(candidate.appliedJobCount ?? 1) > 1);
+  // }, [filtered, filterMultiJobOnly]);
+  const visibleCandidates = filtered;
+
+  const hasActiveListFilters = useMemo(
+    () =>
+      Boolean(
+        query.trim() ||
+          jobRoleFilter ||
+          statusFilter ||
+          locationFilter ||
+          dateFilter
+      ),
+    [query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
   );
 
-  const visibleCandidates = useMemo(() => {
-    if (!filterMultiJobOnly) return filtered;
-    return filtered.filter((candidate) => Number(candidate.appliedJobCount ?? 1) > 1);
-  }, [filtered, filterMultiJobOnly]);
+  const listDisplayTotal = useMemo(
+    () =>
+      resolveCandidatesListTotal({
+        totalFromApi: advancedSearchContext.active ? null : totalFromApi,
+        visibleCount: visibleCandidates.length,
+        hasClientFilters: hasActiveListFilters || advancedSearchContext.active,
+      }),
+    [
+      advancedSearchContext.active,
+      totalFromApi,
+      visibleCandidates.length,
+      hasActiveListFilters,
+    ]
+  );
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize, filterMultiJobOnly]);
+  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -470,7 +510,6 @@ export default function CandidatesPage() {
         statusFilter,
         locationFilter,
         dateFilter,
-        filterMultiJobOnly ? "1" : "0",
         advancedSearchContext.active ? "adv" : "std",
       ].join("|"),
     [
@@ -481,7 +520,6 @@ export default function CandidatesPage() {
       statusFilter,
       locationFilter,
       dateFilter,
-      filterMultiJobOnly,
       advancedSearchContext.active,
     ]
   );
@@ -492,6 +530,28 @@ export default function CandidatesPage() {
   });
   clearSelectionRef.current = selection.clearSelection;
 
+  const selectedCandidates = useMemo(
+    () => candidates.filter((row) => selection.selectedIds.has(row.id)),
+    [candidates, selection.selectedIds]
+  );
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
+    partitionMatchAnalysisTargets(
+      selectedCandidates.map((row) => ({
+        applicationId: row.matchApplicationId,
+        status: row.aiMatchStatus,
+      }))
+    );
+  const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
+
+  async function runSelectedMatchAnalyze(applicationIds: string[]) {
+    if (bulkAnalyzeBusy) return;
+    await runCandidateListBulkMatchAnalyze({
+      applicationIds,
+      setCandidates,
+      setAnalyzingIds: setMatchAnalyzingApplicationIds,
+    });
+  }
+
   function openClaimConfirm() {
     if (selection.selectedEligibleCount === 0) {
       toast("Select eligible unclaimed candidates first.");
@@ -499,6 +559,50 @@ export default function CandidatesPage() {
     }
     setClaimError(null);
     setClaimConfirmOpen(true);
+  }
+
+  async function runMatchAnalyze(applicationId: string) {
+    const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
+    setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
+    try {
+      const response = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Match analysis failed");
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId === applicationId
+            ? {
+                ...row,
+                aiMatchStatus: payload.status ?? row.aiMatchStatus,
+                aiMatchScore: payload.score ?? row.aiMatchScore,
+                aiMatchCategory: payload.category ?? row.aiMatchCategory,
+                aiMatchDisplayCategory:
+                  payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              }
+            : row
+        )
+      );
+      if (payload.status === "NEEDS_REVIEW") {
+        toast.error(payload.error || "Needs résumé text before analysis");
+      } else {
+        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      }
+    } catch (analyzeError) {
+      toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
+    } finally {
+      setMatchAnalyzingApplicationIds((current) => {
+        const next = new Set(current);
+        next.delete(applicationId);
+        return next;
+      });
+    }
   }
 
   async function confirmClaimCandidates() {
@@ -604,8 +708,9 @@ export default function CandidatesPage() {
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
-        onAddCandidate={() => toast("Open a job posting to add a candidate.")}
-        onClaimCandidates={openClaimConfirm}
+        hideAddCandidate
+        hideClaimCandidates
+        exportInToolbar
         deleteButton={
           <BulkDeleteToolbarButton
             count={selection.selectedCount}
@@ -622,7 +727,7 @@ export default function CandidatesPage() {
         onExportCsv={() => exportCandidatesCsv(visibleCandidates)}
         onExportXls={() => exportCandidatesXls(visibleCandidates)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
-        totalCount={totalFromApi}
+        totalCount={listDisplayTotal}
         loading={loading}
         totalLabel="applicants"
         advancedSearchActive={advancedSearchContext.active}
@@ -631,17 +736,8 @@ export default function CandidatesPage() {
         pageSize={pageSize}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
-        totalFiltered={visibleCandidates.length}
-        highlightMultiJob={highlightMultiJob}
-        onHighlightMultiJobChange={(next) => {
-          setHighlightMultiJob(next);
-          if (!next) setFilterMultiJobOnly(false);
-        }}
-        multiJobApplicantCount={multiJobApplicantCount}
-        onViewAllMultiJobApplicants={() => {
-          setHighlightMultiJob(true);
-          setFilterMultiJobOnly(true);
-        }}
+        totalFiltered={listDisplayTotal}
+        showMultiJobHighlight={false}
       >
         {(() => {
           const formatDate = formatDateShort;
@@ -651,12 +747,8 @@ export default function CandidatesPage() {
           }
           if (visibleCandidates.length === 0) {
             return (
-              <div className={`text-center text-gray-600 ${filterMultiJobOnly ? "py-24" : "py-12"}`}>
-                <div>
-                  {filterMultiJobOnly
-                    ? "No applicants have applied to multiple jobs."
-                    : "No candidates found."}
-                </div>
+              <div className="py-12 text-center text-gray-600">
+                <div>No candidates found.</div>
                 {advancedSearchContext.active ? (
                   <button
                     type="button"
@@ -676,17 +768,32 @@ export default function CandidatesPage() {
           if (view === "list") {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
-              <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+              <div className="w-full overflow-hidden">
                 <CandidateBulkSelectionBar
                   selectedCount={selection.selectedCount}
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
+                  analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
+                  reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
+                  onAnalyze={
+                    selectedAnalyzeIds.length > 0
+                      ? () => void runSelectedMatchAnalyze(selectedAnalyzeIds)
+                      : selection.selectedCount > 0 && selectedReanalyzeIds.length === 0
+                        ? () => void runSelectedMatchAnalyze([])
+                        : undefined
+                  }
+                  onReanalyze={
+                    selectedReanalyzeIds.length > 0
+                      ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
+                      : undefined
+                  }
                   onClaim={openClaimConfirm}
                   onClear={selection.clearSelection}
                 />
-                <div className="overflow-auto">
-                  <table className="min-w-[820px] w-full border-collapse">
+                <div className="w-full overflow-auto">
+                  <table className="w-full min-w-[820px] border-collapse">
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -703,7 +810,7 @@ export default function CandidatesPage() {
                           <th
                             key={colId}
                             className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 ${
-                              colId === "name" ? "text-left" : "text-center"
+                              colId === "name" || colId === "matchJob" ? "text-left" : "text-center"
                             } ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
@@ -739,10 +846,13 @@ export default function CandidatesPage() {
                             <td
                               key={colId}
                               className={`border-r border-[#EEF2F7] px-4 py-4 align-middle first:pl-6 ${
-                                colId === "name" ? "text-left" : "text-center"
+                                colId === "name" || colId === "matchJob" ? "text-left" : "text-center"
                               } ${candidateListColumnClassName(colId)}`}
                             >
-                              {renderListCell(colId, c, formatDate, { highlightMultiJob })}
+                              {renderListCell(colId, c, formatDate, {
+                                matchAnalyzingApplicationIds,
+                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                              })}
                             </td>
                           ))}
                           <td className="border-r-0 px-4 py-4 align-middle last:pr-6">
@@ -785,7 +895,7 @@ export default function CandidatesPage() {
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
                 <CandidateGridCard
                   key={c.id}
@@ -875,6 +985,7 @@ export default function CandidatesPage() {
             toast("No phone number on file for this candidate.");
           }}
           onSetupInterview={() => toast("Set up interview from the candidate application.")}
+          onViewStatusHistory={() => toast("Status history is available from the candidate application.")}
           onDeleteCandidate={() => toast("Delete candidate from the candidate application.")}
           onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
         />

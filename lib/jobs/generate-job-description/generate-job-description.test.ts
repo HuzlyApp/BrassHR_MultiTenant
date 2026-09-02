@@ -34,11 +34,33 @@ describe("sanitizeJobDescriptionHtml", () => {
     const dirty =
       '<h3 onclick="alert(1)">About</h3><p>Hello<script>evil()</script></p><a href="https://x">x</a>';
     const clean = sanitizeJobDescriptionHtml(dirty);
-    expect(clean).toContain("<h3>About</h3>");
+    expect(clean).toContain("<p>About</p>");
     expect(clean).toContain("<p>Hello</p>");
     expect(clean).not.toContain("script");
     expect(clean).not.toContain("onclick");
     expect(clean).not.toContain("<a");
+    expect(clean).not.toContain("<h3");
+  });
+
+  it("converts heading tags to paragraphs so size hierarchy cannot leak in", () => {
+    const clean = sanitizeJobDescriptionHtml(
+      '<h1 style="font-size:32px">Full job description</h1><h2>Position Details:</h2><p>Join the team.</p>'
+    );
+    expect(clean).toBe("<p>Full job description</p><p>Position Details:</p><p>Join the team.</p>");
+  });
+
+  it("decodes leftover &nbsp; entities so they are not shown as text", () => {
+    const clean = sanitizeJobDescriptionHtml("<p>Lead&amp;nbsp;patient care.</p>");
+    expect(clean).toContain("Lead patient care.");
+    expect(clean).not.toContain("&nbsp;");
+  });
+
+  it("converts contentEditable div blocks to paragraphs", () => {
+    const clean = sanitizeJobDescriptionHtml(
+      '<div><strong>Systems Engineer</strong></div><div>Location: Dallas, TX (Hybrid)</div>'
+    );
+    expect(clean).toBe("<p><strong>Systems Engineer</strong></p><p>Location: Dallas, TX (Hybrid)</p>");
+    expect(clean).not.toContain("<div");
   });
 
   it("converts sanitized html to plain text", () => {

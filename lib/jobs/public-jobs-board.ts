@@ -1,12 +1,5 @@
-import {
-  boldJobDescriptionSectionTitles,
-  htmlToPlainText,
-  sanitizeJobDescriptionHtml,
-} from "@/lib/jobs/generate-job-description/sanitize-html";
-import {
-  ensureJobDescriptionBulletLists,
-  stripJobDescriptionBenefitsSection,
-} from "@/lib/jobs/job-description-html";
+import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
+import { htmlToPlainText } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   buildApplyPath,
   normalizeJobToken,
@@ -359,35 +352,11 @@ export function descriptionHasSection(html: string, heading: string): boolean {
 export function formatPublicJobDescriptionHtml(
   raw: string,
   hasSeparateBenefits: boolean,
-  jobTitle?: string
+  _jobTitle?: string
 ): string {
-  const sanitized = sanitizeJobDescriptionHtml(raw ?? "");
-  if (!sanitized) return "";
-  const withoutDupBenefits = hasSeparateBenefits
-    ? stripJobDescriptionBenefitsSection(sanitized)
-    : sanitized;
-  const withoutNoise = stripDuplicateDescriptionHeadings(
-    ensureJobDescriptionBulletLists(boldJobDescriptionSectionTitles(withoutDupBenefits)),
-    jobTitle
-  );
-  return withoutNoise;
-}
-
-function stripDuplicateDescriptionHeadings(html: string, jobTitle?: string): string {
-  if (!html) return html;
-  const title = jobTitle?.trim() ?? "";
-  const noise =
-    /^(?:about the job|job title|job summary|job description|full job description)(?:\s+.+)?\s*:?$/i;
-  return html.replace(
-    /<(p|h[2-4])>\s*(?:<(?:strong|b)>)?\s*([^<]+?)\s*(?:<\/(?:strong|b)>)?\s*<\/\1>/gi,
-    (full, _tag, inner) => {
-      const text = decodeHtmlEntities(String(inner ?? "")).replace(/[:.\s]+$/g, "").trim();
-      if (!text) return "";
-      if (title && text.toLowerCase() === title.toLowerCase()) return "";
-      if (noise.test(text)) return "";
-      return full;
-    }
-  );
+  return formatStoredJobDescriptionHtml(raw, {
+    stripBenefits: hasSeparateBenefits,
+  });
 }
 
 export function selectedJobApplyHref(

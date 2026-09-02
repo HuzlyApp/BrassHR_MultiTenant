@@ -234,7 +234,7 @@ export function JobReviewEditModal({
           style={brandVars}
         >
           <div className="flex shrink-0 items-start justify-between gap-4 px-5 pt-5 pb-3">
-            <Dialog.Title className="text-lg font-semibold text-[#1D2739]">
+            <Dialog.Title className="text-sm font-semibold text-[#1D2739]">
               Edit the job post
             </Dialog.Title>
             <Dialog.Description className="sr-only">
@@ -877,7 +877,7 @@ export function JobReviewEditModal({
 
             {field === "expectedHours" ? (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-[#1D2739]">Expected hours</h3>
+                <h3 className="text-sm font-semibold text-[#1D2739]">Expected hours</h3>
                 <div
                   className={`grid gap-4 min-[700px]:items-end ${
                     (draft.ui.hoursShowBy || "Fixed Hours") === "Fixed Hours"
@@ -1188,11 +1188,11 @@ export function JobReviewEditModal({
                           </span>
                         </div>
                         {commissionEstimate ? (
-                          <p className="mt-1.5 text-xs text-[#64748B]">
+                          <p className="mt-1.5 text-sm text-[#64748B]">
                             Estimated commission from pay rate: {commissionEstimate}
                           </p>
                         ) : (
-                          <p className="mt-1.5 text-xs text-[#64748B]">
+                          <p className="mt-1.5 text-sm text-[#64748B]">
                             Enter a percentage to calculate commission from the pay rate above.
                           </p>
                         )}

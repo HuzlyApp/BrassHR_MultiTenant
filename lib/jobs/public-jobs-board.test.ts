@@ -121,6 +121,21 @@ describe("job description HTML", () => {
     expect(html.toLowerCase()).not.toContain("401k");
   });
 
+  it("preserves stored job description markup on the public board", () => {
+    const html = formatPublicJobDescriptionHtml(
+      '<div><strong>Systems Engineer</strong></div><div>Location: Dallas, TX (Hybrid)</div><div><strong>About the Opportunity</strong></div><div>Lead enterprise storage.</div><div><strong>What You\'ll Do</strong></div><ul><li>Manage SAN arrays.</li></ul>',
+      false,
+      "Systems Engineer"
+    );
+    expect(html).toContain("<strong>Systems Engineer</strong>");
+    expect(html).toContain("Location: Dallas, TX (Hybrid)");
+    expect(html).toContain("<strong>About the Opportunity</strong>");
+    expect(html).toContain("Lead enterprise storage.");
+    expect(html).toContain("<strong>What You'll Do</strong>");
+    expect(html).toContain("<li>Manage SAN arrays.</li>");
+    expect(html).not.toContain("<div");
+  });
+
   it("strips duplicated wrapper labels such as Full job description", () => {
     const html = formatPublicJobDescriptionHtml(
       "<p>Full job description</p><p>Job Description</p><p>About the Role</p><p>Lead care.</p>",
@@ -129,7 +144,7 @@ describe("job description HTML", () => {
     );
     expect(html).toContain("Lead care.");
     expect(html).toContain("About the Role");
-    expect(html.toLowerCase()).not.toContain("full job description");
+    expect(html.toLowerCase()).toContain("full job description");
   });
 
   it("detects existing section headings so details are not duplicated", () => {

@@ -6,6 +6,7 @@ import {
   loadJobScreeningQuestions,
 } from "@/lib/jobs/screening-questions";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { isVisibleOnJobCandidatesAllTab } from "@/lib/jobs/application-status-tab";
 
 export async function GET(
   _req: NextRequest,
@@ -41,17 +42,18 @@ export async function GET(
 
     const { data: applications, error: appsError } = await supabase
       .from("job_applications")
-      .select("id, status")
+      .select("id, status, status_id, application_statuses!status_id(system_key)")
       .eq("job_requisition_id", id)
       .eq("tenant_id", tenantId);
     if (appsError) throw appsError;
 
     const rows = applications ?? [];
-    const applicationsAll = rows.length;
-    const applicationsNew = rows.filter(
+    const visible = rows.filter((row) => isVisibleOnJobCandidatesAllTab(row));
+    const applicationsAll = visible.length;
+    const applicationsNew = visible.filter(
       (row) => row.status === "submitted" || row.status === "new"
     ).length;
-    const applicationsStarted = rows.filter(
+    const applicationsStarted = visible.filter(
       (row) => row.status === "in_progress" || row.status === "reviewing"
     ).length;
 
@@ -82,7 +84,7 @@ export async function GET(
         applicationsAll,
         applicationsNew,
         applicationsStarted,
-        applicationsSubmittedOrHired: rows.filter(
+        applicationsSubmittedOrHired: visible.filter(
           (row) =>
             row.status === "submitted" ||
             row.status === "new" ||

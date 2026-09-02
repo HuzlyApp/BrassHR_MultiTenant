@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import { matchesApplicationStatusTab } from "@/lib/jobs/application-status-tab";
+import { resolveApplicationStatusFromPayload } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 
 type StatusOption = { id: string; name: string; systemKey: string | null };
 
@@ -9,16 +10,6 @@ type AppRow = {
   status: string;
   status_id: string | null;
 };
-
-function matchesTab(row: AppRow, tab: string, options: StatusOption[]): boolean {
-  if (tab === "all") return true;
-  if (row.status_id && row.status_id === tab) return true;
-  const option = options.find((item) => item.id === tab);
-  if (option?.systemKey) {
-    return normalizeApplicationStatus(row.status) === option.systemKey;
-  }
-  return normalizeApplicationStatus(row.status) === tab;
-}
 
 describe("job candidates status filtering", () => {
   const options: StatusOption[] = [
@@ -32,8 +23,10 @@ describe("job candidates status filtering", () => {
       { id: "a1", worker_id: "w1", status: "new", status_id: "s-new" },
       { id: "a2", worker_id: "w1", status: "interviewing", status_id: "s-interviewing" },
     ];
-    const reviewing = rows.filter((row) => matchesTab(row, "s-reviewing", options));
-    const interviewing = rows.filter((row) => matchesTab(row, "s-interviewing", options));
+    const reviewing = rows.filter((row) => matchesApplicationStatusTab(row, "s-reviewing", options));
+    const interviewing = rows.filter((row) =>
+      matchesApplicationStatusTab(row, "s-interviewing", options)
+    );
     expect(reviewing).toHaveLength(0);
     expect(interviewing.map((r) => r.id)).toEqual(["a2"]);
   });
@@ -53,5 +46,25 @@ describe("job candidates status filtering", () => {
   it("treats blank notes as omitted", () => {
     const note = "   ".trim() || undefined;
     expect(note).toBeUndefined();
+  });
+});
+
+describe("resolveApplicationStatusFromPayload", () => {
+  const options: StatusOption[] = [
+    { id: "s-new", name: "New", systemKey: "new" },
+    { id: "s-attempted", name: "Attempted Contacted", systemKey: "attempted_contacted" },
+  ];
+
+  it("resolves by status_id for the current job application", () => {
+    const resolved = resolveApplicationStatusFromPayload(
+      { status: "new", status_id: "s-attempted" },
+      options
+    );
+    expect(resolved).toEqual({ statusId: "s-attempted", statusName: "Attempted Contacted" });
+  });
+
+  it("falls back to systemKey when status_id is missing", () => {
+    const resolved = resolveApplicationStatusFromPayload({ status: "new", status_id: null }, options);
+    expect(resolved).toEqual({ statusId: "s-new", statusName: "New" });
   });
 });

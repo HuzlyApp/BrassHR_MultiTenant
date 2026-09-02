@@ -239,6 +239,31 @@
   border-radius: 999px;
 }
 
+/* Application status tabs — thin visible horizontal scrollbar */
+.applications-status-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.applications-status-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.applications-status-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.applications-status-tabs-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
+}
+
+.applications-status-tabs-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
 /* Candidate detail tabs — keep horizontal swipe, hide default scrollbar */
 .candidate-detail-tabs-scroll {
   scrollbar-width: none;

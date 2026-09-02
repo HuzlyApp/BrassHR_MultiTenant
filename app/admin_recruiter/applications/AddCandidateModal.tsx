@@ -16,6 +16,8 @@ import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
+import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 
 type ResumeTab = "files" | "paste";
@@ -23,7 +25,7 @@ type ResumeTab = "files" | "paste";
 type ParseState = "idle" | "parsing" | "parsed" | "failed";
 
 const PARSE_FAILED_FALLBACK =
-  "Resume parsing failed. Please upload a valid resume with the candidate name and contact details.";
+  "Resume parsing failed. Please upload a valid resume or fill in the required fields manually.";
 const MIN_PASTED_RESUME_LENGTH = 80;
 
 type AddCandidateModalProps = {
@@ -88,6 +90,11 @@ function ResumeTabBar({
   );
 }
 
+function buildResumeTitle(firstName: string, lastName: string): string {
+  const title = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+  return title ? `${title} Resume` : "";
+}
+
 function ParseStatusBadge({ state }: { state: ParseState }) {
   if (state === "idle") return null;
 
@@ -123,6 +130,8 @@ export default function AddCandidateModal({
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [resumeTitle, setResumeTitle] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -136,6 +145,7 @@ export default function AddCandidateModal({
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Ignore responses from parses the recruiter has already superseded. */
@@ -148,6 +158,8 @@ export default function AddCandidateModal({
     setParseError(null);
     setFirstName("");
     setLastName("");
+    setEmail("");
+    setPhone("");
   }, []);
 
   const resetForm = useCallback(() => {
@@ -171,6 +183,8 @@ export default function AddCandidateModal({
       setParseError(null);
       setFirstName("");
       setLastName("");
+      setEmail("");
+      setPhone("");
 
       try {
         const form = new FormData();
@@ -188,20 +202,42 @@ export default function AddCandidateModal({
         });
         const payload = (await response.json().catch(() => ({}))) as {
           error?: string;
+          warning?: string | null;
+          qualityOk?: boolean;
           parsed?: AdminResumeParsePreview;
+          extractedText?: string | null;
         };
         if (parseRequestRef.current !== requestId) return;
 
-        if (!response.ok || !payload.parsed) {
-          setParseState("failed");
-          setParseError(payload.error?.trim() || PARSE_FAILED_FALLBACK);
+        const preview = payload.parsed ?? null;
+        if (preview) {
+          setParsePreview(preview);
+          setFirstName(preview.firstName ?? "");
+          setLastName(preview.lastName ?? "");
+          setEmail(preview.email ?? "");
+          setPhone(preview.phone ?? "");
+          const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
+          if (autoTitle) setResumeTitle(autoTitle);
+          const extracted = payload.extractedText?.trim();
+          if (source.file && extracted) {
+            setResumeText(extracted);
+          } else if (source.text?.trim()) {
+            setResumeText(source.text.trim());
+          }
+        }
+
+        const hasIdentity = Boolean(
+          preview?.firstName?.trim() && preview?.lastName?.trim() && preview?.email?.trim()
+        );
+        if (response.ok && hasIdentity) {
+          setParseState("parsed");
           return;
         }
 
-        setParsePreview(payload.parsed);
-        setFirstName(payload.parsed.firstName ?? "");
-        setLastName(payload.parsed.lastName ?? "");
-        setParseState("parsed");
+        setParseState("failed");
+        setParseError(
+          payload.warning?.trim() || payload.error?.trim() || PARSE_FAILED_FALLBACK
+        );
       } catch {
         if (parseRequestRef.current !== requestId) return;
         setParseState("failed");
@@ -231,7 +267,7 @@ export default function AddCandidateModal({
   }, [open, resetForm]);
 
   function handleClose() {
-    if (uploading) return;
+    if (uploading || importOpen) return;
     resetForm();
     onClose();
   }
@@ -316,7 +352,15 @@ export default function AddCandidateModal({
       return;
     }
 
-    if (activeTab === "files") {
+    if (parseState === "parsing") {
+      const message = "Please wait for the resume to finish parsing.";
+      if (activeTab === "files") setFileError(message);
+      else setPasteError(message);
+      return;
+    }
+
+    const uploadFromFile = Boolean(resumeFile);
+    if (uploadFromFile) {
       if (!resumeFile) {
         setFileError("Please select a resume file to upload.");
         return;
@@ -335,12 +379,13 @@ export default function AddCandidateModal({
       }
     }
 
-    if (parseState !== "parsed") {
-      const message =
-        parseState === "parsing"
-          ? "Please wait for the resume to finish parsing."
-          : parseError || "Parse the resume before adding the candidate.";
-      if (activeTab === "files") setFileError(message);
+    const nameError = validateAddCandidateField("name", {
+      name: [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" "),
+    });
+    const emailError = validateAddCandidateField("email", { email });
+    if (nameError || emailError) {
+      const message = nameError || emailError || "Fill in the candidate name and email.";
+      if (uploadFromFile) setFileError(message);
       else setPasteError(message);
       return;
     }
@@ -349,7 +394,7 @@ export default function AddCandidateModal({
     try {
       const form = new FormData();
       form.set("jobId", jobId.trim());
-      if (activeTab === "files" && resumeFile) {
+      if (resumeFile) {
         form.set("resume", resumeFile);
       } else {
         form.set("resumeText", resumeText.trim());
@@ -357,6 +402,8 @@ export default function AddCandidateModal({
       }
       if (firstName.trim()) form.set("firstName", firstName.trim());
       if (lastName.trim()) form.set("lastName", lastName.trim());
+      if (email.trim()) form.set("email", email.trim());
+      if (phone.trim()) form.set("phone", phone.trim());
 
       const response = await fetch("/api/admin/add-candidate-from-resume", {
         method: "POST",
@@ -390,7 +437,16 @@ export default function AddCandidateModal({
     onSuccess?.();
   }
 
-  if (!open && !successOpen && !errorOpen && !uploading) return null;
+  const hasResumeSource =
+    Boolean(resumeFile) || resumeText.trim().length >= MIN_PASTED_RESUME_LENGTH;
+  const hasIdentity = Boolean(firstName.trim() && lastName.trim() && email.trim());
+  const showIdentityFields =
+    parseState !== "parsing" &&
+    hasResumeSource &&
+    (parseState === "parsed" || parseState === "failed" || hasIdentity);
+  const canUpload = !uploading && parseState !== "parsing" && hasResumeSource && hasIdentity;
+
+  if (!open && !successOpen && !errorOpen && !uploading && !importOpen) return null;
 
   return (
     <>
@@ -428,11 +484,24 @@ export default function AddCandidateModal({
 
             <div className="px-6 py-5">
               {jobTitle ? (
-                <p className="mb-4 text-sm text-[#64748B]">
+                <p className="mb-2 text-sm text-[#64748B]">
                   Adding candidate for{" "}
                   <span className="font-medium text-[#334155]">{jobTitle}</span>
                 </p>
               ) : null}
+              <p className="mb-4 text-sm text-[#64748B]">
+                Upload multiple résumés or import existing candidates from your talent database.
+              </p>
+
+              <button
+                type="button"
+                disabled={uploading || !jobId.trim()}
+                onClick={() => setImportOpen(true)}
+                className="mb-4 inline-flex h-10 w-full items-center justify-center rounded-lg border px-4 text-sm font-medium transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                style={{ borderColor: primaryColor, color: primaryColor }}
+              >
+                Import Candidates
+              </button>
 
               <ResumeTabBar
                 activeTab={activeTab}
@@ -440,7 +509,6 @@ export default function AddCandidateModal({
                   setActiveTab(tab);
                   setFileError(null);
                   setPasteError(null);
-                  resetParse();
                 }}
               />
 
@@ -448,7 +516,7 @@ export default function AddCandidateModal({
                 {activeTab === "files" ? (
                   <div
                     className={`rounded-[10px] border-2 border-dashed bg-white p-4 transition ${
-                      fileError
+                      fileError || parseState === "failed"
                         ? "border-[#FCA5A5]"
                         : dragActive
                           ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
@@ -587,7 +655,7 @@ export default function AddCandidateModal({
 
                 {parseState === "failed" && parseError ? (
                   <p className="mt-3 rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3 py-2 text-xs text-[#B91C1C]">
-                    {parseError}
+                    {parseError} Fill in any missing details below to continue.
                   </p>
                 ) : null}
 
@@ -595,12 +663,12 @@ export default function AddCandidateModal({
                 {pasteError ? <p className="mt-2 text-xs text-[#B91C1C]">{pasteError}</p> : null}
               </div>
 
-              {parseState === "parsed" ? (
+              {showIdentityFields ? (
                 <div className="mt-5 border-t border-[#E5E7EB] pt-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium text-[#334155]">Candidate details</p>
-                    {parsePreview?.email ? (
-                      <p className="truncate text-xs text-[#64748B]">{parsePreview.email}</p>
+                    {parsePreview?.jobRole ? (
+                      <p className="truncate text-xs text-[#64748B]">{parsePreview.jobRole}</p>
                     ) : null}
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -632,6 +700,36 @@ export default function AddCandidateModal({
                         autoComplete="family-name"
                       />
                     </div>
+                    <div>
+                      <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-email">
+                        Email
+                      </label>
+                      <input
+                        id="add-candidate-email"
+                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        placeholder="Email"
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        disabled={uploading}
+                        autoComplete="email"
+                      />
+                    </div>
+                    <div>
+                      <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-phone">
+                        Phone
+                      </label>
+                      <input
+                        id="add-candidate-phone"
+                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        placeholder="Phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                        disabled={uploading}
+                        autoComplete="tel"
+                      />
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -649,9 +747,13 @@ export default function AddCandidateModal({
               <button
                 type="button"
                 onClick={() => void handleUpload()}
-                disabled={uploading || parseState !== "parsed"}
+                disabled={!canUpload}
                 title={
-                  parseState === "parsed" ? undefined : "Upload and parse a resume first"
+                  canUpload
+                    ? undefined
+                    : parseState === "parsing"
+                      ? "Please wait for the resume to finish parsing"
+                      : "Upload a resume and fill in name and email"
                 }
                 className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
@@ -662,6 +764,18 @@ export default function AddCandidateModal({
           </div>
         </div>
       ) : null}
+
+      <ImportCandidatesModal
+        open={importOpen}
+        jobId={jobId}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false);
+          resetForm();
+          onClose();
+          onSuccess?.();
+        }}
+      />
 
       {uploading ? (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/30 backdrop-blur-[1px]">

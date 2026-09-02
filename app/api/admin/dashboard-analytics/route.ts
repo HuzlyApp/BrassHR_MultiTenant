@@ -8,6 +8,7 @@ import {
   countWorkersCreatedBetween,
 } from "@/lib/dashboard/analytics-counts";
 import { fetchWorkerStatusMetrics } from "@/lib/dashboard/worker-status-metrics";
+import { resolveWorkforceBuckets } from "@/lib/dashboard/workforce-analytics";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 
 export const runtime = "nodejs";
@@ -176,6 +177,7 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
       shiftsTotal,
       shiftsCurrent,
       interviewsRes,
+      interviewsTotal,
       documentsPending,
       documentsTotal,
       documentsApproved,
@@ -199,6 +201,9 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
         .eq("tenant_id", tenantId)
         .gte("scheduled_date", trendStart)
         .neq("status", "cancelled"),
+      countTableByTenant(supabase, "interview_schedules", tenantId, (q) =>
+        q.neq("status", "cancelled"),
+      ),
       countTableByTenant(supabase, "worker_submitted_documents", tenantId, (q) =>
         q.in("status", ["uploaded", "under_review", "pending", "needs_revision"]),
       ),
@@ -244,12 +249,8 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
     const offerExtended = workerStatusMetrics.offer_extended;
     const hires = workerStatusMetrics.hires;
 
-    const workforceBuckets = {
-      active: workerStatusMetrics.active,
-      onLeave: workerStatusMetrics.on_leave,
-      inactive: workerStatusMetrics.inactive,
-      terminated: workerStatusMetrics.terminated,
-    };
+    const workforceBuckets = resolveWorkforceBuckets(workerStatusMetrics);
+    const employmentTotal = workforceBuckets.total;
 
     const interviewsCurrent = interviews.filter((row) => {
       const d = new Date(`${row.scheduled_date}T12:00:00`);
@@ -259,7 +260,6 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
 
     const applicationTrend = buildDailyTrend(
       workerTrendRows
-        .filter((w) => ["new", "pending"].includes(normalizeStatus(w)))
         .map((w) => ({ date: w.created_at ? isoDateOnly(new Date(w.created_at)) : "" }))
         .filter((w) => w.date),
       20,
@@ -277,7 +277,7 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
       value: point.value + (interviewTrend[index]?.value ?? 0),
     }));
 
-    const workforceTotal = Math.max(1, totalWorkforce);
+    const workforceTotal = Math.max(1, employmentTotal);
     const workforceBreakdown: BreakdownSlice[] = [
       {
         key: "active",
@@ -287,10 +287,10 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
         color: "#008C36",
       },
       {
-        key: "onLeave",
-        label: "On leave",
-        value: workforceBuckets.onLeave,
-        pct: Math.round((workforceBuckets.onLeave / workforceTotal) * 1000) / 10,
+        key: "newHires",
+        label: "New hires",
+        value: workforceBuckets.newHires,
+        pct: Math.round((workforceBuckets.newHires / workforceTotal) * 1000) / 10,
         color: "#3B82F6",
       },
       {
@@ -310,7 +310,7 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
     ];
 
     const uniqueAttendanceWorkers = new Set(attendance.map((a) => a.worker_id)).size;
-    const activeWorkers = workforceBuckets.active + workforceBuckets.onLeave;
+    const activeWorkers = workforceBuckets.active;
     const attendanceRate =
       activeWorkers > 0 ? Math.round((uniqueAttendanceWorkers / activeWorkers) * 100) : 0;
 
@@ -377,7 +377,7 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
             changePct: pctChange(applications, Math.max(0, applications - newHiresCurrent)),
           },
           interviews: {
-            value: interviews.length,
+            value: interviewsTotal,
             changePct: pctChange(interviewsCurrent, interviewsPrevious),
           },
           offerExtended: {
@@ -393,7 +393,10 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
       },
       workforce: {
         metrics: {
-          activeWorkers: { value: activeWorkers, changePct: pctChange(activeWorkers, workforceBuckets.active) },
+          activeWorkers: {
+            value: activeWorkers,
+            changePct: pctChange(activeWorkers, Math.max(0, activeWorkers - newHiresCurrent)),
+          },
           attendanceRate: { value: attendanceRate, changePct: null },
           onTimeStart: { value: onTimeStart, changePct: null },
           shiftCoverage: { value: shiftCoverage, changePct: pctChange(shiftCoverage, Math.max(0, shiftCoverage - 5)) },
@@ -404,7 +407,7 @@ async function buildDashboardAnalyticsPayload(tenantId: string) {
         pending: true,
         metrics: {
           applications: { value: applications, changePct: null },
-          interviews: { value: interviews.length, changePct: null },
+          interviews: { value: interviewsTotal, changePct: null },
           offerExtended: { value: offerExtended, changePct: null },
           hires: { value: hires, changePct: null },
         },
