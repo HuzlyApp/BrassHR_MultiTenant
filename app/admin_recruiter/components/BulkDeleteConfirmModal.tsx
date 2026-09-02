@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 
 export type BulkDeleteEntity = "job" | "candidate";
@@ -11,6 +11,8 @@ type BulkDeleteConfirmModalProps = {
   count: number;
   busy?: boolean;
   error?: string | null;
+  /** When set, the user must type this exact string before Delete is enabled. */
+  requireConfirmationText?: string;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -26,11 +28,17 @@ export function BulkDeleteConfirmModal({
   count,
   busy = false,
   error = null,
+  requireConfirmationText,
   onCancel,
   onConfirm,
 }: BulkDeleteConfirmModalProps) {
+  const [confirmationInput, setConfirmationInput] = useState("");
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setConfirmationInput("");
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busy) onCancel();
     };
@@ -45,7 +53,16 @@ export function BulkDeleteConfirmModal({
   if (!open || count <= 0) return null;
 
   const label = entityLabel(entity, count);
-  const title = entity === "job" ? "Delete jobs?" : "Delete candidates?";
+  const title =
+    entity === "job"
+      ? count === 1
+        ? "Delete job?"
+        : "Delete jobs?"
+      : count === 1
+        ? "Delete candidate?"
+        : "Delete candidates?";
+  const confirmationMatches =
+    !requireConfirmationText || confirmationInput === requireConfirmationText;
 
   return (
     <div
@@ -83,8 +100,29 @@ export function BulkDeleteConfirmModal({
             </p>
             {entity === "job" ? (
               <p className="mt-2 text-sm leading-5 text-[#64748B]">
-                All candidates linked to these jobs will also be removed.
+                All candidates linked to {count === 1 ? "this job" : "these jobs"} will also be removed.
               </p>
+            ) : null}
+            {requireConfirmationText ? (
+              <div className="mt-4">
+                <label htmlFor="bulk-delete-confirmation" className="text-sm leading-5 text-[#475569]">
+                  Type{" "}
+                  <span className="font-mono font-semibold text-[#101828]">{requireConfirmationText}</span>{" "}
+                  to confirm
+                </label>
+                <input
+                  id="bulk-delete-confirmation"
+                  type="text"
+                  value={confirmationInput}
+                  onChange={(event) => setConfirmationInput(event.target.value)}
+                  disabled={busy}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label={`Type ${requireConfirmationText} to confirm deletion`}
+                  placeholder={requireConfirmationText}
+                  className="mt-1.5 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-normal leading-6 text-[#334155] outline-none focus:border-[#DC2626]"
+                />
+              </div>
             ) : null}
             {error ? <p className="mt-3 text-sm text-[#DC2626]">{error}</p> : null}
           </div>
@@ -101,7 +139,7 @@ export function BulkDeleteConfirmModal({
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !confirmationMatches}
             onClick={onConfirm}
             className="rounded-lg bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-50"
           >

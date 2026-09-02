@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
+import { BulkArchiveToolbarButton } from "@/app/admin_recruiter/components/BulkArchiveToolbarButton";
 import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
@@ -121,6 +122,19 @@ const JOBS_CHEVRON_DOWN_ICON_SRC = "/icons/jobs-icons/chevron-down.svg";
 const JOBS_STARRED_STORAGE_KEY = "adminRecruiterJobsStarredIds";
 const JOBS_VIEW_STORAGE_KEY = "adminRecruiterJobsView";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
+const ACTION_TOAST_DURATION_MS = 4000;
+
+function formatJobActionToastMessage(
+  count: number,
+  action: "deleted" | "archived",
+  jobTitle?: string
+): string {
+  if (count === 1 && jobTitle) {
+    return `${jobTitle} ${action} successfully`;
+  }
+  const noun = count === 1 ? "job" : "jobs";
+  return `${count} ${noun} ${action} successfully`;
+}
 
 function JobsListingGlyph({
   src,
@@ -796,6 +810,7 @@ export default function AdminRecruiterJobsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const [addCandidateJob, setAddCandidateJob] = useState<{ id: string; title: string } | null>(null);
 
   const [professionFilter, setProfessionFilter] = useState("");
@@ -924,23 +939,23 @@ export default function AdminRecruiterJobsPage() {
       if (!response.ok) {
         const message = payload.error || "Failed to update job";
         setError(message);
-        toast.error(message);
+        toast.error(message, { duration: ACTION_TOAST_DURATION_MS });
         return;
       }
       setOpenActionsMenu(null);
       setError("");
       if (action === "archive") {
-        toast.success(`${jobTitle} archived successfully`, { duration: 4000 });
+        toast.success(`${jobTitle} archived successfully`, { duration: ACTION_TOAST_DURATION_MS });
         selectJobTab("archived");
       } else if (action === "unarchive") {
-        toast.success(`${jobTitle} restored from archive`, { duration: 4000 });
+        toast.success(`${jobTitle} restored from archive`, { duration: ACTION_TOAST_DURATION_MS });
         selectJobTab("draft");
       } else if (action === "close") {
-        toast.success(`${jobTitle} closed`, { duration: 4000 });
+        toast.success(`${jobTitle} closed`, { duration: ACTION_TOAST_DURATION_MS });
       } else if (action === "publish") {
-        toast.success(`${jobTitle} published`, { duration: 4000 });
+        toast.success(`${jobTitle} published`, { duration: ACTION_TOAST_DURATION_MS });
       } else if (action === "unpublish") {
-        toast.success(`${jobTitle} unpublished`, { duration: 4000 });
+        toast.success(`${jobTitle} unpublished`, { duration: ACTION_TOAST_DURATION_MS });
       }
       await load();
     } finally {
@@ -1130,13 +1145,16 @@ export default function AdminRecruiterJobsPage() {
 
   async function handleConfirmDeleteJobs() {
     if (deleteBusy || selectedIds.size === 0) return;
+    const idsToDelete = [...selectedIds];
+    const singleJob = idsToDelete.length === 1 ? jobs.find((job) => job.id === idsToDelete[0]) : undefined;
+    const singleJobTitle = singleJob ? jobListDisplayTitle(singleJob) : undefined;
     setDeleteBusy(true);
     setDeleteError(null);
     try {
       const response = await fetch("/api/admin/jobs", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [...selectedIds] }),
+        body: JSON.stringify({ ids: idsToDelete }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -1145,6 +1163,8 @@ export default function AdminRecruiterJobsPage() {
       const deletedIds = new Set<string>(
         Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : []
       );
+      const deletedCount =
+        typeof payload.count === "number" ? payload.count : deletedIds.size;
       setJobs((current) => current.filter((job) => !deletedIds.has(job.id)));
       setStarredIds((current) => {
         const next = new Set(current);
@@ -1154,15 +1174,18 @@ export default function AdminRecruiterJobsPage() {
       });
       setSelectedIds(new Set());
       setDeleteConfirmOpen(false);
-      toast.success(
-        `Deleted ${typeof payload.count === "number" ? payload.count : deletedIds.size} job${
-          (payload.count ?? deletedIds.size) === 1 ? "" : "s"
-        }`
-      );
+      if (deletedCount > 0) {
+        toast.success(
+          formatJobActionToastMessage(deletedCount, "deleted", singleJobTitle),
+          { duration: ACTION_TOAST_DURATION_MS }
+        );
+      } else {
+        toast.error("No jobs were deleted", { duration: ACTION_TOAST_DURATION_MS });
+      }
     } catch (deleteErr) {
       const message = deleteErr instanceof Error ? deleteErr.message : "Failed to delete jobs";
       setDeleteError(message);
-      toast.error(message);
+      toast.error(message, { duration: ACTION_TOAST_DURATION_MS });
     } finally {
       setDeleteBusy(false);
     }
@@ -1182,10 +1205,63 @@ export default function AdminRecruiterJobsPage() {
     }
   }
 
+  async function handleBulkArchive() {
+    const targets = jobs.filter(
+      (job) => selectedIds.has(job.id) && jobListStatus(job) !== "archived"
+    );
+    if (targets.length === 0 || archiveBusy) return;
+
+    setArchiveBusy(true);
+    let successCount = 0;
+    try {
+      for (const job of targets) {
+        const response = await fetch("/api/admin/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id, action: "archive" }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message =
+            typeof payload.error === "string"
+              ? payload.error
+              : `Failed to archive ${jobListDisplayTitle(job)}`;
+          toast.error(message, { duration: ACTION_TOAST_DURATION_MS });
+          continue;
+        }
+        successCount += 1;
+      }
+
+      if (successCount > 0) {
+        const singleJobTitle =
+          successCount === 1 ? jobListDisplayTitle(targets[0]) : undefined;
+        toast.success(
+          formatJobActionToastMessage(successCount, "archived", singleJobTitle),
+          { duration: ACTION_TOAST_DURATION_MS }
+        );
+        setSelectedIds(new Set());
+        selectJobTab("archived");
+        await load();
+      } else if (targets.length > 0) {
+        toast.error("No jobs could be archived", { duration: ACTION_TOAST_DURATION_MS });
+      }
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
   const selectedPublishedCount = useMemo(() => {
     let count = 0;
     for (const job of jobs) {
       if (selectedIds.has(job.id) && jobListStatus(job) === "published") count += 1;
+    }
+    return count;
+  }, [jobs, selectedIds]);
+
+  const selectedArchivableCount = useMemo(() => {
+    let count = 0;
+    for (const job of jobs) {
+      if (selectedIds.has(job.id) && jobListStatus(job) !== "archived") count += 1;
     }
     return count;
   }, [jobs, selectedIds]);
@@ -1409,6 +1485,7 @@ export default function AdminRecruiterJobsPage() {
           count={selectedIds.size}
           busy={deleteBusy}
           error={deleteError}
+          requireConfirmationText="DELETE"
           onCancel={() => {
             if (deleteBusy) return;
             setDeleteConfirmOpen(false);
@@ -1507,6 +1584,11 @@ export default function AdminRecruiterJobsPage() {
                 Reset Filters
               </button>
             ) : null}
+            <BulkArchiveToolbarButton
+              count={selectedIds.size}
+              disabled={archiveBusy || selectedArchivableCount === 0}
+              onClick={() => void handleBulkArchive()}
+            />
             <BulkDeleteToolbarButton
               count={selectedIds.size}
               disabled={deleteBusy}
@@ -1816,6 +1898,7 @@ export default function AdminRecruiterJobsPage() {
         count={selectedIds.size}
         busy={deleteBusy}
         error={deleteError}
+        requireConfirmationText="DELETE"
         onCancel={() => {
           if (deleteBusy) return;
           setDeleteConfirmOpen(false);
