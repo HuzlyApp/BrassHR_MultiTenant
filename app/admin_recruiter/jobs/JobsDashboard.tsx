@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
@@ -19,7 +20,7 @@ import {
 
 const JOBS_ICONS = "/icons/jobs-icons";
 const KPI_TOGGLE_BUTTON_CLASS =
-  "inline-flex items-center gap-1.5 bg-transparent px-1 py-1 font-[Inter,sans-serif] text-sm font-semibold leading-5 text-[color:var(--brand-secondary)] transition hover:opacity-80";
+  "inline-flex items-center gap-1 bg-transparent px-1 py-1 font-[Inter,sans-serif] text-xs font-semibold leading-[18px] text-[color:var(--brand-primary)] transition hover:opacity-80";
 
 type KpiIcon = {
   src: string;
@@ -298,8 +299,7 @@ export function JobsDashboard({
   }, [jobs, query]);
 
   const hasStatusKpiCards = statusCards !== null && statusCards.length > 0;
-  const showKpiViewMore = hasStatusKpiCards && !kpiCardsExpanded;
-  const showKpiHideCards = hasStatusKpiCards && kpiCardsExpanded;
+  const showKpiToggle = hasStatusKpiCards;
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
@@ -321,14 +321,20 @@ export function JobsDashboard({
           ))}
         </div>
 
-        {showKpiViewMore ? (
+        {showKpiToggle ? (
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={() => setKpiCardsExpanded(true)}
+              onClick={() => setKpiCardsExpanded((expanded) => !expanded)}
               className={KPI_TOGGLE_BUTTON_CLASS}
+              aria-expanded={kpiCardsExpanded}
             >
-              View more
+              {kpiCardsExpanded ? "Show less" : "Show more"}
+              {kpiCardsExpanded ? (
+                <ChevronUp className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <ChevronDown className="size-4 shrink-0" aria-hidden />
+              )}
             </button>
           </div>
         ) : null}
@@ -350,18 +356,6 @@ export function JobsDashboard({
               ))}
             </div>
           ) : null
-        ) : null}
-
-        {showKpiHideCards ? (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setKpiCardsExpanded(false)}
-              className={KPI_TOGGLE_BUTTON_CLASS}
-            >
-              Hide cards
-            </button>
-          </div>
         ) : null}
       </div>
 

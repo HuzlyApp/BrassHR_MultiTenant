@@ -80,7 +80,7 @@ export type JobListRow = {
   /** MSP R&R commission fee fields. */
   commission_percent?: number | null
   commission_fixed_amount?: number | null
-  /** MSP (Job Source) — shown as Contract Group for MSP jobs. */
+  /** MSP end client (Contract Group / Client on job form → msp_name). */
   msp_name?: string | null
   msp_client?: string | null
   status: "draft" | "published" | "closed" | "archived"
@@ -133,11 +133,11 @@ export function jobShiftType(job: JobListRow): string {
   return job.shift_type?.trim() || ""
 }
 
-/** Contract Group for MSP jobs (MSP / job source name). */
+/** End client for MSP jobs (msp_name — not MSP Name / msp_client). */
 export function jobContractGroup(job: JobListRow): string {
   const source = String(job.source_type ?? "").trim().toLowerCase()
   if (source !== "msp") return ""
-  return job.msp_name?.trim() || job.msp_client?.trim() || ""
+  return job.msp_name?.trim() || ""
 }
 
 function jobListSourceType(job: JobListRow): SourceType {

@@ -34,6 +34,7 @@ import {
 import { JobPublicViewLink } from "./JobPublicViewLink";
 import {
   formatJobDetailsDate,
+  formatJobDetailsClientName,
   formatJobDetailsLocation,
   formatJobDetailsPay,
   formatWorkLocationLabel,
@@ -103,35 +104,43 @@ function CandidateCard({
   linkLabel: string;
   secondaryColor: string;
 }) {
+  const footerLinkClass =
+    "mt-4 inline-flex items-center gap-1 text-xs font-semibold leading-[18px] transition hover:opacity-80";
+
   return (
-    <Link
-      href={linkHref}
-      aria-label={`${linkLabel}: ${count} ${label}`}
-      className="flex min-h-[120px] cursor-pointer flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm transition hover:border-[#D0D5DD] hover:shadow-md"
-    >
+    <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
       <div className="flex items-start gap-3">
         <BrandedSvgIcon
           src={iconSrc}
-          className="mt-0.5 h-5 w-5 shrink-0"
+          className="h-[30px] w-[30px] shrink-0"
           color={secondaryColor}
         />
         <div className="min-w-0">
           <p className="text-base font-semibold leading-6 text-[#374151]">
-            {count} {label}
+            <Link
+              href={linkHref}
+              className="text-[#374151] transition hover:underline"
+              aria-label={`${count} ${label} applications`}
+            >
+              {count}
+            </Link>{" "}
+            {label}
           </p>
           <p className="mt-0.5 text-xs font-normal leading-4 text-[#6B7280]">
             Applications received
           </p>
         </div>
       </div>
-      <span
-        className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px]"
+      <Link
+        href={linkHref}
+        className={footerLinkClass}
         style={{ color: secondaryColor }}
+        aria-label={linkLabel}
       >
         {linkLabel}
         <BrandBackIcon flip />
-      </span>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -244,6 +253,7 @@ export default function JobDetailsClient({ jobId }: Props) {
     return job.public_title?.trim() || "Untitled job";
   })();
   const location = job ? formatJobDetailsLocation(job) : "—";
+  const clientName = job ? formatJobDetailsClientName(job, companyName) : "—";
   const pay = job ? formatJobDetailsPay(job) : "—";
   const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";
   const responsibilities = useMemo(
@@ -304,7 +314,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                 <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
                   Location: {location}
                   <span className="mx-1.5 text-[#CBD5E1]">•</span>
-                  Company: {companyName}
+                  Client Name: {clientName}
                 </p>
                 {(() => {
                   const flow = job.onboarding_flows;
@@ -480,7 +490,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                   count={stats?.applicationsAll ?? 0}
                   label="All"
                   linkHref={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}`}
-                  linkLabel="View all applications"
+                  linkLabel="View All Applications"
                   secondaryColor={branding.secondaryHex || "#012352"}
                 />
                 <CandidateCard
@@ -488,7 +498,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                   count={stats?.applicationsNew ?? 0}
                   label="New"
                   linkHref={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}&tab=new`}
-                  linkLabel="Reviewed new applications"
+                  linkLabel="Review New Applications"
                   secondaryColor={branding.secondaryHex || "#012352"}
                 />
               </div>
