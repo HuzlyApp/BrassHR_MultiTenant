@@ -39,18 +39,26 @@ export type CandidatesListShellProps = {
   onJobRoleFilterChange: (value: string) => void;
   locationFilter: string;
   onLocationFilterChange: (value: string) => void;
-  dateFilter: string;
-  onDateFilterChange: (value: string) => void;
+  appliedDateFrom: string;
+  appliedDateTo: string;
+  onAppliedDateFromChange: (value: string) => void;
+  onAppliedDateToChange: (value: string) => void;
   statusFilter?: string;
   onStatusFilterChange?: (value: string) => void;
   statusOptions?: string[];
+  jobFilter?: string;
+  onJobFilterChange?: (value: string) => void;
+  jobOptions?: string[];
+  stageFilter?: string;
+  onStageFilterChange?: (value: string) => void;
+  stageOptions?: string[];
   jobRoleOptions: string[];
   locationOptions: string[];
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
-  onExportCsv: () => void;
-  onExportXls: () => void;
+  onExportCsv?: () => void;
+  onExportXls?: () => void;
   onAdvancedSearch?: () => void;
   onAddCandidate?: () => void;
   onClaimCandidates?: () => void;
@@ -74,6 +82,12 @@ export type CandidatesListShellProps = {
   /** Legacy `/admin_recruiter/candidates`: hide Claim Candidates and show Export in the toolbar. */
   hideClaimCandidates?: boolean;
   exportInToolbar?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide Score and Work Types toolbar filters. */
+  simplifiedToolbarFilters?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide refresh control in the toolbar. */
+  hideRefresh?: boolean;
+  /** Shown on the toolbar right (before list/grid toggle). */
+  toolbarAddCandidateButton?: React.ReactNode;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -261,11 +275,19 @@ export function CandidatesListShell({
   onJobRoleFilterChange,
   locationFilter,
   onLocationFilterChange,
-  dateFilter,
-  onDateFilterChange,
+  appliedDateFrom,
+  appliedDateTo,
+  onAppliedDateFromChange,
+  onAppliedDateToChange,
   statusFilter = "",
   onStatusFilterChange,
   statusOptions = [],
+  jobFilter: jobFilterProp,
+  onJobFilterChange,
+  jobOptions = [],
+  stageFilter: stageFilterProp,
+  onStageFilterChange,
+  stageOptions = [],
   jobRoleOptions,
   locationOptions,
   view,
@@ -292,6 +314,9 @@ export function CandidatesListShell({
   hideAddCandidate = false,
   hideClaimCandidates = false,
   exportInToolbar = false,
+  simplifiedToolbarFilters = false,
+  hideRefresh = false,
+  toolbarAddCandidateButton,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
@@ -299,8 +324,12 @@ export function CandidatesListShell({
   children,
 }: CandidatesListShellProps) {
   const [scoreSort, setScoreSort] = useState("");
-  const [jobFilter, setJobFilter] = useState("");
-  const [stageFilter, setStageFilter] = useState("");
+  const [internalJobFilter, setInternalJobFilter] = useState("");
+  const jobFilter = jobFilterProp ?? internalJobFilter;
+  const setJobFilter = onJobFilterChange ?? setInternalJobFilter;
+  const [internalStageFilter, setInternalStageFilter] = useState("");
+  const stageFilter = stageFilterProp ?? internalStageFilter;
+  const setStageFilter = onStageFilterChange ?? setInternalStageFilter;
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
@@ -314,12 +343,16 @@ export function CandidatesListShell({
       jobFilter,
       stageFilter,
       locationFilter,
-      dateFilter,
+      appliedDateFrom,
+      appliedDateTo,
     }),
-    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, dateFilter]
+    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
-  const activeFilterCount = countActiveCandidatesFilters(filterValues);
+  const activeFilterCount = simplifiedToolbarFilters
+    ? [statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean)
+        .length
+    : countActiveCandidatesFilters(filterValues);
 
   function applyFilterValues(next: CandidatesFilterValues) {
     setScoreSort(next.scoreSort);
@@ -328,10 +361,20 @@ export function CandidatesListShell({
     setJobFilter(next.jobFilter);
     setStageFilter(next.stageFilter);
     onLocationFilterChange(next.locationFilter);
-    onDateFilterChange(next.dateFilter);
+    onAppliedDateFromChange(next.appliedDateFrom);
+    onAppliedDateToChange(next.appliedDateTo);
   }
 
   function clearAllFilters() {
+    if (simplifiedToolbarFilters) {
+      onStatusFilterChange?.("");
+      setJobFilter("");
+      setStageFilter("");
+      onLocationFilterChange("");
+      onAppliedDateFromChange("");
+      onAppliedDateToChange("");
+      return;
+    }
     applyFilterValues({ ...EMPTY_CANDIDATES_FILTERS });
   }
 
@@ -367,7 +410,8 @@ export function CandidatesListShell({
         title="Candidates"
         subtitle="Manage candidates in one place"
         actions={
-          !hideAddCandidate && onAddCandidate || !exportInToolbar ? (
+          (!hideAddCandidate && onAddCandidate) ||
+          (!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls) ? (
             <>
               {!hideAddCandidate && onAddCandidate ? (
                 <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
@@ -375,7 +419,7 @@ export function CandidatesListShell({
                   Add Candidate
                 </button>
               ) : null}
-              {!exportInToolbar ? (
+              {!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls ? (
                 <div className="max-lg:w-full max-lg:[&_button]:w-full">
                   <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
                 </div>
@@ -394,7 +438,7 @@ export function CandidatesListShell({
       <div className="mt-4 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white sm:mt-5">
         <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
           <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
-            {exportInToolbar ? (
+            {exportInToolbar && onExportCsv && onExportXls ? (
               <div className="min-w-0 shrink-0 flex-1 lg:flex-none">
                 <ListExportDropdown
                   variant="brand"
@@ -424,15 +468,17 @@ export function CandidatesListShell({
               Columns
             </button>
             {deleteButton ? <div className="shrink-0">{deleteButton}</div> : null}
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
-              aria-label={refreshLabel}
-              title={refreshLabel}
-            >
-              <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
-            </button>
+            {!hideRefresh ? (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
+                aria-label={refreshLabel}
+                title={refreshLabel}
+              >
+                <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+              </button>
+            ) : null}
             {activeFilterCount > 0 ? (
               <button
                 type="button"
@@ -454,25 +500,31 @@ export function CandidatesListShell({
                 Reset
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50"
-              aria-label={refreshLabel}
-              title={refreshLabel}
-            >
-              <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
-            </button>
+            {!hideRefresh ? (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50"
+                aria-label={refreshLabel}
+                title={refreshLabel}
+              >
+                <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+              </button>
+            ) : null}
+            {toolbarAddCandidateButton ? (
+              <div className="shrink-0 [&_button]:w-full min-[450px]:[&_button]:w-auto">{toolbarAddCandidateButton}</div>
+            ) : null}
             <CandidatesViewToggle view={view} onViewChange={onViewChange} />
           </div>
 
-          <div className="hidden shrink-0 lg:block">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
+            {toolbarAddCandidateButton ? <div className="shrink-0">{toolbarAddCandidateButton}</div> : null}
             <CandidatesViewToggle view={view} onViewChange={onViewChange} />
           </div>
         </div>
 
-        <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
-          <label className="flex h-8 min-w-[200px] flex-1 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 max-lg:min-w-0">
+        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 max-[449px]:flex-col min-[450px]:flex-row min-[450px]:flex-nowrap min-[450px]:items-center sm:px-5 lg:gap-3">
+          <label className="flex h-8 w-full min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 min-[450px]:flex-1 lg:w-[320px] lg:flex-none xl:w-[400px]">
             <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -496,7 +548,7 @@ export function CandidatesListShell({
           <button
             type="button"
             onClick={() => setFiltersModalOpen(true)}
-            className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:hidden"
+            className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] min-[450px]:ml-auto min-[450px]:w-auto lg:hidden"
           >
             <MoreFiltersIcon />
             Filters
@@ -507,24 +559,29 @@ export function CandidatesListShell({
             ) : null}
           </button>
 
-          <div className="hidden lg:contents">
-            <CompactFilterSelect
-              ariaLabel="Score"
-              placeholder="Score (high-low)"
-              value={scoreSort}
-              onChange={setScoreSort}
-              options={[
-                { value: "high-low", label: "Score (high-low)" },
-                { value: "low-high", label: "Score (low-high)" },
-              ]}
-            />
-            <CompactFilterSelect
-              ariaLabel="Work types"
-              placeholder="All Work Types"
-              value={jobRoleFilter}
-              onChange={onJobRoleFilterChange}
-              options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
-            />
+          <div className="hidden min-w-0 flex-1 flex-nowrap items-center gap-3 lg:flex">
+            {/* Score + Work Types — hidden on All candidates screen */}
+            {!simplifiedToolbarFilters ? (
+              <>
+                <CompactFilterSelect
+                  ariaLabel="Score"
+                  placeholder="Score (high-low)"
+                  value={scoreSort}
+                  onChange={setScoreSort}
+                  options={[
+                    { value: "high-low", label: "Score (high-low)" },
+                    { value: "low-high", label: "Score (low-high)" },
+                  ]}
+                />
+                <CompactFilterSelect
+                  ariaLabel="Work types"
+                  placeholder="All Work Types"
+                  value={jobRoleFilter}
+                  onChange={onJobRoleFilterChange}
+                  options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
+                />
+              </>
+            ) : null}
             <CompactFilterSelect
               ariaLabel="Status"
               placeholder="All Status"
@@ -537,29 +594,33 @@ export function CandidatesListShell({
               placeholder="All Jobs"
               value={jobFilter}
               onChange={setJobFilter}
-              options={[]}
+              options={jobOptions.map((job) => ({ value: job, label: job }))}
             />
-            <CompactFilterSelect
-              ariaLabel="Stages"
-              placeholder="Stages"
-              value={stageFilter}
-              onChange={setStageFilter}
-              options={[]}
-            />
-            <button
-              type="button"
-              onClick={() => setFiltersModalOpen(true)}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
-            >
-              <MoreFiltersIcon />
-              More Filters
-              {activeFilterCount > 0 ? (
-                <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
-                  {activeFilterCount}
-                </span>
-              ) : null}
-            </button>
+            {/* Stages — hidden on All candidates screen */}
+            {!simplifiedToolbarFilters ? (
+              <CompactFilterSelect
+                ariaLabel="Stages"
+                placeholder="Stages"
+                value={stageFilter}
+                onChange={setStageFilter}
+                options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
+              />
+            ) : null}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setFiltersModalOpen(true)}
+            className="hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:inline-flex"
+          >
+            <MoreFiltersIcon />
+            More Filters
+            {activeFilterCount > 0 ? (
+              <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
         </div>
 
         {showMultiJobHighlight ? (
@@ -611,7 +672,10 @@ export function CandidatesListShell({
           jobRoleOptions,
           statusOptions,
           locationOptions,
+          jobOptions,
+          stageOptions,
         }}
+        simplifiedFilters={simplifiedToolbarFilters}
         onSave={applyFilterValues}
         onAdvancedSearch={onAdvancedSearch}
       />

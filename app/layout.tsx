@@ -79,7 +79,11 @@ export default function RootLayout({
         <TenantBrandingHead />
         <ReactQueryProvider>
           <TenantBrandingRoot>{children}</TenantBrandingRoot>
-          <Toaster position="top-right" />
+          <Toaster
+            position="top-right"
+            containerStyle={{ zIndex: 100000 }}
+            toastOptions={{ duration: 4000 }}
+          />
         </ReactQueryProvider>
       </body>
     </html>

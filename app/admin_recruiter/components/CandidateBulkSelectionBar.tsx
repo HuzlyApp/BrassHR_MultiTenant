@@ -1,17 +1,59 @@
 "use client";
 
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
+import {
+  BULK_SELECTION_SNACKBAR_ACTION_CLASS,
+  BULK_SELECTION_SNACKBAR_CLASS,
+  BULK_SELECTION_SNACKBAR_ICON_BTN_CLASS,
+  BULK_SELECTION_SNACKBAR_LABEL_CLASS,
+} from "@/app/admin_recruiter/components/bulk-selection-snackbar-styles";
+import { RotateCcw } from "lucide-react";
+
+const CANDIDATE_REANALYZE_ICON_SRC = "/icons/admin-recruiter/circle-focus.svg";
+const CANDIDATE_ARCHIVE_ICON_SRC = "/icons/jobs-icons/archived.svg";
+const CANDIDATE_DELETE_ICON_SRC = "/icons/delete-icon.svg";
+
+function SnackbarGlyph({
+  src,
+  className,
+}: {
+  src: string;
+  className: string;
+}) {
+  return (
+    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+      <BrandedSvgIcon
+        src={src}
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${className}`}
+        color="#FFFFFF"
+      />
+    </span>
+  );
+}
+
 type CandidateBulkSelectionBarProps = {
   selectedCount: number;
   eligibleCount: number;
   scopeLabel?: string;
   claimBusy?: boolean;
   analyzeBusy?: boolean;
+  archiveBusy?: boolean;
+  deleteBusy?: boolean;
   analyzeLabel?: string;
   reanalyzeLabel?: string;
+  archiveLabel?: string;
+  archiveDisabled?: boolean;
+  deleteDisabled?: boolean;
+  exportDisabled?: boolean;
   hideClaim?: boolean;
   onClaim?: () => void;
   onAnalyze?: () => void;
   onReanalyze?: () => void;
+  onArchive?: () => void;
+  onDelete?: () => void;
+  onExportCsv?: () => void;
+  onExportXls?: () => void;
   onClear: () => void;
 };
 
@@ -21,63 +63,101 @@ export function CandidateBulkSelectionBar({
   scopeLabel,
   claimBusy = false,
   analyzeBusy = false,
+  archiveBusy = false,
+  deleteBusy = false,
   analyzeLabel = "Analyze selected",
   reanalyzeLabel = "Reanalyze selected",
+  archiveLabel = "Archive",
+  archiveDisabled = false,
+  deleteDisabled = false,
+  exportDisabled = false,
   hideClaim = false,
   onClaim,
   onAnalyze,
   onReanalyze,
+  onArchive,
+  onDelete,
+  onExportCsv,
+  onExportXls,
   onClear,
 }: CandidateBulkSelectionBarProps) {
   if (selectedCount <= 0) return null;
 
   const selectedLabel =
-    selectedCount === 1 ? "1 candidate selected" : `${selectedCount} candidates selected`;
+    scopeLabel ??
+    (selectedCount === 1 ? "1 candidate selected" : `${selectedCount} candidates selected`);
   const claimLabel = eligibleCount === 1 ? "Claim Candidate" : "Claim Candidates";
-  const busy = claimBusy || analyzeBusy;
+  const busy = claimBusy || analyzeBusy || archiveBusy || deleteBusy;
+  const showAnalyze = Boolean(onAnalyze);
+  const showReanalyze = Boolean(onReanalyze);
+  const showExport = Boolean(onExportCsv && onExportXls);
 
   return (
     <div
-      className="sticky top-0 z-20 flex flex-col gap-2 border-b border-[#E5E7EB] bg-[#F0FDFA] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      className={`sticky top-0 z-20 ${BULK_SELECTION_SNACKBAR_CLASS}`}
       role="status"
       aria-live="polite"
     >
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#0F766E]">{selectedLabel}</p>
-        {scopeLabel ? <p className="text-xs text-[#64748B]">{scopeLabel}</p> : null}
+        <p className={BULK_SELECTION_SNACKBAR_LABEL_CLASS}>{selectedLabel}</p>
         {!hideClaim && eligibleCount < selectedCount ? (
           <p className="text-xs text-[#B45309]">
             {eligibleCount} eligible to claim · {selectedCount - eligibleCount} will be skipped
           </p>
         ) : null}
       </div>
+
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={busy}
-          className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Clear Selection
-        </button>
-        {onAnalyze ? (
-          <button
-            type="button"
-            onClick={onAnalyze}
-            disabled={busy || selectedCount === 0}
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {analyzeBusy ? "Analyzing…" : analyzeLabel}
-          </button>
-        ) : null}
-        {onReanalyze ? (
+        {showReanalyze ? (
           <button
             type="button"
             onClick={onReanalyze}
             disabled={busy || selectedCount === 0}
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
           >
+            <SnackbarGlyph src={CANDIDATE_REANALYZE_ICON_SRC} className="size-3.5" />
             {analyzeBusy ? "Analyzing…" : reanalyzeLabel}
+          </button>
+        ) : null}
+        {showAnalyze ? (
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={busy || selectedCount === 0}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={CANDIDATE_REANALYZE_ICON_SRC} className="size-3.5" />
+            {analyzeBusy ? "Analyzing…" : analyzeLabel}
+          </button>
+        ) : null}
+        {showExport ? (
+          <ListExportDropdown
+            variant="snackbar"
+            onExportCsv={onExportCsv!}
+            onExportXls={onExportXls!}
+            disabled={busy || exportDisabled}
+          />
+        ) : null}
+        {onArchive ? (
+          <button
+            type="button"
+            onClick={onArchive}
+            disabled={busy || archiveDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={CANDIDATE_ARCHIVE_ICON_SRC} className="size-3.5" />
+            {archiveBusy ? "Archiving…" : archiveLabel}
+          </button>
+        ) : null}
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy || deleteDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={CANDIDATE_DELETE_ICON_SRC} className="size-4" />
+            Delete
           </button>
         ) : null}
         {!hideClaim && onClaim ? (
@@ -85,11 +165,21 @@ export function CandidateBulkSelectionBar({
             type="button"
             onClick={onClaim}
             disabled={busy || eligibleCount === 0}
-            className="inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
           >
             {claimBusy ? "Claiming…" : claimLabel}
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={busy}
+          className={BULK_SELECTION_SNACKBAR_ICON_BTN_CLASS}
+          aria-label="Clear selection"
+          title="Clear selection"
+        >
+          <RotateCcw className="size-4 shrink-0" aria-hidden />
+        </button>
       </div>
     </div>
   );

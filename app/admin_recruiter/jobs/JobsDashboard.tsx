@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
@@ -18,7 +19,8 @@ import {
 } from "./render-job-list-cell";
 
 const JOBS_ICONS = "/icons/jobs-icons";
-const WORKSPACE_PAGE_SIZE = 16;
+const KPI_TOGGLE_BUTTON_CLASS =
+  "inline-flex items-center gap-1 bg-transparent px-1 py-1 font-[Inter,sans-serif] text-xs font-semibold leading-[18px] text-[color:var(--brand-primary)] transition hover:opacity-80";
 
 type KpiIcon = {
   src: string;
@@ -189,29 +191,6 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
   ];
 }
 
-function ShowMoreIcon() {
-  return (
-    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`${JOBS_ICONS}/loading-arc.svg`}
-        alt=""
-        width={13.33}
-        height={13.33}
-        className="absolute inset-[8.33%] size-[13.33px]"
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`${JOBS_ICONS}/loading-track.svg`}
-        alt=""
-        width={13.33}
-        height={13.33}
-        className="absolute inset-[8.33%] size-[13.33px]"
-      />
-    </span>
-  );
-}
-
 function JobWorkspaceSearch({
   query,
   onQueryChange,
@@ -275,7 +254,7 @@ export function JobsDashboard({
   onUnarchive,
 }: JobsDashboardProps) {
   const [query, setQuery] = useState("");
-  const [visibleCount, setVisibleCount] = useState(WORKSPACE_PAGE_SIZE);
+  const [kpiCardsExpanded, setKpiCardsExpanded] = useState(false);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
   const summaryCards = useMemo(
     () => buildSummaryCards(jobs, totalCandidateCount),
@@ -321,97 +300,77 @@ export function JobsDashboard({
     });
   }, [jobs, query]);
 
-  const visibleJobs = workspaceJobs.slice(0, visibleCount);
-  const canShowMore = visibleJobs.length < workspaceJobs.length;
+  const hasStatusKpiCards = statusCards !== null && statusCards.length > 0;
+  const showKpiToggle = hasStatusKpiCards;
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
-      <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
-        Jobs Dashboard
-      </h1>
-
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {summaryCards.map((card) => (
-          <JobsKpiCard key={card.label} {...card} />
-        ))}
+      <div className="flex w-full min-w-0 flex-col gap-3 min-[450px]:flex-row min-[450px]:items-center min-[450px]:justify-between min-[450px]:gap-4">
+        <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} shrink-0`} style={CANDIDATES_PAGE_TITLE_STYLE}>
+          Jobs Dashboard
+        </h1>
+        <JobWorkspaceSearch
+          query={query}
+          onQueryChange={setQuery}
+          className="w-full min-[450px]:w-[274px] min-[450px]:shrink-0 lg:w-[320px] xl:w-[400px]"
+        />
       </div>
 
-      {statusCards === null ? (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {Array.from({ length: 5 }, (_, index) => (
-            <div
-              key={index}
-              className="min-h-[80px] animate-pulse rounded-lg border border-[#E5E7EB] bg-white p-[14px]"
-            />
+      <div className="flex w-full min-w-0 flex-col gap-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((card) => (
+            <JobsKpiCard key={card.label} {...card} />
           ))}
         </div>
-      ) : statusCards.length > 0 ? (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {statusCards.map((card) => (
-            <JobsKpiCard key={card.href} {...card} />
-          ))}
-        </div>
-      ) : null}
+
+        {showKpiToggle ? (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setKpiCardsExpanded((expanded) => !expanded)}
+              className={KPI_TOGGLE_BUTTON_CLASS}
+              aria-expanded={kpiCardsExpanded}
+            >
+              {kpiCardsExpanded ? "Show less" : "Show more"}
+              {kpiCardsExpanded ? (
+                <ChevronUp className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <ChevronDown className="size-4 shrink-0" aria-hidden />
+              )}
+            </button>
+          </div>
+        ) : null}
+
+        {kpiCardsExpanded ? (
+          statusCards === null ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {Array.from({ length: 5 }, (_, index) => (
+                <div
+                  key={index}
+                  className="min-h-[80px] animate-pulse rounded-lg border border-[#E5E7EB] bg-white p-[14px]"
+                />
+              ))}
+            </div>
+          ) : statusCards.length > 0 ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {statusCards.map((card) => (
+                <JobsKpiCard key={card.href} {...card} />
+              ))}
+            </div>
+          ) : null
+        ) : null}
+      </div>
 
       <section className="flex w-full min-w-0 flex-col gap-5">
-        <div className="flex w-full min-w-0 flex-col gap-3 overflow-hidden">
-          {/* Mobile / tablet (< lg): title + search, then buttons */}
-          <div className="flex w-full min-w-0 flex-col gap-3 lg:hidden">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
-                Job Workspace
-              </h2>
-              <JobWorkspaceSearch
-                query={query}
-                onQueryChange={(value) => {
-                  setQuery(value);
-                  setVisibleCount(WORKSPACE_PAGE_SIZE);
-                }}
-                className="w-full sm:w-[274px] sm:shrink-0"
-              />
-            </div>
-            <JobWorkspaceActions className="w-full sm:justify-end" />
-          </div>
-
-          {/* Laptop (lg – xl): row 1 title + search right; row 2 buttons right */}
-          <div className="hidden w-full min-w-0 flex-col gap-3 lg:flex xl:hidden">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
-                Job Workspace
-              </h2>
-              <JobWorkspaceSearch
-                query={query}
-                onQueryChange={(value) => {
-                  setQuery(value);
-                  setVisibleCount(WORKSPACE_PAGE_SIZE);
-                }}
-                className="w-[274px] shrink-0"
-              />
-            </div>
-            <JobWorkspaceActions className="w-full justify-end flex-nowrap" />
-          </div>
-
-          {/* Desktop web (xl+): single row — title | search + buttons */}
-          <div className="hidden w-full min-w-0 items-center justify-between gap-3 xl:flex">
-            <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
-              Job Workspace
-            </h2>
-            <div className="flex min-w-0 shrink-0 items-center gap-3">
-              <JobWorkspaceSearch
-                query={query}
-                onQueryChange={(value) => {
-                  setQuery(value);
-                  setVisibleCount(WORKSPACE_PAGE_SIZE);
-                }}
-                className="w-[274px] shrink-0"
-              />
-              <JobWorkspaceActions className="shrink-0 flex-nowrap" />
-            </div>
-          </div>
+        <div className="flex w-full min-w-0 flex-col gap-3 overflow-hidden sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
+            Job Workspace
+          </h2>
+          <JobWorkspaceActions className="w-full sm:w-auto sm:justify-end sm:flex-nowrap" />
         </div>
 
         <JobsGridView
-          jobs={visibleJobs}
+          jobs={workspaceJobs}
           loading={loading}
           emptyMessage={query.trim() ? "No jobs match that title." : "No jobs to show yet."}
           tenantSlug={tenantSlug}
@@ -423,19 +382,6 @@ export function JobsDashboard({
           onArchive={onArchive}
           onUnarchive={onUnarchive}
         />
-
-        {canShowMore ? (
-          <div className="flex justify-center px-[14px]">
-            <button
-              type="button"
-              onClick={() => setVisibleCount((count) => count + WORKSPACE_PAGE_SIZE)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 font-[Inter,sans-serif] text-xs font-normal leading-4 text-[#374151] transition hover:bg-[#F8FAFC]"
-            >
-              Show more
-              <ShowMoreIcon />
-            </button>
-          </div>
-        ) : null}
       </section>
     </div>
   );

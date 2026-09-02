@@ -106,7 +106,7 @@ export function renderListCell(
     case "matchJob": {
       const title = resolveCandidateMatchJobTitle(c)
       return title ? (
-        <p className="line-clamp-2 text-left text-xs leading-4 text-[#64748B]" title={title}>
+        <p className="whitespace-nowrap text-center text-xs leading-4 text-[#64748B]" title={title}>
           {title}
         </p>
       ) : (
@@ -132,7 +132,7 @@ export function renderListCell(
     case "createdDate":
       return <span className="text-sm text-[#374151]">{formatDate(c.createdAt)}</span>
     case "location":
-      return <span className="text-sm text-[#4B5563]">{c.address || "—"}</span>
+      return <span className="whitespace-nowrap text-sm text-[#4B5563]">{c.address || "—"}</span>
     case "city":
       return <span className="text-sm text-[#4B5563]">{c.city || "—"}</span>
     case "zipCode":

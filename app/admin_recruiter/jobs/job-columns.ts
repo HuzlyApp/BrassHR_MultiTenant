@@ -22,7 +22,7 @@ export type JobColumnId =
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
-  { id: "contractGroup", label: "Contract Group" },
+  { id: "contractGroup", label: "End client" },
   { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
   { id: "assignee", label: "Created by" },

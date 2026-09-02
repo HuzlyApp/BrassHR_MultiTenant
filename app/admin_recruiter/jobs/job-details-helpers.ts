@@ -32,6 +32,9 @@ export type JobDetailsRow = {
   workflow_assignment_mode?: "automatic" | "manual" | string | null;
   workflow_assignment_error?: string | null;
   onboarding_flows?: { name?: string | null } | { name?: string | null }[] | null;
+  msp_name?: string | null;
+  msp_client?: string | null;
+  msp_client_name?: string | null;
 };
 
 export type JobDetailsStats = {
@@ -120,6 +123,12 @@ export function formatJobDetailsLocation(job: JobDetailsRow): string {
     job.location_type?.trim() ||
     "—"
   );
+}
+
+
+export function formatJobDetailsClientName(job: JobDetailsRow, fallback = ""): string {
+  const client = job.msp_name?.trim() || "";
+  return client || fallback.trim() || "—";
 }
 
 export function formatWorkLocationLabel(job: JobDetailsRow): string {

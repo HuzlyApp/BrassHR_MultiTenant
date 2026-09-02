@@ -1,6 +1,5 @@
 "use client";
 
-import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -129,8 +128,6 @@ export type ApplicationsListToolbarProps = {
   onOpenMoreFilters: () => void;
   hideClaimCandidates?: boolean;
   onClaimCandidates?: () => void;
-  onExportCsv: () => void;
-  onExportXls: () => void;
   onAnalyzeAll: () => void;
   analyzeAllLabel: string;
   analyzeBusy?: boolean;
@@ -138,7 +135,6 @@ export type ApplicationsListToolbarProps = {
   onEditColumns: () => void;
   showResetFilters?: boolean;
   onResetFilters?: () => void;
-  deleteButton: React.ReactNode;
   addCandidateButton: React.ReactNode;
   multiJobToggle: React.ReactNode;
 };
@@ -166,8 +162,6 @@ export function ApplicationsListToolbar({
   onOpenMoreFilters,
   hideClaimCandidates = true,
   onClaimCandidates,
-  onExportCsv,
-  onExportXls,
   onAnalyzeAll,
   analyzeAllLabel,
   analyzeBusy = false,
@@ -175,7 +169,6 @@ export function ApplicationsListToolbar({
   onEditColumns,
   showResetFilters = false,
   onResetFilters,
-  deleteButton,
   addCandidateButton,
   multiJobToggle,
 }: ApplicationsListToolbarProps) {
@@ -183,11 +176,6 @@ export function ApplicationsListToolbar({
     <>
       <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-between">
         <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
-          <ListExportDropdown
-            variant="brand"
-            onExportCsv={onExportCsv}
-            onExportXls={onExportXls}
-          />
           {!hideClaimCandidates && onClaimCandidates ? (
             <button type="button" onClick={onClaimCandidates} className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} w-full lg:w-auto`}>
               <ClaimClipboardIcon />
@@ -218,7 +206,6 @@ export function ApplicationsListToolbar({
               Reset Filters
             </button>
           ) : null}
-          {deleteButton}
         </div>
         <div className="w-full shrink-0 lg:ml-3 lg:w-auto [&_button]:w-full lg:[&_button]:w-auto">
           {addCandidateButton}

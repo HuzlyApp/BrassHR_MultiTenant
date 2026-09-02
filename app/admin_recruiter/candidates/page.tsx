@@ -3,10 +3,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
   columnLabel,
+  candidateListColumnAlignmentClassName,
   candidateListColumnClassName,
+  CANDIDATE_LIST_TABLE_CLASS,
+  CANDIDATE_LIST_TABLE_SCROLL_CLASS,
   DEFAULT_CANDIDATE_COLUMNS,
   loadColumnOrder,
   saveColumnOrder,
@@ -14,21 +18,45 @@ import {
 } from "./column-config";
 import { renderListCell } from "./render-list-cell";
 import { CandidateGridCard } from "./CandidateGridCard";
+import { CandidateListSortableHeader } from "./CandidateListSortableHeader";
 import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
 import { BulkDeleteConfirmModal } from "../components/BulkDeleteConfirmModal";
-import { BulkDeleteToolbarButton } from "../components/BulkDeleteToolbarButton";
 import { ListTableCheckbox } from "../components/ListTableCheckbox";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
 import { buildCandidateKpis } from "./candidate-kpis";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import AddCandidateModal from "../applications/AddCandidateModal";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 // import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
+import {
+  candidateMatchesJobTitleFilter,
+  getCandidateJobTitleOptions,
+} from "@/lib/admin/candidate-match-job-title";
+import {
+  ACTIVE_CANDIDATE_PIPELINE_STATUSES,
+  formatPipelineStatusLabel,
+} from "@/lib/workers/candidate-status-label";
+import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
+import {
+  buildCandidateStageOptions,
+  candidateMatchesStageFilter,
+} from "@/lib/admin/candidate-list-stage";
+import {
+  EMPTY_CANDIDATE_LIST_SORT,
+  isCandidateListSortableColumn,
+  sortCandidateRows,
+  toggleCandidateListSort,
+  type CandidateListSortColumn,
+  type CandidateListSortState,
+} from "@/lib/admin/candidate-list-sort";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
@@ -40,6 +68,7 @@ import {
   bulkReanalyzeSelectedLabel,
   partitionMatchAnalysisTargets,
 } from "@/lib/admin/bulk-match-analysis";
+import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
@@ -47,6 +76,8 @@ import {
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
+const ADD_CANDIDATE_BUTTON_CLASS =
+  "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50 lg:w-auto lg:justify-start";
 
 type WorkerProfile = {
   id: string;
@@ -181,8 +212,12 @@ export default function CandidatesPage() {
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [appliedDateFrom, setAppliedDateFrom] = useState("");
+  const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [jobFilter, setJobFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -200,12 +235,16 @@ export default function CandidatesPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
+  const branding = useTenantBranding();
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
 
@@ -266,6 +305,32 @@ export default function CandidatesPage() {
   useEffect(() => {
     setListColumnOrder(loadColumnOrder());
   }, []);
+
+  const loadAddCandidateJobs = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/jobs", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
+      setAddCandidateJobs((payload.jobs ?? []) as JobListRow[]);
+    } catch {
+      setAddCandidateJobs([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAddCandidateJobs();
+  }, [loadAddCandidateJobs]);
+
+  const addCandidateJobOptions = useMemo(
+    () =>
+      addCandidateJobs
+        .map((job) => ({
+          id: job.id,
+          title: jobListDisplayTitle(job),
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [addCandidateJobs]
+  );
 
   const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
@@ -400,12 +465,26 @@ export default function CandidatesPage() {
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
-    const s = new Set<string>();
+    const canonical = new Set(
+      ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
+    );
     for (const c of candidates) {
-      if (c.status) s.add(c.status);
+      if (c.status) canonical.add(c.status);
     }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return Array.from(canonical).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
+
+  const jobOptions = useMemo(() => {
+    const titles = new Set<string>();
+    for (const c of candidates) {
+      for (const title of getCandidateJobTitleOptions(c)) {
+        titles.add(title);
+      }
+    }
+    return Array.from(titles).sort((a, b) => a.localeCompare(b));
+  }, [candidates]);
+
+  const stageOptions = useMemo(() => buildCandidateStageOptions(candidates), [candidates]);
 
   const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
 
@@ -417,20 +496,16 @@ export default function CandidatesPage() {
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
+    if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
+    if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
-    if (dateFilter) {
-      out = out.filter((c) => {
-        if (!c.createdAt) return false;
-        const d = new Date(c.createdAt);
-        if (Number.isNaN(d.getTime())) return false;
-        const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return ymd === dateFilter;
-      });
+    if (appliedDateFrom || appliedDateTo) {
+      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
+  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]);
 
   // const multiJobApplicantCount = useMemo(
   //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
@@ -449,10 +524,13 @@ export default function CandidatesPage() {
         query.trim() ||
           jobRoleFilter ||
           statusFilter ||
+          jobFilter ||
+          stageFilter ||
           locationFilter ||
-          dateFilter
+          appliedDateFrom ||
+          appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+    [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const listDisplayTotal = useMemo(
@@ -472,12 +550,21 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+
+  const sortedCandidates = useMemo(
+    () => sortCandidateRows(visibleCandidates, listSort),
+    [visibleCandidates, listSort]
+  );
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return visibleCandidates.slice(start, start + pageSize);
-  }, [visibleCandidates, page, pageSize]);
+    return sortedCandidates.slice(start, start + pageSize);
+  }, [sortedCandidates, page, pageSize]);
+
+  const handleListSort = useCallback((column: CandidateListSortColumn) => {
+    setListSort((current) => toggleCandidateListSort(current, column));
+  }, []);
 
   const pageSelectableRows = useMemo(
     () =>
@@ -508,8 +595,11 @@ export default function CandidatesPage() {
         query,
         jobRoleFilter,
         statusFilter,
+        jobFilter,
+        stageFilter,
         locationFilter,
-        dateFilter,
+        appliedDateFrom,
+        appliedDateTo,
         advancedSearchContext.active ? "adv" : "std",
       ].join("|"),
     [
@@ -518,8 +608,11 @@ export default function CandidatesPage() {
       query,
       jobRoleFilter,
       statusFilter,
+      jobFilter,
+      stageFilter,
       locationFilter,
-      dateFilter,
+      appliedDateFrom,
+      appliedDateTo,
       advancedSearchContext.active,
     ]
   );
@@ -542,6 +635,65 @@ export default function CandidatesPage() {
       }))
     );
   const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
+
+  const exportCandidates = useMemo(() => {
+    if (selection.selectedCount === 0) return visibleCandidates;
+    const selected = visibleCandidates.filter((row) => selection.selectedIds.has(row.id));
+    return selected.length > 0 ? selected : visibleCandidates;
+  }, [visibleCandidates, selection.selectedCount, selection.selectedIds]);
+
+  const handleExportCandidatesCsv = useCallback(() => {
+    if (exportCandidates.length === 0) {
+      toast.error("No candidates to export");
+      return;
+    }
+    exportCandidatesCsv(exportCandidates, { columnOrder: listColumnOrder });
+  }, [exportCandidates, listColumnOrder]);
+
+  const handleExportCandidatesXls = useCallback(() => {
+    if (exportCandidates.length === 0) {
+      toast.error("No candidates to export");
+      return;
+    }
+    exportCandidatesXls(exportCandidates, { columnOrder: listColumnOrder });
+  }, [exportCandidates, listColumnOrder]);
+
+  async function handleBulkArchiveSelected() {
+    const applicationIds = selectedCandidates
+      .map((row) => row.matchApplicationId?.trim() ?? "")
+      .filter(Boolean);
+    if (archiveBusy) return;
+    if (applicationIds.length === 0) {
+      toast.error("Selected candidates have no linked job applications to archive.");
+      return;
+    }
+    setArchiveBusy(true);
+    try {
+      const { archived, failed } = await bulkArchiveApplications(applicationIds);
+      if (archived > 0) {
+        toast.success(`Archived ${archived} candidate${archived === 1 ? "" : "s"}`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+        if (advancedSearchContext.active) {
+          void loadCandidates(null);
+        } else {
+          void loadCandidates();
+        }
+        selection.clearSelection();
+      } else if (failed === 0) {
+        toast.success("No candidates needed archiving");
+      }
+      if (failed > 0) {
+        toast.error(`Failed to archive ${failed} candidate${failed === 1 ? "" : "s"}`);
+      }
+    } catch (archiveErr) {
+      toast.error(
+        archiveErr instanceof Error ? archiveErr.message : "Failed to archive candidates"
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
 
   async function runSelectedMatchAnalyze(applicationIds: string[]) {
     if (bulkAnalyzeBusy) return;
@@ -700,32 +852,44 @@ export default function CandidatesPage() {
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
-        dateFilter={dateFilter}
-        onDateFilterChange={setDateFilter}
+        appliedDateFrom={appliedDateFrom}
+        appliedDateTo={appliedDateTo}
+        onAppliedDateFromChange={setAppliedDateFrom}
+        onAppliedDateToChange={setAppliedDateTo}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
+        jobFilter={jobFilter}
+        onJobFilterChange={setJobFilter}
+        jobOptions={jobOptions}
+        stageFilter={stageFilter}
+        onStageFilterChange={setStageFilter}
+        stageOptions={stageOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates
-        exportInToolbar
-        deleteButton={
-          <BulkDeleteToolbarButton
-            count={selection.selectedCount}
-            disabled={deleteBusy}
-            onClick={() => {
-              setDeleteError(null);
-              setDeleteConfirmOpen(true);
-            }}
-          />
+        hideRefresh
+        simplifiedToolbarFilters
+        toolbarAddCandidateButton={
+          <button
+            type="button"
+            onClick={() => setAddCandidateOpen(true)}
+            className={ADD_CANDIDATE_BUTTON_CLASS}
+          >
+            <Plus
+              className="h-5 w-5 shrink-0"
+              style={{ color: branding.secondaryHex }}
+              strokeWidth={2}
+              aria-hidden
+            />
+            Add candidate
+          </button>
         }
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(visibleCandidates, { columnOrder: listColumnOrder })}
-        onExportXls={() => exportCandidatesXls(visibleCandidates, { columnOrder: listColumnOrder })}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}
@@ -768,13 +932,15 @@ export default function CandidatesPage() {
           if (view === "list") {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
-              <div className="w-full overflow-hidden">
+              <div className="w-full">
                 <CandidateBulkSelectionBar
                   selectedCount={selection.selectedCount}
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
                   analyzeBusy={bulkAnalyzeBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
                   analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
                   reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
                   onAnalyze={
@@ -789,11 +955,19 @@ export default function CandidatesPage() {
                       ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
                       : undefined
                   }
-                  onClaim={openClaimConfirm}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
                   onClear={selection.clearSelection}
                 />
-                <div className="w-full overflow-auto">
-                  <table className="w-full min-w-[820px] border-collapse">
+                <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
+                  <table className={CANDIDATE_LIST_TABLE_CLASS}>
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -809,11 +983,19 @@ export default function CandidatesPage() {
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 ${
-                              colId === "name" || colId === "matchJob" ? "text-left" : "text-center"
-                            } ${candidateListColumnClassName(colId)}`}
+                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                           >
-                            {columnLabel(colId)}
+                            {isCandidateListSortableColumn(colId) ? (
+                              <CandidateListSortableHeader
+                                column={colId}
+                                label={columnLabel(colId)}
+                                align={colId === "name" ? "left" : "center"}
+                                sort={listSort}
+                                onSort={handleListSort}
+                              />
+                            ) : (
+                              columnLabel(colId)
+                            )}
                           </th>
                         ))}
                         <th className="whitespace-nowrap border-r-0 bg-[#E5E7EB] px-4 py-3 text-center text-sm font-medium uppercase tracking-[0.08em] text-black last:pr-6">
@@ -845,9 +1027,7 @@ export default function CandidatesPage() {
                           {cols.map((colId) => (
                             <td
                               key={colId}
-                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle first:pl-6 ${
-                                colId === "name" || colId === "matchJob" ? "text-left" : "text-center"
-                              } ${candidateListColumnClassName(colId)}`}
+                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle first:pl-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                             >
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
@@ -1016,6 +1196,19 @@ export default function CandidatesPage() {
           setClaimError(null);
         }}
         onConfirm={() => void confirmClaimCandidates()}
+      />
+
+      <AddCandidateModal
+        open={addCandidateOpen}
+        onClose={() => setAddCandidateOpen(false)}
+        jobOptions={addCandidateJobOptions}
+        onSuccess={() => {
+          if (advancedSearchContext.active) {
+            void loadCandidates(null);
+            return;
+          }
+          void loadCandidates();
+        }}
       />
     </>
   );

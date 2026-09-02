@@ -9,7 +9,10 @@ import { exportCandidatesCsv, exportCandidatesXls } from "../candidates/export-c
 import { EditColumnsModal } from "../candidates/EditColumnsModal";
 import {
   columnLabel,
+  candidateListColumnAlignmentClassName,
   candidateListColumnClassName,
+  CANDIDATE_LIST_TABLE_CLASS,
+  CANDIDATE_LIST_TABLE_SCROLL_CLASS,
   DEFAULT_CANDIDATE_COLUMNS,
   loadColumnOrder,
   saveColumnOrder,
@@ -22,6 +25,7 @@ import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge
 import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
+import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
@@ -29,6 +33,7 @@ import {
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
+import { BulkDeleteConfirmModal } from "./BulkDeleteConfirmModal";
 import { ClaimCandidatesConfirmModal } from "./ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "../candidates/claim-client";
 import { runCandidateListBulkMatchAnalyze } from "../candidates/run-bulk-match-analyze";
@@ -37,7 +42,10 @@ import {
   bulkReanalyzeSelectedLabel,
   partitionMatchAnalysisTargets,
 } from "@/lib/admin/bulk-match-analysis";
+import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import toast from "react-hot-toast";
+
+const ACTION_TOAST_DURATION_MS = 3500;
 
 type WorkerProfile = {
   id: string;
@@ -176,7 +184,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [appliedDateFrom, setAppliedDateFrom] = useState("");
+  const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -187,6 +196,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -290,17 +303,11 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
-    if (dateFilter) {
-      out = out.filter((c) => {
-        if (!c.createdAt) return false;
-        const d = new Date(c.createdAt);
-        if (Number.isNaN(d.getTime())) return false;
-        const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return ymd === dateFilter;
-      });
+    if (appliedDateFrom || appliedDateTo) {
+      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
+  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]);
 
   const hasActiveListFilters = useMemo(
     () =>
@@ -309,9 +316,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           jobRoleFilter ||
           statusFilter ||
           locationFilter ||
-          dateFilter
+          appliedDateFrom ||
+          appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+    [query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const listDisplayTotal = useMemo(
@@ -326,7 +334,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -355,8 +363,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }, [pageSelectableRows]);
 
   const selectionClearKey = useMemo(
-    () => [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, dateFilter].join("|"),
-    [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+    () => [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo].join("|"),
+    [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const selection = usePageSelection({
@@ -376,6 +384,102 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       }))
     );
   const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
+
+  const exportCandidates = useMemo(() => {
+    if (selection.selectedCount === 0) return filtered;
+    const selected = filtered.filter((row) => selection.selectedIds.has(row.id));
+    return selected.length > 0 ? selected : filtered;
+  }, [filtered, selection.selectedCount, selection.selectedIds]);
+
+  const handleExportCandidatesCsv = useCallback(() => {
+    if (exportCandidates.length === 0) {
+      toast.error("No candidates to export");
+      return;
+    }
+    exportCandidatesCsv(exportCandidates, { columnOrder: listColumnOrder });
+  }, [exportCandidates, listColumnOrder]);
+
+  const handleExportCandidatesXls = useCallback(() => {
+    if (exportCandidates.length === 0) {
+      toast.error("No candidates to export");
+      return;
+    }
+    exportCandidatesXls(exportCandidates, { columnOrder: listColumnOrder });
+  }, [exportCandidates, listColumnOrder]);
+
+  async function handleBulkArchiveSelected() {
+    const applicationIds = selectedCandidates
+      .map((row) => row.matchApplicationId?.trim() ?? "")
+      .filter(Boolean);
+    if (archiveBusy) return;
+    if (applicationIds.length === 0) {
+      toast.error("Selected candidates have no linked job applications to archive.");
+      return;
+    }
+    setArchiveBusy(true);
+    try {
+      const { archived, failed } = await bulkArchiveApplications(applicationIds);
+      if (archived > 0) {
+        toast.success(`Archived ${archived} candidate${archived === 1 ? "" : "s"}`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+        void loadCandidates();
+        selection.clearSelection();
+      } else if (failed === 0) {
+        toast.success("No candidates needed archiving");
+      }
+      if (failed > 0) {
+        toast.error(`Failed to archive ${failed} candidate${failed === 1 ? "" : "s"}`);
+      }
+    } catch (archiveErr) {
+      toast.error(
+        archiveErr instanceof Error ? archiveErr.message : "Failed to archive candidates"
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
+  async function handleConfirmDeleteCandidates() {
+    const idsToDelete = [...selection.selectedIds];
+    if (deleteBusy || idsToDelete.length === 0) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch("/api/admin/workers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to delete candidates"
+        );
+      }
+      const deletedIds = new Set<string>(
+        Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : idsToDelete
+      );
+      setCandidates((current) => current.filter((row) => !deletedIds.has(row.id)));
+      setTotalFromApi((current) =>
+        typeof current === "number" ? Math.max(0, current - deletedIds.size) : current
+      );
+      selection.removeIds(deletedIds);
+      setDeleteConfirmOpen(false);
+      const deletedCount =
+        typeof payload.count === "number" ? payload.count : deletedIds.size;
+      toast.success(`Deleted ${deletedCount} candidate${deletedCount === 1 ? "" : "s"}`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
+    } catch (deleteErr) {
+      const message =
+        deleteErr instanceof Error ? deleteErr.message : "Failed to delete candidates";
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   async function runSelectedMatchAnalyze(applicationIds: string[]) {
     if (bulkAnalyzeBusy) return;
@@ -482,8 +586,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
-        dateFilter={dateFilter}
-        onDateFilterChange={setDateFilter}
+        appliedDateFrom={appliedDateFrom}
+        appliedDateTo={appliedDateTo}
+        onAppliedDateFromChange={setAppliedDateFrom}
+        onAppliedDateToChange={setAppliedDateTo}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
@@ -492,12 +598,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates
-        exportInToolbar
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(filtered, { columnOrder: listColumnOrder })}
-        onExportXls={() => exportCandidatesXls(filtered, { columnOrder: listColumnOrder })}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}
@@ -521,13 +624,15 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           if (view === "list") {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
-              <div className="w-full overflow-hidden">
+              <div className="w-full">
                 <CandidateBulkSelectionBar
                   selectedCount={selection.selectedCount}
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
                   analyzeBusy={bulkAnalyzeBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
                   analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
                   reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
                   onAnalyze={
@@ -542,11 +647,19 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                       ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
                       : undefined
                   }
-                  onClaim={openClaimConfirm}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
                   onClear={selection.clearSelection}
                 />
-                <div className="w-full overflow-auto">
-                  <table className="w-full min-w-[820px] border-collapse">
+                <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
+                  <table className={CANDIDATE_LIST_TABLE_CLASS}>
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -562,7 +675,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnClassName(colId)}`}
+                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
                           </th>
@@ -593,7 +706,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                           {cols.map((colId) => (
                             <td
                               key={colId}
-                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnClassName(colId)}`}
+                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                             >
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
@@ -655,6 +768,20 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           setAdvancedSearchOpen(false);
           router.push("/admin_recruiter/candidates");
         }}
+      />
+
+      <BulkDeleteConfirmModal
+        open={deleteConfirmOpen}
+        entity="candidate"
+        count={selection.selectedCount}
+        busy={deleteBusy}
+        error={deleteError}
+        onCancel={() => {
+          if (deleteBusy) return;
+          setDeleteConfirmOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void handleConfirmDeleteCandidates()}
       />
 
       <ClaimCandidatesConfirmModal

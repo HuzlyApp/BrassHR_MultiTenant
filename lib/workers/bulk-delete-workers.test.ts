@@ -30,11 +30,11 @@ describe("bulkDeleteWorkers", () => {
   it("throws when the atomic delete fails so callers do not treat a partial delete as success", async () => {
     const rpc = vi.fn(async () => ({
       data: null,
-      error: { message: "worker_shift_requirements_worker_id_fkey" },
+      error: { message: "worker_requirements_worker_id_fkey" },
     }));
 
     await expect(
       bulkDeleteWorkers({ rpc } as never, "tenant-1", ["w1"])
-    ).rejects.toMatchObject({ message: "worker_shift_requirements_worker_id_fkey" });
+    ).rejects.toMatchObject({ message: "worker_requirements_worker_id_fkey" });
   });
 });

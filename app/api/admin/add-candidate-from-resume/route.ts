@@ -8,7 +8,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
-const CREATE_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_ADD_CANDIDATE_PER_HOUR", 80);
+/** Same bulk-load path as parse preview. Override with env. */
+const CREATE_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_ADD_CANDIDATE_PER_HOUR", 400);
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof JobValidationError) return error.message;
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const limited = await enforceRateLimit(req, {
-    namespace: "admin-add-candidate-from-resume",
+    namespace: "admin-add-candidate-from-resume.v2",
     key: auth.userId,
     limit: CREATE_LIMIT,
     windowMs: 60 * 60 * 1000,

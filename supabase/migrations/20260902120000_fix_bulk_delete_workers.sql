@@ -1,6 +1,5 @@
--- Atomic bulk delete for worker candidates.
--- Deletes linked applications and restrictive dependents in the same transaction
--- as the worker row, so a failed worker delete cannot leave applications removed.
+-- Fix bulk_delete_workers: wrong table name (worker_shift_requirements) and
+-- skill_assessments has no tenant_id column.
 
 CREATE OR REPLACE FUNCTION public.bulk_delete_workers(
   p_tenant_id uuid,
@@ -19,9 +18,14 @@ BEGIN
   END IF;
 
   SELECT ARRAY(
-    SELECT DISTINCT id
-    FROM unnest(COALESCE(p_worker_ids, ARRAY[]::uuid[])) AS id
-    WHERE id IS NOT NULL
+    SELECT w.id
+    FROM public.worker w
+    WHERE w.tenant_id = p_tenant_id
+      AND w.id IN (
+        SELECT DISTINCT id
+        FROM unnest(COALESCE(p_worker_ids, ARRAY[]::uuid[])) AS id
+        WHERE id IS NOT NULL
+      )
   )
   INTO v_ids;
 
@@ -31,8 +35,7 @@ BEGIN
 
   PERFORM w.id
   FROM public.worker w
-  WHERE w.tenant_id = p_tenant_id
-    AND w.id = ANY (v_ids)
+  WHERE w.id = ANY (v_ids)
   FOR UPDATE;
 
   DELETE FROM public.job_applications

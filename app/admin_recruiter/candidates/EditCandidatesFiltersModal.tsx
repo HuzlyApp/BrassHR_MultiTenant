@@ -14,7 +14,8 @@ export type CandidatesFilterValues = {
   jobFilter: string;
   stageFilter: string;
   locationFilter: string;
-  dateFilter: string;
+  appliedDateFrom: string;
+  appliedDateTo: string;
 };
 
 export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
@@ -24,7 +25,8 @@ export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
   jobFilter: "",
   stageFilter: "",
   locationFilter: "",
-  dateFilter: "",
+  appliedDateFrom: "",
+  appliedDateTo: "",
 };
 
 export function hasActiveCandidatesFilters(value: CandidatesFilterValues): boolean {
@@ -39,6 +41,8 @@ type FilterOptions = {
   jobRoleOptions: string[];
   statusOptions: string[];
   locationOptions: string[];
+  jobOptions?: string[];
+  stageOptions?: string[];
 };
 
 type EditCandidatesFiltersModalProps = {
@@ -48,6 +52,8 @@ type EditCandidatesFiltersModalProps = {
   options: FilterOptions;
   onSave: (next: CandidatesFilterValues) => void;
   onAdvancedSearch?: () => void;
+  /** Legacy All candidates: hide Score and Work Type fields. */
+  simplifiedFilters?: boolean;
 };
 
 const FIELD_SURFACE =
@@ -96,6 +102,7 @@ export function EditCandidatesFiltersModal({
   options,
   onSave,
   onAdvancedSearch,
+  simplifiedFilters = false,
 }: EditCandidatesFiltersModalProps) {
   const branding = useTenantBranding();
   const brandVars = brandingToCssVars(branding) as CSSProperties;
@@ -151,28 +158,32 @@ export function EditCandidatesFiltersModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] sm:px-6 sm:py-6">
             <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 sm:gap-5">
-              <ModalFilterField
-                label="Score"
-                value={draft.scoreSort}
-                onChange={(v) => setField("scoreSort", v)}
-                placeholder="Score (high-low)"
-              >
-                <option value="high-low">Score (high-low)</option>
-                <option value="low-high">Score (low-high)</option>
-              </ModalFilterField>
+              {!simplifiedFilters ? (
+                <>
+                  <ModalFilterField
+                    label="Score"
+                    value={draft.scoreSort}
+                    onChange={(v) => setField("scoreSort", v)}
+                    placeholder="Score (high-low)"
+                  >
+                    <option value="high-low">Score (high-low)</option>
+                    <option value="low-high">Score (low-high)</option>
+                  </ModalFilterField>
 
-              <ModalFilterField
-                label="Work Type"
-                value={draft.jobRoleFilter}
-                onChange={(v) => setField("jobRoleFilter", v)}
-                placeholder="All Work Types"
-              >
-                {options.jobRoleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </ModalFilterField>
+                  <ModalFilterField
+                    label="Work Type"
+                    value={draft.jobRoleFilter}
+                    onChange={(v) => setField("jobRoleFilter", v)}
+                    placeholder="All Work Types"
+                  >
+                    {options.jobRoleOptions.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </ModalFilterField>
+                </>
+              ) : null}
 
               <ModalFilterField
                 label="Status"
@@ -192,14 +203,13 @@ export function EditCandidatesFiltersModal({
                 value={draft.jobFilter}
                 onChange={(v) => setField("jobFilter", v)}
                 placeholder="All Jobs"
-              />
-
-              <ModalFilterField
-                label="Stages"
-                value={draft.stageFilter}
-                onChange={(v) => setField("stageFilter", v)}
-                placeholder="Stages"
-              />
+              >
+                {(options.jobOptions ?? []).map((job) => (
+                  <option key={job} value={job}>
+                    {job}
+                  </option>
+                ))}
+              </ModalFilterField>
 
               <ModalFilterField
                 label="Location"
@@ -214,16 +224,46 @@ export function EditCandidatesFiltersModal({
                 ))}
               </ModalFilterField>
 
-              <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
-                <span className="text-sm font-medium text-[#475569]">Date Applied</span>
-                <input
-                  type="date"
-                  value={draft.dateFilter}
-                  onChange={(e) => setField("dateFilter", e.target.value)}
-                  aria-label="Date applied"
-                  className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-normal leading-6 text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
-                />
-              </label>
+              <ModalFilterField
+                label="Current Stage"
+                value={draft.stageFilter}
+                onChange={(v) => setField("stageFilter", v)}
+                placeholder="All Stages"
+              >
+                {(options.stageOptions ?? []).map((stage) => (
+                  <option key={stage} value={stage}>
+                    {stage}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <div className="min-[520px]:col-span-2">
+                <span className="text-sm font-medium text-[#475569]">Applied Date</span>
+                <div className="mt-1.5 grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
+                  <label className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-xs font-normal text-[#64748B]">From</span>
+                    <input
+                      type="date"
+                      value={draft.appliedDateFrom}
+                      max={draft.appliedDateTo || undefined}
+                      onChange={(e) => setField("appliedDateFrom", e.target.value)}
+                      aria-label="Applied date from"
+                      className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-normal leading-6 text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
+                    />
+                  </label>
+                  <label className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-xs font-normal text-[#64748B]">To</span>
+                    <input
+                      type="date"
+                      value={draft.appliedDateTo}
+                      min={draft.appliedDateFrom || undefined}
+                      onChange={(e) => setField("appliedDateTo", e.target.value)}
+                      aria-label="Applied date to"
+                      className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-normal leading-6 text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             {onAdvancedSearch ? (

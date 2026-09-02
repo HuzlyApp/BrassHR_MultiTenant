@@ -336,7 +336,7 @@ export function EditJobsFiltersModal({
               </ModalFilterField>
 
               <ModalFilterField
-                label="Contract Group"
+                label="End client"
                 value={draft.contractGroup}
                 onChange={(v) => setField("contractGroup", v)}
               >

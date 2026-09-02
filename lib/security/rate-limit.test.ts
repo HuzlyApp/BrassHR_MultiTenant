@@ -36,6 +36,18 @@ describe("checkRateLimit", () => {
       checkRateLimit({ namespace: "b", key: "same", limit: 1, windowMs: 60_000 })
     ).resolves.toMatchObject({ allowed: true });
   });
+
+  it("reports remaining window seconds instead of the full window", async () => {
+    const options = { namespace: "retry-after", key: "user-a", limit: 1, windowMs: 60_000 };
+    const first = await checkRateLimit(options);
+    expect(first.retryAfterSec).toBeGreaterThan(0);
+    expect(first.retryAfterSec).toBeLessThanOrEqual(60);
+
+    const blocked = await checkRateLimit(options);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.retryAfterSec).toBeGreaterThan(0);
+    expect(blocked.retryAfterSec).toBeLessThanOrEqual(60);
+  });
 });
 
 describe("envRateLimit", () => {
