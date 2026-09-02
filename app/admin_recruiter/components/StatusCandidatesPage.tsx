@@ -598,12 +598,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates
-        exportInToolbar
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={handleExportCandidatesCsv}
-        onExportXls={handleExportCandidatesXls}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}

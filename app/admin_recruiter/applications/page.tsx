@@ -37,7 +37,6 @@ import { JobsBreadcrumb } from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
-import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
 import { CandidateBulkSelectionBar } from "@/app/admin_recruiter/components/CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "@/app/admin_recruiter/components/ClaimCandidatesConfirmModal";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
@@ -2553,8 +2552,6 @@ export default function JobApplicationsPage() {
           sortBy={sortBy}
           onSortByChange={setSortBy}
           onOpenMoreFilters={() => setEditFiltersOpen(true)}
-          onExportCsv={handleExportApplicationsCsv}
-          onExportXls={handleExportApplicationsXls}
           onAnalyzeAll={() => void runBulkMatchAnalyze(paginatedRows.map((row) => row.id))}
           analyzeAllLabel={pageAllAnalyzed ? "Reanalyze all" : "Analyze all"}
           analyzeBusy={bulkAnalyzeBusy}
@@ -2562,17 +2559,6 @@ export default function JobApplicationsPage() {
           onEditColumns={() => setEditColumnsOpen(true)}
           showResetFilters={hasActiveModalFilters}
           onResetFilters={handleResetModalFilters}
-          deleteButton={
-            <BulkDeleteToolbarButton
-              count={selectedIds.size}
-              disabled={deleteBusy}
-              onClick={() => {
-                setPendingDeleteIds([]);
-                setDeleteError(null);
-                setDeleteConfirmOpen(true);
-              }}
-            />
-          }
           addCandidateButton={
             <button type="button" onClick={openAddCandidateModal} className={ADD_CANDIDATE_BUTTON_CLASS}>
               <Plus

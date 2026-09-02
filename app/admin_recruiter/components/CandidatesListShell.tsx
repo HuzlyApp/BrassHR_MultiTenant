@@ -57,8 +57,8 @@ export type CandidatesListShellProps = {
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
-  onExportCsv: () => void;
-  onExportXls: () => void;
+  onExportCsv?: () => void;
+  onExportXls?: () => void;
   onAdvancedSearch?: () => void;
   onAddCandidate?: () => void;
   onClaimCandidates?: () => void;
@@ -84,6 +84,10 @@ export type CandidatesListShellProps = {
   exportInToolbar?: boolean;
   /** Legacy `/admin_recruiter/candidates`: hide Score and Work Types toolbar filters. */
   simplifiedToolbarFilters?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide refresh control in the toolbar. */
+  hideRefresh?: boolean;
+  /** Shown on the toolbar right (before list/grid toggle). */
+  toolbarAddCandidateButton?: React.ReactNode;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -311,6 +315,8 @@ export function CandidatesListShell({
   hideClaimCandidates = false,
   exportInToolbar = false,
   simplifiedToolbarFilters = false,
+  hideRefresh = false,
+  toolbarAddCandidateButton,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
@@ -404,7 +410,8 @@ export function CandidatesListShell({
         title="Candidates"
         subtitle="Manage candidates in one place"
         actions={
-          !hideAddCandidate && onAddCandidate || !exportInToolbar ? (
+          (!hideAddCandidate && onAddCandidate) ||
+          (!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls) ? (
             <>
               {!hideAddCandidate && onAddCandidate ? (
                 <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
@@ -412,7 +419,7 @@ export function CandidatesListShell({
                   Add Candidate
                 </button>
               ) : null}
-              {!exportInToolbar ? (
+              {!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls ? (
                 <div className="max-lg:w-full max-lg:[&_button]:w-full">
                   <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
                 </div>
@@ -431,7 +438,7 @@ export function CandidatesListShell({
       <div className="mt-4 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white sm:mt-5">
         <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
           <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
-            {exportInToolbar ? (
+            {exportInToolbar && onExportCsv && onExportXls ? (
               <div className="min-w-0 shrink-0 flex-1 lg:flex-none">
                 <ListExportDropdown
                   variant="brand"
@@ -461,15 +468,17 @@ export function CandidatesListShell({
               Columns
             </button>
             {deleteButton ? <div className="shrink-0">{deleteButton}</div> : null}
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
-              aria-label={refreshLabel}
-              title={refreshLabel}
-            >
-              <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
-            </button>
+            {!hideRefresh ? (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
+                aria-label={refreshLabel}
+                title={refreshLabel}
+              >
+                <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+              </button>
+            ) : null}
             {activeFilterCount > 0 ? (
               <button
                 type="button"
@@ -491,19 +500,25 @@ export function CandidatesListShell({
                 Reset
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50"
-              aria-label={refreshLabel}
-              title={refreshLabel}
-            >
-              <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
-            </button>
+            {!hideRefresh ? (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50"
+                aria-label={refreshLabel}
+                title={refreshLabel}
+              >
+                <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+              </button>
+            ) : null}
+            {toolbarAddCandidateButton ? (
+              <div className="shrink-0 [&_button]:w-full min-[450px]:[&_button]:w-auto">{toolbarAddCandidateButton}</div>
+            ) : null}
             <CandidatesViewToggle view={view} onViewChange={onViewChange} />
           </div>
 
-          <div className="hidden shrink-0 lg:block">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
+            {toolbarAddCandidateButton ? <div className="shrink-0">{toolbarAddCandidateButton}</div> : null}
             <CandidatesViewToggle view={view} onViewChange={onViewChange} />
           </div>
         </div>

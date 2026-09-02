@@ -28,17 +28,31 @@ const PARSE_FAILED_FALLBACK =
   "Resume parsing failed. Please upload a valid resume or fill in the required fields manually.";
 const MIN_PASTED_RESUME_LENGTH = 80;
 
+export type AddCandidateJobOption = {
+  id: string;
+  title: string;
+};
+
 type AddCandidateModalProps = {
   open: boolean;
   onClose: () => void;
-  jobId: string;
+  jobId?: string;
   jobTitle?: string | null;
+  /** When set, shows a job picker as the first field (used on All candidates). */
+  jobOptions?: AddCandidateJobOption[];
   onSuccess?: () => void;
 };
 
 const FIELD_LABEL_CLASS = "mb-1.5 block text-sm font-normal text-[#6B7280]";
 const FIELD_INPUT_CLASS =
   "w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2.5 text-sm text-[#334155] outline-none transition placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_12%,transparent)]";
+const FIELD_SELECT_CLASS =
+  "h-10 w-full min-w-0 cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-sm font-normal leading-6 text-[#334155] outline-none transition hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_12%,transparent)]";
+const SELECT_CHEVRON = {
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  )}")`,
+} as const;
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -117,8 +131,9 @@ function ParseStatusBadge({ state }: { state: ParseState }) {
 export default function AddCandidateModal({
   open,
   onClose,
-  jobId,
+  jobId = "",
   jobTitle,
+  jobOptions,
   onSuccess,
 }: AddCandidateModalProps) {
   const branding = useTenantBranding();
@@ -146,6 +161,15 @@ export default function AddCandidateModal({
   const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [jobError, setJobError] = useState<string | null>(null);
+
+  const showJobPicker = Boolean(jobOptions?.length) && !jobId.trim();
+  const effectiveJobId = (jobId.trim() || selectedJobId).trim();
+  const effectiveJobTitle =
+    jobTitle?.trim() ||
+    jobOptions?.find((option) => option.id === effectiveJobId)?.title ||
+    null;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Ignore responses from parses the recruiter has already superseded. */
@@ -170,6 +194,8 @@ export default function AddCandidateModal({
     setFileError(null);
     setPasteError(null);
     setDragActive(false);
+    setSelectedJobId("");
+    setJobError(null);
     resetParse();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetParse]);
@@ -346,11 +372,17 @@ export default function AddCandidateModal({
     setFileError(null);
     setPasteError(null);
 
-    if (!jobId.trim()) {
-      setErrorMessage("Select a job before adding a candidate.");
-      setErrorOpen(true);
+    if (!effectiveJobId) {
+      const message = "Select a job before adding a candidate.";
+      if (showJobPicker) {
+        setJobError(message);
+      } else {
+        setErrorMessage(message);
+        setErrorOpen(true);
+      }
       return;
     }
+    setJobError(null);
 
     if (parseState === "parsing") {
       const message = "Please wait for the resume to finish parsing.";
@@ -393,7 +425,7 @@ export default function AddCandidateModal({
     setUploading(true);
     try {
       const form = new FormData();
-      form.set("jobId", jobId.trim());
+      form.set("jobId", effectiveJobId);
       if (resumeFile) {
         form.set("resume", resumeFile);
       } else {
@@ -444,7 +476,12 @@ export default function AddCandidateModal({
     parseState !== "parsing" &&
     hasResumeSource &&
     (parseState === "parsed" || parseState === "failed" || hasIdentity);
-  const canUpload = !uploading && parseState !== "parsing" && hasResumeSource && hasIdentity;
+  const canUpload =
+    !uploading &&
+    parseState !== "parsing" &&
+    hasResumeSource &&
+    hasIdentity &&
+    Boolean(effectiveJobId);
 
   if (!open && !successOpen && !errorOpen && !uploading && !importOpen) return null;
 
@@ -483,10 +520,35 @@ export default function AddCandidateModal({
             </div>
 
             <div className="px-6 py-5">
-              {jobTitle ? (
+              {showJobPicker ? (
+                <div className="mb-4">
+                  <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-job">
+                    Select a job
+                  </label>
+                  <select
+                    id="add-candidate-job"
+                    className={`${FIELD_SELECT_CLASS} ${selectedJobId ? "text-[#334155]" : "text-[#94A3B8]"}`}
+                    style={SELECT_CHEVRON}
+                    value={selectedJobId}
+                    onChange={(event) => {
+                      setSelectedJobId(event.target.value);
+                      setJobError(null);
+                    }}
+                    disabled={uploading}
+                  >
+                    <option value="">Select a job</option>
+                    {(jobOptions ?? []).map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.title}
+                      </option>
+                    ))}
+                  </select>
+                  {jobError ? <p className="mt-2 text-xs text-[#B91C1C]">{jobError}</p> : null}
+                </div>
+              ) : effectiveJobTitle ? (
                 <p className="mb-2 text-sm text-[#64748B]">
                   Adding candidate for{" "}
-                  <span className="font-medium text-[#334155]">{jobTitle}</span>
+                  <span className="font-medium text-[#334155]">{effectiveJobTitle}</span>
                 </p>
               ) : null}
               <p className="mb-4 text-sm text-[#64748B]">
@@ -495,7 +557,7 @@ export default function AddCandidateModal({
 
               <button
                 type="button"
-                disabled={uploading || !jobId.trim()}
+                disabled={uploading || !effectiveJobId}
                 onClick={() => setImportOpen(true)}
                 className="mb-4 inline-flex h-10 w-full items-center justify-center rounded-lg border px-4 text-sm font-medium transition hover:bg-[#F8FAFC] disabled:opacity-60"
                 style={{ borderColor: primaryColor, color: primaryColor }}
@@ -767,7 +829,7 @@ export default function AddCandidateModal({
 
       <ImportCandidatesModal
         open={importOpen}
-        jobId={jobId}
+        jobId={effectiveJobId}
         onClose={() => setImportOpen(false)}
         onImported={() => {
           setImportOpen(false);

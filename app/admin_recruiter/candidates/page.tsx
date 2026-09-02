@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
   columnLabel,
@@ -23,13 +24,15 @@ import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
 import { BulkDeleteConfirmModal } from "../components/BulkDeleteConfirmModal";
-import { BulkDeleteToolbarButton } from "../components/BulkDeleteToolbarButton";
 import { ListTableCheckbox } from "../components/ListTableCheckbox";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
 import { buildCandidateKpis } from "./candidate-kpis";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import AddCandidateModal from "../applications/AddCandidateModal";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 // import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
@@ -73,6 +76,8 @@ import {
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
+const ADD_CANDIDATE_BUTTON_CLASS =
+  "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50 lg:w-auto lg:justify-start";
 
 type WorkerProfile = {
   id: string;
@@ -237,6 +242,9 @@ export default function CandidatesPage() {
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
+  const branding = useTenantBranding();
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
 
@@ -297,6 +305,32 @@ export default function CandidatesPage() {
   useEffect(() => {
     setListColumnOrder(loadColumnOrder());
   }, []);
+
+  const loadAddCandidateJobs = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/jobs", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
+      setAddCandidateJobs((payload.jobs ?? []) as JobListRow[]);
+    } catch {
+      setAddCandidateJobs([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAddCandidateJobs();
+  }, [loadAddCandidateJobs]);
+
+  const addCandidateJobOptions = useMemo(
+    () =>
+      addCandidateJobs
+        .map((job) => ({
+          id: job.id,
+          title: jobListDisplayTitle(job),
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [addCandidateJobs]
+  );
 
   const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
@@ -836,23 +870,26 @@ export default function CandidatesPage() {
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates
-        exportInToolbar
+        hideRefresh
         simplifiedToolbarFilters
-        deleteButton={
-          <BulkDeleteToolbarButton
-            count={selection.selectedCount}
-            disabled={deleteBusy}
-            onClick={() => {
-              setDeleteError(null);
-              setDeleteConfirmOpen(true);
-            }}
-          />
+        toolbarAddCandidateButton={
+          <button
+            type="button"
+            onClick={() => setAddCandidateOpen(true)}
+            className={ADD_CANDIDATE_BUTTON_CLASS}
+          >
+            <Plus
+              className="h-5 w-5 shrink-0"
+              style={{ color: branding.secondaryHex }}
+              strokeWidth={2}
+              aria-hidden
+            />
+            Add candidate
+          </button>
         }
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={handleExportCandidatesCsv}
-        onExportXls={handleExportCandidatesXls}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}
@@ -1159,6 +1196,19 @@ export default function CandidatesPage() {
           setClaimError(null);
         }}
         onConfirm={() => void confirmClaimCandidates()}
+      />
+
+      <AddCandidateModal
+        open={addCandidateOpen}
+        onClose={() => setAddCandidateOpen(false)}
+        jobOptions={addCandidateJobOptions}
+        onSuccess={() => {
+          if (advancedSearchContext.active) {
+            void loadCandidates(null);
+            return;
+          }
+          void loadCandidates();
+        }}
       />
     </>
   );
