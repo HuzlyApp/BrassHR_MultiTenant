@@ -9,6 +9,13 @@ export const runtime = "nodejs";
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const record = error as { message?: unknown; details?: unknown; hint?: unknown };
+    const parts = [record.message, record.details, record.hint]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter(Boolean);
+    if (parts.length) return parts.join(" — ");
+  }
   return fallback;
 }
 

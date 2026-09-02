@@ -70,7 +70,6 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
 export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
   "status",
-  "reference",
   "jobRole",
   "matchJob",
   "jobMatch",
