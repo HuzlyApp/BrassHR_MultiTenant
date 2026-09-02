@@ -724,8 +724,8 @@ export default function CandidatesPage() {
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(visibleCandidates)}
-        onExportXls={() => exportCandidatesXls(visibleCandidates)}
+        onExportCsv={() => exportCandidatesCsv(visibleCandidates, { columnOrder: listColumnOrder })}
+        onExportXls={() => exportCandidatesXls(visibleCandidates, { columnOrder: listColumnOrder })}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}

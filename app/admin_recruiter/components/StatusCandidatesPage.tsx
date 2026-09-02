@@ -496,8 +496,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(filtered)}
-        onExportXls={() => exportCandidatesXls(filtered)}
+        onExportCsv={() => exportCandidatesCsv(filtered, { columnOrder: listColumnOrder })}
+        onExportXls={() => exportCandidatesXls(filtered, { columnOrder: listColumnOrder })}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}

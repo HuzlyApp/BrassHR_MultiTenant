@@ -4,6 +4,20 @@ import { isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 
 const APPLICATION_JOB_TOKEN_KEY = "applicationJobToken";
 
+/** Paths where a stored apply-flow job token should ride along in query params. */
+function shouldPreserveApplicationJobToken(pathname: string): boolean {
+  return (
+    pathname === "/application" ||
+    pathname.startsWith("/application/") ||
+    pathname === "/apply" ||
+    pathname.startsWith("/apply/") ||
+    pathname === "/jobs" ||
+    pathname.startsWith("/jobs/") ||
+    pathname === "/worker-signin" ||
+    pathname.startsWith("/worker-signin/")
+  );
+}
+
 /** Read job token from the current browser URL or localStorage (apply flow). */
 export function currentApplicationJobToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -38,7 +52,7 @@ export function withTenant(path: string, tenant?: string | null): string {
       params.set("preview", "draft");
     }
     params.delete("job_token");
-  } else {
+  } else if (shouldPreserveApplicationJobToken(pathname)) {
     const jobToken = currentApplicationJobToken();
     if (jobToken && !params.get("job_token")) {
       params.set("job_token", jobToken);
