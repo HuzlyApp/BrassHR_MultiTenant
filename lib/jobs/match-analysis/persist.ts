@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MatchAnalysisResponse, RequirementItem } from "./schema";
+import type { RequirementOutcomeCountRow } from "./workspace";
 
 export type ExistingRequirementRow = {
   id: string;
@@ -37,7 +38,7 @@ export async function persistMatchRequirements(args: {
   tenantId: string;
   jobApplicationId: string;
   analysis: MatchAnalysisResponse;
-}): Promise<void> {
+}): Promise<RequirementOutcomeCountRow[]> {
   const { supabase, tenantId, jobApplicationId, analysis } = args;
 
   const { data: existing, error: existingError } = await supabase
@@ -79,9 +80,11 @@ export async function persistMatchRequirements(args: {
     if (delError) throw delError;
   }
 
+  const written: RequirementOutcomeCountRow[] = [];
   for (const item of nextRows) {
     const key = normalizeRequirementKey(item.requirement_type, item.requirement);
     const prev = existingByKey.get(key);
+    const recruiterVerified = prev?.recruiter_verified ?? false;
     const payload = {
       tenant_id: tenantId,
       job_application_id: jobApplicationId,
@@ -96,7 +99,7 @@ export async function persistMatchRequirements(args: {
       confidence: item.confidence ?? 0,
       sort_order: item.sort_order,
       // Preserve recruiter verification fields when text matches
-      recruiter_verified: prev?.recruiter_verified ?? false,
+      recruiter_verified: recruiterVerified,
       recruiter_note: prev?.recruiter_note ?? null,
       recruiter_verified_at: prev?.recruiter_verified_at ?? null,
       recruiter_verified_by: prev?.recruiter_verified_by ?? null,
@@ -115,7 +118,16 @@ export async function persistMatchRequirements(args: {
         .insert(payload);
       if (error) throw error;
     }
+    written.push({
+      requirement_type: item.requirement_type,
+      status: item.status,
+      requirement_outcome: item.requirement_outcome,
+      verification_required: Boolean(item.verification_required),
+      recruiter_verified: recruiterVerified,
+    });
   }
+
+  return written;
 }
 
 export async function updateApplicationMatchFields(args: {

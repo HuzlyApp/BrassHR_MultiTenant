@@ -23,6 +23,7 @@ import type {
   MatchAnalysisResponse,
   PipelineProgressStep,
 } from "./schema";
+import { listingRequirementOutcomeCounts } from "./workspace";
 
 export type MatchAnalysisProgressEvent = {
   step: PipelineProgressStep;
@@ -40,6 +41,7 @@ export type RunMatchAnalysisResult = {
   error: string | null;
   repaired: boolean;
   model: string | null;
+  requirementCounts: { confirmed: number; verify: number; notMet: number } | null;
 };
 
 async function setProgress(
@@ -107,6 +109,7 @@ export async function runMatchAnalysisForApplication(args: {
       error: "Application not found",
       repaired: false,
       model: null,
+      requirementCounts: null,
     };
   }
 
@@ -131,6 +134,7 @@ export async function runMatchAnalysisForApplication(args: {
       error: "Job requisition not found",
       repaired: false,
       model: null,
+      requirementCounts: null,
     };
   }
 
@@ -145,6 +149,7 @@ export async function runMatchAnalysisForApplication(args: {
       error: "AI match is disabled for this job",
       repaired: false,
       model: null,
+      requirementCounts: null,
     };
   }
 
@@ -191,6 +196,7 @@ export async function runMatchAnalysisForApplication(args: {
         error: "No résumé text available for analysis",
         repaired: false,
         model: null,
+        requirementCounts: null,
       };
     }
 
@@ -266,7 +272,7 @@ export async function runMatchAnalysisForApplication(args: {
     emit("saving", "Saving analysis results", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "saving");
 
-    await persistMatchRequirements({
+    const persistedRequirements = await persistMatchRequirements({
       supabase,
       tenantId,
       jobApplicationId,
@@ -328,6 +334,7 @@ export async function runMatchAnalysisForApplication(args: {
       error: null,
       repaired: modelResult.repaired,
       model: modelResult.model,
+      requirementCounts: listingRequirementOutcomeCounts(persistedRequirements),
     };
   } catch (error) {
     const message =

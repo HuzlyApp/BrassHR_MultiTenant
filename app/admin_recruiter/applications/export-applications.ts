@@ -25,6 +25,7 @@ export type ApplicationExportRow = ApplicationApplicantSource & {
   submitted_at?: string | null;
   ai_match_score?: number | null;
   ai_match_display_category?: string | null;
+  ai_requirement_counts?: { confirmed: number; verify: number; notMet: number } | null;
   assignedRecruiter?: { name: string } | null;
   job_requisitions?: EmbeddedRecord;
 };
@@ -50,6 +51,21 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
     { header: "Phone", value: (row) => resolveApplicationApplicantPhone(row) },
     { header: "Location", value: (row) => resolveApplicationApplicantLocation(row) },
     { header: "Match %", value: (row) => matchPercent(row) },
+    {
+      header: "Conf.",
+      value: (row) =>
+        row.ai_requirement_counts == null ? "" : String(row.ai_requirement_counts.confirmed),
+    },
+    {
+      header: "Verify",
+      value: (row) =>
+        row.ai_requirement_counts == null ? "" : String(row.ai_requirement_counts.verify),
+    },
+    {
+      header: "Not Met",
+      value: (row) =>
+        row.ai_requirement_counts == null ? "" : String(row.ai_requirement_counts.notMet),
+    },
     {
       header: "Current Stage",
       value: (row) => applicationCurrentStageMeta(row.status).label,

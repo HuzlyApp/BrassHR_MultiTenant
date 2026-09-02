@@ -40,6 +40,7 @@ export const QUALIFICATION_FILTERS = [
   "preferred",
   "confirmed",
   "needs_verification",
+  "not_met",
   "blocking",
 ] as const;
 
@@ -110,6 +111,93 @@ export function isBlockingRequirement(
   return blockingTexts.some((item) => item.trim().toLowerCase() === text || item.toLowerCase().includes(text));
 }
 
+export type RequirementOutcomeCountRow = Pick<
+  QualificationRequirement,
+  | "requirement_type"
+  | "status"
+  | "requirement_outcome"
+  | "verification_required"
+  | "recruiter_verified"
+>;
+
+export type QualificationOutcomeCounts = {
+  confirmed: number;
+  verify: number;
+  notMet: number;
+  blocking: number;
+  mandatory: number;
+  preferred: number;
+  total: number;
+};
+
+export type ListingRequirementOutcomeCounts = {
+  confirmed: number;
+  verify: number;
+  notMet: number;
+};
+
+/**
+ * Ranking-table buckets for requirement outcomes:
+ * CONF. = Confirmed / MET, VERIFY = needs verification, NOT MET = explicit not-met.
+ * Blocking / conflict stays its own count and is not rolled into NOT MET.
+ */
+export function countQualificationOutcomes(
+  requirements: RequirementOutcomeCountRow[],
+  blockingTexts: string[] = []
+): QualificationOutcomeCounts {
+  const counts: QualificationOutcomeCounts = {
+    confirmed: 0,
+    verify: 0,
+    notMet: 0,
+    blocking: 0,
+    mandatory: 0,
+    preferred: 0,
+    total: requirements.length,
+  };
+
+  for (const req of requirements) {
+    const type = String(req.requirement_type ?? "").toUpperCase();
+    if (type === "MANDATORY") counts.mandatory += 1;
+    if (type === "PREFERRED") counts.preferred += 1;
+
+    const outcome = String(req.requirement_outcome ?? "").toUpperCase();
+    if (outcome === "NOT_APPLICABLE") continue;
+
+    const display = qualificationDisplayStatus(req, blockingTexts);
+    if (display === "Confirmed") counts.confirmed += 1;
+    else if (display === "Not Met") counts.notMet += 1;
+    else if (display === "Blocking") counts.blocking += 1;
+    else counts.verify += 1;
+  }
+
+  return counts;
+}
+
+export function listingRequirementOutcomeCounts(
+  requirements: RequirementOutcomeCountRow[]
+): ListingRequirementOutcomeCounts {
+  const counts = countQualificationOutcomes(requirements);
+  return { confirmed: counts.confirmed, verify: counts.verify, notMet: counts.notMet };
+}
+
+export function groupRequirementOutcomeCountsByApplication(
+  rows: Array<RequirementOutcomeCountRow & { job_application_id: string }>
+): Map<string, ListingRequirementOutcomeCounts> {
+  const grouped = new Map<string, RequirementOutcomeCountRow[]>();
+  for (const row of rows) {
+    const id = String(row.job_application_id ?? "").trim();
+    if (!id) continue;
+    const list = grouped.get(id);
+    if (list) list.push(row);
+    else grouped.set(id, [row]);
+  }
+  const counts = new Map<string, ListingRequirementOutcomeCounts>();
+  for (const [id, items] of grouped) {
+    counts.set(id, listingRequirementOutcomeCounts(items));
+  }
+  return counts;
+}
+
 export function filterQualificationRequirements(
   requirements: QualificationRequirement[],
   filter: QualificationFilter,
@@ -125,7 +213,9 @@ export function filterQualificationRequirements(
       case "confirmed":
         return display === "Confirmed";
       case "needs_verification":
-        return display === "Needs Verification";
+        return display === "Needs Verification" || display === "Unknown";
+      case "not_met":
+        return display === "Not Met";
       case "blocking":
         return isBlockingRequirement(req, blockingTexts);
       default:

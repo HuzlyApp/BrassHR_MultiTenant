@@ -10,6 +10,7 @@ import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { isUuid } from "@/lib/validation/uuid";
 import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
 
 export const runtime = "nodejs";
 
@@ -193,6 +194,10 @@ export async function GET(req: NextRequest) {
       )
     );
     const recruitersById = await loadStaffUsersByIds(supabase, tenantId, recruiterIds);
+    const requirementCountsByApplication =
+      applicationIds.length > 0
+        ? await loadRequirementOutcomeCountsByApplication(supabase, tenantId, applicationIds)
+        : new Map();
 
     return NextResponse.json({
       applications: applications.map((row) => {
@@ -217,6 +222,7 @@ export async function GET(req: NextRequest) {
                 profilePhotoUrl: null,
               }
             : null,
+          ai_requirement_counts: requirementCountsByApplication.get(applicationId) ?? null,
         };
       }),
     });

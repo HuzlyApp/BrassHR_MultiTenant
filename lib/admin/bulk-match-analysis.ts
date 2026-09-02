@@ -10,6 +10,7 @@ export type BulkMatchAnalysisItem = {
     readiness?: string | null;
     error?: string | null;
     analysis?: { candidate_match?: { display_category?: string } } | null;
+    requirementCounts?: { confirmed: number; verify: number; notMet: number } | null;
   };
 };
 

@@ -2,6 +2,9 @@ export type ApplicationColumnId =
   | "candidates"
   | "contact"
   | "matches"
+  | "conf"
+  | "verify"
+  | "notMet"
   | "location"
   | "activity"
   | "currentStage"
@@ -18,6 +21,9 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
   { id: "candidates", label: "Candidate" },
   { id: "contact", label: "Contact" },
   { id: "matches", label: "Match %" },
+  { id: "conf", label: "Conf." },
+  { id: "verify", label: "Verify" },
+  { id: "notMet", label: "Not Met" },
   { id: "location", label: "Location" },
   { id: "activity", label: "Activity" },
   { id: "currentStage", label: "Current Stage" },
@@ -40,6 +46,9 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
   "contact",
   "matches",
+  "conf",
+  "verify",
+  "notMet",
   "currentStage",
   "dateApplied",
   "evaluation",
@@ -75,7 +84,10 @@ function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationC
   let next = [...order];
   next = insertAfter(next, "contact", "candidates");
   next = insertAfter(next, "matches", "contact");
-  next = insertAfter(next, "currentStage", "matches");
+  next = insertAfter(next, "conf", "matches");
+  next = insertAfter(next, "verify", "conf");
+  next = insertAfter(next, "notMet", "verify");
+  next = insertAfter(next, "currentStage", "notMet");
   next = insertAfter(next, "dateApplied", "currentStage");
   next = insertAfter(next, "evaluation", "dateApplied");
   next = insertAfter(next, "assignee", "evaluation");
@@ -127,6 +139,9 @@ export function applicationColumnLabel(id: ApplicationColumnId): string {
 /** Name stays left; Location left-aligned; remaining list columns centered. */
 const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "matches",
+  "conf",
+  "verify",
+  "notMet",
   "activity",
   "interest",
   "assignee",
@@ -143,6 +158,9 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   if (colId === "candidates") return "min-w-[220px]";
   if (colId === "contact") return "min-w-[200px]";
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
+  if (colId === "conf" || colId === "verify" || colId === "notMet") {
+    return `min-w-[72px] whitespace-nowrap${center}`;
+  }
   if (colId === "location") return "min-w-[120px] whitespace-nowrap";
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`;
   if (colId === "currentStage") return "min-w-[170px]";

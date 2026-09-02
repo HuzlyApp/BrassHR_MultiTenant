@@ -38,12 +38,14 @@ import {
   RECRUITER_DECISION_LABELS,
   VERIFIED_INFO_CATEGORIES,
   VERIFIED_INFO_CATEGORY_LABELS,
+  countQualificationOutcomes,
   filterQualificationRequirements,
   isVerifiedInfoCategory,
   qualificationDisplayStatus,
   recruiterActionLabel,
   type QualificationDisplayStatus,
   type QualificationFilter,
+  type QualificationOutcomeCounts,
   type QualificationRequirement,
   type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
@@ -123,6 +125,7 @@ const FILTERS = [
   "Preferred",
   "Confirmed",
   "Needs Verification",
+  "Not Met",
   "Blocking",
 ] as const;
 
@@ -204,6 +207,7 @@ const FILTER_TO_QUAL: Record<FilterId, QualificationFilter> = {
   Preferred: "preferred",
   Confirmed: "confirmed",
   "Needs Verification": "needs_verification",
+  "Not Met": "not_met",
   Blocking: "blocking",
 };
 
@@ -409,6 +413,52 @@ function statusBadgeClass(status: QualificationDisplayStatus) {
   if (status === "Blocking") return "bg-[#DC2626]";
   if (status === "Not Met") return "bg-[#EA580C]";
   return "bg-[#CA8A04]";
+}
+
+const OUTCOME_STAT_CARDS = [
+  {
+    filter: "Confirmed" as const,
+    label: "CONF.",
+    title: "Confirmed requirements",
+    valueClass: "text-[#16A34A]",
+    countKey: "confirmed" as const,
+  },
+  {
+    filter: "Needs Verification" as const,
+    label: "VERIFY",
+    title: "Requirements to verify",
+    valueClass: "text-[#EA580C]",
+    countKey: "verify" as const,
+  },
+  {
+    filter: "Not Met" as const,
+    label: "NOT MET",
+    title: "Requirements not met",
+    valueClass: "text-[#DC2626]",
+    countKey: "notMet" as const,
+  },
+];
+
+function filterCount(
+  item: FilterId,
+  counts: QualificationOutcomeCounts
+): number {
+  switch (item) {
+    case "All":
+      return counts.total;
+    case "Mandatory":
+      return counts.mandatory;
+    case "Preferred":
+      return counts.preferred;
+    case "Confirmed":
+      return counts.confirmed;
+    case "Needs Verification":
+      return counts.verify;
+    case "Not Met":
+      return counts.notMet;
+    case "Blocking":
+      return counts.blocking;
+  }
 }
 
 function ringStrokeColor(score: number | null | undefined): string {
@@ -709,6 +759,11 @@ export function AiAnalysisOverviewClient({
     [resumes, app?.ai_analyzed_at, isAnalyzed]
   );
 
+  const outcomeCounts = useMemo(
+    () => countQualificationOutcomes(data?.requirements ?? [], blocking),
+    [data?.requirements, blocking]
+  );
+
   const filteredRequirements = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = filterQualificationRequirements(
@@ -820,6 +875,43 @@ export function AiAnalysisOverviewClient({
                       </span>
                     ) : null}
                   </div>
+                  {isAnalyzed && outcomeCounts.total > 0 ? (
+                    <div
+                      className="mt-3 flex flex-wrap justify-center gap-2 min-[900px]:justify-start"
+                      aria-label="Requirement outcome counts"
+                    >
+                      {OUTCOME_STAT_CARDS.map((card) => {
+                        const active = filter === card.filter;
+                        return (
+                          <button
+                            key={card.label}
+                            type="button"
+                            title={card.title}
+                            aria-pressed={active}
+                            onClick={() => {
+                              setFilter(card.filter);
+                              document.getElementById("qualification-checklist")?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            }}
+                            className={`inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-1.5 transition ${
+                              active
+                                ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                                : "border-[#E5E7EB] bg-[#F8FAFC] hover:border-[#D0D5DD]"
+                            }`}
+                          >
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#667085]">
+                              {card.label}
+                            </span>
+                            <span className={`text-base font-semibold tabular-nums leading-5 ${card.valueClass}`}>
+                              {outcomeCounts[card.countKey]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="relative z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-2 min-[480px]:w-auto min-[480px]:justify-end min-[900px]:gap-3">
@@ -849,7 +941,7 @@ export function AiAnalysisOverviewClient({
             ) : null}
           </section>
 
-          <section className={CARD}>
+          <section className={CARD} id="qualification-checklist">
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -880,7 +972,7 @@ export function AiAnalysisOverviewClient({
                       }`}
                       style={active ? undefined : { color: branding.secondaryHex }}
                     >
-                      {item}
+                      {item} ({filterCount(item, outcomeCounts)})
                     </button>
                   );
                 })}

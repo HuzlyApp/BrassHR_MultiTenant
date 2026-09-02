@@ -104,7 +104,11 @@ function CandidateCard({
   secondaryColor: string;
 }) {
   return (
-    <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+    <Link
+      href={linkHref}
+      aria-label={`${linkLabel}: ${count} ${label}`}
+      className="flex min-h-[120px] cursor-pointer flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm transition hover:border-[#D0D5DD] hover:shadow-md"
+    >
       <div className="flex items-start gap-3">
         <BrandedSvgIcon
           src={iconSrc}
@@ -120,15 +124,14 @@ function CandidateCard({
           </p>
         </div>
       </div>
-      <Link
-        href={linkHref}
-        className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px] transition hover:opacity-80"
+      <span
+        className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px]"
         style={{ color: secondaryColor }}
       >
         {linkLabel}
         <BrandBackIcon flip />
-      </Link>
-    </div>
+      </span>
+    </Link>
   );
 }
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   aiScreeningQuestionKey,
+  countQualificationOutcomes,
   filterQualificationRequirements,
   formatRecruiterDecision,
+  groupRequirementOutcomeCountsByApplication,
   isRecruiterDecision,
   qualificationDisplayStatus,
   type QualificationRequirement,
@@ -59,6 +61,65 @@ describe("candidate analysis workspace helpers", () => {
     expect(filterQualificationRequirements(rows, "mandatory")).toHaveLength(1);
     expect(filterQualificationRequirements(rows, "preferred")[0]?.id).toBe("b");
     expect(filterQualificationRequirements(rows, "needs_verification")[0]?.id).toBe("a");
+    expect(filterQualificationRequirements(rows, "not_met")).toHaveLength(0);
+  });
+
+  it("rolls requirement outcomes into ranking CONF / VERIFY / NOT MET counts", () => {
+    const rows = [
+      req({
+        id: "c1",
+        requirement_outcome: "MET",
+        status: "CONFIRMED",
+        verification_required: false,
+      }),
+      req({
+        id: "c2",
+        requirement_outcome: "MET",
+        status: "CONFIRMED",
+        verification_required: false,
+        recruiter_verified: true,
+      }),
+      req({ id: "v1", requirement_outcome: "VERIFY", verification_required: true }),
+      req({ id: "v2", requirement_outcome: "VERIFY", verification_required: true }),
+      req({
+        id: "n1",
+        requirement_outcome: "NOT_MET",
+        status: "NOT_FOUND",
+        verification_required: false,
+      }),
+      req({
+        id: "b1",
+        requirement_outcome: "CONFLICT",
+        status: "CONFLICTING",
+        verification_required: false,
+      }),
+      req({
+        id: "na",
+        requirement_outcome: "NOT_APPLICABLE",
+        status: "NOT_APPLICABLE",
+        verification_required: false,
+      }),
+    ];
+    expect(countQualificationOutcomes(rows)).toEqual({
+      confirmed: 2,
+      verify: 2,
+      notMet: 1,
+      blocking: 1,
+      mandatory: 7,
+      preferred: 0,
+      total: 7,
+    });
+    expect(groupRequirementOutcomeCountsByApplication([
+      { ...rows[0], job_application_id: "app-1" },
+      { ...rows[1], job_application_id: "app-1" },
+      { ...rows[2], job_application_id: "app-2" },
+      { ...rows[3], job_application_id: "app-2" },
+    ])).toEqual(
+      new Map([
+        ["app-1", { confirmed: 2, verify: 0, notMet: 0 }],
+        ["app-2", { confirmed: 0, verify: 2, notMet: 0 }],
+      ])
+    );
   });
 
   it("scopes AI screening answer keys by question text", () => {

@@ -108,9 +108,13 @@ import {
   type ApplicationStatusOption,
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
-import { MatchScoreCell } from "./MatchAnalysisPanel";
+import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
 import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
+import {
+  listingRequirementOutcomeCounts,
+  type ListingRequirementOutcomeCounts,
+} from "@/lib/jobs/match-analysis/workspace";
 import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
@@ -142,6 +146,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
   assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
   application_statuses?:
@@ -153,6 +158,31 @@ type ApplicationRow = {
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
   worker?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
+
+function requirementCountsFromAnalyzePayload(payload: {
+  requirementCounts?: ListingRequirementOutcomeCounts | null;
+  requirements?: Array<{
+    requirement_type?: string;
+    status?: string;
+    requirement_outcome?: string;
+    verification_required?: boolean;
+    recruiter_verified?: boolean;
+  }>;
+}): ListingRequirementOutcomeCounts | null {
+  if (payload.requirementCounts) return payload.requirementCounts;
+  if (Array.isArray(payload.requirements) && payload.requirements.length) {
+    return listingRequirementOutcomeCounts(
+      payload.requirements.map((row) => ({
+        requirement_type: String(row.requirement_type ?? ""),
+        status: String(row.status ?? ""),
+        requirement_outcome: String(row.requirement_outcome ?? ""),
+        verification_required: Boolean(row.verification_required),
+        recruiter_verified: Boolean(row.recruiter_verified),
+      }))
+    );
+  }
+  return null;
+}
 
 type JobHeader = {
   id: string;
@@ -1456,6 +1486,7 @@ export default function JobApplicationsPage() {
           ai_match_action: null,
           ai_match_readiness: null,
           ai_match_display_category: null,
+          ai_requirement_counts: null,
         };
       })
     );
@@ -1499,6 +1530,7 @@ export default function JobApplicationsPage() {
                   ai_match_action: matchPayload.action ?? null,
                   ai_match_readiness: matchPayload.readiness ?? null,
                   ai_match_display_category: matchPayload.displayCategory ?? null,
+                  ai_requirement_counts: requirementCountsFromAnalyzePayload(matchPayload),
                 }
               : row
           )
@@ -1803,6 +1835,8 @@ export default function JobApplicationsPage() {
                 ai_match_display_category:
                   payload.analysis?.candidate_match?.display_category ??
                   row.ai_match_display_category,
+                ai_requirement_counts:
+                  requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
               }
             : row
         )
@@ -1837,6 +1871,7 @@ export default function JobApplicationsPage() {
       ai_match_readiness: result.readiness ?? row.ai_match_readiness,
       ai_match_display_category:
         result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
     };
   }
 
@@ -1954,6 +1989,30 @@ export default function JobApplicationsPage() {
             score={row.ai_match_score}
             analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={() => void runMatchAnalyze(row.id)}
+          />
+        );
+      case "conf":
+        return (
+          <RequirementOutcomeCountCell
+            tone="conf"
+            analyzed={row.ai_match_status === "ANALYZED"}
+            value={row.ai_requirement_counts?.confirmed}
+          />
+        );
+      case "verify":
+        return (
+          <RequirementOutcomeCountCell
+            tone="verify"
+            analyzed={row.ai_match_status === "ANALYZED"}
+            value={row.ai_requirement_counts?.verify}
+          />
+        );
+      case "notMet":
+        return (
+          <RequirementOutcomeCountCell
+            tone="notMet"
+            analyzed={row.ai_match_status === "ANALYZED"}
+            value={row.ai_requirement_counts?.notMet}
           />
         );
       case "location": {
