@@ -59,5 +59,7 @@ describe("isVisibleOnJobCandidatesAllTab", () => {
         application_statuses: { system_key: "archived" },
       })
     ).toBe(true);
+    expect(isVisibleOnJobCandidatesAllTab({})).toBe(true);
+    expect(isVisibleOnJobCandidatesAllTab({ status: null })).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ export type ApplicationStatusTabOption = {
 };
 
 export type ApplicationStatusTabRow = {
-  status: string;
+  status?: string | null;
   status_id?: string | null;
   application_statuses?:
     | { id?: string; system_key?: string | null }
@@ -19,6 +19,10 @@ function oneStatusJoin(
 ): { id?: string; system_key?: string | null } | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function rowStatusValue(row: ApplicationStatusTabRow): string {
+  return String(row.status ?? "");
 }
 
 export function applicationRowStatusId(row: ApplicationStatusTabRow): string | null {
@@ -71,7 +75,7 @@ export function matchesApplicationStatusTab(
   if (statusId) return statusId === targetId;
 
   if (option?.systemKey) {
-    return normalizeApplicationStatus(row.status) === option.systemKey;
+    return normalizeApplicationStatus(rowStatusValue(row)) === option.systemKey;
   }
-  return normalizeApplicationStatus(row.status) === tab;
+  return normalizeApplicationStatus(rowStatusValue(row)) === tab;
 }
