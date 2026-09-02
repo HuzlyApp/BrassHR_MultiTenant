@@ -39,7 +39,7 @@ type JobsGridViewProps = {
   onUnarchive: (jobId: string) => void;
 };
 
-const MENU_WIDTH = 168;
+const MENU_WIDTH = 188;
 const MENU_ESTIMATED_HEIGHT = 180;
 const MENU_ITEM_CLASS =
   "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-[color:var(--brand-secondary)] transition hover:bg-[color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
@@ -150,7 +150,7 @@ function JobGridCardMenu({
         }}
       >
         <PlusSquare className={MENU_ICON_CLASS} aria-hidden />
-        Add
+        Add Candidate
       </button>
       {!archived ? (
         <Link
@@ -160,7 +160,7 @@ function JobGridCardMenu({
           onClick={onClose}
         >
           <SquarePen className={MENU_ICON_CLASS} aria-hidden />
-          Edit
+          Edit Job
         </Link>
       ) : null}
       <button
@@ -173,7 +173,7 @@ function JobGridCardMenu({
         }}
       >
         <Trash2 className={MENU_ICON_CLASS} aria-hidden />
-        Delete
+        Delete Job
       </button>
       <button
         type="button"
@@ -186,7 +186,7 @@ function JobGridCardMenu({
         }}
       >
         <Archive className={MENU_ICON_CLASS} aria-hidden />
-        {archived ? "Unarchive" : "Archive"}
+        {archived ? "Unarchive Job" : "Archive Job"}
       </button>
     </div>,
     document.body

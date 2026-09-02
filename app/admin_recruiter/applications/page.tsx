@@ -649,6 +649,7 @@ export default function JobApplicationsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const [actionTargetRowId, setActionTargetRowId] = useState<string | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
@@ -1313,7 +1314,12 @@ export default function JobApplicationsPage() {
   const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
 
   function rowsForExport() {
-    return filteredRows.map((row) => ({
+    const base =
+      selectedIds.size === 0
+        ? filteredRows
+        : filteredRows.filter((row) => selectedIds.has(row.id));
+    const rowsToExport = base.length > 0 ? base : filteredRows;
+    return rowsToExport.map((row) => ({
       ...row,
       statusName: rowStatusName(row, statusOptions),
     }));
@@ -1437,6 +1443,40 @@ export default function JobApplicationsPage() {
     setPendingDeleteIds([applicationId]);
     setDeleteError(null);
     setDeleteConfirmOpen(true);
+  }
+
+  async function handleBulkArchiveSelected() {
+    const ids = [...selectedIds];
+    if (archiveBusy || ids.length === 0) return;
+    const archivedOption = statusOptions.find((option) => option.systemKey === "archived");
+    if (!archivedOption) {
+      toast.error("Archived status is not configured for this organization.");
+      return;
+    }
+    setArchiveBusy(true);
+    let archived = 0;
+    try {
+      for (const id of ids) {
+        const row = rows.find((item) => item.id === id);
+        if (!row || isRowArchived(row, statusOptions)) continue;
+        const ok = await applyApplicationStatus(
+          id,
+          archivedOption,
+          "Archived from candidates list"
+        );
+        if (ok) archived += 1;
+      }
+      if (archived > 0) {
+        toast.success(`Archived ${archived} candidate${archived === 1 ? "" : "s"}`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+        setSelectedIds(new Set());
+      } else {
+        toast.success("No candidates needed archiving");
+      }
+    } finally {
+      setArchiveBusy(false);
+    }
   }
 
   function beginUpdateResume(applicationId: string) {
@@ -2566,6 +2606,8 @@ export default function JobApplicationsPage() {
           }
           claimBusy={claimBusy}
           analyzeBusy={bulkAnalyzeBusy || Boolean(matchAnalyzingId)}
+          archiveBusy={archiveBusy}
+          deleteBusy={deleteBusy}
           analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
           reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
           onAnalyze={
@@ -2578,6 +2620,15 @@ export default function JobApplicationsPage() {
               ? () => void runBulkMatchAnalyze(selectedReanalyzeIds)
               : undefined
           }
+          onArchive={() => void handleBulkArchiveSelected()}
+          onDelete={() => {
+            setPendingDeleteIds([]);
+            setDeleteError(null);
+            setDeleteConfirmOpen(true);
+          }}
+          onExportCsv={handleExportApplicationsCsv}
+          onExportXls={handleExportApplicationsXls}
+          exportDisabled={rowsForExport().length === 0}
           hideClaim
           onClear={() => setSelectedIds(new Set())}
         />

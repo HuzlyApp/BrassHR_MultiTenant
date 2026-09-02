@@ -2,21 +2,18 @@
 
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
+import {
+  BULK_SELECTION_SNACKBAR_CLASS,
+  BULK_SELECTION_SNACKBAR_LABEL_CLASS,
+  BULK_SELECTION_SNACKBAR_ACTION_CLASS,
+  BULK_SELECTION_SNACKBAR_ICON_BTN_CLASS,
+} from "@/app/admin_recruiter/components/bulk-selection-snackbar-styles";
 import { RotateCcw } from "lucide-react";
 
 const JOBS_UNPUBLISH_ICON_SRC = "/icons/jobs-icons/unpublish.svg";
 const JOBS_IMPORT_MSP_ICON_SRC = "/icons/jobs-icons/import-msp.svg";
 const JOBS_ARCHIVE_ICON_SRC = "/icons/jobs-icons/archived.svg";
 const JOBS_DELETE_ICON_SRC = "/icons/delete-icon.svg";
-
-const SNACKBAR_CLASS =
-  "flex flex-col gap-3 border-b border-[#E5E7EB] bg-white px-[14px] py-3 sm:flex-row sm:items-center sm:justify-between";
-
-const SNACKBAR_ACTION_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
-
-const SNACKBAR_ICON_BTN_CLASS =
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
 
 type JobsBulkSelectionSnackbarProps = {
   totalSelectedCount: number;
@@ -73,8 +70,8 @@ export function JobsBulkSelectionSnackbar({
     totalSelectedCount === 1 ? "1 job selected" : `${totalSelectedCount} jobs selected`;
 
   return (
-    <div className={SNACKBAR_CLASS} role="status" aria-live="polite">
-      <p className="text-sm font-semibold leading-5 text-[color:var(--brand-secondary)]">
+    <div className={BULK_SELECTION_SNACKBAR_CLASS} role="status" aria-live="polite">
+      <p className={BULK_SELECTION_SNACKBAR_LABEL_CLASS}>
         {selectionLabel}
       </p>
 
@@ -83,7 +80,7 @@ export function JobsBulkSelectionSnackbar({
           type="button"
           onClick={onUnpublish}
           disabled={busy || unpublishDisabled}
-          className={SNACKBAR_ACTION_CLASS}
+          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
         >
           <SnackbarGlyph src={JOBS_UNPUBLISH_ICON_SRC} className="h-[9.33px] w-[14px]" />
           Unpublish
@@ -92,7 +89,7 @@ export function JobsBulkSelectionSnackbar({
           type="button"
           onClick={onArchive}
           disabled={busy || archiveDisabled}
-          className={SNACKBAR_ACTION_CLASS}
+          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
         >
           <SnackbarGlyph src={JOBS_ARCHIVE_ICON_SRC} className="size-3.5" />
           Archive
@@ -101,7 +98,7 @@ export function JobsBulkSelectionSnackbar({
           type="button"
           onClick={onDelete}
           disabled={busy || deleteDisabled}
-          className={SNACKBAR_ACTION_CLASS}
+          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
         >
           <SnackbarGlyph src={JOBS_DELETE_ICON_SRC} className="size-4" />
           Delete
@@ -116,7 +113,7 @@ export function JobsBulkSelectionSnackbar({
           type="button"
           onClick={onImportFromMsp}
           disabled={busy}
-          className={SNACKBAR_ACTION_CLASS}
+          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
         >
           <SnackbarGlyph src={JOBS_IMPORT_MSP_ICON_SRC} className="h-[11.87px] w-[13.2px]" />
           <span className="whitespace-nowrap">
@@ -127,7 +124,7 @@ export function JobsBulkSelectionSnackbar({
           type="button"
           onClick={onClear}
           disabled={busy}
-          className={SNACKBAR_ICON_BTN_CLASS}
+          className={BULK_SELECTION_SNACKBAR_ICON_BTN_CLASS}
           aria-label="Clear selection"
           title="Clear selection"
         >

@@ -65,6 +65,7 @@ import {
   bulkReanalyzeSelectedLabel,
   partitionMatchAnalysisTargets,
 } from "@/lib/admin/bulk-match-analysis";
+import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
@@ -229,6 +230,7 @@ export default function CandidatesPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -600,6 +602,65 @@ export default function CandidatesPage() {
     );
   const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
 
+  const exportCandidates = useMemo(() => {
+    if (selection.selectedCount === 0) return visibleCandidates;
+    const selected = visibleCandidates.filter((row) => selection.selectedIds.has(row.id));
+    return selected.length > 0 ? selected : visibleCandidates;
+  }, [visibleCandidates, selection.selectedCount, selection.selectedIds]);
+
+  const handleExportCandidatesCsv = useCallback(() => {
+    if (exportCandidates.length === 0) {
+      toast.error("No candidates to export");
+      return;
+    }
+    exportCandidatesCsv(exportCandidates, { columnOrder: listColumnOrder });
+  }, [exportCandidates, listColumnOrder]);
+
+  const handleExportCandidatesXls = useCallback(() => {
+    if (exportCandidates.length === 0) {
+      toast.error("No candidates to export");
+      return;
+    }
+    exportCandidatesXls(exportCandidates, { columnOrder: listColumnOrder });
+  }, [exportCandidates, listColumnOrder]);
+
+  async function handleBulkArchiveSelected() {
+    const applicationIds = selectedCandidates
+      .map((row) => row.matchApplicationId?.trim() ?? "")
+      .filter(Boolean);
+    if (archiveBusy) return;
+    if (applicationIds.length === 0) {
+      toast.error("Selected candidates have no linked job applications to archive.");
+      return;
+    }
+    setArchiveBusy(true);
+    try {
+      const { archived, failed } = await bulkArchiveApplications(applicationIds);
+      if (archived > 0) {
+        toast.success(`Archived ${archived} candidate${archived === 1 ? "" : "s"}`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+        if (advancedSearchContext.active) {
+          void loadCandidates(null);
+        } else {
+          void loadCandidates();
+        }
+        selection.clearSelection();
+      } else if (failed === 0) {
+        toast.success("No candidates needed archiving");
+      }
+      if (failed > 0) {
+        toast.error(`Failed to archive ${failed} candidate${failed === 1 ? "" : "s"}`);
+      }
+    } catch (archiveErr) {
+      toast.error(
+        archiveErr instanceof Error ? archiveErr.message : "Failed to archive candidates"
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
   async function runSelectedMatchAnalyze(applicationIds: string[]) {
     if (bulkAnalyzeBusy) return;
     await runCandidateListBulkMatchAnalyze({
@@ -790,8 +851,8 @@ export default function CandidatesPage() {
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(visibleCandidates)}
-        onExportXls={() => exportCandidatesXls(visibleCandidates)}
+        onExportCsv={handleExportCandidatesCsv}
+        onExportXls={handleExportCandidatesXls}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
         loading={loading}
@@ -841,6 +902,8 @@ export default function CandidatesPage() {
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
                   analyzeBusy={bulkAnalyzeBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
                   analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
                   reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
                   onAnalyze={
@@ -855,7 +918,15 @@ export default function CandidatesPage() {
                       ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
                       : undefined
                   }
-                  onClaim={openClaimConfirm}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
                   onClear={selection.clearSelection}
                 />
                 <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
