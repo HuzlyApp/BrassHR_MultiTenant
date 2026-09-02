@@ -93,6 +93,7 @@ type JobsDashboardProps = {
   hotJobIds: Set<string>;
   totalCandidateCount?: number | null;
   onAddCandidate: (job: JobListRow) => void;
+  onImportCandidates: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
   onUnarchive: (jobId: string) => void;
@@ -268,6 +269,7 @@ export function JobsDashboard({
   hotJobIds,
   totalCandidateCount = null,
   onAddCandidate,
+  onImportCandidates,
   onDelete,
   onArchive,
   onUnarchive,
@@ -416,6 +418,7 @@ export function JobsDashboard({
           hotJobIds={hotJobIds}
           padded={false}
           onAddCandidate={onAddCandidate}
+          onImportCandidates={onImportCandidates}
           onDelete={onDelete}
           onArchive={onArchive}
           onUnarchive={onUnarchive}

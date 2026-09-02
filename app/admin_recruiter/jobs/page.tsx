@@ -57,6 +57,7 @@ import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import { JobsGridView } from "./JobsGridView";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
+import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -516,8 +517,8 @@ function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): b
   }
 }
 
-const JOB_ACTIONS_MENU_WIDTH = 150;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 320;
+const JOB_ACTIONS_MENU_WIDTH = 184;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 400;
 
 function canRepublishClosedJob(job: JobListRow): boolean {
   return isJobRequisitionOpen({ application_deadline: job.application_deadline });
@@ -530,6 +531,8 @@ function JobActionsMenuPortal({
   onClose,
   onTransition,
   onImportFromMsp,
+  onAddCandidate,
+  onImportCandidates,
 }: {
   job: JobListRow;
   anchor: HTMLElement;
@@ -537,6 +540,8 @@ function JobActionsMenuPortal({
   onClose: () => void;
   onTransition: (jobId: string, action: "publish" | "unpublish" | "close" | "archive" | "unarchive") => void;
   onImportFromMsp: () => void;
+  onAddCandidate: (job: JobListRow) => void;
+  onImportCandidates: (job: JobListRow) => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -613,6 +618,32 @@ function JobActionsMenuPortal({
         >
           Edit
         </Link>
+      ) : null}
+      {status !== "archived" ? (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onAddCandidate(job);
+              onClose();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]"
+          >
+            Add candidate
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onImportCandidates(job);
+              onClose();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]"
+          >
+            Import Candidates
+          </button>
+        </>
       ) : null}
       {publicHref ? (
         <Link
@@ -797,6 +828,7 @@ export default function AdminRecruiterJobsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [addCandidateJob, setAddCandidateJob] = useState<{ id: string; title: string } | null>(null);
+  const [importCandidateJobId, setImportCandidateJobId] = useState<string | null>(null);
 
   const [professionFilter, setProfessionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -1382,6 +1414,9 @@ export default function AdminRecruiterJobsPage() {
           onAddCandidate={(job) => {
             setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
           }}
+          onImportCandidates={(job) => {
+            setImportCandidateJobId(job.id);
+          }}
           onDelete={(jobId) => {
             setSelectedIds(new Set([jobId]));
             setDeleteError(null);
@@ -1400,6 +1435,15 @@ export default function AdminRecruiterJobsPage() {
           jobId={addCandidateJob?.id ?? ""}
           jobTitle={addCandidateJob?.title}
           onSuccess={() => {
+            void load();
+          }}
+        />
+        <ImportCandidatesModal
+          open={Boolean(importCandidateJobId)}
+          jobId={importCandidateJobId ?? ""}
+          onClose={() => setImportCandidateJobId(null)}
+          onImported={() => {
+            setImportCandidateJobId(null);
             void load();
           }}
         />
@@ -1627,6 +1671,9 @@ export default function AdminRecruiterJobsPage() {
             onAddCandidate={(job) => {
               setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
             }}
+            onImportCandidates={(job) => {
+              setImportCandidateJobId(job.id);
+            }}
             onDelete={(jobId) => {
               setSelectedIds(new Set([jobId]));
               setDeleteError(null);
@@ -1764,6 +1811,12 @@ export default function AdminRecruiterJobsPage() {
           onClose={() => setOpenActionsMenu(null)}
           onTransition={(jobId, action) => void transition(jobId, action)}
           onImportFromMsp={handleImportFromMsp}
+          onAddCandidate={(job) => {
+            setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+          }}
+          onImportCandidates={(job) => {
+            setImportCandidateJobId(job.id);
+          }}
         />
       ) : null}
 
@@ -1806,6 +1859,16 @@ export default function AdminRecruiterJobsPage() {
         jobId={addCandidateJob?.id ?? ""}
         jobTitle={addCandidateJob?.title}
         onSuccess={() => {
+          void load();
+        }}
+      />
+
+      <ImportCandidatesModal
+        open={Boolean(importCandidateJobId)}
+        jobId={importCandidateJobId ?? ""}
+        onClose={() => setImportCandidateJobId(null)}
+        onImported={() => {
+          setImportCandidateJobId(null);
           void load();
         }}
       />
