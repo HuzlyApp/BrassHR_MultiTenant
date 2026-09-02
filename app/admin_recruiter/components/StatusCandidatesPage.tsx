@@ -9,7 +9,10 @@ import { exportCandidatesCsv, exportCandidatesXls } from "../candidates/export-c
 import { EditColumnsModal } from "../candidates/EditColumnsModal";
 import {
   columnLabel,
+  candidateListColumnAlignmentClassName,
   candidateListColumnClassName,
+  CANDIDATE_LIST_TABLE_CLASS,
+  CANDIDATE_LIST_TABLE_SCROLL_CLASS,
   DEFAULT_CANDIDATE_COLUMNS,
   loadColumnOrder,
   saveColumnOrder,
@@ -22,6 +25,7 @@ import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge
 import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
+import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
@@ -176,7 +180,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [appliedDateFrom, setAppliedDateFrom] = useState("");
+  const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -290,17 +295,11 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
-    if (dateFilter) {
-      out = out.filter((c) => {
-        if (!c.createdAt) return false;
-        const d = new Date(c.createdAt);
-        if (Number.isNaN(d.getTime())) return false;
-        const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return ymd === dateFilter;
-      });
+    if (appliedDateFrom || appliedDateTo) {
+      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
+  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]);
 
   const hasActiveListFilters = useMemo(
     () =>
@@ -309,9 +308,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           jobRoleFilter ||
           statusFilter ||
           locationFilter ||
-          dateFilter
+          appliedDateFrom ||
+          appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+    [query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const listDisplayTotal = useMemo(
@@ -326,7 +326,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -355,8 +355,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }, [pageSelectableRows]);
 
   const selectionClearKey = useMemo(
-    () => [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, dateFilter].join("|"),
-    [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]
+    () => [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo].join("|"),
+    [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const selection = usePageSelection({
@@ -482,8 +482,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
-        dateFilter={dateFilter}
-        onDateFilterChange={setDateFilter}
+        appliedDateFrom={appliedDateFrom}
+        appliedDateTo={appliedDateTo}
+        onAppliedDateFromChange={setAppliedDateFrom}
+        onAppliedDateToChange={setAppliedDateTo}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
@@ -521,7 +523,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           if (view === "list") {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
-              <div className="w-full overflow-hidden">
+              <div className="w-full">
                 <CandidateBulkSelectionBar
                   selectedCount={selection.selectedCount}
                   eligibleCount={selection.selectedEligibleCount}
@@ -545,8 +547,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                   onClaim={openClaimConfirm}
                   onClear={selection.clearSelection}
                 />
-                <div className="w-full overflow-auto">
-                  <table className="w-full min-w-[820px] border-collapse">
+                <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
+                  <table className={CANDIDATE_LIST_TABLE_CLASS}>
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -562,7 +564,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnClassName(colId)}`}
+                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
                           </th>
@@ -593,7 +595,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                           {cols.map((colId) => (
                             <td
                               key={colId}
-                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnClassName(colId)}`}
+                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                             >
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,

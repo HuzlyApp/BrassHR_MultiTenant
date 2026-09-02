@@ -37,9 +37,9 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
   { id: "status", label: "Status" },
   { id: "reference", label: "Reference" },
   { id: "jobRole", label: "Job Role" },
-  { id: "matchJob", label: "Match Job" },
-  { id: "jobMatch", label: "Job Match" },
-  { id: "createdDate", label: "Created Date" },
+  { id: "matchJob", label: "Job title" },
+  { id: "jobMatch", label: "Match Score" },
+  { id: "createdDate", label: "Applied date" },
   { id: "location", label: "Location" },
   { id: "city", label: "City" },
   { id: "zipCode", label: "Zip Code" },
@@ -130,6 +130,15 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "jobMatch") return "min-w-[88px] whitespace-nowrap"
-  if (colId === "matchJob") return "min-w-[200px] max-w-[320px]"
+  if (colId === "matchJob") return "min-w-[200px] whitespace-nowrap"
+  if (colId === "location") return "min-w-[220px] whitespace-nowrap"
   return ""
 }
+
+/** Name stays left-aligned; other list columns are centered. */
+export function candidateListColumnAlignmentClassName(colId: CandidateColumnId): string {
+  return colId === "name" ? "text-left" : "text-center"
+}
+
+export const CANDIDATE_LIST_TABLE_SCROLL_CLASS = "w-full overflow-x-auto"
+export const CANDIDATE_LIST_TABLE_CLASS = "w-max min-w-full border-collapse"

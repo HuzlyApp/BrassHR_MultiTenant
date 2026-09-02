@@ -39,11 +39,16 @@ export type CandidatesListShellProps = {
   onJobRoleFilterChange: (value: string) => void;
   locationFilter: string;
   onLocationFilterChange: (value: string) => void;
-  dateFilter: string;
-  onDateFilterChange: (value: string) => void;
+  appliedDateFrom: string;
+  appliedDateTo: string;
+  onAppliedDateFromChange: (value: string) => void;
+  onAppliedDateToChange: (value: string) => void;
   statusFilter?: string;
   onStatusFilterChange?: (value: string) => void;
   statusOptions?: string[];
+  jobFilter?: string;
+  onJobFilterChange?: (value: string) => void;
+  jobOptions?: string[];
   jobRoleOptions: string[];
   locationOptions: string[];
   view: "card" | "list";
@@ -74,6 +79,8 @@ export type CandidatesListShellProps = {
   /** Legacy `/admin_recruiter/candidates`: hide Claim Candidates and show Export in the toolbar. */
   hideClaimCandidates?: boolean;
   exportInToolbar?: boolean;
+  /** Legacy `/admin_recruiter/candidates`: hide Score, Work Types, and Stages toolbar filters. */
+  simplifiedToolbarFilters?: boolean;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -261,11 +268,16 @@ export function CandidatesListShell({
   onJobRoleFilterChange,
   locationFilter,
   onLocationFilterChange,
-  dateFilter,
-  onDateFilterChange,
+  appliedDateFrom,
+  appliedDateTo,
+  onAppliedDateFromChange,
+  onAppliedDateToChange,
   statusFilter = "",
   onStatusFilterChange,
   statusOptions = [],
+  jobFilter: jobFilterProp,
+  onJobFilterChange,
+  jobOptions = [],
   jobRoleOptions,
   locationOptions,
   view,
@@ -292,6 +304,7 @@ export function CandidatesListShell({
   hideAddCandidate = false,
   hideClaimCandidates = false,
   exportInToolbar = false,
+  simplifiedToolbarFilters = false,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
@@ -299,7 +312,9 @@ export function CandidatesListShell({
   children,
 }: CandidatesListShellProps) {
   const [scoreSort, setScoreSort] = useState("");
-  const [jobFilter, setJobFilter] = useState("");
+  const [internalJobFilter, setInternalJobFilter] = useState("");
+  const jobFilter = jobFilterProp ?? internalJobFilter;
+  const setJobFilter = onJobFilterChange ?? setInternalJobFilter;
   const [stageFilter, setStageFilter] = useState("");
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
@@ -314,12 +329,15 @@ export function CandidatesListShell({
       jobFilter,
       stageFilter,
       locationFilter,
-      dateFilter,
+      appliedDateFrom,
+      appliedDateTo,
     }),
-    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, dateFilter]
+    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
-  const activeFilterCount = countActiveCandidatesFilters(filterValues);
+  const activeFilterCount = simplifiedToolbarFilters
+    ? [statusFilter, jobFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean).length
+    : countActiveCandidatesFilters(filterValues);
 
   function applyFilterValues(next: CandidatesFilterValues) {
     setScoreSort(next.scoreSort);
@@ -328,10 +346,19 @@ export function CandidatesListShell({
     setJobFilter(next.jobFilter);
     setStageFilter(next.stageFilter);
     onLocationFilterChange(next.locationFilter);
-    onDateFilterChange(next.dateFilter);
+    onAppliedDateFromChange(next.appliedDateFrom);
+    onAppliedDateToChange(next.appliedDateTo);
   }
 
   function clearAllFilters() {
+    if (simplifiedToolbarFilters) {
+      onStatusFilterChange?.("");
+      setJobFilter("");
+      onLocationFilterChange("");
+      onAppliedDateFromChange("");
+      onAppliedDateToChange("");
+      return;
+    }
     applyFilterValues({ ...EMPTY_CANDIDATES_FILTERS });
   }
 
@@ -508,23 +535,28 @@ export function CandidatesListShell({
           </button>
 
           <div className="hidden lg:contents">
-            <CompactFilterSelect
-              ariaLabel="Score"
-              placeholder="Score (high-low)"
-              value={scoreSort}
-              onChange={setScoreSort}
-              options={[
-                { value: "high-low", label: "Score (high-low)" },
-                { value: "low-high", label: "Score (low-high)" },
-              ]}
-            />
-            <CompactFilterSelect
-              ariaLabel="Work types"
-              placeholder="All Work Types"
-              value={jobRoleFilter}
-              onChange={onJobRoleFilterChange}
-              options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
-            />
+            {/* Score + Work Types — hidden on All candidates screen */}
+            {!simplifiedToolbarFilters ? (
+              <>
+                <CompactFilterSelect
+                  ariaLabel="Score"
+                  placeholder="Score (high-low)"
+                  value={scoreSort}
+                  onChange={setScoreSort}
+                  options={[
+                    { value: "high-low", label: "Score (high-low)" },
+                    { value: "low-high", label: "Score (low-high)" },
+                  ]}
+                />
+                <CompactFilterSelect
+                  ariaLabel="Work types"
+                  placeholder="All Work Types"
+                  value={jobRoleFilter}
+                  onChange={onJobRoleFilterChange}
+                  options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
+                />
+              </>
+            ) : null}
             <CompactFilterSelect
               ariaLabel="Status"
               placeholder="All Status"
@@ -537,15 +569,18 @@ export function CandidatesListShell({
               placeholder="All Jobs"
               value={jobFilter}
               onChange={setJobFilter}
-              options={[]}
+              options={jobOptions.map((job) => ({ value: job, label: job }))}
             />
-            <CompactFilterSelect
-              ariaLabel="Stages"
-              placeholder="Stages"
-              value={stageFilter}
-              onChange={setStageFilter}
-              options={[]}
-            />
+            {/* Stages — hidden on All candidates screen */}
+            {!simplifiedToolbarFilters ? (
+              <CompactFilterSelect
+                ariaLabel="Stages"
+                placeholder="Stages"
+                value={stageFilter}
+                onChange={setStageFilter}
+                options={[]}
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => setFiltersModalOpen(true)}
@@ -611,7 +646,9 @@ export function CandidatesListShell({
           jobRoleOptions,
           statusOptions,
           locationOptions,
+          jobOptions,
         }}
+        simplifiedFilters={simplifiedToolbarFilters}
         onSave={applyFilterValues}
         onAdvancedSearch={onAdvancedSearch}
       />
