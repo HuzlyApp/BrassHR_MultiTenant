@@ -6,6 +6,12 @@ import { parseRequiredUuid } from "@/lib/validation/uuid";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path";
+import {
+  buildDocxResumePreviewHtml,
+  DOCX_PREVIEW_HTML_HEADERS,
+  wordResumePreviewFallbackHtml,
+} from "@/lib/resume/docx-to-preview-html";
+import { resolveResumeFileType } from "@/lib/resume/validate-resume-upload";
 
 export const runtime = "nodejs";
 
@@ -71,16 +77,47 @@ export async function GET(req: NextRequest) {
     }
 
     const fileName = fileNameFromPath(resumePath);
-    const contentType = blob.type || "application/octet-stream";
     const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const fileType = resolveResumeFileType({ name: fileName, type: blob.type });
 
-    return new NextResponse(Buffer.from(arrayBuffer), {
+    if (fileType === "docx") {
+      try {
+        const html = await buildDocxResumePreviewHtml(buffer);
+        return new NextResponse(html, { status: 200, headers: DOCX_PREVIEW_HTML_HEADERS });
+      } catch (err) {
+        console.error("[admin/worker-resume-preview] docx preview", err);
+        return new NextResponse(
+          wordResumePreviewFallbackHtml(
+            "This Word resume could not be previewed. Use Download Resume to open the original file."
+          ),
+          { status: 200, headers: DOCX_PREVIEW_HTML_HEADERS }
+        );
+      }
+    }
+
+    if (fileType === "doc") {
+      return new NextResponse(
+        wordResumePreviewFallbackHtml(
+          "Legacy .doc files cannot be previewed in the browser. Use Download Resume to open the file."
+        ),
+        { status: 200, headers: DOCX_PREVIEW_HTML_HEADERS }
+      );
+    }
+
+    const looksLikePdf =
+      fileType === "pdf" ||
+      (buffer.length >= 4 && buffer.subarray(0, 4).toString("latin1") === "%PDF");
+    const contentType = looksLikePdf ? "application/pdf" : blob.type || "application/octet-stream";
+
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": `inline; filename="${fileName}"`,
         "Cache-Control": "private, max-age=120",
         "X-Frame-Options": "SAMEORIGIN",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (err) {
