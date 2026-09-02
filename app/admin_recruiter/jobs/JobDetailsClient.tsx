@@ -11,6 +11,8 @@ import {
 } from "react";
 import { ChevronDown, MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
+import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
+import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -21,6 +23,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobStatus } from "@/lib/jobs/types";
 import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import {
+  JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_SURFACE_CLASS,
@@ -158,12 +161,17 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, {
         cache: "no-store",
@@ -180,9 +188,9 @@ export default function JobDetailsClient({ jobId }: Props) {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
-      setJob(null);
+      if (!silent) setJob(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [branding.companyName, jobId]);
 
@@ -423,8 +431,34 @@ export default function JobDetailsClient({ jobId }: Props) {
                   {actionsOpen ? (
                     <div
                       role="menu"
-                      className="absolute right-0 z-30 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                      className="absolute right-0 z-30 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
                     >
+                      {job.status !== "archived" ? (
+                        <>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                            onClick={() => {
+                              setActionsOpen(false);
+                              setImportOpen(true);
+                            }}
+                          >
+                            Import Candidates
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                            onClick={() => {
+                              setActionsOpen(false);
+                              setAddCandidateOpen(true);
+                            }}
+                          >
+                            Add candidate
+                          </button>
+                        </>
+                      ) : null}
                       <Link
                         href={`/admin_recruiter/jobs/${job.id}/edit`}
                         role="menuitem"
@@ -502,6 +536,34 @@ export default function JobDetailsClient({ jobId }: Props) {
                   secondaryColor={branding.secondaryHex || "#012352"}
                 />
               </div>
+              {job.status !== "archived" ? (
+                <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+                  <h3 className="text-base font-semibold leading-6 text-[#1D2739]">Add Candidates</h3>
+                  <p className="mt-1 text-sm leading-5 text-[#64748B]">
+                    Upload multiple résumés or import existing candidates from your talent database.
+                  </p>
+                  <div className="mt-4 flex flex-col gap-3 min-[520px]:flex-row min-[520px]:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setImportOpen(true)}
+                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
+                      style={{
+                        borderColor: branding.primaryHex || "#BC8B41",
+                        color: branding.primaryHex || "#BC8B41",
+                      }}
+                    >
+                      Import Candidates
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddCandidateOpen(true)}
+                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
+                    >
+                      Upload résumés
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className="mt-8">
@@ -587,6 +649,24 @@ export default function JobDetailsClient({ jobId }: Props) {
           </>
         ) : null}
       </div>
+
+      <AddCandidateModal
+        open={addCandidateOpen}
+        onClose={() => setAddCandidateOpen(false)}
+        jobId={jobId}
+        jobTitle={title}
+        onSuccess={() => {
+          void load({ silent: true });
+        }}
+      />
+      <ImportCandidatesModal
+        open={importOpen}
+        jobId={jobId}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          void load({ silent: true });
+        }}
+      />
     </div>
   );
 }

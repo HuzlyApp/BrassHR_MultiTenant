@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Archive, PlusSquare, SquarePen, Trash2 } from "lucide-react";
+import { Archive, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
@@ -34,13 +34,14 @@ type JobsGridViewProps = {
   onToggleSelect?: (jobId: string) => void;
   padded?: boolean;
   onAddCandidate: (job: JobListRow) => void;
+  onImportCandidates: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
   onUnarchive: (jobId: string) => void;
 };
 
-const MENU_WIDTH = 188;
-const MENU_ESTIMATED_HEIGHT = 180;
+const MENU_WIDTH = 196;
+const MENU_ESTIMATED_HEIGHT = 220;
 const MENU_ITEM_CLASS =
   "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-[color:var(--brand-secondary)] transition hover:bg-[color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const MENU_ICON_CLASS = "h-4 w-4 shrink-0 text-[#94A3B8]";
@@ -65,6 +66,7 @@ function JobGridCardMenu({
   anchor,
   onClose,
   onAddCandidate,
+  onImportCandidates,
   onDelete,
   onArchive,
   onUnarchive,
@@ -73,6 +75,7 @@ function JobGridCardMenu({
   anchor: HTMLElement;
   onClose: () => void;
   onAddCandidate: (job: JobListRow) => void;
+  onImportCandidates: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
   onUnarchive: (jobId: string) => void;
@@ -151,6 +154,18 @@ function JobGridCardMenu({
       >
         <PlusSquare className={MENU_ICON_CLASS} aria-hidden />
         Add Candidate
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className={MENU_ITEM_CLASS}
+        onClick={() => {
+          onClose();
+          onImportCandidates(job);
+        }}
+      >
+        <UserPlus className={MENU_ICON_CLASS} aria-hidden />
+        Import Candidates
       </button>
       {!archived ? (
         <Link
@@ -388,6 +403,7 @@ export function JobsGridView({
   onToggleSelect,
   padded = true,
   onAddCandidate,
+  onImportCandidates,
   onDelete,
   onArchive,
   onUnarchive,
@@ -430,6 +446,7 @@ export function JobsGridView({
           anchor={openMenu.anchor}
           onClose={() => setOpenMenu(null)}
           onAddCandidate={onAddCandidate}
+          onImportCandidates={onImportCandidates}
           onDelete={onDelete}
           onArchive={onArchive}
           onUnarchive={onUnarchive}
