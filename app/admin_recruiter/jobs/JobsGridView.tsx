@@ -30,6 +30,8 @@ type JobsGridViewProps = {
   emptyMessage: string;
   tenantSlug: string | null;
   hotJobIds?: Set<string>;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (jobId: string) => void;
   padded?: boolean;
   onAddCandidate: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
@@ -195,14 +197,18 @@ function JobGridCard({
   job,
   tenantSlug,
   isHot,
+  isSelected,
   menuOpen,
   onOpenMenu,
+  onToggleSelect,
 }: {
   job: JobListRow;
   tenantSlug: string | null;
   isHot: boolean;
+  isSelected: boolean;
   menuOpen: boolean;
   onOpenMenu: (job: JobListRow, anchor: HTMLElement) => void;
+  onToggleSelect?: (jobId: string) => void;
 }) {
   const title = jobListDisplayTitle(job);
   const location = jobLocation(job);
@@ -222,7 +228,30 @@ function JobGridCard({
   ];
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
+    <article
+      className={`flex cursor-pointer flex-col overflow-hidden rounded-lg bg-white transition-shadow ${
+        isSelected
+          ? "border-2 border-[color:var(--brand-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+          : "border border-[#E5E7EB] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_45%,#E5E7EB)]"
+      }`}
+      onClick={(event) => {
+        if (!onToggleSelect) return;
+        const target = event.target as HTMLElement;
+        if (target.closest("a, button")) return;
+        onToggleSelect(job.id);
+      }}
+      onKeyDown={(event) => {
+        if (!onToggleSelect) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggleSelect(job.id);
+        }
+      }}
+      role={onToggleSelect ? "button" : undefined}
+      tabIndex={onToggleSelect ? 0 : undefined}
+      aria-pressed={onToggleSelect ? isSelected : undefined}
+      aria-label={onToggleSelect ? `${isSelected ? "Deselect" : "Select"} ${title}` : undefined}
+    >
       <div className="flex items-start px-3 pb-1.5 pt-3">
         <div className="flex min-h-[31px] w-full items-start justify-between gap-1">
           <div className="min-w-0 flex-1">
@@ -355,6 +384,8 @@ export function JobsGridView({
   emptyMessage,
   tenantSlug,
   hotJobIds,
+  selectedIds,
+  onToggleSelect,
   padded = true,
   onAddCandidate,
   onDelete,
@@ -382,7 +413,9 @@ export function JobsGridView({
             job={job}
             tenantSlug={tenantSlug}
             isHot={hotJobIds?.has(job.id) ?? false}
+            isSelected={selectedIds?.has(job.id) ?? false}
             menuOpen={openMenu?.job.id === job.id}
+            onToggleSelect={onToggleSelect}
             onOpenMenu={(nextJob, anchor) => {
               setOpenMenu((current) =>
                 current?.job.id === nextJob.id ? null : { job: nextJob, anchor }

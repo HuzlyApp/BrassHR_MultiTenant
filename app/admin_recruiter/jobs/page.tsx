@@ -15,12 +15,11 @@ import {
 import { createPortal } from "react-dom";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
-import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
-import { BulkArchiveToolbarButton } from "@/app/admin_recruiter/components/BulkArchiveToolbarButton";
-import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import ErrorModal from "@/app/components/ErrorModal";
+import SuccessModal from "@/app/components/SuccessModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import toast from "react-hot-toast";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
@@ -56,6 +55,7 @@ import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import { JobsDashboard } from "./JobsDashboard";
 import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import { JobsGridView } from "./JobsGridView";
+import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import {
@@ -109,12 +109,7 @@ const JOBS_TOOLBAR_BUTTON_CLASS =
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
 
-const JOBS_PRIMARY_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
-
 const JOBS_SEARCH_ICON_SRC = "/icons/jobs-icons/search.svg";
-const JOBS_UNPUBLISH_ICON_SRC = "/icons/jobs-icons/unpublish.svg";
-const JOBS_IMPORT_MSP_ICON_SRC = "/icons/jobs-icons/import-msp.svg";
 const JOBS_COLUMNS_ICON_SRC = "/icons/jobs-icons/columns.svg";
 const JOBS_CREATE_PLUS_ICON_SRC = "/icons/jobs-icons/create-plus.svg";
 const JOBS_MORE_FILTERS_ICON_SRC = "/icons/jobs-icons/more-filters.svg";
@@ -134,6 +129,74 @@ function formatJobActionToastMessage(
   }
   const noun = count === 1 ? "job" : "jobs";
   return `${count} ${noun} ${action} successfully`;
+}
+
+type JobActionErrorModalState = {
+  title: string;
+  message: string;
+  editJobId?: string;
+};
+
+type JobActionSuccessModalState = {
+  title: string;
+  message: string;
+  viewJobId: string;
+};
+
+function resolveJobActionErrorModal({
+  code,
+  message,
+  jobTitle,
+  jobId,
+  action,
+}: {
+  code?: string;
+  message: string;
+  jobTitle: string;
+  jobId: string;
+  action: "publish" | "unpublish" | "close" | "archive" | "unarchive";
+}): JobActionErrorModalState {
+  if (code === "JOB_DEADLINE_EXPIRED") {
+    return {
+      title: "Application deadline has passed",
+      message: `"${jobTitle}" cannot be published because its application deadline has already passed. Update the deadline in the job editor, then try publishing again.`,
+      editJobId: jobId,
+    };
+  }
+  if (code === "JOB_ALREADY_PUBLISHED") {
+    return {
+      title: "Job already published",
+      message: `"${jobTitle}" is already published.`,
+    };
+  }
+  if (code === "JOB_ARCHIVED") {
+    return {
+      title: "Job is archived",
+      message: `Unarchive "${jobTitle}" before publishing it again.`,
+    };
+  }
+  if (code === "JOB_NOT_FOUND") {
+    return {
+      title: "Job not found",
+      message: "This job could not be found. Refresh the page and try again.",
+    };
+  }
+
+  const actionLabel =
+    action === "publish"
+      ? "publish"
+      : action === "unpublish"
+        ? "unpublish"
+        : action === "close"
+          ? "close"
+          : action === "archive"
+            ? "archive"
+            : "restore";
+
+  return {
+    title: `Unable to ${actionLabel} job`,
+    message: message || `Could not ${actionLabel} "${jobTitle}". Please try again.`,
+  };
 }
 
 function JobsListingGlyph({
@@ -217,30 +280,6 @@ function JobsColumnsIcon() {
 
 function JobsCreatePlusIcon() {
   return <JobsListingGlyph src={JOBS_CREATE_PLUS_ICON_SRC} outer={16} leafWidth={9.33} leafHeight={9.33} />;
-}
-
-function JobsUnpublishIcon() {
-  return (
-    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
-      <BrandedSvgIcon
-        src={JOBS_UNPUBLISH_ICON_SRC}
-        className="absolute left-1/2 top-1/2 h-[9.33px] w-[14px] -translate-x-1/2 -translate-y-1/2"
-        color="#FFFFFF"
-      />
-    </span>
-  );
-}
-
-function JobsImportMspIcon() {
-  return (
-    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
-      <BrandedSvgIcon
-        src={JOBS_IMPORT_MSP_ICON_SRC}
-        className="absolute left-1/2 top-1/2 h-[11.87px] w-[13.2px] -translate-x-1/2 -translate-y-1/2"
-        color="#FFFFFF"
-      />
-    </span>
-  );
 }
 
 function JobsListingSearchField({
@@ -795,6 +834,8 @@ export default function AdminRecruiterJobsPage() {
   const [jobTab, setJobTab] = useState<JobTab>(() => parseJobTab(searchParams.get("tab")));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionErrorModal, setActionErrorModal] = useState<JobActionErrorModalState | null>(null);
+  const [actionSuccessModal, setActionSuccessModal] = useState<JobActionSuccessModalState | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
@@ -937,9 +978,17 @@ export default function AdminRecruiterJobsPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        const message = payload.error || "Failed to update job";
-        setError(message);
-        toast.error(message, { duration: ACTION_TOAST_DURATION_MS });
+        const message = typeof payload.error === "string" ? payload.error : "Failed to update job";
+        const code = typeof payload.code === "string" ? payload.code : undefined;
+        setActionErrorModal(
+          resolveJobActionErrorModal({
+            code,
+            message,
+            jobTitle,
+            jobId,
+            action,
+          })
+        );
         return;
       }
       setOpenActionsMenu(null);
@@ -953,7 +1002,11 @@ export default function AdminRecruiterJobsPage() {
       } else if (action === "close") {
         toast.success(`${jobTitle} closed`, { duration: ACTION_TOAST_DURATION_MS });
       } else if (action === "publish") {
-        toast.success(`${jobTitle} published`, { duration: ACTION_TOAST_DURATION_MS });
+        setActionSuccessModal({
+          title: "Job published successfully",
+          message: `"${jobTitle}" is now published and open for applications.`,
+          viewJobId: jobId,
+        });
       } else if (action === "unpublish") {
         toast.success(`${jobTitle} unpublished`, { duration: ACTION_TOAST_DURATION_MS });
       }
@@ -1493,6 +1546,31 @@ export default function AdminRecruiterJobsPage() {
           }}
           onConfirm={() => void handleConfirmDeleteJobs()}
         />
+        <ErrorModal
+          open={Boolean(actionErrorModal)}
+          onClose={() => setActionErrorModal(null)}
+          title={actionErrorModal?.title ?? "Unable to update job"}
+          message={actionErrorModal?.message ?? ""}
+          actionLabel={actionErrorModal?.editJobId ? "Edit job" : "Close"}
+          onAction={
+            actionErrorModal?.editJobId
+              ? () => router.push(`/admin_recruiter/jobs/${actionErrorModal.editJobId}/edit`)
+              : undefined
+          }
+        />
+        <SuccessModal
+          open={Boolean(actionSuccessModal)}
+          onClose={() => setActionSuccessModal(null)}
+          title={actionSuccessModal?.title ?? "Success!"}
+          message={actionSuccessModal?.message ?? ""}
+          size="large"
+          actionLabel="View job"
+          actionHref={
+            actionSuccessModal?.viewJobId
+              ? `/admin_recruiter/jobs/${actionSuccessModal.viewJobId}`
+              : undefined
+          }
+        />
       </div>
     );
   }
@@ -1509,66 +1587,36 @@ export default function AdminRecruiterJobsPage() {
         </p>
       </div>
 
-      <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <div className="flex w-full min-w-0 flex-col gap-3 px-[14px] py-5 lg:flex-row lg:items-center lg:justify-between">
-          <nav
-            className="order-2 w-full min-w-0 overflow-x-auto lg:order-1 lg:flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            aria-label="Jobs navigation"
-          >
-            <div className="flex w-max flex-nowrap items-center gap-5">
-              {JOB_TABS.map((tab) => {
-                const active = jobTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => selectJobTab(tab.id)}
-                    className={`relative inline-flex h-[34px] shrink-0 items-center gap-2 px-2 pb-2.5 pt-1 text-sm font-normal leading-5 whitespace-nowrap transition-colors ${
-                      active
-                        ? "text-[color:var(--brand-primary)] after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[color:var(--brand-primary)]"
-                        : "text-[#012352] hover:text-[color:var(--brand-primary)]"
-                    }`}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    <span>{tab.label}</span>
-                    <span className="inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#EAE6E0] p-0.5 text-[10px] font-normal leading-[15px] text-[#374151]">
-                      {tabCounts[tab.id]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-
-          <div className="order-1 grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:order-2 lg:flex lg:w-auto lg:shrink-0 lg:gap-3">
-            <button
-              type="button"
-              onClick={() => void handleBulkUnpublish()}
-              disabled={selectedPublishedCount === 0}
-              className={`${JOBS_PRIMARY_BUTTON_CLASS} w-full min-w-0 px-2 lg:w-auto lg:px-3`}
-            >
-              <JobsUnpublishIcon />
-              Unpublish
-            </button>
-            <ListExportDropdown
-              variant="brand"
-              onExportCsv={handleExportCsv}
-              onExportXls={handleExportXls}
-              disabled={exportJobs.length === 0}
-            />
-            <button
-              type="button"
-              onClick={handleImportFromMsp}
-              className={`${JOBS_PRIMARY_BUTTON_CLASS} col-span-2 w-full min-w-0 px-2 sm:col-span-1 lg:w-auto lg:px-3`}
-            >
-              <JobsImportMspIcon />
-              <span className="whitespace-nowrap">
-                Import <span className="hidden sm:inline">from </span>MSP
-              </span>
-            </button>
-          </div>
+      <nav
+        className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        aria-label="Jobs navigation"
+      >
+        <div className="flex w-max flex-nowrap items-center gap-5">
+          {JOB_TABS.map((tab) => {
+            const active = jobTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => selectJobTab(tab.id)}
+                className={`relative inline-flex h-[34px] shrink-0 items-center gap-2 px-2 pb-2.5 pt-1 text-sm font-normal leading-5 whitespace-nowrap transition-colors ${
+                  active
+                    ? "text-[color:var(--brand-primary)] after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[color:var(--brand-primary)]"
+                    : "text-[#012352] hover:text-[color:var(--brand-primary)]"
+                }`}
+                aria-current={active ? "page" : undefined}
+              >
+                <span>{tab.label}</span>
+                <span className="inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#EAE6E0] p-0.5 text-[10px] font-normal leading-[15px] text-[#374151]">
+                  {tabCounts[tab.id]}
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </nav>
 
+      <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-[14px] py-3 max-[419px]:flex-nowrap max-[419px]:gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2 max-[419px]:flex-nowrap max-[419px]:gap-1.5 max-[419px]:overflow-x-auto max-[419px]:[scrollbar-width:none] max-[419px]:[&::-webkit-scrollbar]:hidden">
             <button
@@ -1584,19 +1632,6 @@ export default function AdminRecruiterJobsPage() {
                 Reset Filters
               </button>
             ) : null}
-            <BulkArchiveToolbarButton
-              count={selectedIds.size}
-              disabled={archiveBusy || selectedArchivableCount === 0}
-              onClick={() => void handleBulkArchive()}
-            />
-            <BulkDeleteToolbarButton
-              count={selectedIds.size}
-              disabled={deleteBusy}
-              onClick={() => {
-                setDeleteError(null);
-                setDeleteConfirmOpen(true);
-              }}
-            />
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-3 max-[419px]:flex-nowrap max-[419px]:gap-1.5">
@@ -1695,6 +1730,24 @@ export default function AdminRecruiterJobsPage() {
           </div>
         ) : null}
 
+        <JobsBulkSelectionSnackbar
+          totalSelectedCount={selectedIds.size}
+          unpublishDisabled={selectedPublishedCount === 0}
+          archiveDisabled={archiveBusy || selectedArchivableCount === 0}
+          exportDisabled={exportJobs.length === 0}
+          busy={archiveBusy || deleteBusy}
+          onUnpublish={() => void handleBulkUnpublish()}
+          onArchive={() => void handleBulkArchive()}
+          onDelete={() => {
+            setDeleteError(null);
+            setDeleteConfirmOpen(true);
+          }}
+          onExportCsv={handleExportCsv}
+          onExportXls={handleExportXls}
+          onImportFromMsp={handleImportFromMsp}
+          onClear={() => setSelectedIds(new Set())}
+        />
+
         {listingView === "grid" ? (
           <JobsGridView
             jobs={paginatedJobs}
@@ -1706,6 +1759,8 @@ export default function AdminRecruiterJobsPage() {
             }
             tenantSlug={tenantSlug}
             hotJobIds={starredIds}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
             onAddCandidate={(job) => {
               setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
             }}
@@ -1784,7 +1839,10 @@ export default function AdminRecruiterJobsPage() {
                 </tr>
               ) : (
                 paginatedJobs.map((job) => (
-                  <tr key={job.id} className="group border-b border-[#E9EDF3] align-middle hover:bg-[#FAFBFC]">
+                  <tr
+                    key={job.id}
+                    className="group border-b border-[#E9EDF3] align-middle hover:bg-[#FAFBFC]"
+                  >
                     <td className="border-r border-[#E5E7EB] px-[14px] py-2.5 align-middle">
                       <ListTableCheckbox
                         checked={selectedIds.has(job.id)}
@@ -1905,6 +1963,33 @@ export default function AdminRecruiterJobsPage() {
           setDeleteError(null);
         }}
         onConfirm={() => void handleConfirmDeleteJobs()}
+      />
+
+      <ErrorModal
+        open={Boolean(actionErrorModal)}
+        onClose={() => setActionErrorModal(null)}
+        title={actionErrorModal?.title ?? "Unable to update job"}
+        message={actionErrorModal?.message ?? ""}
+        actionLabel={actionErrorModal?.editJobId ? "Edit job" : "Close"}
+        onAction={
+          actionErrorModal?.editJobId
+            ? () => router.push(`/admin_recruiter/jobs/${actionErrorModal.editJobId}/edit`)
+            : undefined
+        }
+      />
+
+      <SuccessModal
+        open={Boolean(actionSuccessModal)}
+        onClose={() => setActionSuccessModal(null)}
+        title={actionSuccessModal?.title ?? "Success!"}
+        message={actionSuccessModal?.message ?? ""}
+        size="large"
+        actionLabel="View job"
+        actionHref={
+          actionSuccessModal?.viewJobId
+            ? `/admin_recruiter/jobs/${actionSuccessModal.viewJobId}`
+            : undefined
+        }
       />
     </div>
   );
