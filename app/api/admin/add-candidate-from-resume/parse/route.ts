@@ -6,7 +6,8 @@ import { enforceRateLimit, envRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
-const PARSE_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_RESUME_PARSE_PER_HOUR", 80);
+/** Recruiters bulk-load resumes; 80/hour blocked real sessions. Override with env. */
+const PARSE_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_RESUME_PARSE_PER_HOUR", 400);
 
 function parseRateLimitedResponse(limited: NextResponse): NextResponse {
   const retryAfterSec = Number(limited.headers.get("Retry-After") ?? 3600);
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const limited = await enforceRateLimit(req, {
-    namespace: "admin-parse-candidate-resume",
+    namespace: "admin-parse-candidate-resume.v2",
     key: auth.userId,
     limit: PARSE_LIMIT,
     windowMs: 60 * 60 * 1000,

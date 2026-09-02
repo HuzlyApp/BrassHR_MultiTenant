@@ -10,11 +10,19 @@ import {
   withRedisTimeout,
 } from "@/lib/redis-timeout";
 
+type RateLimitCount = { count: number; retryAfterSec: number };
+
 type RateLimitStore = {
-  increment(key: string, windowSeconds: number): Promise<number>;
+  increment(key: string, windowSeconds: number): Promise<RateLimitCount>;
 };
 
 type Bucket = { count: number; expiresAt: number };
+
+type CounterClient = {
+  incr(key: string): Promise<number>;
+  ttl(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<unknown>;
+};
 
 export type RateLimitOptions = {
   namespace: string;
@@ -47,15 +55,15 @@ function getWindowSeconds(windowMs: number): number {
   return Math.max(1, Math.ceil(windowMs / 1000));
 }
 
-function incrementMemory(key: string, windowMs: number): number {
+function incrementMemory(key: string, windowMs: number): RateLimitCount {
   const now = Date.now();
   const existing = memoryBuckets.get(key);
   if (!existing || existing.expiresAt <= now) {
     memoryBuckets.set(key, { count: 1, expiresAt: now + windowMs });
-    return 1;
+    return { count: 1, retryAfterSec: getMemoryRetryAfterSec(key) };
   }
   existing.count += 1;
-  return existing.count;
+  return { count: existing.count, retryAfterSec: getMemoryRetryAfterSec(key) };
 }
 
 function getMemoryRetryAfterSec(key: string): number {
@@ -64,23 +72,48 @@ function getMemoryRetryAfterSec(key: string): number {
   return Math.max(1, Math.ceil((bucket.expiresAt - Date.now()) / 1000));
 }
 
-async function expireIfMissing(
-  ttl: number,
-  expire: () => Promise<unknown>
-): Promise<void> {
-  // INCR on a key whose expire was lost returns a growing counter that never resets.
-  if (ttl <= 0) await expire();
+function toPositiveInt(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.ceil(n) : fallback;
+}
+
+/**
+ * INCR then ensure the key has a TTL. Lost expires used to leave a counter that
+ * never reset, so recruiters stayed blocked after the hour window.
+ */
+async function incrementWithWindow(
+  client: CounterClient,
+  key: string,
+  windowSeconds: number
+): Promise<RateLimitCount> {
+  const count = toPositiveInt(await client.incr(key), 1);
+  if (count === 1) {
+    await client.expire(key, windowSeconds);
+  }
+  let ttl = Number(await client.ttl(key));
+  if (!Number.isFinite(ttl) || ttl < 0) {
+    await client.expire(key, windowSeconds);
+    ttl = windowSeconds;
+  }
+  return {
+    count,
+    retryAfterSec: ttl > 0 ? Math.ceil(ttl) : windowSeconds,
+  };
 }
 
 async function createUpstashStore(url: string, token: string): Promise<RateLimitStore> {
   const redis = new UpstashRedis({ url, token });
   return {
-    async increment(key, windowSeconds) {
-      const count = await redis.incr(key);
-      const ttl = await redis.ttl(key);
-      await expireIfMissing(ttl, () => redis.expire(key, windowSeconds));
-      return count;
-    },
+    increment: (key, windowSeconds) =>
+      incrementWithWindow(
+        {
+          incr: (k) => redis.incr(k),
+          ttl: (k) => redis.ttl(k),
+          expire: (k, seconds) => redis.expire(k, seconds),
+        },
+        key,
+        windowSeconds
+      ),
   };
 }
 
@@ -108,14 +141,17 @@ async function createNodeRedisStore(url: string): Promise<RateLimitStore> {
     throw error;
   }
   return {
-    async increment(key, windowSeconds) {
-      const count = await withRedisTimeout(client.incr(key), "rate-limit-incr");
-      const ttl = await withRedisTimeout(client.ttl(key), "rate-limit-ttl");
-      await expireIfMissing(ttl, () =>
-        withRedisTimeout(client.expire(key, windowSeconds), "rate-limit-expire")
-      );
-      return count;
-    },
+    increment: (key, windowSeconds) =>
+      incrementWithWindow(
+        {
+          incr: (k) => withRedisTimeout(client.incr(k), "rate-limit-incr"),
+          ttl: (k) => withRedisTimeout(client.ttl(k), "rate-limit-ttl"),
+          expire: (k, seconds) =>
+            withRedisTimeout(client.expire(k, seconds), "rate-limit-expire"),
+        },
+        key,
+        windowSeconds
+      ),
   };
 }
 
@@ -164,12 +200,15 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
 
   if (redis) {
     try {
-      const count = await withRedisTimeout(redis.increment(key, windowSeconds), "rate-limit-check");
+      const result = await withRedisTimeout(
+        redis.increment(key, windowSeconds),
+        "rate-limit-check"
+      );
       return {
-        allowed: count <= options.limit,
+        allowed: result.count <= options.limit,
         limit: options.limit,
-        remaining: Math.max(0, options.limit - count),
-        retryAfterSec: windowSeconds,
+        remaining: Math.max(0, options.limit - result.count),
+        retryAfterSec: result.retryAfterSec,
         store: "redis",
       };
     } catch {
@@ -178,12 +217,12 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
     }
   }
 
-  const count = incrementMemory(key, options.windowMs);
+  const result = incrementMemory(key, options.windowMs);
   return {
-    allowed: count <= options.limit,
+    allowed: result.count <= options.limit,
     limit: options.limit,
-    remaining: Math.max(0, options.limit - count),
-    retryAfterSec: getMemoryRetryAfterSec(key),
+    remaining: Math.max(0, options.limit - result.count),
+    retryAfterSec: result.retryAfterSec,
     store: "memory",
   };
 }
