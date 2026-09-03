@@ -41,6 +41,16 @@ describe("sortCandidateRows", () => {
     expect(sorted.map((item) => item.name)).toEqual(["Alice", "Bob", "Charlie"]);
   });
 
+  it("sorts contact by email then phone and keeps empty last", () => {
+    const contacts = [
+      row({ id: "1", name: "Charlie", email: "c@example.com", phone: "2" }),
+      row({ id: "2", name: "Alice", email: "a@example.com", phone: "9" }),
+      row({ id: "3", name: "Bob" }),
+    ];
+    const sorted = sortCandidateRows(contacts, { column: "contact", direction: "asc" });
+    expect(sorted.map((item) => item.id)).toEqual(["2", "1", "3"]);
+  });
+
   it("sorts match scores descending with nulls last", () => {
     const sorted = sortCandidateRows(rows, { column: "jobMatch", direction: "desc" });
     expect(sorted.map((item) => item.id)).toEqual(["2", "1", "3"]);

@@ -12,6 +12,7 @@ export type CandidatesFilterValues = {
   scoreSort: string;
   jobRoleFilter: string;
   statusFilter: string;
+  progressStatusFilter: string;
   jobFilter: string;
   stageFilter: string;
   matchScoreFilter: string;
@@ -24,6 +25,7 @@ export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
   scoreSort: "",
   jobRoleFilter: "",
   statusFilter: "",
+  progressStatusFilter: "",
   jobFilter: "",
   stageFilter: "",
   matchScoreFilter: "",
@@ -43,6 +45,7 @@ export function countActiveCandidatesFilters(value: CandidatesFilterValues): num
 type FilterOptions = {
   jobRoleOptions: string[];
   statusOptions: string[];
+  progressStatusOptions?: { value: string; label: string }[];
   locationOptions: string[];
   jobOptions?: string[];
   stageOptions?: string[];
@@ -197,6 +200,19 @@ export function EditCandidatesFiltersModal({
                 {options.statusOptions.map((status) => (
                   <option key={status} value={status}>
                     {status}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <ModalFilterField
+                label="Progress Status"
+                value={draft.progressStatusFilter}
+                onChange={(v) => setField("progressStatusFilter", v)}
+                placeholder="All Progress Status"
+              >
+                {(options.progressStatusOptions ?? []).map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
                   </option>
                 ))}
               </ModalFilterField>

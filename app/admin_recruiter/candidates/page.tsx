@@ -242,6 +242,7 @@ export default function CandidatesPage() {
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [progressStatusFilter, setProgressStatusFilter] = useState("");
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
@@ -516,6 +517,15 @@ export default function CandidatesPage() {
 
   const stageOptions = useMemo(() => buildCandidateStageOptions(candidates), [candidates]);
 
+  const progressStatusFilterOptions = useMemo(
+    () =>
+      progressStatusOptions.map((option) => ({
+        value: option.id,
+        label: option.name,
+      })),
+    [progressStatusOptions]
+  );
+
   const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
 
   const filtered = useMemo(() => {
@@ -526,6 +536,9 @@ export default function CandidatesPage() {
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
+    if (progressStatusFilter) {
+      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
+    }
     if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
     if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
     if (matchScoreFilter) {
@@ -538,7 +551,19 @@ export default function CandidatesPage() {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]);
+  }, [
+    candidates,
+    query,
+    jobRoleFilter,
+    statusFilter,
+    progressStatusFilter,
+    jobFilter,
+    stageFilter,
+    matchScoreFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+  ]);
 
   // const multiJobApplicantCount = useMemo(
   //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
@@ -557,6 +582,7 @@ export default function CandidatesPage() {
         query.trim() ||
           jobRoleFilter ||
           statusFilter ||
+          progressStatusFilter ||
           jobFilter ||
           stageFilter ||
           matchScoreFilter ||
@@ -564,7 +590,18 @@ export default function CandidatesPage() {
           appliedDateFrom ||
           appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [
+      query,
+      jobRoleFilter,
+      statusFilter,
+      progressStatusFilter,
+      jobFilter,
+      stageFilter,
+      matchScoreFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+    ]
   );
 
   const listDisplayTotal = useMemo(
@@ -584,7 +621,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -629,6 +666,7 @@ export default function CandidatesPage() {
         query,
         jobRoleFilter,
         statusFilter,
+        progressStatusFilter,
         jobFilter,
         stageFilter,
         matchScoreFilter,
@@ -643,6 +681,7 @@ export default function CandidatesPage() {
       query,
       jobRoleFilter,
       statusFilter,
+      progressStatusFilter,
       jobFilter,
       stageFilter,
       matchScoreFilter,
@@ -897,6 +936,9 @@ export default function CandidatesPage() {
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
+        progressStatusFilter={progressStatusFilter}
+        onProgressStatusFilterChange={setProgressStatusFilter}
+        progressStatusOptions={progressStatusFilterOptions}
         jobFilter={jobFilter}
         onJobFilterChange={setJobFilter}
         jobOptions={jobOptions}

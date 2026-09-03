@@ -2535,17 +2535,15 @@ export default function JobApplicationsPage() {
         <ApplicationsListToolbar
           searchQuery={candidateSearchQuery}
           onSearchQueryChange={setCandidateSearchQuery}
-          scoreSort={scoreSort}
-          onScoreSortChange={handleScoreSortChange}
-          statusFilter={listingStatusFilter}
-          onStatusFilterChange={setListingStatusFilter}
-          statusOptions={listingStatusOptions}
           jobFilter={listingJobFilter}
           onJobFilterChange={setListingJobFilter}
           jobFilterOptions={listingJobOptions}
           showJobFilter={!jobId}
           matchScoreFilter={matchScoreFilter}
           onMatchScoreFilterChange={setMatchScoreFilter}
+          progressStatusFilter={listingStatusFilter}
+          onProgressStatusFilterChange={setListingStatusFilter}
+          progressStatusOptions={listingStatusOptions}
           locationFilter={locationFilter}
           onLocationFilterChange={setLocationFilter}
           locationOptions={locationOptions}

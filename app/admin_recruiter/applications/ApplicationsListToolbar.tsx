@@ -1,6 +1,7 @@
 "use client";
 
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
+import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -109,17 +110,15 @@ function CompactFilterSelect({
 export type ApplicationsListToolbarProps = {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  scoreSort: string;
-  onScoreSortChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
-  statusOptions: { value: string; label: string }[];
   jobFilter: string;
   onJobFilterChange: (value: string) => void;
   jobFilterOptions: { value: string; label: string }[];
   showJobFilter: boolean;
   matchScoreFilter: string;
   onMatchScoreFilterChange: (value: string) => void;
+  progressStatusFilter: string;
+  onProgressStatusFilterChange: (value: string) => void;
+  progressStatusOptions: { value: string; label: string }[];
   locationFilter: string;
   onLocationFilterChange: (value: string) => void;
   locationOptions: string[];
@@ -142,17 +141,15 @@ export type ApplicationsListToolbarProps = {
 export function ApplicationsListToolbar({
   searchQuery,
   onSearchQueryChange,
-  scoreSort,
-  onScoreSortChange,
-  statusFilter,
-  onStatusFilterChange,
-  statusOptions,
   jobFilter,
   onJobFilterChange,
   jobFilterOptions,
   showJobFilter,
   matchScoreFilter,
   onMatchScoreFilterChange,
+  progressStatusFilter,
+  onProgressStatusFilterChange,
+  progressStatusOptions,
   locationFilter,
   onLocationFilterChange,
   locationOptions,
@@ -280,23 +277,6 @@ export function ApplicationsListToolbar({
               { value: "oldest", label: "Apply date (Oldest first)" },
             ]}
           />
-          <CompactFilterSelect
-            ariaLabel="Score"
-            placeholder="Score (high-low)"
-            value={scoreSort}
-            onChange={onScoreSortChange}
-            options={[
-              { value: "high-low", label: "Score (high-low)" },
-              { value: "low-high", label: "Score (low-high)" },
-            ]}
-          />
-          <CompactFilterSelect
-            ariaLabel="Status"
-            placeholder="All Status"
-            value={statusFilter}
-            onChange={onStatusFilterChange}
-            options={statusOptions}
-          />
           {showJobFilter ? (
             <CompactFilterSelect
               ariaLabel="Jobs"
@@ -310,6 +290,14 @@ export function ApplicationsListToolbar({
             compact
             value={matchScoreFilter}
             onChange={onMatchScoreFilterChange}
+          />
+          <ScrollableFilterSelect
+            ariaLabel="Progress Status"
+            placeholder="Progress Status"
+            value={progressStatusFilter}
+            onChange={onProgressStatusFilterChange}
+            options={progressStatusOptions}
+            triggerClassName="w-[160px]"
           />
           <button
             type="button"

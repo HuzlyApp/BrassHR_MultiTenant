@@ -1,5 +1,6 @@
 export type CandidateColumnId =
   | "name"
+  | "contact"
   | "status"
   | "progressStatus"
   | "reference"
@@ -39,7 +40,8 @@ export type CandidateColumnId =
   | "startDate"
 
 export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[] = [
-  { id: "name", label: "Name" },
+  { id: "name", label: "Candidate" },
+  { id: "contact", label: "Contact" },
   { id: "status", label: "Status" },
   { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
@@ -81,22 +83,15 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
 
 export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
-  "status",
+  "contact",
   "progressStatus",
-  "matchJob",
   "jobMatch",
-  "conf",
-  "verify",
-  "notMet",
   "currentStage",
-  "evaluation",
-  "createdDate",
-  "location",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns-v3"
+const STORAGE_KEY = "nexus-candidates-list-columns-v4"
 
-/** Ensure saved column layouts include newer default columns. */
+/** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
   let next = [...order]
 
@@ -107,14 +102,10 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
     else next.push(columnId)
   }
 
-  insertAfter("status", "progressStatus")
-  insertAfter("progressStatus", "matchJob")
-  insertAfter("matchJob", "jobMatch")
-  insertAfter("jobMatch", "conf")
-  insertAfter("conf", "verify")
-  insertAfter("verify", "notMet")
-  insertAfter("notMet", "currentStage")
-  insertAfter("currentStage", "evaluation")
+  insertAfter("name", "contact")
+  insertAfter("contact", "progressStatus")
+  insertAfter("progressStatus", "jobMatch")
+  insertAfter("jobMatch", "currentStage")
 
   return next
 }
@@ -149,6 +140,8 @@ export function columnLabel(id: CandidateColumnId): string {
 
 /** List table sizing — keeps status labels like "Under Review" on one line. */
 export function candidateListColumnClassName(colId: CandidateColumnId): string {
+  if (colId === "name") return "min-w-[220px]"
+  if (colId === "contact") return "min-w-[200px]"
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"
@@ -164,10 +157,10 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
 }
 
 export function candidateListHeaderAlign(colId: CandidateColumnId): "left" | "center" {
-  return colId === "name" || colId === "currentStage" ? "left" : "center"
+  return colId === "name" || colId === "contact" || colId === "currentStage" ? "left" : "center"
 }
 
-/** Name and Current Stage stay left-aligned; other list columns are centered. */
+/** Candidate, Contact, and Current Stage stay left-aligned; other list columns are centered. */
 export function candidateListColumnAlignmentClassName(colId: CandidateColumnId): string {
   return candidateListHeaderAlign(colId) === "left" ? "text-left" : "text-center"
 }

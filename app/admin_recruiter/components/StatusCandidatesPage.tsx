@@ -212,6 +212,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [progressStatusFilter, setProgressStatusFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -317,6 +318,15 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
+  const progressStatusFilterOptions = useMemo(
+    () =>
+      progressStatusOptions.map((option) => ({
+        value: option.id,
+        label: option.name,
+      })),
+    [progressStatusOptions]
+  );
+
   const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
 
   const filtered = useMemo(() => {
@@ -327,6 +337,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
+    if (progressStatusFilter) {
+      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
+    }
     if (matchScoreFilter) {
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
@@ -337,7 +350,17 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]);
+  }, [
+    candidates,
+    query,
+    jobRoleFilter,
+    statusFilter,
+    progressStatusFilter,
+    matchScoreFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+  ]);
 
   const hasActiveListFilters = useMemo(
     () =>
@@ -345,12 +368,22 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         query.trim() ||
           jobRoleFilter ||
           statusFilter ||
+          progressStatusFilter ||
           matchScoreFilter ||
           locationFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [
+      query,
+      jobRoleFilter,
+      statusFilter,
+      progressStatusFilter,
+      matchScoreFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+    ]
   );
 
   const listDisplayTotal = useMemo(
@@ -365,7 +398,17 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize]);
+  }, [
+    query,
+    jobRoleFilter,
+    statusFilter,
+    progressStatusFilter,
+    matchScoreFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+    pageSize,
+  ]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -394,8 +437,31 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }, [pageSelectableRows]);
 
   const selectionClearKey = useMemo(
-    () => [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo].join("|"),
-    [page, pageSize, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    () =>
+      [
+        page,
+        pageSize,
+        query,
+        jobRoleFilter,
+        statusFilter,
+        progressStatusFilter,
+        matchScoreFilter,
+        locationFilter,
+        appliedDateFrom,
+        appliedDateTo,
+      ].join("|"),
+    [
+      page,
+      pageSize,
+      query,
+      jobRoleFilter,
+      statusFilter,
+      progressStatusFilter,
+      matchScoreFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+    ]
   );
 
   const selection = usePageSelection({
@@ -626,6 +692,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
+        progressStatusFilter={progressStatusFilter}
+        onProgressStatusFilterChange={setProgressStatusFilter}
+        progressStatusOptions={progressStatusFilterOptions}
         matchScoreFilter={matchScoreFilter}
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}

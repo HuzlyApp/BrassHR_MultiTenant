@@ -277,7 +277,7 @@ export function EditApplicationsFiltersModal({
               </div>
 
               <ModalFilterField
-                label="Status"
+                label="Progress Status"
                 value={draft.status}
                 onChange={(v) => setField("status", v)}
               >

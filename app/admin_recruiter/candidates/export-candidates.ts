@@ -18,6 +18,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   Record<CandidateColumnId, ExportColumn<CandidateRow> | ExportColumn<CandidateRow>[]>
 > = {
   name: { header: columnLabel("name"), value: (row) => row.name },
+  contact: [
+    { header: columnLabel("email"), value: (row) => row.email || "—" },
+    { header: columnLabel("phone"), value: (row) => row.phone || "—" },
+  ],
   status: { header: columnLabel("status"), value: (row) => row.status },
   progressStatus: {
     header: columnLabel("progressStatus"),

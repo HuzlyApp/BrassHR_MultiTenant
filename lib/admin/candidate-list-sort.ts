@@ -4,6 +4,7 @@ import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 
 export const CANDIDATE_LIST_SORTABLE_COLUMNS = [
   "name",
+  "contact",
   "status",
   "progressStatus",
   "reference",
@@ -154,6 +155,20 @@ function compareColumn(
   switch (column) {
     case "name":
       return compareName(a, b) * directionMultiplier;
+    case "contact": {
+      const aEmail = a.email?.trim() ?? "";
+      const bEmail = b.email?.trim() ?? "";
+      const emailCmp = compareEmptyLast(
+        !aEmail,
+        !bEmail,
+        compareTextValues(aEmail, bEmail),
+        directionMultiplier
+      );
+      if (emailCmp !== 0) return emailCmp;
+      const aPhone = a.phone?.trim() ?? "";
+      const bPhone = b.phone?.trim() ?? "";
+      return compareEmptyLast(!aPhone, !bPhone, compareTextValues(aPhone, bPhone), directionMultiplier);
+    }
     case "status":
       return compareEmptyLast(
         !a.status?.trim(),
