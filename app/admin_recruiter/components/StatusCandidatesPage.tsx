@@ -19,6 +19,10 @@ import {
   type CandidateColumnId,
 } from "../candidates/column-config";
 import { renderListCell } from "../candidates/render-list-cell";
+import {
+  mapWorkerProgressStatusFields,
+  useCandidateProgressStatus,
+} from "../candidates/CandidateProgressStatusCell";
 import { CandidateGridCard } from "../candidates/CandidateGridCard";
 import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
@@ -26,6 +30,7 @@ import { buildCandidateKpis } from "../candidates/candidate-kpis";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
+import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
@@ -66,11 +71,14 @@ type WorkerProfile = {
   zip?: string | null;
   created_at: string | null;
   status?: string | null;
+  application_id?: string | null;
+  application_status_id?: string | null;
   application_status_name?: string | null;
+  application_status_key?: string | null;
+  application_status_ambiguous?: boolean | null;
   profile_photo?: string | null;
   profile_photo_url?: string | null;
   assigned_recruiter_user_id?: string | null;
-  application_id?: string | null;
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
@@ -179,6 +187,13 @@ function mapWorkerMatchFields(item: WorkerProfile) {
 export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: StatusCandidatesPageProps) {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const {
+    statusOptions: progressStatusOptions,
+    statusMenu: progressStatusMenu,
+    setStatusMenu: setProgressStatusMenu,
+    statusBusyWorkerId,
+    progressStatusUi,
+  } = useCandidateProgressStatus(candidates, setCandidates);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -187,6 +202,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -241,6 +257,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         status: item.application_status_name?.trim()
           || formatCandidateStatusLabel(item.status ?? statusLabel),
         statusKey: item.status ?? null,
+        ...mapWorkerProgressStatusFields(item),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
@@ -300,6 +317,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
+    if (matchScoreFilter) {
+      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
+    }
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
@@ -307,7 +327,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]);
+  }, [candidates, query, jobRoleFilter, statusFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]);
 
   const hasActiveListFilters = useMemo(
     () =>
@@ -315,11 +335,12 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         query.trim() ||
           jobRoleFilter ||
           statusFilter ||
+          matchScoreFilter ||
           locationFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [query, jobRoleFilter, statusFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const listDisplayTotal = useMemo(
@@ -334,7 +355,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -593,6 +614,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
+        matchScoreFilter={matchScoreFilter}
+        onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
@@ -711,6 +734,14 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
                                 onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                progressStatusOptions,
+                                progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
+                                progressStatusBusyWorkerId: statusBusyWorkerId,
+                                onToggleProgressStatusMenu: (workerId, anchor) => {
+                                  setProgressStatusMenu((current) =>
+                                    current?.workerId === workerId ? null : { workerId, anchor }
+                                  );
+                                },
                               })}
                             </td>
                           ))}
@@ -749,6 +780,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           saveColumnOrder(order);
         }}
       />
+      {progressStatusUi}
 
       <AdvancedSearchModal
         open={advancedSearchOpen}

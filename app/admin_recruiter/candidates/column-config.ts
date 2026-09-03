@@ -1,6 +1,7 @@
 export type CandidateColumnId =
   | "name"
   | "status"
+  | "progressStatus"
   | "reference"
   | "jobRole"
   | "matchJob"
@@ -35,6 +36,7 @@ export type CandidateColumnId =
 export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[] = [
   { id: "name", label: "Name" },
   { id: "status", label: "Status" },
+  { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
   { id: "jobRole", label: "Job Role" },
   { id: "matchJob", label: "Job title" },
@@ -70,14 +72,14 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
 export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
   "status",
-  "jobRole",
+  "progressStatus",
   "matchJob",
   "jobMatch",
   "createdDate",
   "location",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns"
+const STORAGE_KEY = "nexus-candidates-list-columns-v2"
 
 /** Ensure saved column layouts include newer default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
@@ -90,7 +92,8 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
     else next.push(columnId)
   }
 
-  insertAfter("jobRole", "matchJob")
+  insertAfter("status", "progressStatus")
+  insertAfter("progressStatus", "matchJob")
   insertAfter("matchJob", "jobMatch")
 
   return next
@@ -128,6 +131,7 @@ export function columnLabel(id: CandidateColumnId): string {
 export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
+  if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"
   if (colId === "jobMatch") return "min-w-[88px] whitespace-nowrap"
   if (colId === "matchJob") return "min-w-[200px] whitespace-nowrap"
   if (colId === "location") return "min-w-[220px] whitespace-nowrap"

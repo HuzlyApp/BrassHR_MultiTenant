@@ -17,6 +17,7 @@ import {
   type CandidatesFilterValues,
 } from "@/app/admin_recruiter/candidates/EditCandidatesFiltersModal";
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
+import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -52,6 +53,8 @@ export type CandidatesListShellProps = {
   stageFilter?: string;
   onStageFilterChange?: (value: string) => void;
   stageOptions?: string[];
+  matchScoreFilter?: string;
+  onMatchScoreFilterChange?: (value: string) => void;
   jobRoleOptions: string[];
   locationOptions: string[];
   view: "card" | "list";
@@ -288,6 +291,8 @@ export function CandidatesListShell({
   stageFilter: stageFilterProp,
   onStageFilterChange,
   stageOptions = [],
+  matchScoreFilter: matchScoreFilterProp,
+  onMatchScoreFilterChange,
   jobRoleOptions,
   locationOptions,
   view,
@@ -330,6 +335,9 @@ export function CandidatesListShell({
   const [internalStageFilter, setInternalStageFilter] = useState("");
   const stageFilter = stageFilterProp ?? internalStageFilter;
   const setStageFilter = onStageFilterChange ?? setInternalStageFilter;
+  const [internalMatchScoreFilter, setInternalMatchScoreFilter] = useState("");
+  const matchScoreFilter = matchScoreFilterProp ?? internalMatchScoreFilter;
+  const setMatchScoreFilter = onMatchScoreFilterChange ?? setInternalMatchScoreFilter;
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
@@ -342,15 +350,16 @@ export function CandidatesListShell({
       statusFilter,
       jobFilter,
       stageFilter,
+      matchScoreFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
     }),
-    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const activeFilterCount = simplifiedToolbarFilters
-    ? [statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean)
+    ? [statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean)
         .length
     : countActiveCandidatesFilters(filterValues);
 
@@ -360,6 +369,7 @@ export function CandidatesListShell({
     onStatusFilterChange?.(next.statusFilter);
     setJobFilter(next.jobFilter);
     setStageFilter(next.stageFilter);
+    setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
@@ -370,6 +380,7 @@ export function CandidatesListShell({
       onStatusFilterChange?.("");
       setJobFilter("");
       setStageFilter("");
+      setMatchScoreFilter("");
       onLocationFilterChange("");
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
@@ -596,6 +607,7 @@ export function CandidatesListShell({
               onChange={setJobFilter}
               options={jobOptions.map((job) => ({ value: job, label: job }))}
             />
+            <MatchScoreRangeFilter compact value={matchScoreFilter} onChange={setMatchScoreFilter} />
             {/* Stages — hidden on All candidates screen */}
             {!simplifiedToolbarFilters ? (
               <CompactFilterSelect

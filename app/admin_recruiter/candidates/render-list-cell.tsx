@@ -8,6 +8,8 @@ import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
+import { CandidateProgressStatusCell } from "./CandidateProgressStatusCell"
+import type { ApplicationStatusOption } from "../applications/ApplicationStatusUi"
 import { MatchScoreCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 
@@ -25,6 +27,10 @@ export function renderListCell(
     highlightMultiJob?: boolean
     matchAnalyzingApplicationIds?: Set<string>
     onAnalyzeMatch?: (applicationId: string) => void
+    progressStatusOptions?: ApplicationStatusOption[]
+    progressStatusMenuWorkerId?: string | null
+    progressStatusBusyWorkerId?: string | null
+    onToggleProgressStatusMenu?: (workerId: string, anchor: HTMLButtonElement) => void
   }
 ): ReactNode {
   const highlightMultiJob = options?.highlightMultiJob ?? false;
@@ -98,6 +104,16 @@ export function renderListCell(
             {c.status}
           </span>
         </div>
+      )
+    case "progressStatus":
+      return (
+        <CandidateProgressStatusCell
+          row={c}
+          options={options?.progressStatusOptions ?? []}
+          menuOpen={options?.progressStatusMenuWorkerId === c.id}
+          busy={options?.progressStatusBusyWorkerId === c.id}
+          onToggleMenu={(anchor) => options?.onToggleProgressStatusMenu?.(c.id, anchor)}
+        />
       )
     case "reference":
       return <span className="text-sm text-[#374151]">{c.reference}</span>

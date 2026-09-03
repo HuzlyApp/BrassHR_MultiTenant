@@ -17,6 +17,10 @@ import {
   type CandidateColumnId,
 } from "./column-config";
 import { renderListCell } from "./render-list-cell";
+import {
+  mapWorkerProgressStatusFields,
+  useCandidateProgressStatus,
+} from "./CandidateProgressStatusCell";
 import { CandidateGridCard } from "./CandidateGridCard";
 import { CandidateListSortableHeader } from "./CandidateListSortableHeader";
 import type { CandidateRow } from "./types";
@@ -45,6 +49,7 @@ import {
   formatPipelineStatusLabel,
 } from "@/lib/workers/candidate-status-label";
 import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
+import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
   buildCandidateStageOptions,
   candidateMatchesStageFilter,
@@ -103,6 +108,10 @@ type WorkerProfile = {
   applied_job_count?: number | null;
   assigned_recruiter_user_id?: string | null;
   application_id?: string | null;
+  application_status_id?: string | null;
+  application_status_name?: string | null;
+  application_status_key?: string | null;
+  application_status_ambiguous?: boolean | null;
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
@@ -207,6 +216,13 @@ function mapWorkerMatchFields(item: WorkerProfile) {
 export default function CandidatesPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const {
+    statusOptions: progressStatusOptions,
+    statusMenu: progressStatusMenu,
+    setStatusMenu: setProgressStatusMenu,
+    statusBusyWorkerId,
+    progressStatusUi,
+  } = useCandidateProgressStatus(candidates, setCandidates);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -217,6 +233,7 @@ export default function CandidatesPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -378,6 +395,7 @@ export default function CandidatesPage() {
           address2: item.address2 ?? "",
           status: formatCandidateStatusLabel(item.status as string | undefined),
           statusKey: item.status ?? null,
+          ...mapWorkerProgressStatusFields(item),
           createdAt: item.created_at,
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
@@ -420,6 +438,7 @@ export default function CandidatesPage() {
         address2: item.address2 ?? "",
         status: formatCandidateStatusLabel(item.status as string | undefined),
         statusKey: item.status ?? null,
+        ...mapWorkerProgressStatusFields(item),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
@@ -498,6 +517,9 @@ export default function CandidatesPage() {
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
     if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
     if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
+    if (matchScoreFilter) {
+      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
+    }
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
@@ -505,7 +527,7 @@ export default function CandidatesPage() {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]);
+  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]);
 
   // const multiJobApplicantCount = useMemo(
   //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
@@ -526,11 +548,12 @@ export default function CandidatesPage() {
           statusFilter ||
           jobFilter ||
           stageFilter ||
+          matchScoreFilter ||
           locationFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo]
   );
 
   const listDisplayTotal = useMemo(
@@ -550,7 +573,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -597,6 +620,7 @@ export default function CandidatesPage() {
         statusFilter,
         jobFilter,
         stageFilter,
+        matchScoreFilter,
         locationFilter,
         appliedDateFrom,
         appliedDateTo,
@@ -610,6 +634,7 @@ export default function CandidatesPage() {
       statusFilter,
       jobFilter,
       stageFilter,
+      matchScoreFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -865,6 +890,8 @@ export default function CandidatesPage() {
         stageFilter={stageFilter}
         onStageFilterChange={setStageFilter}
         stageOptions={stageOptions}
+        matchScoreFilter={matchScoreFilter}
+        onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
@@ -1032,6 +1059,15 @@ export default function CandidatesPage() {
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
                                 onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                progressStatusOptions,
+                                progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
+                                progressStatusBusyWorkerId: statusBusyWorkerId,
+                                onToggleProgressStatusMenu: (workerId, anchor) => {
+                                  setRowActionsMenu(null);
+                                  setProgressStatusMenu((current) =>
+                                    current?.workerId === workerId ? null : { workerId, anchor }
+                                  );
+                                },
                               })}
                             </td>
                           ))}
@@ -1047,6 +1083,7 @@ export default function CandidatesPage() {
                                 aria-expanded={rowActionsMenu?.rowId === c.id}
                                 onClick={(event) => {
                                   const anchor = event.currentTarget;
+                                  setProgressStatusMenu(null);
                                   setRowActionsMenu((current) =>
                                     current?.rowId === c.id ? null : { rowId: c.id, anchor }
                                   );
@@ -1099,6 +1136,7 @@ export default function CandidatesPage() {
           saveColumnOrder(order);
         }}
       />
+      {progressStatusUi}
       <BulkDeleteConfirmModal
         open={deleteConfirmOpen}
         entity="candidate"

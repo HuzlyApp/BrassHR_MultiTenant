@@ -18,6 +18,13 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
 > = {
   name: { header: columnLabel("name"), value: (row) => row.name },
   status: { header: columnLabel("status"), value: (row) => row.status },
+  progressStatus: {
+    header: columnLabel("progressStatus"),
+    value: (row) =>
+      row.progressStatusName?.trim() ||
+      row.progressStatusKey?.trim() ||
+      "—",
+  },
   reference: { header: columnLabel("reference"), value: (row) => row.reference },
   jobRole: { header: columnLabel("jobRole"), value: (row) => row.role },
   matchJob: {
