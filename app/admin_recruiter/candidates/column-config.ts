@@ -87,9 +87,10 @@ export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "progressStatus",
   "jobMatch",
   "currentStage",
+  "createdDate",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns-v4"
+const STORAGE_KEY = "nexus-candidates-list-columns-v5"
 
 /** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
@@ -106,6 +107,7 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
   insertAfter("contact", "progressStatus")
   insertAfter("progressStatus", "jobMatch")
   insertAfter("jobMatch", "currentStage")
+  insertAfter("currentStage", "createdDate")
 
   return next
 }
