@@ -112,28 +112,25 @@ function CandidateCard({
 
   return (
     <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-3">
+      <Link
+        href={linkHref}
+        className="group flex items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
+        aria-label={`${count} ${label} applications`}
+      >
         <BrandedSvgIcon
           src={iconSrc}
           className="h-[30px] w-[30px] shrink-0"
           color={secondaryColor}
         />
         <div className="min-w-0">
-          <p className="text-base font-semibold leading-6 text-[#374151]">
-            <Link
-              href={linkHref}
-              className="text-[#374151] transition hover:underline"
-              aria-label={`${count} ${label} applications`}
-            >
-              {count}
-            </Link>{" "}
-            {label}
+          <p className="text-base font-semibold leading-6 text-[#374151] transition group-hover:underline">
+            {count} {label}
           </p>
           <p className="mt-0.5 text-xs font-normal leading-4 text-[#6B7280]">
             Applications received
           </p>
         </div>
-      </div>
+      </Link>
       <Link
         href={linkHref}
         className={footerLinkClass}

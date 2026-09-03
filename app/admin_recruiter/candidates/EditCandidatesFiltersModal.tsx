@@ -276,7 +276,7 @@ export function EditCandidatesFiltersModal({
                   }}
                   className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#374151] transition hover:bg-zinc-50"
                 >
-                  Advanced Search
+                  Map search
                 </button>
               </div>
             ) : null}

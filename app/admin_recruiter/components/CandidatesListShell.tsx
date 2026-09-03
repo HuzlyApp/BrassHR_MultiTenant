@@ -222,12 +222,12 @@ export function AdvancedSearchButton({
       type="button"
       onClick={() => onClick?.()}
       disabled={disabled}
-      aria-label="Advanced search"
+      aria-label="Map search"
       className={`relative z-10 inline-flex w-auto shrink-0 ${btnH} items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-2.5 text-xs font-semibold whitespace-nowrap text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 max-[429px]:gap-1 max-[429px]:px-2 max-[429px]:text-[10px] sm:px-3 sm:text-sm ${className}`}
     >
       <Search className="h-3.5 w-3.5 shrink-0 max-[429px]:h-3 max-[429px]:w-3 sm:h-4 sm:w-4" />
-      <span className="max-[449px]:hidden">Advanced Search</span>
-      <span className="hidden max-[449px]:inline">Search</span>
+      <span className="max-[449px]:hidden">Map search</span>
+      <span className="hidden max-[449px]:inline">Map</span>
     </button>
   );
 }

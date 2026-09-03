@@ -230,7 +230,7 @@ export default function AdvancedSearchModal({
             id="advanced-search-title"
             className="text-base font-semibold leading-6 text-[#1F2937] sm:text-2xl sm:leading-8"
           >
-            Advanced Search
+            Map search
           </div>
           <button
             type="button"

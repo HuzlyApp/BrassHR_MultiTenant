@@ -161,13 +161,13 @@ export default function ResultsClient() {
         <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
           <div>
             <div className="font-semibold text-2xl">Candidates</div>
-            <div className="text-xs text-gray-600">Admin - Advanced Search Results</div>
+            <div className="text-xs text-gray-600">Admin - Map search Results</div>
           </div>
           <Link
             href="/admin_recruiter/advanced-search"
             className="text-sm text-teal-700 hover:underline"
           >
-            Back to advanced search
+            Back to map search
           </Link>
         </header>
 
