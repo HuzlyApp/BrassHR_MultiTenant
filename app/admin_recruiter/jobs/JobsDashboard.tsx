@@ -179,7 +179,7 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
     {
       label: "Strong Matches",
       value: strongMatches,
-      href: `${APPLICATIONS_HREF}?matchScore=90_plus`,
+      href: `${APPLICATIONS_HREF}?matchScore=90_100`,
       icon: { src: `${JOBS_ICONS}/kpi-star-badge.svg`, bg: "#CFFFDE", leafWidth: 27.2, leafHeight: 27.37 },
     },
     {

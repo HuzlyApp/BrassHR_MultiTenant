@@ -32,7 +32,6 @@ import {
 import {
   JOB_POSTING_DESCRIPTION_CSS,
   JOB_POSTING_METADATA_CLASS,
-  JOB_POSTING_PAGE_TITLE_CLASS,
 } from "./job-posting-typography";
 import { JobPublicViewLink } from "./JobPublicViewLink";
 import {
@@ -312,7 +311,7 @@ export default function JobDetailsClient({ jobId }: Props) {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
                 <div className="flex min-w-0 items-start gap-2">
-                  <h1 className={`min-w-0 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
+                  <h1 className="min-w-0 text-lg font-semibold leading-7 text-[#1D2739]">
                     {title}
                   </h1>
                 </div>

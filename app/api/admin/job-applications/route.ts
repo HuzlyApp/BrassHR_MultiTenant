@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
         query = query.eq("status_id", statusId);
       }
 
-      if (matchScore === "90_plus") {
+      if (matchScore === "90_plus" || matchScore === "90_100") {
         query = query.gte("ai_match_score", 90);
       }
 

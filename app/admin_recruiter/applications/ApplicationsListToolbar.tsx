@@ -1,5 +1,6 @@
 "use client";
 
+import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -120,6 +121,8 @@ export type ApplicationsListToolbarProps = {
   stageFilter: string;
   onStageFilterChange: (value: string) => void;
   stageOptions: { value: string; label: string }[];
+  matchScoreFilter: string;
+  onMatchScoreFilterChange: (value: string) => void;
   locationFilter: string;
   onLocationFilterChange: (value: string) => void;
   locationOptions: string[];
@@ -154,6 +157,8 @@ export function ApplicationsListToolbar({
   stageFilter,
   onStageFilterChange,
   stageOptions,
+  matchScoreFilter,
+  onMatchScoreFilterChange,
   locationFilter,
   onLocationFilterChange,
   locationOptions,
@@ -307,6 +312,11 @@ export function ApplicationsListToolbar({
               options={jobFilterOptions}
             />
           ) : null}
+          <MatchScoreRangeFilter
+            compact
+            value={matchScoreFilter}
+            onChange={onMatchScoreFilterChange}
+          />
           <CompactFilterSelect
             ariaLabel="Stages"
             placeholder="Stages"

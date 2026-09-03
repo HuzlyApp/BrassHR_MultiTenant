@@ -50,6 +50,26 @@ describe("sortCandidateRows", () => {
     const sorted = sortCandidateRows(rows, { column: "createdDate", direction: "desc" });
     expect(sorted.map((item) => item.id)).toEqual(["2", "3", "1"]);
   });
+
+  it("sorts job titles and keeps empty values last", () => {
+    const titled = [
+      row({ id: "1", name: "Charlie", applicationJobTitle: "CNA" }),
+      row({ id: "2", name: "Alice", applicationJobTitle: "RN" }),
+      row({ id: "3", name: "Bob" }),
+    ];
+    const sorted = sortCandidateRows(titled, { column: "matchJob", direction: "asc" });
+    expect(sorted.map((item) => item.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("sorts progress status labels", () => {
+    const statuses = [
+      row({ id: "1", name: "Charlie", progressStatusName: "New / Not Contacted" }),
+      row({ id: "2", name: "Alice", progressStatusName: "Fit for Future Roles" }),
+      row({ id: "3", name: "Bob", progressStatusName: "Position Closed" }),
+    ];
+    const sorted = sortCandidateRows(statuses, { column: "progressStatus", direction: "asc" });
+    expect(sorted.map((item) => item.id)).toEqual(["2", "1", "3"]);
+  });
 });
 
 describe("toggleCandidateListSort", () => {

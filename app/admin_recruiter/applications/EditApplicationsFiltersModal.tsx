@@ -6,6 +6,8 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
+import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 
 export type ApplicationsExtendedFilterValues = {
   status: string;
@@ -44,13 +46,30 @@ export function hasActiveApplicationsExtendedFilters(
   );
 }
 
-export const APPLICATION_MATCH_SCORE_FILTER_OPTIONS = [
-  { id: "90_plus", label: "90%+", min: 90, max: Number.POSITIVE_INFINITY },
-  { id: "70_89", label: "70% – 89%", min: 70, max: 90 },
-  { id: "50_69", label: "50% – 69%", min: 50, max: 70 },
-  { id: "under_50", label: "Under 50%", min: 0, max: 50 },
-  { id: "no_score", label: "No score" },
-] as const;
+/** Legacy dashboard / deep-link ids from the previous All candidates filter. */
+const LEGACY_APPLICATION_MATCH_SCORE_HANDLERS: Record<
+  string,
+  (score: number | null | undefined) => boolean
+> = {
+  "90_plus": (score) => score != null && Number.isFinite(Number(score)) && Number(score) >= 90,
+  "70_89": (score) =>
+    score != null && Number.isFinite(Number(score)) && Number(score) >= 70 && Number(score) < 90,
+  "50_69": (score) =>
+    score != null && Number.isFinite(Number(score)) && Number(score) >= 50 && Number(score) < 70,
+  under_50: (score) => score != null && Number.isFinite(Number(score)) && Number(score) < 50,
+  no_score: (score) => score == null || !Number.isFinite(Number(score)),
+};
+
+export function applicationMatchesMatchScoreFilter(
+  score: number | null | undefined,
+  matchScoreFilter: string
+): boolean {
+  const trimmed = matchScoreFilter.trim();
+  if (!trimmed) return true;
+  const legacy = LEGACY_APPLICATION_MATCH_SCORE_HANDLERS[trimmed];
+  if (legacy) return legacy(score);
+  return candidateMatchesMatchScoreFilter(score, trimmed);
+}
 
 export const APPLICATION_DATE_APPLIED_FILTER_OPTIONS = [
   { id: "today", label: "Today" },
@@ -74,19 +93,6 @@ function daysAgoFromToday(days: number, now = new Date()): Date {
   const start = startOfLocalDay(now);
   start.setDate(start.getDate() - days);
   return start;
-}
-
-export function applicationMatchesMatchScoreFilter(
-  score: number | null | undefined,
-  matchScoreFilter: string
-): boolean {
-  if (!matchScoreFilter) return true;
-  if (matchScoreFilter === "no_score") return score == null || !Number.isFinite(Number(score));
-  const option = APPLICATION_MATCH_SCORE_FILTER_OPTIONS.find((row) => row.id === matchScoreFilter);
-  if (!option || !("min" in option)) return true;
-  if (score == null || !Number.isFinite(Number(score))) return false;
-  const value = Number(score);
-  return value >= option.min && value < option.max;
 }
 
 export function applicationMatchesDateAppliedFilter(
@@ -330,17 +336,10 @@ export function EditApplicationsFiltersModal({
                 ))}
               </ModalFilterField>
 
-              <ModalFilterField
-                label="Match %"
+              <MatchScoreRangeFilter
                 value={draft.matchScore}
                 onChange={(v) => setField("matchScore", v)}
-              >
-                {APPLICATION_MATCH_SCORE_FILTER_OPTIONS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </ModalFilterField>
+              />
 
               <ModalFilterField
                 label="Application Date"

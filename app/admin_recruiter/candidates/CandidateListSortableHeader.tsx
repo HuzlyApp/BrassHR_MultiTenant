@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ListSortableHeader } from "@/app/admin_recruiter/components/ListSortableHeader";
 import type {
   CandidateListSortColumn,
   CandidateListSortState,
@@ -21,26 +21,13 @@ export function CandidateListSortableHeader({
   sort,
   onSort,
 }: CandidateListSortableHeaderProps) {
-  const active = sort.column === column;
-  const ascending = active && sort.direction === "asc";
-
   return (
-    <button
-      type="button"
-      onClick={() => onSort(column)}
-      className={`inline-flex items-center gap-1 text-sm font-medium uppercase tracking-[0.08em] text-black transition hover:text-[#0F172A] ${
-        align === "left" ? "justify-start" : "w-full justify-center"
-      }`}
-      aria-sort={active ? (ascending ? "ascending" : "descending") : "none"}
-      aria-label={`Sort by ${label}`}
-      title={`Sort by ${label}`}
-    >
-      <span>{label}</span>
-      {ascending ? (
-        <ArrowUp className="h-3.5 w-3.5 shrink-0 text-black" aria-hidden />
-      ) : (
-        <ArrowDown className="h-3.5 w-3.5 shrink-0 text-black" aria-hidden />
-      )}
-    </button>
+    <ListSortableHeader
+      label={label}
+      align={align}
+      active={sort.column === column}
+      direction={sort.direction}
+      onSort={() => onSort(column)}
+    />
   );
 }
