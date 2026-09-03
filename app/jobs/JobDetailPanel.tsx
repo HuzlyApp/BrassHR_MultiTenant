@@ -6,7 +6,6 @@ import {
   JOB_POSTING_COMPANY_CLASS,
   JOB_POSTING_DESCRIPTION_CSS,
   JOB_POSTING_METADATA_CLASS,
-  JOB_POSTING_PAGE_TITLE_CLASS,
   JOB_POSTING_SECTION_HEADING_CLASS,
 } from "@/app/admin_recruiter/jobs/job-posting-typography";
 import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
@@ -125,23 +124,30 @@ export function JobDetailPanel({
             ← Back to jobs
           </button>
         ) : null}
-        <p className={JOB_POSTING_COMPANY_CLASS}>
-          {companyName}
-        </p>
-        <h2 id="jobs-detail-title" className={`mt-1 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
-          {title}
-        </h2>
-        <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
-        {facts.length ? <p className={`mt-1 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p> : null}
-        <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 ${JOB_POSTING_METADATA_CLASS}`}>
-          {pay ? <span>{pay}</span> : null}
-          {posted ? <span>{posted}</span> : null}
-        </div>
-        {!stacked ? (
-          <div className="mt-4">
-            <ApplyControl href={applyHref} className={applyClassName} />
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className={JOB_POSTING_COMPANY_CLASS}>
+              {companyName}
+            </p>
+            <h2
+              id="jobs-detail-title"
+              className="mt-1 text-[1.05rem] font-semibold leading-7 text-[#1D2739]"
+            >
+              {title}
+            </h2>
+            <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
+            {facts.length ? <p className={`mt-1 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p> : null}
+            <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 ${JOB_POSTING_METADATA_CLASS}`}>
+              {pay ? <span>{pay}</span> : null}
+              {posted ? <span>{posted}</span> : null}
+            </div>
           </div>
-        ) : null}
+          {!stacked ? (
+            <div className="shrink-0 pt-5">
+              <ApplyControl href={applyHref} className={applyClassName} />
+            </div>
+          ) : null}
+        </div>
       </header>
 
       <div className="jobs-board-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 min-[1024px]:px-6">

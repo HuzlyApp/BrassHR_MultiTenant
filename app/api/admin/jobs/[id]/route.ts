@@ -7,6 +7,7 @@ import {
 } from "@/lib/jobs/screening-questions";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { isVisibleOnJobCandidatesAllTab } from "@/lib/jobs/application-status-tab";
+import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board";
 
 export async function GET(
   _req: NextRequest,
@@ -64,7 +65,7 @@ export async function GET(
       typeof job.public_job_token === "string" ? job.public_job_token.trim() : "";
     const publicJobPath =
       job.status === "published" && publicToken && tenantSlug
-        ? `/jobs/${encodeURIComponent(publicToken)}?tenant=${encodeURIComponent(tenantSlug)}`
+        ? buildJobsBoardHref({ tenant: tenantSlug, job: publicToken })
         : null;
 
     const screeningQuestionRows = await loadJobScreeningQuestions(supabase, tenantId, id);
