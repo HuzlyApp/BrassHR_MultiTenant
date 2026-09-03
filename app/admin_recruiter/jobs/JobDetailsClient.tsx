@@ -151,7 +151,6 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [job, setJob] = useState<JobDetailsRow | null>(null);
   const [stats, setStats] = useState<JobDetailsStats | null>(null);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
@@ -179,16 +178,13 @@ export default function JobDetailsClient({ jobId }: Props) {
       setPublicJobPath(
         typeof payload.publicJobPath === "string" ? payload.publicJobPath : null
       );
-      setCompanyName(
-        String(payload.tenant?.name || branding.companyName || "").trim() || "Company"
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
       if (!silent) setJob(null);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [branding.companyName, jobId]);
+  }, [jobId]);
 
   useEffect(() => {
     void load();
@@ -257,7 +253,7 @@ export default function JobDetailsClient({ jobId }: Props) {
     return job.public_title?.trim() || "Untitled job";
   })();
   const location = job ? formatJobDetailsLocation(job) : "—";
-  const clientName = job ? formatJobDetailsClientName(job, companyName) : "—";
+  const clientName = job ? formatJobDetailsClientName(job) : "";
   const pay = job ? formatJobDetailsPay(job) : "—";
   const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";
   const responsibilities = useMemo(
@@ -317,8 +313,12 @@ export default function JobDetailsClient({ jobId }: Props) {
                 </div>
                 <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
                   Location: {location}
-                  <span className="mx-1.5 text-[#CBD5E1]">•</span>
-                  Client Name: {clientName}
+                  {clientName ? (
+                    <>
+                      <span className="mx-1.5 text-[#CBD5E1]">•</span>
+                      Client Name: {clientName}
+                    </>
+                  ) : null}
                 </p>
                 {(() => {
                   const flow = job.onboarding_flows;
