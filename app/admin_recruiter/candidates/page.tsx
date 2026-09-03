@@ -9,6 +9,7 @@ import {
   columnLabel,
   candidateListColumnAlignmentClassName,
   candidateListColumnClassName,
+  candidateListHeaderAlign,
   CANDIDATE_LIST_TABLE_CLASS,
   CANDIDATE_LIST_TABLE_SCROLL_CLASS,
   DEFAULT_CANDIDATE_COLUMNS,
@@ -17,6 +18,10 @@ import {
   type CandidateColumnId,
 } from "./column-config";
 import { renderListCell } from "./render-list-cell";
+import {
+  mapWorkerProgressStatusFields,
+  useCandidateProgressStatus,
+} from "./CandidateProgressStatusCell";
 import { CandidateGridCard } from "./CandidateGridCard";
 import { CandidateListSortableHeader } from "./CandidateListSortableHeader";
 import type { CandidateRow } from "./types";
@@ -45,6 +50,7 @@ import {
   formatPipelineStatusLabel,
 } from "@/lib/workers/candidate-status-label";
 import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
+import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
   buildCandidateStageOptions,
   candidateMatchesStageFilter,
@@ -63,6 +69,10 @@ import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionB
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "./claim-client";
 import { runCandidateListBulkMatchAnalyze } from "./run-bulk-match-analyze";
+import {
+  parseListingRequirementCounts,
+  requirementCountsFromAnalyzePayload,
+} from "@/lib/jobs/match-analysis/workspace";
 import {
   bulkAnalyzeSelectedLabel,
   bulkReanalyzeSelectedLabel,
@@ -103,6 +113,10 @@ type WorkerProfile = {
   applied_job_count?: number | null;
   assigned_recruiter_user_id?: string | null;
   application_id?: string | null;
+  application_status_id?: string | null;
+  application_status_name?: string | null;
+  application_status_key?: string | null;
+  application_status_ambiguous?: boolean | null;
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
@@ -111,6 +125,11 @@ type WorkerProfile = {
   ai_match_score?: number | null;
   ai_match_category?: string | null;
   ai_match_display_category?: string | null;
+  ai_requirement_counts?: {
+    confirmed?: number | null;
+    verify?: number | null;
+    notMet?: number | null;
+  } | null;
 };
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -201,12 +220,20 @@ function mapWorkerMatchFields(item: WorkerProfile) {
     aiMatchScore: item.ai_match_score ?? null,
     aiMatchCategory: item.ai_match_category ?? null,
     aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+    aiRequirementCounts: parseListingRequirementCounts(item.ai_requirement_counts),
   };
 }
 
 export default function CandidatesPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const {
+    statusOptions: progressStatusOptions,
+    statusMenu: progressStatusMenu,
+    setStatusMenu: setProgressStatusMenu,
+    statusBusyWorkerId,
+    progressStatusUi,
+  } = useCandidateProgressStatus(candidates, setCandidates);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -215,8 +242,10 @@ export default function CandidatesPage() {
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [progressStatusFilter, setProgressStatusFilter] = useState("");
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -378,6 +407,7 @@ export default function CandidatesPage() {
           address2: item.address2 ?? "",
           status: formatCandidateStatusLabel(item.status as string | undefined),
           statusKey: item.status ?? null,
+          ...mapWorkerProgressStatusFields(item),
           createdAt: item.created_at,
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
@@ -420,6 +450,7 @@ export default function CandidatesPage() {
         address2: item.address2 ?? "",
         status: formatCandidateStatusLabel(item.status as string | undefined),
         statusKey: item.status ?? null,
+        ...mapWorkerProgressStatusFields(item),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
@@ -486,6 +517,15 @@ export default function CandidatesPage() {
 
   const stageOptions = useMemo(() => buildCandidateStageOptions(candidates), [candidates]);
 
+  const progressStatusFilterOptions = useMemo(
+    () =>
+      progressStatusOptions.map((option) => ({
+        value: option.id,
+        label: option.name,
+      })),
+    [progressStatusOptions]
+  );
+
   const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
 
   const filtered = useMemo(() => {
@@ -496,8 +536,14 @@ export default function CandidatesPage() {
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
+    if (progressStatusFilter) {
+      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
+    }
     if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
     if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
+    if (matchScoreFilter) {
+      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
+    }
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
@@ -505,7 +551,19 @@ export default function CandidatesPage() {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
     return out;
-  }, [candidates, query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]);
+  }, [
+    candidates,
+    query,
+    jobRoleFilter,
+    statusFilter,
+    progressStatusFilter,
+    jobFilter,
+    stageFilter,
+    matchScoreFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+  ]);
 
   // const multiJobApplicantCount = useMemo(
   //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
@@ -524,13 +582,26 @@ export default function CandidatesPage() {
         query.trim() ||
           jobRoleFilter ||
           statusFilter ||
+          progressStatusFilter ||
           jobFilter ||
           stageFilter ||
+          matchScoreFilter ||
           locationFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
-    [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [
+      query,
+      jobRoleFilter,
+      statusFilter,
+      progressStatusFilter,
+      jobFilter,
+      stageFilter,
+      matchScoreFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+    ]
   );
 
   const listDisplayTotal = useMemo(
@@ -550,7 +621,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -595,8 +666,10 @@ export default function CandidatesPage() {
         query,
         jobRoleFilter,
         statusFilter,
+        progressStatusFilter,
         jobFilter,
         stageFilter,
+        matchScoreFilter,
         locationFilter,
         appliedDateFrom,
         appliedDateTo,
@@ -608,8 +681,10 @@ export default function CandidatesPage() {
       query,
       jobRoleFilter,
       statusFilter,
+      progressStatusFilter,
       jobFilter,
       stageFilter,
+      matchScoreFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -735,6 +810,8 @@ export default function CandidatesPage() {
                 aiMatchCategory: payload.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiRequirementCounts:
+                  requirementCountsFromAnalyzePayload(payload) ?? row.aiRequirementCounts,
               }
             : row
         )
@@ -859,12 +936,17 @@ export default function CandidatesPage() {
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         statusOptions={statusOptions}
+        progressStatusFilter={progressStatusFilter}
+        onProgressStatusFilterChange={setProgressStatusFilter}
+        progressStatusOptions={progressStatusFilterOptions}
         jobFilter={jobFilter}
         onJobFilterChange={setJobFilter}
         jobOptions={jobOptions}
         stageFilter={stageFilter}
         onStageFilterChange={setStageFilter}
         stageOptions={stageOptions}
+        matchScoreFilter={matchScoreFilter}
+        onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
@@ -968,9 +1050,9 @@ export default function CandidatesPage() {
                 />
                 <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
                   <table className={CANDIDATE_LIST_TABLE_CLASS}>
-                    <thead className="bg-[#F8FAFC] text-black">
+                    <thead className="bg-brand-lite text-black">
                       <tr className="border-b border-[#E5E7EB]">
-                        <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
+                        <th className="w-12 border-r border-[#E5E7EB] bg-brand-lite px-3 py-3 text-center">
                           <ListTableCheckbox
                             size="md"
                             checked={selection.headerChecked}
@@ -983,13 +1065,13 @@ export default function CandidatesPage() {
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
+                            className={`border-r border-[#E5E7EB] bg-brand-lite px-4 py-3 text-sm font-medium normal-case tracking-normal text-black first:pl-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                           >
                             {isCandidateListSortableColumn(colId) ? (
                               <CandidateListSortableHeader
                                 column={colId}
                                 label={columnLabel(colId)}
-                                align={colId === "name" ? "left" : "center"}
+                                align={candidateListHeaderAlign(colId)}
                                 sort={listSort}
                                 onSort={handleListSort}
                               />
@@ -998,7 +1080,7 @@ export default function CandidatesPage() {
                             )}
                           </th>
                         ))}
-                        <th className="whitespace-nowrap border-r-0 bg-[#E5E7EB] px-4 py-3 text-center text-sm font-medium uppercase tracking-[0.08em] text-black last:pr-6">
+                        <th className="whitespace-nowrap border-r-0 bg-brand-lite px-4 py-3 text-center text-sm font-medium normal-case tracking-normal text-black last:pr-6">
                           Actions
                         </th>
                       </tr>
@@ -1032,6 +1114,15 @@ export default function CandidatesPage() {
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
                                 onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                progressStatusOptions,
+                                progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
+                                progressStatusBusyWorkerId: statusBusyWorkerId,
+                                onToggleProgressStatusMenu: (workerId, anchor) => {
+                                  setRowActionsMenu(null);
+                                  setProgressStatusMenu((current) =>
+                                    current?.workerId === workerId ? null : { workerId, anchor }
+                                  );
+                                },
                               })}
                             </td>
                           ))}
@@ -1047,6 +1138,7 @@ export default function CandidatesPage() {
                                 aria-expanded={rowActionsMenu?.rowId === c.id}
                                 onClick={(event) => {
                                   const anchor = event.currentTarget;
+                                  setProgressStatusMenu(null);
                                   setRowActionsMenu((current) =>
                                     current?.rowId === c.id ? null : { rowId: c.id, anchor }
                                   );
@@ -1099,6 +1191,7 @@ export default function CandidatesPage() {
           saveColumnOrder(order);
         }}
       />
+      {progressStatusUi}
       <BulkDeleteConfirmModal
         open={deleteConfirmOpen}
         entity="candidate"

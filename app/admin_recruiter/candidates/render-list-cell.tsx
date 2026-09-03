@@ -1,19 +1,18 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import { Mail, Phone } from "lucide-react"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
-import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink"
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
-import { MatchScoreCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
+import { CandidateProgressStatusCell } from "./CandidateProgressStatusCell"
+import type { ApplicationStatusOption } from "../applications/ApplicationStatusUi"
+import { MatchScoreCell, RequirementOutcomeCountCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
+import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
 
-const BRAND_ICON = "var(--brand-primary)"
-/** Figma: Text/text-link — fixed email color under applicant name */
-const TEXT_LINK_COLOR = "#64748B"
 const LINK_CLASS =
   "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
 
@@ -25,6 +24,10 @@ export function renderListCell(
     highlightMultiJob?: boolean
     matchAnalyzingApplicationIds?: Set<string>
     onAnalyzeMatch?: (applicationId: string) => void
+    progressStatusOptions?: ApplicationStatusOption[]
+    progressStatusMenuWorkerId?: string | null
+    progressStatusBusyWorkerId?: string | null
+    onToggleProgressStatusMenu?: (workerId: string, anchor: HTMLButtonElement) => void
   }
 ): ReactNode {
   const highlightMultiJob = options?.highlightMultiJob ?? false;
@@ -33,7 +36,8 @@ export function renderListCell(
   const appliedJobCount = Number(c.appliedJobCount ?? 1);
 
   switch (col) {
-    case "name":
+    case "name": {
+      const jobTitle = resolveCandidateMatchJobTitle(c) || c.role?.trim() || ""
       return (
         <div className="flex w-full min-w-0 items-center gap-3">
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
@@ -41,13 +45,13 @@ export function renderListCell(
             {c.name?.trim() ? (
               <Link
                 href={candidateProfileHref(c.id)}
-                className={`block text-sm font-medium ${LINK_CLASS}`}
+                className={`block text-sm font-semibold leading-5 ${LINK_CLASS}`}
                 style={{ color: "var(--brand-secondary)" }}
               >
                 {c.name}
               </Link>
             ) : (
-              <div className="truncate text-sm font-medium" style={{ color: "var(--brand-secondary)" }}>
+              <div className="truncate text-sm font-semibold leading-5" style={{ color: "var(--brand-secondary)" }}>
                 —
               </div>
             )}
@@ -56,39 +60,52 @@ export function renderListCell(
                 Applied to {appliedJobCount} jobs
               </span>
             ) : null}
-            {c.email?.trim() ? (
-              <Link
-                href={candidateMailHref(c.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`block text-xs ${LINK_CLASS}`}
-                style={{ color: TEXT_LINK_COLOR }}
-              >
-                {c.email}
-              </Link>
-            ) : (
-              <div className="truncate text-xs" style={{ color: TEXT_LINK_COLOR }}>
-                —
-              </div>
-            )}
+            <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]" title={jobTitle || undefined}>
+              {jobTitle || "—"}
+            </p>
           </div>
-
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <CandidateAiAnalysisLink
-              workerId={c.id}
-              candidateName={c.name}
-            />
-            <Link
-              href={`/admin_recruiter/new/attachments/${c.id}`}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-              aria-label="View document"
-            >
-              <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
-            </Link>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />
           </div>
         </div>
       )
+    }
+    case "contact": {
+      const email = c.email?.trim() ?? ""
+      const phone = c.phone?.trim() ?? ""
+      return (
+        <div className="flex min-w-0 flex-col gap-1 text-left">
+          {email ? (
+            <Link
+              href={candidateMailHref(c.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Compose mail to ${c.name || email}`}
+              title={email}
+              className="flex min-w-0 items-center gap-1.5 text-sm leading-5 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
+              style={{ color: "var(--brand-primary)" }}
+            >
+              <Mail className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+              <span className="truncate">{email}</span>
+            </Link>
+          ) : (
+            <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5" style={{ color: "var(--brand-primary)" }}>
+              <Mail className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+              <span className="truncate">—</span>
+            </p>
+          )}
+          <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
+            <Phone
+              className="h-3.5 w-3.5 shrink-0"
+              strokeWidth={2}
+              style={{ color: "var(--brand-primary)" }}
+              aria-hidden
+            />
+            <span className="truncate text-[#374151]">{phone || "—"}</span>
+          </p>
+        </div>
+      )
+    }
     case "status":
       return (
         <div className="flex w-full justify-center">
@@ -98,6 +115,16 @@ export function renderListCell(
             {c.status}
           </span>
         </div>
+      )
+    case "progressStatus":
+      return (
+        <CandidateProgressStatusCell
+          row={c}
+          options={options?.progressStatusOptions ?? []}
+          menuOpen={options?.progressStatusMenuWorkerId === c.id}
+          busy={options?.progressStatusBusyWorkerId === c.id}
+          onToggleMenu={(anchor) => options?.onToggleProgressStatusMenu?.(c.id, anchor)}
+        />
       )
     case "reference":
       return <span className="text-sm text-[#374151]">{c.reference}</span>
@@ -127,6 +154,77 @@ export function renderListCell(
           analyzing={Boolean(applicationId && matchAnalyzingApplicationIds?.has(applicationId))}
           onAnalyze={onAnalyzeMatch ? () => onAnalyzeMatch(applicationId) : undefined}
         />
+      )
+    }
+    case "conf":
+      return (
+        <RequirementOutcomeCountCell
+          tone="conf"
+          analyzed={c.aiMatchStatus === "ANALYZED"}
+          value={c.aiRequirementCounts?.confirmed}
+        />
+      )
+    case "verify":
+      return (
+        <RequirementOutcomeCountCell
+          tone="verify"
+          analyzed={c.aiMatchStatus === "ANALYZED"}
+          value={c.aiRequirementCounts?.verify}
+        />
+      )
+    case "notMet":
+      return (
+        <RequirementOutcomeCountCell
+          tone="notMet"
+          analyzed={c.aiMatchStatus === "ANALYZED"}
+          value={c.aiRequirementCounts?.notMet}
+        />
+      )
+    case "currentStage": {
+      const statusKey = c.progressStatusKey?.trim()
+      if (!statusKey && !c.progressStatusApplicationId) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      const stage = applicationCurrentStageMeta(statusKey || "new")
+      const note = stage.subtitle
+      return (
+        <div className="min-w-0 text-left">
+          <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
+          {note ? (
+            <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
+              {note}
+            </p>
+          ) : null}
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
+            />
+          </div>
+        </div>
+      )
+    }
+    case "evaluation": {
+      const applicationId = c.matchApplicationId?.trim() ?? ""
+      if (!applicationId) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      const analyzing =
+        Boolean(matchAnalyzingApplicationIds?.has(applicationId)) ||
+        c.aiMatchStatus === "ANALYZING"
+      const analyzed = c.aiMatchStatus === "ANALYZED"
+      return (
+        <span
+          className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
+            analyzing
+              ? "bg-[#F1F5F9] text-[#64748B]"
+              : analyzed
+                ? "bg-[#EFF6FF] text-[#2563EB]"
+                : "bg-[#F1F5F9] text-[#64748B]"
+          }`}
+        >
+          {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
+        </span>
       )
     }
     case "createdDate":

@@ -5,8 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronDown,
   HelpCircle,
@@ -21,6 +19,18 @@ import {
   formatJobPostedOn,
 } from "@/app/admin_recruiter/applications/ApplicationsJobHeaderCard";
 import { ApplicationsListToolbar } from "@/app/admin_recruiter/applications/ApplicationsListToolbar";
+import { ListSortableHeader } from "@/app/admin_recruiter/components/ListSortableHeader";
+import {
+  applicationListHeaderAlign,
+  applicationListSortFromToolbar,
+  applicationToolbarScoreSort,
+  applicationToolbarSortBy,
+  EMPTY_APPLICATION_LIST_SORT,
+  isApplicationListSortableColumn,
+  sortApplicationRows,
+  toggleApplicationListSort,
+  type ApplicationListSortState,
+} from "@/lib/admin/application-list-sort";
 import {
   exportApplicationsCsv,
   exportApplicationsXls,
@@ -109,7 +119,6 @@ import {
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
 import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
-import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
 import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
@@ -593,9 +602,8 @@ export default function JobApplicationsPage() {
     ...DEFAULT_APPLICATION_COLUMNS,
   ]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "matchScore" | "matchScoreAsc">(
-    "matchScore"
-  );
+  const [listSort, setListSort] = useState<ApplicationListSortState>(EMPTY_APPLICATION_LIST_SORT);
+  const sortBy = applicationToolbarSortBy(listSort);
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -926,12 +934,20 @@ export default function JobApplicationsPage() {
   }, [page, pageSize, activeTab, locationFilter, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
   // Sorting intentionally preserves selection (stable IDs) and does not reset the page.
 
-  const scoreSort =
-    sortBy === "matchScoreAsc" ? "low-high" : sortBy === "matchScore" ? "high-low" : "";
+  const scoreSort = applicationToolbarScoreSort(listSort);
 
   function handleScoreSortChange(value: string) {
-    if (value === "low-high") setSortBy("matchScoreAsc");
-    else if (value === "high-low") setSortBy("matchScore");
+    if (value === "low-high") setListSort(applicationListSortFromToolbar("matchScoreAsc"));
+    else if (value === "high-low") setListSort(applicationListSortFromToolbar("matchScore"));
+  }
+
+  function handleSortByChange(value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") {
+    setListSort(applicationListSortFromToolbar(value));
+  }
+
+  function handleListColumnSort(columnId: string) {
+    if (!isApplicationListSortableColumn(columnId)) return;
+    setListSort((current) => toggleApplicationListSort(current, columnId));
   }
 
   function handleClaimCandidates() {
@@ -1213,23 +1229,8 @@ export default function JobApplicationsPage() {
         applicationMatchesDateAppliedFilter(row.submitted_at || row.created_at, dateAppliedFilter)
       );
     }
-    next = [...next].sort((a, b) => {
-      if (sortBy === "matchScore" || sortBy === "matchScoreAsc") {
-        const aScore = a.ai_match_score == null ? -1 : Number(a.ai_match_score);
-        const bScore = b.ai_match_score == null ? -1 : Number(b.ai_match_score);
-        if (bScore !== aScore) {
-          return sortBy === "matchScoreAsc" ? aScore - bScore : bScore - aScore;
-        }
-        const aRelevance = matchCategoryRelevanceRank(a.ai_match_category);
-        const bRelevance = matchCategoryRelevanceRank(b.ai_match_category);
-        if (bRelevance !== aRelevance) return bRelevance - aRelevance;
-      }
-      const aTime = new Date(a.submitted_at || a.created_at).getTime();
-      const bTime = new Date(b.submitted_at || b.created_at).getTime();
-      return sortBy === "oldest" ? aTime - bTime : bTime - aTime;
-    });
-    return next;
-  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+    return sortApplicationRows(next, listSort);
+  }, [rows, activeTab, locationFilter, listSort, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
 
   const multiJobApplicantCount = useMemo(
     () =>
@@ -2534,23 +2535,20 @@ export default function JobApplicationsPage() {
         <ApplicationsListToolbar
           searchQuery={candidateSearchQuery}
           onSearchQueryChange={setCandidateSearchQuery}
-          scoreSort={scoreSort}
-          onScoreSortChange={handleScoreSortChange}
-          statusFilter={listingStatusFilter}
-          onStatusFilterChange={setListingStatusFilter}
-          statusOptions={listingStatusOptions}
           jobFilter={listingJobFilter}
           onJobFilterChange={setListingJobFilter}
           jobFilterOptions={listingJobOptions}
           showJobFilter={!jobId}
-          stageFilter={listingStageFilter}
-          onStageFilterChange={setListingStageFilter}
-          stageOptions={listingStageOptions}
+          matchScoreFilter={matchScoreFilter}
+          onMatchScoreFilterChange={setMatchScoreFilter}
+          progressStatusFilter={listingStatusFilter}
+          onProgressStatusFilterChange={setListingStatusFilter}
+          progressStatusOptions={listingStatusOptions}
           locationFilter={locationFilter}
           onLocationFilterChange={setLocationFilter}
           locationOptions={locationOptions}
           sortBy={sortBy}
-          onSortByChange={setSortBy}
+          onSortByChange={handleSortByChange}
           onOpenMoreFilters={() => setEditFiltersOpen(true)}
           onAnalyzeAll={() => void runBulkMatchAnalyze(paginatedRows.map((row) => row.id))}
           analyzeAllLabel={pageAllAnalyzed ? "Reanalyze all" : "Analyze all"}
@@ -2627,9 +2625,9 @@ export default function JobApplicationsPage() {
 
         <div className="overflow-x-auto">
           <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
-            <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium text-black">
+            <thead className="border-b border-[#E5E7EB] bg-brand-lite text-sm font-medium text-black">
               <tr>
-                <th className="w-12 border-r border-[#E5E7EB] px-[14px] py-3">
+                <th className="w-12 border-r border-[#E5E7EB] bg-brand-lite px-[14px] py-3">
                   <ListTableCheckbox
                     checked={allVisibleSelected}
                     indeterminate={someVisibleSelected && !allVisibleSelected}
@@ -2638,49 +2636,28 @@ export default function JobApplicationsPage() {
                   />
                 </th>
                 {listColumns.map((colId) => {
-                  const isMatchCol = colId === "matches";
-                  const matchSortActive =
-                    sortBy === "matchScore" || sortBy === "matchScoreAsc";
+                  const sortable = isApplicationListSortableColumn(colId);
+                  const sortActive = sortable && listSort.column === colId;
                   return (
                     <th
                       key={colId}
-                      className={`border-r border-[#E5E7EB] px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${applicationListColumnClassName(colId)}`}
+                      className={`border-r border-[#E5E7EB] bg-brand-lite px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${applicationListColumnClassName(colId)}`}
                       aria-sort={
-                        isMatchCol && matchSortActive
-                          ? sortBy === "matchScore"
-                            ? "descending"
-                            : "ascending"
+                        sortActive
+                          ? listSort.direction === "asc"
+                            ? "ascending"
+                            : "descending"
                           : undefined
                       }
                     >
-                      {isMatchCol ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center justify-center gap-1 text-xs font-medium text-black transition hover:text-[#0F172A]"
-                          onClick={() =>
-                            setSortBy((current) =>
-                              current === "matchScore" ? "matchScoreAsc" : "matchScore"
-                            )
-                          }
-                          aria-label={
-                            sortBy === "matchScore"
-                              ? "Sort Match % lowest to highest"
-                              : "Sort Match % highest to lowest"
-                          }
-                          title="Sort by Match %"
-                        >
-                          {applicationColumnLabel(colId)}
-                          {sortBy === "matchScoreAsc" ? (
-                            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-[#64748B]" aria-hidden />
-                          ) : (
-                            <ArrowDown
-                              className={`h-3.5 w-3.5 shrink-0 ${
-                                matchSortActive ? "text-[#64748B]" : "text-[#CBD5E1]"
-                              }`}
-                              aria-hidden
-                            />
-                          )}
-                        </button>
+                      {sortable ? (
+                        <ListSortableHeader
+                          label={applicationColumnLabel(colId)}
+                          align={applicationListHeaderAlign(colId)}
+                          active={Boolean(sortActive)}
+                          direction={listSort.direction}
+                          onSort={() => handleListColumnSort(colId)}
+                        />
                       ) : (
                         applicationColumnLabel(colId)
                       )}
@@ -2809,7 +2786,7 @@ export default function JobApplicationsPage() {
         onOpenChange={setEditFiltersOpen}
         value={editFiltersValue}
         sortBy={sortBy}
-        onSortByChange={setSortBy}
+        onSortByChange={handleSortByChange}
         scoreSort={scoreSort}
         onScoreSortChange={handleScoreSortChange}
         options={{

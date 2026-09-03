@@ -133,7 +133,7 @@ export default function RecruiterPipelineDashboard() {
             style={{ backgroundColor: "var(--brand-primary)" }}
           >
             <MapPin className="h-4 w-4" />
-            Advanced search
+            Map search
           </Link>
         </div>
 

@@ -17,6 +17,8 @@ import {
   type CandidatesFilterValues,
 } from "@/app/admin_recruiter/candidates/EditCandidatesFiltersModal";
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
+import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
+import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -46,12 +48,17 @@ export type CandidatesListShellProps = {
   statusFilter?: string;
   onStatusFilterChange?: (value: string) => void;
   statusOptions?: string[];
+  progressStatusFilter?: string;
+  onProgressStatusFilterChange?: (value: string) => void;
+  progressStatusOptions?: { value: string; label: string }[];
   jobFilter?: string;
   onJobFilterChange?: (value: string) => void;
   jobOptions?: string[];
   stageFilter?: string;
   onStageFilterChange?: (value: string) => void;
   stageOptions?: string[];
+  matchScoreFilter?: string;
+  onMatchScoreFilterChange?: (value: string) => void;
   jobRoleOptions: string[];
   locationOptions: string[];
   view: "card" | "list";
@@ -222,12 +229,12 @@ export function AdvancedSearchButton({
       type="button"
       onClick={() => onClick?.()}
       disabled={disabled}
-      aria-label="Advanced search"
+      aria-label="Map search"
       className={`relative z-10 inline-flex w-auto shrink-0 ${btnH} items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-2.5 text-xs font-semibold whitespace-nowrap text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 max-[429px]:gap-1 max-[429px]:px-2 max-[429px]:text-[10px] sm:px-3 sm:text-sm ${className}`}
     >
       <Search className="h-3.5 w-3.5 shrink-0 max-[429px]:h-3 max-[429px]:w-3 sm:h-4 sm:w-4" />
-      <span className="max-[449px]:hidden">Advanced Search</span>
-      <span className="hidden max-[449px]:inline">Search</span>
+      <span className="max-[449px]:hidden">Map search</span>
+      <span className="hidden max-[449px]:inline">Map</span>
     </button>
   );
 }
@@ -282,12 +289,17 @@ export function CandidatesListShell({
   statusFilter = "",
   onStatusFilterChange,
   statusOptions = [],
+  progressStatusFilter = "",
+  onProgressStatusFilterChange,
+  progressStatusOptions = [],
   jobFilter: jobFilterProp,
   onJobFilterChange,
   jobOptions = [],
   stageFilter: stageFilterProp,
   onStageFilterChange,
   stageOptions = [],
+  matchScoreFilter: matchScoreFilterProp,
+  onMatchScoreFilterChange,
   jobRoleOptions,
   locationOptions,
   view,
@@ -330,6 +342,9 @@ export function CandidatesListShell({
   const [internalStageFilter, setInternalStageFilter] = useState("");
   const stageFilter = stageFilterProp ?? internalStageFilter;
   const setStageFilter = onStageFilterChange ?? setInternalStageFilter;
+  const [internalMatchScoreFilter, setInternalMatchScoreFilter] = useState("");
+  const matchScoreFilter = matchScoreFilterProp ?? internalMatchScoreFilter;
+  const setMatchScoreFilter = onMatchScoreFilterChange ?? setInternalMatchScoreFilter;
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
@@ -340,26 +355,49 @@ export function CandidatesListShell({
       scoreSort,
       jobRoleFilter,
       statusFilter,
+      progressStatusFilter,
       jobFilter,
       stageFilter,
+      matchScoreFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
     }),
-    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo]
+    [
+      scoreSort,
+      jobRoleFilter,
+      statusFilter,
+      progressStatusFilter,
+      jobFilter,
+      stageFilter,
+      matchScoreFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+    ]
   );
 
   const activeFilterCount = simplifiedToolbarFilters
-    ? [statusFilter, jobFilter, stageFilter, locationFilter, appliedDateFrom, appliedDateTo].filter(Boolean)
-        .length
+    ? [
+        statusFilter,
+        progressStatusFilter,
+        jobFilter,
+        stageFilter,
+        matchScoreFilter,
+        locationFilter,
+        appliedDateFrom,
+        appliedDateTo,
+      ].filter(Boolean).length
     : countActiveCandidatesFilters(filterValues);
 
   function applyFilterValues(next: CandidatesFilterValues) {
     setScoreSort(next.scoreSort);
     onJobRoleFilterChange(next.jobRoleFilter);
     onStatusFilterChange?.(next.statusFilter);
+    onProgressStatusFilterChange?.(next.progressStatusFilter);
     setJobFilter(next.jobFilter);
     setStageFilter(next.stageFilter);
+    setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
@@ -368,8 +406,10 @@ export function CandidatesListShell({
   function clearAllFilters() {
     if (simplifiedToolbarFilters) {
       onStatusFilterChange?.("");
+      onProgressStatusFilterChange?.("");
       setJobFilter("");
       setStageFilter("");
+      setMatchScoreFilter("");
       onLocationFilterChange("");
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
@@ -583,18 +623,20 @@ export function CandidatesListShell({
               </>
             ) : null}
             <CompactFilterSelect
-              ariaLabel="Status"
-              placeholder="All Status"
-              value={statusFilter}
-              onChange={(value) => onStatusFilterChange?.(value)}
-              options={statusOptions.map((status) => ({ value: status, label: status }))}
-            />
-            <CompactFilterSelect
               ariaLabel="Jobs"
               placeholder="All Jobs"
               value={jobFilter}
               onChange={setJobFilter}
               options={jobOptions.map((job) => ({ value: job, label: job }))}
+            />
+            <MatchScoreRangeFilter compact value={matchScoreFilter} onChange={setMatchScoreFilter} />
+            <ScrollableFilterSelect
+              ariaLabel="Progress Status"
+              placeholder="Progress Status"
+              value={progressStatusFilter}
+              onChange={(value) => onProgressStatusFilterChange?.(value)}
+              options={progressStatusOptions}
+              triggerClassName="w-[160px]"
             />
             {/* Stages — hidden on All candidates screen */}
             {!simplifiedToolbarFilters ? (
@@ -671,6 +713,7 @@ export function CandidatesListShell({
         options={{
           jobRoleOptions,
           statusOptions,
+          progressStatusOptions,
           locationOptions,
           jobOptions,
           stageOptions,

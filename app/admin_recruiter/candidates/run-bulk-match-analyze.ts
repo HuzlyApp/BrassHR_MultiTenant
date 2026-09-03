@@ -31,6 +31,7 @@ export function applyCandidateBulkMatchItem(
     aiMatchCategory: result.category ?? row.aiMatchCategory,
     aiMatchDisplayCategory:
       result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+    aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
   };
 }
 

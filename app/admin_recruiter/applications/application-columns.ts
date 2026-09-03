@@ -28,7 +28,7 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
   { id: "activity", label: "Activity" },
   { id: "currentStage", label: "Current Stage" },
   { id: "assignee", label: "Assignee" },
-  { id: "status", label: "Status" },
+  { id: "status", label: "Progress Status" },
   { id: "interest", label: "Interest" },
   { id: "email", label: "Email" },
   { id: "workflow", label: "Workflow" },

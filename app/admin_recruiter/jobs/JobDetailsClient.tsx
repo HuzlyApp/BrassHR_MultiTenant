@@ -32,7 +32,6 @@ import {
 import {
   JOB_POSTING_DESCRIPTION_CSS,
   JOB_POSTING_METADATA_CLASS,
-  JOB_POSTING_PAGE_TITLE_CLASS,
 } from "./job-posting-typography";
 import { JobPublicViewLink } from "./JobPublicViewLink";
 import {
@@ -112,28 +111,25 @@ function CandidateCard({
 
   return (
     <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-3">
+      <Link
+        href={linkHref}
+        className="group flex items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
+        aria-label={`${count} ${label} applications`}
+      >
         <BrandedSvgIcon
           src={iconSrc}
           className="h-[30px] w-[30px] shrink-0"
           color={secondaryColor}
         />
         <div className="min-w-0">
-          <p className="text-base font-semibold leading-6 text-[#374151]">
-            <Link
-              href={linkHref}
-              className="text-[#374151] transition hover:underline"
-              aria-label={`${count} ${label} applications`}
-            >
-              {count}
-            </Link>{" "}
-            {label}
+          <p className="text-base font-semibold leading-6 text-[#374151] transition group-hover:underline">
+            {count} {label}
           </p>
           <p className="mt-0.5 text-xs font-normal leading-4 text-[#6B7280]">
             Applications received
           </p>
         </div>
-      </div>
+      </Link>
       <Link
         href={linkHref}
         className={footerLinkClass}
@@ -155,7 +151,6 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [job, setJob] = useState<JobDetailsRow | null>(null);
   const [stats, setStats] = useState<JobDetailsStats | null>(null);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
@@ -183,16 +178,13 @@ export default function JobDetailsClient({ jobId }: Props) {
       setPublicJobPath(
         typeof payload.publicJobPath === "string" ? payload.publicJobPath : null
       );
-      setCompanyName(
-        String(payload.tenant?.name || branding.companyName || "").trim() || "Company"
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
       if (!silent) setJob(null);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [branding.companyName, jobId]);
+  }, [jobId]);
 
   useEffect(() => {
     void load();
@@ -261,7 +253,7 @@ export default function JobDetailsClient({ jobId }: Props) {
     return job.public_title?.trim() || "Untitled job";
   })();
   const location = job ? formatJobDetailsLocation(job) : "—";
-  const clientName = job ? formatJobDetailsClientName(job, companyName) : "—";
+  const clientName = job ? formatJobDetailsClientName(job) : "";
   const pay = job ? formatJobDetailsPay(job) : "—";
   const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";
   const responsibilities = useMemo(
@@ -315,14 +307,18 @@ export default function JobDetailsClient({ jobId }: Props) {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
                 <div className="flex min-w-0 items-start gap-2">
-                  <h1 className={`min-w-0 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
+                  <h1 className="min-w-0 text-lg font-semibold leading-7 text-[#1D2739]">
                     {title}
                   </h1>
                 </div>
                 <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
                   Location: {location}
-                  <span className="mx-1.5 text-[#CBD5E1]">•</span>
-                  Client Name: {clientName}
+                  {clientName ? (
+                    <>
+                      <span className="mx-1.5 text-[#CBD5E1]">•</span>
+                      Client Name: {clientName}
+                    </>
+                  ) : null}
                 </p>
                 {(() => {
                   const flow = job.onboarding_flows;

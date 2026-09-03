@@ -1,12 +1,43 @@
 import type { CandidateRow } from "@/app/admin_recruiter/candidates/types";
+import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title";
+import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 
-export type CandidateListSortColumn = "name" | "jobMatch" | "createdDate";
+export const CANDIDATE_LIST_SORTABLE_COLUMNS = [
+  "name",
+  "contact",
+  "status",
+  "progressStatus",
+  "reference",
+  "jobRole",
+  "matchJob",
+  "jobMatch",
+  "conf",
+  "verify",
+  "notMet",
+  "currentStage",
+  "evaluation",
+  "createdDate",
+  "location",
+  "city",
+  "zipCode",
+  "state",
+  "address1",
+  "phone",
+  "email",
+  "dateOfBirth",
+  "firstName",
+  "lastName",
+] as const;
+
+export type CandidateListSortColumn = (typeof CANDIDATE_LIST_SORTABLE_COLUMNS)[number];
 export type CandidateListSortDirection = "asc" | "desc";
 
 export type CandidateListSortState = {
   column: CandidateListSortColumn | null;
   direction: CandidateListSortDirection;
 };
+
+const SORTABLE_COLUMN_SET = new Set<string>(CANDIDATE_LIST_SORTABLE_COLUMNS);
 
 export const EMPTY_CANDIDATE_LIST_SORT: CandidateListSortState = {
   column: null,
@@ -16,13 +47,20 @@ export const EMPTY_CANDIDATE_LIST_SORT: CandidateListSortState = {
 export function isCandidateListSortableColumn(
   columnId: string
 ): columnId is CandidateListSortColumn {
-  return columnId === "name" || columnId === "jobMatch" || columnId === "createdDate";
+  return SORTABLE_COLUMN_SET.has(columnId);
 }
 
 export function defaultCandidateListSortDirection(
   column: CandidateListSortColumn
 ): CandidateListSortDirection {
-  return column === "name" ? "asc" : "desc";
+  return column === "jobMatch" ||
+    column === "createdDate" ||
+    column === "dateOfBirth" ||
+    column === "conf" ||
+    column === "verify" ||
+    column === "notMet"
+    ? "desc"
+    : "asc";
 }
 
 export function toggleCandidateListSort(
@@ -42,6 +80,10 @@ function compareName(a: CandidateRow, b: CandidateRow): number {
   return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
 }
 
+function compareTextValues(a: string, b: string): number {
+  return a.trim().localeCompare(b.trim(), undefined, { numeric: true, sensitivity: "base" });
+}
+
 function compareMatchScore(a: CandidateRow, b: CandidateRow): number {
   const aScore = a.aiMatchScore == null ? Number.NEGATIVE_INFINITY : Number(a.aiMatchScore);
   const bScore = b.aiMatchScore == null ? Number.NEGATIVE_INFINITY : Number(b.aiMatchScore);
@@ -49,11 +91,224 @@ function compareMatchScore(a: CandidateRow, b: CandidateRow): number {
   return compareName(a, b);
 }
 
-function compareAppliedDate(a: CandidateRow, b: CandidateRow): number {
-  const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.NEGATIVE_INFINITY;
-  const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.NEGATIVE_INFINITY;
-  if (aTime !== bTime) return aTime - bTime;
-  return compareName(a, b);
+function compareDateValues(aIso: string, bIso: string): number {
+  return new Date(aIso).getTime() - new Date(bIso).getTime();
+}
+
+function compareEmptyLast(
+  aEmpty: boolean,
+  bEmpty: boolean,
+  valueCmp: number,
+  directionMultiplier: number
+): number {
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+  return valueCmp * directionMultiplier;
+}
+
+function progressStatusText(row: CandidateRow): string {
+  return row.progressStatusName?.trim() || row.progressStatusKey?.trim() || "";
+}
+
+function currentStageText(row: CandidateRow): string {
+  const key = row.progressStatusKey?.trim();
+  if (!key) return "";
+  return applicationCurrentStageMeta(key).label;
+}
+
+function evaluationRank(row: CandidateRow): number {
+  if (row.aiMatchStatus === "ANALYZED") return 2;
+  if (row.aiMatchStatus) return 1;
+  return 0;
+}
+
+function requirementCount(
+  row: CandidateRow,
+  key: "confirmed" | "verify" | "notMet"
+): number | null {
+  const value = row.aiRequirementCounts?.[key];
+  return value == null ? null : Number(value);
+}
+
+function compareNumericNullLast(
+  aValue: number | null,
+  bValue: number | null,
+  directionMultiplier: number
+): number {
+  const aEmpty = aValue == null || Number.isNaN(aValue);
+  const bEmpty = bValue == null || Number.isNaN(bValue);
+  return compareEmptyLast(
+    aEmpty,
+    bEmpty,
+    (aValue ?? 0) - (bValue ?? 0),
+    directionMultiplier
+  );
+}
+
+function compareColumn(
+  column: CandidateListSortColumn,
+  a: CandidateRow,
+  b: CandidateRow,
+  directionMultiplier: number
+): number {
+  switch (column) {
+    case "name":
+      return compareName(a, b) * directionMultiplier;
+    case "contact": {
+      const aEmail = a.email?.trim() ?? "";
+      const bEmail = b.email?.trim() ?? "";
+      const emailCmp = compareEmptyLast(
+        !aEmail,
+        !bEmail,
+        compareTextValues(aEmail, bEmail),
+        directionMultiplier
+      );
+      if (emailCmp !== 0) return emailCmp;
+      const aPhone = a.phone?.trim() ?? "";
+      const bPhone = b.phone?.trim() ?? "";
+      return compareEmptyLast(!aPhone, !bPhone, compareTextValues(aPhone, bPhone), directionMultiplier);
+    }
+    case "status":
+      return compareEmptyLast(
+        !a.status?.trim(),
+        !b.status?.trim(),
+        compareTextValues(a.status || "", b.status || ""),
+        directionMultiplier
+      );
+    case "progressStatus": {
+      const aText = progressStatusText(a);
+      const bText = progressStatusText(b);
+      return compareEmptyLast(!aText, !bText, compareTextValues(aText, bText), directionMultiplier);
+    }
+    case "reference":
+      return compareEmptyLast(
+        !a.reference?.trim(),
+        !b.reference?.trim(),
+        compareTextValues(a.reference || "", b.reference || ""),
+        directionMultiplier
+      );
+    case "jobRole":
+      return compareEmptyLast(
+        !a.role?.trim(),
+        !b.role?.trim(),
+        compareTextValues(a.role || "", b.role || ""),
+        directionMultiplier
+      );
+    case "matchJob": {
+      const aTitle = resolveCandidateMatchJobTitle(a);
+      const bTitle = resolveCandidateMatchJobTitle(b);
+      return compareEmptyLast(!aTitle, !bTitle, compareTextValues(aTitle, bTitle), directionMultiplier);
+    }
+    case "jobMatch":
+      return compareMatchScore(a, b) * directionMultiplier;
+    case "conf":
+      return compareNumericNullLast(
+        requirementCount(a, "confirmed"),
+        requirementCount(b, "confirmed"),
+        directionMultiplier
+      );
+    case "verify":
+      return compareNumericNullLast(
+        requirementCount(a, "verify"),
+        requirementCount(b, "verify"),
+        directionMultiplier
+      );
+    case "notMet":
+      return compareNumericNullLast(
+        requirementCount(a, "notMet"),
+        requirementCount(b, "notMet"),
+        directionMultiplier
+      );
+    case "currentStage": {
+      const aStage = currentStageText(a);
+      const bStage = currentStageText(b);
+      return compareEmptyLast(!aStage, !bStage, compareTextValues(aStage, bStage), directionMultiplier);
+    }
+    case "evaluation": {
+      const aRank = evaluationRank(a);
+      const bRank = evaluationRank(b);
+      if (aRank !== bRank) return (aRank - bRank) * directionMultiplier;
+      return compareName(a, b);
+    }
+    case "createdDate":
+      return compareEmptyLast(
+        !a.createdAt,
+        !b.createdAt,
+        compareDateValues(a.createdAt || "", b.createdAt || ""),
+        directionMultiplier
+      );
+    case "location":
+      return compareEmptyLast(
+        !a.address?.trim(),
+        !b.address?.trim(),
+        compareTextValues(a.address || "", b.address || ""),
+        directionMultiplier
+      );
+    case "city":
+      return compareEmptyLast(
+        !a.city?.trim(),
+        !b.city?.trim(),
+        compareTextValues(a.city || "", b.city || ""),
+        directionMultiplier
+      );
+    case "zipCode":
+      return compareEmptyLast(
+        !a.zip?.trim(),
+        !b.zip?.trim(),
+        compareTextValues(a.zip || "", b.zip || ""),
+        directionMultiplier
+      );
+    case "state":
+      return compareEmptyLast(
+        !a.state?.trim(),
+        !b.state?.trim(),
+        compareTextValues(a.state || "", b.state || ""),
+        directionMultiplier
+      );
+    case "address1":
+      return compareEmptyLast(
+        !a.address1?.trim(),
+        !b.address1?.trim(),
+        compareTextValues(a.address1 || "", b.address1 || ""),
+        directionMultiplier
+      );
+    case "phone":
+      return compareEmptyLast(
+        !a.phone?.trim(),
+        !b.phone?.trim(),
+        compareTextValues(a.phone || "", b.phone || ""),
+        directionMultiplier
+      );
+    case "email":
+      return compareEmptyLast(
+        !a.email?.trim(),
+        !b.email?.trim(),
+        compareTextValues(a.email || "", b.email || ""),
+        directionMultiplier
+      );
+    case "dateOfBirth":
+      return compareEmptyLast(
+        !a.dateOfBirth,
+        !b.dateOfBirth,
+        compareDateValues(a.dateOfBirth || "", b.dateOfBirth || ""),
+        directionMultiplier
+      );
+    case "firstName":
+      return compareEmptyLast(
+        !a.firstName?.trim(),
+        !b.firstName?.trim(),
+        compareTextValues(a.firstName || "", b.firstName || ""),
+        directionMultiplier
+      );
+    case "lastName":
+      return compareEmptyLast(
+        !a.lastName?.trim(),
+        !b.lastName?.trim(),
+        compareTextValues(a.lastName || "", b.lastName || ""),
+        directionMultiplier
+      );
+  }
 }
 
 export function sortCandidateRows(
@@ -66,11 +321,9 @@ export function sortCandidateRows(
   const directionMultiplier = sort.direction === "asc" ? 1 : -1;
 
   sorted.sort((a, b) => {
-    let cmp = 0;
-    if (sort.column === "name") cmp = compareName(a, b);
-    else if (sort.column === "jobMatch") cmp = compareMatchScore(a, b);
-    else if (sort.column === "createdDate") cmp = compareAppliedDate(a, b);
-    return cmp * directionMultiplier;
+    const cmp = compareColumn(sort.column!, a, b, directionMultiplier);
+    if (cmp !== 0) return cmp;
+    return compareName(a, b);
   });
 
   return sorted;

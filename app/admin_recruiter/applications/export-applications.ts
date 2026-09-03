@@ -77,7 +77,7 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
     { header: "Evaluation", value: (row) => evaluationLabel(row) },
     { header: "Assignee", value: (row) => row.assignedRecruiter?.name ?? "" },
     {
-      header: "Status",
+      header: "Progress Status",
       value: (row) => row.statusName?.trim() || applicationStatusLabel(row.status),
     },
   ];

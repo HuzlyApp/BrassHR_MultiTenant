@@ -1,10 +1,17 @@
 export type CandidateColumnId =
   | "name"
+  | "contact"
   | "status"
+  | "progressStatus"
   | "reference"
   | "jobRole"
   | "matchJob"
   | "jobMatch"
+  | "conf"
+  | "verify"
+  | "notMet"
+  | "currentStage"
+  | "evaluation"
   | "createdDate"
   | "location"
   | "city"
@@ -33,12 +40,19 @@ export type CandidateColumnId =
   | "startDate"
 
 export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[] = [
-  { id: "name", label: "Name" },
+  { id: "name", label: "Candidate" },
+  { id: "contact", label: "Contact" },
   { id: "status", label: "Status" },
+  { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
   { id: "jobRole", label: "Job Role" },
   { id: "matchJob", label: "Job title" },
   { id: "jobMatch", label: "Match Score" },
+  { id: "conf", label: "Conf." },
+  { id: "verify", label: "Verify" },
+  { id: "notMet", label: "Not Met" },
+  { id: "currentStage", label: "Current Stage" },
+  { id: "evaluation", label: "Evaluation" },
   { id: "createdDate", label: "Applied date" },
   { id: "location", label: "Location" },
   { id: "city", label: "City" },
@@ -69,17 +83,16 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
 
 export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
-  "status",
-  "jobRole",
-  "matchJob",
+  "contact",
+  "progressStatus",
   "jobMatch",
+  "currentStage",
   "createdDate",
-  "location",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns"
+const STORAGE_KEY = "nexus-candidates-list-columns-v5"
 
-/** Ensure saved column layouts include newer default columns. */
+/** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
   let next = [...order]
 
@@ -90,8 +103,11 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
     else next.push(columnId)
   }
 
-  insertAfter("jobRole", "matchJob")
-  insertAfter("matchJob", "jobMatch")
+  insertAfter("name", "contact")
+  insertAfter("contact", "progressStatus")
+  insertAfter("progressStatus", "jobMatch")
+  insertAfter("jobMatch", "currentStage")
+  insertAfter("currentStage", "createdDate")
 
   return next
 }
@@ -126,17 +142,29 @@ export function columnLabel(id: CandidateColumnId): string {
 
 /** List table sizing — keeps status labels like "Under Review" on one line. */
 export function candidateListColumnClassName(colId: CandidateColumnId): string {
+  if (colId === "name") return "min-w-[220px]"
+  if (colId === "contact") return "min-w-[200px]"
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
+  if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"
   if (colId === "jobMatch") return "min-w-[88px] whitespace-nowrap"
+  if (colId === "conf" || colId === "verify" || colId === "notMet") {
+    return "min-w-[72px] whitespace-nowrap"
+  }
+  if (colId === "currentStage") return "min-w-[170px]"
+  if (colId === "evaluation") return "min-w-[110px] whitespace-nowrap"
   if (colId === "matchJob") return "min-w-[200px] whitespace-nowrap"
   if (colId === "location") return "min-w-[220px] whitespace-nowrap"
   return ""
 }
 
-/** Name stays left-aligned; other list columns are centered. */
+export function candidateListHeaderAlign(colId: CandidateColumnId): "left" | "center" {
+  return colId === "name" || colId === "contact" || colId === "currentStage" ? "left" : "center"
+}
+
+/** Candidate, Contact, and Current Stage stay left-aligned; other list columns are centered. */
 export function candidateListColumnAlignmentClassName(colId: CandidateColumnId): string {
-  return colId === "name" ? "text-left" : "text-center"
+  return candidateListHeaderAlign(colId) === "left" ? "text-left" : "text-center"
 }
 
 export const CANDIDATE_LIST_TABLE_SCROLL_CLASS = "w-full overflow-x-auto"

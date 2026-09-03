@@ -16,6 +16,12 @@ export type CandidateRow = {
   status: string
   /** Raw pipeline/employment status key used for claim eligibility. */
   statusKey?: string | null
+  /** Latest job-application pipeline status (All candidates Progress Status). */
+  progressStatusApplicationId?: string | null
+  progressStatusId?: string | null
+  progressStatusName?: string | null
+  progressStatusKey?: string | null
+  progressStatusAmbiguous?: boolean
   createdAt: string | null
   reference: string
   dateOfBirth: string | null
@@ -31,4 +37,9 @@ export type CandidateRow = {
   aiMatchScore?: number | null
   aiMatchCategory?: string | null
   aiMatchDisplayCategory?: string | null
+  aiRequirementCounts?: {
+    confirmed: number
+    verify: number
+    notMet: number
+  } | null
 }

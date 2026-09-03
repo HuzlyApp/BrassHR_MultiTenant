@@ -180,6 +180,43 @@ export function listingRequirementOutcomeCounts(
   return { confirmed: counts.confirmed, verify: counts.verify, notMet: counts.notMet };
 }
 
+export function parseListingRequirementCounts(
+  value: unknown
+): ListingRequirementOutcomeCounts | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const confirmed = Number(record.confirmed);
+  const verify = Number(record.verify);
+  const notMet = Number(record.notMet);
+  if (![confirmed, verify, notMet].every(Number.isFinite)) return null;
+  return { confirmed, verify, notMet };
+}
+
+export function requirementCountsFromAnalyzePayload(payload: {
+  requirementCounts?: ListingRequirementOutcomeCounts | null;
+  requirements?: Array<{
+    requirement_type?: string;
+    status?: string;
+    requirement_outcome?: string;
+    verification_required?: boolean;
+    recruiter_verified?: boolean;
+  }>;
+}): ListingRequirementOutcomeCounts | null {
+  if (payload.requirementCounts) return parseListingRequirementCounts(payload.requirementCounts);
+  if (Array.isArray(payload.requirements) && payload.requirements.length) {
+    return listingRequirementOutcomeCounts(
+      payload.requirements.map((row) => ({
+        requirement_type: String(row.requirement_type ?? ""),
+        status: String(row.status ?? ""),
+        requirement_outcome: String(row.requirement_outcome ?? ""),
+        verification_required: Boolean(row.verification_required),
+        recruiter_verified: Boolean(row.recruiter_verified),
+      }))
+    );
+  }
+  return null;
+}
+
 export function groupRequirementOutcomeCountsByApplication(
   rows: Array<RequirementOutcomeCountRow & { job_application_id: string }>
 ): Map<string, ListingRequirementOutcomeCounts> {

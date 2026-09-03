@@ -126,9 +126,11 @@ export function formatJobDetailsLocation(job: JobDetailsRow): string {
 }
 
 
-export function formatJobDetailsClientName(job: JobDetailsRow, fallback = ""): string {
-  const client = job.msp_name?.trim() || "";
-  return client || fallback.trim() || "—";
+/** MSP "Contract Group / Client" from job create — never tenant/company fallback. */
+export function formatJobDetailsClientName(job: JobDetailsRow): string {
+  const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
+  if (!isMsp) return "";
+  return job.msp_name?.trim() || "";
 }
 
 export function formatWorkLocationLabel(job: JobDetailsRow): string {

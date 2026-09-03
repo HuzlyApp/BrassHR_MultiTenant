@@ -6,13 +6,16 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "./candidates-typography";
+import { MatchScoreRangeFilter } from "./MatchScoreRangeFilter";
 
 export type CandidatesFilterValues = {
   scoreSort: string;
   jobRoleFilter: string;
   statusFilter: string;
+  progressStatusFilter: string;
   jobFilter: string;
   stageFilter: string;
+  matchScoreFilter: string;
   locationFilter: string;
   appliedDateFrom: string;
   appliedDateTo: string;
@@ -22,8 +25,10 @@ export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
   scoreSort: "",
   jobRoleFilter: "",
   statusFilter: "",
+  progressStatusFilter: "",
   jobFilter: "",
   stageFilter: "",
+  matchScoreFilter: "",
   locationFilter: "",
   appliedDateFrom: "",
   appliedDateTo: "",
@@ -40,6 +45,7 @@ export function countActiveCandidatesFilters(value: CandidatesFilterValues): num
 type FilterOptions = {
   jobRoleOptions: string[];
   statusOptions: string[];
+  progressStatusOptions?: { value: string; label: string }[];
   locationOptions: string[];
   jobOptions?: string[];
   stageOptions?: string[];
@@ -199,6 +205,19 @@ export function EditCandidatesFiltersModal({
               </ModalFilterField>
 
               <ModalFilterField
+                label="Progress Status"
+                value={draft.progressStatusFilter}
+                onChange={(v) => setField("progressStatusFilter", v)}
+                placeholder="All Progress Status"
+              >
+                {(options.progressStatusOptions ?? []).map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <ModalFilterField
                 label="Jobs"
                 value={draft.jobFilter}
                 onChange={(v) => setField("jobFilter", v)}
@@ -210,6 +229,11 @@ export function EditCandidatesFiltersModal({
                   </option>
                 ))}
               </ModalFilterField>
+
+              <MatchScoreRangeFilter
+                value={draft.matchScoreFilter}
+                onChange={(v) => setField("matchScoreFilter", v)}
+              />
 
               <ModalFilterField
                 label="Location"
@@ -276,7 +300,7 @@ export function EditCandidatesFiltersModal({
                   }}
                   className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#374151] transition hover:bg-zinc-50"
                 >
-                  Advanced Search
+                  Map search
                 </button>
               </div>
             ) : null}

@@ -4,6 +4,7 @@ import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
+import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { SourceType } from "@/lib/jobs/types"
@@ -445,7 +446,7 @@ export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): st
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""
   if (!token || !slug) return null
-  return `/jobs/${encodeURIComponent(token)}?tenant=${encodeURIComponent(slug)}`
+  return buildJobsBoardHref({ tenant: slug, job: token })
 }
 
 export function renderJobListCell(

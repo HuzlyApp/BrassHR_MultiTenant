@@ -139,12 +139,14 @@ describe("applyCandidateBulkMatchItem", () => {
           score: 91,
           category: "strong",
           analysis: { candidate_match: { display_category: "Strong match" } },
+          requirementCounts: { confirmed: 3, verify: 7, notMet: 0 },
         },
       })
     ).toMatchObject({
       aiMatchStatus: "ANALYZED",
       aiMatchScore: 91,
       aiMatchDisplayCategory: "Strong match",
+      aiRequirementCounts: { confirmed: 3, verify: 7, notMet: 0 },
     })
   })
 })
