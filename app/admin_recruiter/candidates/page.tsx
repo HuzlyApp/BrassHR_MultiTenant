@@ -9,6 +9,7 @@ import {
   columnLabel,
   candidateListColumnAlignmentClassName,
   candidateListColumnClassName,
+  candidateListHeaderAlign,
   CANDIDATE_LIST_TABLE_CLASS,
   CANDIDATE_LIST_TABLE_SCROLL_CLASS,
   DEFAULT_CANDIDATE_COLUMNS,
@@ -69,6 +70,10 @@ import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfir
 import { postClaimCandidates } from "./claim-client";
 import { runCandidateListBulkMatchAnalyze } from "./run-bulk-match-analyze";
 import {
+  parseListingRequirementCounts,
+  requirementCountsFromAnalyzePayload,
+} from "@/lib/jobs/match-analysis/workspace";
+import {
   bulkAnalyzeSelectedLabel,
   bulkReanalyzeSelectedLabel,
   partitionMatchAnalysisTargets,
@@ -120,6 +125,11 @@ type WorkerProfile = {
   ai_match_score?: number | null;
   ai_match_category?: string | null;
   ai_match_display_category?: string | null;
+  ai_requirement_counts?: {
+    confirmed?: number | null;
+    verify?: number | null;
+    notMet?: number | null;
+  } | null;
 };
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -210,6 +220,7 @@ function mapWorkerMatchFields(item: WorkerProfile) {
     aiMatchScore: item.ai_match_score ?? null,
     aiMatchCategory: item.ai_match_category ?? null,
     aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+    aiRequirementCounts: parseListingRequirementCounts(item.ai_requirement_counts),
   };
 }
 
@@ -760,6 +771,8 @@ export default function CandidatesPage() {
                 aiMatchCategory: payload.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiRequirementCounts:
+                  requirementCountsFromAnalyzePayload(payload) ?? row.aiRequirementCounts,
               }
             : row
         )
@@ -1016,7 +1029,7 @@ export default function CandidatesPage() {
                               <CandidateListSortableHeader
                                 column={colId}
                                 label={columnLabel(colId)}
-                                align={colId === "name" ? "left" : "center"}
+                                align={candidateListHeaderAlign(colId)}
                                 sort={listSort}
                                 onSort={handleListSort}
                               />

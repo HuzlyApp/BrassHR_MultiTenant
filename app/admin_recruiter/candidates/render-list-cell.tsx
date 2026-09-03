@@ -10,8 +10,9 @@ import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 import { CandidateProgressStatusCell } from "./CandidateProgressStatusCell"
 import type { ApplicationStatusOption } from "../applications/ApplicationStatusUi"
-import { MatchScoreCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
+import { MatchScoreCell, RequirementOutcomeCountCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
+import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
 
 const BRAND_ICON = "var(--brand-primary)"
 /** Figma: Text/text-link — fixed email color under applicant name */
@@ -143,6 +144,77 @@ export function renderListCell(
           analyzing={Boolean(applicationId && matchAnalyzingApplicationIds?.has(applicationId))}
           onAnalyze={onAnalyzeMatch ? () => onAnalyzeMatch(applicationId) : undefined}
         />
+      )
+    }
+    case "conf":
+      return (
+        <RequirementOutcomeCountCell
+          tone="conf"
+          analyzed={c.aiMatchStatus === "ANALYZED"}
+          value={c.aiRequirementCounts?.confirmed}
+        />
+      )
+    case "verify":
+      return (
+        <RequirementOutcomeCountCell
+          tone="verify"
+          analyzed={c.aiMatchStatus === "ANALYZED"}
+          value={c.aiRequirementCounts?.verify}
+        />
+      )
+    case "notMet":
+      return (
+        <RequirementOutcomeCountCell
+          tone="notMet"
+          analyzed={c.aiMatchStatus === "ANALYZED"}
+          value={c.aiRequirementCounts?.notMet}
+        />
+      )
+    case "currentStage": {
+      const statusKey = c.progressStatusKey?.trim()
+      if (!statusKey && !c.progressStatusApplicationId) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      const stage = applicationCurrentStageMeta(statusKey || "new")
+      const note = stage.subtitle
+      return (
+        <div className="min-w-0 text-left">
+          <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
+          {note ? (
+            <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
+              {note}
+            </p>
+          ) : null}
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
+            />
+          </div>
+        </div>
+      )
+    }
+    case "evaluation": {
+      const applicationId = c.matchApplicationId?.trim() ?? ""
+      if (!applicationId) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      const analyzing =
+        Boolean(matchAnalyzingApplicationIds?.has(applicationId)) ||
+        c.aiMatchStatus === "ANALYZING"
+      const analyzed = c.aiMatchStatus === "ANALYZED"
+      return (
+        <span
+          className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
+            analyzing
+              ? "bg-[#F1F5F9] text-[#64748B]"
+              : analyzed
+                ? "bg-[#EFF6FF] text-[#2563EB]"
+                : "bg-[#F1F5F9] text-[#64748B]"
+          }`}
+        >
+          {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
+        </span>
       )
     }
     case "createdDate":

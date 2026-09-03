@@ -289,7 +289,7 @@ export function EditApplicationsFiltersModal({
               </ModalFilterField>
 
               <ModalFilterField
-                label="Current Stage"
+                label="Stages"
                 value={draft.stage}
                 onChange={(v) => setField("stage", v)}
               >

@@ -43,6 +43,10 @@ import { ClaimCandidatesConfirmModal } from "./ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "../candidates/claim-client";
 import { runCandidateListBulkMatchAnalyze } from "../candidates/run-bulk-match-analyze";
 import {
+  parseListingRequirementCounts,
+  requirementCountsFromAnalyzePayload,
+} from "@/lib/jobs/match-analysis/workspace";
+import {
   bulkAnalyzeSelectedLabel,
   bulkReanalyzeSelectedLabel,
   partitionMatchAnalysisTargets,
@@ -87,6 +91,11 @@ type WorkerProfile = {
   ai_match_score?: number | null;
   ai_match_category?: string | null;
   ai_match_display_category?: string | null;
+  ai_requirement_counts?: {
+    confirmed?: number | null;
+    verify?: number | null;
+    notMet?: number | null;
+  } | null;
 };
 
 type StatusCandidatesPageProps = {
@@ -181,6 +190,7 @@ function mapWorkerMatchFields(item: WorkerProfile) {
     aiMatchScore: item.ai_match_score ?? null,
     aiMatchCategory: item.ai_match_category ?? null,
     aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+    aiRequirementCounts: parseListingRequirementCounts(item.ai_requirement_counts),
   };
 }
 
@@ -542,6 +552,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                 aiMatchCategory: payload.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiRequirementCounts:
+                  requirementCountsFromAnalyzePayload(payload) ?? row.aiRequirementCounts,
               }
             : row
         )

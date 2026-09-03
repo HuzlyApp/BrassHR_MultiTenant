@@ -1,5 +1,6 @@
 import type { CandidateRow } from "@/app/admin_recruiter/candidates/types";
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title";
+import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 
 export const CANDIDATE_LIST_SORTABLE_COLUMNS = [
   "name",
@@ -9,6 +10,11 @@ export const CANDIDATE_LIST_SORTABLE_COLUMNS = [
   "jobRole",
   "matchJob",
   "jobMatch",
+  "conf",
+  "verify",
+  "notMet",
+  "currentStage",
+  "evaluation",
   "createdDate",
   "location",
   "city",
@@ -46,7 +52,12 @@ export function isCandidateListSortableColumn(
 export function defaultCandidateListSortDirection(
   column: CandidateListSortColumn
 ): CandidateListSortDirection {
-  return column === "jobMatch" || column === "createdDate" || column === "dateOfBirth"
+  return column === "jobMatch" ||
+    column === "createdDate" ||
+    column === "dateOfBirth" ||
+    column === "conf" ||
+    column === "verify" ||
+    column === "notMet"
     ? "desc"
     : "asc";
 }
@@ -99,6 +110,41 @@ function progressStatusText(row: CandidateRow): string {
   return row.progressStatusName?.trim() || row.progressStatusKey?.trim() || "";
 }
 
+function currentStageText(row: CandidateRow): string {
+  const key = row.progressStatusKey?.trim();
+  if (!key) return "";
+  return applicationCurrentStageMeta(key).label;
+}
+
+function evaluationRank(row: CandidateRow): number {
+  if (row.aiMatchStatus === "ANALYZED") return 2;
+  if (row.aiMatchStatus) return 1;
+  return 0;
+}
+
+function requirementCount(
+  row: CandidateRow,
+  key: "confirmed" | "verify" | "notMet"
+): number | null {
+  const value = row.aiRequirementCounts?.[key];
+  return value == null ? null : Number(value);
+}
+
+function compareNumericNullLast(
+  aValue: number | null,
+  bValue: number | null,
+  directionMultiplier: number
+): number {
+  const aEmpty = aValue == null || Number.isNaN(aValue);
+  const bEmpty = bValue == null || Number.isNaN(bValue);
+  return compareEmptyLast(
+    aEmpty,
+    bEmpty,
+    (aValue ?? 0) - (bValue ?? 0),
+    directionMultiplier
+  );
+}
+
 function compareColumn(
   column: CandidateListSortColumn,
   a: CandidateRow,
@@ -141,6 +187,35 @@ function compareColumn(
     }
     case "jobMatch":
       return compareMatchScore(a, b) * directionMultiplier;
+    case "conf":
+      return compareNumericNullLast(
+        requirementCount(a, "confirmed"),
+        requirementCount(b, "confirmed"),
+        directionMultiplier
+      );
+    case "verify":
+      return compareNumericNullLast(
+        requirementCount(a, "verify"),
+        requirementCount(b, "verify"),
+        directionMultiplier
+      );
+    case "notMet":
+      return compareNumericNullLast(
+        requirementCount(a, "notMet"),
+        requirementCount(b, "notMet"),
+        directionMultiplier
+      );
+    case "currentStage": {
+      const aStage = currentStageText(a);
+      const bStage = currentStageText(b);
+      return compareEmptyLast(!aStage, !bStage, compareTextValues(aStage, bStage), directionMultiplier);
+    }
+    case "evaluation": {
+      const aRank = evaluationRank(a);
+      const bRank = evaluationRank(b);
+      if (aRank !== bRank) return (aRank - bRank) * directionMultiplier;
+      return compareName(a, b);
+    }
     case "createdDate":
       return compareEmptyLast(
         !a.createdAt,

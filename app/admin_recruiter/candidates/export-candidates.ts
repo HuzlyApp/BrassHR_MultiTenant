@@ -5,6 +5,7 @@ import {
   type ExportColumn,
 } from "@/lib/admin/export-list-download";
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title";
+import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 import { formatMatchScore } from "@/lib/jobs/match-analysis/display";
 import {
   columnLabel,
@@ -34,6 +35,44 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   jobMatch: {
     header: columnLabel("jobMatch"),
     value: (row) => formatMatchScore(row.aiMatchScore),
+  },
+  conf: {
+    header: columnLabel("conf"),
+    value: (row) =>
+      row.aiMatchStatus === "ANALYZED" && row.aiRequirementCounts?.confirmed != null
+        ? String(row.aiRequirementCounts.confirmed)
+        : "—",
+  },
+  verify: {
+    header: columnLabel("verify"),
+    value: (row) =>
+      row.aiMatchStatus === "ANALYZED" && row.aiRequirementCounts?.verify != null
+        ? String(row.aiRequirementCounts.verify)
+        : "—",
+  },
+  notMet: {
+    header: columnLabel("notMet"),
+    value: (row) =>
+      row.aiMatchStatus === "ANALYZED" && row.aiRequirementCounts?.notMet != null
+        ? String(row.aiRequirementCounts.notMet)
+        : "—",
+  },
+  currentStage: {
+    header: columnLabel("currentStage"),
+    value: (row) => {
+      const key = row.progressStatusKey?.trim();
+      if (!key && !row.progressStatusApplicationId) return "—";
+      return applicationCurrentStageMeta(key || "new").label;
+    },
+  },
+  evaluation: {
+    header: columnLabel("evaluation"),
+    value: (row) => {
+      if (!row.matchApplicationId?.trim()) return "—";
+      if (row.aiMatchStatus === "ANALYZING") return "Analyzing…";
+      if (row.aiMatchStatus === "ANALYZED") return "Analyzed";
+      return "Not Yet";
+    },
   },
   createdDate: {
     header: columnLabel("createdDate"),

@@ -37,4 +37,9 @@ export type CandidateRow = {
   aiMatchScore?: number | null
   aiMatchCategory?: string | null
   aiMatchDisplayCategory?: string | null
+  aiRequirementCounts?: {
+    confirmed: number
+    verify: number
+    notMet: number
+  } | null
 }

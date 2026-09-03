@@ -118,9 +118,6 @@ export type ApplicationsListToolbarProps = {
   onJobFilterChange: (value: string) => void;
   jobFilterOptions: { value: string; label: string }[];
   showJobFilter: boolean;
-  stageFilter: string;
-  onStageFilterChange: (value: string) => void;
-  stageOptions: { value: string; label: string }[];
   matchScoreFilter: string;
   onMatchScoreFilterChange: (value: string) => void;
   locationFilter: string;
@@ -154,9 +151,6 @@ export function ApplicationsListToolbar({
   onJobFilterChange,
   jobFilterOptions,
   showJobFilter,
-  stageFilter,
-  onStageFilterChange,
-  stageOptions,
   matchScoreFilter,
   onMatchScoreFilterChange,
   locationFilter,
@@ -316,13 +310,6 @@ export function ApplicationsListToolbar({
             compact
             value={matchScoreFilter}
             onChange={onMatchScoreFilterChange}
-          />
-          <CompactFilterSelect
-            ariaLabel="Stages"
-            placeholder="Stages"
-            value={stageFilter}
-            onChange={onStageFilterChange}
-            options={stageOptions}
           />
           <button
             type="button"

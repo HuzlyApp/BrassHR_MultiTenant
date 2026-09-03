@@ -2544,9 +2544,6 @@ export default function JobApplicationsPage() {
           onJobFilterChange={setListingJobFilter}
           jobFilterOptions={listingJobOptions}
           showJobFilter={!jobId}
-          stageFilter={listingStageFilter}
-          onStageFilterChange={setListingStageFilter}
-          stageOptions={listingStageOptions}
           matchScoreFilter={matchScoreFilter}
           onMatchScoreFilterChange={setMatchScoreFilter}
           locationFilter={locationFilter}

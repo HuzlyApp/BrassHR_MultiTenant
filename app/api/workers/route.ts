@@ -22,6 +22,7 @@ import {
 import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summary";
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
+import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
 
 type SbErr = { message: string; code?: string };
 type ContactLookupRow = {
@@ -455,6 +456,28 @@ export async function GET(req: Request) {
                 workerIds,
               }),
             ]);
+            const matchApplicationIds = [
+              ...new Set(
+                [...matchSummaries.values()]
+                  .map((match) => match.applicationId?.trim())
+                  .filter((id): id is string => Boolean(id))
+              ),
+            ];
+            let requirementCountsByApplication = new Map<
+              string,
+              { confirmed: number; verify: number; notMet: number }
+            >();
+            if (tenantIdForApps && matchApplicationIds.length > 0) {
+              try {
+                requirementCountsByApplication = await loadRequirementOutcomeCountsByApplication(
+                  supabase,
+                  tenantIdForApps,
+                  matchApplicationIds
+                );
+              } catch (countsErr) {
+                console.warn("[api/workers] failed to attach requirement counts", countsErr);
+              }
+            }
             workersOut = workersOut.map((row) => {
               const id = typeof row.id === "string" ? row.id : "";
               const summary = id ? summaries.get(id) : undefined;
@@ -487,6 +510,8 @@ export async function GET(req: Request) {
                       ai_match_score: match.score,
                       ai_match_category: match.category,
                       ai_match_display_category: match.displayCategory,
+                      ai_requirement_counts:
+                        requirementCountsByApplication.get(match.applicationId) ?? null,
                     }
                   : {}),
               };
