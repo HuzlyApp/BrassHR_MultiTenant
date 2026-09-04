@@ -68,16 +68,10 @@ import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "./claim-client";
-import { runCandidateListBulkMatchAnalyze } from "./run-bulk-match-analyze";
 import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
-import {
-  bulkAnalyzeSelectedLabel,
-  bulkReanalyzeSelectedLabel,
-  partitionMatchAnalysisTargets,
-} from "@/lib/admin/bulk-match-analysis";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   fetchAllWorkersFromApi,
@@ -702,14 +696,6 @@ export default function CandidatesPage() {
     () => candidates.filter((row) => selection.selectedIds.has(row.id)),
     [candidates, selection.selectedIds]
   );
-  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
-    partitionMatchAnalysisTargets(
-      selectedCandidates.map((row) => ({
-        applicationId: row.matchApplicationId,
-        status: row.aiMatchStatus,
-      }))
-    );
-  const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
 
   const exportCandidates = useMemo(() => {
     if (selection.selectedCount === 0) return visibleCandidates;
@@ -768,15 +754,6 @@ export default function CandidatesPage() {
     } finally {
       setArchiveBusy(false);
     }
-  }
-
-  async function runSelectedMatchAnalyze(applicationIds: string[]) {
-    if (bulkAnalyzeBusy) return;
-    await runCandidateListBulkMatchAnalyze({
-      applicationIds,
-      setCandidates,
-      setAnalyzingIds: setMatchAnalyzingApplicationIds,
-    });
   }
 
   function openClaimConfirm() {
@@ -1020,23 +997,8 @@ export default function CandidatesPage() {
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
-                  analyzeBusy={bulkAnalyzeBusy}
                   archiveBusy={archiveBusy}
                   deleteBusy={deleteBusy}
-                  analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
-                  reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
-                  onAnalyze={
-                    selectedAnalyzeIds.length > 0
-                      ? () => void runSelectedMatchAnalyze(selectedAnalyzeIds)
-                      : selection.selectedCount > 0 && selectedReanalyzeIds.length === 0
-                        ? () => void runSelectedMatchAnalyze([])
-                        : undefined
-                  }
-                  onReanalyze={
-                    selectedReanalyzeIds.length > 0
-                      ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
-                      : undefined
-                  }
                   onArchive={() => void handleBulkArchiveSelected()}
                   onDelete={() => {
                     setDeleteError(null);
