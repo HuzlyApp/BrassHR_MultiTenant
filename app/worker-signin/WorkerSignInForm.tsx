@@ -19,6 +19,7 @@ import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
 // import { FaApple } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
@@ -228,6 +229,7 @@ type Props = {
 };
 
 export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -255,6 +257,12 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
   } = useApplicantSignIn(tenantSlug);
 
   const returnToHref = withTenant("/worker-signin", tenantSlug);
+
+  useEffect(() => {
+    if (searchParams.get("error") === "idle") {
+      setError("You were signed out after 2 hours of inactivity. Please sign in again.");
+    }
+  }, [searchParams, setError]);
 
   useLayoutEffect(() => {
     const draft = readWorkerSignInDraft(tenantSlug);

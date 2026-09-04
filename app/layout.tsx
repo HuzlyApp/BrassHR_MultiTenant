@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter, Poppins, Roboto, Ubuntu } from "next/font/goo
 import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
 import TenantBrandingHead from "@/app/components/tenant/TenantBrandingHead";
+import IdleSessionGuard from "@/app/components/IdleSessionGuard";
 import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
@@ -78,6 +79,7 @@ export default function RootLayout({
       >
         <TenantBrandingHead />
         <ReactQueryProvider>
+          <IdleSessionGuard />
           <TenantBrandingRoot>{children}</TenantBrandingRoot>
           <Toaster
             position="top-right"
