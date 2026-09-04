@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { LOGIN_OTP_PROOF_TTL_SECONDS } from "@/lib/auth/login-otp-constants";
 
 const COOKIE_NAME = "brass_login_otp_proof";
-const DEFAULT_TTL_SECONDS = 600;
 
 function proofSecret(): string {
   return (
@@ -16,8 +16,8 @@ export function loginOtpProofCookieName(): string {
 }
 
 export function loginOtpProofTtlSeconds(): number {
-  const raw = Number(process.env.LOGIN_OTP_TTL_SECONDS ?? DEFAULT_TTL_SECONDS);
-  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 3600) : DEFAULT_TTL_SECONDS;
+  const raw = Number(process.env.LOGIN_OTP_PROOF_TTL_SECONDS ?? LOGIN_OTP_PROOF_TTL_SECONDS);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 3600) : LOGIN_OTP_PROOF_TTL_SECONDS;
 }
 
 /** Signed, short-lived proof that OTP was verified for this email. */

@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import {
   createLoginOtp,
+  LoginOtpIssueDeniedError,
   LOGIN_OTP_PURPOSE,
 } from "@/lib/auth/login-otp-store";
 import {
@@ -10,17 +11,34 @@ import {
 import { requireResendConfig } from "@/lib/communication/env";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
-export type SendLoginOtpResult = { ok: true } | { ok: false; message: string };
+export type SendLoginOtpResult =
+  | {
+      ok: true;
+      resendCount: number;
+      maxResends: number;
+      expiresInSeconds: number;
+      resendAvailableInSeconds: number;
+    }
+  | {
+      ok: false;
+      message: string;
+      code?: "RATE_LIMIT";
+      retryAfterSec?: number;
+      resendCount?: number;
+      maxResends?: number;
+    };
 
-function buildLoginOtpEmailHtml(code: string): string {
+function buildLoginOtpEmailHtml(code: string, expiresInSeconds: number): string {
+  const minutes = Math.max(1, Math.round(expiresInSeconds / 60));
   return `<h2>Your Brass HR login code</h2>
 <p>Enter this ${LOGIN_OTP_LENGTH}-digit code on the login screen:</p>
 <p style="font-size:28px;font-weight:700;letter-spacing:8px;margin:16px 0;">${code}</p>
-<p style="color:#64748b;font-size:14px;">This code expires soon. If you did not try to log in, ignore this email.</p>`;
+<p style="color:#64748b;font-size:14px;">This code expires in ${minutes} minute${minutes === 1 ? "" : "s"}. If you did not try to log in, ignore this email.</p>`;
 }
 
 /**
  * Generates a single-use login OTP (invalidating prior codes) and emails it via Resend.
+ * Enforces cooldown and max-resend limits before issuing a new code.
  */
 export async function sendSupabaseLoginOtp(
   email: string,
@@ -39,15 +57,24 @@ export async function sendSupabaseLoginOtp(
     return { ok: false, message: msg };
   }
 
-  let code: string;
+  let created: Awaited<ReturnType<typeof createLoginOtp>>;
   try {
-    const created = await createLoginOtp(supabase, {
+    created = await createLoginOtp(supabase, {
       email,
       userId,
       purpose: LOGIN_OTP_PURPOSE,
     });
-    code = created.code;
   } catch (e) {
+    if (e instanceof LoginOtpIssueDeniedError) {
+      return {
+        ok: false,
+        message: e.message,
+        code: "RATE_LIMIT",
+        retryAfterSec: e.retryAfterSec,
+        resendCount: e.resendCount,
+        maxResends: e.maxResends,
+      };
+    }
     const msg = e instanceof Error ? e.message : "Could not create login code";
     console.error("[auth/login-otp/send] createLoginOtp", msg);
     return { ok: false, message: "Could not send login code. Try again." };
@@ -58,8 +85,8 @@ export async function sendSupabaseLoginOtp(
     from: resendConfig.fromHeader,
     to: email.trim().toLowerCase(),
     subject: MAGIC_LINK_OTP_SUBJECT,
-    html: buildLoginOtpEmailHtml(code),
-    text: `Your Brass HR login code is ${code}. This code expires soon.`,
+    html: buildLoginOtpEmailHtml(created.code, created.expiresInSeconds),
+    text: `Your Brass HR login code is ${created.code}. This code expires in ${Math.max(1, Math.round(created.expiresInSeconds / 60))} minute(s).`,
     ...(resendConfig.replyTo ? { reply_to: resendConfig.replyTo } : {}),
   });
 
@@ -68,5 +95,11 @@ export async function sendSupabaseLoginOtp(
     return { ok: false, message: error.message || "Could not send login code. Try again." };
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    resendCount: created.resendCount,
+    maxResends: created.maxResends,
+    expiresInSeconds: created.expiresInSeconds,
+    resendAvailableInSeconds: created.resendAvailableInSeconds,
+  };
 }
