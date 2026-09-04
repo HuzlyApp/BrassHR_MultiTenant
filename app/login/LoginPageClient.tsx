@@ -24,6 +24,7 @@ import {
   parseLoginApiError,
   type LoginAuthErrorPayload,
 } from "@/lib/auth/login-api-errors";
+import { LOGIN_OTP_MAX_RESENDS } from "@/lib/auth/login-otp-constants";
 import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
 import { isRecruiterSignInRole } from "@/lib/auth/recruiter-sign-in";
@@ -141,6 +142,8 @@ function LoginPageContent() {
   const [step, setStep] = useState<LoginStep>("credentials");
   const [showRedirecting, setShowRedirecting] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
+  const [otpResendCount, setOtpResendCount] = useState(0);
+  const [otpMaxResends, setOtpMaxResends] = useState(LOGIN_OTP_MAX_RESENDS);
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -529,17 +532,33 @@ function LoginPageContent() {
     return (await res.json()) as {
       godAdmin?: boolean;
       requiresOtp?: boolean;
+      resendCount?: number;
+      maxResends?: number;
     };
+  };
+
+  const applyOtpSendMeta = (gate: {
+    resendCount?: number;
+    maxResends?: number;
+  }) => {
+    if (typeof gate.resendCount === "number") {
+      setOtpResendCount(gate.resendCount);
+    }
+    if (typeof gate.maxResends === "number") {
+      setOtpMaxResends(gate.maxResends);
+    }
   };
 
   const submitCredentialsForOtp = async (login: PendingLogin) => {
     clearAuthError();
     setOtpVerified(false);
+    setOtpResendCount(0);
     setShowRedirecting(false);
     setSubmitting(true);
     try {
       const gate = await sendLoginOtp(login);
       setPendingLogin(login);
+      applyOtpSendMeta(gate);
 
       if (gate.godAdmin) {
         const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
@@ -658,7 +677,8 @@ function LoginPageContent() {
     clearAuthError();
     setOtpVerified(false);
     try {
-      await sendLoginOtp(login);
+      const gate = await sendLoginOtp(login);
+      applyOtpSendMeta(gate);
     } catch (e) {
       if (e && typeof e === "object" && "error" in e && "code" in e) {
         setAuthError(e as LoginAuthErrorPayload);
@@ -725,6 +745,8 @@ function LoginPageContent() {
           otpEmail={pendingLogin?.email ?? ""}
           otpVerified={otpVerified}
           otpAuthError={authError}
+          otpResendCount={otpResendCount}
+          otpMaxResends={otpMaxResends}
           onOtpClearError={clearAuthError}
           onOtpVerify={handleOtpVerify}
           onOtpSendAgain={handleOtpSendAgain}
@@ -752,6 +774,8 @@ function LoginPageContent() {
             submitting={submitting}
             verified={otpVerified}
             authError={authError}
+            resendCount={otpResendCount}
+            maxResends={otpMaxResends}
             onClearError={clearAuthError}
             onVerify={handleOtpVerify}
             onSendAgain={handleOtpSendAgain}

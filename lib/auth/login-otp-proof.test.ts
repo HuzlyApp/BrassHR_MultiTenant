@@ -10,7 +10,7 @@ describe("login OTP proof", () => {
 
   beforeEach(() => {
     process.env.LOGIN_OTP_PROOF_SECRET = "test-proof-secret";
-    process.env.LOGIN_OTP_TTL_SECONDS = "600";
+    process.env.LOGIN_OTP_PROOF_TTL_SECONDS = "600";
   });
 
   it("accepts a freshly issued proof for the same email", () => {

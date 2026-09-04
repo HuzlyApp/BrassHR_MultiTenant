@@ -146,6 +146,13 @@ export async function POST(req: NextRequest) {
 
     const sent = await sendSupabaseLoginOtp(email, signInData.user.id);
     if (!sent.ok) {
+      if (sent.code === "RATE_LIMIT") {
+        return loginAuthErrorResponse(sent.message, "RATE_LIMIT", 429, null, {
+          headers: {
+            "Retry-After": String(sent.retryAfterSec ?? 60),
+          },
+        });
+      }
       const classified = classifyAuthMessage(sent.message);
       return loginAuthErrorResponse(
         classified.error,
@@ -161,6 +168,10 @@ export async function POST(req: NextRequest) {
       requiresOtp: true,
       email,
       otpDelivery: "resend",
+      resendCount: sent.resendCount,
+      maxResends: sent.maxResends,
+      expiresInSeconds: sent.expiresInSeconds,
+      resendAvailableInSeconds: sent.resendAvailableInSeconds,
     });
   } catch (err: unknown) {
     console.error("[auth/login-otp/send]", err);

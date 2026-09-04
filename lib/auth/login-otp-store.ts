@@ -1,16 +1,32 @@
 import { createHash, randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  LOGIN_OTP_MAX_RESENDS,
+  LOGIN_OTP_RESEND_COOLDOWN_MESSAGE,
+  LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+  LOGIN_OTP_RESEND_LIMIT_MESSAGE,
+  LOGIN_OTP_RESEND_WINDOW_SECONDS,
+  LOGIN_OTP_TTL_SECONDS as DEFAULT_TTL_SECONDS,
+} from "@/lib/auth/login-otp-constants";
 import { LOGIN_OTP_LENGTH } from "@/lib/auth/supabase-magic-link-otp-template";
 
 export const LOGIN_OTP_PURPOSE = "login" as const;
 
 export type LoginOtpPurpose = typeof LOGIN_OTP_PURPOSE | string;
 
-const DEFAULT_TTL_SECONDS = 600;
-
 export function loginOtpTtlSeconds(): number {
   const raw = Number(process.env.LOGIN_OTP_TTL_SECONDS ?? DEFAULT_TTL_SECONDS);
   return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 3600) : DEFAULT_TTL_SECONDS;
+}
+
+export function loginOtpResendCooldownSeconds(): number {
+  const raw = Number(process.env.LOGIN_OTP_RESEND_COOLDOWN_SECONDS ?? LOGIN_OTP_RESEND_COOLDOWN_SECONDS);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 3600) : LOGIN_OTP_RESEND_COOLDOWN_SECONDS;
+}
+
+export function loginOtpMaxResends(): number {
+  const raw = Number(process.env.LOGIN_OTP_MAX_RESENDS ?? LOGIN_OTP_MAX_RESENDS);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 50) : LOGIN_OTP_MAX_RESENDS;
 }
 
 export function loginOtpExpiryIso(now = new Date()): string {
@@ -96,12 +112,141 @@ export type CreateLoginOtpParams = {
   purpose?: string;
   now?: Date;
   code?: string;
+  /** Skip cooldown / resend-cap checks (tests only). */
+  skipIssueGuards?: boolean;
 };
 
 export type CreateLoginOtpResult = {
   code: string;
   expiresAt: string;
+  resendCount: number;
+  maxResends: number;
+  expiresInSeconds: number;
+  resendAvailableInSeconds: number;
 };
+
+export type LoginOtpIssueGateDenied = {
+  ok: false;
+  reason: "cooldown" | "resend_limit";
+  message: string;
+  retryAfterSec: number;
+  resendCount: number;
+  maxResends: number;
+};
+
+export type LoginOtpIssueGateAllowed = {
+  ok: true;
+  priorIssueCount: number;
+  resendCount: number;
+  maxResends: number;
+};
+
+export type LoginOtpIssueGateResult = LoginOtpIssueGateAllowed | LoginOtpIssueGateDenied;
+
+export class LoginOtpIssueDeniedError extends Error {
+  readonly reason: LoginOtpIssueGateDenied["reason"];
+  readonly retryAfterSec: number;
+  readonly resendCount: number;
+  readonly maxResends: number;
+
+  constructor(denied: LoginOtpIssueGateDenied) {
+    super(denied.message);
+    this.name = "LoginOtpIssueDeniedError";
+    this.reason = denied.reason;
+    this.retryAfterSec = denied.retryAfterSec;
+    this.resendCount = denied.resendCount;
+    this.maxResends = denied.maxResends;
+  }
+}
+
+type LoginOtpIssueMetaRow = {
+  created_at: string;
+};
+
+export function evaluateLoginOtpIssueGate(
+  rows: LoginOtpIssueMetaRow[],
+  params?: { now?: Date; cooldownSeconds?: number; maxResends?: number; windowSeconds?: number }
+): LoginOtpIssueGateResult {
+  const now = params?.now ?? new Date();
+  const cooldownSeconds = params?.cooldownSeconds ?? loginOtpResendCooldownSeconds();
+  const maxResends = params?.maxResends ?? loginOtpMaxResends();
+  const windowSeconds = params?.windowSeconds ?? LOGIN_OTP_RESEND_WINDOW_SECONDS;
+  const windowStartMs = now.getTime() - windowSeconds * 1000;
+
+  const recent = rows
+    .filter((row) => new Date(row.created_at).getTime() >= windowStartMs)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const priorIssueCount = recent.length;
+  const resendCount = Math.max(0, priorIssueCount - 1);
+
+  if (priorIssueCount >= 1 + maxResends) {
+    const oldestInCap = recent[Math.min(recent.length, 1 + maxResends) - 1];
+    const unlockAt =
+      new Date(oldestInCap.created_at).getTime() + windowSeconds * 1000;
+    const retryAfterSec = Math.max(
+      cooldownSeconds,
+      Math.ceil((unlockAt - now.getTime()) / 1000)
+    );
+    return {
+      ok: false,
+      reason: "resend_limit",
+      message: LOGIN_OTP_RESEND_LIMIT_MESSAGE,
+      retryAfterSec,
+      resendCount: Math.min(resendCount, maxResends),
+      maxResends,
+    };
+  }
+
+  const latest = recent[0];
+  if (latest) {
+    const elapsedSec = (now.getTime() - new Date(latest.created_at).getTime()) / 1000;
+    if (elapsedSec < cooldownSeconds) {
+      return {
+        ok: false,
+        reason: "cooldown",
+        message: LOGIN_OTP_RESEND_COOLDOWN_MESSAGE,
+        retryAfterSec: Math.max(1, Math.ceil(cooldownSeconds - elapsedSec)),
+        resendCount,
+        maxResends,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    priorIssueCount,
+    resendCount,
+    maxResends,
+  };
+}
+
+export async function assertCanIssueLoginOtp(
+  supabase: SupabaseClient,
+  params: { email: string; purpose?: string; now?: Date }
+): Promise<LoginOtpIssueGateResult> {
+  const email = normalizeLoginOtpEmail(params.email);
+  const purpose = (params.purpose ?? LOGIN_OTP_PURPOSE).trim();
+  const now = params.now ?? new Date();
+  const windowStart = new Date(
+    now.getTime() - LOGIN_OTP_RESEND_WINDOW_SECONDS * 1000
+  ).toISOString();
+
+  const { data, error } = await supabase
+    .from("auth_login_otps")
+    .select("created_at")
+    .eq("email", email)
+    .eq("purpose", purpose)
+    .gte("created_at", windowStart)
+    .order("created_at", { ascending: false })
+    .limit(1 + loginOtpMaxResends() + 1);
+
+  if (error) {
+    throw error;
+  }
+
+  return evaluateLoginOtpIssueGate((data ?? []) as LoginOtpIssueMetaRow[], { now });
+}
 
 export async function createLoginOtp(
   supabase: SupabaseClient,
@@ -111,6 +256,23 @@ export async function createLoginOtp(
   const purpose = params.purpose ?? LOGIN_OTP_PURPOSE;
   const now = params.now ?? new Date();
   const nowIso = now.toISOString();
+  const maxResends = loginOtpMaxResends();
+  const expiresInSeconds = loginOtpTtlSeconds();
+
+  let gate: LoginOtpIssueGateAllowed = {
+    ok: true,
+    priorIssueCount: 0,
+    resendCount: 0,
+    maxResends,
+  };
+
+  if (!params.skipIssueGuards) {
+    const checked = await assertCanIssueLoginOtp(supabase, { email, purpose, now });
+    if (!checked.ok) {
+      throw new LoginOtpIssueDeniedError(checked);
+    }
+    gate = checked;
+  }
 
   const code = params.code ?? generateOtpCode();
   const otpHash = hashLoginOtp({ email, purpose, code });
@@ -125,7 +287,16 @@ export async function createLoginOtp(
     expiresAt,
   });
 
-  return { code, expiresAt };
+  const resendCount = gate.priorIssueCount > 0 ? gate.resendCount + 1 : 0;
+
+  return {
+    code,
+    expiresAt,
+    resendCount,
+    maxResends,
+    expiresInSeconds,
+    resendAvailableInSeconds: loginOtpResendCooldownSeconds(),
+  };
 }
 
 export type VerifyLoginOtpResult =

@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  LOGIN_OTP_RESEND_COOLDOWN_MESSAGE,
+  LOGIN_OTP_RESEND_LIMIT_MESSAGE,
+} from "@/lib/auth/login-otp-constants";
 
 export type LoginAuthErrorCode =
   | "VALIDATION_ERROR"
@@ -17,6 +21,7 @@ export type LoginAuthErrorCode =
 
 export const LOGIN_OTP_INVALID_MESSAGE = "Check the code and try again.";
 export const LOGIN_OTP_EXPIRED_MESSAGE = "Request a new code and try again.";
+export { LOGIN_OTP_RESEND_LIMIT_MESSAGE, LOGIN_OTP_RESEND_COOLDOWN_MESSAGE };
 
 export type LoginAuthErrorField = "email" | "password" | null;
 
@@ -30,11 +35,12 @@ export function loginAuthErrorResponse(
   message: string,
   code: LoginAuthErrorCode,
   status: number,
-  field: LoginAuthErrorField = null
+  field: LoginAuthErrorField = null,
+  init?: { headers?: HeadersInit }
 ): NextResponse {
   return NextResponse.json(
     { error: message, code, field } satisfies LoginAuthErrorPayload,
-    { status }
+    { status, headers: init?.headers }
   );
 }
 
@@ -51,8 +57,14 @@ export function classifyAuthMessage(message: string | undefined): Pick<LoginAuth
   if (m.includes("email not confirmed")) {
     return { error: "Please confirm your email first.", code: "EMAIL_NOT_CONFIRMED", field: "email" };
   }
+  if (m === LOGIN_OTP_RESEND_LIMIT_MESSAGE.toLowerCase() || m.includes("too many requests")) {
+    return { error: LOGIN_OTP_RESEND_LIMIT_MESSAGE, code: "RATE_LIMIT", field: null };
+  }
+  if (m === LOGIN_OTP_RESEND_COOLDOWN_MESSAGE.toLowerCase() || m.includes("wait for the timer")) {
+    return { error: LOGIN_OTP_RESEND_COOLDOWN_MESSAGE, code: "RATE_LIMIT", field: null };
+  }
   if (m.includes("rate limit") || m.includes("too many") || m.includes("over_email_send_rate_limit")) {
-    return { error: "Too many tries. Wait 1 minute, then try again.", code: "RATE_LIMIT", field: null };
+    return { error: LOGIN_OTP_RESEND_LIMIT_MESSAGE, code: "RATE_LIMIT", field: null };
   }
   if (m.includes("user not found")) {
     return { error: "No account found with this email.", code: "INVALID_CREDENTIALS", field: "email" };
@@ -72,7 +84,7 @@ export function classifyVerifyMessage(message: string | undefined): Pick<LoginAu
     return { error: "Could not verify code. Try again.", code: "UNKNOWN", field: null };
   }
   if (m.includes("rate limit") || m.includes("too many")) {
-    return { error: "Too many tries. Wait 1 minute, then try again.", code: "RATE_LIMIT", field: null };
+    return { error: LOGIN_OTP_RESEND_LIMIT_MESSAGE, code: "RATE_LIMIT", field: null };
   }
   if (m.includes("expired")) {
     return { error: LOGIN_OTP_EXPIRED_MESSAGE, code: "OTP_EXPIRED", field: null };
@@ -115,7 +127,7 @@ export async function parseLoginApiError(res: Response): Promise<LoginAuthErrorP
     };
   }
   if (res.status === 429) {
-    return { error: "Too many tries. Wait 1 minute, then try again.", code: "RATE_LIMIT", field: null };
+    return { error: LOGIN_OTP_RESEND_LIMIT_MESSAGE, code: "RATE_LIMIT", field: null };
   }
   if (res.status >= 500) {
     return { error: "Server error. Try again in a moment.", code: "UNKNOWN", field: null };
