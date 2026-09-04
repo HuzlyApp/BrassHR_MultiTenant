@@ -28,7 +28,7 @@ export function MultiJobApplicantsBanner({ count, onViewAll }: MultiJobApplicant
             {count} {applicantLabel} applied to multiple jobs
           </p>
           <p className="mt-0.5 text-xs leading-4 text-[#64748B]">
-            These candidates might be highly active and interested in different opportunities.
+            Candidates with 2 or more job applications are highlighted for easy identification.
           </p>
         </div>
       </div>

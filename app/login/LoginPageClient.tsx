@@ -59,9 +59,6 @@ import {
   readAdminLoginDraft,
   writeAdminLoginDraft,
 } from "@/lib/auth/admin-login-draft";
-import { LEGAL_ROUTES } from "@/lib/legal/routes";
-import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
-import { withTenant } from "@/lib/tenant/with-tenant";
 
 const checkboxActiveClass =
   "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]";
@@ -367,8 +364,8 @@ function LoginPageContent() {
     authError?.field === "password" || authError?.code === "INVALID_CREDENTIALS";
 
   const canSubmit = useMemo(() => {
-    return form.email.trim().length > 0 && form.password.length > 0 && form.agree;
-  }, [form.agree, form.email, form.password]);
+    return form.email.trim().length > 0 && form.password.length > 0;
+  }, [form.email, form.password]);
 
   const finishAuthenticatedSession = async (
     login: PendingLogin,
@@ -702,7 +699,7 @@ function LoginPageContent() {
 
   const handleClassicSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.email.trim() || !form.password || !form.agree) return;
+    if (!form.email.trim() || !form.password) return;
     void submitCredentialsForOtp({
       email: form.email.trim().toLowerCase(),
       password: form.password,
@@ -715,18 +712,6 @@ function LoginPageContent() {
   }
 
   if (!useBraasUi) {
-    const tenantSlug =
-      searchParams.get("tenant")?.trim().toLowerCase() || brand.slug || null;
-    const adminReturnHref = withTenant("/admin", tenantSlug);
-    const tenantTermsHref = legalReturnHref(
-      withTenant(LEGAL_ROUTES.tenantTerms, tenantSlug),
-      adminReturnHref
-    );
-    const privacyPolicyHref = legalReturnHref(
-      withTenant(LEGAL_ROUTES.privacyPolicy, tenantSlug),
-      adminReturnHref
-    );
-
     return (
       <TenantBrandingProvider branding={brand}>
         {showRedirecting ? <RedirectionProgressModal /> : null}
@@ -750,8 +735,6 @@ function LoginPageContent() {
           onTogglePassword={() => setShowPassword((current) => !current)}
           onSubmit={handleClassicSubmit}
           forgotReturnTo="/admin"
-          termsHref={tenantTermsHref}
-          privacyHref={privacyPolicyHref}
         />
       </TenantBrandingProvider>
     );
@@ -868,81 +851,6 @@ function LoginPageContent() {
                     Forgot Password?
                   </Link>
                 </div>
-
-                <div
-                  className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-[12px] py-[14px] sm:px-[14px] sm:py-[16px]"
-                  style={interStyle}
-                >
-                  <label className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#334155] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]">
-                    <span
-                      className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                        form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.agree}
-                        onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
-                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                        aria-label="Agree to Applicant Terms and Privacy Policy"
-                      />
-                      {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      I agree to the{" "}
-                      <Link
-                        href={withTenant(
-                          LEGAL_ROUTES.applicantTerms,
-                          tenantQuery?.trim().toLowerCase() || brand.slug
-                        )}
-                        className="font-semibold underline underline-offset-2"
-                        style={{ color: "var(--brand-secondary)" }}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        Applicant Terms
-                      </Link>{" "}
-                      and{" "}
-                      <Link
-                        href={withTenant(
-                          LEGAL_ROUTES.privacyPolicy,
-                          tenantQuery?.trim().toLowerCase() || brand.slug
-                        )}
-                        className="font-semibold underline underline-offset-2"
-                        style={{ color: "var(--brand-secondary)" }}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        Privacy Policy
-                      </Link>
-                      .
-                    </span>
-                  </label>
-                </div>
-
-                <p className="text-[12px] font-normal leading-[18px] text-[#64748b] sm:text-[13px] sm:leading-[19px]" style={interStyle}>
-                  By creating an account you agree to the{" "}
-                  <Link
-                    href={withTenant(
-                      LEGAL_ROUTES.applicantTerms,
-                      tenantQuery?.trim().toLowerCase() || brand.slug
-                    )}
-                    className="font-medium underline underline-offset-2"
-                    style={{ color: "var(--brand-secondary)" }}
-                  >
-                    Applicant Terms
-                  </Link>{" "}
-                  and{" "}
-                  <Link
-                    href={withTenant(
-                      LEGAL_ROUTES.privacyPolicy,
-                      tenantQuery?.trim().toLowerCase() || brand.slug
-                    )}
-                    className="font-medium underline underline-offset-2"
-                    style={{ color: "var(--brand-secondary)" }}
-                  >
-                    Privacy Policy
-                  </Link>
-                  . BrassHR is a product of ZipStaff Inc.
-                </p>
               </div>
 
               {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}
