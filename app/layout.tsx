@@ -4,6 +4,7 @@ import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
 import TenantBrandingHead from "@/app/components/tenant/TenantBrandingHead";
 import IdleSessionGuard from "@/app/components/IdleSessionGuard";
+import AuthSessionSync from "@/app/components/AuthSessionSync";
 import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
@@ -79,6 +80,7 @@ export default function RootLayout({
       >
         <TenantBrandingHead />
         <ReactQueryProvider>
+          <AuthSessionSync />
           <IdleSessionGuard />
           <TenantBrandingRoot>{children}</TenantBrandingRoot>
           <Toaster
