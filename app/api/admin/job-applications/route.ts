@@ -11,6 +11,10 @@ import { isUuid } from "@/lib/validation/uuid";
 import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import {
+  filterWorkerIdsMatchingSkills,
+  parseSkillsFilterParam,
+} from "@/lib/jobs/application-skills-filter";
 
 export const runtime = "nodejs";
 
@@ -54,6 +58,7 @@ export async function GET(req: NextRequest) {
     const rawStatusId = req.nextUrl.searchParams.get("statusId")?.trim();
     const statusId = rawStatusId && isUuid(rawStatusId) ? rawStatusId : "";
     const matchScore = req.nextUrl.searchParams.get("matchScore")?.trim();
+    const skillsFilter = parseSkillsFilterParam(req.nextUrl.searchParams.get("skills"));
 
     const sortBy = req.nextUrl.searchParams.get("sortBy")?.trim();
     const ascending = req.nextUrl.searchParams.get("sortDir") === "asc";
@@ -144,6 +149,26 @@ export async function GET(req: NextRequest) {
           (!professionId || job?.profession_id === professionId) &&
           (!employmentType || job?.employment_type === employmentType)
         );
+      });
+    }
+
+    if (skillsFilter.length) {
+      const candidateWorkerIds = Array.from(
+        new Set(
+          applications
+            .map((row) => (row as { worker_id?: string | null }).worker_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+      const matchingWorkers = await filterWorkerIdsMatchingSkills(
+        supabase,
+        tenantId,
+        candidateWorkerIds,
+        skillsFilter
+      );
+      applications = applications.filter((row) => {
+        const workerId = (row as { worker_id?: string | null }).worker_id;
+        return Boolean(workerId && matchingWorkers.has(workerId));
       });
     }
 

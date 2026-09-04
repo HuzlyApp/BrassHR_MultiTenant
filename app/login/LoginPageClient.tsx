@@ -348,6 +348,12 @@ function LoginPageContent() {
         code: "UNKNOWN",
         field: null,
       });
+    } else if (q === "idle") {
+      setAuthError({
+        error: "You were signed out after 2 hours of inactivity. Please sign in again.",
+        code: "UNKNOWN",
+        field: null,
+      });
     }
   }, [searchParams]);
 

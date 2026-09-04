@@ -91,14 +91,6 @@ import {
 } from "@/lib/jobs/application-status-tab";
 import { isUuid } from "@/lib/validation/uuid";
 import toast from "react-hot-toast";
-import {
-  bulkAnalyzeSelectedLabel,
-  bulkReanalyzeSelectedLabel,
-  describeBulkMatchAnalysisOutcome,
-  partitionMatchAnalysisTargets,
-  postBulkMatchAnalysis,
-  type BulkMatchAnalysisItem,
-} from "@/lib/admin/bulk-match-analysis";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
   APPLICATION_EDITABLE_COLUMNS,
@@ -617,6 +609,7 @@ export default function JobApplicationsPage() {
     () => searchParams.get("matchScore")?.trim() || ""
   );
   const [dateAppliedFilter, setDateAppliedFilter] = useState("");
+  const [skillsFilter, setSkillsFilter] = useState<string[]>([]);
   const [highlightMultiJobApplicants, setHighlightMultiJobApplicants] = useState(false);
   const [rowActionsMenu, setRowActionsMenu] = useState<{
     rowId: string;
@@ -651,7 +644,6 @@ export default function JobApplicationsPage() {
     }>
   >([]);
   const [matchAnalyzingId, setMatchAnalyzingId] = useState<string | null>(null);
-  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -690,6 +682,7 @@ export default function JobApplicationsPage() {
     setWorkflowFilter("");
     setMatchScoreFilter("");
     setDateAppliedFilter("");
+    setSkillsFilter([]);
     setRowActionsMenu(null);
     setStatusMenu(null);
     setStatusBusyId(null);
@@ -857,6 +850,7 @@ export default function JobApplicationsPage() {
       if (requestJobId) params.set("jobId", requestJobId);
       if (statusId) params.set("statusId", statusId);
       if (matchScore) params.set("matchScore", matchScore);
+      if (skillsFilter.length) params.set("skills", skillsFilter.join(","));
       setLoading(true);
       try {
         const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
@@ -882,7 +876,7 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId, applicationsRefreshNonce, searchParams, statusOptions]);
+  }, [jobId, applicationsRefreshNonce, searchParams, statusOptions, skillsFilter]);
 
   function openAddCandidateModal() {
     if (!jobId) {
@@ -927,11 +921,11 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+  }, [activeTab, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter, skillsFilter]);
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [page, pageSize, activeTab, locationFilter, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+  }, [page, pageSize, activeTab, locationFilter, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter, skillsFilter]);
   // Sorting intentionally preserves selection (stable IDs) and does not reset the page.
 
   const scoreSort = applicationToolbarScoreSort(listSort);
@@ -1117,6 +1111,7 @@ export default function JobApplicationsPage() {
       matchScore: matchScoreFilter,
       dateApplied: dateAppliedFilter,
       job: listingJobFilter,
+      skills: skillsFilter,
     }),
     [
       listingStatusFilter,
@@ -1127,6 +1122,7 @@ export default function JobApplicationsPage() {
       matchScoreFilter,
       dateAppliedFilter,
       listingJobFilter,
+      skillsFilter,
     ]
   );
 
@@ -1139,6 +1135,7 @@ export default function JobApplicationsPage() {
     setMatchScoreFilter(next.matchScore);
     setDateAppliedFilter(next.dateApplied);
     setListingJobFilter(next.job);
+    setSkillsFilter(next.skills);
   }, []);
 
   const hasActiveModalFilters = useMemo(
@@ -1298,18 +1295,6 @@ export default function JobApplicationsPage() {
       }).length,
     [selectedIds, rows, currentUserId]
   );
-
-  const selectedRows = useMemo(
-    () => rows.filter((row) => selectedIds.has(row.id)),
-    [rows, selectedIds]
-  );
-  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
-    partitionMatchAnalysisTargets(
-      selectedRows.map((row) => ({ applicationId: row.id, status: row.ai_match_status }))
-    );
-  const pageAllAnalyzed =
-    paginatedRows.length > 0 && paginatedRows.every((row) => row.ai_match_status === "ANALYZED");
-  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
   const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
 
@@ -1897,71 +1882,6 @@ export default function JobApplicationsPage() {
     }
   }
 
-  function applyBulkMatchItem(row: ApplicationRow, item: BulkMatchAnalysisItem): ApplicationRow {
-    const result = item.result ?? {};
-    if (result.status === "FAILED") {
-      return { ...row, ai_match_status: "FAILED" };
-    }
-    return {
-      ...row,
-      ai_match_status: result.status ?? row.ai_match_status,
-      ai_match_score: result.score ?? row.ai_match_score,
-      ai_match_category: result.category ?? row.ai_match_category,
-      ai_match_action: result.action ?? row.ai_match_action,
-      ai_match_readiness: result.readiness ?? row.ai_match_readiness,
-      ai_match_display_category:
-        result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
-      ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
-    };
-  }
-
-  async function runBulkMatchAnalyze(ids: string[]) {
-    const uniqueIds = [...new Set(ids.filter(Boolean))];
-    if (!uniqueIds.length) {
-      toast.error("Select candidates to analyze");
-      return;
-    }
-    if (bulkAnalyzeBusy || matchAnalyzingId) return;
-
-    setBulkAnalyzingIds(new Set(uniqueIds));
-    setRows((current) =>
-      current.map((row) =>
-        uniqueIds.includes(row.id) ? { ...row, ai_match_status: "ANALYZING" } : row
-      )
-    );
-
-    try {
-      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
-        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
-        setRows((current) =>
-          current.map((row) => {
-            const item = byId.get(row.id);
-            return item ? applyBulkMatchItem(row, item) : row;
-          })
-        );
-      });
-      const outcome = describeBulkMatchAnalysisOutcome(summary);
-      if (outcome.ok) {
-        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
-      } else {
-        toast.error(outcome.message);
-      }
-    } catch (analyzeError) {
-      setRows((current) =>
-        current.map((row) =>
-          uniqueIds.includes(row.id) && row.ai_match_status === "ANALYZING"
-            ? { ...row, ai_match_status: "FAILED" }
-            : row
-        )
-      );
-      toast.error(
-        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
-      );
-    } finally {
-      setBulkAnalyzingIds(new Set());
-    }
-  }
-
   function renderCell(colId: ApplicationColumnId, row: ApplicationRow) {
     switch (colId) {
       case "candidates": {
@@ -2027,7 +1947,7 @@ export default function JobApplicationsPage() {
           <MatchScoreCell
             status={row.ai_match_status}
             score={row.ai_match_score}
-            analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
+            analyzing={matchAnalyzingId === row.id}
             onAnalyze={() => void runMatchAnalyze(row.id)}
           />
         );
@@ -2205,7 +2125,7 @@ export default function JobApplicationsPage() {
         );
       }
       case "evaluation": {
-        const analyzing = matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id);
+        const analyzing = matchAnalyzingId === row.id;
         const analyzed = row.ai_match_status === "ANALYZED";
         return (
           <span
@@ -2550,10 +2470,6 @@ export default function JobApplicationsPage() {
           sortBy={sortBy}
           onSortByChange={handleSortByChange}
           onOpenMoreFilters={() => setEditFiltersOpen(true)}
-          onAnalyzeAll={() => void runBulkMatchAnalyze(paginatedRows.map((row) => row.id))}
-          analyzeAllLabel={pageAllAnalyzed ? "Reanalyze all" : "Analyze all"}
-          analyzeBusy={bulkAnalyzeBusy}
-          analyzeDisabled={paginatedRows.length === 0 || Boolean(matchAnalyzingId)}
           onEditColumns={() => setEditColumnsOpen(true)}
           showResetFilters={hasActiveModalFilters}
           onResetFilters={handleResetModalFilters}
@@ -2589,21 +2505,8 @@ export default function JobApplicationsPage() {
                 : `${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} selected on this page`
           }
           claimBusy={claimBusy}
-          analyzeBusy={bulkAnalyzeBusy || Boolean(matchAnalyzingId)}
           archiveBusy={archiveBusy}
           deleteBusy={deleteBusy}
-          analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
-          reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
-          onAnalyze={
-            selectedAnalyzeIds.length > 0
-              ? () => void runBulkMatchAnalyze(selectedAnalyzeIds)
-              : undefined
-          }
-          onReanalyze={
-            selectedReanalyzeIds.length > 0
-              ? () => void runBulkMatchAnalyze(selectedReanalyzeIds)
-              : undefined
-          }
           onArchive={() => void handleBulkArchiveSelected()}
           onDelete={() => {
             setPendingDeleteIds([]);
@@ -2803,9 +2706,7 @@ export default function JobApplicationsPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
-          analyzing={
-            matchAnalyzingId === rowActionsMenu.rowId || bulkAnalyzingIds.has(rowActionsMenu.rowId)
-          }
+          analyzing={matchAnalyzingId === rowActionsMenu.rowId}
           hired={normalizeApplicationStatus(
             rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
           ) === "hired"}

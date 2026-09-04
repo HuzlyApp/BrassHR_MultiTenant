@@ -28,6 +28,13 @@ import {
   shouldBlockAdminDashboardAccess,
   shouldBlockTenantOnboardingAccess,
 } from "@/lib/auth/owner-onboarding-status";
+import {
+  IDLE_SESSION_COOKIE,
+  idleLogoutRedirectPath,
+  idleSessionCookieOptions,
+  isIdleSessionExpired,
+  parseLastActivityMs,
+} from "@/lib/auth/idle-session";
 
 function resolveRequestTenantSlug(request: NextRequest, hostTenantLabel: string | null): string | null {
   const fromQuery = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
@@ -154,6 +161,45 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const isAnonymousUser = isAnonymousAuthUser(user);
+
+  /** Idle timeout: end non-anonymous sessions after 2h without activity cookie updates. */
+  if (user && !isAnonymousUser) {
+    const lastActivity = parseLastActivityMs(request.cookies.get(IDLE_SESSION_COOKIE)?.value);
+    if (lastActivity == null) {
+      response.cookies.set(IDLE_SESSION_COOKIE, String(Date.now()), idleSessionCookieOptions());
+    } else if (isIdleSessionExpired(lastActivity)) {
+      await supabase.auth.signOut();
+      response.cookies.set(IDLE_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+
+      if (pathname.startsWith("/api/")) {
+        const idleJson = NextResponse.json(
+          { error: "Session expired due to inactivity" },
+          { status: 401 }
+        );
+        response.cookies.getAll().forEach((cookie) => {
+          idleJson.cookies.set(cookie.name, cookie.value, cookie);
+        });
+        idleJson.cookies.set(IDLE_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+        return idleJson;
+      }
+
+      const dest = idleLogoutRedirectPath(pathname);
+      const redirectUrl = new URL(dest, request.url);
+      const tenant =
+        request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+        request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+      if (tenant && tenant.length >= 2 && !redirectUrl.searchParams.get("tenant")) {
+        redirectUrl.searchParams.set("tenant", tenant);
+      }
+      const idleRedirect = NextResponse.redirect(redirectUrl);
+      response.cookies.getAll().forEach((cookie) => {
+        idleRedirect.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      idleRedirect.cookies.set(IDLE_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+      return idleRedirect;
+    }
+  }
+
 
   /** `{sub}.{ROOT_DOMAIN}` → onboarding cookie + fallback rewrite for applicant surfaces */
   const rootDomain = getEffectiveRootDomain();
