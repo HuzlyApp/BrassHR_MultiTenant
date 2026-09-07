@@ -159,7 +159,8 @@ export function parseCityStateLocation(
     if (!state) continue;
     stateCode = state.code;
     stateName = state.name;
-    cityParts = parts.slice(0, i);
+    // Prefer the segment immediately before the state as city (drop street/area prefixes).
+    cityParts = i > 0 ? [parts[i - 1] ?? ""] : [];
     break;
   }
 
@@ -231,6 +232,8 @@ export function uniqueCityStateOptions(
 /**
  * Normalize a location for persistence: City, ST only.
  * ZIP is returned separately so callers can store it on a dedicated field.
+ * Prefer this for list/filter display helpers; job create/edit uses
+ * {@link normalizeJobFormLocationForStorage} to keep street/area + full state name.
  */
 export function normalizeLocationForStorage(raw: string | null | undefined): {
   location: string | null;
@@ -240,6 +243,75 @@ export function normalizeLocationForStorage(raw: string | null | undefined): {
   return {
     location: parsed.display || null,
     zipCode: parsed.zipCode,
+  };
+}
+
+/**
+ * Job create/edit location: keep street/area + city + full state name.
+ * Strips ZIP (returned separately) and country (United States / USA / US).
+ * Example: "Old Dekalb Pike, King of Prussia, Pennsylvania 19406, United States"
+ *        → location "Old Dekalb Pike, King of Prussia, Pennsylvania", zip "19406"
+ */
+export function normalizeJobFormLocationForStorage(
+  raw: string | null | undefined
+): {
+  location: string | null;
+  zipCode: string | null;
+} {
+  if (!raw?.trim()) return { location: null, zipCode: null };
+
+  let text = stripWorkTypeNoise(raw.trim());
+  if (!text) return { location: null, zipCode: null };
+
+  let zipCode: string | null = null;
+  const zipMatch = text.match(ZIP_RE);
+  if (zipMatch?.[1]) {
+    zipCode = zipMatch[1];
+    text = text.replace(ZIP_RE, " ").replace(/\s{2,}/g, " ").trim();
+  }
+
+  const parts = text
+    .split(",")
+    .map((part) => cleanLocationPart(part))
+    .filter(Boolean)
+    .filter((part) => !isCountryPart(part));
+
+  if (!parts.length) {
+    return { location: null, zipCode };
+  }
+
+  let stateName = "";
+  let beforeState = [...parts];
+
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const state = resolveState(parts[i] ?? "");
+    if (!state) continue;
+    stateName = state.name;
+    beforeState = parts.slice(0, i);
+    break;
+  }
+
+  // "Dallas Texas" without comma
+  if (!stateName && beforeState.length === 1) {
+    const tokens = (beforeState[0] ?? "").split(/\s+/).filter(Boolean);
+    if (tokens.length >= 2) {
+      const maybeState = resolveState(tokens[tokens.length - 1] ?? "");
+      if (maybeState) {
+        stateName = maybeState.name;
+        beforeState = [tokens.slice(0, -1).join(" ")];
+      }
+    }
+  }
+
+  const locationParts = [
+    ...beforeState.map((part) => part.trim()).filter(Boolean),
+    ...(stateName ? [stateName] : []),
+  ];
+  const location = locationParts.join(", ").replace(/\s{2,}/g, " ").trim();
+
+  return {
+    location: location || null,
+    zipCode,
   };
 }
 

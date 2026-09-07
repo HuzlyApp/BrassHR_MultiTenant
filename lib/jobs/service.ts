@@ -34,7 +34,7 @@ import {
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
-import { normalizeLocationForStorage } from "@/lib/location/city-state";
+import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
@@ -104,12 +104,18 @@ function toJobRow(input: JobRequisitionInput) {
   /** MSP Location field writes facility; mirror into location for public/list display. */
   const rawLocation =
     clean(input.location) ?? (input.sourceType === "MSP" ? facility : null);
-  const location = rawLocation
-    ? normalizeLocationForStorage(rawLocation).location ?? rawLocation
-    : null;
+  const normalizedPrimary = rawLocation
+    ? normalizeJobFormLocationForStorage(rawLocation)
+    : { location: null, zipCode: null };
+  const location = normalizedPrimary.location ?? (rawLocation ? rawLocation : null);
+  const postalCode =
+    clean(input.postalCode) ?? normalizedPrimary.zipCode ?? null;
   const additionalLocations = Array.isArray(input.additionalLocations)
     ? input.additionalLocations
-        .map((item) => normalizeLocationForStorage(item.trim()).location ?? item.trim())
+        .map(
+          (item) =>
+            normalizeJobFormLocationForStorage(item.trim()).location ?? item.trim()
+        )
         .filter(Boolean)
     : [];
 
@@ -139,6 +145,7 @@ function toJobRow(input: JobRequisitionInput) {
     public_title: resolvedPublicTitle,
     public_description: publicDescription,
     location,
+    postal_code: postalCode,
     schedule: jobLocationType,
     qualifications: clean(input.qualifications),
     responsibilities: clean(input.responsibilities),
@@ -797,6 +804,7 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
     publicTitle: row.public_title ? String(row.public_title) : null,
     publicDescription: row.public_description ? String(row.public_description) : null,
     location: row.location ? String(row.location) : null,
+    postalCode: row.postal_code ? String(row.postal_code) : null,
     schedule: row.schedule ? String(row.schedule) : null,
     qualifications: row.qualifications ? String(row.qualifications) : null,
     responsibilities: row.responsibilities ? String(row.responsibilities) : null,
