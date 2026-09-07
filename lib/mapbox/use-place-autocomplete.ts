@@ -24,6 +24,7 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const requestIdRef = useRef(0)
+  /** Must match the value written into the input after select (display label), not full place_name. */
   const verifiedQueryRef = useRef("")
 
   const resetVerification = useCallback(() => {
@@ -31,14 +32,22 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
     verifiedQueryRef.current = ""
   }, [])
 
-  const selectSuggestion = useCallback((suggestion: PlaceSuggestion) => {
-    setIsVerified(true)
-    verifiedQueryRef.current = suggestion.placeName
-    setSuggestions([])
-    setSearchError(null)
-    setIsOpen(false)
-    return suggestion
-  }, [])
+  const selectSuggestion = useCallback(
+    (suggestion: PlaceSuggestion, committedValue?: string) => {
+      const committed = (
+        committedValue ??
+        suggestion.displayLabel ??
+        suggestion.placeName
+      ).trim()
+      setIsVerified(true)
+      verifiedQueryRef.current = committed
+      setSuggestions([])
+      setSearchError(null)
+      setIsOpen(false)
+      return suggestion
+    },
+    []
+  )
 
   const closeSuggestions = useCallback(() => {
     setIsOpen(false)
@@ -59,7 +68,13 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
       return
     }
 
-    if (isVerified && trimmed === verifiedQueryRef.current) return
+    // Skip re-search when the input matches what the user just selected.
+    if (isVerified && trimmed === verifiedQueryRef.current) {
+      setIsOpen(false)
+      setSuggestions([])
+      setIsLoading(false)
+      return
+    }
 
     if (isVerified && trimmed !== verifiedQueryRef.current) {
       resetVerification()

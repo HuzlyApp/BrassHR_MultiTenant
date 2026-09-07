@@ -40,6 +40,8 @@ import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-ce
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { skillsPresentInHaystack } from "@/lib/jobs/candidate-import-match";
 import {
   candidateMatchesJobTitleFilter,
   getCandidateJobTitleOptions,
@@ -531,8 +533,8 @@ export default function CandidatesPage() {
     if (q) {
       out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
-    const skills = skillsFilter.trim().toLowerCase();
-    if (skills) {
+    const skillTags = parseSkillsFilterParam(skillsFilter);
+    if (skillTags.length) {
       out = out.filter((c) => {
         const hay = [
           c.role,
@@ -544,7 +546,7 @@ export default function CandidatesPage() {
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
-        return hay.includes(skills);
+        return skillsPresentInHaystack(hay, skillTags);
       });
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
@@ -1160,7 +1162,7 @@ export default function CandidatesPage() {
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 px-4 py-5 sm:gap-5 sm:px-5 sm:py-6 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
                 <CandidateGridCard
                   key={c.id}

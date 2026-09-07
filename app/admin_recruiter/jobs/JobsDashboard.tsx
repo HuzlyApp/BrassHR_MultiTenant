@@ -9,7 +9,7 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
-import { JobsGridView } from "./JobsGridView";
+import { JobsGridView, JOBS_GRID_INFINITE_PAGE_SIZE } from "./JobsGridView";
 import {
   applicantCount,
   hiredApplicantCount,
@@ -232,7 +232,7 @@ function JobWorkspaceActions({ className = "" }: { className?: string }) {
         View All Jobs
       </Link>
       <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-        View All Jobs Candidates
+        View Candidates
       </Link>
       <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
         Create a job
@@ -376,6 +376,7 @@ export function JobsDashboard({
           tenantSlug={tenantSlug}
           hotJobIds={hotJobIds}
           padded={false}
+          infiniteScrollPageSize={JOBS_GRID_INFINITE_PAGE_SIZE}
           onAddCandidate={onAddCandidate}
           onImportCandidates={onImportCandidates}
           onDelete={onDelete}

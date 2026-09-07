@@ -46,6 +46,8 @@ export type JobRequisitionInput = {
   publicTitle?: string | null;
   publicDescription?: string | null;
   location?: string | null;
+  /** ZIP from location search when available; not shown in the form UI. */
+  postalCode?: string | null;
   schedule?: string | null;
   qualifications?: string | null;
   responsibilities?: string | null;

@@ -8,13 +8,15 @@ import {
   JOB_FORM_LABEL_CLASS,
 } from "@/app/admin_recruiter/jobs/job-form-shared";
 import { JobFormRequiredMark } from "@/app/admin_recruiter/jobs/JobFormRequiredMark";
-import { formatCityState } from "@/lib/location/city-state";
+import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 
 type Props = {
   id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** ZIP from search select — stored separately; no UI field. */
+  onPostalCodeChange?: (postalCode: string | null) => void;
   placeholder?: string;
   error?: string;
   showLabel?: boolean;
@@ -25,14 +27,16 @@ type Props = {
 };
 
 /**
- * Mapbox-backed location input for job requisition forms.
- * Persists canonical "City, ST" (country / ZIP / work-type are not stored in location).
+ * Mapbox-backed location input for job create/edit.
+ * Suggestions and value keep street/area, city, full state name (no ZIP / United States).
+ * ZIP is emitted via onPostalCodeChange when found.
  */
 export default function JobLocationAutocompleteField({
   id,
   label,
   value,
   onChange,
+  onPostalCodeChange,
   placeholder = "Search city, area, or address",
   error,
   showLabel = true,
@@ -86,11 +90,20 @@ export default function JobLocationAutocompleteField({
           aria-controls={showSuggestions ? listboxId : undefined}
           aria-autocomplete="list"
           aria-invalid={error ? true : undefined}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            onChange(next);
+            if (!next.trim() && onPostalCodeChange) onPostalCodeChange(null);
+          }}
           onFocus={() => openSuggestions()}
           onBlur={() => {
-            const normalized = formatCityState(value);
-            if (normalized && normalized !== value) onChange(normalized);
+            const { location, zipCode } = normalizeJobFormLocationForStorage(value);
+            const nextLocation = location || value.trim();
+            if (nextLocation !== value) onChange(nextLocation);
+            if (onPostalCodeChange) {
+              if (!nextLocation) onPostalCodeChange(null);
+              else if (zipCode) onPostalCodeChange(zipCode);
+            }
             window.setTimeout(() => closeSuggestions(), 150);
           }}
         />
@@ -103,21 +116,30 @@ export default function JobLocationAutocompleteField({
               suggestionsClassName ?? ""
             }`}
           >
-            {suggestions.map((suggestion) => (
-              <li key={suggestion.id} role="option" aria-selected={false}>
-                <button
-                  type="button"
-                  className="w-full px-3 py-2.5 text-left text-sm text-[#334155] transition hover:bg-[#F8FAFC] focus:bg-[#F8FAFC] focus:outline-none"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    const selected = selectSuggestion(suggestion);
-                    onChange(formatCityState(selected.placeName) || selected.placeName);
-                  }}
-                >
-                  {suggestion.placeName}
-                </button>
-              </li>
-            ))}
+            {suggestions.map((suggestion) => {
+              const labelText =
+                suggestion.displayLabel ||
+                normalizeJobFormLocationForStorage(suggestion.placeName).location ||
+                suggestion.placeName;
+              return (
+                <li key={suggestion.id} role="option" aria-selected={false}>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2.5 text-left text-sm text-[#334155] transition hover:bg-[#F8FAFC] focus:bg-[#F8FAFC] focus:outline-none"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      selectSuggestion(suggestion, labelText);
+                      onChange(labelText);
+                      if (onPostalCodeChange) {
+                        onPostalCodeChange(suggestion.zipCode);
+                      }
+                    }}
+                  >
+                    {labelText}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
       </div>

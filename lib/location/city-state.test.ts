@@ -3,6 +3,7 @@ import {
   formatCityState,
   formatCityStateFromParts,
   locationsMatchCityState,
+  normalizeJobFormLocationForStorage,
   normalizeLocationForStorage,
   parseCityStateLocation,
   uniqueCityStateOptions,
@@ -78,6 +79,12 @@ describe("parseCityStateLocation", () => {
     ).toBe(true);
     expect(locationsMatchCityState("Dallas, TX", "Dallas, TX 75244")).toBe(true);
     expect(locationsMatchCityState("Dallas, TX", "Austin, TX")).toBe(false);
+    expect(
+      locationsMatchCityState(
+        "King of Prussia, PA",
+        "Old Dekalb Pike, King of Prussia, Pennsylvania"
+      )
+    ).toBe(true);
   });
 
   it("normalizes storage to City, ST and returns ZIP separately", () => {
@@ -88,6 +95,25 @@ describe("parseCityStateLocation", () => {
     expect(normalizeLocationForStorage("Dallas, TX 75244")).toEqual({
       location: "Dallas, TX",
       zipCode: "75244",
+    });
+  });
+
+  it("normalizes job form storage to street/city/full state without ZIP or country", () => {
+    expect(
+      normalizeJobFormLocationForStorage(
+        "Old Dekalb Pike, King of Prussia, Pennsylvania 19406, United States"
+      )
+    ).toEqual({
+      location: "Old Dekalb Pike, King of Prussia, Pennsylvania",
+      zipCode: "19406",
+    });
+    expect(normalizeJobFormLocationForStorage("Dallas County, TX, United States")).toEqual({
+      location: "Dallas County, Texas",
+      zipCode: null,
+    });
+    expect(normalizeJobFormLocationForStorage("Dallas, Texas")).toEqual({
+      location: "Dallas, Texas",
+      zipCode: null,
     });
   });
 
