@@ -20,6 +20,7 @@ import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-se
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandidatesToolbar";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -102,6 +103,7 @@ export type CandidatesListShellProps = {
   /** Figma All Candidates layout: split search, icon filters, Match Existing. */
   layoutVariant?: "default" | "all-candidates";
   skillsFilter?: string;
+  onSkillsFilterChange?: (value: string) => void;
   onApplySearch?: (next: { query: string; skillsFilter: string }) => void;
   onResetSearch?: () => void;
   onMatchExistingCandidate?: () => void;
@@ -344,6 +346,7 @@ export function CandidatesListShell({
   toolbarAddCandidateButton,
   layoutVariant = "default",
   skillsFilter = "",
+  onSkillsFilterChange,
   onApplySearch,
   onResetSearch,
   onMatchExistingCandidate,
@@ -383,6 +386,7 @@ export function CandidatesListShell({
       matchScoreFilter,
       locationFilter,
       clientNameFilter,
+      skills: parseSkillsFilterParam(skillsFilter),
       appliedDateFrom,
       appliedDateTo,
     }),
@@ -396,6 +400,7 @@ export function CandidatesListShell({
       matchScoreFilter,
       locationFilter,
       clientNameFilter,
+      skillsFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -410,10 +415,20 @@ export function CandidatesListShell({
         matchScoreFilter,
         locationFilter,
         clientNameFilter,
+        skillsFilter.trim(),
         appliedDateFrom,
         appliedDateTo,
       ].filter(Boolean).length
     : countActiveCandidatesFilters(filterValues);
+
+  function applySkillsFilter(skills: string[]) {
+    const next = skills.join(", ");
+    if (onSkillsFilterChange) {
+      onSkillsFilterChange(next);
+      return;
+    }
+    onApplySearch?.({ query, skillsFilter: next });
+  }
 
   function applyFilterValues(next: CandidatesFilterValues) {
     setScoreSort(next.scoreSort);
@@ -425,6 +440,7 @@ export function CandidatesListShell({
     setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
     setClientNameFilter(next.clientNameFilter);
+    applySkillsFilter(next.skills);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
   }
@@ -438,6 +454,7 @@ export function CandidatesListShell({
       setMatchScoreFilter("");
       onLocationFilterChange("");
       setClientNameFilter("");
+      applySkillsFilter([]);
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
       return;

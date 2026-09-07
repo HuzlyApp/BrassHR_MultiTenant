@@ -656,7 +656,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, clientNameFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, skillsFilter, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, clientNameFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -699,6 +699,7 @@ export default function CandidatesPage() {
         page,
         pageSize,
         query,
+        skillsFilter,
         jobRoleFilter,
         statusFilter,
         progressStatusFilter,
@@ -715,6 +716,7 @@ export default function CandidatesPage() {
       page,
       pageSize,
       query,
+      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
@@ -976,6 +978,7 @@ export default function CandidatesPage() {
         layoutVariant="all-candidates"
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
+        onSkillsFilterChange={setSkillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
           setQuery(nextQuery);
           setSkillsFilter(nextSkills);
