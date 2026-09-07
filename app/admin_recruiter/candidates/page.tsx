@@ -230,7 +230,6 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
@@ -371,13 +370,6 @@ export default function CandidatesPage() {
     [addCandidateJobs]
   );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const mapWorkerToRow = useCallback((item: WorkerProfile): CandidateRow => {
     const { email, phone } = resolveCandidateContact(item);
     return {
@@ -455,7 +447,7 @@ export default function CandidatesPage() {
         {
           page,
           pageSize,
-          q: debouncedQuery || undefined,
+          q: query || undefined,
           skills: skillTags.length ? skillTags.join(",") : undefined,
           jobRole: jobRoleFilter || undefined,
           location: locationFilter || undefined,
@@ -518,7 +510,7 @@ export default function CandidatesPage() {
     mapWorkerToRow,
     page,
     pageSize,
-    debouncedQuery,
+    query,
     skillsFilter,
     jobRoleFilter,
     locationFilter,
@@ -563,7 +555,7 @@ export default function CandidatesPage() {
   useEffect(() => {
     setPage(1);
   }, [
-    debouncedQuery,
+    query,
     skillsFilter,
     jobRoleFilter,
     statusFilter,
@@ -886,15 +878,12 @@ export default function CandidatesPage() {
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
-          const trimmed = nextQuery.trim();
-          setQuery(trimmed);
-          setDebouncedQuery(trimmed);
+          setQuery(nextQuery.trim());
           setSkillsFilter(nextSkills);
           setPage(1);
         }}
         onResetSearch={() => {
           setQuery("");
-          setDebouncedQuery("");
           setSkillsFilter("");
           setJobRoleFilter("");
           setLocationFilter("");
