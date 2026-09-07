@@ -211,6 +211,7 @@ describe("JobsPortalClient", () => {
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
     nav.replace.mockClear();
+    await user.click(screen.getByTestId("jobs-filters-row-toggle"));
     await user.click(screen.getByRole("button", { name: aria }));
     await user.click(screen.getByRole("option", { name: optionLabel }));
     expect(nav.replace).toHaveBeenCalledWith(
@@ -224,6 +225,7 @@ describe("JobsPortalClient", () => {
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
     nav.replace.mockClear();
+    await user.click(screen.getByTestId("jobs-filters-row-toggle"));
     await user.click(screen.getByTestId("jobs-all-filters"));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Specialty" }));
@@ -415,35 +417,37 @@ describe("JobsPortalClient", () => {
     expect(screen.getByLabelText("Selected job details").className).toContain("hidden");
   });
 
-  it("collapses search and filters on mobile until toggled open", async () => {
+  it("shows search by default and toggles the filter row from the filter icon", async () => {
     const user = userEvent.setup();
     await renderBoard("tenant=zipstaff", false);
     await screen.findByTestId("job-card-rn-1");
-    const toggle = screen.getByTestId("jobs-mobile-search-toggle");
-    const filtersPanel = document.getElementById("jobs-board-filters");
+    expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+    const toggle = screen.getByTestId("jobs-filters-row-toggle");
+    const filterRow = document.getElementById("jobs-board-filter-row");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(filtersPanel?.className).toContain("hidden");
+    expect(filterRow?.className).toContain("hidden");
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(filtersPanel?.className).toContain("block");
-    expect(filtersPanel?.className).not.toContain("hidden");
+    expect(filterRow?.className).not.toContain("hidden");
+    expect(screen.getByRole("button", { name: "Profession" })).toBeInTheDocument();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(filtersPanel?.className).toContain("hidden");
+    expect(filterRow?.className).toContain("hidden");
   });
 
-  it("keeps search and filters visible on desktop without a toggle", async () => {
+  it("keeps search visible on desktop with a filter-row toggle", async () => {
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
-    expect(screen.getByTestId("jobs-mobile-search-toggle").className).toContain("lg:hidden");
-    expect(document.getElementById("jobs-board-filters")?.className).toContain("lg:block");
     expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+    expect(screen.getByTestId("jobs-filters-row-toggle")).toBeInTheDocument();
+    expect(document.getElementById("jobs-board-filters")).toBeInTheDocument();
   });
 
   it("opens All filters and restores focus when closed", async () => {
     const user = userEvent.setup();
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
+    await user.click(screen.getByTestId("jobs-filters-row-toggle"));
     const trigger = screen.getByTestId("jobs-all-filters");
     await user.click(trigger);
     expect(await screen.findByRole("heading", { name: "All filters" })).toBeInTheDocument();
