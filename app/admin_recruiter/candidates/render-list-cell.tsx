@@ -12,6 +12,7 @@ import type { ApplicationStatusOption } from "../applications/ApplicationStatusU
 import { MatchScoreCell, RequirementOutcomeCountCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema"
 
 const LINK_CLASS =
   "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
@@ -23,7 +24,7 @@ export function renderListCell(
   options?: {
     highlightMultiJob?: boolean
     matchAnalyzingApplicationIds?: Set<string>
-    onAnalyzeMatch?: (applicationId: string) => void
+    onAnalyzeMatch?: (applicationId: string, mode?: AnalysisMode) => void
     progressStatusOptions?: ApplicationStatusOption[]
     progressStatusMenuWorkerId?: string | null
     progressStatusBusyWorkerId?: string | null
@@ -163,7 +164,7 @@ export function renderListCell(
           category={c.aiMatchCategory}
           displayCategory={c.aiMatchDisplayCategory}
           analyzing={Boolean(applicationId && matchAnalyzingApplicationIds?.has(applicationId))}
-          onAnalyze={onAnalyzeMatch ? () => onAnalyzeMatch(applicationId) : undefined}
+          onAnalyze={onAnalyzeMatch ? (mode) => onAnalyzeMatch(applicationId, mode) : undefined}
         />
       )
     }

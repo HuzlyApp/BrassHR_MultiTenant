@@ -67,6 +67,7 @@ import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   fetchWorkersPageFromApi,
@@ -603,6 +604,7 @@ export default function CandidatesPage() {
         page,
         pageSize,
         query,
+        skillsFilter,
         jobRoleFilter,
         statusFilter,
         progressStatusFilter,
@@ -618,6 +620,7 @@ export default function CandidatesPage() {
       page,
       pageSize,
       query,
+      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
@@ -710,7 +713,7 @@ export default function CandidatesPage() {
     setClaimConfirmOpen(true);
   }
 
-  async function runMatchAnalyze(applicationId: string) {
+  async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
     const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
     setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
     try {
@@ -718,7 +721,7 @@ export default function CandidatesPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -741,9 +744,12 @@ export default function CandidatesPage() {
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
       } else {
-        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
+        toast.success(
+          `${candidate?.name || "Candidate"}: ${mode === "deep" ? "deeper match analysis" : "match analysis"} complete`,
+          {
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
       }
     } catch (analyzeError) {
       toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
@@ -1071,7 +1077,8 @@ export default function CandidatesPage() {
                               {renderListCell(colId, c, formatDate, {
                                 highlightMultiJob,
                                 matchAnalyzingApplicationIds,
-                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                onAnalyzeMatch: (applicationId, mode) =>
+                                  void runMatchAnalyze(applicationId, mode),
                                 progressStatusOptions,
                                 progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
                                 progressStatusBusyWorkerId: statusBusyWorkerId,
@@ -1193,13 +1200,31 @@ export default function CandidatesPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
+          analyzing={(() => {
+            const applicationId = candidates
+              .find((item) => item.id === rowActionsMenu.rowId)
+              ?.matchApplicationId?.trim();
+            return Boolean(applicationId && matchAnalyzingApplicationIds.has(applicationId));
+          })()}
+          isAnalyzed={
+            candidates.find((item) => item.id === rowActionsMenu.rowId)?.aiMatchStatus === "ANALYZED"
+          }
           hired={(() => {
             const status = candidates.find((item) => item.id === rowActionsMenu.rowId)?.status ?? "";
             const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
             return normalized === "hired" || normalized === "converted";
           })()}
           onClose={() => setRowActionsMenu(null)}
-          onReanalyze={() => toast("Reanalyze is available from the candidate application.")}
+          onAnalyze={(mode) => {
+            const applicationId = candidates
+              .find((item) => item.id === rowActionsMenu.rowId)
+              ?.matchApplicationId?.trim();
+            if (!applicationId) {
+              toast("Open a job application to run match analysis for this candidate.");
+              return;
+            }
+            void runMatchAnalyze(applicationId, mode);
+          }}
           onUpdateResume={() => toast("Update resume from the candidate profile.")}
           onArchive={() => toast("Archive is available from the candidate application.")}
           onUnarchive={() => toast("Unarchive is available from the candidate application.")}

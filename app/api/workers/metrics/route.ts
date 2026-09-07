@@ -3,12 +3,14 @@ import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import {
   buildCandidateKpiCardsFromMetrics,
   emptyCandidateKpiMetricsPayload,
   normalizeCandidateKpiMetricsPayload,
   type CandidateKpiMetricsPayload,
 } from "@/lib/workers/candidate-kpi-metrics";
+import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -19,15 +21,26 @@ function errorMessage(err: unknown): string {
   return "Failed to load candidate metrics";
 }
 
+function isPipelineBaseStatus(status: string): boolean {
+  if (!status) return true;
+  return (ACTIVE_CANDIDATE_PIPELINE_STATUSES as readonly string[]).includes(status);
+}
+
 async function loadMetricsViaRpc(
   supabase: SupabaseClient,
   tenantId: string,
   pipelineStatus: string | null
 ): Promise<CandidateKpiMetricsPayload> {
-  const { data, error } = await supabase.rpc("candidate_kpi_metrics", {
+  const args = {
     p_tenant_id: tenantId,
     p_pipeline_status: pipelineStatus,
-  });
+  };
+  let { data, error } = await supabase.rpc("candidate_kpi_metrics", args);
+  // PostgREST schema cache can lag CREATE OR REPLACE; one short retry usually clears it.
+  if (error && /schema cache/i.test(error.message)) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ({ data, error } = await supabase.rpc("candidate_kpi_metrics", args));
+  }
   if (error) throw error;
   return normalizeCandidateKpiMetricsPayload(data);
 }
@@ -35,6 +48,7 @@ async function loadMetricsViaRpc(
 /**
  * Lightweight fallback when the RPC is missing from PostgREST schema cache.
  * Matches the same KPI semantics as closely as practical with simple counts.
+ * Avoids giant `.in(worker_id, …)` URLs (Bad Request on large tenants).
  */
 async function loadMetricsFallback(
   supabase: SupabaseClient,
@@ -45,45 +59,56 @@ async function loadMetricsFallback(
   const currentStart = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
   const previousStart = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  let workersQuery = supabase
-    .from("worker")
-    .select("id, status, created_at")
-    .eq("tenant_id", tenantId);
-  if (pipelineStatus) {
-    if (pipelineStatus === "pending") {
-      workersQuery = workersQuery.in("status", ["pending", "under_review"]);
-    } else if (pipelineStatus === "new") {
-      workersQuery = workersQuery.or("status.eq.new,status.is.null");
-    } else {
-      workersQuery = workersQuery.eq("status", pipelineStatus);
-    }
-  } else {
-    workersQuery = workersQuery.or(
-      "status.in.(new,pending,under_review,for_approval,approved,disapproved),status.is.null"
-    );
+  // Fetch tenant workers without fragile PostgREST enum filters; filter pipeline in JS.
+  // Page past the default 1000-row API cap so large tenants are not silently undercounted.
+  type WorkerMetricRow = { id?: string; status?: string | null; created_at?: string | null };
+  type EmploymentMetricRow = { candidate_id?: string; created_at?: string | null };
+  const pageSize = 1000;
+  const workerRows: WorkerMetricRow[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("worker")
+      .select("id, status, created_at")
+      .eq("tenant_id", tenantId)
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as WorkerMetricRow[];
+    workerRows.push(...page);
+    if (page.length < pageSize) break;
   }
 
-  const [{ data: workerRows, error: workerErr }, { data: employmentRows, error: empErr }] =
-    await Promise.all([
-      workersQuery,
-      supabase.from("workers").select("candidate_id, created_at").eq("tenant_id", tenantId).not("candidate_id", "is", null),
-    ]);
-  if (workerErr) throw workerErr;
-  if (empErr && !String(empErr.message ?? "").includes("does not exist")) throw empErr;
+  const employmentRows: EmploymentMetricRow[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("workers")
+      .select("candidate_id, created_at")
+      .eq("tenant_id", tenantId)
+      .not("candidate_id", "is", null)
+      .range(from, from + pageSize - 1);
+    if (error) {
+      if (!String(error.message ?? "").includes("does not exist")) throw error;
+      break;
+    }
+    const page = (data ?? []) as EmploymentMetricRow[];
+    employmentRows.push(...page);
+    if (page.length < pageSize) break;
+  }
 
   const converted = new Set(
-    ((employmentRows ?? []) as Array<{ candidate_id?: string }>)
-      .map((row) => String(row.candidate_id ?? ""))
-      .filter(Boolean)
+    employmentRows.map((row) => String(row.candidate_id ?? "")).filter(Boolean)
   );
 
-  const base = ((workerRows ?? []) as Array<{ id?: string; status?: string | null; created_at?: string | null }>)
-    .filter((row) => {
-      const id = String(row.id ?? "");
-      const status = String(row.status ?? "").trim().toLowerCase();
-      if (!id || converted.has(id) || status === "converted") return false;
-      return true;
-    });
+  const base = workerRows.filter((row) => {
+    const id = String(row.id ?? "");
+    const status = String(row.status ?? "").trim().toLowerCase();
+    if (!id || converted.has(id) || status === "converted") return false;
+    if (pipelineStatus) {
+      if (pipelineStatus === "pending") return status === "pending" || status === "under_review";
+      if (pipelineStatus === "new") return !status || status === "new";
+      return status === pipelineStatus;
+    }
+    return isPipelineBaseStatus(status);
+  });
 
   const inWindow = (iso: string | null | undefined, start: string, end: number) => {
     if (!iso) return false;
@@ -92,7 +117,9 @@ async function loadMetricsFallback(
   };
 
   const newCurrent = base.filter((row) => inWindow(row.created_at, currentStart, now)).length;
-  const newPrevious = base.filter((row) => inWindow(row.created_at, previousStart, new Date(currentStart).getTime())).length;
+  const newPrevious = base.filter((row) =>
+    inWindow(row.created_at, previousStart, new Date(currentStart).getTime())
+  ).length;
   const active = base.filter((row) => {
     const status = String(row.status ?? "").trim().toLowerCase();
     return status !== "disapproved" && status !== "rejected";
@@ -103,31 +130,39 @@ async function loadMetricsFallback(
   ).length;
 
   const workerIds = base.map((row) => String(row.id)).filter(Boolean);
-  let analyzedIds = new Set<string>();
-  let analyzedAtByWorker = new Map<string, string>();
+  const analyzedIds = new Set<string>();
+  const analyzedAtByWorker = new Map<string, string>();
   if (workerIds.length > 0) {
-    const { data: analyzedRows, error: analyzedErr } = await supabase
-      .from("job_applications")
-      .select("worker_id, ai_analyzed_at, status")
-      .eq("tenant_id", tenantId)
-      .eq("ai_match_status", "ANALYZED")
-      .in("worker_id", workerIds);
-    if (analyzedErr) throw analyzedErr;
-    for (const row of (analyzedRows ?? []) as Array<{
-      worker_id?: string | null;
-      ai_analyzed_at?: string | null;
-      status?: string | null;
-    }>) {
-      const status = String(row.status ?? "").toLowerCase();
-      if (status === "rejected" || status === "withdrawn") continue;
-      const id = String(row.worker_id ?? "");
-      if (!id) continue;
-      analyzedIds.add(id);
-      const at = row.ai_analyzed_at;
-      if (at) {
-        const prev = analyzedAtByWorker.get(id);
-        if (!prev || new Date(at).getTime() > new Date(prev).getTime()) {
-          analyzedAtByWorker.set(id, at);
+    const { data: analyzedRows, error: analyzedErr } = await queryInChunks(
+      workerIds,
+      async (chunk) =>
+        supabase
+          .from("job_applications")
+          .select("worker_id, ai_analyzed_at, status")
+          .eq("tenant_id", tenantId)
+          .eq("ai_match_status", "ANALYZED")
+          .in("worker_id", chunk)
+    );
+    // Analyzed is best-effort in fallback; don't zero the other cards if this fails.
+    if (analyzedErr) {
+      console.warn("[api/workers/metrics] analyzed fallback failed", errorMessage(analyzedErr));
+    } else {
+      for (const row of (analyzedRows ?? []) as Array<{
+        worker_id?: string | null;
+        ai_analyzed_at?: string | null;
+        status?: string | null;
+      }>) {
+        const status = String(row.status ?? "").toLowerCase();
+        if (status === "rejected" || status === "withdrawn") continue;
+        const id = String(row.worker_id ?? "");
+        if (!id) continue;
+        analyzedIds.add(id);
+        const at = row.ai_analyzed_at;
+        if (at) {
+          const prev = analyzedAtByWorker.get(id);
+          if (!prev || new Date(at).getTime() > new Date(prev).getTime()) {
+            analyzedAtByWorker.set(id, at);
+          }
         }
       }
     }
@@ -140,7 +175,7 @@ async function loadMetricsFallback(
     inWindow(at, previousStart, new Date(currentStart).getTime())
   ).length;
 
-  const hiredRows = (employmentRows ?? []) as Array<{ created_at?: string | null }>;
+  const hiredRows = employmentRows;
   const hiredCurrent = hiredRows.filter((row) => inWindow(row.created_at, currentStart, now)).length;
   const hiredPrevious = hiredRows.filter((row) =>
     inWindow(row.created_at, previousStart, new Date(currentStart).getTime())

@@ -109,6 +109,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     body?.verifiedRecruiterInfo && typeof body.verifiedRecruiterInfo === "object"
       ? (body.verifiedRecruiterInfo as Record<string, unknown>)
       : null;
+  const analysisMode = body?.analysisMode === "deep" ? "deep" : "analyze";
 
   try {
     const result = await runMatchAnalysisForApplication({
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       recruiterNotes,
       verifiedRecruiterInfo,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
+      analysisMode,
     });
 
     void writeActivityLog({
@@ -133,6 +135,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         score: result.score,
         category: result.category,
         repaired: result.repaired,
+        analysisMode,
       },
     });
 

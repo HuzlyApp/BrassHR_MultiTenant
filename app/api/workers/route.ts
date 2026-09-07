@@ -23,8 +23,14 @@ import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summa
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { statusOrFilter } from "@/lib/workers/workers-status-filter";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
-import { parseCandidateListQueryParams } from "@/lib/workers/candidate-list-params";
-import { resolveCandidateIdPage } from "@/lib/workers/resolve-candidate-id-page";
+import {
+  candidateListRequiresServerSearch,
+  parseCandidateListQueryParams,
+} from "@/lib/workers/candidate-list-params";
+import {
+  CandidateSearchUnavailableError,
+  resolveCandidateIdPage,
+} from "@/lib/workers/resolve-candidate-id-page";
 
 type SbErr = { message: string; code?: string };
 type ContactLookupRow = {
@@ -216,9 +222,15 @@ export async function GET(req: Request) {
 
       const tenantIdForRpc =
         tenantScope.mode === "scoped" ? tenantScope.tenantId : null;
+      const requiresServerSearch = candidateListRequiresServerSearch({
+        ...listParams,
+        status,
+        excludeConverted: needsConversionFilter,
+      });
 
       // Prefer server-side ID page (filters/search/sort + conversion exclusion before LIMIT).
-      if (tenantIdForRpc) {
+      // Never fall back to an unfiltered page while search/filters are active.
+      if (tenantIdForRpc || requiresServerSearch) {
         try {
           const idPage = await resolveCandidateIdPage(supabase, tenantIdForRpc, {
             ...listParams,
@@ -260,12 +272,28 @@ export async function GET(req: Request) {
             }
           }
         } catch (rpcErr) {
+          if (rpcErr instanceof CandidateSearchUnavailableError || requiresServerSearch) {
+            const message =
+              rpcErr instanceof Error
+                ? rpcErr.message
+                : "Candidate search is temporarily unavailable.";
+            return Response.json({ error: message }, { status: 503 });
+          }
           console.warn("[api/workers] server page resolve failed, using legacy path", rpcErr);
           usedServerPage = false;
         }
       }
 
       if (!usedServerPage) {
+        if (requiresServerSearch) {
+          return Response.json(
+            {
+              error:
+                "Candidate search requires server-side indexing. Please refresh and try again.",
+            },
+            { status: 503 }
+          );
+        }
         outer: for (const baseCols of baseColsOptions) {
           for (const a of attempts) {
             const select = `${baseCols}, ${a.extra}`;

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  candidateListRequiresServerSearch,
   parseCandidateListQueryParams,
   toListCandidateIdsRpcArgs,
   type CandidateListQueryParams,
@@ -11,19 +12,42 @@ export type CandidateIdPageResult = {
   usedRpc: boolean;
 };
 
+export class CandidateSearchUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CandidateSearchUnavailableError";
+  }
+}
+
 /**
  * Resolve the current page of candidate IDs + exact filtered total.
- * Prefers `list_candidate_ids_page` (conversion-safe, filterable). Falls back to
- * a tenant-scoped worker range when the RPC is unavailable.
+ * Prefers `list_candidate_ids_page` (conversion-safe, filterable).
+ * Falls back to a tenant-scoped worker range ONLY when no search/filters are active.
+ * Never returns an unfiltered page while the client thinks a search is applied.
  */
 export async function resolveCandidateIdPage(
   supabase: SupabaseClient,
   tenantId: string | null,
   params: CandidateListQueryParams
 ): Promise<CandidateIdPageResult> {
-  if (tenantId) {
+  const requiresSearch = candidateListRequiresServerSearch(params);
+
+  if (!tenantId) {
+    if (requiresSearch) {
+      throw new CandidateSearchUnavailableError(
+        "Candidate search requires a tenant workspace. Select a workspace and try again."
+      );
+    }
+  } else {
     const rpcArgs = toListCandidateIdsRpcArgs(params, tenantId);
-    const { data, error } = await supabase.rpc("list_candidate_ids_page", rpcArgs);
+    const callRpc = async () => supabase.rpc("list_candidate_ids_page", rpcArgs);
+
+    let { data, error } = await callRpc();
+    // PostgREST schema cache can lag CREATE OR REPLACE; one short retry usually clears it.
+    if (error && /schema cache/i.test(error.message)) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      ({ data, error } = await callRpc());
+    }
     if (!error && Array.isArray(data)) {
       const ids = data
         .map((row: { id?: string }) => (typeof row.id === "string" ? row.id : ""))
@@ -37,11 +61,24 @@ export async function resolveCandidateIdPage(
       return { ids, total, usedRpc: true };
     }
     if (error) {
-      console.warn("[candidates] list_candidate_ids_page unavailable, falling back", error.message);
+      console.warn("[candidates] list_candidate_ids_page unavailable", error.message);
+      if (requiresSearch) {
+        const schemaCacheMiss = /schema cache/i.test(error.message);
+        throw new CandidateSearchUnavailableError(
+          schemaCacheMiss
+            ? "Candidate search is reloading. Please wait a moment and try again."
+            : "Candidate search is temporarily unavailable. Please try again."
+        );
+      }
+    } else if (requiresSearch) {
+      throw new CandidateSearchUnavailableError(
+        "Candidate search returned an unexpected response. Please try again."
+      );
     }
   }
 
   // Fallback: basic range query (no server search/filters beyond status).
+  // Only reached when search/filters are inactive.
   let q = supabase.from("worker").select("id", { count: "exact" });
   if (tenantId) q = q.eq("tenant_id", tenantId);
   if (params.status) {

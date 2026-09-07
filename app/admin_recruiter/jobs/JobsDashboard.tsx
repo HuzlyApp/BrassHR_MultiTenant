@@ -254,7 +254,7 @@ export function JobsDashboard({
   onUnarchive,
 }: JobsDashboardProps) {
   const [query, setQuery] = useState("");
-  const [kpiCardsExpanded, setKpiCardsExpanded] = useState(false);
+  const [kpiCardsExpanded, setKpiCardsExpanded] = useState(true);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
   const summaryCards = useMemo(
     () => buildSummaryCards(jobs, totalCandidateCount),

@@ -115,6 +115,7 @@ import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
@@ -1838,7 +1839,7 @@ export default function JobApplicationsPage() {
     await loadStatusHistory(row.id);
   }
 
-  async function runMatchAnalyze(applicationId: string) {
+  async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
     setMatchAnalyzingId(applicationId);
     const candidateLabel = applicantName(
       rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
@@ -1850,7 +1851,7 @@ export default function JobApplicationsPage() {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ analysisMode: mode }),
         }
       );
       const payload = await response.json().catch(() => ({}));
@@ -1877,9 +1878,12 @@ export default function JobApplicationsPage() {
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
       } else {
-        toast.success(`${candidateLabel}: match analysis complete`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
+        toast.success(
+          `${candidateLabel}: ${mode === "deep" ? "deeper match analysis" : "match analysis"} complete`,
+          {
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
       }
     } catch (analyzeError) {
       toast.error(
@@ -1964,7 +1968,7 @@ export default function JobApplicationsPage() {
             status={row.ai_match_status}
             score={row.ai_match_score}
             analyzing={matchAnalyzingId === row.id}
-            onAnalyze={() => void runMatchAnalyze(row.id)}
+            onAnalyze={(mode) => void runMatchAnalyze(row.id, mode)}
           />
         );
       case "conf":
@@ -2723,6 +2727,9 @@ export default function JobApplicationsPage() {
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
           analyzing={matchAnalyzingId === rowActionsMenu.rowId}
+          isAnalyzed={
+            rows.find((item) => item.id === rowActionsMenu.rowId)?.ai_match_status === "ANALYZED"
+          }
           hired={normalizeApplicationStatus(
             rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
           ) === "hired"}
@@ -2732,8 +2739,8 @@ export default function JobApplicationsPage() {
           })()}
           resumeUploading={Boolean(updateResumeApplicationId)}
           onClose={() => setRowActionsMenu(null)}
-          onReanalyze={() => {
-            void runMatchAnalyze(rowActionsMenu.rowId);
+          onAnalyze={(mode) => {
+            void runMatchAnalyze(rowActionsMenu.rowId, mode);
           }}
           onUpdateResume={() => beginUpdateResume(rowActionsMenu.rowId)}
           onArchive={() => beginArchiveCandidate(rowActionsMenu.rowId)}

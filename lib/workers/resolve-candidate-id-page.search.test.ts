@@ -110,4 +110,69 @@ describe("resolveCandidateIdPage search", () => {
     expect(rpc.mock.calls[0][1].p_search).toBe("nurse");
     expect(rpc.mock.calls[0][1].p_skills).toEqual(["ICU"]);
   });
+
+  it("fails closed when search is active and RPC is unavailable", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "function missing" } });
+    await expect(
+      resolveCandidateIdPage(
+        supabase(),
+        "tenant-a",
+        parseCandidateListQueryParams(new URLSearchParams({ q: "shawnda" }))
+      )
+    ).rejects.toThrow(/unavailable/i);
+  });
+
+  it("retries once on PostgREST schema cache miss then succeeds", async () => {
+    rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "Could not find the function public.list_candidate_ids_page in the schema cache" },
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: "11111111-1111-1111-1111-111111111111", total_count: 1 }],
+        error: null,
+      });
+    const page = await resolveCandidateIdPage(
+      supabase(),
+      "tenant-a",
+      parseCandidateListQueryParams(new URLSearchParams({ q: "shawnda" }))
+    );
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(page.usedRpc).toBe(true);
+    expect(page.total).toBe(1);
+  });
+
+  it("fails closed when search is active without a tenant", async () => {
+    await expect(
+      resolveCandidateIdPage(
+        supabase(),
+        null,
+        parseCandidateListQueryParams(new URLSearchParams({ skills: "ICU" }))
+      )
+    ).rejects.toThrow(/tenant workspace/i);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("allows unfiltered fallback when no search filters are set", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "function missing" } });
+    const from = vi.fn(() => {
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
+      builder.range = vi.fn(async () => ({
+        data: [{ id: "dddddddd-dddd-dddd-dddd-dddddddddddd" }],
+        error: null,
+        count: 1,
+      }));
+      return builder;
+    });
+    const page = await resolveCandidateIdPage(
+      { rpc, from } as unknown as SupabaseClient,
+      "tenant-a",
+      parseCandidateListQueryParams(new URLSearchParams({ limit: "25", offset: "0" }))
+    );
+    expect(page.usedRpc).toBe(false);
+    expect(page.ids).toEqual(["dddddddd-dddd-dddd-dddd-dddddddddddd"]);
+  });
 });

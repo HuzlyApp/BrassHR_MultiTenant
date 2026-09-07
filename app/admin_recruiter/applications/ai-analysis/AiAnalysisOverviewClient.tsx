@@ -56,6 +56,7 @@ import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModa
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
+import { MatchAnalyzeButton } from "../MatchAnalyzeButton";
 import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
 import {
   RequirementNotesIndicator,
@@ -67,6 +68,7 @@ import {
   type VerificationNote,
 } from "@/lib/jobs/match-analysis/verification-notes";
 import { requirementNeedsVerificationNotes } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 
 const CARD =
   "rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
@@ -84,8 +86,6 @@ const OUTLINE_BTN =
   "inline-flex items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_OUTLINE_BTN =
   "inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-60";
-const HEADER_PRIMARY_BTN =
-  "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
   "flex min-h-[60px] w-full min-w-0 flex-1 basis-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 py-3 text-sm font-semibold leading-5 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_REEXTRACT_BTN =
@@ -689,8 +689,8 @@ export function AiAnalysisOverviewClient({
     setRemoveConfirmOpen(true);
   }
 
-  async function handleRunAnalyze() {
-    const ok = await runAnalyze();
+  async function handleRunAnalyze(mode: AnalysisMode = "analyze") {
+    const ok = await runAnalyze(mode);
     if (!ok) return;
     setOpenReqId("");
     router.refresh();
@@ -969,14 +969,12 @@ export function AiAnalysisOverviewClient({
                   applicationId={applicationId}
                   buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
                 />
-                <button
-                  type="button"
-                  className={HEADER_PRIMARY_BTN}
-                  disabled={analyzing}
-                  onClick={() => void handleRunAnalyze()}
-                >
-                  {analyzing ? "Analyzing…" : isAnalyzed ? "Reanalyze" : "Analyze candidate"}
-                </button>
+                <MatchAnalyzeButton
+                  variant="primary"
+                  analyzing={analyzing}
+                  isAnalyzed={isAnalyzed}
+                  onAnalyze={(mode) => void handleRunAnalyze(mode)}
+                />
               </div>
             </div>
             {app?.ai_analysis_error ? (

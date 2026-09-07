@@ -13,6 +13,7 @@ import type { WorkerStatus } from "@/lib/workers/workers-status-types";
  * - `q` free-text ORs across name, email, phone, job title/role, apps, resume, profile skills.
  * - `skills` (comma-separated) ANDs: every skill must appear in profile skills and/or resume text.
  * - When both `q` and `skills` are set, results must match BOTH (AND between the two fields).
+ * - Search runs only via `list_candidate_ids_page`; never silently fall back to an unfiltered page.
  */
 
 export const DEFAULT_CANDIDATES_PAGE_SIZE = 25;
@@ -57,6 +58,22 @@ export type CandidateListQueryParams = {
   headOnly: boolean;
   excludeConverted: boolean;
 };
+
+/** True when the request needs RPC search/filter (must not use the unfiltered legacy path). */
+export function candidateListRequiresServerSearch(params: CandidateListQueryParams): boolean {
+  return Boolean(
+    params.q ||
+      params.skills.length ||
+      params.jobRole ||
+      params.city ||
+      params.state ||
+      params.appliedFrom ||
+      params.appliedTo ||
+      params.matchScore ||
+      params.progressStatusId ||
+      params.jobTitle
+  );
+}
 
 function parseStatus(v: string | null): WorkerStatus | null {
   if (!v) return null;
