@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { JobsViewToggle } from "@/app/admin_recruiter/jobs/JobsViewToggle";
+import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 
@@ -62,6 +64,10 @@ function UserAddIcon() {
 
 function MatchExistingIcon() {
   return <ListingGlyph src={`${CANDIDATES_ICONS}/match-existing.svg`} outer={16} leafWidth={12.17} leafHeight={14.16} />;
+}
+
+function skillsKey(skills: string[]): string {
+  return skills.map((skill) => skill.trim().toLowerCase()).filter(Boolean).join("|");
 }
 
 export type AllCandidatesToolbarProps = {
@@ -129,30 +135,32 @@ export function AllCandidatesToolbar({
   onHighlightMultiJobChange,
 }: AllCandidatesToolbarProps) {
   const [draftQuery, setDraftQuery] = useState(query);
-  const [draftSkills, setDraftSkills] = useState(skillsFilter);
+  const [draftSkillTags, setDraftSkillTags] = useState(() => parseSkillsFilterParam(skillsFilter));
 
   useEffect(() => {
     setDraftQuery(query);
   }, [query]);
 
   useEffect(() => {
-    setDraftSkills(skillsFilter);
+    setDraftSkillTags(parseSkillsFilterParam(skillsFilter));
   }, [skillsFilter]);
 
+  const appliedSkillTags = parseSkillsFilterParam(skillsFilter);
   const searchDirty =
-    draftQuery.trim() !== query.trim() || draftSkills.trim() !== skillsFilter.trim();
-  const hasAppliedSearch = Boolean(query.trim() || skillsFilter.trim());
+    draftQuery.trim() !== query.trim() || skillsKey(draftSkillTags) !== skillsKey(appliedSkillTags);
+  const hasAppliedSearch = Boolean(query.trim() || appliedSkillTags.length);
+  const hasDraftSearch = Boolean(draftQuery.trim() || draftSkillTags.length);
 
   function submitSearch() {
     onApplySearch({
       query: draftQuery.trim(),
-      skillsFilter: draftSkills.trim(),
+      skillsFilter: draftSkillTags.join(", "),
     });
   }
 
   function resetSearch() {
     setDraftQuery("");
-    setDraftSkills("");
+    setDraftSkillTags([]);
     onResetSearch();
   }
 
@@ -175,40 +183,33 @@ export function AllCandidatesToolbar({
                 }}
                 placeholder="Search applicant or resume"
                 aria-label="Search applicant or resume"
-                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#374151] outline-none placeholder:text-[#374151]/40"
+                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#374151] outline-none placeholder:text-[#374151]/40 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
               />
             </label>
-            <label className="flex min-h-9 min-w-0 flex-1 items-center px-4 py-2">
-              <input
-                type="search"
-                value={draftSkills}
-                onChange={(event) => setDraftSkills(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    submitSearch();
-                  }
-                }}
+            <div className="flex min-h-9 min-w-0 flex-1 items-center px-3 py-1.5 sm:px-4">
+              <FilterChipInput
+                embedded
+                values={draftSkillTags}
                 placeholder="Filter by Skills"
                 aria-label="Filter by Skills"
-                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#374151] outline-none placeholder:text-[#374151]/40"
+                onChange={setDraftSkillTags}
               />
-            </label>
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3.5">
             <button
               type="button"
               onClick={submitSearch}
-              disabled={!searchDirty && !draftQuery.trim() && !draftSkills.trim()}
-              className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none`}
+              disabled={!searchDirty && !hasDraftSearch}
+              className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none disabled:cursor-not-allowed disabled:opacity-50`}
             >
               Search
             </button>
             <button
               type="button"
               onClick={resetSearch}
-              disabled={!hasAppliedSearch && !draftQuery.trim() && !draftSkills.trim()}
+              disabled={!hasAppliedSearch && !hasDraftSearch}
               className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none disabled:cursor-not-allowed disabled:opacity-50`}
             >
               <ResetSearchIcon />
