@@ -3,8 +3,17 @@ import {
   isCustomMatchScoreFilter,
   parseCustomMatchScoreRange,
 } from "@/lib/admin/candidate-match-score-filter";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { normalizeCandidateListSearchText } from "@/lib/workers/candidate-search-normalize";
 import { parseWorkersListParams } from "@/lib/workers/workers-status-filter";
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
+
+/**
+ * Candidates list search logic (server-side):
+ * - `q` free-text ORs across name, email, phone, job title/role, apps, resume, profile skills.
+ * - `skills` (comma-separated) ANDs: every skill must appear in profile skills and/or resume text.
+ * - When both `q` and `skills` are set, results must match BOTH (AND between the two fields).
+ */
 
 export const DEFAULT_CANDIDATES_PAGE_SIZE = 25;
 export const CANDIDATES_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -29,6 +38,8 @@ export type CandidateListQueryParams = {
   offset: number;
   status: WorkerStatus | null;
   q: string;
+  /** Parsed skill phrases from `skills` query param (AND filter). */
+  skills: string[];
   jobRole: string;
   city: string;
   state: string;
@@ -154,7 +165,10 @@ export function parseCandidateListQueryParams(
     limit: Number.isFinite(Number(searchParams.get("limit"))) ? limit : DEFAULT_CANDIDATES_PAGE_SIZE,
     offset,
     status,
-    q: (searchParams.get("q") ?? searchParams.get("search") ?? "").trim(),
+    q: normalizeCandidateListSearchText(
+      searchParams.get("q") ?? searchParams.get("search") ?? ""
+    ),
+    skills: parseSkillsFilterParam(searchParams.get("skills")),
     jobRole: (searchParams.get("jobRole") ?? searchParams.get("job_role") ?? "").trim(),
     city,
     state,
@@ -207,6 +221,7 @@ export function toListCandidateIdsRpcArgs(params: CandidateListQueryParams, tena
     p_match_score_max_inclusive: scoreBounds.maxInclusive,
     p_progress_status_id: params.progressStatusId || null,
     p_job_title: params.jobTitle || null,
+    p_skills: params.skills.length ? params.skills : null,
   };
 }
 
@@ -216,6 +231,7 @@ export function buildCandidatesListUrl(
     limit: number;
     offset: number;
     q: string;
+    skills: string;
     jobRole: string;
     location: string;
     appliedFrom: string;
@@ -242,7 +258,8 @@ export function buildCandidatesListUrl(
 
   setIfProvided("limit", params.limit);
   setIfProvided("offset", params.offset);
-  setIfProvided("q", params.q);
+  setIfProvided("q", params.q ? normalizeCandidateListSearchText(params.q) : params.q);
+  setIfProvided("skills", params.skills);
   setIfProvided("jobRole", params.jobRole);
   setIfProvided("location", params.location);
   setIfProvided("appliedFrom", params.appliedFrom);

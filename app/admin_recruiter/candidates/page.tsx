@@ -154,7 +154,6 @@ function formatDateShort(iso: string | null) {
 }
 
 const DEFAULT_PAGE_SIZE = DEFAULT_CANDIDATES_PAGE_SIZE;
-const SEARCH_DEBOUNCE_MS = 300;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
 
@@ -229,6 +228,7 @@ export default function CandidatesPage() {
   } = useCandidateProgressStatus(candidates, setCandidates);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
@@ -374,7 +374,7 @@ export default function CandidatesPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedQuery(query.trim());
-    }, SEARCH_DEBOUNCE_MS);
+    }, 300);
     return () => window.clearTimeout(timer);
   }, [query]);
 
@@ -417,6 +417,10 @@ export default function CandidatesPage() {
     const controller = new AbortController();
     loadAbortRef.current = controller;
     setLoading(true);
+    setListError(null);
+    // Clear stale rows while a new search/page loads.
+    setCandidates([]);
+    setTotalFromApi(null);
     try {
       if (activeSearch) {
         const res = await fetch("/api/search-workers", {
@@ -446,13 +450,13 @@ export default function CandidatesPage() {
       }
 
       const skillTags = parseSkillsFilterParam(skillsFilter);
-      const searchParts = [debouncedQuery, ...skillTags].filter(Boolean);
       const { workers: rows, total } = await fetchWorkersPageFromApi<WorkerProfile>(
         "/api/workers",
         {
           page,
           pageSize,
-          q: searchParts.join(" "),
+          q: debouncedQuery || undefined,
+          skills: skillTags.length ? skillTags.join(",") : undefined,
           jobRole: jobRoleFilter || undefined,
           location: locationFilter || undefined,
           appliedFrom: appliedDateFrom || undefined,
@@ -504,6 +508,7 @@ export default function CandidatesPage() {
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
+      setListError(err instanceof Error ? err.message : "Failed to search candidates");
       clearSelectionRef.current();
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -881,14 +886,31 @@ export default function CandidatesPage() {
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
-          setQuery(nextQuery);
+          const trimmed = nextQuery.trim();
+          setQuery(trimmed);
+          setDebouncedQuery(trimmed);
           setSkillsFilter(nextSkills);
           setPage(1);
         }}
         onResetSearch={() => {
           setQuery("");
+          setDebouncedQuery("");
           setSkillsFilter("");
+          setJobRoleFilter("");
+          setLocationFilter("");
+          setAppliedDateFrom("");
+          setAppliedDateTo("");
+          setStatusFilter("");
+          setProgressStatusFilter("");
+          setJobFilter("");
+          setStageFilter("");
+          setMatchScoreFilter("");
+          setListSort(EMPTY_CANDIDATE_LIST_SORT);
+          applyAdvancedSearchParams(null);
           setPage(1);
+          setListError(null);
+          setCandidates([]);
+          setTotalFromApi(null);
         }}
         onAddCandidate={() => setAddCandidateOpen(true)}
         onMatchExistingCandidate={() => {
@@ -921,15 +943,39 @@ export default function CandidatesPage() {
           if (loading) {
             return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
           }
+          if (listError) {
+            return (
+              <div className="py-12 text-center text-red-600" role="alert">
+                <div className="font-medium">Search failed</div>
+                <div className="mt-1 text-sm text-red-500">{listError}</div>
+                <button
+                  type="button"
+                  onClick={() => void loadCandidates()}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
+                >
+                  Try again
+                </button>
+              </div>
+            );
+          }
           if (visibleCandidates.length === 0) {
             return (
               <div className="py-12 text-center text-gray-600">
-                <div>No candidates found.</div>
-                {advancedSearchContext.active ? (
+                <div>
+                  {query.trim() || parseSkillsFilterParam(skillsFilter).length
+                    ? "No candidates match your search."
+                    : "No candidates found."}
+                </div>
+                {query.trim() ||
+                parseSkillsFilterParam(skillsFilter).length ||
+                advancedSearchContext.active ? (
                   <button
                     type="button"
                     onClick={() => {
+                      setQuery("");
+                      setSkillsFilter("");
                       applyAdvancedSearchParams(null);
+                      setPage(1);
                       void loadCandidates(null);
                     }}
                     className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"

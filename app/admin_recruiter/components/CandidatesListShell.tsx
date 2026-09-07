@@ -9,6 +9,10 @@ import { ListPaginationControls, ListPaginationShowLabel } from "./ListPaginatio
 import { JobsViewToggle } from "@/app/admin_recruiter/jobs/JobsViewToggle";
 import { CandidatesKpiRow } from "@/app/admin_recruiter/candidates/CandidatesKpiRow";
 import type { CandidateKpiCard } from "@/app/admin_recruiter/candidates/candidate-kpis";
+import {
+  buildCandidateKpiCardsFromMetrics,
+  emptyCandidateKpiMetricsPayload,
+} from "@/lib/workers/candidate-kpi-metrics";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
 import {
   countActiveCandidatesFilters,
@@ -357,6 +361,12 @@ export function CandidatesListShell({
   children,
 }: CandidatesListShellProps) {
   const isAllCandidatesLayout = layoutVariant === "all-candidates";
+  const resolvedKpiCards =
+    kpiCards && kpiCards.length > 0
+      ? kpiCards
+      : isAllCandidatesLayout
+        ? buildCandidateKpiCardsFromMetrics(emptyCandidateKpiMetricsPayload())
+        : null;
   const [scoreSort, setScoreSort] = useState("");
   const [internalJobFilter, setInternalJobFilter] = useState("");
   const jobFilter = jobFilterProp ?? internalJobFilter;
@@ -514,9 +524,9 @@ export function CandidatesListShell({
         }
       />
 
-      {kpiCards && kpiCards.length > 0 ? (
+      {resolvedKpiCards ? (
         <div className="mt-4 sm:mt-5">
-          <CandidatesKpiRow cards={kpiCards} />
+          <CandidatesKpiRow cards={resolvedKpiCards} />
         </div>
       ) : null}
 
@@ -525,6 +535,7 @@ export function CandidatesListShell({
           <AllCandidatesToolbar
             query={query}
             skillsFilter={skillsFilter}
+            searching={loading}
             onApplySearch={(next) => {
               if (onApplySearch) {
                 onApplySearch(next);

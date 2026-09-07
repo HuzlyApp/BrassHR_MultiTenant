@@ -39,6 +39,8 @@ export type FetchWorkersPageResult<T> = {
 
 export type CandidatesListQuery = {
   q?: string;
+  /** Comma-separated skill phrases (AND filter, separate from q). */
+  skills?: string;
   jobRole?: string;
   location?: string;
   appliedFrom?: string;
@@ -68,6 +70,7 @@ export async function fetchWorkersPageFromApi<T = Record<string, unknown>>(
     limit: pageSize,
     offset,
     q: query.q,
+    skills: query.skills,
     jobRole: query.jobRole,
     location: query.location,
     appliedFrom: query.appliedFrom,

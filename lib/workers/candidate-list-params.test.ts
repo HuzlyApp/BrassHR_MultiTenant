@@ -19,6 +19,7 @@ describe("parseCandidateListQueryParams", () => {
     const params = parseCandidateListQueryParams(
       new URLSearchParams({
         q: "nurse",
+        skills: "ICU, BLS",
         jobRole: "RN",
         location: "Austin, TX",
         appliedFrom: "2026-01-01",
@@ -31,6 +32,7 @@ describe("parseCandidateListQueryParams", () => {
       })
     );
     expect(params.q).toBe("nurse");
+    expect(params.skills).toEqual(["ICU", "BLS"]);
     expect(params.jobRole).toBe("RN");
     expect(params.city).toBe("Austin");
     expect(params.state).toBe("TX");
@@ -49,11 +51,12 @@ describe("parseCandidateListQueryParams", () => {
 describe("toListCandidateIdsRpcArgs", () => {
   it("maps params into RPC args with tenant scope", () => {
     const params = parseCandidateListQueryParams(
-      new URLSearchParams({ q: "alice", limit: "25", offset: "0" })
+      new URLSearchParams({ q: "alice", skills: "ACLS", limit: "25", offset: "0" })
     );
     const args = toListCandidateIdsRpcArgs(params, "tenant-1");
     expect(args.p_tenant_id).toBe("tenant-1");
     expect(args.p_search).toBe("alice");
+    expect(args.p_skills).toEqual(["ACLS"]);
     expect(args.p_limit).toBe(25);
     expect(args.p_exclude_converted).toBe(true);
   });
@@ -66,8 +69,11 @@ describe("buildCandidatesListUrl", () => {
         limit: 25,
         offset: 25,
         q: "bob",
+        skills: "ICU",
         includePhotoUrls: true,
       })
-    ).toBe("/api/workers?status=approved&limit=25&offset=25&q=bob&includePhotoUrls=1");
+    ).toBe(
+      "/api/workers?status=approved&limit=25&offset=25&q=bob&skills=ICU&includePhotoUrls=1"
+    );
   });
 });
