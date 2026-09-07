@@ -31,7 +31,8 @@ import { BulkDeleteConfirmModal } from "../components/BulkDeleteConfirmModal";
 import { ListTableCheckbox } from "../components/ListTableCheckbox";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
-import { buildCandidateKpis } from "./candidate-kpis";
+import { CandidatesListSkeleton } from "./CandidatesListSkeleton";
+import { useCandidateKpiMetrics } from "./useCandidateKpiMetrics";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
 import AddCandidateModal from "../applications/AddCandidateModal";
@@ -39,27 +40,20 @@ import ImportCandidatesModal from "../applications/ImportCandidatesModal";
 import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
-import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
-import { skillsPresentInHaystack } from "@/lib/jobs/candidate-import-match";
 import {
-  candidateMatchesJobTitleFilter,
   getCandidateJobTitleOptions,
 } from "@/lib/admin/candidate-match-job-title";
 import {
   ACTIVE_CANDIDATE_PIPELINE_STATUSES,
   formatPipelineStatusLabel,
 } from "@/lib/workers/candidate-status-label";
-import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
-import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
   buildCandidateStageOptions,
-  candidateMatchesStageFilter,
 } from "@/lib/admin/candidate-list-stage";
 import {
   EMPTY_CANDIDATE_LIST_SORT,
   isCandidateListSortableColumn,
-  sortCandidateRows,
   toggleCandidateListSort,
   type CandidateListSortColumn,
   type CandidateListSortState,
@@ -75,13 +69,12 @@ import {
 } from "@/lib/jobs/match-analysis/workspace";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
-  fetchAllWorkersFromApi,
-  resolveCandidatesListTotal,
+  fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
+import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
 import toast from "react-hot-toast";
 import {
   formatCityStateFromParts,
-  locationsMatchCityState,
   uniqueCityStateOptions,
 } from "@/lib/location/city-state";
 
@@ -160,7 +153,8 @@ function formatDateShort(iso: string | null) {
   });
 }
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = DEFAULT_CANDIDATES_PAGE_SIZE;
+const SEARCH_DEBOUNCE_MS = 300;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
 
@@ -236,9 +230,9 @@ export default function CandidatesPage() {
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [clientNameFilter, setClientNameFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -252,6 +246,18 @@ export default function CandidatesPage() {
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [facetOptions, setFacetOptions] = useState<{
+    jobRoles: string[];
+    locations: string[];
+    statuses: string[];
+    jobs: string[];
+    stages: ReturnType<typeof buildCandidateStageOptions>;
+  }>({ jobRoles: [], locations: [], statuses: [], jobs: [], stages: [] });
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const {
+    kpiCards,
+    refresh: refreshKpis,
+  } = useCandidateKpiMetrics();
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [advancedSearchParams, setAdvancedSearchParams] = useState<AdvancedSearchParams | null>(null);
   const [commTarget, setCommTarget] = useState<CandidateRow | null>(null);
@@ -365,8 +371,51 @@ export default function CandidatesPage() {
     [addCandidateJobs]
   );
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const mapWorkerToRow = useCallback((item: WorkerProfile): CandidateRow => {
+    const { email, phone } = resolveCandidateContact(item);
+    return {
+      id: item.id,
+      name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
+      firstName: item.first_name ?? "",
+      lastName: item.last_name ?? "",
+      role: item.job_role || "N/A",
+      applicationJobTitle: item.application_job_title ?? null,
+      applicationJobTitlesText: item.application_job_titles_text ?? null,
+      applicationSearchText: item.application_search_text ?? null,
+      applicationClientName: item.application_client_name ?? null,
+      email,
+      phone,
+      address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
+      city: item.city ?? "",
+      state: item.state ?? "",
+      zip: item.zip ?? "",
+      address1: item.address1 ?? "",
+      address2: item.address2 ?? "",
+      status: formatCandidateStatusLabel(item.status as string | undefined),
+      statusKey: item.status ?? null,
+      ...mapWorkerProgressStatusFields(item),
+      createdAt: item.created_at,
+      reference: item.id.slice(0, 7).toUpperCase(),
+      dateOfBirth: null,
+      profilePhotoUrl: item.profile_photo_url ?? null,
+      appliedJobCount: Number(item.applied_job_count ?? 1),
+      assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+      ...mapWorkerMatchFields(item),
+    };
+  }, []);
+
   const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     setLoading(true);
     try {
       if (activeSearch) {
@@ -379,6 +428,7 @@ export default function CandidatesPage() {
             radius: activeSearch.radius,
             ...(activeSearch.place ? { place: activeSearch.place } : {}),
           }),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "Failed to fetch search results");
@@ -388,146 +438,105 @@ export default function CandidatesPage() {
           : Array.isArray(data?.workers)
             ? data.workers
             : [];
-        setTotalFromApi(rows.length);
-
-        const mapped: CandidateRow[] = rows.map((item) => {
-          const { email, phone } = resolveCandidateContact(item);
-          return ({
-          id: item.id,
-          name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
-          firstName: item.first_name ?? "",
-          lastName: item.last_name ?? "",
-          role: item.job_role || "N/A",
-          applicationJobTitle: item.application_job_title ?? null,
-          applicationJobTitlesText: item.application_job_titles_text ?? null,
-          applicationSearchText: item.application_search_text ?? null,
-          applicationClientName: item.application_client_name ?? null,
-          email,
-          phone,
-          address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
-          city: item.city ?? "",
-          state: item.state ?? "",
-          zip: item.zip ?? "",
-          address1: item.address1 ?? "",
-          address2: item.address2 ?? "",
-          status: formatCandidateStatusLabel(item.status as string | undefined),
-          statusKey: item.status ?? null,
-          ...mapWorkerProgressStatusFields(item),
-          createdAt: item.created_at,
-          reference: item.id.slice(0, 7).toUpperCase(),
-          dateOfBirth: null,
-          profilePhotoUrl: item.profile_photo_url ?? null,
-          appliedJobCount: Number(item.applied_job_count ?? 1),
-          assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
-          ...mapWorkerMatchFields(item),
-          });
-        });
-
+        const mapped = rows.map(mapWorkerToRow);
+        setTotalFromApi(mapped.length);
         setCandidates(mapped);
         clearSelectionRef.current();
-        setPage(1);
         return;
       }
 
-      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(
-        "/api/workers?includePhotoUrls=1"
+      const skillTags = parseSkillsFilterParam(skillsFilter);
+      const searchParts = [debouncedQuery, ...skillTags].filter(Boolean);
+      const { workers: rows, total } = await fetchWorkersPageFromApi<WorkerProfile>(
+        "/api/workers",
+        {
+          page,
+          pageSize,
+          q: searchParts.join(" "),
+          jobRole: jobRoleFilter || undefined,
+          location: locationFilter || undefined,
+          appliedFrom: appliedDateFrom || undefined,
+          appliedTo: appliedDateTo || undefined,
+          status: statusFilter
+            ? ACTIVE_CANDIDATE_PIPELINE_STATUSES.find(
+                (s) => formatPipelineStatusLabel(s) === statusFilter
+              ) || undefined
+            : undefined,
+          matchScore: matchScoreFilter || undefined,
+          progressStatusId: progressStatusFilter || undefined,
+          jobTitle: jobFilter || undefined,
+          stage: stageFilter || undefined,
+          sort: listSort.column ?? "createdDate",
+          sortDir: listSort.column ? listSort.direction : "desc",
+          includePhotoUrls: true,
+        },
+        { signal: controller.signal }
       );
       setTotalFromApi(total);
 
-      const mapped: CandidateRow[] = rows.map((item) => {
-        const { email, phone } = resolveCandidateContact(item);
-        return ({
-        id: item.id,
-        name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
-        firstName: item.first_name ?? "",
-        lastName: item.last_name ?? "",
-        role: item.job_role || "N/A",
-        applicationJobTitle: item.application_job_title ?? null,
-        applicationJobTitlesText: item.application_job_titles_text ?? null,
-        applicationSearchText: item.application_search_text ?? null,
-        applicationClientName: item.application_client_name ?? null,
-        email,
-        phone,
-        address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
-        city: item.city ?? "",
-        state: item.state ?? "",
-        zip: item.zip ?? "",
-        address1: item.address1 ?? "",
-        address2: item.address2 ?? "",
-        status: formatCandidateStatusLabel(item.status as string | undefined),
-        statusKey: item.status ?? null,
-        ...mapWorkerProgressStatusFields(item),
-        createdAt: item.created_at,
-        reference: item.id.slice(0, 7).toUpperCase(),
-        dateOfBirth: null,
-        profilePhotoUrl: item.profile_photo_url ?? null,
-        appliedJobCount: Number(item.applied_job_count ?? 1),
-        assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
-        ...mapWorkerMatchFields(item),
-        });
-      });
-
+      const mapped = rows.map(mapWorkerToRow);
       setCandidates(mapped);
+      setFacetOptions((prev) => {
+        const jobRoles = new Set(prev.jobRoles);
+        const locations = new Set(prev.locations);
+        const statuses = new Set(
+          ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
+        );
+        const jobs = new Set(prev.jobs);
+        for (const c of mapped) {
+          if (c.role && c.role !== "N/A") jobRoles.add(c.role);
+          const loc = formatCityStateFromParts(c.city, c.state);
+          if (loc) locations.add(loc);
+          if (c.status) statuses.add(c.status);
+          for (const title of getCandidateJobTitleOptions(c)) jobs.add(title);
+        }
+        return {
+          jobRoles: Array.from(jobRoles).sort((a, b) => a.localeCompare(b)),
+          locations: uniqueCityStateOptions(Array.from(locations)),
+          statuses: Array.from(statuses).sort((a, b) => a.localeCompare(b)),
+          jobs: Array.from(jobs).sort((a, b) => a.localeCompare(b)),
+          stages: buildCandidateStageOptions([...mapped]),
+        };
+      });
       clearSelectionRef.current();
-      setPage(1);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
       clearSelectionRef.current();
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [advancedSearchParams]);
+  }, [
+    advancedSearchParams,
+    mapWorkerToRow,
+    page,
+    pageSize,
+    debouncedQuery,
+    skillsFilter,
+    jobRoleFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+    statusFilter,
+    matchScoreFilter,
+    progressStatusFilter,
+    jobFilter,
+    stageFilter,
+    listSort,
+  ]);
 
   useEffect(() => {
     void loadCandidates();
+    return () => loadAbortRef.current?.abort();
   }, [loadCandidates]);
 
-  const jobRoleOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of candidates) {
-      if (c.role && c.role !== "N/A") s.add(c.role);
-    }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
-
-  const locationOptions = useMemo(() => {
-    return uniqueCityStateOptions(
-      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
-    );
-  }, [candidates]);
-
-  const clientNameOptions = useMemo(() => {
-    const names = new Set<string>();
-    for (const c of candidates) {
-      const name = c.applicationClientName?.trim();
-      if (name) names.add(name);
-    }
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
-
-  const statusOptions = useMemo(() => {
-    const canonical = new Set(
-      ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
-    );
-    for (const c of candidates) {
-      if (c.status) canonical.add(c.status);
-    }
-    return Array.from(canonical).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
-
-  const jobOptions = useMemo(() => {
-    const titles = new Set<string>();
-    for (const c of candidates) {
-      for (const title of getCandidateJobTitleOptions(c)) {
-        titles.add(title);
-      }
-    }
-    return Array.from(titles).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
-
-  const stageOptions = useMemo(() => buildCandidateStageOptions(candidates), [candidates]);
+  const jobRoleOptions = facetOptions.jobRoles;
+  const locationOptions = facetOptions.locations;
+  const statusOptions = facetOptions.statuses;
+  const jobOptions = facetOptions.jobs;
+  const stageOptions = facetOptions.stages;
 
   const progressStatusFilterOptions = useMemo(
     () =>
@@ -538,55 +547,18 @@ export default function CandidatesPage() {
     [progressStatusOptions]
   );
 
-  const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
+  const multiJobApplicantCount = useMemo(
+    () => countMultiJobApplicants(candidates, (candidate) => Number(candidate.appliedJobCount ?? 1)),
+    [candidates]
+  );
 
-  const filtered = useMemo(() => {
-    let out = candidates;
-    const q = query.trim();
-    if (q) {
-      out = out.filter((c) => matchesCandidateListSearch(c, q));
-    }
-    const skillTags = parseSkillsFilterParam(skillsFilter);
-    if (skillTags.length) {
-      out = out.filter((c) => {
-        const hay = [
-          c.role,
-          c.applicationJobTitle,
-          c.applicationJobTitlesText,
-          c.applicationSearchText,
-          c.name,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return skillsPresentInHaystack(hay, skillTags);
-      });
-    }
-    if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
-    if (statusFilter) out = out.filter((c) => c.status === statusFilter);
-    if (progressStatusFilter) {
-      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
-    }
-    if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
-    if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
-    if (matchScoreFilter) {
-      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
-    }
-    if (locationFilter) {
-      out = out.filter((c) =>
-        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
-      );
-    }
-    if (clientNameFilter) {
-      out = out.filter((c) => (c.applicationClientName?.trim() || "") === clientNameFilter);
-    }
-    if (appliedDateFrom || appliedDateTo) {
-      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
-    }
-    return out;
+  const visibleCandidates = candidates;
+  const listDisplayTotal = totalFromApi ?? candidates.length;
+
+  useEffect(() => {
+    setPage(1);
   }, [
-    candidates,
-    query,
+    debouncedQuery,
     skillsFilter,
     jobRoleFilter,
     statusFilter,
@@ -595,78 +567,13 @@ export default function CandidatesPage() {
     stageFilter,
     matchScoreFilter,
     locationFilter,
-    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
+    pageSize,
+    listSort,
   ]);
 
-  const multiJobApplicantCount = useMemo(
-    () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
-    [filtered]
-  );
-
-  const visibleCandidates = filtered;
-
-  const hasActiveListFilters = useMemo(
-    () =>
-      Boolean(
-        query.trim() ||
-          skillsFilter.trim() ||
-          jobRoleFilter ||
-          statusFilter ||
-          progressStatusFilter ||
-          jobFilter ||
-          stageFilter ||
-          matchScoreFilter ||
-          locationFilter ||
-          clientNameFilter ||
-          appliedDateFrom ||
-          appliedDateTo
-      ),
-    [
-      query,
-      skillsFilter,
-      jobRoleFilter,
-      statusFilter,
-      progressStatusFilter,
-      jobFilter,
-      stageFilter,
-      matchScoreFilter,
-      locationFilter,
-      clientNameFilter,
-      appliedDateFrom,
-      appliedDateTo,
-    ]
-  );
-
-  const listDisplayTotal = useMemo(
-    () =>
-      resolveCandidatesListTotal({
-        totalFromApi: advancedSearchContext.active ? null : totalFromApi,
-        visibleCount: visibleCandidates.length,
-        hasClientFilters: hasActiveListFilters || advancedSearchContext.active,
-      }),
-    [
-      advancedSearchContext.active,
-      totalFromApi,
-      visibleCandidates.length,
-      hasActiveListFilters,
-    ]
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [query, skillsFilter, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, clientNameFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
-
-  const sortedCandidates = useMemo(
-    () => sortCandidateRows(visibleCandidates, listSort),
-    [visibleCandidates, listSort]
-  );
-
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return sortedCandidates.slice(start, start + pageSize);
-  }, [sortedCandidates, page, pageSize]);
+  const paginated = visibleCandidates;
 
   const handleListSort = useCallback((column: CandidateListSortColumn) => {
     setListSort((current) => toggleCandidateListSort(current, column));
@@ -699,7 +606,6 @@ export default function CandidatesPage() {
         page,
         pageSize,
         query,
-        skillsFilter,
         jobRoleFilter,
         statusFilter,
         progressStatusFilter,
@@ -707,7 +613,6 @@ export default function CandidatesPage() {
         stageFilter,
         matchScoreFilter,
         locationFilter,
-        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
         advancedSearchContext.active ? "adv" : "std",
@@ -716,7 +621,6 @@ export default function CandidatesPage() {
       page,
       pageSize,
       query,
-      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
@@ -724,7 +628,6 @@ export default function CandidatesPage() {
       stageFilter,
       matchScoreFilter,
       locationFilter,
-      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
       advancedSearchContext.active,
@@ -942,17 +845,17 @@ export default function CandidatesPage() {
           if (advancedSearchContext.active) {
             applyAdvancedSearchParams(null);
             void loadCandidates(null);
+            refreshKpis();
             return;
           }
           void loadCandidates();
+          refreshKpis();
         }}
         refreshLabel={advancedSearchContext.active ? "Reset Search" : "Refresh"}
         jobRoleFilter={jobRoleFilter}
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
-        clientNameFilter={clientNameFilter}
-        onClientNameFilterChange={setClientNameFilter}
         appliedDateFrom={appliedDateFrom}
         appliedDateTo={appliedDateTo}
         onAppliedDateFromChange={setAppliedDateFrom}
@@ -973,12 +876,10 @@ export default function CandidatesPage() {
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
-        clientNameOptions={clientNameOptions}
         kpiCards={kpiCards}
         layoutVariant="all-candidates"
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
-        onSkillsFilterChange={setSkillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
           setQuery(nextQuery);
           setSkillsFilter(nextSkills);
@@ -1018,7 +919,7 @@ export default function CandidatesPage() {
           const formatDate = formatDateShort;
 
           if (loading) {
-            return null;
+            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
           }
           if (visibleCandidates.length === 0) {
             return (

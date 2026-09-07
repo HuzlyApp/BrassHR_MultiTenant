@@ -17,7 +17,7 @@ const selectMock = vi.hoisted(() =>
 const fromMock = vi.hoisted(() => vi.fn(() => ({ select: selectMock })));
 
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({ from: fromMock })),
+  createClient: vi.fn(() => ({ from: fromMock, rpc: vi.fn(async () => ({ data: null, error: { message: "no rpc" } })) })),
 }));
 
 vi.mock("@/lib/auth/api-session", () => ({

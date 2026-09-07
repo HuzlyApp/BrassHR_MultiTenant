@@ -21,8 +21,10 @@ import {
 } from "@/lib/workers/worker-application-job-titles";
 import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summary";
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
-import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
+import { statusOrFilter } from "@/lib/workers/workers-status-filter";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import { parseCandidateListQueryParams } from "@/lib/workers/candidate-list-params";
+import { resolveCandidateIdPage } from "@/lib/workers/resolve-candidate-id-page";
 
 type SbErr = { message: string; code?: string };
 type ContactLookupRow = {
@@ -127,20 +129,22 @@ export async function GET(req: Request) {
     const tenantScope = await resolveStaffTenantScope(auth.authUser);
 
     const urlObj = new URL(req.url);
-    const status = parseStatus(
+    const listParams = parseCandidateListQueryParams(urlObj.searchParams);
+    const status = listParams.status ?? parseStatus(
       urlObj.searchParams.get("worker_status") ??
         urlObj.searchParams.get("status")
     );
-    const headOnly = urlObj.searchParams.get("head") === "1";
-    const includePhotoUrls = urlObj.searchParams.get("includePhotoUrls") === "1";
-    const conversionFilter = urlObj.searchParams.get("conversion")?.trim().toLowerCase() ?? "";
-    const { limit, offset } = parseWorkersListParams(urlObj.searchParams);
+    const headOnly = listParams.headOnly;
+    const includePhotoUrls = listParams.includePhotoUrls;
+    const conversionFilter = listParams.conversion;
+    const { limit, offset } = listParams;
     const needsConversionFilter =
       conversionFilter === "pending" ||
       status == null ||
       (status === "approved" && conversionFilter !== "all");
     const queryLimit = limit;
     const queryOffset = offset;
+    const requestStarted = Date.now();
 
     const url = getSupabaseUrl();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -208,41 +212,95 @@ export async function GET(req: Request) {
       let data: unknown[] | null = null;
       let error: SbErr | null = null;
       let count: number | null = null;
+      let usedServerPage = false;
 
-      outer: for (const baseCols of baseColsOptions) {
-        for (const a of attempts) {
-          const select = `${baseCols}, ${a.extra}`;
+      const tenantIdForRpc =
+        tenantScope.mode === "scoped" ? tenantScope.tenantId : null;
 
-          let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
-          q = applyWorkerTenantEq(q, tenantScope) as typeof q;
-          if (status) {
-            q = q.or(statusOrFilter(a.col, status)) as typeof q;
-          } else if (a.col === "status") {
-            // All candidates tab: active pipeline only (exclude converted workers).
-            const active = ACTIVE_CANDIDATE_PIPELINE_STATUSES.join(",");
-            q = q.or(`status.in.(${active}),status.is.null`) as typeof q;
+      // Prefer server-side ID page (filters/search/sort + conversion exclusion before LIMIT).
+      if (tenantIdForRpc) {
+        try {
+          const idPage = await resolveCandidateIdPage(supabase, tenantIdForRpc, {
+            ...listParams,
+            status,
+            excludeConverted: needsConversionFilter,
+          });
+          usedServerPage = idPage.usedRpc;
+          count = idPage.total;
+          if (headOnly) {
+            data = [];
+          } else if (idPage.ids.length === 0) {
+            data = [];
+          } else {
+            outerRpc: for (const baseCols of baseColsOptions) {
+              for (const a of attempts) {
+                const select = `${baseCols}, ${a.extra}`;
+                const res = await supabase
+                  .from("worker")
+                  .select(select)
+                  .in("id", idPage.ids);
+                data = (res.data as unknown[] | null) ?? null;
+                error = res.error
+                  ? { message: res.error.message, code: (res.error as { code?: string }).code }
+                  : null;
+                if (!error) {
+                  const byId = new Map(
+                    ((data as Record<string, unknown>[]) ?? []).map((row) => [
+                      String(row.id ?? ""),
+                      row,
+                    ])
+                  );
+                  data = idPage.ids
+                    .map((id) => byId.get(id))
+                    .filter((row): row is Record<string, unknown> => Boolean(row));
+                  break outerRpc;
+                }
+                if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outerRpc;
+              }
+            }
           }
-          q = q.order("created_at", { ascending: false }) as typeof q;
-          if (!headOnly) {
-            q = q.range(queryOffset, queryOffset + queryLimit - 1) as typeof q;
-          }
+        } catch (rpcErr) {
+          console.warn("[api/workers] server page resolve failed, using legacy path", rpcErr);
+          usedServerPage = false;
+        }
+      }
 
-          const res = await q;
-          data = (res.data as unknown[] | null) ?? null;
-          error = res.error
-            ? { message: res.error.message, code: (res.error as { code?: string }).code }
-            : null;
-          count = typeof res.count === "number" ? res.count : null;
+      if (!usedServerPage) {
+        outer: for (const baseCols of baseColsOptions) {
+          for (const a of attempts) {
+            const select = `${baseCols}, ${a.extra}`;
 
-          if (!error) {
-            const hasResults = headOnly
-              ? (count ?? 0) > 0
-              : ((data as unknown[] | null)?.length ?? 0) > 0;
-            if (hasResults) break outer;
-            if (status && PIPELINE_TEXT_ONLY.has(status)) break outer;
-            continue;
+            let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
+            q = applyWorkerTenantEq(q, tenantScope) as typeof q;
+            if (status) {
+              q = q.or(statusOrFilter(a.col, status)) as typeof q;
+            } else if (a.col === "status") {
+              // All candidates tab: active pipeline only (exclude converted workers).
+              const active = ACTIVE_CANDIDATE_PIPELINE_STATUSES.join(",");
+              q = q.or(`status.in.(${active}),status.is.null`) as typeof q;
+            }
+            q = q.order("created_at", { ascending: listParams.sortDir === "asc" }) as typeof q;
+            if (!headOnly) {
+              q = q.range(queryOffset, queryOffset + queryLimit - 1) as typeof q;
+            }
+
+            const res = await q;
+            data = (res.data as unknown[] | null) ?? null;
+            error = res.error
+              ? { message: res.error.message, code: (res.error as { code?: string }).code }
+              : null;
+            count = typeof res.count === "number" ? res.count : null;
+
+            if (!error) {
+              const hasResults = headOnly
+                ? (count ?? 0) > 0
+                : ((data as unknown[] | null)?.length ?? 0) > 0;
+              if (hasResults) break outer;
+              if (status && PIPELINE_TEXT_ONLY.has(status)) break outer;
+              continue;
+            }
+            if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
           }
-          if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
         }
       }
 
@@ -253,7 +311,7 @@ export async function GET(req: Request) {
           return { ...r, status: s };
         });
 
-        const shouldFilterConversion = !headOnly && needsConversionFilter;
+        const shouldFilterConversion = !headOnly && needsConversionFilter && !usedServerPage;
 
         if (shouldFilterConversion && normalized.length > 0) {
           const candidateIds = normalized
@@ -299,10 +357,9 @@ export async function GET(req: Request) {
           }
         }
 
-        const filteredTotal = normalized.length;
         const paged = normalized;
-        const total = shouldFilterConversion ? (count ?? filteredTotal) : (count ?? paged.length);
-        const hasMore = !headOnly && queryOffset + (data?.length ?? 0) < (count ?? 0);
+        const total = count ?? paged.length;
+        const hasMore = !headOnly && queryOffset + paged.length < total;
 
         if (error) {
           const errMsg = error.message || "Supabase query failed";
@@ -528,6 +585,8 @@ export async function GET(req: Request) {
           offset,
           hasMore,
           workers: workersOut,
+          timingMs: Date.now() - requestStarted,
+          serverPaged: usedServerPage,
         });
       }
 

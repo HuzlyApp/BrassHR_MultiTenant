@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { requirementHasRecordedVerificationDecision } from "@/lib/jobs/match-analysis/verification-notes-service";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { z } from "zod";
 
@@ -15,6 +16,8 @@ const patchSchema = z.object({
 
 /**
  * Recruiter verification for a single match requirement (separate from AI output).
+ * Confirming requires a recorded verification decision (Verified or Rejected note).
+ * Adding a note alone never auto-confirms.
  */
 export async function PATCH(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
@@ -46,7 +49,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   const { data: existing, error: existingError } = await supabase
     .from("job_application_match_requirements")
-    .select("id, job_application_id")
+    .select("id, job_application_id, recruiter_verified")
     .eq("id", requirementId)
     .eq("job_application_id", applicationId)
     .eq("tenant_id", tenantId)
@@ -57,6 +60,32 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
   if (!existing) {
     return NextResponse.json({ error: "Requirement not found" }, { status: 404 });
+  }
+
+  if (parsed.data.recruiterVerified === true && !existing.recruiter_verified) {
+    try {
+      const hasDecision = await requirementHasRecordedVerificationDecision(
+        supabase,
+        tenantId,
+        applicationId,
+        requirementId
+      );
+      if (!hasDecision) {
+        return NextResponse.json(
+          {
+            error:
+              "Record a verification decision (Verified or Rejected) on a note before marking this requirement Confirmed.",
+            code: "VERIFICATION_DECISION_REQUIRED",
+          },
+          { status: 400 }
+        );
+      }
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Failed to check verification notes" },
+        { status: 500 }
+      );
+    }
   }
 
   const patch: Record<string, unknown> = {

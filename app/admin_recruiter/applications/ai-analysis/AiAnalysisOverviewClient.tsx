@@ -55,8 +55,18 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
+import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
+import {
+  RequirementNotesIndicator,
+  RequirementVerificationNotesPanel,
+} from "./RequirementVerificationNotes";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
+import {
+  formatVerificationNoteStatus,
+  type VerificationNote,
+} from "@/lib/jobs/match-analysis/verification-notes";
+import { requirementNeedsVerificationNotes } from "@/lib/jobs/match-analysis/workspace";
 
 const CARD =
   "rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
@@ -500,6 +510,12 @@ export function AiAnalysisOverviewClient({
     isAnalyzed,
     verifyingId,
     toggleVerified,
+    createVerificationNote,
+    updateVerificationNote,
+    deleteVerificationNote,
+    markNoteSentToCandidate,
+    savingVerificationNote,
+    busyVerificationNoteId,
     recommendedAnswers,
     setRecommendedAnswers,
     savingAnswers,
@@ -553,6 +569,8 @@ export function AiAnalysisOverviewClient({
   const [removingFromJob, setRemovingFromJob] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [downloadingAssessment, setDownloadingAssessment] = useState(false);
+  const [commOpen, setCommOpen] = useState(false);
+  const [askCandidateNote, setAskCandidateNote] = useState<VerificationNote | null>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const loadResumeHistory = useCallback(async () => {
@@ -750,10 +768,22 @@ export function AiAnalysisOverviewClient({
       sortAt: note.created_at,
       note,
     }));
-    return [...verified, ...notes].sort(
+    const verification = (data?.verificationNotes ?? []).map((note) => ({
+      kind: "verification" as const,
+      id: note.id,
+      sortAt: note.updatedAt || note.createdAt,
+      note,
+    }));
+    return [...verified, ...notes, ...verification].sort(
       (a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime()
     );
-  }, [data?.verifiedInformation, data?.notes]);
+  }, [data?.verifiedInformation, data?.notes, data?.verificationNotes]);
+
+  async function handleAskCandidate(note: VerificationNote) {
+    setAskCandidateNote(note);
+    await markNoteSentToCandidate(note);
+    setCommOpen(true);
+  }
 
   const latestResumeId =
     resumes.length > 1 ? resumes[resumes.length - 1]?.id ?? null : null;
@@ -1032,9 +1062,12 @@ export function AiAnalysisOverviewClient({
                           onClick={() => setOpenReqId(open ? "" : row.id)}
                         >
                           <td className="py-3.5 pr-3">
-                            <p className="cursor-pointer text-sm font-medium leading-5 text-[#101828]">
-                              {row.requirement_text}
-                            </p>
+                            <div className="flex flex-wrap items-start gap-2">
+                              <p className="cursor-pointer text-sm font-medium leading-5 text-[#101828]">
+                                {row.requirement_text}
+                              </p>
+                              <RequirementNotesIndicator requirement={row} />
+                            </div>
                           </td>
                           <td className="py-3.5 pr-3 text-center">
                             <span className={`${CHECKLIST_BADGE} ${typeBadgeClass(row.requirement_type)}`}>
@@ -1042,11 +1075,34 @@ export function AiAnalysisOverviewClient({
                             </span>
                           </td>
                           <td className="py-3.5 pr-3 text-center">
-                            <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
-                              {displayStatus}
-                            </span>
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
+                                {displayStatus}
+                              </span>
+                              {row.has_pending_verification_note ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#854D0E]">
+                                  Notes pending
+                                </span>
+                              ) : null}
+                            </div>
                           </td>
-                          <td className="py-3.5 text-sm text-[#475467]">{actionLabel}</td>
+                          <td className="py-3.5 text-sm text-[#475467]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{actionLabel}</span>
+                              {requirementNeedsVerificationNotes(row, blocking) ? (
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setOpenReqId(row.id);
+                                  }}
+                                >
+                                  Add Note
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
                           <td className="py-3.5">
                             <button
                               type="button"
@@ -1069,7 +1125,7 @@ export function AiAnalysisOverviewClient({
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
                                   Candidate Evidence
                                 </p>
-                                <div className="mt-2 flex items-start justify-between gap-4">
+                                <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                   <div className="min-w-0 flex-1">
                                     {row.candidate_evidence ? (
                                       <blockquote className="border-l-[3px] border-[color:var(--brand-primary)] pl-3 text-sm italic leading-6 text-[#344054]">
@@ -1090,13 +1146,21 @@ export function AiAnalysisOverviewClient({
                                     htmlFor={`recruiter-verified-${row.id}`}
                                     className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap pt-0.5 text-sm font-medium text-[#344054]"
                                     onClick={(event) => event.stopPropagation()}
+                                    title={
+                                      row.recruiter_verified || row.has_verification_decision
+                                        ? undefined
+                                        : "Record Verified or Rejected on a note before confirming"
+                                    }
                                   >
                                     <ListTableCheckbox
                                       id={`recruiter-verified-${row.id}`}
                                       size="md"
                                       className="cursor-pointer"
                                       checked={row.recruiter_verified}
-                                      disabled={verifyingId === row.id}
+                                      disabled={
+                                        verifyingId === row.id ||
+                                        (!row.recruiter_verified && !row.has_verification_decision)
+                                      }
                                       onChange={() => void toggleVerified(row)}
                                       aria-label={`Recruiter verified: ${row.requirement_text}`}
                                     />
@@ -1106,6 +1170,21 @@ export function AiAnalysisOverviewClient({
                                     ) : null}
                                   </label>
                                 </div>
+                                <RequirementVerificationNotesPanel
+                                  applicationId={applicationId}
+                                  requirement={row}
+                                  notes={(data?.verificationNotes ?? []).filter(
+                                    (note) => note.requirementId === row.id
+                                  )}
+                                  busyNoteId={busyVerificationNoteId}
+                                  saving={savingVerificationNote}
+                                  onCreate={(draft) => createVerificationNote(row.id, draft)}
+                                  onUpdate={(noteId, draft) =>
+                                    updateVerificationNote(row.id, noteId, draft)
+                                  }
+                                  onDelete={(noteId) => deleteVerificationNote(row.id, noteId)}
+                                  onAskCandidate={(note) => void handleAskCandidate(note)}
+                                />
                                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#667085]">
                                   <button
                                     type="button"
@@ -1487,6 +1566,30 @@ export function AiAnalysisOverviewClient({
                 {noteFeedItems.map((entry) =>
                   entry.kind === "verified" ? (
                     <VerifiedInformationItem key={`verified-${entry.id}`} item={entry.item} />
+                  ) : entry.kind === "verification" ? (
+                    <li
+                      key={`verification-${entry.id}`}
+                      className="rounded-lg border border-[#E5E7EB] bg-[#FCFCFD] px-3 py-2.5 text-sm text-[#344054]"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-[#FEF9C3] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#854D0E]">
+                          Requirement note
+                        </span>
+                        <span className="text-[11px] font-semibold text-[#667085]">
+                          {formatVerificationNoteStatus(entry.note.verificationStatus)}
+                        </span>
+                      </div>
+                      <p className="mt-1">{entry.note.noteBody}</p>
+                      {entry.note.candidateQuestion ? (
+                        <p className="mt-1 text-xs text-[#475467]">
+                          Ask: {entry.note.candidateQuestion}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-[#94A3B8]">
+                        {entry.note.updatedByName ?? entry.note.createdByName} ·{" "}
+                        {formatWhen(entry.note.updatedAt || entry.note.createdAt)}
+                      </p>
+                    </li>
                   ) : (
                     <li
                       key={`note-${entry.id}`}
@@ -1696,6 +1799,27 @@ export function AiAnalysisOverviewClient({
         }}
         onConfirm={() => void confirmRemoveFromJob()}
       />
+
+      {workerId ? (
+        <CandidateCommunicationDialog
+          open={commOpen}
+          onClose={() => {
+            setCommOpen(false);
+            setAskCandidateNote(null);
+          }}
+          workerId={workerId}
+          candidateName={candidateName}
+          email={info.email || null}
+          phone={info.phone || null}
+          initialChannel="email"
+          onSent={() => {
+            if (askCandidateNote) {
+              void markNoteSentToCandidate(askCandidateNote);
+            }
+            toast.success("Request sent to candidate");
+          }}
+        />
+      ) : null}
     </div>
   );
 }

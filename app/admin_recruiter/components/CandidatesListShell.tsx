@@ -753,7 +753,7 @@ export function CandidatesListShell({
             <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-center xl:gap-3">
               <ListPaginationShowLabel
                 pageSize={pageSize}
-                options={[10, 20, 30]}
+                options={[25, 50, 100]}
                 onPageSizeChange={onPageSizeChange}
               />
               <ListPaginationControls
