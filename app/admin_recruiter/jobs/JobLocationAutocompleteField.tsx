@@ -8,6 +8,7 @@ import {
   JOB_FORM_LABEL_CLASS,
 } from "@/app/admin_recruiter/jobs/job-form-shared";
 import { JobFormRequiredMark } from "@/app/admin_recruiter/jobs/JobFormRequiredMark";
+import { formatCityState } from "@/lib/location/city-state";
 
 type Props = {
   id?: string;
@@ -25,7 +26,7 @@ type Props = {
 
 /**
  * Mapbox-backed location input for job requisition forms.
- * Stores the selected Mapbox place name (city / area / address).
+ * Persists canonical "City, ST" (country / ZIP / work-type are not stored in location).
  */
 export default function JobLocationAutocompleteField({
   id,
@@ -88,6 +89,8 @@ export default function JobLocationAutocompleteField({
           onChange={(event) => onChange(event.target.value)}
           onFocus={() => openSuggestions()}
           onBlur={() => {
+            const normalized = formatCityState(value);
+            if (normalized && normalized !== value) onChange(normalized);
             window.setTimeout(() => closeSuggestions(), 150);
           }}
         />
@@ -108,7 +111,7 @@ export default function JobLocationAutocompleteField({
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
                     const selected = selectSuggestion(suggestion);
-                    onChange(selected.placeName);
+                    onChange(formatCityState(selected.placeName) || selected.placeName);
                   }}
                 >
                   {suggestion.placeName}

@@ -46,6 +46,11 @@ import {
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
+import {
+  formatCityStateFromParts,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
@@ -296,12 +301,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }, [candidates]);
 
   const locationOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of candidates) {
-      const loc = [c.city, c.state].filter(Boolean).join(", ");
-      if (loc) s.add(loc);
-    }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return uniqueCityStateOptions(
+      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
+    );
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -338,7 +340,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
     if (locationFilter) {
-      out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
+      out = out.filter((c) =>
+        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
+      );
     }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));

@@ -6,6 +6,7 @@ import {
   publicJobDisplayTitle,
 } from "@/lib/jobs/public-application-routing";
 import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
+import { formatCityState } from "@/lib/location/city-state";
 
 export const PUBLIC_JOBS_PAGE_SIZE = 10;
 export const PUBLIC_JOBS_DESKTOP_MIN_WIDTH = 1024;
@@ -309,7 +310,7 @@ export function formatJobLocationLine(
   locationType: string | null | undefined
 ): string {
   const workplace = formatWorkplaceType(locationType);
-  const place = location?.trim() || "";
+  const place = formatCityState(location) || location?.trim() || "";
   if (workplace && /^remote$/i.test(workplace) && !place) return "Remote";
   if (workplace && place && !place.toLowerCase().includes(workplace.toLowerCase())) {
     return `${place} · ${workplace}`;

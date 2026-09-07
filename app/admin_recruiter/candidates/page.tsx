@@ -77,6 +77,11 @@ import {
   resolveCandidatesListTotal,
 } from "@/lib/workers/candidates-list-fetch";
 import toast from "react-hot-toast";
+import {
+  formatCityStateFromParts,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
 
@@ -482,12 +487,9 @@ export default function CandidatesPage() {
   }, [candidates]);
 
   const locationOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of candidates) {
-      const loc = [c.city, c.state].filter(Boolean).join(", ");
-      if (loc) s.add(loc);
-    }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return uniqueCityStateOptions(
+      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
+    );
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -556,7 +558,9 @@ export default function CandidatesPage() {
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
     if (locationFilter) {
-      out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
+      out = out.filter((c) =>
+        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
+      );
     }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
