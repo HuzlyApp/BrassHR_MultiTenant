@@ -265,7 +265,7 @@ export function AllCandidatesToolbar({
         </div>
       </div>
 
-      <div className="flex w-full items-center justify-between gap-3 px-3 pb-2 pt-5 sm:px-5">
+      <div className="flex w-full items-center justify-between gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
         <HighlightMultiJobToggle
           on={highlightMultiJob}
           onToggle={() => onHighlightMultiJobChange(!highlightMultiJob)}
