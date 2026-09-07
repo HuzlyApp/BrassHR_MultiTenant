@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight } from "lucide-react";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { MatchAnalyzeMenuItems } from "./MatchAnalyzeButton";
 
 const PRIMARY_MENU_WIDTH = 200;
 const SUBMENU_WIDTH = 200;
-const PRIMARY_MENU_ESTIMATED_HEIGHT = 180;
+const PRIMARY_MENU_ESTIMATED_HEIGHT = 220;
 const SUBMENU_ESTIMATED_HEIGHT = 220;
 
 export type CandidateRowActionsHandlers = {
-  onReanalyze: () => void;
+  onAnalyze: (mode: AnalysisMode) => void;
   onUpdateResume: () => void;
   onArchive: () => void;
   onUnarchive: () => void;
@@ -26,6 +28,7 @@ type CandidateRowActionsMenuProps = {
   anchor: HTMLElement;
   onClose: () => void;
   analyzing?: boolean;
+  isAnalyzed?: boolean;
   hired?: boolean;
   archived?: boolean;
   resumeUploading?: boolean;
@@ -47,10 +50,11 @@ export function CandidateRowActionsMenu({
   anchor,
   onClose,
   analyzing = false,
+  isAnalyzed = false,
   hired = false,
   archived = false,
   resumeUploading = false,
-  onReanalyze,
+  onAnalyze,
   onUpdateResume,
   onArchive,
   onUnarchive,
@@ -167,15 +171,12 @@ export function CandidateRowActionsMenu({
         style={style}
         className="z-[200] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 text-left shadow-lg"
       >
-        <button
-          type="button"
-          role="menuitem"
-          disabled={analyzing}
-          onClick={() => runAndClose(onReanalyze)}
-          className={`${menuItemClassName()} disabled:opacity-50`}
-        >
-          Reanalyze
-        </button>
+        <MatchAnalyzeMenuItems
+          analyzing={analyzing}
+          isAnalyzed={isAnalyzed}
+          onAnalyze={onAnalyze}
+          onClose={onClose}
+        />
         <button
           type="button"
           role="menuitem"

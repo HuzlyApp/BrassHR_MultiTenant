@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   formatListMatchScoreLabel,
@@ -12,6 +12,8 @@ import {
   matchCategoryBadgeClassName,
   matchScoreBadgeClassName,
 } from "@/lib/jobs/match-analysis/display";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
 
 type RequirementRow = {
   id: string;
@@ -101,21 +103,23 @@ export function MatchAnalysisPanel({
     void load();
   }, [load, reloadToken]);
 
-  const runAnalyze = async () => {
+  const runAnalyze = async (mode: AnalysisMode = "analyze") => {
     setAnalyzing(true);
     try {
       const res = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Match analysis failed");
       toast.success(
         json.status === "NEEDS_REVIEW"
           ? "Needs résumé text before analysis"
-          : "Match analysis complete"
+          : mode === "deep"
+            ? "Deeper match analysis complete"
+            : "Match analysis complete"
       );
       await load();
       onAnalyzed?.();
@@ -202,21 +206,12 @@ export function MatchAnalysisPanel({
             <p className="mt-0.5 text-xs text-[#B91C1C]">{app.ai_analysis_error}</p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() => void runAnalyze()}
-          disabled={analyzing}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A] shadow-sm transition hover:bg-[#F8FAFC] disabled:opacity-60"
-        >
-          {analyzing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : isAnalyzed ? (
-            <RefreshCw className="h-3.5 w-3.5" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          {analyzing ? "Analyzing…" : isAnalyzed ? "Reanalyze" : "Analyze"}
-        </button>
+        <MatchAnalyzeButton
+          variant="outline"
+          analyzing={analyzing}
+          isAnalyzed={isAnalyzed}
+          onAnalyze={(mode) => void runAnalyze(mode)}
+        />
       </div>
 
       <div className="space-y-4 px-4 py-4">
@@ -406,7 +401,7 @@ export function MatchScoreCell(props: {
   score: number | null | undefined;
   category?: string | null | undefined;
   displayCategory?: string | null;
-  onAnalyze?: () => void;
+  onAnalyze?: (mode: AnalysisMode) => void;
   analyzing?: boolean;
 }) {
   const { status, score, onAnalyze, analyzing } = props;
@@ -438,16 +433,11 @@ export function MatchScoreCell(props: {
     );
   }
 
-  return (
-    <button
-      type="button"
-      onClick={onAnalyze}
-      className="inline-flex items-center gap-1 rounded-md border border-[#CBD5E1] bg-white px-2 py-1 text-[11px] font-medium text-[#475569] hover:bg-[#F8FAFC]"
-    >
-      <Sparkles className="h-3 w-3" />
-      Analyze
-    </button>
-  );
+  if (!onAnalyze) {
+    return <span className="text-sm text-[#94A3B8]">—</span>;
+  }
+
+  return <MatchAnalyzeButton variant="compact" analyzing={analyzing} onAnalyze={onAnalyze} />;
 }
 
 export function RequirementOutcomeCountCell(props: {

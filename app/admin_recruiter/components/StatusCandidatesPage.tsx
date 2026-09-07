@@ -43,6 +43,7 @@ import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   formatCityStateFromParts,
@@ -549,7 +550,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     setClaimConfirmOpen(true);
   }
 
-  async function runMatchAnalyze(applicationId: string) {
+  async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
     const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
     setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
     try {
@@ -557,7 +558,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -580,7 +581,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
       } else {
-        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`);
+        toast.success(
+          `${candidate?.name || "Candidate"}: ${mode === "deep" ? "deeper match analysis" : "match analysis"} complete`
+        );
       }
     } catch (analyzeError) {
       toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
@@ -755,7 +758,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                             >
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
-                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                onAnalyzeMatch: (applicationId, mode) =>
+                                  void runMatchAnalyze(applicationId, mode),
                                 progressStatusOptions,
                                 progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
                                 progressStatusBusyWorkerId: statusBusyWorkerId,

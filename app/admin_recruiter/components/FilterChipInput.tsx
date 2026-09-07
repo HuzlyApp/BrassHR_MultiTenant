@@ -11,7 +11,25 @@ type FilterChipInputProps = {
   /** Nest inside another bordered control (e.g. candidates toolbar). */
   embedded?: boolean;
   "aria-label"?: string;
+  /**
+   * Fired on Enter after committing any draft chip text.
+   * Receives the skill list that should be used for search (includes newly committed chips).
+   */
+  onEnterSubmit?: (nextValues: string[]) => void;
 };
+
+function mergeChipValues(values: string[], raw: string): string[] {
+  const parts = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length) return values;
+  const next = [...values];
+  for (const part of parts) {
+    if (!next.some((value) => value.toLowerCase() === part.toLowerCase())) next.push(part);
+  }
+  return next;
+}
 
 /** Comma/Enter chip input used by candidate skill (and similar) filters. */
 export function FilterChipInput({
@@ -21,6 +39,7 @@ export function FilterChipInput({
   onChange,
   embedded = false,
   "aria-label": ariaLabel,
+  onEnterSubmit,
 }: FilterChipInputProps) {
   const [draft, setDraft] = useState("");
   const unused = suggestions.filter(
@@ -28,15 +47,13 @@ export function FilterChipInput({
   );
 
   function commit(raw: string) {
+    const next = mergeChipValues(values, raw);
+    if (next.length === values.length && !raw.trim()) return;
     const parts = raw
       .split(",")
       .map((part) => part.trim())
       .filter(Boolean);
     if (!parts.length) return;
-    const next = [...values];
-    for (const part of parts) {
-      if (!next.some((value) => value.toLowerCase() === part.toLowerCase())) next.push(part);
-    }
     onChange(next);
     setDraft("");
   }
@@ -70,7 +87,17 @@ export function FilterChipInput({
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
-            if (event.key === "Enter" || event.key === ",") {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              const next = draft.trim() ? mergeChipValues(values, draft) : values;
+              if (draft.trim()) {
+                onChange(next);
+                setDraft("");
+              }
+              onEnterSubmit?.(next);
+              return;
+            }
+            if (event.key === ",") {
               event.preventDefault();
               commit(draft);
               return;

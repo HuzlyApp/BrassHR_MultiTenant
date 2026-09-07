@@ -67,6 +67,7 @@ import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   fetchWorkersPageFromApi,
@@ -154,7 +155,6 @@ function formatDateShort(iso: string | null) {
 }
 
 const DEFAULT_PAGE_SIZE = DEFAULT_CANDIDATES_PAGE_SIZE;
-const SEARCH_DEBOUNCE_MS = 300;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
 
@@ -229,8 +229,8 @@ export default function CandidatesPage() {
   } = useCandidateProgressStatus(candidates, setCandidates);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
@@ -371,13 +371,6 @@ export default function CandidatesPage() {
     [addCandidateJobs]
   );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
   const mapWorkerToRow = useCallback((item: WorkerProfile): CandidateRow => {
     const { email, phone } = resolveCandidateContact(item);
     return {
@@ -417,6 +410,10 @@ export default function CandidatesPage() {
     const controller = new AbortController();
     loadAbortRef.current = controller;
     setLoading(true);
+    setListError(null);
+    // Clear stale rows while a new search/page loads.
+    setCandidates([]);
+    setTotalFromApi(null);
     try {
       if (activeSearch) {
         const res = await fetch("/api/search-workers", {
@@ -446,13 +443,13 @@ export default function CandidatesPage() {
       }
 
       const skillTags = parseSkillsFilterParam(skillsFilter);
-      const searchParts = [debouncedQuery, ...skillTags].filter(Boolean);
       const { workers: rows, total } = await fetchWorkersPageFromApi<WorkerProfile>(
         "/api/workers",
         {
           page,
           pageSize,
-          q: searchParts.join(" "),
+          q: query || undefined,
+          skills: skillTags.length ? skillTags.join(",") : undefined,
           jobRole: jobRoleFilter || undefined,
           location: locationFilter || undefined,
           appliedFrom: appliedDateFrom || undefined,
@@ -504,6 +501,7 @@ export default function CandidatesPage() {
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
+      setListError(err instanceof Error ? err.message : "Failed to search candidates");
       clearSelectionRef.current();
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -513,7 +511,7 @@ export default function CandidatesPage() {
     mapWorkerToRow,
     page,
     pageSize,
-    debouncedQuery,
+    query,
     skillsFilter,
     jobRoleFilter,
     locationFilter,
@@ -558,7 +556,7 @@ export default function CandidatesPage() {
   useEffect(() => {
     setPage(1);
   }, [
-    debouncedQuery,
+    query,
     skillsFilter,
     jobRoleFilter,
     statusFilter,
@@ -606,6 +604,7 @@ export default function CandidatesPage() {
         page,
         pageSize,
         query,
+        skillsFilter,
         jobRoleFilter,
         statusFilter,
         progressStatusFilter,
@@ -621,6 +620,7 @@ export default function CandidatesPage() {
       page,
       pageSize,
       query,
+      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
@@ -713,7 +713,7 @@ export default function CandidatesPage() {
     setClaimConfirmOpen(true);
   }
 
-  async function runMatchAnalyze(applicationId: string) {
+  async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
     const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
     setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
     try {
@@ -721,7 +721,7 @@ export default function CandidatesPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -744,9 +744,12 @@ export default function CandidatesPage() {
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
       } else {
-        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
+        toast.success(
+          `${candidate?.name || "Candidate"}: ${mode === "deep" ? "deeper match analysis" : "match analysis"} complete`,
+          {
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
       }
     } catch (analyzeError) {
       toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
@@ -881,14 +884,28 @@ export default function CandidatesPage() {
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
-          setQuery(nextQuery);
+          setQuery(nextQuery.trim());
           setSkillsFilter(nextSkills);
           setPage(1);
         }}
         onResetSearch={() => {
           setQuery("");
           setSkillsFilter("");
+          setJobRoleFilter("");
+          setLocationFilter("");
+          setAppliedDateFrom("");
+          setAppliedDateTo("");
+          setStatusFilter("");
+          setProgressStatusFilter("");
+          setJobFilter("");
+          setStageFilter("");
+          setMatchScoreFilter("");
+          setListSort(EMPTY_CANDIDATE_LIST_SORT);
+          applyAdvancedSearchParams(null);
           setPage(1);
+          setListError(null);
+          setCandidates([]);
+          setTotalFromApi(null);
         }}
         onAddCandidate={() => setAddCandidateOpen(true)}
         onMatchExistingCandidate={() => {
@@ -921,15 +938,39 @@ export default function CandidatesPage() {
           if (loading) {
             return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
           }
+          if (listError) {
+            return (
+              <div className="py-12 text-center text-red-600" role="alert">
+                <div className="font-medium">Search failed</div>
+                <div className="mt-1 text-sm text-red-500">{listError}</div>
+                <button
+                  type="button"
+                  onClick={() => void loadCandidates()}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
+                >
+                  Try again
+                </button>
+              </div>
+            );
+          }
           if (visibleCandidates.length === 0) {
             return (
               <div className="py-12 text-center text-gray-600">
-                <div>No candidates found.</div>
-                {advancedSearchContext.active ? (
+                <div>
+                  {query.trim() || parseSkillsFilterParam(skillsFilter).length
+                    ? "No candidates match your search."
+                    : "No candidates found."}
+                </div>
+                {query.trim() ||
+                parseSkillsFilterParam(skillsFilter).length ||
+                advancedSearchContext.active ? (
                   <button
                     type="button"
                     onClick={() => {
+                      setQuery("");
+                      setSkillsFilter("");
                       applyAdvancedSearchParams(null);
+                      setPage(1);
                       void loadCandidates(null);
                     }}
                     className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
@@ -1036,7 +1077,8 @@ export default function CandidatesPage() {
                               {renderListCell(colId, c, formatDate, {
                                 highlightMultiJob,
                                 matchAnalyzingApplicationIds,
-                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                onAnalyzeMatch: (applicationId, mode) =>
+                                  void runMatchAnalyze(applicationId, mode),
                                 progressStatusOptions,
                                 progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
                                 progressStatusBusyWorkerId: statusBusyWorkerId,
@@ -1158,13 +1200,31 @@ export default function CandidatesPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
+          analyzing={(() => {
+            const applicationId = candidates
+              .find((item) => item.id === rowActionsMenu.rowId)
+              ?.matchApplicationId?.trim();
+            return Boolean(applicationId && matchAnalyzingApplicationIds.has(applicationId));
+          })()}
+          isAnalyzed={
+            candidates.find((item) => item.id === rowActionsMenu.rowId)?.aiMatchStatus === "ANALYZED"
+          }
           hired={(() => {
             const status = candidates.find((item) => item.id === rowActionsMenu.rowId)?.status ?? "";
             const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
             return normalized === "hired" || normalized === "converted";
           })()}
           onClose={() => setRowActionsMenu(null)}
-          onReanalyze={() => toast("Reanalyze is available from the candidate application.")}
+          onAnalyze={(mode) => {
+            const applicationId = candidates
+              .find((item) => item.id === rowActionsMenu.rowId)
+              ?.matchApplicationId?.trim();
+            if (!applicationId) {
+              toast("Open a job application to run match analysis for this candidate.");
+              return;
+            }
+            void runMatchAnalyze(applicationId, mode);
+          }}
           onUpdateResume={() => toast("Update resume from the candidate profile.")}
           onArchive={() => toast("Archive is available from the candidate application.")}
           onUnarchive={() => toast("Unarchive is available from the candidate application.")}

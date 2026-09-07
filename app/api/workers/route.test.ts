@@ -62,6 +62,15 @@ describe("GET /api/workers", () => {
     });
   });
 
+  it("returns 503 when search is active but RPC is unavailable", async () => {
+    const res = await GET(new Request("http://localhost/api/workers?q=shawnda&limit=25"));
+    expect(res.status).toBe(503);
+    const json = await res.json();
+    expect(typeof json.error).toBe("string");
+    expect(json.error.length).toBeGreaterThan(0);
+    expect(json.workers).toBeUndefined();
+  });
+
   it("uses Supabase range() instead of fetching all rows before slicing", async () => {
     const res = await GET(
       new Request("http://localhost/api/workers?limit=25&offset=50")

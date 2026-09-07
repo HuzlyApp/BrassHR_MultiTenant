@@ -20,6 +20,7 @@ import {
 import { snapshotCurrentAnalysisVersion } from "./versions";
 import type {
   AiMatchPipelineStatus,
+  AnalysisMode,
   MatchAnalysisResponse,
   PipelineProgressStep,
 } from "./schema";
@@ -72,6 +73,8 @@ export async function runMatchAnalysisForApplication(args: {
   recruiterNotes?: string | null;
   verifiedRecruiterInfo?: Record<string, unknown> | null;
   analyzedByUserId?: string | null;
+  /** Lean Analyze (default) or Deeper Analysis prompt/schema. */
+  analysisMode?: AnalysisMode;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {
   const {
@@ -83,6 +86,7 @@ export async function runMatchAnalysisForApplication(args: {
     analyzedByUserId,
     onProgress,
   } = args;
+  const analysisMode: AnalysisMode = args.analysisMode === "deep" ? "deep" : "analyze";
 
   const emit = (step: PipelineProgressStep, message: string, status?: AiMatchPipelineStatus) => {
     onProgress?.({ step, message, status });
@@ -248,7 +252,11 @@ export async function runMatchAnalysisForApplication(args: {
     });
     const nextVersion = previousVersion + 1;
 
-    emit("analyzing", "Running Grok match analysis", "ANALYZING");
+    emit(
+      "analyzing",
+      analysisMode === "deep" ? "Running deeper Grok match analysis" : "Running Grok match analysis",
+      "ANALYZING"
+    );
     await setProgress(supabase, tenantId, jobApplicationId, "analyzing");
 
     const modelResult = await generateMatchAnalysisWithGrok({
@@ -262,6 +270,7 @@ export async function runMatchAnalysisForApplication(args: {
       resumeText: resume.sanitized,
       verifiedRecruiterInfo: verified ?? null,
       recruiterNotes: notes || null,
+      analysisMode,
     });
 
     emit("validating", "Validating and rescoring", "ANALYZING");

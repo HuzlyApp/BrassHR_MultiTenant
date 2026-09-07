@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import {
   buildCandidateKpiCardsFromMetrics,
+  emptyCandidateKpiMetricsPayload,
   normalizeCandidateKpiMetricsPayload,
   type CandidateKpiMetricsPayload,
 } from "@/lib/workers/candidate-kpi-metrics";
 import type { CandidateKpiCard } from "@/app/admin_recruiter/candidates/candidate-kpis";
+
+const EMPTY_KPI_CARDS = buildCandidateKpiCardsFromMetrics(emptyCandidateKpiMetricsPayload());
 
 export function useCandidateKpiMetrics(options?: {
   status?: string;
@@ -20,7 +23,8 @@ export function useCandidateKpiMetrics(options?: {
   const status = options?.status?.trim() || "";
   const enabled = options?.enabled !== false;
   const [metrics, setMetrics] = useState<CandidateKpiMetricsPayload | null>(null);
-  const [kpiCards, setKpiCards] = useState<CandidateKpiCard[]>([]);
+  // Always start with the four KPI cards so the row never disappears while loading / on error.
+  const [kpiCards, setKpiCards] = useState<CandidateKpiCard[]>(EMPTY_KPI_CARDS);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
 
@@ -42,16 +46,18 @@ export function useCandidateKpiMetrics(options?: {
         if (cancelled) return;
         if (!res.ok) throw new Error(data?.error || "Failed to load metrics");
         const nextMetrics = normalizeCandidateKpiMetricsPayload(data?.metrics);
-        setMetrics(nextMetrics);
-        setKpiCards(
-          Array.isArray(data?.cards) && data.cards.length
+        const nextCards =
+          Array.isArray(data?.cards) && data.cards.length === 4
             ? (data.cards as CandidateKpiCard[])
-            : buildCandidateKpiCardsFromMetrics(nextMetrics)
-        );
+            : buildCandidateKpiCardsFromMetrics(nextMetrics);
+        setMetrics(nextMetrics);
+        setKpiCards(nextCards);
       } catch (err) {
         if (cancelled || (err instanceof DOMException && err.name === "AbortError")) return;
-        setMetrics(null);
-        setKpiCards([]);
+        console.warn("[useCandidateKpiMetrics]", err);
+        // Keep the four cards visible (zeros) instead of hiding the entire KPI row.
+        setMetrics(emptyCandidateKpiMetricsPayload());
+        setKpiCards(EMPTY_KPI_CARDS);
       } finally {
         if (!cancelled) setLoading(false);
       }
