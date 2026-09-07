@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPasswordResetEmail } from "@/lib/auth/send-password-reset-email";
 import { safePasswordResetReturnPath } from "@/lib/auth/password-reset-return";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { isAllowedAppOrigin, resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
-import { getEffectiveRootDomain } from "@/lib/tenant/tenant-host-resolution";
 
 export const runtime = "nodejs";
-
-function isAllowedPasswordResetOrigin(origin: string): boolean {
-  try {
-    const url = new URL(origin);
-    const host = url.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return true;
-    const root = getEffectiveRootDomain().toLowerCase();
-    return host === root || host === `www.${root}` || host.endsWith(`.${root}`);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Checks account exists, builds a recovery link, and emails it via Resend
@@ -57,7 +44,7 @@ export async function POST(req: NextRequest) {
   const clientOrigin =
     typeof body.origin === "string" && body.origin.trim() ? body.origin.trim() : null;
   const resolvedOrigin = resolveAppOrigin(req, clientOrigin);
-  if (!resolvedOrigin || !isAllowedPasswordResetOrigin(resolvedOrigin)) {
+  if (!resolvedOrigin || !isAllowedAppOrigin(resolvedOrigin)) {
     return NextResponse.json(
       { error: "Invalid redirect origin for password reset." },
       { status: 400 }

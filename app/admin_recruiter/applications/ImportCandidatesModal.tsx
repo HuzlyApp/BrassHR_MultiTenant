@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, Loader2, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
+import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import {
   IMPORT_PAGE_SIZE_DEFAULT,
   IMPORT_RECOMMENDED_MIN_SCORE,
@@ -70,11 +71,53 @@ const EMPTY_FILTERS: FiltersState = {
   tags: [],
 };
 
+const FILTER_SELECT_CLASS =
+  "mt-1 h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-sm font-normal leading-6 text-[#111827] outline-none hover:bg-zinc-50 focus:border-[color:var(--brand-primary)]";
+
+const FILTER_SELECT_CHEVRON = {
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  )}")`,
+  color: "#111827",
+} as const;
+
+const FILTER_INPUT_CLASS =
+  "mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]";
+
 function matchBadgeClass(score: number): string {
   if (score >= 90) return "border-[#86EFAC] bg-[#DCFCE7] text-[#166534]";
   if (score >= 80) return "border-[#6EE7B7] bg-[#ECFDF5] text-[#047857]";
   if (score >= 70) return "border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]";
   return "border-[#CBD5E1] bg-[#F8FAFC] text-[#475569]";
+}
+
+function TruncatedCell({ value, className = "" }: { value: string; className?: string }) {
+  const text = value.trim() || "—";
+  return (
+    <span className={`block max-w-full truncate text-[#111827] ${className}`} title={text === "—" ? undefined : text}>
+      {text}
+    </span>
+  );
+}
+
+function ChipList({ values, empty = "—" }: { values: string[]; empty?: string }) {
+  const items = values.filter(Boolean).slice(0, 3);
+  if (!items.length) {
+    return <span className="text-[#94A3B8]">{empty}</span>;
+  }
+  return (
+    <div className="flex max-w-[200px] flex-wrap gap-1">
+      {items.map((item) => (
+        <span
+          key={item}
+          className="inline-flex max-w-full truncate rounded-md bg-[#F1F5F9] px-1.5 py-0.5 text-[11px] font-medium text-[#334155]"
+          title={item}
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function ImportCandidatesModal({
@@ -459,7 +502,7 @@ export default function ImportCandidatesModal({
                         setPage(1);
                       }}
                       placeholder="Search candidates..."
-                      className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white pl-9 pr-3 text-sm text-[#334155] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
+                      className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white pl-9 pr-3 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
                     />
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -468,7 +511,8 @@ export default function ImportCandidatesModal({
                       <select
                         value={filters.role}
                         onChange={(event) => updateFilter("role", event.target.value)}
-                        className="mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155]"
+                        className={FILTER_SELECT_CLASS}
+                        style={FILTER_SELECT_CHEVRON}
                       >
                         <option value="">Any role</option>
                         {(payload?.facets.roles ?? []).map((role) => (
@@ -483,7 +527,8 @@ export default function ImportCandidatesModal({
                       <select
                         value={filters.location}
                         onChange={(event) => updateFilter("location", event.target.value)}
-                        className="mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155]"
+                        className={FILTER_SELECT_CLASS}
+                        style={FILTER_SELECT_CHEVRON}
                       >
                         <option value="">Any location</option>
                         {(payload?.facets.locations ?? []).map((location) => (
@@ -500,7 +545,8 @@ export default function ImportCandidatesModal({
                         onChange={(event) =>
                           updateFilter("experience", event.target.value as ImportExperienceBucket | "")
                         }
-                        className="mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155]"
+                        className={FILTER_SELECT_CLASS}
+                        style={FILTER_SELECT_CHEVRON}
                       >
                         <option value="">Any experience</option>
                         <option value="under3">Under 3 years</option>
@@ -514,7 +560,8 @@ export default function ImportCandidatesModal({
                       <select
                         value={String(filters.minMatch)}
                         onChange={(event) => updateFilter("minMatch", Number(event.target.value))}
-                        className="mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155]"
+                        className={FILTER_SELECT_CLASS}
+                        style={FILTER_SELECT_CHEVRON}
                       >
                         {tab === "all" ? <option value="0">Any match</option> : null}
                         <option value="60">60%+ Possible</option>
@@ -528,7 +575,8 @@ export default function ImportCandidatesModal({
                       <select
                         value={filters.status}
                         onChange={(event) => updateFilter("status", event.target.value)}
-                        className="mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155]"
+                        className={FILTER_SELECT_CLASS}
+                        style={FILTER_SELECT_CHEVRON}
                       >
                         <option value="">Any status</option>
                         {(payload?.facets.statuses ?? []).map((status) => (
@@ -544,7 +592,7 @@ export default function ImportCandidatesModal({
                         value={filters.previousTitle}
                         onChange={(event) => updateFilter("previousTitle", event.target.value)}
                         placeholder="Previous job title"
-                        className="mt-1 h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#334155] outline-none"
+                        className={FILTER_INPUT_CLASS}
                       />
                     </label>
                     <div className="text-xs font-medium text-[#64748B] sm:col-span-2">
@@ -601,25 +649,25 @@ export default function ImportCandidatesModal({
                       </p>
                     </div>
                   ) : (
-                    <table className="min-w-full text-left text-sm">
-                      <thead className="sticky top-0 bg-[#F8FAFC] text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                    <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+                      <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                         <tr>
-                          <th className="w-10 px-4 py-3">
-                            <input
-                              type="checkbox"
+                          <th className="w-12 px-4 py-3">
+                            <ListTableCheckbox
+                              size="sm"
                               checked={allVisibleSelected}
                               onChange={toggleSelectAllVisible}
                               aria-label="Select all visible candidates"
                             />
                           </th>
-                          <th className="px-3 py-3">Candidate</th>
-                          <th className="px-3 py-3">Current Role</th>
-                          <th className="px-3 py-3">Location</th>
-                          <th className="px-3 py-3">Experience</th>
-                          <th className="px-3 py-3">Top Skills</th>
-                          <th className="px-3 py-3">Tags</th>
-                          <th className="px-3 py-3">Match</th>
-                          <th className="px-3 py-3">Status</th>
+                          <th className="min-w-[160px] px-4 py-3">Candidate</th>
+                          <th className="min-w-[140px] px-4 py-3">Current Role</th>
+                          <th className="min-w-[140px] px-4 py-3">Location</th>
+                          <th className="w-[100px] px-4 py-3">Experience</th>
+                          <th className="min-w-[160px] px-4 py-3">Top Skills</th>
+                          <th className="min-w-[140px] px-4 py-3">Tags</th>
+                          <th className="w-[88px] px-4 py-3 text-center">Match</th>
+                          <th className="min-w-[120px] px-4 py-3">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -628,48 +676,68 @@ export default function ImportCandidatesModal({
                           return (
                             <tr
                               key={row.id}
-                              className={`cursor-pointer border-t border-[#E5E7EB] ${
-                                row.alreadyAdded ? "bg-[#F8FAFC] text-[#94A3B8]" : "hover:bg-[#F8FAFC]"
+                              className={`cursor-pointer border-b border-[#E5E7EB] transition-colors ${
+                                row.alreadyAdded
+                                  ? "bg-[#F8FAFC] text-[#94A3B8]"
+                                  : selected
+                                    ? "bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] hover:bg-[color-mix(in_srgb,var(--brand-primary)_10%,white)]"
+                                    : "bg-white hover:bg-[#F8FAFC]"
                               }`}
                               onClick={() => setPreview(row)}
                             >
-                              <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
-                                <input
-                                  type="checkbox"
+                              <td className="px-4 py-3.5 align-middle" onClick={(event) => event.stopPropagation()}>
+                                <ListTableCheckbox
+                                  size="sm"
                                   checked={selected}
                                   disabled={row.alreadyAdded}
                                   aria-label={`Select ${row.fullName}`}
                                   onChange={() => toggleId(row.id, row.alreadyAdded)}
                                 />
                               </td>
-                              <td className="px-3 py-3 font-medium text-[#0F172A]">
-                                <span className={row.alreadyAdded ? "text-[#94A3B8]" : ""}>{row.fullName}</span>
-                                {row.alreadyAdded ? (
-                                  <span className="ml-2 inline-flex rounded-full border border-[#CBD5E1] bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
-                                    Already Added
+                              <td className="px-4 py-3.5 align-middle">
+                                <div className="flex min-w-0 flex-col gap-1">
+                                  <span
+                                    className={`truncate font-medium ${
+                                      row.alreadyAdded ? "text-[#94A3B8]" : "text-[#111827]"
+                                    }`}
+                                    title={row.fullName}
+                                  >
+                                    {row.fullName}
                                   </span>
-                                ) : null}
+                                  {row.alreadyAdded ? (
+                                    <span className="inline-flex w-fit rounded-full border border-[#CBD5E1] bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
+                                      Already Added
+                                    </span>
+                                  ) : null}
+                                </div>
                               </td>
-                              <td className="px-3 py-3 text-[#475569]">{row.currentRole || "—"}</td>
-                              <td className="px-3 py-3 text-[#475569]">{row.location || "—"}</td>
-                              <td className="px-3 py-3 text-[#475569]">
+                              <td className="max-w-[180px] px-4 py-3.5 align-middle">
+                                <TruncatedCell value={row.currentRole} />
+                              </td>
+                              <td className="max-w-[160px] px-4 py-3.5 align-middle">
+                                <TruncatedCell value={row.location} />
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3.5 align-middle text-[#111827]">
                                 {row.yearsExperience != null ? `${row.yearsExperience} yrs` : "—"}
                               </td>
-                              <td className="px-3 py-3 text-[#475569]">
-                                {row.topSkills.slice(0, 3).join(", ") || "—"}
+                              <td className="px-4 py-3.5 align-middle">
+                                <ChipList values={row.topSkills} />
                               </td>
-                              <td className="px-3 py-3 text-[#475569]">{row.tags.slice(0, 3).join(", ") || "—"}</td>
-                              <td className="px-3 py-3">
+                              <td className="px-4 py-3.5 align-middle">
+                                <ChipList values={row.tags} />
+                              </td>
+                              <td className="px-4 py-3.5 align-middle text-center">
                                 <span
-                                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${matchBadgeClass(row.matchScore)}`}
+                                  className={`inline-flex min-w-[52px] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold ${matchBadgeClass(row.matchScore)}`}
                                 >
                                   {row.matchScore}%
                                 </span>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-4 py-3.5 align-middle">
                                 <span
-                                  className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+                                  className="inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
                                   style={{ backgroundColor: row.statusColor || "#64748B" }}
+                                  title={row.statusName}
                                 >
                                   {row.statusName}
                                 </span>

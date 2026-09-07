@@ -298,7 +298,7 @@ export function EditCandidatesFiltersModal({
                     onOpenChange(false);
                     onAdvancedSearch();
                   }}
-                  className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#374151] transition hover:bg-zinc-50"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 text-sm font-medium text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                 >
                   Map search
                 </button>
