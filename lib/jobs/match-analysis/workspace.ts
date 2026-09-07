@@ -53,6 +53,19 @@ export type QualificationDisplayStatus =
   | "Blocking"
   | "Unknown";
 
+export type QualificationRequirementLatestNote = {
+  id: string;
+  noteBody: string;
+  candidateQuestion: string | null;
+  dueDate: string | null;
+  verificationStatus: string;
+  candidateResponse: string | null;
+  createdByName: string;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type QualificationRequirement = {
   id: string;
   requirement_text: string;
@@ -66,6 +79,10 @@ export type QualificationRequirement = {
   confidence: number;
   recruiter_verified: boolean;
   recruiter_note: string | null;
+  verification_note_count?: number;
+  has_pending_verification_note?: boolean;
+  has_verification_decision?: boolean;
+  latest_verification_note?: QualificationRequirementLatestNote | null;
 };
 
 export function isRecruiterDecision(value: string | null | undefined): value is RecruiterDecision {
@@ -264,9 +281,24 @@ export function filterQualificationRequirements(
 export function recruiterActionLabel(req: QualificationRequirement): string {
   if (req.recruiter_verified) return "None";
   const display = qualificationDisplayStatus(req);
-  if (display === "Needs Verification" || display === "Unknown") return "Ask candidate";
+  if (display === "Needs Verification" || display === "Unknown") {
+    if (req.has_pending_verification_note) return "Follow up";
+    if ((req.verification_note_count ?? 0) > 0) return "Review notes";
+    return "Ask candidate";
+  }
   if (display === "Not Met" || display === "Blocking") return "Verify or stop";
   return "None";
+}
+
+export function requirementNeedsVerificationNotes(
+  req: Pick<
+    QualificationRequirement,
+    "status" | "requirement_outcome" | "verification_required" | "recruiter_verified"
+  >,
+  blockingTexts: string[] = []
+): boolean {
+  const display = qualificationDisplayStatus(req, blockingTexts);
+  return display === "Needs Verification" || display === "Unknown";
 }
 
 export function formatRecruiterDecision(value: string | null | undefined): string {

@@ -8,6 +8,8 @@ import {
   type RecruiterDecision,
   type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { VerificationNote, VerificationNoteDraft } from "@/lib/jobs/match-analysis/verification-notes";
+import { summarizeRequirementNotes } from "@/lib/jobs/match-analysis/verification-notes";
 
 export type ScreeningQuestionView = {
   id: string;
@@ -55,6 +57,15 @@ export type MatchAnalysisWorkspacePayload = {
     verifiedByName: string;
   }>;
   notes?: Array<{ id: string; body: string; created_at: string; author_name: string }>;
+  verificationNotes?: VerificationNote[];
+  verificationNoteAudit?: Array<{
+    id: string;
+    noteId: string;
+    requirementId: string;
+    action: string;
+    actorName: string;
+    createdAt: string;
+  }>;
   analysisHistory?: Array<{
     id: string;
     version: number;
@@ -136,6 +147,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [workerId, setWorkerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileSummary | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [savingVerificationNote, setSavingVerificationNote] = useState(false);
+  const [busyVerificationNoteId, setBusyVerificationNoteId] = useState<string | null>(null);
   const [jobAnswers, setJobAnswers] = useState<Record<string, string>>({});
   const [recommendedAnswers, setRecommendedAnswers] = useState<Record<string, string>>({});
   const [savingAnswers, setSavingAnswers] = useState(false);
@@ -307,7 +320,43 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
+  function applyVerificationNotesToRequirements(
+    requirements: QualificationRequirement[],
+    notes: VerificationNote[]
+  ): QualificationRequirement[] {
+    const summaries = summarizeRequirementNotes(notes);
+    return requirements.map((item) => {
+      const summary = summaries.get(item.id);
+      return {
+        ...item,
+        verification_note_count: summary?.noteCount ?? 0,
+        has_pending_verification_note: summary?.hasPending ?? false,
+        has_verification_decision: summary?.hasDecision ?? false,
+        latest_verification_note: summary?.latestNote
+          ? {
+              id: summary.latestNote.id,
+              noteBody: summary.latestNote.noteBody,
+              candidateQuestion: summary.latestNote.candidateQuestion,
+              dueDate: summary.latestNote.dueDate,
+              verificationStatus: summary.latestNote.verificationStatus,
+              candidateResponse: summary.latestNote.candidateResponse,
+              createdByName: summary.latestNote.createdByName,
+              updatedByName: summary.latestNote.updatedByName,
+              createdAt: summary.latestNote.createdAt,
+              updatedAt: summary.latestNote.updatedAt,
+            }
+          : null,
+      };
+    });
+  }
+
   async function toggleVerified(req: QualificationRequirement) {
+    if (!req.recruiter_verified && !req.has_verification_decision) {
+      toast.error(
+        "Record a verification decision (Verified or Rejected) on a note before marking Confirmed."
+      );
+      return;
+    }
     setVerifyingId(req.id);
     try {
       const res = await fetch(
@@ -341,6 +390,150 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     } finally {
       setVerifyingId(null);
     }
+  }
+
+  function notesUrl(requirementId: string, noteId?: string) {
+    const base = `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis/requirements/${encodeURIComponent(requirementId)}/notes`;
+    return noteId ? `${base}/${encodeURIComponent(noteId)}` : base;
+  }
+
+  async function createVerificationNote(
+    requirementId: string,
+    draft: VerificationNoteDraft
+  ): Promise<boolean> {
+    setSavingVerificationNote(true);
+    try {
+      const res = await fetch(notesUrl(requirementId), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteBody: draft.noteBody,
+          candidateQuestion: draft.candidateQuestion || null,
+          dueDate: draft.dueDate || null,
+          verificationStatus: draft.verificationStatus,
+          candidateResponse: draft.candidateResponse || null,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to save verification note");
+      const note = json.note as VerificationNote;
+      setData((current) => {
+        if (!current) return current;
+        const verificationNotes = [note, ...(current.verificationNotes ?? [])];
+        return {
+          ...current,
+          verificationNotes,
+          requirements: applyVerificationNotesToRequirements(
+            current.requirements,
+            verificationNotes
+          ),
+        };
+      });
+      toast.success("Verification note saved");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save verification note");
+      return false;
+    } finally {
+      setSavingVerificationNote(false);
+    }
+  }
+
+  async function updateVerificationNote(
+    requirementId: string,
+    noteId: string,
+    draft: VerificationNoteDraft
+  ): Promise<boolean> {
+    setBusyVerificationNoteId(noteId);
+    setSavingVerificationNote(true);
+    try {
+      const res = await fetch(notesUrl(requirementId, noteId), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteBody: draft.noteBody,
+          candidateQuestion: draft.candidateQuestion || null,
+          dueDate: draft.dueDate || null,
+          verificationStatus: draft.verificationStatus,
+          candidateResponse: draft.candidateResponse || null,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to update verification note");
+      const note = json.note as VerificationNote;
+      setData((current) => {
+        if (!current) return current;
+        const verificationNotes = (current.verificationNotes ?? []).map((item) =>
+          item.id === noteId ? note : item
+        );
+        return {
+          ...current,
+          verificationNotes,
+          requirements: applyVerificationNotesToRequirements(
+            current.requirements,
+            verificationNotes
+          ),
+        };
+      });
+      toast.success("Verification note updated");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update verification note");
+      return false;
+    } finally {
+      setBusyVerificationNoteId(null);
+      setSavingVerificationNote(false);
+    }
+  }
+
+  async function deleteVerificationNote(requirementId: string, noteId: string): Promise<boolean> {
+    if (!window.confirm("Delete this verification note? Prior versions remain in the audit trail.")) {
+      return false;
+    }
+    setBusyVerificationNoteId(noteId);
+    setSavingVerificationNote(true);
+    try {
+      const res = await fetch(notesUrl(requirementId, noteId), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to delete verification note");
+      setData((current) => {
+        if (!current) return current;
+        const verificationNotes = (current.verificationNotes ?? []).filter(
+          (item) => item.id !== noteId
+        );
+        return {
+          ...current,
+          verificationNotes,
+          requirements: applyVerificationNotesToRequirements(
+            current.requirements,
+            verificationNotes
+          ),
+        };
+      });
+      toast.success("Verification note deleted");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete verification note");
+      return false;
+    } finally {
+      setBusyVerificationNoteId(null);
+      setSavingVerificationNote(false);
+    }
+  }
+
+  async function markNoteSentToCandidate(note: VerificationNote): Promise<boolean> {
+    return updateVerificationNote(note.requirementId, note.id, {
+      noteBody: note.noteBody,
+      candidateQuestion: note.candidateQuestion ?? "",
+      dueDate: note.dueDate ?? "",
+      verificationStatus: "sent_to_candidate",
+      candidateResponse: note.candidateResponse ?? "",
+    });
   }
 
   async function saveScreeningAnswers() {
@@ -548,6 +741,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     status,
     isAnalyzed,
     verifyingId,
+    savingVerificationNote,
+    busyVerificationNoteId,
     jobAnswers,
     setJobAnswers,
     recommendedAnswers,
@@ -580,6 +775,10 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     load,
     runAnalyze,
     toggleVerified,
+    createVerificationNote,
+    updateVerificationNote,
+    deleteVerificationNote,
+    markNoteSentToCandidate,
     saveScreeningAnswers,
     recordDecision,
     addVerified,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CandidatesListShell } from "./CandidatesListShell";
 import { ListTableCheckbox } from "./ListTableCheckbox";
@@ -26,15 +26,13 @@ import {
 import { CandidateGridCard } from "../candidates/CandidateGridCard";
 import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
-import { buildCandidateKpis } from "../candidates/candidate-kpis";
+import { CandidatesListSkeleton } from "../candidates/CandidatesListSkeleton";
+import { useCandidateKpiMetrics } from "../candidates/useCandidateKpiMetrics";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
-import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
-import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
-import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
-  fetchAllWorkersFromApi,
-  resolveCandidatesListTotal,
+  fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
+import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
@@ -48,7 +46,6 @@ import {
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   formatCityStateFromParts,
-  locationsMatchCityState,
   uniqueCityStateOptions,
 } from "@/lib/location/city-state";
 import toast from "react-hot-toast";
@@ -132,7 +129,8 @@ function formatDateShort(iso: string | null) {
   });
 }
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = DEFAULT_CANDIDATES_PAGE_SIZE;
+const SEARCH_DEBOUNCE_MS = 300;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 
 function pickFirstNonEmpty(values: Array<string | null | undefined>): string {
@@ -207,9 +205,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [clientNameFilter, setClientNameFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -220,6 +218,17 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const pipelineStatus = useMemo(() => {
+    try {
+      return new URL(fetchUrl, "http://localhost").searchParams.get("status")?.trim() || "";
+    } catch {
+      return "";
+    }
+  }, [fetchUrl]);
+  const { kpiCards, refresh: refreshKpis } = useCandidateKpiMetrics({
+    status: pipelineStatus || undefined,
+  });
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
@@ -237,14 +246,33 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     setListColumnOrder(loadColumnOrder());
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const loadCandidates = useCallback(async () => {
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     setLoading(true);
     try {
-      const baseUrl = fetchUrl.includes("includePhotoUrls=")
-        ? fetchUrl
-        : `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}includePhotoUrls=1`;
-
-      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(baseUrl);
+      const { workers: rows, total } = await fetchWorkersPageFromApi<WorkerProfile>(
+        fetchUrl,
+        {
+          page,
+          pageSize,
+          q: debouncedQuery || undefined,
+          jobRole: jobRoleFilter || undefined,
+          location: locationFilter || undefined,
+          appliedFrom: appliedDateFrom || undefined,
+          appliedTo: appliedDateTo || undefined,
+          matchScore: matchScoreFilter || undefined,
+          progressStatusId: progressStatusFilter || undefined,
+          includePhotoUrls: true,
+        },
+        { signal: controller.signal }
+      );
       setTotalFromApi(total);
 
       const mapped: CandidateRow[] = rows.map((item) => {
@@ -281,18 +309,31 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       });
 
       setCandidates(mapped);
-      setPage(1);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [fetchUrl, statusLabel]);
+  }, [
+    fetchUrl,
+    statusLabel,
+    page,
+    pageSize,
+    debouncedQuery,
+    jobRoleFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+    matchScoreFilter,
+    progressStatusFilter,
+  ]);
 
   useEffect(() => {
     void loadCandidates();
+    return () => loadAbortRef.current?.abort();
   }, [loadCandidates]);
 
   const jobRoleOptions = useMemo(() => {
@@ -307,15 +348,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     return uniqueCityStateOptions(
       candidates.map((c) => formatCityStateFromParts(c.city, c.state))
     );
-  }, [candidates]);
-
-  const clientNameOptions = useMemo(() => {
-    const names = new Set<string>();
-    for (const c of candidates) {
-      const name = c.applicationClientName?.trim();
-      if (name) names.add(name);
-    }
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -335,102 +367,23 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     [progressStatusOptions]
   );
 
-  const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
-
-  const filtered = useMemo(() => {
-    let out = candidates;
-    const q = query.trim();
-    if (q) {
-      out = out.filter((c) => matchesCandidateListSearch(c, q));
-    }
-    if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
-    if (statusFilter) out = out.filter((c) => c.status === statusFilter);
-    if (progressStatusFilter) {
-      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
-    }
-    if (matchScoreFilter) {
-      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
-    }
-    if (locationFilter) {
-      out = out.filter((c) =>
-        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
-      );
-    }
-    if (clientNameFilter) {
-      out = out.filter((c) => (c.applicationClientName?.trim() || "") === clientNameFilter);
-    }
-    if (appliedDateFrom || appliedDateTo) {
-      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
-    }
-    return out;
-  }, [
-    candidates,
-    query,
-    jobRoleFilter,
-    statusFilter,
-    progressStatusFilter,
-    matchScoreFilter,
-    locationFilter,
-    clientNameFilter,
-    appliedDateFrom,
-    appliedDateTo,
-  ]);
-
-  const hasActiveListFilters = useMemo(
-    () =>
-      Boolean(
-        query.trim() ||
-          jobRoleFilter ||
-          statusFilter ||
-          progressStatusFilter ||
-          matchScoreFilter ||
-          locationFilter ||
-          clientNameFilter ||
-          appliedDateFrom ||
-          appliedDateTo
-      ),
-    [
-      query,
-      jobRoleFilter,
-      statusFilter,
-      progressStatusFilter,
-      matchScoreFilter,
-      locationFilter,
-      clientNameFilter,
-      appliedDateFrom,
-      appliedDateTo,
-    ]
-  );
-
-  const listDisplayTotal = useMemo(
-    () =>
-      resolveCandidatesListTotal({
-        totalFromApi,
-        visibleCount: filtered.length,
-        hasClientFilters: hasActiveListFilters,
-      }),
-    [totalFromApi, filtered.length, hasActiveListFilters]
-  );
+  const listDisplayTotal = totalFromApi ?? candidates.length;
 
   useEffect(() => {
     setPage(1);
   }, [
-    query,
+    debouncedQuery,
     jobRoleFilter,
     statusFilter,
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
-    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
     pageSize,
   ]);
 
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
+  const paginated = candidates;
 
   const pageSelectableRows = useMemo(
     () =>
@@ -464,7 +417,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusFilter,
         matchScoreFilter,
         locationFilter,
-        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
       ].join("|"),
@@ -477,7 +429,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
-      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -494,10 +445,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   );
 
   const exportCandidates = useMemo(() => {
-    if (selection.selectedCount === 0) return filtered;
-    const selected = filtered.filter((row) => selection.selectedIds.has(row.id));
-    return selected.length > 0 ? selected : filtered;
-  }, [filtered, selection.selectedCount, selection.selectedIds]);
+    if (selection.selectedCount === 0) return candidates;
+    const selected = candidates.filter((row) => selection.selectedIds.has(row.id));
+    return selected.length > 0 ? selected : candidates;
+  }, [candidates, selection.selectedCount, selection.selectedIds]);
 
   const handleExportCandidatesCsv = useCallback(() => {
     if (exportCandidates.length === 0) {
@@ -682,13 +633,14 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       <CandidatesListShell
         query={query}
         onQueryChange={setQuery}
-        onRefresh={() => void loadCandidates()}
+        onRefresh={() => {
+          void loadCandidates();
+          refreshKpis();
+        }}
         jobRoleFilter={jobRoleFilter}
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
-        clientNameFilter={clientNameFilter}
-        onClientNameFilterChange={setClientNameFilter}
         appliedDateFrom={appliedDateFrom}
         appliedDateTo={appliedDateTo}
         onAppliedDateFromChange={setAppliedDateFrom}
@@ -703,7 +655,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
-        clientNameOptions={clientNameOptions}
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates
@@ -724,9 +675,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           const formatDate = formatDateShort;
 
           if (loading) {
-            return null;
+            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
           }
-          if (filtered.length === 0) {
+          if (candidates.length === 0) {
             return <div className="py-24 text-center text-gray-600">{emptyMessage}</div>;
           }
 

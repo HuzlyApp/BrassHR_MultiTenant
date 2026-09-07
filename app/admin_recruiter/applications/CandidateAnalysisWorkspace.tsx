@@ -251,6 +251,12 @@ export function CandidateAnalysisWorkspace({
   }
 
   async function toggleVerified(req: QualificationRequirement) {
+    if (!req.recruiter_verified && !req.has_verification_decision) {
+      toast.error(
+        "Record a verification decision (Verified or Rejected) on a note before marking Confirmed."
+      );
+      return;
+    }
     setVerifyingId(req.id);
     try {
       const res = await fetch(
@@ -545,6 +551,7 @@ export function CandidateAnalysisWorkspace({
             )}
           </section>
           <QualificationChecklist
+            applicationId={applicationId}
             requirements={data?.requirements ?? []}
             blockingTexts={blocking}
             verifyingId={verifyingId}
