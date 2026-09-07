@@ -149,6 +149,9 @@ describe("parseAndValidateMatchAnalysis", () => {
           evidence: "",
         },
       ],
+      strengths: ["2 years ICU at Memorial with dated ownership evidence."],
+      gaps_and_risks: ["TX RN license state/expiry not documented."],
+      resume_authenticity: "Low concern",
       screening_questions: ["Confirm TX compact license status.", "Verify ICU unit type."],
       items_to_verify: ["Work authorization"],
       blocking_requirements: [],
@@ -159,6 +162,7 @@ describe("parseAndValidateMatchAnalysis", () => {
       expect(parsed.data.candidate_match.match_category).toBe("POSSIBLE_MATCH");
       expect(parsed.data.candidate_match.recommended_action).toBe("CALL_AND_VERIFY");
       expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(68);
+      expect(parsed.data.candidate_match.recruiter_decision_summary).toContain("Low concern");
       expect(parsed.data.mandatory_requirements).toHaveLength(2);
       expect(parsed.data.mandatory_requirements[0]?.candidate_evidence).toContain("RN license");
       expect(parsed.data.mandatory_requirements[0]?.requirement_outcome).toBe("VERIFY");
@@ -168,8 +172,13 @@ describe("parseAndValidateMatchAnalysis", () => {
       expect(parsed.data.submission_readiness.items_to_verify_before_submission).toEqual([
         "Work authorization",
       ]);
-      expect(parsed.data.strengths).toEqual([]);
-      expect(parsed.data.gaps_and_risks).toEqual([]);
+      expect(parsed.data.strengths).toEqual([
+        "2 years ICU at Memorial with dated ownership evidence.",
+      ]);
+      expect(parsed.data.gaps_and_risks).toEqual([
+        "TX RN license state/expiry not documented.",
+      ]);
+      expect(parsed.data.data_quality.resume_conflicts).toEqual(["Low concern"]);
     }
   });
 });
