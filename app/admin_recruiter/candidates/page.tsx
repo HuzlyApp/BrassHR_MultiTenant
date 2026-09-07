@@ -40,6 +40,8 @@ import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-ce
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { skillsPresentInHaystack } from "@/lib/jobs/candidate-import-match";
 import {
   candidateMatchesJobTitleFilter,
   getCandidateJobTitleOptions,
@@ -77,6 +79,11 @@ import {
   resolveCandidatesListTotal,
 } from "@/lib/workers/candidates-list-fetch";
 import toast from "react-hot-toast";
+import {
+  formatCityStateFromParts,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
 
@@ -111,6 +118,7 @@ type WorkerProfile = {
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
+  application_client_name?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -230,6 +238,7 @@ export default function CandidatesPage() {
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [clientNameFilter, setClientNameFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -392,6 +401,7 @@ export default function CandidatesPage() {
           applicationJobTitle: item.application_job_title ?? null,
           applicationJobTitlesText: item.application_job_titles_text ?? null,
           applicationSearchText: item.application_search_text ?? null,
+          applicationClientName: item.application_client_name ?? null,
           email,
           phone,
           address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -435,6 +445,7 @@ export default function CandidatesPage() {
         applicationJobTitle: item.application_job_title ?? null,
         applicationJobTitlesText: item.application_job_titles_text ?? null,
         applicationSearchText: item.application_search_text ?? null,
+        applicationClientName: item.application_client_name ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -482,12 +493,18 @@ export default function CandidatesPage() {
   }, [candidates]);
 
   const locationOptions = useMemo(() => {
-    const s = new Set<string>();
+    return uniqueCityStateOptions(
+      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
+    );
+  }, [candidates]);
+
+  const clientNameOptions = useMemo(() => {
+    const names = new Set<string>();
     for (const c of candidates) {
-      const loc = [c.city, c.state].filter(Boolean).join(", ");
-      if (loc) s.add(loc);
+      const name = c.applicationClientName?.trim();
+      if (name) names.add(name);
     }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -529,8 +546,8 @@ export default function CandidatesPage() {
     if (q) {
       out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
-    const skills = skillsFilter.trim().toLowerCase();
-    if (skills) {
+    const skillTags = parseSkillsFilterParam(skillsFilter);
+    if (skillTags.length) {
       out = out.filter((c) => {
         const hay = [
           c.role,
@@ -542,7 +559,7 @@ export default function CandidatesPage() {
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
-        return hay.includes(skills);
+        return skillsPresentInHaystack(hay, skillTags);
       });
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
@@ -556,7 +573,12 @@ export default function CandidatesPage() {
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
     if (locationFilter) {
-      out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
+      out = out.filter((c) =>
+        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
+      );
+    }
+    if (clientNameFilter) {
+      out = out.filter((c) => (c.applicationClientName?.trim() || "") === clientNameFilter);
     }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
@@ -573,6 +595,7 @@ export default function CandidatesPage() {
     stageFilter,
     matchScoreFilter,
     locationFilter,
+    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
   ]);
@@ -596,6 +619,7 @@ export default function CandidatesPage() {
           stageFilter ||
           matchScoreFilter ||
           locationFilter ||
+          clientNameFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
@@ -609,6 +633,7 @@ export default function CandidatesPage() {
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -631,7 +656,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, skillsFilter, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, clientNameFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -674,6 +699,7 @@ export default function CandidatesPage() {
         page,
         pageSize,
         query,
+        skillsFilter,
         jobRoleFilter,
         statusFilter,
         progressStatusFilter,
@@ -681,6 +707,7 @@ export default function CandidatesPage() {
         stageFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
         advancedSearchContext.active ? "adv" : "std",
@@ -689,6 +716,7 @@ export default function CandidatesPage() {
       page,
       pageSize,
       query,
+      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
@@ -696,6 +724,7 @@ export default function CandidatesPage() {
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
       advancedSearchContext.active,
@@ -922,6 +951,8 @@ export default function CandidatesPage() {
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
+        clientNameFilter={clientNameFilter}
+        onClientNameFilterChange={setClientNameFilter}
         appliedDateFrom={appliedDateFrom}
         appliedDateTo={appliedDateTo}
         onAppliedDateFromChange={setAppliedDateFrom}
@@ -942,10 +973,12 @@ export default function CandidatesPage() {
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
+        clientNameOptions={clientNameOptions}
         kpiCards={kpiCards}
         layoutVariant="all-candidates"
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
+        onSkillsFilterChange={setSkillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
           setQuery(nextQuery);
           setSkillsFilter(nextSkills);
@@ -1156,7 +1189,7 @@ export default function CandidatesPage() {
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 px-4 py-5 sm:gap-5 sm:px-5 sm:py-6 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
                 <CandidateGridCard
                   key={c.id}
@@ -1307,11 +1340,19 @@ export default function CandidatesPage() {
               id="match-existing-job"
               value={matchJobPickerValue}
               onChange={(event) => setMatchJobPickerValue(event.target.value)}
-              className="mt-1.5 h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
+              className="mt-1.5 h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-sm font-normal leading-6 text-[#111827] outline-none hover:bg-zinc-50 focus:border-[color:var(--brand-primary)]"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                )}")`,
+                color: "#111827",
+              }}
             >
-              <option value="">Select a job</option>
+              <option value="" className="text-[#111827]">
+                Select a job
+              </option>
               {addCandidateJobOptions.map((option) => (
-                <option key={option.id} value={option.id}>
+                <option key={option.id} value={option.id} className="text-[#111827]">
                   {option.title}
                 </option>
               ))}

@@ -443,6 +443,7 @@ export function JobFormStepRequisition({
             required
             value={job.location ?? ""}
             onChange={(next) => onJobChange("location", next)}
+            onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
             placeholder="Search city, area, or address"
             error={fieldErrors.location}
           />
@@ -853,7 +854,8 @@ export function JobFormStepMspDetails({
             onJobChange("facility", next);
             onJobChange("location", next);
           }}
-          placeholder="Search address, city, state, zip"
+          onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
+          placeholder="Search city, area, or address"
           error={fieldErrors.location}
         />
       </div>

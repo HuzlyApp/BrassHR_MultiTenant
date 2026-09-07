@@ -65,6 +65,7 @@ const initialJob: JobRequisitionInput = {
   publicTitle: "",
   publicDescription: "",
   location: "",
+  postalCode: null,
   employerOfRecord: null,
 };
 

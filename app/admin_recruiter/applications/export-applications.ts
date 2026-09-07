@@ -50,6 +50,15 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
     { header: "Email", value: (row) => resolveApplicationApplicantEmail(row) },
     { header: "Phone", value: (row) => resolveApplicationApplicantPhone(row) },
     { header: "Location", value: (row) => resolveApplicationApplicantLocation(row) },
+    {
+      header: "Client Name",
+      value: (row) => {
+        const job = oneEmbedded(row.job_requisitions);
+        const source = String(job.source_type ?? "").trim().toLowerCase();
+        if (source !== "msp") return "—";
+        return String(job.msp_name ?? "").trim() || "—";
+      },
+    },
     { header: "Match %", value: (row) => matchPercent(row) },
     {
       header: "Conf.",

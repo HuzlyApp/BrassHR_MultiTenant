@@ -22,6 +22,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
     { header: columnLabel("email"), value: (row) => row.email || "—" },
     { header: columnLabel("phone"), value: (row) => row.phone || "—" },
   ],
+  clientName: {
+    header: columnLabel("clientName"),
+    value: (row) => row.applicationClientName?.trim() || "—",
+  },
   status: { header: columnLabel("status"), value: (row) => row.status },
   progressStatus: {
     header: columnLabel("progressStatus"),

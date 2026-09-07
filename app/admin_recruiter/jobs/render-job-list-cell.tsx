@@ -12,6 +12,7 @@ import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
 import { JobPublicViewLink } from "./JobPublicViewLink"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
+import { formatCityState } from "@/lib/location/city-state"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
   "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
@@ -227,13 +228,14 @@ export function jobHiredCandidatesHref(jobId: string): string {
 }
 
 export function jobLocation(job: JobListRow): string {
-  return (
+  const raw =
     job.location?.trim() ||
     job.facility_name?.trim() ||
     job.facility?.trim() ||
-    relationName(job.specialties) ||
-    "—"
-  )
+    ""
+  if (!raw) return "—"
+  // Never fall back to raw Mapbox/junk strings in list UI or filters.
+  return formatCityState(raw) || "—"
 }
 
 export function jobPlacementType(job: JobListRow): string {

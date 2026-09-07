@@ -78,7 +78,6 @@ export default function JobsPortalClient() {
   const [locationDraft, setLocationDraft] = useState(boardState.location);
   const [selectedToken, setSelectedToken] = useState<string | null>(boardState.job);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(boardState.panel === "detail");
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -376,70 +375,15 @@ export default function JobsPortalClient() {
     >
       <header className="shrink-0 border-b border-slate-200/80 bg-white">
         <div className="h-1 w-full" style={{ backgroundColor: primaryHex }} />
-        <div className="mx-auto w-full max-w-[1440px] px-4 py-3 sm:px-6 min-[1280px]:px-8">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]">
-                {companyName}
-              </p>
-              <h1 className="mt-0.5 text-lg font-semibold text-slate-900 sm:text-xl">Open positions</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Find a published role that matches your background.</p>
-            </div>
-            <button
-              type="button"
-              data-testid="jobs-mobile-search-toggle"
-              aria-expanded={mobileSearchOpen}
-              aria-controls="jobs-board-filters"
-              onClick={() => setMobileSearchOpen((open) => !open)}
-              className={`relative inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:hidden ${
-                mobileSearchOpen
-                  ? "border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[color:var(--brand-primary)]"
-                  : hasActiveFilters
-                    ? "border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] bg-white text-[color:var(--brand-primary)]"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-              }`}
-            >
-              {mobileSearchOpen ? (
-                <>
-                  <span aria-hidden>×</span>
-                  Hide
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    aria-hidden
-                    className="shrink-0"
-                  >
-                    <path
-                      d="M2.5 4.5H13.5M4.5 8H11.5M6.5 11.5H9.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  Search
-                </>
-              )}
-              {hasActiveFilters && !mobileSearchOpen ? (
-                <span
-                  className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)] ring-2 ring-white"
-                  aria-hidden
-                />
-              ) : null}
-              <span className="sr-only">
-                {mobileSearchOpen ? "Hide search and filters" : "Show search and filters"}
-              </span>
-            </button>
+        <div className="mx-auto w-full max-w-[1440px] px-3 py-3 sm:px-4 lg:px-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]">
+              {companyName}
+            </p>
+            <h1 className="mt-0.5 text-lg font-semibold text-slate-900 sm:text-xl">Open positions</h1>
+            <p className="mt-0.5 text-sm text-slate-500">Find a published role that matches your background.</p>
           </div>
-          <div
-            id="jobs-board-filters"
-            className={`mt-3 ${mobileSearchOpen ? "block" : "hidden"} lg:block`}
-          >
+          <div id="jobs-board-filters" className="mt-3">
             <JobsBoardFilters
               query={queryDraft}
               location={locationDraft}
@@ -457,7 +401,6 @@ export default function JobsPortalClient() {
               onLocationTypeChange={(value) => replaceBoardUrl({ locationType: value, page: 1 })}
               onSearch={() => {
                 replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 });
-                if (!isDesktop) setMobileSearchOpen(false);
               }}
               onClearSecondary={clearSecondary}
               onRemoveChip={removeChip}
@@ -466,7 +409,7 @@ export default function JobsPortalClient() {
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col px-3 py-3 sm:px-6 min-[1280px]:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col px-3 py-3 sm:px-4 lg:px-5">
         {error ? (
           <div
             role="alert"

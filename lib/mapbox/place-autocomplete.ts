@@ -1,4 +1,6 @@
 import type { MapboxGeocodeFeature } from "@/lib/mapbox/parse-mapbox-feature"
+import { parseAddressComponentsFromFeature } from "@/lib/mapbox/parse-mapbox-feature"
+import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state"
 
 /** Minimum characters before requesting Mapbox place suggestions for job locations. */
 export const PLACE_AUTOCOMPLETE_MIN_LENGTH = 3
@@ -10,13 +12,37 @@ export const PLACE_AUTOCOMPLETE_ERROR_MESSAGE =
 
 export type PlaceSuggestion = {
   id: string
+  /** Full Mapbox place_name (identity / fallback). */
   placeName: string
+  /**
+   * Picklist + committed form value: street/area, city, full state name.
+   * ZIP and country are omitted.
+   */
+  displayLabel: string
+  /** ZIP when Mapbox/context or place_name includes one. */
+  zipCode: string | null
   coordinates: { lat: number; lng: number }
   placeType: string | null
 }
 
 export function shouldRequestPlaceAutocomplete(query: string): boolean {
   return query.trim().length >= PLACE_AUTOCOMPLETE_MIN_LENGTH
+}
+
+function resolveDisplayLabelAndZip(feature: MapboxGeocodeFeature): {
+  displayLabel: string
+  zipCode: string | null
+} {
+  const placeName =
+    typeof feature.place_name === "string" ? feature.place_name.trim() : ""
+  const fromPlaceName = normalizeJobFormLocationForStorage(placeName)
+  const components = parseAddressComponentsFromFeature(feature)
+  const zipFromContext = components.zipCode?.replace(/\D/g, "").slice(0, 5) || null
+
+  return {
+    displayLabel: fromPlaceName.location || placeName,
+    zipCode: zipFromContext || fromPlaceName.zipCode || null,
+  }
 }
 
 export function parsePlaceFeatures(features: MapboxGeocodeFeature[]): PlaceSuggestion[] {
@@ -35,12 +61,16 @@ export function parsePlaceFeatures(features: MapboxGeocodeFeature[]): PlaceSugge
       ? ((feature as { place_type?: string[] }).place_type?.[0] ?? null)
       : null
 
+    const { displayLabel, zipCode } = resolveDisplayLabelAndZip(feature)
+
     suggestions.push({
       id:
         typeof feature.id === "string" && feature.id.trim()
           ? feature.id
           : `${placeName}:${lng},${lat}`,
       placeName,
+      displayLabel,
+      zipCode,
       coordinates: { lat, lng },
       placeType,
     })

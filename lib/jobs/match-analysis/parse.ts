@@ -89,6 +89,9 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
   const blocking = lean.blocking_requirements.filter(Boolean);
   const itemsToVerify = lean.items_to_verify.filter(Boolean);
   const knockout = lean.match_category === "NOT_CURRENTLY_SUBMITTABLE" || blocking.length > 0;
+  const strengths = lean.strengths.map((item) => item.trim()).filter(Boolean).slice(0, 5);
+  const gaps = lean.gaps_and_risks.map((item) => item.trim()).filter(Boolean).slice(0, 5);
+  const authenticity = lean.resume_authenticity.trim();
 
   return matchAnalysisResponseSchema.parse({
     analysis_version: "1.0",
@@ -99,7 +102,7 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
       confidence_score: 0,
       mandatory_requirement_override: knockout,
       recommended_action: lean.recommended_action,
-      recruiter_decision_summary: "",
+      recruiter_decision_summary: authenticity ? `Resume authenticity: ${authenticity}` : "",
     },
     mandatory_requirements: lean.mandatory_requirements.map((item) =>
       expandLeanRequirement(item, "MANDATORY")
@@ -107,6 +110,8 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
     preferred_requirements: lean.preferred_requirements.map((item) =>
       expandLeanRequirement(item, "PREFERRED")
     ),
+    strengths,
+    gaps_and_risks: gaps,
     screening_questions: lean.screening_questions
       .map((question) => question.trim())
       .filter(Boolean)
@@ -128,6 +133,15 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
       documents_or_credentials_needed: [],
       blocking_requirements: blocking,
     },
+    data_quality: authenticity
+      ? {
+          resume_completeness: "MODERATE",
+          job_description_completeness: "MODERATE",
+          job_description_conflicts: [],
+          resume_conflicts: [authenticity],
+          missing_information: [],
+        }
+      : undefined,
   });
 }
 
@@ -162,6 +176,13 @@ function coerceLeanAnalyzeShape(obj: Record<string, unknown>): Record<string, un
 
   next.mandatory_requirements = mapRequirements(next.mandatory_requirements);
   next.preferred_requirements = mapRequirements(next.preferred_requirements);
+  next.strengths = asStringList(next.strengths).slice(0, 5);
+  next.gaps_and_risks = asStringList(next.gaps_and_risks).slice(0, 5);
+  if (typeof next.resume_authenticity !== "string") {
+    next.resume_authenticity = "";
+  } else {
+    next.resume_authenticity = next.resume_authenticity.trim();
+  }
   next.screening_questions = asScreeningQuestionStrings(next.screening_questions);
   next.items_to_verify = asStringList(next.items_to_verify);
   next.blocking_requirements = asStringList(next.blocking_requirements);

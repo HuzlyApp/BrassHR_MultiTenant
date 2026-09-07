@@ -497,6 +497,7 @@ export async function GET(req: Request) {
                       application_status_key: summary.systemKey,
                       application_status_ambiguous: summary.ambiguous,
                       application_job_title: summary.jobTitle,
+                      application_client_name: summary.clientName,
                     }
                   : {}),
                 ...(applicationJobTitlesText

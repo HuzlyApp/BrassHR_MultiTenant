@@ -20,6 +20,7 @@ import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-se
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandidatesToolbar";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -60,8 +61,11 @@ export type CandidatesListShellProps = {
   stageOptions?: string[];
   matchScoreFilter?: string;
   onMatchScoreFilterChange?: (value: string) => void;
+  clientNameFilter?: string;
+  onClientNameFilterChange?: (value: string) => void;
   jobRoleOptions: string[];
   locationOptions: string[];
+  clientNameOptions?: string[];
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
@@ -99,6 +103,7 @@ export type CandidatesListShellProps = {
   /** Figma All Candidates layout: split search, icon filters, Match Existing. */
   layoutVariant?: "default" | "all-candidates";
   skillsFilter?: string;
+  onSkillsFilterChange?: (value: string) => void;
   onApplySearch?: (next: { query: string; skillsFilter: string }) => void;
   onResetSearch?: () => void;
   onMatchExistingCandidate?: () => void;
@@ -307,8 +312,11 @@ export function CandidatesListShell({
   stageOptions = [],
   matchScoreFilter: matchScoreFilterProp,
   onMatchScoreFilterChange,
+  clientNameFilter: clientNameFilterProp,
+  onClientNameFilterChange,
   jobRoleOptions,
   locationOptions,
+  clientNameOptions = [],
   view,
   onViewChange,
   onEditColumns,
@@ -338,6 +346,7 @@ export function CandidatesListShell({
   toolbarAddCandidateButton,
   layoutVariant = "default",
   skillsFilter = "",
+  onSkillsFilterChange,
   onApplySearch,
   onResetSearch,
   onMatchExistingCandidate,
@@ -358,6 +367,9 @@ export function CandidatesListShell({
   const [internalMatchScoreFilter, setInternalMatchScoreFilter] = useState("");
   const matchScoreFilter = matchScoreFilterProp ?? internalMatchScoreFilter;
   const setMatchScoreFilter = onMatchScoreFilterChange ?? setInternalMatchScoreFilter;
+  const [internalClientNameFilter, setInternalClientNameFilter] = useState("");
+  const clientNameFilter = clientNameFilterProp ?? internalClientNameFilter;
+  const setClientNameFilter = onClientNameFilterChange ?? setInternalClientNameFilter;
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
@@ -373,6 +385,8 @@ export function CandidatesListShell({
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
+      skills: parseSkillsFilterParam(skillsFilter),
       appliedDateFrom,
       appliedDateTo,
     }),
@@ -385,6 +399,8 @@ export function CandidatesListShell({
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
+      skillsFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -398,10 +414,21 @@ export function CandidatesListShell({
         stageFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
+        skillsFilter.trim(),
         appliedDateFrom,
         appliedDateTo,
       ].filter(Boolean).length
     : countActiveCandidatesFilters(filterValues);
+
+  function applySkillsFilter(skills: string[]) {
+    const next = skills.join(", ");
+    if (onSkillsFilterChange) {
+      onSkillsFilterChange(next);
+      return;
+    }
+    onApplySearch?.({ query, skillsFilter: next });
+  }
 
   function applyFilterValues(next: CandidatesFilterValues) {
     setScoreSort(next.scoreSort);
@@ -412,6 +439,8 @@ export function CandidatesListShell({
     setStageFilter(next.stageFilter);
     setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
+    setClientNameFilter(next.clientNameFilter);
+    applySkillsFilter(next.skills);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
   }
@@ -424,6 +453,8 @@ export function CandidatesListShell({
       setStageFilter("");
       setMatchScoreFilter("");
       onLocationFilterChange("");
+      setClientNameFilter("");
+      applySkillsFilter([]);
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
       return;
@@ -754,6 +785,7 @@ export function CandidatesListShell({
           statusOptions,
           progressStatusOptions,
           locationOptions,
+          clientNameOptions,
           jobOptions,
           stageOptions,
         }}

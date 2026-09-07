@@ -8,6 +8,9 @@ type FilterChipInputProps = {
   suggestions?: string[];
   placeholder: string;
   onChange: (next: string[]) => void;
+  /** Nest inside another bordered control (e.g. candidates toolbar). */
+  embedded?: boolean;
+  "aria-label"?: string;
 };
 
 /** Comma/Enter chip input used by candidate skill (and similar) filters. */
@@ -16,6 +19,8 @@ export function FilterChipInput({
   suggestions = [],
   placeholder,
   onChange,
+  embedded = false,
+  "aria-label": ariaLabel,
 }: FilterChipInputProps) {
   const [draft, setDraft] = useState("");
   const unused = suggestions.filter(
@@ -37,17 +42,23 @@ export function FilterChipInput({
   }
 
   return (
-    <div>
-      <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5">
+    <div className={embedded ? "min-w-0 flex-1" : undefined}>
+      <div
+        className={
+          embedded
+            ? "flex min-h-9 min-w-0 flex-wrap items-center gap-1.5 bg-transparent"
+            : "flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5"
+        }
+      >
         {values.map((value) => (
           <span
             key={value}
-            className="inline-flex items-center gap-1 rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#334155]"
+            className="inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-black"
           >
-            {value}
+            <span className="truncate">{value}</span>
             <button
               type="button"
-              className="text-[#64748B] hover:text-[#0F172A]"
+              className="shrink-0 text-black/60 hover:text-black"
               aria-label={`Remove ${value}`}
               onClick={() => onChange(values.filter((item) => item !== value))}
             >
@@ -62,16 +73,22 @@ export function FilterChipInput({
             if (event.key === "Enter" || event.key === ",") {
               event.preventDefault();
               commit(draft);
+              return;
+            }
+            if (event.key === "Backspace" && !draft && values.length) {
+              event.preventDefault();
+              onChange(values.slice(0, -1));
             }
           }}
           onBlur={() => {
             if (draft.trim()) commit(draft);
           }}
           placeholder={values.length ? "" : placeholder}
+          aria-label={ariaLabel ?? placeholder}
           className="min-w-[120px] flex-1 border-0 bg-transparent px-1 py-0.5 text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
         />
       </div>
-      {unused.length ? (
+      {!embedded && unused.length ? (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {unused.slice(0, 8).map((item) => (
             <button

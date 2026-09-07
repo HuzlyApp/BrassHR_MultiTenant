@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -23,6 +24,7 @@ import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
@@ -491,6 +493,7 @@ export function AiAnalysisOverviewClient({
     loading,
     analyzing,
     data,
+    workerId,
     analysis,
     blocking,
     verifyItems,
@@ -915,6 +918,23 @@ export function AiAnalysisOverviewClient({
                 </div>
               </div>
               <div className="relative z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-2 min-[480px]:w-auto min-[480px]:justify-end min-[900px]:gap-3">
+                {workerId ? (
+                  <Link
+                    href={candidateApplicantProfileHref(workerId, {
+                      from: backHref.includes("/admin_recruiter/candidates")
+                        ? "candidates"
+                        : "applications",
+                      jobId: jobId || undefined,
+                    })}
+                    className={HEADER_OUTLINE_BTN}
+                  >
+                    View Profile
+                  </Link>
+                ) : (
+                  <button type="button" disabled className={HEADER_OUTLINE_BTN}>
+                    View Profile
+                  </button>
+                )}
                 <CandidateApplicationStatusControl
                   applicationId={applicationId}
                   buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}

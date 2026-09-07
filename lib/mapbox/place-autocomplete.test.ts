@@ -13,13 +13,31 @@ describe("shouldRequestPlaceAutocomplete", () => {
 })
 
 describe("parsePlaceFeatures", () => {
-  it("maps Mapbox features into place suggestions", () => {
+  it("maps Mapbox features to street/city/full-state labels without ZIP or country", () => {
     const features: MapboxGeocodeFeature[] = [
       {
-        id: "place.1",
-        place_name: "Dallas, Texas, United States",
+        id: "address.1",
+        place_name:
+          "Old Dekalb Pike, King of Prussia, Pennsylvania 19406, United States",
+        center: [-75.36, 40.09],
+        text: "Old Dekalb Pike",
+        context: [
+          { id: "place.1", text: "King of Prussia" },
+          { id: "region.1", text: "Pennsylvania", short_code: "US-PA" },
+          { id: "postcode.1", text: "19406" },
+          { id: "country.1", text: "United States", short_code: "us" },
+        ],
+      },
+      {
+        id: "place.2",
+        place_name: "Dallas County, Texas, United States",
+        place_type: ["place"],
+        text: "Dallas County",
         center: [-96.797, 32.7767],
-        relevance: 0.99,
+        context: [
+          { id: "region.2", text: "Texas", short_code: "US-TX" },
+          { id: "country.2", text: "United States", short_code: "us" },
+        ],
       },
       {
         id: "bad",
@@ -29,10 +47,21 @@ describe("parsePlaceFeatures", () => {
 
     expect(parsePlaceFeatures(features)).toEqual([
       {
-        id: "place.1",
-        placeName: "Dallas, Texas, United States",
-        coordinates: { lat: 32.7767, lng: -96.797 },
+        id: "address.1",
+        placeName:
+          "Old Dekalb Pike, King of Prussia, Pennsylvania 19406, United States",
+        displayLabel: "Old Dekalb Pike, King of Prussia, Pennsylvania",
+        zipCode: "19406",
+        coordinates: { lat: 40.09, lng: -75.36 },
         placeType: null,
+      },
+      {
+        id: "place.2",
+        placeName: "Dallas County, Texas, United States",
+        displayLabel: "Dallas County, Texas",
+        zipCode: null,
+        coordinates: { lat: 32.7767, lng: -96.797 },
+        placeType: "place",
       },
     ])
   })

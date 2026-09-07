@@ -515,6 +515,14 @@ function applicantPhone(row: ApplicationRow): string {
   return resolveApplicationApplicantPhone(row);
 }
 
+/** MSP end client (job form Contract Group / Client → msp_name). Non-MSP or empty → "". */
+function applicationClientName(row: ApplicationRow): string {
+  const job = one(row.job_requisitions);
+  const source = String(job.source_type ?? "").trim().toLowerCase();
+  if (source !== "msp") return "";
+  return String(job.msp_name ?? "").trim();
+}
+
 /** Split name for edit fields — the profile is authoritative, the worker row is the fallback. */
 function applicantNameParts(row: ApplicationRow): { firstName: string; lastName: string } {
   const profile = one(row.applicant_profiles);
@@ -1940,6 +1948,14 @@ export default function JobApplicationsPage() {
               <span className="truncate text-[#374151]">{phone || "—"}</span>
             </p>
           </div>
+        );
+      }
+      case "clientName": {
+        const clientName = applicationClientName(row);
+        return (
+          <span className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]" title={clientName || undefined}>
+            {clientName || "—"}
+          </span>
         );
       }
       case "matches":

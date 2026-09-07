@@ -3,24 +3,11 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireUserManagement } from "@/lib/auth/user-management";
 import { inviteStaff, listStaffDirectory, staffDirectoryErrorResponse } from "@/lib/admin/staff-directory";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { isAllowedAppOrigin, resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { getEffectiveRootDomain } from "@/lib/tenant/tenant-host-resolution";
 
 export const runtime = "nodejs";
-
-function isAllowedAppOrigin(origin: string): boolean {
-  try {
-    const url = new URL(origin);
-    const host = url.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return true;
-    const root = getEffectiveRootDomain().toLowerCase();
-    return host === root || host === `www.${root}` || host.endsWith(`.${root}`);
-  } catch {
-    return false;
-  }
-}
 
 export async function GET() {
   const auth = await requireStaffApiSession();

@@ -343,6 +343,7 @@ export function JobReviewEditModal({
                 required
                 value={draft.job.location ?? ""}
                 onChange={(next) => patchJob("location", next)}
+                onPostalCodeChange={(postalCode) => patchJob("postalCode", postalCode)}
                 placeholder="Search city, area, or address"
                 suggestionsClassName="!max-h-[21rem]"
               />
@@ -747,7 +748,8 @@ export function JobReviewEditModal({
                   patchJob("facility", next);
                   if (isMsp) patchJob("location", next);
                 }}
-                placeholder="Search address, city, state, zip"
+                onPostalCodeChange={(postalCode) => patchJob("postalCode", postalCode)}
+                placeholder="Search city, area, or address"
                 suggestionsClassName="!max-h-[21rem]"
               />
             ) : null}

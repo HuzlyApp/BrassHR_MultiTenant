@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Archive, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
+import { Archive, Loader2, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
@@ -23,6 +23,9 @@ import {
 
 const JOB_OPEN_ICON_SRC = "/icons/jobs-icons/open.svg";
 const JOB_DOTS_ICON_SRC = "/icons/jobs-icons/dots.svg";
+/** Default batch size when infinite scroll is enabled on the jobs card grid. */
+export const JOBS_GRID_INFINITE_PAGE_SIZE = 50;
+const JOBS_GRID_LOAD_MORE_DELAY_MS = 450;
 
 type JobsGridViewProps = {
   jobs: JobListRow[];
@@ -33,6 +36,11 @@ type JobsGridViewProps = {
   selectedIds?: Set<string>;
   onToggleSelect?: (jobId: string) => void;
   padded?: boolean;
+  /**
+   * When set, render this many cards first and load the next batch on scroll
+   * (Show more + loader). Omit on paginated list views.
+   */
+  infiniteScrollPageSize?: number;
   onAddCandidate: (job: JobListRow) => void;
   onImportCandidates: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
@@ -402,6 +410,7 @@ export function JobsGridView({
   selectedIds,
   onToggleSelect,
   padded = true,
+  infiniteScrollPageSize,
   onAddCandidate,
   onImportCandidates,
   onDelete,
@@ -409,6 +418,60 @@ export function JobsGridView({
   onUnarchive,
 }: JobsGridViewProps) {
   const [openMenu, setOpenMenu] = useState<{ job: JobListRow; anchor: HTMLElement } | null>(null);
+  const pageSize =
+    typeof infiniteScrollPageSize === "number" && infiniteScrollPageSize > 0
+      ? Math.floor(infiniteScrollPageSize)
+      : null;
+  const infiniteEnabled = pageSize != null;
+  const [visibleCount, setVisibleCount] = useState(pageSize ?? jobs.length);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadLockRef = useRef(false);
+  const jobsSignature = jobs.map((job) => job.id).join("|");
+
+  useEffect(() => {
+    if (!infiniteEnabled || pageSize == null) {
+      setVisibleCount(jobs.length);
+      setIsLoadingMore(false);
+      loadLockRef.current = false;
+      return;
+    }
+    setVisibleCount(Math.min(pageSize, jobs.length));
+    setIsLoadingMore(false);
+    loadLockRef.current = false;
+  }, [infiniteEnabled, pageSize, jobsSignature, jobs.length]);
+
+  const visibleJobs = infiniteEnabled ? jobs.slice(0, visibleCount) : jobs;
+  const hasMore = infiniteEnabled && visibleCount < jobs.length;
+
+  const loadNextPage = useCallback(() => {
+    if (!infiniteEnabled || pageSize == null || loadLockRef.current) return;
+    if (visibleCount >= jobs.length) return;
+    loadLockRef.current = true;
+    setIsLoadingMore(true);
+    window.setTimeout(() => {
+      setVisibleCount((current) => Math.min(current + pageSize, jobs.length));
+      setIsLoadingMore(false);
+      loadLockRef.current = false;
+    }, JOBS_GRID_LOAD_MORE_DELAY_MS);
+  }, [infiniteEnabled, pageSize, visibleCount, jobs.length]);
+
+  useEffect(() => {
+    if (!hasMore || isLoadingMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        loadNextPage();
+      },
+      { root: null, rootMargin: "240px 0px", threshold: 0 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, loadNextPage, visibleCount]);
 
   if (loading) {
     return <p className="px-4 py-12 text-center text-sm text-[#64748B]">Loading jobs…</p>;
@@ -423,7 +486,7 @@ export function JobsGridView({
       <div
         className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${padded ? "p-4" : ""}`}
       >
-        {jobs.map((job) => (
+        {visibleJobs.map((job) => (
           <JobGridCard
             key={job.id}
             job={job}
@@ -440,6 +503,32 @@ export function JobsGridView({
           />
         ))}
       </div>
+
+      {infiniteEnabled && (hasMore || isLoadingMore) ? (
+        <div
+          ref={sentinelRef}
+          className="flex w-full items-center justify-center gap-2 py-5"
+          aria-live="polite"
+          aria-busy={isLoadingMore}
+        >
+          {isLoadingMore ? (
+            <>
+              <span className="font-[Inter,sans-serif] text-sm font-medium leading-5 text-[#94A3B8]">
+                Show more
+              </span>
+              <Loader2
+                className="size-4 shrink-0 animate-spin text-[#CBD5E1]"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span className="sr-only">Loading more jobs</span>
+            </>
+          ) : (
+            <span className="h-4 w-px" aria-hidden />
+          )}
+        </div>
+      ) : null}
+
       {openMenu ? (
         <JobGridCardMenu
           job={openMenu.job}

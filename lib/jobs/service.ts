@@ -34,6 +34,7 @@ import {
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
@@ -93,9 +94,6 @@ function toJobRow(input: JobRequisitionInput) {
   const payRatePeriod = clean(input.payRatePeriod);
   const compensationType = clean(input.compensationType);
   const yearsOfExperience = clean(input.yearsOfExperience);
-  const additionalLocations = Array.isArray(input.additionalLocations)
-    ? input.additionalLocations.map((item) => item.trim()).filter(Boolean)
-    : [];
   const yearsExperienceRequired = yearsOfExperience
     ? Number.parseInt(yearsOfExperience.replace(/[^\d]/g, ""), 10)
     : null;
@@ -104,8 +102,22 @@ function toJobRow(input: JobRequisitionInput) {
     input.suggestedPayRate ?? input.payRateMin ?? input.payRateMax ?? null;
   const professionId = clean(input.professionId);
   /** MSP Location field writes facility; mirror into location for public/list display. */
-  const location =
+  const rawLocation =
     clean(input.location) ?? (input.sourceType === "MSP" ? facility : null);
+  const normalizedPrimary = rawLocation
+    ? normalizeJobFormLocationForStorage(rawLocation)
+    : { location: null, zipCode: null };
+  const location = normalizedPrimary.location ?? (rawLocation ? rawLocation : null);
+  const postalCode =
+    clean(input.postalCode) ?? normalizedPrimary.zipCode ?? null;
+  const additionalLocations = Array.isArray(input.additionalLocations)
+    ? input.additionalLocations
+        .map(
+          (item) =>
+            normalizeJobFormLocationForStorage(item.trim()).location ?? item.trim()
+        )
+        .filter(Boolean)
+    : [];
 
   return {
     internal_requisition_number: clean(input.internalRequisitionNumber),
@@ -133,6 +145,7 @@ function toJobRow(input: JobRequisitionInput) {
     public_title: resolvedPublicTitle,
     public_description: publicDescription,
     location,
+    postal_code: postalCode,
     schedule: jobLocationType,
     qualifications: clean(input.qualifications),
     responsibilities: clean(input.responsibilities),
@@ -791,6 +804,7 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
     publicTitle: row.public_title ? String(row.public_title) : null,
     publicDescription: row.public_description ? String(row.public_description) : null,
     location: row.location ? String(row.location) : null,
+    postalCode: row.postal_code ? String(row.postal_code) : null,
     schedule: row.schedule ? String(row.schedule) : null,
     qualifications: row.qualifications ? String(row.qualifications) : null,
     responsibilities: row.responsibilities ? String(row.responsibilities) : null,

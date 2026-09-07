@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { placementTypeFromApiRow } from "@/lib/jobs/placement";
 import type { PlacementType } from "@/lib/jobs/types";
+import {
+  formatCityState,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 
 export type ExistingJobPickerOption = {
   id: string;
@@ -81,12 +86,13 @@ const FILTER_SELECT_CHEVRON = {
 } as const;
 
 function formatJobLocation(job: ExistingJobPickerOption): string {
-  return (
+  const raw =
     job.location?.trim() ||
     job.facility_name?.trim() ||
     job.facility?.trim() ||
-    "—"
-  );
+    "";
+  if (!raw) return "—";
+  return formatCityState(raw) || "—";
 }
 
 function jobPickerDisplayTitle(option: ExistingJobPickerOption): string {
@@ -151,12 +157,14 @@ export function ExistingJobPickerPanel({
   );
 
   const locationOptions = useMemo(() => {
-    const values = new Set<string>();
-    for (const job of sourceFilteredJobs) {
-      const loc = formatJobLocation(job);
-      if (loc && loc !== "—") values.add(loc);
-    }
-    return Array.from(values).sort((a, b) => a.localeCompare(b));
+    return uniqueCityStateOptions(
+      sourceFilteredJobs.flatMap((job) => [
+        job.location,
+        job.facility_name,
+        job.facility,
+        formatJobLocation(job),
+      ])
+    );
   }, [sourceFilteredJobs]);
 
   const filteredJobs = useMemo(() => {
@@ -165,7 +173,7 @@ export function ExistingJobPickerPanel({
       if (statusFilter && option.status !== statusFilter) return false;
       if (locationFilter) {
         const loc = formatJobLocation(option);
-        if (loc !== locationFilter) return false;
+        if (!locationsMatchCityState(loc, locationFilter)) return false;
       }
       if (q) {
         const title = jobPickerDisplayTitle(option).toLowerCase();

@@ -43,6 +43,10 @@ vi.mock("@/lib/security/rate-limit", () => ({
 
 vi.mock("@/lib/resolve-app-origin", () => ({
   resolveAppOrigin: (...args: unknown[]) => resolveAppOrigin(...args),
+  isAllowedAppOrigin: (origin: string) =>
+    origin.startsWith("http://localhost") ||
+    origin.startsWith("https://brasshr.com") ||
+    origin.endsWith(".vercel.app"),
 }));
 
 vi.mock("@/lib/tenant/tenant-host-resolution", () => ({

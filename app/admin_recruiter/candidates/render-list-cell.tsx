@@ -106,6 +106,17 @@ export function renderListCell(
         </div>
       )
     }
+    case "clientName": {
+      const clientName = c.applicationClientName?.trim() ?? ""
+      return (
+        <span
+          className="mx-auto block max-w-[200px] truncate text-center text-sm text-[#374151]"
+          title={clientName || undefined}
+        >
+          {clientName || "—"}
+        </span>
+      )
+    }
     case "status":
       return (
         <div className="flex w-full justify-center">

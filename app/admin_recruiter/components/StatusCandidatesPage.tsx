@@ -46,6 +46,11 @@ import {
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
+import {
+  formatCityStateFromParts,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
@@ -80,6 +85,7 @@ type WorkerProfile = {
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
+  application_client_name?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -203,6 +209,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [clientNameFilter, setClientNameFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -251,6 +258,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         applicationJobTitle: item.application_job_title ?? null,
         applicationJobTitlesText: item.application_job_titles_text ?? null,
         applicationSearchText: item.application_search_text ?? null,
+        applicationClientName: item.application_client_name ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -296,12 +304,18 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }, [candidates]);
 
   const locationOptions = useMemo(() => {
-    const s = new Set<string>();
+    return uniqueCityStateOptions(
+      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
+    );
+  }, [candidates]);
+
+  const clientNameOptions = useMemo(() => {
+    const names = new Set<string>();
     for (const c of candidates) {
-      const loc = [c.city, c.state].filter(Boolean).join(", ");
-      if (loc) s.add(loc);
+      const name = c.applicationClientName?.trim();
+      if (name) names.add(name);
     }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -338,7 +352,12 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
     if (locationFilter) {
-      out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
+      out = out.filter((c) =>
+        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
+      );
+    }
+    if (clientNameFilter) {
+      out = out.filter((c) => (c.applicationClientName?.trim() || "") === clientNameFilter);
     }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
@@ -352,6 +371,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
+    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
   ]);
@@ -365,6 +385,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           progressStatusFilter ||
           matchScoreFilter ||
           locationFilter ||
+          clientNameFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
@@ -375,6 +396,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -399,6 +421,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
+    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
     pageSize,
@@ -441,6 +464,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
       ].join("|"),
@@ -453,6 +477,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -662,6 +687,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
+        clientNameFilter={clientNameFilter}
+        onClientNameFilterChange={setClientNameFilter}
         appliedDateFrom={appliedDateFrom}
         appliedDateTo={appliedDateTo}
         onAppliedDateFromChange={setAppliedDateFrom}
@@ -676,6 +703,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
+        clientNameOptions={clientNameOptions}
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates

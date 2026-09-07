@@ -1,10 +1,42 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  isAllowedAppOrigin,
   migrateLegacyAppOrigin,
   resolveAppOrigin,
   resolveApplicantEmailAppOrigin,
   resolvePlatformAppOrigin,
 } from "@/lib/resolve-app-origin";
+
+describe("isAllowedAppOrigin", () => {
+  const prevRoot = process.env.ROOT_DOMAIN;
+  const prevAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  afterEach(() => {
+    if (prevRoot === undefined) delete process.env.ROOT_DOMAIN;
+    else process.env.ROOT_DOMAIN = prevRoot;
+    if (prevAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = prevAppUrl;
+  });
+
+  it("allows localhost and brasshr root hosts", () => {
+    process.env.ROOT_DOMAIN = "brasshr.com";
+    expect(isAllowedAppOrigin("http://localhost:3000")).toBe(true);
+    expect(isAllowedAppOrigin("https://brasshr.com")).toBe(true);
+    expect(isAllowedAppOrigin("https://jobs.brasshr.com")).toBe(true);
+  });
+
+  it("allows Vercel deployment hosts used by staging/devmode", () => {
+    process.env.ROOT_DOMAIN = "brasshr.com";
+    expect(isAllowedAppOrigin("https://brasshr-devmode.vercel.app")).toBe(true);
+    expect(isAllowedAppOrigin("https://brasshr-git-staging.vercel.app")).toBe(true);
+  });
+
+  it("rejects unrelated hosts", () => {
+    process.env.ROOT_DOMAIN = "brasshr.com";
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    expect(isAllowedAppOrigin("https://evil.example.com")).toBe(false);
+  });
+});
 
 describe("migrateLegacyAppOrigin", () => {
   const prevRoot = process.env.ROOT_DOMAIN;

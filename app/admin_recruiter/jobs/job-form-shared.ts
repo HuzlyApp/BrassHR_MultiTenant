@@ -366,6 +366,7 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
     publicTitle: String(row.public_title ?? ""),
     publicDescription: String(row.public_description ?? ""),
     location: String(row.location ?? ""),
+    postalCode: row.postal_code ? String(row.postal_code) : null,
     schedule: String(row.schedule ?? ""),
     qualifications: String(row.qualifications ?? ""),
     responsibilities: String(row.responsibilities ?? ""),
