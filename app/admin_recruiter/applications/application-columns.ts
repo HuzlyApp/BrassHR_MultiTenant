@@ -1,6 +1,7 @@
 export type ApplicationColumnId =
   | "candidates"
   | "contact"
+  | "clientName"
   | "matches"
   | "conf"
   | "verify"
@@ -20,6 +21,7 @@ export type ApplicationColumnId =
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
   { id: "candidates", label: "Candidate" },
   { id: "contact", label: "Contact" },
+  { id: "clientName", label: "Client Name" },
   { id: "matches", label: "Match %" },
   { id: "conf", label: "Conf." },
   { id: "verify", label: "Verify" },
@@ -45,6 +47,7 @@ export const APPLICATION_EDITABLE_COLUMNS = APPLICATION_COLUMN_OPTIONS.filter(
 export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
   "contact",
+  "clientName",
   "matches",
   "conf",
   "verify",
@@ -57,7 +60,7 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "actions",
 ];
 
-const STORAGE_KEY = "nexus-job-applications-list-columns-v3";
+const STORAGE_KEY = "nexus-job-applications-list-columns-v4";
 
 function insertAfter(
   order: ApplicationColumnId[],
@@ -83,7 +86,8 @@ function insertAfter(
 function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationColumnId[] {
   let next = [...order];
   next = insertAfter(next, "contact", "candidates");
-  next = insertAfter(next, "matches", "contact");
+  next = insertAfter(next, "clientName", "contact");
+  next = insertAfter(next, "matches", "clientName");
   next = insertAfter(next, "conf", "matches");
   next = insertAfter(next, "verify", "conf");
   next = insertAfter(next, "notMet", "verify");
@@ -157,6 +161,7 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : "";
   if (colId === "candidates") return "min-w-[220px]";
   if (colId === "contact") return "min-w-[200px]";
+  if (colId === "clientName") return "min-w-[140px] whitespace-nowrap";
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
   if (colId === "conf" || colId === "verify" || colId === "notMet") {
     return `min-w-[72px] whitespace-nowrap${center}`;

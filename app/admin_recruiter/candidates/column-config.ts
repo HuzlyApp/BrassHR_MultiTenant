@@ -1,6 +1,7 @@
 export type CandidateColumnId =
   | "name"
   | "contact"
+  | "clientName"
   | "status"
   | "progressStatus"
   | "reference"
@@ -42,6 +43,7 @@ export type CandidateColumnId =
 export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[] = [
   { id: "name", label: "Candidate" },
   { id: "contact", label: "Contact" },
+  { id: "clientName", label: "Client name" },
   { id: "status", label: "Status" },
   { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
@@ -84,13 +86,14 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
 export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
   "contact",
+  "clientName",
   "progressStatus",
   "jobMatch",
   "currentStage",
   "createdDate",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns-v5"
+const STORAGE_KEY = "nexus-candidates-list-columns-v6"
 
 /** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
@@ -104,7 +107,8 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
   }
 
   insertAfter("name", "contact")
-  insertAfter("contact", "progressStatus")
+  insertAfter("contact", "clientName")
+  insertAfter("clientName", "progressStatus")
   insertAfter("progressStatus", "jobMatch")
   insertAfter("jobMatch", "currentStage")
   insertAfter("currentStage", "createdDate")
@@ -144,6 +148,7 @@ export function columnLabel(id: CandidateColumnId): string {
 export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "name") return "min-w-[220px]"
   if (colId === "contact") return "min-w-[200px]"
+  if (colId === "clientName") return "min-w-[140px] whitespace-nowrap"
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"

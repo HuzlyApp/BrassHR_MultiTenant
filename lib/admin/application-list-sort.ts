@@ -80,6 +80,7 @@ export function applicationListHeaderAlign(
   if (
     columnId === "candidates" ||
     columnId === "contact" ||
+    columnId === "clientName" ||
     columnId === "location" ||
     columnId === "currentStage"
   ) {

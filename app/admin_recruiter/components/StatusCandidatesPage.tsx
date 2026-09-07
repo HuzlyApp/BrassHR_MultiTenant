@@ -85,6 +85,7 @@ type WorkerProfile = {
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
+  application_client_name?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -256,6 +257,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         applicationJobTitle: item.application_job_title ?? null,
         applicationJobTitlesText: item.application_job_titles_text ?? null,
         applicationSearchText: item.application_search_text ?? null,
+        applicationClientName: item.application_client_name ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
