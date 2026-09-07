@@ -238,6 +238,7 @@ export default function CandidatesPage() {
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [clientNameFilter, setClientNameFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -497,6 +498,15 @@ export default function CandidatesPage() {
     );
   }, [candidates]);
 
+  const clientNameOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const c of candidates) {
+      const name = c.applicationClientName?.trim();
+      if (name) names.add(name);
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [candidates]);
+
   const statusOptions = useMemo(() => {
     const canonical = new Set(
       ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
@@ -567,6 +577,9 @@ export default function CandidatesPage() {
         locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
       );
     }
+    if (clientNameFilter) {
+      out = out.filter((c) => (c.applicationClientName?.trim() || "") === clientNameFilter);
+    }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
@@ -582,6 +595,7 @@ export default function CandidatesPage() {
     stageFilter,
     matchScoreFilter,
     locationFilter,
+    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
   ]);
@@ -605,6 +619,7 @@ export default function CandidatesPage() {
           stageFilter ||
           matchScoreFilter ||
           locationFilter ||
+          clientNameFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
@@ -618,6 +633,7 @@ export default function CandidatesPage() {
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -640,7 +656,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
+  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, clientNameFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
 
   const sortedCandidates = useMemo(
     () => sortCandidateRows(visibleCandidates, listSort),
@@ -690,6 +706,7 @@ export default function CandidatesPage() {
         stageFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
         advancedSearchContext.active ? "adv" : "std",
@@ -705,6 +722,7 @@ export default function CandidatesPage() {
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
       advancedSearchContext.active,
@@ -931,6 +949,8 @@ export default function CandidatesPage() {
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
+        clientNameFilter={clientNameFilter}
+        onClientNameFilterChange={setClientNameFilter}
         appliedDateFrom={appliedDateFrom}
         appliedDateTo={appliedDateTo}
         onAppliedDateFromChange={setAppliedDateFrom}
@@ -951,6 +971,7 @@ export default function CandidatesPage() {
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
+        clientNameOptions={clientNameOptions}
         kpiCards={kpiCards}
         layoutVariant="all-candidates"
         simplifiedToolbarFilters

@@ -17,6 +17,7 @@ export type CandidatesFilterValues = {
   stageFilter: string;
   matchScoreFilter: string;
   locationFilter: string;
+  clientNameFilter: string;
   appliedDateFrom: string;
   appliedDateTo: string;
 };
@@ -30,6 +31,7 @@ export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
   stageFilter: "",
   matchScoreFilter: "",
   locationFilter: "",
+  clientNameFilter: "",
   appliedDateFrom: "",
   appliedDateTo: "",
 };
@@ -47,6 +49,7 @@ type FilterOptions = {
   statusOptions: string[];
   progressStatusOptions?: { value: string; label: string }[];
   locationOptions: string[];
+  clientNameOptions?: string[];
   jobOptions?: string[];
   stageOptions?: string[];
 };
@@ -257,6 +260,19 @@ export function EditCandidatesFiltersModal({
                 {(options.stageOptions ?? []).map((stage) => (
                   <option key={stage} value={stage}>
                     {stage}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <ModalFilterField
+                label="Client name"
+                value={draft.clientNameFilter}
+                onChange={(v) => setField("clientNameFilter", v)}
+                placeholder="All Client Names"
+              >
+                {(options.clientNameOptions ?? []).map((clientName) => (
+                  <option key={clientName} value={clientName}>
+                    {clientName}
                   </option>
                 ))}
               </ModalFilterField>

@@ -209,6 +209,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [clientNameFilter, setClientNameFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
   const [appliedDateTo, setAppliedDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -308,6 +309,15 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     );
   }, [candidates]);
 
+  const clientNameOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const c of candidates) {
+      const name = c.applicationClientName?.trim();
+      if (name) names.add(name);
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [candidates]);
+
   const statusOptions = useMemo(() => {
     const s = new Set<string>();
     for (const c of candidates) {
@@ -346,6 +356,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
       );
     }
+    if (clientNameFilter) {
+      out = out.filter((c) => (c.applicationClientName?.trim() || "") === clientNameFilter);
+    }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
     }
@@ -358,6 +371,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
+    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
   ]);
@@ -371,6 +385,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           progressStatusFilter ||
           matchScoreFilter ||
           locationFilter ||
+          clientNameFilter ||
           appliedDateFrom ||
           appliedDateTo
       ),
@@ -381,6 +396,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -405,6 +421,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
+    clientNameFilter,
     appliedDateFrom,
     appliedDateTo,
     pageSize,
@@ -447,6 +464,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
       ].join("|"),
@@ -459,6 +477,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -668,6 +687,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
         onLocationFilterChange={setLocationFilter}
+        clientNameFilter={clientNameFilter}
+        onClientNameFilterChange={setClientNameFilter}
         appliedDateFrom={appliedDateFrom}
         appliedDateTo={appliedDateTo}
         onAppliedDateFromChange={setAppliedDateFrom}
@@ -682,6 +703,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onMatchScoreFilterChange={setMatchScoreFilter}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
+        clientNameOptions={clientNameOptions}
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates

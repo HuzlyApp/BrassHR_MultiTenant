@@ -60,8 +60,11 @@ export type CandidatesListShellProps = {
   stageOptions?: string[];
   matchScoreFilter?: string;
   onMatchScoreFilterChange?: (value: string) => void;
+  clientNameFilter?: string;
+  onClientNameFilterChange?: (value: string) => void;
   jobRoleOptions: string[];
   locationOptions: string[];
+  clientNameOptions?: string[];
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
@@ -307,8 +310,11 @@ export function CandidatesListShell({
   stageOptions = [],
   matchScoreFilter: matchScoreFilterProp,
   onMatchScoreFilterChange,
+  clientNameFilter: clientNameFilterProp,
+  onClientNameFilterChange,
   jobRoleOptions,
   locationOptions,
+  clientNameOptions = [],
   view,
   onViewChange,
   onEditColumns,
@@ -358,6 +364,9 @@ export function CandidatesListShell({
   const [internalMatchScoreFilter, setInternalMatchScoreFilter] = useState("");
   const matchScoreFilter = matchScoreFilterProp ?? internalMatchScoreFilter;
   const setMatchScoreFilter = onMatchScoreFilterChange ?? setInternalMatchScoreFilter;
+  const [internalClientNameFilter, setInternalClientNameFilter] = useState("");
+  const clientNameFilter = clientNameFilterProp ?? internalClientNameFilter;
+  const setClientNameFilter = onClientNameFilterChange ?? setInternalClientNameFilter;
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
@@ -373,6 +382,7 @@ export function CandidatesListShell({
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     }),
@@ -385,6 +395,7 @@ export function CandidatesListShell({
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -398,6 +409,7 @@ export function CandidatesListShell({
         stageFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
         appliedDateFrom,
         appliedDateTo,
       ].filter(Boolean).length
@@ -412,6 +424,7 @@ export function CandidatesListShell({
     setStageFilter(next.stageFilter);
     setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
+    setClientNameFilter(next.clientNameFilter);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
   }
@@ -424,6 +437,7 @@ export function CandidatesListShell({
       setStageFilter("");
       setMatchScoreFilter("");
       onLocationFilterChange("");
+      setClientNameFilter("");
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
       return;
@@ -754,6 +768,7 @@ export function CandidatesListShell({
           statusOptions,
           progressStatusOptions,
           locationOptions,
+          clientNameOptions,
           jobOptions,
           stageOptions,
         }}
