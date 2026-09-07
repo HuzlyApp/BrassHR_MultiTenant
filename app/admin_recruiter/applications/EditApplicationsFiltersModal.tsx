@@ -7,6 +7,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
+import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 
 export type ApplicationsExtendedFilterValues = {
@@ -18,6 +19,7 @@ export type ApplicationsExtendedFilterValues = {
   matchScore: string;
   dateApplied: string;
   job: string;
+  skills: string[];
 };
 
 export const EMPTY_APPLICATIONS_EXTENDED_FILTERS: ApplicationsExtendedFilterValues = {
@@ -29,6 +31,7 @@ export const EMPTY_APPLICATIONS_EXTENDED_FILTERS: ApplicationsExtendedFilterValu
   matchScore: "",
   dateApplied: "",
   job: "",
+  skills: [],
 };
 
 export function hasActiveApplicationsExtendedFilters(
@@ -42,7 +45,8 @@ export function hasActiveApplicationsExtendedFilters(
     Boolean(value.workflow) ||
     Boolean(value.matchScore) ||
     Boolean(value.dateApplied) ||
-    Boolean(value.job)
+    Boolean(value.job) ||
+    value.skills.length > 0
   );
 }
 
@@ -131,6 +135,7 @@ type FilterOptions = {
   workflows: string[];
   jobs: { value: string; label: string }[];
   showJobFilter: boolean;
+  suggestedSkills?: string[];
 };
 
 type EditApplicationsFiltersModalProps = {
@@ -366,6 +371,16 @@ export function EditApplicationsFiltersModal({
                   ))}
                 </ModalFilterField>
               ) : null}
+
+              <label className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-sm font-medium text-[#475569]">Skills</span>
+                <FilterChipInput
+                  values={draft.skills}
+                  suggestions={options.suggestedSkills ?? []}
+                  placeholder="Add a skill"
+                  onChange={(skills) => setField("skills", skills)}
+                />
+              </label>
             </div>
           </div>
 

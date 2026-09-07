@@ -53,19 +53,6 @@ function ClaimClipboardIcon() {
   );
 }
 
-function AnalyzeSparklesIcon() {
-  return (
-    <span className="relative flex size-4 shrink-0 items-center justify-center" aria-hidden>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
-        <path
-          d="M12 3l1.2 4.2L17.5 8.5 13.2 9.8 12 14l-1.2-4.2L6.5 8.5l4.3-1.3L12 3zM18.5 13.5l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3zM6.2 14.5l.55 1.8 1.8.55-1.8.55-.55 1.8-.55-1.8-1.8-.55 1.8-.55.55-1.8z"
-          fill="currentColor"
-        />
-      </svg>
-    </span>
-  );
-}
-
 function ColumnsIcon() {
   return <ListingGlyph src={`${JOBS_ICONS}/columns.svg`} outer={16} leafWidth={12.33} leafHeight={10} />;
 }
@@ -127,10 +114,6 @@ export type ApplicationsListToolbarProps = {
   onOpenMoreFilters: () => void;
   hideClaimCandidates?: boolean;
   onClaimCandidates?: () => void;
-  onAnalyzeAll: () => void;
-  analyzeAllLabel: string;
-  analyzeBusy?: boolean;
-  analyzeDisabled?: boolean;
   onEditColumns: () => void;
   showResetFilters?: boolean;
   onResetFilters?: () => void;
@@ -158,10 +141,6 @@ export function ApplicationsListToolbar({
   onOpenMoreFilters,
   hideClaimCandidates = true,
   onClaimCandidates,
-  onAnalyzeAll,
-  analyzeAllLabel,
-  analyzeBusy = false,
-  analyzeDisabled = false,
   onEditColumns,
   showResetFilters = false,
   onResetFilters,
@@ -179,15 +158,6 @@ export function ApplicationsListToolbar({
             </button>
           ) : null}
           <div className="flex w-full items-center gap-3 lg:w-auto">
-            <button
-              type="button"
-              onClick={onAnalyzeAll}
-              disabled={analyzeBusy || analyzeDisabled}
-              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none lg:w-auto disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              <AnalyzeSparklesIcon />
-              {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
-            </button>
             <button
               type="button"
               onClick={onEditColumns}

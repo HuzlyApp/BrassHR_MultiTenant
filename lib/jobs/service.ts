@@ -34,6 +34,7 @@ import {
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import { normalizeLocationForStorage } from "@/lib/location/city-state";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
@@ -93,9 +94,6 @@ function toJobRow(input: JobRequisitionInput) {
   const payRatePeriod = clean(input.payRatePeriod);
   const compensationType = clean(input.compensationType);
   const yearsOfExperience = clean(input.yearsOfExperience);
-  const additionalLocations = Array.isArray(input.additionalLocations)
-    ? input.additionalLocations.map((item) => item.trim()).filter(Boolean)
-    : [];
   const yearsExperienceRequired = yearsOfExperience
     ? Number.parseInt(yearsOfExperience.replace(/[^\d]/g, ""), 10)
     : null;
@@ -104,8 +102,16 @@ function toJobRow(input: JobRequisitionInput) {
     input.suggestedPayRate ?? input.payRateMin ?? input.payRateMax ?? null;
   const professionId = clean(input.professionId);
   /** MSP Location field writes facility; mirror into location for public/list display. */
-  const location =
+  const rawLocation =
     clean(input.location) ?? (input.sourceType === "MSP" ? facility : null);
+  const location = rawLocation
+    ? normalizeLocationForStorage(rawLocation).location ?? rawLocation
+    : null;
+  const additionalLocations = Array.isArray(input.additionalLocations)
+    ? input.additionalLocations
+        .map((item) => normalizeLocationForStorage(item.trim()).location ?? item.trim())
+        .filter(Boolean)
+    : [];
 
   return {
     internal_requisition_number: clean(input.internalRequisitionNumber),

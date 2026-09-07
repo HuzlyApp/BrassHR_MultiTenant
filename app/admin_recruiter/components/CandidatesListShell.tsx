@@ -18,6 +18,7 @@ import {
 } from "@/app/admin_recruiter/candidates/EditCandidatesFiltersModal";
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
+import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandidatesToolbar";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
@@ -95,6 +96,12 @@ export type CandidatesListShellProps = {
   hideRefresh?: boolean;
   /** Shown on the toolbar right (before list/grid toggle). */
   toolbarAddCandidateButton?: React.ReactNode;
+  /** Figma All Candidates layout: split search, icon filters, Match Existing. */
+  layoutVariant?: "default" | "all-candidates";
+  skillsFilter?: string;
+  onApplySearch?: (next: { query: string; skillsFilter: string }) => void;
+  onResetSearch?: () => void;
+  onMatchExistingCandidate?: () => void;
   highlightMultiJob?: boolean;
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
@@ -329,12 +336,18 @@ export function CandidatesListShell({
   simplifiedToolbarFilters = false,
   hideRefresh = false,
   toolbarAddCandidateButton,
+  layoutVariant = "default",
+  skillsFilter = "",
+  onApplySearch,
+  onResetSearch,
+  onMatchExistingCandidate,
   highlightMultiJob: highlightMultiJobProp,
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
   onViewAllMultiJobApplicants,
   children,
 }: CandidatesListShellProps) {
+  const isAllCandidatesLayout = layoutVariant === "all-candidates";
   const [scoreSort, setScoreSort] = useState("");
   const [internalJobFilter, setInternalJobFilter] = useState("");
   const jobFilter = jobFilterProp ?? internalJobFilter;
@@ -450,8 +463,9 @@ export function CandidatesListShell({
         title="Candidates"
         subtitle="Manage candidates in one place"
         actions={
-          (!hideAddCandidate && onAddCandidate) ||
-          (!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls) ? (
+          !isAllCandidatesLayout &&
+          ((!hideAddCandidate && onAddCandidate) ||
+            (!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls)) ? (
             <>
               {!hideAddCandidate && onAddCandidate ? (
                 <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
@@ -476,202 +490,227 @@ export function CandidatesListShell({
       ) : null}
 
       <div className="mt-4 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white sm:mt-5">
-        <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
-          <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
-            {exportInToolbar && onExportCsv && onExportXls ? (
-              <div className="min-w-0 shrink-0 flex-1 lg:flex-none">
-                <ListExportDropdown
-                  variant="brand"
-                  onExportCsv={onExportCsv}
-                  onExportXls={onExportXls}
-                />
+        {isAllCandidatesLayout ? (
+          <AllCandidatesToolbar
+            query={query}
+            skillsFilter={skillsFilter}
+            onApplySearch={(next) => {
+              if (onApplySearch) {
+                onApplySearch(next);
+                return;
+              }
+              onQueryChange(next.query);
+            }}
+            onResetSearch={() => {
+              if (onResetSearch) {
+                onResetSearch();
+                return;
+              }
+              onQueryChange("");
+            }}
+            onOpenFilters={() => setFiltersModalOpen(true)}
+            onEditColumns={onEditColumns}
+            onAddCandidate={onAddCandidate}
+            onMatchExistingCandidate={onMatchExistingCandidate}
+            activeFilterCount={activeFilterCount}
+            view={view}
+            onViewChange={onViewChange}
+            highlightMultiJob={highlightMultiJob}
+            onHighlightMultiJobChange={setHighlightMultiJob}
+          />
+        ) : (
+          <>
+            <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
+              <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
+                {exportInToolbar && onExportCsv && onExportXls ? (
+                  <div className="min-w-0 shrink-0 flex-1 lg:flex-none">
+                    <ListExportDropdown
+                      variant="brand"
+                      onExportCsv={onExportCsv}
+                      onExportXls={onExportXls}
+                    />
+                  </div>
+                ) : null}
+                {!hideClaimCandidates && onClaimCandidates ? (
+                  <button
+                    type="button"
+                    onClick={onClaimCandidates}
+                    className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
+                  >
+                    <ClaimClipboardIcon />
+                    <span className="max-[380px]:hidden">Claim Candidates</span>
+                    <span className="hidden max-[380px]:inline">Claim</span>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onEditColumns}
+                  className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
+                >
+                  <ColumnsIcon />
+                  Columns
+                </button>
+                {deleteButton ? <div className="shrink-0">{deleteButton}</div> : null}
+                {!hideRefresh ? (
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
+                    aria-label={refreshLabel}
+                    title={refreshLabel}
+                  >
+                    <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+                  </button>
+                ) : null}
+                {activeFilterCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} hidden lg:inline-flex`}
+                  >
+                    Reset
+                  </button>
+                ) : null}
               </div>
-            ) : null}
-            {/* Claim Candidates — hidden on legacy /admin_recruiter/candidates */}
-            {!hideClaimCandidates && onClaimCandidates ? (
-              <button
-                type="button"
-                onClick={onClaimCandidates}
-                className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
-              >
-                <ClaimClipboardIcon />
-                <span className="max-[380px]:hidden">Claim Candidates</span>
-                <span className="hidden max-[380px]:inline">Claim</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={onEditColumns}
-              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
-            >
-              <ColumnsIcon />
-              Columns
-            </button>
-            {deleteButton ? <div className="shrink-0">{deleteButton}</div> : null}
-            {!hideRefresh ? (
-              <button
-                type="button"
-                onClick={onRefresh}
-                className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
-                aria-label={refreshLabel}
-                title={refreshLabel}
-              >
-                <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
-              </button>
-            ) : null}
-            {activeFilterCount > 0 ? (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} hidden lg:inline-flex`}
-              >
-                Reset
-              </button>
-            ) : null}
-          </div>
 
-          <div className="flex w-full items-center justify-end gap-2 lg:hidden">
-            {activeFilterCount > 0 ? (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className={OUTLINE_TOOLBAR_BUTTON_CLASS}
-              >
-                Reset
-              </button>
-            ) : null}
-            {!hideRefresh ? (
-              <button
-                type="button"
-                onClick={onRefresh}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50"
-                aria-label={refreshLabel}
-                title={refreshLabel}
-              >
-                <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
-              </button>
-            ) : null}
-            {toolbarAddCandidateButton ? (
-              <div className="shrink-0 [&_button]:w-full min-[450px]:[&_button]:w-auto">{toolbarAddCandidateButton}</div>
-            ) : null}
-            <CandidatesViewToggle view={view} onViewChange={onViewChange} />
-          </div>
+              <div className="flex w-full items-center justify-end gap-2 lg:hidden">
+                {activeFilterCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className={OUTLINE_TOOLBAR_BUTTON_CLASS}
+                  >
+                    Reset
+                  </button>
+                ) : null}
+                {!hideRefresh ? (
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50"
+                    aria-label={refreshLabel}
+                    title={refreshLabel}
+                  >
+                    <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+                  </button>
+                ) : null}
+                {toolbarAddCandidateButton ? (
+                  <div className="shrink-0 [&_button]:w-full min-[450px]:[&_button]:w-auto">{toolbarAddCandidateButton}</div>
+                ) : null}
+                <CandidatesViewToggle view={view} onViewChange={onViewChange} />
+              </div>
 
-          <div className="hidden shrink-0 items-center gap-2 lg:flex">
-            {toolbarAddCandidateButton ? <div className="shrink-0">{toolbarAddCandidateButton}</div> : null}
-            <CandidatesViewToggle view={view} onViewChange={onViewChange} />
-          </div>
-        </div>
+              <div className="hidden shrink-0 items-center gap-2 lg:flex">
+                {toolbarAddCandidateButton ? <div className="shrink-0">{toolbarAddCandidateButton}</div> : null}
+                <CandidatesViewToggle view={view} onViewChange={onViewChange} />
+              </div>
+            </div>
 
-        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 max-[449px]:flex-col min-[450px]:flex-row min-[450px]:flex-nowrap min-[450px]:items-center sm:px-5 lg:gap-3">
-          <label className="flex h-8 w-full min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 min-[450px]:flex-1 lg:w-[320px] lg:flex-none xl:w-[400px]">
-            <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`${JOBS_ICONS}/search.svg`}
-                alt=""
-                width={16.67}
-                height={16.67}
-                className="size-[16.67px] shrink-0"
-              />
-            </span>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
-              aria-label={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
-              className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={() => setFiltersModalOpen(true)}
-            className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] min-[450px]:ml-auto min-[450px]:w-auto lg:hidden"
-          >
-            <MoreFiltersIcon />
-            Filters
-            {activeFilterCount > 0 ? (
-              <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
-                {activeFilterCount}
-              </span>
-            ) : null}
-          </button>
-
-          <div className="hidden min-w-0 flex-1 flex-nowrap items-center gap-3 lg:flex">
-            {/* Score + Work Types — hidden on All candidates screen */}
-            {!simplifiedToolbarFilters ? (
-              <>
-                <CompactFilterSelect
-                  ariaLabel="Score"
-                  placeholder="Score (high-low)"
-                  value={scoreSort}
-                  onChange={setScoreSort}
-                  options={[
-                    { value: "high-low", label: "Score (high-low)" },
-                    { value: "low-high", label: "Score (low-high)" },
-                  ]}
+            <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 max-[449px]:flex-col min-[450px]:flex-row min-[450px]:flex-nowrap min-[450px]:items-center sm:px-5 lg:gap-3">
+              <label className="flex h-8 w-full min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 min-[450px]:flex-1 lg:w-[320px] lg:flex-none xl:w-[400px]">
+                <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`${JOBS_ICONS}/search.svg`}
+                    alt=""
+                    width={16.67}
+                    height={16.67}
+                    className="size-[16.67px] shrink-0"
+                  />
+                </span>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => onQueryChange(event.target.value)}
+                  placeholder={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
+                  aria-label={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
+                  className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
                 />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setFiltersModalOpen(true)}
+                className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] min-[450px]:ml-auto min-[450px]:w-auto lg:hidden"
+              >
+                <MoreFiltersIcon />
+                Filters
+                {activeFilterCount > 0 ? (
+                  <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </button>
+
+              <div className="hidden min-w-0 flex-1 flex-nowrap items-center gap-3 lg:flex">
+                {!simplifiedToolbarFilters ? (
+                  <>
+                    <CompactFilterSelect
+                      ariaLabel="Score"
+                      placeholder="Score (high-low)"
+                      value={scoreSort}
+                      onChange={setScoreSort}
+                      options={[
+                        { value: "high-low", label: "Score (high-low)" },
+                        { value: "low-high", label: "Score (low-high)" },
+                      ]}
+                    />
+                    <CompactFilterSelect
+                      ariaLabel="Work types"
+                      placeholder="All Work Types"
+                      value={jobRoleFilter}
+                      onChange={onJobRoleFilterChange}
+                      options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
+                    />
+                  </>
+                ) : null}
                 <CompactFilterSelect
-                  ariaLabel="Work types"
-                  placeholder="All Work Types"
-                  value={jobRoleFilter}
-                  onChange={onJobRoleFilterChange}
-                  options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
+                  ariaLabel="Jobs"
+                  placeholder="All Jobs"
+                  value={jobFilter}
+                  onChange={setJobFilter}
+                  options={jobOptions.map((job) => ({ value: job, label: job }))}
                 />
-              </>
-            ) : null}
-            <CompactFilterSelect
-              ariaLabel="Jobs"
-              placeholder="All Jobs"
-              value={jobFilter}
-              onChange={setJobFilter}
-              options={jobOptions.map((job) => ({ value: job, label: job }))}
-            />
-            <MatchScoreRangeFilter compact value={matchScoreFilter} onChange={setMatchScoreFilter} />
-            <ScrollableFilterSelect
-              ariaLabel="Progress Status"
-              placeholder="Progress Status"
-              value={progressStatusFilter}
-              onChange={(value) => onProgressStatusFilterChange?.(value)}
-              options={progressStatusOptions}
-              triggerClassName="w-[160px]"
-            />
-            {/* Stages — hidden on All candidates screen */}
-            {!simplifiedToolbarFilters ? (
-              <CompactFilterSelect
-                ariaLabel="Stages"
-                placeholder="Stages"
-                value={stageFilter}
-                onChange={setStageFilter}
-                options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
-              />
-            ) : null}
-          </div>
+                <MatchScoreRangeFilter compact value={matchScoreFilter} onChange={setMatchScoreFilter} />
+                <ScrollableFilterSelect
+                  ariaLabel="Progress Status"
+                  placeholder="Progress Status"
+                  value={progressStatusFilter}
+                  onChange={(value) => onProgressStatusFilterChange?.(value)}
+                  options={progressStatusOptions}
+                  triggerClassName="w-[160px]"
+                />
+                {!simplifiedToolbarFilters ? (
+                  <CompactFilterSelect
+                    ariaLabel="Stages"
+                    placeholder="Stages"
+                    value={stageFilter}
+                    onChange={setStageFilter}
+                    options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
+                  />
+                ) : null}
+              </div>
 
-          <button
-            type="button"
-            onClick={() => setFiltersModalOpen(true)}
-            className="hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:inline-flex"
-          >
-            <MoreFiltersIcon />
-            More Filters
-            {activeFilterCount > 0 ? (
-              <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
-                {activeFilterCount}
-              </span>
+              <button
+                type="button"
+                onClick={() => setFiltersModalOpen(true)}
+                className="hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:inline-flex"
+              >
+                <MoreFiltersIcon />
+                More Filters
+                {activeFilterCount > 0 ? (
+                  <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+
+            {showMultiJobHighlight ? (
+              <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
             ) : null}
-          </button>
-        </div>
-
-        {showMultiJobHighlight ? (
-          <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
-        ) : null}
-
-        {/* <div className="flex w-full items-center px-3 pb-2 sm:px-5">
-          <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
-        </div> */}
+          </>
+        )}
 
         <div className="w-full bg-white">{children}</div>
 

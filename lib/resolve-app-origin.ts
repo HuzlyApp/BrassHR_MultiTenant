@@ -25,6 +25,43 @@ function isLocalDevHost(hostname: string): boolean {
   );
 }
 
+function isVercelDeploymentHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host.endsWith(".vercel.app") || host.endsWith(".vercel.sh");
+}
+
+/**
+ * Safe redirect origins for invitation / password-reset email links.
+ * Allows local, configured root domain (and subdomains), Vercel app hosts,
+ * and the configured NEXT_PUBLIC_APP_URL host.
+ */
+export function isAllowedAppOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    if (isLocalDevHost(host)) return true;
+    if (isVercelDeploymentHost(host)) return true;
+
+    const root = currentRootDomain();
+    if (host === root || host === `www.${root}` || host.endsWith(`.${root}`)) return true;
+
+    const env = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (env) {
+      try {
+        const envHost = new URL(normalizePublicOrigin(env)).hostname.toLowerCase();
+        if (host === envHost) return true;
+      } catch {
+        /* ignore */
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Rewrites legacy Nexus MedPro hostnames to Brass HR hosts.
  * Platform app (`hr.nexusmedpro.com`) → apex `brasshr.com`.

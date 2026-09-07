@@ -38,6 +38,10 @@ import {
   CANDIDATES_PAGE_SUBTITLE_CLASS,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import {
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import {
   DEFAULT_JOB_COLUMNS,
@@ -1110,7 +1114,7 @@ export default function AdminRecruiterJobsPage() {
 
       if (placementTypeFilter && jobShiftType(job) !== placementTypeFilter) return false;
 
-      if (locationFilter && jobLocation(job) !== locationFilter) return false;
+      if (locationFilter && !locationsMatchCityState(jobLocation(job), locationFilter)) return false;
 
       if (locationTypeFilter && jobPlacementType(job) !== locationTypeFilter) return false;
 
@@ -1370,12 +1374,9 @@ export default function AdminRecruiterJobsPage() {
   }, [jobs]);
 
   const locationOptions = useMemo(() => {
-    const values = new Set<string>();
-    for (const job of jobs) {
-      const loc = jobLocation(job);
-      if (loc && loc !== "—") values.add(loc);
-    }
-    return Array.from(values).sort((a, b) => a.localeCompare(b));
+    return uniqueCityStateOptions(
+      jobs.flatMap((job) => [job.location, job.facility_name, job.facility, jobLocation(job)])
+    );
   }, [jobs]);
 
   const locationTypeOptions = useMemo(() => {

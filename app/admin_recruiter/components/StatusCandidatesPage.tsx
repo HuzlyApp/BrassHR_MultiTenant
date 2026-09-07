@@ -41,17 +41,16 @@ import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
 import { BulkDeleteConfirmModal } from "./BulkDeleteConfirmModal";
 import { ClaimCandidatesConfirmModal } from "./ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "../candidates/claim-client";
-import { runCandidateListBulkMatchAnalyze } from "../candidates/run-bulk-match-analyze";
 import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
-import {
-  bulkAnalyzeSelectedLabel,
-  bulkReanalyzeSelectedLabel,
-  partitionMatchAnalysisTargets,
-} from "@/lib/admin/bulk-match-analysis";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
+import {
+  formatCityStateFromParts,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
@@ -302,12 +301,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }, [candidates]);
 
   const locationOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of candidates) {
-      const loc = [c.city, c.state].filter(Boolean).join(", ");
-      if (loc) s.add(loc);
-    }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return uniqueCityStateOptions(
+      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
+    );
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -344,7 +340,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
     if (locationFilter) {
-      out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
+      out = out.filter((c) =>
+        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
+      );
     }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
@@ -473,14 +471,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     () => candidates.filter((row) => selection.selectedIds.has(row.id)),
     [candidates, selection.selectedIds]
   );
-  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
-    partitionMatchAnalysisTargets(
-      selectedCandidates.map((row) => ({
-        applicationId: row.matchApplicationId,
-        status: row.aiMatchStatus,
-      }))
-    );
-  const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
 
   const exportCandidates = useMemo(() => {
     if (selection.selectedCount === 0) return filtered;
@@ -576,15 +566,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     } finally {
       setDeleteBusy(false);
     }
-  }
-
-  async function runSelectedMatchAnalyze(applicationIds: string[]) {
-    if (bulkAnalyzeBusy) return;
-    await runCandidateListBulkMatchAnalyze({
-      applicationIds,
-      setCandidates,
-      setAnalyzingIds: setMatchAnalyzingApplicationIds,
-    });
   }
 
   function openClaimConfirm() {
@@ -734,23 +715,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
-                  analyzeBusy={bulkAnalyzeBusy}
                   archiveBusy={archiveBusy}
                   deleteBusy={deleteBusy}
-                  analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
-                  reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
-                  onAnalyze={
-                    selectedAnalyzeIds.length > 0
-                      ? () => void runSelectedMatchAnalyze(selectedAnalyzeIds)
-                      : selection.selectedCount > 0 && selectedReanalyzeIds.length === 0
-                        ? () => void runSelectedMatchAnalyze([])
-                        : undefined
-                  }
-                  onReanalyze={
-                    selectedReanalyzeIds.length > 0
-                      ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
-                      : undefined
-                  }
                   onArchive={() => void handleBulkArchiveSelected()}
                   onDelete={() => {
                     setDeleteError(null);

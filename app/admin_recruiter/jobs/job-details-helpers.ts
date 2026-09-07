@@ -1,5 +1,6 @@
 import { jobDescriptionPlainText } from "@/lib/jobs/job-description-html";
 import type { JobStatus } from "@/lib/jobs/types";
+import { formatCityState } from "@/lib/location/city-state";
 
 export type JobDetailsRow = {
   id: string;
@@ -116,13 +117,13 @@ export function formatJobDetailsPay(job: JobDetailsRow): string {
 }
 
 export function formatJobDetailsLocation(job: JobDetailsRow): string {
-  return (
+  const raw =
     job.location?.trim() ||
     job.facility_name?.trim() ||
     job.facility?.trim() ||
-    job.location_type?.trim() ||
-    "—"
-  );
+    "";
+  if (raw) return formatCityState(raw) || raw;
+  return job.location_type?.trim() || "—";
 }
 
 

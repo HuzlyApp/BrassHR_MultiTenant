@@ -3,7 +3,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
   columnLabel,
@@ -36,9 +35,9 @@ import { buildCandidateKpis } from "./candidate-kpis";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
 import AddCandidateModal from "../applications/AddCandidateModal";
-import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import ImportCandidatesModal from "../applications/ImportCandidatesModal";
 import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
-// import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
+import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import {
@@ -68,26 +67,23 @@ import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "./claim-client";
-import { runCandidateListBulkMatchAnalyze } from "./run-bulk-match-analyze";
 import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
-import {
-  bulkAnalyzeSelectedLabel,
-  bulkReanalyzeSelectedLabel,
-  partitionMatchAnalysisTargets,
-} from "@/lib/admin/bulk-match-analysis";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   fetchAllWorkersFromApi,
   resolveCandidatesListTotal,
 } from "@/lib/workers/candidates-list-fetch";
 import toast from "react-hot-toast";
+import {
+  formatCityStateFromParts,
+  locationsMatchCityState,
+  uniqueCityStateOptions,
+} from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
-const ADD_CANDIDATE_BUTTON_CLASS =
-  "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50 lg:w-auto lg:justify-start";
 
 type WorkerProfile = {
   id: string;
@@ -261,6 +257,11 @@ export default function CandidatesPage() {
   // Highlight Multi-Job Applicants is disabled on the legacy /admin_recruiter/candidates screen.
   // const [highlightMultiJob, setHighlightMultiJob] = useState(false);
   // const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
+  const [highlightMultiJob, setHighlightMultiJob] = useState(false);
+  const [skillsFilter, setSkillsFilter] = useState("");
+  const [matchImportJobId, setMatchImportJobId] = useState<string | null>(null);
+  const [matchJobPickerOpen, setMatchJobPickerOpen] = useState(false);
+  const [matchJobPickerValue, setMatchJobPickerValue] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -273,7 +274,6 @@ export default function CandidatesPage() {
   );
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
-  const branding = useTenantBranding();
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
 
@@ -487,12 +487,9 @@ export default function CandidatesPage() {
   }, [candidates]);
 
   const locationOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of candidates) {
-      const loc = [c.city, c.state].filter(Boolean).join(", ");
-      if (loc) s.add(loc);
-    }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
+    return uniqueCityStateOptions(
+      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
+    );
   }, [candidates]);
 
   const statusOptions = useMemo(() => {
@@ -534,6 +531,22 @@ export default function CandidatesPage() {
     if (q) {
       out = out.filter((c) => matchesCandidateListSearch(c, q));
     }
+    const skills = skillsFilter.trim().toLowerCase();
+    if (skills) {
+      out = out.filter((c) => {
+        const hay = [
+          c.role,
+          c.applicationJobTitle,
+          c.applicationJobTitlesText,
+          c.applicationSearchText,
+          c.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(skills);
+      });
+    }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
     if (statusFilter) out = out.filter((c) => c.status === statusFilter);
     if (progressStatusFilter) {
@@ -545,7 +558,9 @@ export default function CandidatesPage() {
       out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
     }
     if (locationFilter) {
-      out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
+      out = out.filter((c) =>
+        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
+      );
     }
     if (appliedDateFrom || appliedDateTo) {
       out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
@@ -554,6 +569,7 @@ export default function CandidatesPage() {
   }, [
     candidates,
     query,
+    skillsFilter,
     jobRoleFilter,
     statusFilter,
     progressStatusFilter,
@@ -565,21 +581,18 @@ export default function CandidatesPage() {
     appliedDateTo,
   ]);
 
-  // const multiJobApplicantCount = useMemo(
-  //   () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
-  //   [filtered]
-  // );
+  const multiJobApplicantCount = useMemo(
+    () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
+    [filtered]
+  );
 
-  // const visibleCandidates = useMemo(() => {
-  //   if (!filterMultiJobOnly) return filtered;
-  //   return filtered.filter((candidate) => Number(candidate.appliedJobCount ?? 1) > 1);
-  // }, [filtered, filterMultiJobOnly]);
   const visibleCandidates = filtered;
 
   const hasActiveListFilters = useMemo(
     () =>
       Boolean(
         query.trim() ||
+          skillsFilter.trim() ||
           jobRoleFilter ||
           statusFilter ||
           progressStatusFilter ||
@@ -592,6 +605,7 @@ export default function CandidatesPage() {
       ),
     [
       query,
+      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
@@ -702,14 +716,6 @@ export default function CandidatesPage() {
     () => candidates.filter((row) => selection.selectedIds.has(row.id)),
     [candidates, selection.selectedIds]
   );
-  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } =
-    partitionMatchAnalysisTargets(
-      selectedCandidates.map((row) => ({
-        applicationId: row.matchApplicationId,
-        status: row.aiMatchStatus,
-      }))
-    );
-  const bulkAnalyzeBusy = matchAnalyzingApplicationIds.size > 0;
 
   const exportCandidates = useMemo(() => {
     if (selection.selectedCount === 0) return visibleCandidates;
@@ -768,15 +774,6 @@ export default function CandidatesPage() {
     } finally {
       setArchiveBusy(false);
     }
-  }
-
-  async function runSelectedMatchAnalyze(applicationIds: string[]) {
-    if (bulkAnalyzeBusy) return;
-    await runCandidateListBulkMatchAnalyze({
-      applicationIds,
-      setCandidates,
-      setAnalyzingIds: setMatchAnalyzingApplicationIds,
-    });
   }
 
   function openClaimConfirm() {
@@ -950,25 +947,24 @@ export default function CandidatesPage() {
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
-        hideAddCandidate
-        hideClaimCandidates
-        hideRefresh
+        layoutVariant="all-candidates"
         simplifiedToolbarFilters
-        toolbarAddCandidateButton={
-          <button
-            type="button"
-            onClick={() => setAddCandidateOpen(true)}
-            className={ADD_CANDIDATE_BUTTON_CLASS}
-          >
-            <Plus
-              className="h-5 w-5 shrink-0"
-              style={{ color: branding.secondaryHex }}
-              strokeWidth={2}
-              aria-hidden
-            />
-            Add candidate
-          </button>
-        }
+        skillsFilter={skillsFilter}
+        onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
+          setQuery(nextQuery);
+          setSkillsFilter(nextSkills);
+          setPage(1);
+        }}
+        onResetSearch={() => {
+          setQuery("");
+          setSkillsFilter("");
+          setPage(1);
+        }}
+        onAddCandidate={() => setAddCandidateOpen(true)}
+        onMatchExistingCandidate={() => {
+          setMatchJobPickerValue("");
+          setMatchJobPickerOpen(true);
+        }}
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
@@ -983,7 +979,11 @@ export default function CandidatesPage() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         totalFiltered={listDisplayTotal}
-        showMultiJobHighlight={false}
+        showMultiJobHighlight
+        highlightMultiJob={highlightMultiJob}
+        onHighlightMultiJobChange={setHighlightMultiJob}
+        multiJobApplicantCount={multiJobApplicantCount}
+        onViewAllMultiJobApplicants={() => setHighlightMultiJob(true)}
       >
         {(() => {
           const formatDate = formatDateShort;
@@ -1020,23 +1020,8 @@ export default function CandidatesPage() {
                   eligibleCount={selection.selectedEligibleCount}
                   scopeLabel={selection.selectionScopeLabel}
                   claimBusy={claimBusy}
-                  analyzeBusy={bulkAnalyzeBusy}
                   archiveBusy={archiveBusy}
                   deleteBusy={deleteBusy}
-                  analyzeLabel={bulkAnalyzeSelectedLabel(selectedAnalyzeIds.length)}
-                  reanalyzeLabel={bulkReanalyzeSelectedLabel(selectedReanalyzeIds.length)}
-                  onAnalyze={
-                    selectedAnalyzeIds.length > 0
-                      ? () => void runSelectedMatchAnalyze(selectedAnalyzeIds)
-                      : selection.selectedCount > 0 && selectedReanalyzeIds.length === 0
-                        ? () => void runSelectedMatchAnalyze([])
-                        : undefined
-                  }
-                  onReanalyze={
-                    selectedReanalyzeIds.length > 0
-                      ? () => void runSelectedMatchAnalyze(selectedReanalyzeIds)
-                      : undefined
-                  }
                   onArchive={() => void handleBulkArchiveSelected()}
                   onDelete={() => {
                     setDeleteError(null);
@@ -1091,8 +1076,15 @@ export default function CandidatesPage() {
                           eligible: true,
                           reason: null,
                         };
+                        const isMultiJobHighlighted =
+                          highlightMultiJob && Number(c.appliedJobCount ?? 1) > 1;
                         return (
-                        <tr key={c.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
+                        <tr
+                          key={c.id}
+                          className={`border-b border-[#E9EDF3] hover:bg-[#F9FBFB] ${
+                            isMultiJobHighlighted ? "bg-[#EFF6FF]" : ""
+                          }`}
+                        >
                           <td
                             className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle"
                             onClick={(event) => event.stopPropagation()}
@@ -1112,6 +1104,7 @@ export default function CandidatesPage() {
                               className={`border-r border-[#EEF2F7] px-4 py-4 align-middle first:pl-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                             >
                               {renderListCell(colId, c, formatDate, {
+                                highlightMultiJob,
                                 matchAnalyzingApplicationIds,
                                 onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
                                 progressStatusOptions,
@@ -1303,6 +1296,78 @@ export default function CandidatesPage() {
           void loadCandidates();
         }}
       />
+
+      {matchJobPickerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-semibold text-[#111827]">Match Existing Candidate</h2>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Select a job to browse and import candidates from your talent database.
+            </p>
+            <label className="mt-4 block text-sm font-medium text-[#374151]" htmlFor="match-existing-job">
+              Job
+            </label>
+            <select
+              id="match-existing-job"
+              value={matchJobPickerValue}
+              onChange={(event) => setMatchJobPickerValue(event.target.value)}
+              className="mt-1.5 h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-sm font-normal leading-6 text-[#111827] outline-none hover:bg-zinc-50 focus:border-[color:var(--brand-primary)]"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                )}")`,
+                color: "#111827",
+              }}
+            >
+              <option value="" className="text-[#111827]">
+                Select a job
+              </option>
+              {addCandidateJobOptions.map((option) => (
+                <option key={option.id} value={option.id} className="text-[#111827]">
+                  {option.title}
+                </option>
+              ))}
+            </select>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMatchJobPickerOpen(false)}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-semibold text-[#475569] transition hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!matchJobPickerValue}
+                onClick={() => {
+                  if (!matchJobPickerValue) return;
+                  setMatchImportJobId(matchJobPickerValue);
+                  setMatchJobPickerOpen(false);
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {matchImportJobId ? (
+        <ImportCandidatesModal
+          open
+          jobId={matchImportJobId}
+          onClose={() => setMatchImportJobId(null)}
+          onImported={() => {
+            setMatchImportJobId(null);
+            if (advancedSearchContext.active) {
+              void loadCandidates(null);
+              return;
+            }
+            void loadCandidates();
+          }}
+        />
+      ) : null}
     </>
   );
 }

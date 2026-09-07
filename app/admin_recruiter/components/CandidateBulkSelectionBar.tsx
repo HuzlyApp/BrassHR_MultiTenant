@@ -10,7 +10,6 @@ import {
 } from "@/app/admin_recruiter/components/bulk-selection-snackbar-styles";
 import { RotateCcw } from "lucide-react";
 
-const CANDIDATE_REANALYZE_ICON_SRC = "/icons/admin-recruiter/circle-focus.svg";
 const CANDIDATE_ARCHIVE_ICON_SRC = "/icons/jobs-icons/archived.svg";
 const CANDIDATE_DELETE_ICON_SRC = "/icons/delete-icon.svg";
 
@@ -37,19 +36,14 @@ type CandidateBulkSelectionBarProps = {
   eligibleCount: number;
   scopeLabel?: string;
   claimBusy?: boolean;
-  analyzeBusy?: boolean;
   archiveBusy?: boolean;
   deleteBusy?: boolean;
-  analyzeLabel?: string;
-  reanalyzeLabel?: string;
   archiveLabel?: string;
   archiveDisabled?: boolean;
   deleteDisabled?: boolean;
   exportDisabled?: boolean;
   hideClaim?: boolean;
   onClaim?: () => void;
-  onAnalyze?: () => void;
-  onReanalyze?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
   onExportCsv?: () => void;
@@ -62,19 +56,14 @@ export function CandidateBulkSelectionBar({
   eligibleCount,
   scopeLabel,
   claimBusy = false,
-  analyzeBusy = false,
   archiveBusy = false,
   deleteBusy = false,
-  analyzeLabel = "Analyze selected",
-  reanalyzeLabel = "Reanalyze selected",
   archiveLabel = "Archive",
   archiveDisabled = false,
   deleteDisabled = false,
   exportDisabled = false,
   hideClaim = false,
   onClaim,
-  onAnalyze,
-  onReanalyze,
   onArchive,
   onDelete,
   onExportCsv,
@@ -87,9 +76,7 @@ export function CandidateBulkSelectionBar({
     scopeLabel ??
     (selectedCount === 1 ? "1 candidate selected" : `${selectedCount} candidates selected`);
   const claimLabel = eligibleCount === 1 ? "Claim Candidate" : "Claim Candidates";
-  const busy = claimBusy || analyzeBusy || archiveBusy || deleteBusy;
-  const showAnalyze = Boolean(onAnalyze);
-  const showReanalyze = Boolean(onReanalyze);
+  const busy = claimBusy || archiveBusy || deleteBusy;
   const showExport = Boolean(onExportCsv && onExportXls);
 
   return (
@@ -108,28 +95,6 @@ export function CandidateBulkSelectionBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {showReanalyze ? (
-          <button
-            type="button"
-            onClick={onReanalyze}
-            disabled={busy || selectedCount === 0}
-            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
-          >
-            <SnackbarGlyph src={CANDIDATE_REANALYZE_ICON_SRC} className="size-3.5" />
-            {analyzeBusy ? "Analyzing…" : reanalyzeLabel}
-          </button>
-        ) : null}
-        {showAnalyze ? (
-          <button
-            type="button"
-            onClick={onAnalyze}
-            disabled={busy || selectedCount === 0}
-            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
-          >
-            <SnackbarGlyph src={CANDIDATE_REANALYZE_ICON_SRC} className="size-3.5" />
-            {analyzeBusy ? "Analyzing…" : analyzeLabel}
-          </button>
-        ) : null}
         {showExport ? (
           <ListExportDropdown
             variant="snackbar"

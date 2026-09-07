@@ -29,6 +29,8 @@ type ClassicTenantLoginProps = {
   otpEmail?: string;
   otpVerified?: boolean;
   otpAuthError?: LoginAuthErrorPayload | null;
+  otpResendCount?: number;
+  otpMaxResends?: number;
   onOtpClearError?: () => void;
   onOtpVerify?: (code: string) => void | Promise<void>;
   onOtpSendAgain?: () => void | Promise<void>;
@@ -36,8 +38,6 @@ type ClassicTenantLoginProps = {
   onTogglePassword: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   forgotReturnTo?: string;
-  termsHref?: string;
-  privacyHref?: string;
 };
 
 export default function ClassicTenantLogin({
@@ -50,6 +50,8 @@ export default function ClassicTenantLogin({
   otpEmail = "",
   otpVerified = false,
   otpAuthError,
+  otpResendCount = 0,
+  otpMaxResends,
   onOtpClearError,
   onOtpVerify,
   onOtpSendAgain,
@@ -57,11 +59,9 @@ export default function ClassicTenantLogin({
   onTogglePassword,
   onSubmit,
   forgotReturnTo,
-  termsHref,
-  privacyHref,
 }: ClassicTenantLoginProps) {
   const router = useRouter();
-  const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && form.agree;
+  const canSubmit = form.email.trim().length > 0 && form.password.length > 0;
   const forgotHref = buildForgotPasswordHref({
     returnTo: forgotReturnTo ?? "/admin",
     tenant: brand.slug,
@@ -86,6 +86,8 @@ export default function ClassicTenantLogin({
             submitting={submitting}
             verified={otpVerified}
             authError={otpAuthError}
+            resendCount={otpResendCount}
+            maxResends={otpMaxResends}
             onClearError={onOtpClearError}
             onVerify={onOtpVerify}
             onSendAgain={onOtpSendAgain}
@@ -177,48 +179,6 @@ export default function ClassicTenantLogin({
             >
               Forgot Password?
             </Link>
-          </div>
-
-          <div className="pt-2">
-            <OnboardingCheckbox
-              checked={form.agree}
-              onChange={(checked) => onFormChange({ agree: checked })}
-              className="flex items-start gap-3"
-            >
-              <span className="text-sm leading-6 text-gray-600">
-                By checking this box you agree to our{" "}
-                {termsHref ? (
-                  <Link
-                    href={termsHref}
-                    className="font-medium underline"
-                    style={{ color: "var(--brand-primary)" }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    Terms &amp; Conditions
-                  </Link>
-                ) : (
-                  <span className="font-medium" style={{ color: "var(--brand-primary)" }}>
-                    Terms &amp; Conditions
-                  </span>
-                )}
-                {" "}and{" "}
-                {privacyHref ? (
-                  <Link
-                    href={privacyHref}
-                    className="font-medium underline"
-                    style={{ color: "var(--brand-primary)" }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    Privacy Policy
-                  </Link>
-                ) : (
-                  <span className="font-medium" style={{ color: "var(--brand-primary)" }}>
-                    Privacy Policy
-                  </span>
-                )}
-                .
-              </span>
-            </OnboardingCheckbox>
           </div>
 
           <div className="mt-2 flex flex-row gap-3 pt-4 sm:gap-4">

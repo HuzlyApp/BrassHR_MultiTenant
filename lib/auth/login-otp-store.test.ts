@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LOGIN_OTP_EXPIRED_MESSAGE, LOGIN_OTP_INVALID_MESSAGE } from "@/lib/auth/login-api-errors";
+import {
+  LOGIN_OTP_EXPIRED_MESSAGE,
+  LOGIN_OTP_INVALID_MESSAGE,
+  LOGIN_OTP_RESEND_LIMIT_MESSAGE,
+} from "@/lib/auth/login-api-errors";
 import {
   classifyLoginOtpFailureFromRows,
   createLoginOtp,
+  evaluateLoginOtpIssueGate,
   hashLoginOtp,
   LOGIN_OTP_PURPOSE,
   verifyLoginOtp,
 } from "@/lib/auth/login-otp-store";
+import { LOGIN_OTP_MAX_RESENDS, LOGIN_OTP_TTL_SECONDS } from "@/lib/auth/login-otp-constants";
 
 type OtpRow = {
   id: string;
@@ -66,7 +72,7 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
       throw new Error(`Unexpected table: ${table}`);
     }
 
-    const filters: Array<{ type: "eq" | "is" | "gt"; column: string; value: unknown }> = [];
+    const filters: Array<{ type: "eq" | "is" | "gt" | "gte"; column: string; value: unknown }> = [];
     let orderColumn: string | null = null;
     let orderAscending = true;
     let limitCount: number | null = null;
@@ -79,6 +85,9 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
         if (filter.type === "is") return cell == filter.value;
         if (filter.type === "gt") {
           return new Date(String(cell)).getTime() > new Date(String(filter.value)).getTime();
+        }
+        if (filter.type === "gte") {
+          return new Date(String(cell)).getTime() >= new Date(String(filter.value)).getTime();
         }
         return false;
       });
@@ -124,6 +133,10 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
       },
       gt(column: string, value: unknown) {
         filters.push({ type: "gt", column, value });
+        return builder;
+      },
+      gte(column: string, value: unknown) {
+        filters.push({ type: "gte", column, value });
         return builder;
       },
       order(column: string, options?: { ascending?: boolean }) {
@@ -231,7 +244,7 @@ describe("login OTP store", () => {
 
   beforeEach(() => {
     process.env.LOGIN_OTP_PEPPER = "test-pepper";
-    process.env.LOGIN_OTP_TTL_SECONDS = "600";
+    process.env.LOGIN_OTP_TTL_SECONDS = String(LOGIN_OTP_TTL_SECONDS);
   });
 
   it("invalidates an old OTP after a new OTP is generated", async () => {
@@ -240,11 +253,13 @@ describe("login OTP store", () => {
       email,
       now: baseTime,
       code: "111111",
+      skipIssueGuards: true,
     });
     await createLoginOtp(supabase, {
       email,
       now: new Date(baseTime.getTime() + 1000),
       code: "222222",
+      skipIssueGuards: true,
     });
 
     expect(rows.filter((row) => row.invalidated_at !== null)).toHaveLength(1);
@@ -256,11 +271,12 @@ describe("login OTP store", () => {
 
   it("verifies the latest OTP successfully", async () => {
     const { supabase } = createInMemoryOtpSupabase();
-    await createLoginOtp(supabase, { email, now: baseTime, code: "111111" });
+    await createLoginOtp(supabase, { email, now: baseTime, code: "111111", skipIssueGuards: true });
     const latest = await createLoginOtp(supabase, {
       email,
       now: new Date(baseTime.getTime() + 1000),
       code: "222222",
+      skipIssueGuards: true,
     });
 
     await expect(verifyLoginOtp(supabase, { email, code: latest.code })).resolves.toEqual({ ok: true });
@@ -269,11 +285,12 @@ describe("login OTP store", () => {
   it("rejects an old OTP even when it has not expired", async () => {
     const { supabase } = createInMemoryOtpSupabase();
     const oldCode = "333333";
-    await createLoginOtp(supabase, { email, now: baseTime, code: oldCode });
+    await createLoginOtp(supabase, { email, now: baseTime, code: oldCode, skipIssueGuards: true });
     await createLoginOtp(supabase, {
       email,
       now: new Date(baseTime.getTime() + 2000),
       code: "444444",
+      skipIssueGuards: true,
     });
 
     await expect(verifyLoginOtp(supabase, { email, code: oldCode })).resolves.toEqual({
@@ -284,7 +301,12 @@ describe("login OTP store", () => {
 
   it("rejects an expired latest OTP", async () => {
     const { supabase, rows } = createInMemoryOtpSupabase();
-    const created = await createLoginOtp(supabase, { email, now: baseTime, code: "555555" });
+    const created = await createLoginOtp(supabase, {
+      email,
+      now: baseTime,
+      code: "555555",
+      skipIssueGuards: true,
+    });
     const row = rows[0];
     row.expires_at = new Date(Date.now() - 60_000).toISOString();
 
@@ -296,7 +318,12 @@ describe("login OTP store", () => {
 
   it("does not allow reusing a consumed OTP", async () => {
     const { supabase } = createInMemoryOtpSupabase();
-    const created = await createLoginOtp(supabase, { email, now: baseTime, code: "666666" });
+    const created = await createLoginOtp(supabase, {
+      email,
+      now: baseTime,
+      code: "666666",
+      skipIssueGuards: true,
+    });
 
     await expect(verifyLoginOtp(supabase, { email, code: created.code })).resolves.toEqual({ ok: true });
     await expect(verifyLoginOtp(supabase, { email, code: created.code })).resolves.toEqual({
@@ -307,16 +334,23 @@ describe("login OTP store", () => {
 
   it("leaves only the newest OTP valid after multiple resends", async () => {
     const { supabase } = createInMemoryOtpSupabase();
-    const first = await createLoginOtp(supabase, { email, now: baseTime, code: "111111" });
+    const first = await createLoginOtp(supabase, {
+      email,
+      now: baseTime,
+      code: "111111",
+      skipIssueGuards: true,
+    });
     await createLoginOtp(supabase, {
       email,
       now: new Date(baseTime.getTime() + 1000),
       code: "222222",
+      skipIssueGuards: true,
     });
     const third = await createLoginOtp(supabase, {
       email,
       now: new Date(baseTime.getTime() + 2000),
       code: "333333",
+      skipIssueGuards: true,
     });
 
     await expect(verifyLoginOtp(supabase, { email, code: first.code })).resolves.toEqual({
@@ -337,6 +371,7 @@ describe("login OTP store", () => {
       now: baseTime,
       code: "777777",
       purpose: "login",
+      skipIssueGuards: true,
     });
 
     await expect(
@@ -346,12 +381,48 @@ describe("login OTP store", () => {
 
   it("rejects an OTP for a different user email", async () => {
     const { supabase } = createInMemoryOtpSupabase();
-    const created = await createLoginOtp(supabase, { email, now: baseTime, code: "888888" });
+    const created = await createLoginOtp(supabase, {
+      email,
+      now: baseTime,
+      code: "888888",
+      skipIssueGuards: true,
+    });
 
     await expect(verifyLoginOtp(supabase, { email: otherEmail, code: created.code })).resolves.toEqual({
       ok: false,
       reason: "invalid",
     });
+  });
+
+  it("blocks OTP issue during the cooldown window", () => {
+    const now = new Date("2026-07-02T12:01:00.000Z");
+    const gate = evaluateLoginOtpIssueGate(
+      [{ created_at: "2026-07-02T12:00:30.000Z" }],
+      { now, cooldownSeconds: 60, maxResends: LOGIN_OTP_MAX_RESENDS }
+    );
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) {
+      expect(gate.reason).toBe("cooldown");
+      expect(gate.retryAfterSec).toBe(30);
+    }
+  });
+
+  it("blocks OTP issue after the max resend count", () => {
+    const now = new Date("2026-07-02T12:20:00.000Z");
+    const rows = Array.from({ length: 1 + LOGIN_OTP_MAX_RESENDS }, (_, index) => ({
+      created_at: new Date(now.getTime() - (index + 1) * 60_000).toISOString(),
+    }));
+    const gate = evaluateLoginOtpIssueGate(rows, {
+      now,
+      cooldownSeconds: 60,
+      maxResends: LOGIN_OTP_MAX_RESENDS,
+      windowSeconds: 15 * 60,
+    });
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) {
+      expect(gate.reason).toBe("resend_limit");
+      expect(gate.message).toBe(LOGIN_OTP_RESEND_LIMIT_MESSAGE);
+    }
   });
 
   it("uses the expected OTP error message constants", () => {

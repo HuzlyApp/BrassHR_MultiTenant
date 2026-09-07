@@ -15,6 +15,8 @@ export type CandidateKpiCard = {
 type CandidateKpiSource = {
   status: string;
   createdAt: string | null;
+  aiMatchStatus?: string | null;
+  aiMatchScore?: number | null;
 };
 
 const ICONS = "/icons/candidates-icons";
@@ -37,6 +39,15 @@ function isRejectedStatus(status: string): boolean {
 
 function isActiveStatus(status: string): boolean {
   return !isHiredStatus(status) && !isRejectedStatus(status);
+}
+
+/** Candidate has a completed AI match analysis (same rule as list Match Score cell). */
+export function isAnalyzedCandidate(row: {
+  aiMatchStatus?: string | null;
+  aiMatchScore?: number | null;
+}): boolean {
+  if (String(row.aiMatchStatus ?? "").toUpperCase() === "ANALYZED") return true;
+  return row.aiMatchScore != null && Number.isFinite(Number(row.aiMatchScore));
 }
 
 function createdAtTime(createdAt: string | null): number | null {
@@ -73,6 +84,9 @@ export function buildCandidateKpis(rows: CandidateKpiSource[]): CandidateKpiCard
   const newPrevious = countInWindow(rows, previousStart, currentStart, () => true);
   const activeCurrent = countInWindow(rows, currentStart, now, (row) => isActiveStatus(row.status));
   const activePrevious = countInWindow(rows, previousStart, currentStart, (row) => isActiveStatus(row.status));
+  const analyzedTotal = rows.filter(isAnalyzedCandidate).length;
+  const analyzedCurrent = countInWindow(rows, currentStart, now, isAnalyzedCandidate);
+  const analyzedPrevious = countInWindow(rows, previousStart, currentStart, isAnalyzedCandidate);
   const hiredCurrent = countInWindow(rows, currentStart, now, (row) => isHiredStatus(row.status));
   const hiredPrevious = countInWindow(rows, previousStart, currentStart, (row) => isHiredStatus(row.status));
 
@@ -91,8 +105,8 @@ export function buildCandidateKpis(rows: CandidateKpiSource[]): CandidateKpiCard
     },
     {
       label: "Analyzed",
-      value: 0,
-      trendPercent: 0,
+      value: analyzedTotal,
+      trendPercent: percentChange(analyzedCurrent, analyzedPrevious),
       icon: { src: `${ICONS}/kpi-ai-line.svg`, bg: "#fbe9ff", leafWidth: 30, leafHeight: 30 },
     },
     {

@@ -4,11 +4,16 @@ import { Check, Clock, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
 import { loginInputErrorClass } from "@/app/login/LoginFormError";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
+import {
+  LOGIN_OTP_MAX_RESENDS,
+  LOGIN_OTP_RESEND_LIMIT_MESSAGE,
+  LOGIN_OTP_TTL_SECONDS,
+} from "@/lib/auth/login-otp-constants";
 import { LOGIN_OTP_LENGTH } from "@/lib/auth/supabase-magic-link-otp-template";
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 const OTP_LENGTH = LOGIN_OTP_LENGTH;
-const SEND_AGAIN_SECONDS = 30;
+const SEND_AGAIN_SECONDS = LOGIN_OTP_TTL_SECONDS;
 
 const inputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
@@ -25,9 +30,12 @@ type LoginOtpStepProps = {
   submitting?: boolean;
   verified?: boolean;
   authError?: LoginAuthErrorPayload | null;
+  /** Successful "Send again" count from the server (0 = initial code only). */
+  resendCount?: number;
+  maxResends?: number;
   onClearError?: () => void;
   onVerify: (code: string) => void | Promise<void>;
-  /** Calls API to send a new code (Supabase OTP, not Resend email service). */
+  /** Calls API to send a new code (app-managed OTP via Resend). */
   onSendAgain: () => void | Promise<void>;
 };
 
@@ -50,6 +58,8 @@ export default function LoginOtpStep({
   submitting = false,
   verified = false,
   authError = null,
+  resendCount = 0,
+  maxResends = LOGIN_OTP_MAX_RESENDS,
   onClearError,
   onVerify,
   onSendAgain,
@@ -58,15 +68,38 @@ export default function LoginOtpStep({
   const [digits, setDigits] = useState<string[]>(() => Array.from({ length: OTP_LENGTH }, () => ""));
   const [secondsLeft, setSecondsLeft] = useState(SEND_AGAIN_SECONDS);
   const [sendingAgain, setSendingAgain] = useState(false);
+  const [timerExpired, setTimerExpired] = useState(false);
+  const [resendLimitReached, setResendLimitReached] = useState(false);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
 
   useEffect(() => {
-    if (secondsLeft <= 0) return;
+    if (resendCount >= maxResends) {
+      setResendLimitReached(true);
+    }
+  }, [resendCount, maxResends]);
+
+  useEffect(() => {
+    if (authError?.code === "RATE_LIMIT") {
+      setResendLimitReached(true);
+    }
+  }, [authError]);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      setTimerExpired(true);
+      return;
+    }
     const timer = window.setInterval(() => {
-      setSecondsLeft((current) => (current > 0 ? current - 1 : 0));
+      setSecondsLeft((current) => {
+        if (current <= 1) {
+          setTimerExpired(true);
+          return 0;
+        }
+        return current - 1;
+      });
     }, 1000);
     return () => window.clearInterval(timer);
   }, [secondsLeft]);
@@ -74,7 +107,15 @@ export default function LoginOtpStep({
   const code = useMemo(() => digits.join(""), [digits]);
   const isComplete = code.length === OTP_LENGTH && digits.every((digit) => digit.length === 1);
   const otpHasError = authError != null;
-  const otpExpired = authError?.code === "OTP_EXPIRED";
+  const otpExpired = timerExpired || authError?.code === "OTP_EXPIRED";
+  const showResendLimit = resendLimitReached || authError?.code === "RATE_LIMIT";
+  const canSendAgain =
+    secondsLeft <= 0 &&
+    !sendingAgain &&
+    !submitting &&
+    !verified &&
+    !resendLimitReached &&
+    resendCount < maxResends;
 
   const updateDigit = (index: number, value: string) => {
     onClearError?.();
@@ -107,13 +148,16 @@ export default function LoginOtpStep({
   };
 
   const handleSendAgain = async () => {
-    if (secondsLeft > 0 || sendingAgain || submitting) return;
+    if (!canSendAgain) return;
     setSendingAgain(true);
     try {
       await onSendAgain();
       setDigits(Array.from({ length: OTP_LENGTH }, () => ""));
+      setTimerExpired(false);
       setSecondsLeft(SEND_AGAIN_SECONDS);
       inputRefs.current[0]?.focus();
+    } catch {
+      /* Parent sets authError; keep timer at zero so user can retry if allowed. */
     } finally {
       setSendingAgain(false);
     }
@@ -121,7 +165,7 @@ export default function LoginOtpStep({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isComplete || submitting || verified) return;
+    if (!isComplete || submitting || verified || timerExpired) return;
     void onVerify(code);
   };
 
@@ -142,7 +186,25 @@ export default function LoginOtpStep({
       </div>
 
       <div className="pt-[20px]">
-        {otpHasError ? (
+        {showResendLimit ? (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-[20px] flex items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
+            style={interStyle}
+          >
+            <span
+              className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: OTP_STATUS_ICON.errorBg }}
+              aria-hidden
+            >
+              <X className="h-[12px] w-[12px]" strokeWidth={3} />
+            </span>
+            <span className="font-semibold text-[#991b1b]">
+              {authError?.error ?? LOGIN_OTP_RESEND_LIMIT_MESSAGE}
+            </span>
+          </div>
+        ) : otpHasError || otpExpired ? (
           <div
             role="alert"
             aria-live="polite"
@@ -164,7 +226,9 @@ export default function LoginOtpStep({
               {otpExpired ? (
                 <>
                   <span className="font-semibold text-[#92400e]">OTP expired.</span>{" "}
-                  {authError?.error ?? "Request a new code and try again."}
+                  {authError?.code === "OTP_EXPIRED"
+                    ? (authError.error ?? "Request a new code and try again.")
+                    : "Request a new code and try again."}
                 </>
               ) : (
                 <>
@@ -218,10 +282,10 @@ export default function LoginOtpStep({
               onChange={(event) => updateDigit(index, event.target.value)}
               onKeyDown={(event) => handleKeyDown(index, event)}
               onPaste={handlePaste}
-              disabled={submitting || verified}
+              disabled={submitting || verified || timerExpired}
               aria-label={`Digit ${index + 1}`}
-              aria-invalid={otpHasError}
-              className={`h-[45px] w-[45px] shrink-0 rounded-[8px] border border-[#94a3b8] bg-white text-center text-[18px] font-semibold leading-[22px] text-[#0f172a] outline-none transition max-[369px]:h-[36px] max-[369px]:w-[36px] max-[369px]:rounded-[6px] max-[369px]:text-[15px] max-[369px]:leading-[18px] min-[450px]:max-[649px]:h-[48px] min-[450px]:max-[649px]:w-[48px] sm:h-[53px] sm:w-[53px] sm:text-[20px] sm:leading-[24px] ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
+              aria-invalid={otpHasError || otpExpired}
+              className={`h-[45px] w-[45px] shrink-0 rounded-[8px] border border-[#94a3b8] bg-white text-center text-[18px] font-semibold leading-[22px] text-[#0f172a] outline-none transition max-[369px]:h-[36px] max-[369px]:w-[36px] max-[369px]:rounded-[6px] max-[369px]:text-[15px] max-[369px]:leading-[18px] min-[450px]:max-[649px]:h-[48px] min-[450px]:max-[649px]:w-[48px] sm:h-[53px] sm:w-[53px] sm:text-[20px] sm:leading-[24px] ${inputFocusClass} ${otpHasError || otpExpired ? loginInputErrorClass : ""}`}
               style={interStyle}
             />
           ))}
@@ -235,9 +299,9 @@ export default function LoginOtpStep({
           <button
             type="button"
             onClick={() => void handleSendAgain()}
-            disabled={secondsLeft > 0 || sendingAgain || submitting || verified}
+            disabled={!canSendAgain}
             className="font-normal hover:underline disabled:cursor-not-allowed disabled:text-[#94a3b8] disabled:no-underline"
-            style={{ color: secondsLeft > 0 || sendingAgain ? "#94a3b8" : "var(--brand-secondary)" }}
+            style={{ color: canSendAgain ? "var(--brand-secondary)" : "#94a3b8" }}
           >
             {sendingAgain ? "Sending..." : "Send again"}
           </button>
@@ -246,9 +310,9 @@ export default function LoginOtpStep({
 
       <button
         type="submit"
-        disabled={!isComplete || submitting || verified}
+        disabled={!isComplete || submitting || verified || timerExpired}
         className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal text-white transition-[filter] disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#94a3b8] enabled:hover:brightness-95"
-        style={verifyButtonStyle(isComplete && !submitting && !verified)}
+        style={verifyButtonStyle(isComplete && !submitting && !verified && !timerExpired)}
       >
         {submitting ? "Verifying..." : verified ? "Verified" : "Verify Code"}
       </button>
