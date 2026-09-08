@@ -22,6 +22,7 @@ import {
   useCandidateProgressStatus,
 } from "./CandidateProgressStatusCell";
 import { CandidateGridCard } from "./CandidateGridCard";
+import { CandidatesCardBulkSelectHeader } from "./CandidatesCardBulkSelectHeader";
 import { CandidateListSortableHeader } from "./CandidateListSortableHeader";
 import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
@@ -35,6 +36,7 @@ import { CandidatesListSkeleton } from "./CandidatesListSkeleton";
 import { useCandidateKpiMetrics } from "./useCandidateKpiMetrics";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import { AssignRecruiterModal, type AssignableTeamMember } from "./AssignRecruiterModal";
 import AddCandidateModal from "../applications/AddCandidateModal";
 import ImportCandidatesModal from "../applications/ImportCandidatesModal";
 import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
@@ -104,6 +106,8 @@ type WorkerProfile = {
   profile_photo_url?: string | null;
   applied_job_count?: number | null;
   assigned_recruiter_user_id?: string | null;
+  assigned_recruiter_name?: string | null;
+  assigned_recruiter_photo_url?: string | null;
   application_id?: string | null;
   application_status_id?: string | null;
   application_status_name?: string | null;
@@ -240,8 +244,10 @@ export default function CandidatesPage() {
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [clientNameFilter, setClientNameFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
+  const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -251,8 +257,9 @@ export default function CandidatesPage() {
     locations: string[];
     statuses: string[];
     jobs: string[];
+    clientNames: string[];
     stages: ReturnType<typeof buildCandidateStageOptions>;
-  }>({ jobRoles: [], locations: [], statuses: [], jobs: [], stages: [] });
+  }>({ jobRoles: [], locations: [], statuses: [], jobs: [], clientNames: [], stages: [] });
   const loadAbortRef = useRef<AbortController | null>(null);
   const {
     kpiCards,
@@ -264,6 +271,11 @@ export default function CandidatesPage() {
   const [rowActionsMenu, setRowActionsMenu] = useState<{ rowId: string; anchor: HTMLElement } | null>(
     null
   );
+  const [assignRecruiterTarget, setAssignRecruiterTarget] = useState<CandidateRow | null>(null);
+  const [assignRecruiterMembers, setAssignRecruiterMembers] = useState<AssignableTeamMember[]>([]);
+  const [assignRecruiterMembersLoading, setAssignRecruiterMembersLoading] = useState(false);
+  const [assignRecruiterBusy, setAssignRecruiterBusy] = useState(false);
+  const [assignRecruiterError, setAssignRecruiterError] = useState<string | null>(null);
   // Highlight Multi-Job Applicants is disabled on the legacy /admin_recruiter/candidates screen.
   // const [highlightMultiJob, setHighlightMultiJob] = useState(false);
   // const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
@@ -400,6 +412,8 @@ export default function CandidatesPage() {
       profilePhotoUrl: item.profile_photo_url ?? null,
       appliedJobCount: Number(item.applied_job_count ?? 1),
       assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+      assignedRecruiterName: item.assigned_recruiter_name ?? null,
+      assignedRecruiterPhotoUrl: item.assigned_recruiter_photo_url ?? null,
       ...mapWorkerMatchFields(item),
     };
   }, []);
@@ -480,18 +494,22 @@ export default function CandidatesPage() {
           ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
         );
         const jobs = new Set(prev.jobs);
+        const clientNames = new Set(prev.clientNames);
         for (const c of mapped) {
           if (c.role && c.role !== "N/A") jobRoles.add(c.role);
           const loc = formatCityStateFromParts(c.city, c.state);
           if (loc) locations.add(loc);
           if (c.status) statuses.add(c.status);
           for (const title of getCandidateJobTitleOptions(c)) jobs.add(title);
+          const clientName = c.applicationClientName?.trim();
+          if (clientName) clientNames.add(clientName);
         }
         return {
           jobRoles: Array.from(jobRoles).sort((a, b) => a.localeCompare(b)),
           locations: uniqueCityStateOptions(Array.from(locations)),
           statuses: Array.from(statuses).sort((a, b) => a.localeCompare(b)),
           jobs: Array.from(jobs).sort((a, b) => a.localeCompare(b)),
+          clientNames: Array.from(clientNames).sort((a, b) => a.localeCompare(b)),
           stages: buildCandidateStageOptions([...mapped]),
         };
       });
@@ -535,6 +553,15 @@ export default function CandidatesPage() {
   const statusOptions = facetOptions.statuses;
   const jobOptions = facetOptions.jobs;
   const stageOptions = facetOptions.stages;
+  const clientNameOptions = useMemo(() => {
+    const names = new Set(facetOptions.clientNames);
+    for (const job of addCandidateJobs) {
+      if (String(job.source_type ?? "").trim().toLowerCase() !== "msp") continue;
+      const clientName = String(job.msp_name ?? "").trim();
+      if (clientName) names.add(clientName);
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [facetOptions.clientNames, addCandidateJobs]);
 
   const progressStatusFilterOptions = useMemo(
     () =>
@@ -550,8 +577,16 @@ export default function CandidatesPage() {
     [candidates]
   );
 
-  const visibleCandidates = candidates;
-  const listDisplayTotal = totalFromApi ?? candidates.length;
+  const visibleCandidates = useMemo(() => {
+    if (!clientNameFilter.trim()) return candidates;
+    const wanted = clientNameFilter.trim().toLowerCase();
+    return candidates.filter(
+      (row) => (row.applicationClientName ?? "").trim().toLowerCase() === wanted
+    );
+  }, [candidates, clientNameFilter]);
+  const listDisplayTotal = clientNameFilter.trim()
+    ? visibleCandidates.length
+    : (totalFromApi ?? candidates.length);
 
   useEffect(() => {
     setPage(1);
@@ -564,6 +599,7 @@ export default function CandidatesPage() {
     jobFilter,
     stageFilter,
     matchScoreFilter,
+    clientNameFilter,
     locationFilter,
     appliedDateFrom,
     appliedDateTo,
@@ -611,6 +647,7 @@ export default function CandidatesPage() {
         jobFilter,
         stageFilter,
         matchScoreFilter,
+        clientNameFilter,
         locationFilter,
         appliedDateFrom,
         appliedDateTo,
@@ -627,6 +664,7 @@ export default function CandidatesPage() {
       jobFilter,
       stageFilter,
       matchScoreFilter,
+      clientNameFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -762,6 +800,76 @@ export default function CandidatesPage() {
     }
   }
 
+  async function openAssignRecruiter(row: CandidateRow) {
+    setAssignRecruiterTarget(row);
+    setAssignRecruiterError(null);
+    setAssignRecruiterMembersLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-members", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        members?: AssignableTeamMember[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to load team members");
+      }
+      setAssignRecruiterMembers(payload.members ?? []);
+    } catch (err) {
+      setAssignRecruiterMembers([]);
+      setAssignRecruiterError(err instanceof Error ? err.message : "Failed to load team members");
+    } finally {
+      setAssignRecruiterMembersLoading(false);
+    }
+  }
+
+  async function confirmAssignRecruiter(assigneeUserId: string | null) {
+    if (!assignRecruiterTarget || assignRecruiterBusy) return;
+    setAssignRecruiterBusy(true);
+    setAssignRecruiterError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/workers/${encodeURIComponent(assignRecruiterTarget.id)}/assignment`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignedRecruiterUserId: assigneeUserId }),
+        }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        assignedRecruiterUserId?: string | null;
+        assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to assign recruiter");
+      }
+      const nextId = payload.assignedRecruiterUserId ?? null;
+      const nextName = payload.assignedRecruiter?.name?.trim() || null;
+      const nextPhoto = payload.assignedRecruiter?.profilePhotoUrl ?? null;
+      setCandidates((current) =>
+        current.map((row) =>
+          row.id === assignRecruiterTarget.id
+            ? {
+                ...row,
+                assignedRecruiterUserId: nextId,
+                assignedRecruiterName: nextName,
+                assignedRecruiterPhotoUrl: nextId ? nextPhoto : null,
+              }
+            : row
+        )
+      );
+      toast.success(nextName ? `Assigned to ${nextName}` : "Recruiter unassigned");
+      setAssignRecruiterTarget(null);
+    } catch (err) {
+      setAssignRecruiterError(err instanceof Error ? err.message : "Failed to assign recruiter");
+    } finally {
+      setAssignRecruiterBusy(false);
+    }
+  }
+
   async function confirmClaimCandidates() {
     if (claimBusy || selection.selectedEligibleIds.length === 0) return;
     setClaimBusy(true);
@@ -877,6 +985,9 @@ export default function CandidatesPage() {
         stageOptions={stageOptions}
         matchScoreFilter={matchScoreFilter}
         onMatchScoreFilterChange={setMatchScoreFilter}
+        clientNameFilter={clientNameFilter}
+        onClientNameFilterChange={setClientNameFilter}
+        clientNameOptions={clientNameOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
@@ -900,6 +1011,7 @@ export default function CandidatesPage() {
           setJobFilter("");
           setStageFilter("");
           setMatchScoreFilter("");
+          setClientNameFilter("");
           setListSort(EMPTY_CANDIDATE_LIST_SORT);
           applyAdvancedSearchParams(null);
           setPage(1);
@@ -913,7 +1025,13 @@ export default function CandidatesPage() {
           setMatchJobPickerOpen(true);
         }}
         view={view}
-        onViewChange={setView}
+        onViewChange={(nextView) => {
+          setView(nextView);
+          if (nextView !== "card") {
+            setCardBulkSelectMode(false);
+            selection.clearSelection();
+          }
+        }}
         onEditColumns={() => setEditColumnsOpen(true)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
@@ -1132,15 +1250,63 @@ export default function CandidatesPage() {
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-4 py-5 sm:gap-5 sm:px-5 sm:py-6 md:grid-cols-2 xl:grid-cols-3">
-              {paginated.map((c) => (
-                <CandidateGridCard
-                  key={c.id}
-                  candidate={c}
-                  formatDateTime={formatDateTime}
-                  onMessage={setCommTarget}
+            <div className="w-full">
+              {cardBulkSelectMode ? (
+                <CandidateBulkSelectionBar
+                  selectedCount={selection.selectedCount}
+                  eligibleCount={selection.selectedEligibleCount}
+                  scopeLabel={selection.selectionScopeLabel}
+                  claimBusy={claimBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
+                  onClear={selection.clearSelection}
                 />
-              ))}
+              ) : null}
+              <CandidatesCardBulkSelectHeader
+                bulkSelectEnabled={cardBulkSelectMode}
+                onBulkSelectEnabledChange={(enabled) => {
+                  setCardBulkSelectMode(enabled);
+                  if (!enabled) selection.clearSelection();
+                }}
+                selectAllChecked={selection.headerChecked}
+                selectAllIndeterminate={selection.headerIndeterminate}
+                selectAllDisabled={pageSelectableRows.every((row) => !row.eligible)}
+                onSelectAllChange={selection.toggleAllEligibleOnPage}
+              />
+              <div className="grid grid-cols-1 gap-4 px-4 pb-5 pt-3 sm:gap-5 sm:px-5 sm:pb-6 md:grid-cols-2 xl:grid-cols-3">
+                {paginated.map((c) => {
+                  const eligibility = eligibilityById.get(c.id) ?? {
+                    eligible: true,
+                    reason: null,
+                  };
+                  return (
+                    <CandidateGridCard
+                      key={c.id}
+                      candidate={c}
+                      formatDateTime={formatDateTime}
+                      onMessage={setCommTarget}
+                      selectionMode={cardBulkSelectMode}
+                      selected={selection.selectedIds.has(c.id)}
+                      selectionDisabled={!eligibility.eligible}
+                      selectionTitle={eligibility.reason ?? undefined}
+                      onToggleSelect={
+                        cardBulkSelectMode
+                          ? () => selection.toggleOne(c.id, eligibility.eligible)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
@@ -1241,6 +1407,10 @@ export default function CandidatesPage() {
             toast("No phone number on file for this candidate.");
           }}
           onSetupInterview={() => toast("Set up interview from the candidate application.")}
+          onAssignRecruiter={() => {
+            const row = candidates.find((item) => item.id === rowActionsMenu.rowId);
+            if (row) void openAssignRecruiter(row);
+          }}
           onViewStatusHistory={() => toast("Status history is available from the candidate application.")}
           onDeleteCandidate={() => toast("Delete candidate from the candidate application.")}
           onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
@@ -1272,6 +1442,24 @@ export default function CandidatesPage() {
           setClaimError(null);
         }}
         onConfirm={() => void confirmClaimCandidates()}
+      />
+
+      <AssignRecruiterModal
+        open={Boolean(assignRecruiterTarget)}
+        candidateName={assignRecruiterTarget?.name || "Candidate"}
+        currentAssigneeId={assignRecruiterTarget?.assignedRecruiterUserId ?? null}
+        members={assignRecruiterMembers}
+        membersLoading={assignRecruiterMembersLoading}
+        busy={assignRecruiterBusy}
+        error={assignRecruiterError}
+        onOpenChange={(open) => {
+          if (assignRecruiterBusy) return;
+          if (!open) {
+            setAssignRecruiterTarget(null);
+            setAssignRecruiterError(null);
+          }
+        }}
+        onAssign={(assigneeUserId) => void confirmAssignRecruiter(assigneeUserId)}
       />
 
       <AddCandidateModal

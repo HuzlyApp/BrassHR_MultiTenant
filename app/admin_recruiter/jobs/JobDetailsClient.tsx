@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -9,10 +10,14 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { ChevronDown, MoreVertical } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
+import {
+  AssignRecruiterModal,
+  type AssignableTeamMember,
+} from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -20,7 +25,6 @@ import {
   JobDescriptionHtml,
 } from "@/lib/jobs/job-description-html";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
-import type { JobStatus } from "@/lib/jobs/types";
 import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import {
   JOB_FORM_OUTLINE_BUTTON_CLASS,
@@ -34,6 +38,7 @@ import {
   JOB_POSTING_METADATA_CLASS,
 } from "./job-posting-typography";
 import { JobPublicViewLink } from "./JobPublicViewLink";
+import { JobTagsModal } from "./JobTagsModal";
 import {
   formatJobDetailsDate,
   formatJobDetailsClientName,
@@ -42,20 +47,27 @@ import {
   formatWorkLocationLabel,
   jobDetailsStatusDotClass,
   jobDetailsStatusLabel,
-  performanceDateRangeLabel,
   preferredSkillsFromJob,
   splitJobListContent,
-  statusActionForTarget,
   type JobDetailsRow,
-  type JobDetailsStats,
-  type StatusTransitionAction,
 } from "./job-details-helpers";
-
-const STATUS_OPTIONS: JobStatus[] = ["published", "draft", "closed", "archived"];
+import {
+  allowedJobStatusTransitions,
+  normalizeJobRequisitionStatus,
+} from "@/lib/jobs/job-status";
+import {
+  emptyJobPipelineSummary,
+  type JobPipelineSummary,
+} from "@/lib/jobs/pipeline-summary";
+import type { JobStatus } from "@/lib/jobs/types";
+import { JOB_STATUSES } from "@/lib/jobs/types";
 
 type Props = {
   jobId: string;
 };
+
+/** How many tags to show beside the title before collapsing into “+N more”. */
+const JOB_DETAILS_VISIBLE_TAG_COUNT = 3;
 
 function BrandBackIcon({ className = "", flip = false }: { className?: string; flip?: boolean }) {
   return (
@@ -144,21 +156,29 @@ function CandidateCard({
 }
 
 export default function JobDetailsClient({ jobId }: Props) {
+  const router = useRouter();
   const branding = useTenantBranding();
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const brandStyle = primaryButtonStyle(brandVars);
 
   const [job, setJob] = useState<JobDetailsRow | null>(null);
-  const [stats, setStats] = useState<JobDetailsStats | null>(null);
+  const [pipelineSummary, setPipelineSummary] = useState<JobPipelineSummary | null>(null);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusBusy, setStatusBusy] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const statusRef = useRef<HTMLDivElement>(null);
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [tagsBusy, setTagsBusy] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<AssignableTeamMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -168,16 +188,27 @@ export default function JobDetailsClient({ jobId }: Props) {
       setError("");
     }
     try {
-      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, {
-        cache: "no-store",
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to load job");
-      setJob(payload.job as JobDetailsRow);
-      setStats(payload.stats as JobDetailsStats);
+      const [jobResponse, summaryResponse] = await Promise.all([
+        fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
+        fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}/pipeline-summary`, {
+          cache: "no-store",
+        }),
+      ]);
+      const jobPayload = await jobResponse.json();
+      if (!jobResponse.ok) throw new Error(jobPayload.error || "Failed to load job");
+      setJob(jobPayload.job as JobDetailsRow);
       setPublicJobPath(
-        typeof payload.publicJobPath === "string" ? payload.publicJobPath : null
+        typeof jobPayload.publicJobPath === "string" ? jobPayload.publicJobPath : null
       );
+
+      if (summaryResponse.ok) {
+        const summaryPayload = (await summaryResponse.json()) as JobPipelineSummary;
+        setPipelineSummary(summaryPayload);
+      } else if (jobPayload.pipelineSummary) {
+        setPipelineSummary(jobPayload.pipelineSummary as JobPipelineSummary);
+      } else {
+        setPipelineSummary(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
       if (!silent) setJob(null);
@@ -193,40 +224,34 @@ export default function JobDetailsClient({ jobId }: Props) {
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (statusRef.current && !statusRef.current.contains(target)) setStatusOpen(false);
       if (actionsRef.current && !actionsRef.current.contains(target)) setActionsOpen(false);
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
-  async function transition(action: StatusTransitionAction) {
+  async function updateJobStatus(nextStatus: JobStatus) {
+    if (!job || statusBusy) return;
+    const current = normalizeJobRequisitionStatus(String(job.status ?? ""));
+    if (current === nextStatus) return;
     setStatusBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/jobs", {
-        method: "POST",
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, action }),
+        body: JSON.stringify({ status: nextStatus }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to update status");
-      setStatusOpen(false);
-      setActionsOpen(false);
-      if (action === "archive") {
-        toast.success("Job archived successfully");
-      } else if (action === "unarchive") {
-        toast.success("Job restored from archive");
-      } else if (action === "publish") {
-        toast.success("Job published");
-      } else if (action === "close") {
-        toast.success("Job closed");
-      } else if (action === "unpublish") {
-        toast.success("Job unpublished");
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to update job status"
+        );
       }
-      await load();
+      toast.success(`Status updated to ${jobDetailsStatusLabel(nextStatus)}`);
+      await load({ silent: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to update status";
+      const message = err instanceof Error ? err.message : "Failed to update job status";
       setError(message);
       toast.error(message);
     } finally {
@@ -234,14 +259,109 @@ export default function JobDetailsClient({ jobId }: Props) {
     }
   }
 
-  async function onSelectStatus(target: JobStatus) {
-    if (!job) return;
-    const action = statusActionForTarget(String(job.status), target);
-    if (!action) {
-      setStatusOpen(false);
-      return;
+  async function loadTeamMembers() {
+    setTeamMembersLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-members", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to load team members"
+        );
+      }
+      const rows = Array.isArray(payload.members) ? payload.members : [];
+      setTeamMembers(
+        rows
+          .map((row: Record<string, unknown>) => ({
+            id: String(row.id ?? ""),
+            name: String(row.name ?? "").trim() || String(row.email ?? "Unknown"),
+            email: typeof row.email === "string" ? row.email : undefined,
+            role: typeof row.role === "string" ? row.role : undefined,
+          }))
+          .filter((member: AssignableTeamMember) => Boolean(member.id))
+      );
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Failed to load team members");
+      setTeamMembers([]);
+    } finally {
+      setTeamMembersLoading(false);
     }
-    await transition(action);
+  }
+
+  async function saveJobTags(nextTags: string[]) {
+    if (!job || tagsBusy) return;
+    setTagsBusy(true);
+    setTagsError(null);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "Failed to save tags");
+      }
+      toast.success("Tags updated");
+      setTagsOpen(false);
+      await load({ silent: true });
+    } catch (err) {
+      setTagsError(err instanceof Error ? err.message : "Failed to save tags");
+    } finally {
+      setTagsBusy(false);
+    }
+  }
+
+  async function assignJobRecruiter(assigneeUserId: string | null) {
+    if (!job || assignBusy) return;
+    setAssignBusy(true);
+    setAssignError(null);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignee: assigneeUserId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to assign recruiter"
+        );
+      }
+      toast.success(assigneeUserId ? "Recruiter assigned" : "Recruiter cleared");
+      setAssignOpen(false);
+      await load({ silent: true });
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Failed to assign recruiter");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
+
+  async function duplicateJob() {
+    if (!job || duplicateBusy) return;
+    setDuplicateBusy(true);
+    setActionsOpen(false);
+    try {
+      const response = await fetch(
+        `/api/admin/jobs/${encodeURIComponent(job.id)}/duplicate`,
+        { method: "POST" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to duplicate job"
+        );
+      }
+      const newId = String(payload.job?.id ?? "").trim();
+      if (!newId) throw new Error("Duplicate job id missing");
+      toast.success("Draft copy created");
+      router.push(`/admin_recruiter/jobs/${encodeURIComponent(newId)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate job");
+    } finally {
+      setDuplicateBusy(false);
+    }
   }
 
   const title = (() => {
@@ -268,6 +388,14 @@ export default function JobDetailsClient({ jobId }: Props) {
     () => (job ? preferredSkillsFromJob(job) : []),
     [job]
   );
+  const jobTags = useMemo(() => {
+    if (!Array.isArray(job?.tags)) return [];
+    return job.tags
+      .map((tag) => String(tag ?? "").trim())
+      .filter((tag) => tag.length > 0);
+  }, [job?.tags]);
+  const visibleJobTags = jobTags.slice(0, JOB_DETAILS_VISIBLE_TAG_COUNT);
+  const hiddenJobTagCount = Math.max(0, jobTags.length - visibleJobTags.length);
   const benefits = useMemo(() => splitJobListContent(job?.benefits), [job?.benefits]);
   const workLocation = job ? formatWorkLocationLabel(job) : "—";
   const summaryHtml = useMemo(() => {
@@ -277,19 +405,84 @@ export default function JobDetailsClient({ jobId }: Props) {
     });
   }, [job?.public_description, benefits.length]);
 
-  const performanceMetrics = [
-    { value: String(stats?.impressions ?? 0), label: "Impressions" },
-    { value: String(stats?.clicks ?? 0), label: "Clicks" },
-    { value: String(stats?.applicationsStarted ?? 0), label: "Started Applications" },
-    {
-      value: String(stats?.applicationsAll ?? 0),
-      label: "Applications",
-    },
-    {
-      value: `$${(stats?.totalCost ?? 0).toFixed(2)}`,
-      label: "Total cost",
-    },
-  ];
+  const isMspJob = String(job?.source_type ?? "").trim().toLowerCase() === "msp";
+  const summary = pipelineSummary ?? emptyJobPipelineSummary(isMspJob);
+  const showSubmissionCard = Boolean(summary.show_submission || isMspJob);
+  const pipelineCards = useMemo(() => {
+    const base = [
+      {
+        key: "all",
+        label: "All",
+        count: summary.all,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        linkLabel: "View All Applications",
+        iconSrc: "/all-applicants.svg",
+      },
+      {
+        key: "new",
+        label: "New",
+        count: summary.intake,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=new`,
+        linkLabel: "Review New Applications",
+        iconSrc: "/new-applicants.svg",
+      },
+      {
+        key: "in-process",
+        label: "In process",
+        count: summary.screening + summary.interview,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        linkLabel: "View In-process Applications",
+        iconSrc: "/all-applicants.svg",
+      },
+    ];
+    if (showSubmissionCard) {
+      base.push({
+        key: "at-msp",
+        label: "At MSP",
+        count: summary.submission,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        linkLabel: "View MSP Submissions",
+        iconSrc: "/all-applicants.svg",
+      });
+    }
+    base.push(
+      {
+        key: "hired",
+        label: "Selected / Hired",
+        count: summary.selected + summary.onboarding,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=hired`,
+        linkLabel: "View Hired Candidates",
+        iconSrc: "/all-applicants.svg",
+      },
+      {
+        key: "closed",
+        label: "Closed",
+        count: summary.closed,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        linkLabel: "View Closed Applications",
+        iconSrc: "/all-applicants.svg",
+      }
+    );
+    return base;
+  }, [jobId, showSubmissionCard, summary]);
+
+  async function copyApplyLink() {
+    setActionsOpen(false);
+    if (!publicJobPath) {
+      toast.error("Public apply link is not available for this job yet");
+      return;
+    }
+    try {
+      const absolute =
+        typeof window !== "undefined"
+          ? new URL(publicJobPath, window.location.origin).toString()
+          : publicJobPath;
+      await navigator.clipboard.writeText(absolute);
+      toast.success("Apply link copied");
+    } catch {
+      toast.error("Could not copy apply link");
+    }
+  }
 
   return (
     <div
@@ -306,10 +499,38 @@ export default function JobDetailsClient({ jobId }: Props) {
           <>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
-                <div className="flex min-w-0 items-start gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <h1 className="min-w-0 text-lg font-semibold leading-7 text-[#1D2739]">
                     {title}
                   </h1>
+                  {jobTags.length > 0 ? (
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {visibleJobTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex max-w-[10rem] truncate rounded-md px-2 py-0.5 text-xs font-semibold leading-4 text-white"
+                          style={{ backgroundColor: branding.secondaryHex || "#012352" }}
+                          title={tag}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {hiddenJobTagCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTagsError(null);
+                            setTagsOpen(true);
+                          }}
+                          className="inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold leading-4 text-white transition hover:opacity-90"
+                          style={{ backgroundColor: branding.secondaryHex || "#012352" }}
+                          aria-label={`Show ${hiddenJobTagCount} more tags`}
+                        >
+                          +{hiddenJobTagCount} more
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
                   Location: {location}
@@ -367,57 +588,48 @@ export default function JobDetailsClient({ jobId }: Props) {
               </div>
 
               <div className="flex w-full shrink-0 items-center gap-2 self-stretch min-[520px]:w-auto min-[520px]:self-start lg:w-auto">
-                <div className="relative min-w-0 flex-1 min-[520px]:flex-none" ref={statusRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStatusOpen((open) => !open);
-                      setActionsOpen(false);
-                    }}
-                    disabled={statusBusy}
-                    className={`inline-flex h-10 w-full items-center justify-between gap-2 px-3 text-sm text-[#334155] min-[520px]:h-9 min-[520px]:w-auto min-[520px]:justify-center ${JOB_FORM_SURFACE_CLASS}`}
-                    aria-haspopup="listbox"
-                    aria-expanded={statusOpen}
-                  >
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(String(job.status))}`}
-                    />
-                    {jobDetailsStatusLabel(String(job.status))}
-                    <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
-                  </button>
-                  {statusOpen ? (
-                    <div
-                      role="listbox"
-                      className="absolute right-0 z-30 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          role="option"
-                          aria-selected={job.status === option}
-                          disabled={statusBusy}
-                          onClick={() => void onSelectStatus(option)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                        >
-                          <span
-                            className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(option)}`}
-                          />
-                          {jobDetailsStatusLabel(option)}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                {(() => {
+                  const currentStatus = normalizeJobRequisitionStatus(String(job.status ?? ""));
+                  const allowed = new Set<JobStatus>([
+                    currentStatus,
+                    ...allowedJobStatusTransitions(currentStatus),
+                  ]);
+                  return (
+                    <label className="relative inline-flex min-w-0 flex-1 items-center min-[520px]:w-auto min-[520px]:flex-none">
+                      <span className="sr-only">Job status</span>
+                      <span
+                        className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${jobDetailsStatusDotClass(currentStatus)}`}
+                        aria-hidden
+                      />
+                      <select
+                        value={currentStatus}
+                        disabled={statusBusy}
+                        onChange={(event) => {
+                          const next = event.target.value as JobStatus;
+                          if ((JOB_STATUSES as readonly string[]).includes(next)) {
+                            void updateJobStatus(next);
+                          }
+                        }}
+                        className={`h-10 min-w-[9.5rem] flex-1 cursor-pointer appearance-none py-0 pl-7 pr-8 text-sm text-[#334155] outline-none disabled:cursor-not-allowed disabled:opacity-60 min-[520px]:h-9 ${JOB_FORM_SURFACE_CLASS}`}
+                        aria-label={`Job status: ${jobDetailsStatusLabel(currentStatus)}`}
+                      >
+                        {JOB_STATUSES.filter((status) => allowed.has(status)).map((status) => (
+                          <option key={status} value={status}>
+                            {jobDetailsStatusLabel(status)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })()}
 
                 <div className="relative" ref={actionsRef}>
                   <button
                     type="button"
                     onClick={() => {
                       setActionsOpen((open) => !open);
-                      setStatusOpen(false);
                     }}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] min-[520px]:h-9 min-[520px]:w-9"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-60 min-[520px]:h-9 min-[520px]:w-9"
                     aria-label="More actions"
                     aria-haspopup="menu"
                     aria-expanded={actionsOpen}
@@ -427,7 +639,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                   {actionsOpen ? (
                     <div
                       role="menu"
-                      className="absolute right-0 z-30 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                      className="absolute right-0 z-30 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
                     >
                       {job.status !== "archived" ? (
                         <>
@@ -440,7 +652,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                               setImportOpen(true);
                             }}
                           >
-                            Import Candidates
+                            Import candidates
                           </button>
                           <button
                             type="button"
@@ -455,55 +667,50 @@ export default function JobDetailsClient({ jobId }: Props) {
                           </button>
                         </>
                       ) : null}
-                      <Link
-                        href={`/admin_recruiter/jobs/${job.id}/edit`}
+                      <button
+                        type="button"
                         role="menuitem"
-                        className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                        onClick={() => setActionsOpen(false)}
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                        onClick={() => void copyApplyLink()}
                       >
-                        Edit
-                      </Link>
-                      {publicJobPath ? (
-                        <Link
-                          href={publicJobPath}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          role="menuitem"
-                          className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                          onClick={() => setActionsOpen(false)}
-                        >
-                          Public page
-                        </Link>
-                      ) : null}
-                      {job.status === "published" ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                          onClick={() => void transition("close")}
-                        >
-                          Close job
-                        </button>
-                      ) : null}
-                      {job.status !== "archived" ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                          onClick={() => void transition("archive")}
-                        >
-                          Archive
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                          onClick={() => void transition("unarchive")}
-                        >
-                          Unarchive
-                        </button>
-                      )}
+                        Copy apply link
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                        onClick={() => {
+                          setActionsOpen(false);
+                          setTagsError(null);
+                          setTagsOpen(true);
+                        }}
+                      >
+                        Tags
+                      </button>
+                      {/* Assign recruiter — hidden for now; restore later
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                        onClick={() => {
+                          setActionsOpen(false);
+                          setAssignError(null);
+                          setAssignOpen(true);
+                          void loadTeamMembers();
+                        }}
+                      >
+                        Assign recruiter
+                      </button>
+                      */}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={duplicateBusy}
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-60"
+                        onClick={() => void duplicateJob()}
+                      >
+                        {duplicateBusy ? "Duplicating…" : "Duplicate"}
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -512,25 +719,33 @@ export default function JobDetailsClient({ jobId }: Props) {
 
             {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
 
+            {normalizeJobRequisitionStatus(String(job.status)) === "paused" ? (
+              <div
+                role="status"
+                className="mt-4 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]"
+              >
+                This job is paused. Public applications are blocked until it is reopened.
+              </div>
+            ) : null}
+
             <section className="mt-8">
               <h2 className="text-lg font-semibold text-[#1D2739]">Candidates</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <CandidateCard
-                  iconSrc="/all-applicants.svg"
-                  count={stats?.applicationsAll ?? 0}
-                  label="All"
-                  linkHref={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}`}
-                  linkLabel="View All Applications"
-                  secondaryColor={branding.secondaryHex || "#012352"}
-                />
-                <CandidateCard
-                  iconSrc="/new-applicants.svg"
-                  count={stats?.applicationsNew ?? 0}
-                  label="New"
-                  linkHref={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}&tab=new`}
-                  linkLabel="Review New Applications"
-                  secondaryColor={branding.secondaryHex || "#012352"}
-                />
+              <div
+                className={`mt-4 grid gap-4 sm:grid-cols-2 ${
+                  showSubmissionCard ? "xl:grid-cols-3" : "xl:grid-cols-3"
+                }`}
+              >
+                {pipelineCards.map((card) => (
+                  <CandidateCard
+                    key={card.key}
+                    iconSrc={card.iconSrc}
+                    count={card.count}
+                    label={card.label}
+                    linkHref={card.href}
+                    linkLabel={card.linkLabel}
+                    secondaryColor={branding.secondaryHex || "#012352"}
+                  />
+                ))}
               </div>
               {job.status !== "archived" ? (
                 <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
@@ -560,47 +775,6 @@ export default function JobDetailsClient({ jobId }: Props) {
                   </div>
                 </div>
               ) : null}
-            </section>
-
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold text-[#1D2739]">Job performance</h2>
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[#64748B]">
-                <span className="inline-flex items-center gap-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/jobs-count-icon.svg"
-                    alt=""
-                    width={14}
-                    height={14}
-                    className="h-3.5 w-3.5 shrink-0"
-                    aria-hidden
-                  />
-                  Free Job
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/fluent_calendar-32-regular.svg"
-                    alt=""
-                    width={14}
-                    height={14}
-                    className="h-3.5 w-3.5 shrink-0"
-                    aria-hidden
-                  />
-                  {performanceDateRangeLabel(job)}
-                </span>
-              </div>
-              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                {performanceMetrics.map((metric) => (
-                  <div
-                    key={metric.label}
-                    className="flex min-h-[104px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 shadow-sm"
-                  >
-                    <p className="text-[30px] font-semibold leading-9 text-[#1D2739]">{metric.value}</p>
-                    <p className="text-sm font-medium leading-5 text-[#64748B]">{metric.label}</p>
-                  </div>
-                ))}
-              </div>
             </section>
 
             <section className="mt-8">
@@ -663,6 +837,29 @@ export default function JobDetailsClient({ jobId }: Props) {
           void load({ silent: true });
         }}
       />
+      <JobTagsModal
+        open={tagsOpen}
+        jobTitle={title}
+        tags={Array.isArray(job?.tags) ? job.tags : []}
+        busy={tagsBusy}
+        error={tagsError}
+        onOpenChange={setTagsOpen}
+        onSave={(nextTags) => void saveJobTags(nextTags)}
+      />
+      {/* Assign recruiter — hidden for now; restore later
+      <AssignRecruiterModal
+        open={assignOpen}
+        candidateName={title}
+        subjectLabel="job"
+        currentAssigneeId={job?.assigned_recruiter_user_id ?? null}
+        busy={assignBusy}
+        error={assignError}
+        members={teamMembers}
+        membersLoading={teamMembersLoading}
+        onOpenChange={setAssignOpen}
+        onAssign={(assigneeUserId) => void assignJobRecruiter(assigneeUserId)}
+      />
+      */}
     </div>
   );
 }

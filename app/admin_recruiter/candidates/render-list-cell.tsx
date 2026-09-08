@@ -118,6 +118,20 @@ export function renderListCell(
         </span>
       )
     }
+    case "assignee": {
+      const name = c.assignedRecruiterName?.trim() ?? ""
+      if (!name) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <CandidateListAvatar name={name} photoUrl={c.assignedRecruiterPhotoUrl} size="sm" />
+          <span className="max-w-[120px] truncate text-sm text-[#475569]" title={name}>
+            {name}
+          </span>
+        </div>
+      )
+    }
     case "status":
       return (
         <div className="flex w-full justify-center">

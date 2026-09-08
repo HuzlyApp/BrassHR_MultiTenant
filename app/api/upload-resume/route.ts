@@ -397,11 +397,6 @@ export async function POST(req: Request) {
       tenantId: workerCtx.tenantId,
       textLength,
     })
-    await withTimeout(
-      syncWorkerPrimaryResumePath(supabase, workerCtx.workerId, applicantId),
-      RESUME_DB_TIMEOUT_MS,
-      "Resume path persistence",
-    )
     resumeId = await withTimeout(
       persistWorkerResumeRecord(supabase, applicantId, {
         fileUrl: objectPath,
@@ -421,6 +416,11 @@ export async function POST(req: Request) {
       }),
       RESUME_DB_TIMEOUT_MS,
       "Resume record persistence",
+    )
+    await withTimeout(
+      syncWorkerPrimaryResumePath(supabase, workerCtx.workerId, applicantId),
+      RESUME_DB_TIMEOUT_MS,
+      "Resume path persistence",
     )
     logResumeTiming("upload-resume", "db-write-complete", {
       dbWriteMs: dbTimer.elapsedMs(),

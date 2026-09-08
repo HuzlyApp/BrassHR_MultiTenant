@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  PUBLIC_ACCEPTING_JOB_STATUS_QUERY,
   JobValidationError,
   type EmploymentType,
   type JobRequisitionInput,
@@ -33,7 +34,12 @@ import {
   placementTypeFromApiRow,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
-import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import {
+  canTransitionJobStatus,
+  isLiveJobRequisitionStatus,
+  isOpenJobRequisitionStatus,
+  normalizeJobRequisitionStatus,
+} from "@/lib/jobs/job-status";
 import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
@@ -44,6 +50,10 @@ import {
   syncJobScreeningQuestions,
   type JobScreeningQuestionInput,
 } from "@/lib/jobs/screening-questions";
+import {
+  normalizeJobTags,
+  type JobRequisitionPatchInput,
+} from "@/lib/jobs/job-requisition-patch";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 
 type DbClient = SupabaseClient;
@@ -514,7 +524,7 @@ export async function saveJobRequisition(
       }
     }
 
-    if (existingJob?.status === "published") {
+    if (isLiveJobRequisitionStatus(String(existingJob?.status ?? ""))) {
       const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
       const isManual = existingJob?.workflow_assignment_mode === "manual";
       if (routingChanged && !isManual && !options.resetToAutomatic) {
@@ -559,7 +569,7 @@ export async function saveJobRequisition(
     workflow_mapping_id: assignmentMode === "automatic" ? match?.mappingId ?? null : null,
     workflow_assignment_mode: assignmentMode,
     workflow_assignment_error: match ? null : assignmentError,
-    status: options.publish ? ("published" as const) : ("draft" as const),
+    status: options.publish ? ("open" as const) : ("draft" as const),
     published_at: options.publish ? now : null,
     closed_at: null,
     archived_at: null,
@@ -589,7 +599,7 @@ export async function saveJobRequisition(
         const legacyPatch = {
           ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
           workflow_id: match?.workflowId ?? null,
-          status: options.publish ? ("published" as const) : ("draft" as const),
+          status: options.publish ? ("open" as const) : ("draft" as const),
           published_at: options.publish ? now : null,
           closed_at: null,
           archived_at: null,
@@ -645,7 +655,7 @@ export async function saveJobRequisition(
       const legacyPatch = {
         ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
         workflow_id: match?.workflowId ?? null,
-        status: options.publish ? ("published" as const) : ("draft" as const),
+        status: options.publish ? ("open" as const) : ("draft" as const),
         published_at: options.publish ? now : null,
         closed_at: null,
         archived_at: null,
@@ -688,22 +698,57 @@ export async function transitionJobStatus(
   tenantId: string,
   actorUserId: string,
   jobId: string,
-  status: Exclude<JobStatus, "published">
+  status: JobStatus,
+  options: { skipTransitionGuard?: boolean } = {}
 ) {
+  const { data: existing, error: existingError } = await supabase
+    .from("job_requisitions")
+    .select("id, status, published_at")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const fromStatus = normalizeJobRequisitionStatus(String(existing.status ?? ""));
+  const toStatus = normalizeJobRequisitionStatus(status);
+  if (!options.skipTransitionGuard && !canTransitionJobStatus(fromStatus, toStatus)) {
+    throw new JobValidationError(
+      `Cannot change job status from ${fromStatus} to ${toStatus}.`,
+      {},
+      "JOB_STATUS_TRANSITION_INVALID"
+    );
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, string | null> = {
-    status,
+    status: toStatus,
     updated_by: actorUserId,
   };
 
-  if (status === "draft") {
+  if (toStatus === "draft") {
     patch.published_at = null;
     patch.closed_at = null;
     patch.archived_at = null;
-  } else if (status === "closed") {
+  } else if (toStatus === "open") {
+    patch.published_at = existing.published_at
+      ? String(existing.published_at)
+      : now;
+    patch.closed_at = null;
+    patch.archived_at = null;
+  } else if (toStatus === "paused") {
+    patch.published_at = existing.published_at
+      ? String(existing.published_at)
+      : now;
+    patch.closed_at = null;
+    patch.archived_at = null;
+  } else if (toStatus === "filled") {
     patch.closed_at = now;
     patch.archived_at = null;
-  } else if (status === "archived") {
+  } else if (toStatus === "closed") {
+    patch.closed_at = now;
+    patch.archived_at = null;
+  } else if (toStatus === "archived") {
     patch.archived_at = now;
     patch.closed_at = null;
     patch.published_at = null;
@@ -741,7 +786,7 @@ export async function unarchiveJobRequisition(
   return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "draft");
 }
 
-/** Close published jobs whose application deadline has passed. */
+/** Close open jobs whose application deadline has passed. */
 export async function closeExpiredPublishedJobs(
   supabase: DbClient,
   tenantId: string,
@@ -757,7 +802,7 @@ export async function closeExpiredPublishedJobs(
       updated_by: actorUserId,
     })
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
+    .in("status", ["open", "published", "paused"])
     .not("application_deadline", "is", null)
     .lt("application_deadline", today);
   if (error) throw error;
@@ -867,8 +912,8 @@ export async function publishExistingJob(
   if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
 
   const status = String(row.status ?? "");
-  if (normalizeJobRequisitionStatus(status) === "published") {
-    throw new JobValidationError("Job is already published.", {}, "JOB_ALREADY_PUBLISHED");
+  if (isOpenJobRequisitionStatus(status)) {
+    throw new JobValidationError("Job is already open.", {}, "JOB_ALREADY_PUBLISHED");
   }
   if (normalizeJobRequisitionStatus(status) === "archived") {
     throw new JobValidationError("Unarchive the job before publishing.", {}, "JOB_ARCHIVED");
@@ -896,6 +941,238 @@ export async function publishExistingJob(
   return result.job;
 }
 
+/**
+ * Move a job to Open. Drafts go through full publish validation;
+ * paused/filled/closed use a status transition (with deadline guard).
+ */
+export async function openJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string
+) {
+  const { data: row, error } = await supabase
+    .from("job_requisitions")
+    .select("id, status, application_deadline, published_at, closed_at, archived_at")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const current = normalizeJobRequisitionStatus(String(row.status ?? ""));
+  if (current === "open") {
+    return {
+      id: row.id,
+      status: "open" as const,
+      published_at: row.published_at,
+      closed_at: row.closed_at,
+      archived_at: row.archived_at,
+    };
+  }
+  if (current === "draft") {
+    return publishExistingJob(supabase, tenantId, actorUserId, jobId);
+  }
+  if (current === "archived") {
+    throw new JobValidationError("Unarchive the job before opening.", {}, "JOB_ARCHIVED");
+  }
+
+  if (
+    !isJobRequisitionOpen({
+      application_deadline: row.application_deadline ? String(row.application_deadline) : null,
+    })
+  ) {
+    throw new JobValidationError(
+      "Update the application deadline before reopening this job.",
+      { applicationDeadline: "Application deadline has passed." },
+      "JOB_DEADLINE_EXPIRED"
+    );
+  }
+
+  return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "open");
+}
+
+/**
+ * Partial update for FSD PUT /requisitions/{id}: status, assignee, tags, is_hot.
+ */
+export async function patchJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string,
+  patch: JobRequisitionPatchInput
+) {
+  const { data: existing, error: existingError } = await supabase
+    .from("job_requisitions")
+    .select(
+      "id, status, application_deadline, published_at, closed_at, archived_at, assigned_recruiter_user_id, tags, is_hot"
+    )
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  let latest: Record<string, unknown> = { ...existing };
+
+  if (patch.status !== undefined) {
+    const target = normalizeJobRequisitionStatus(String(patch.status));
+    if (target === "open") {
+      latest = {
+        ...(await openJobRequisition(supabase, tenantId, actorUserId, jobId)),
+      } as Record<string, unknown>;
+    } else {
+      latest = {
+        ...(await transitionJobStatus(supabase, tenantId, actorUserId, jobId, target)),
+      } as Record<string, unknown>;
+    }
+  }
+
+  const fieldPatch: Record<string, unknown> = {
+    updated_by: actorUserId,
+  };
+  let hasFieldPatch = false;
+
+  if (patch.assignee !== undefined) {
+    fieldPatch.assigned_recruiter_user_id = patch.assignee;
+    hasFieldPatch = true;
+  }
+  if (patch.tags !== undefined) {
+    fieldPatch.tags = normalizeJobTags(patch.tags);
+    hasFieldPatch = true;
+  }
+  if (patch.isHot !== undefined) {
+    fieldPatch.is_hot = patch.isHot;
+    hasFieldPatch = true;
+  }
+
+  if (hasFieldPatch) {
+    const { data, error } = await supabase
+      .from("job_requisitions")
+      .update(fieldPatch)
+      .eq("id", jobId)
+      .eq("tenant_id", tenantId)
+      .select(
+        "id, status, published_at, closed_at, archived_at, assigned_recruiter_user_id, tags, is_hot"
+      )
+      .single();
+    if (error) throw error;
+    latest = data as Record<string, unknown>;
+  }
+
+  return {
+    id: String(latest.id),
+    status: normalizeJobRequisitionStatus(String(latest.status ?? "")),
+    published_at: latest.published_at ?? null,
+    closed_at: latest.closed_at ?? null,
+    archived_at: latest.archived_at ?? null,
+    assigned_recruiter_user_id:
+      latest.assigned_recruiter_user_id == null
+        ? null
+        : String(latest.assigned_recruiter_user_id),
+    tags: normalizeJobTags(latest.tags),
+    is_hot: Boolean(latest.is_hot),
+  };
+}
+
+/** FSD: Draft copy of a job with no applicants; new public token on publish. */
+export async function duplicateJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string
+) {
+  const { data: source, error } = await supabase
+    .from("job_requisitions")
+    .select("*")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!source) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const sourceRow = source as Record<string, unknown>;
+  // Identity / lifecycle fields must not be copied — job_number & idempotency_key are unique.
+  const omitKeys = new Set([
+    "id",
+    "created_at",
+    "updated_at",
+    "published_at",
+    "closed_at",
+    "archived_at",
+    "public_job_token",
+    "created_by",
+    "updated_by",
+    "job_number",
+    "idempotency_key",
+    "approved_at",
+    "approved_by",
+    "rejected_at",
+    "rejection_reason",
+  ]);
+
+  const insertRow: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(sourceRow)) {
+    if (omitKeys.has(key)) continue;
+    insertRow[key] = value;
+  }
+
+  const baseTitle = String(
+    sourceRow.public_title ?? sourceRow.source_job_title ?? sourceRow.title ?? "Untitled job"
+  ).trim();
+  const copyTitle = baseTitle.toLowerCase().endsWith("(copy)")
+    ? baseTitle
+    : `${baseTitle} (Copy)`;
+
+  insertRow.tenant_id = tenantId;
+  insertRow.status = "draft";
+  insertRow.is_published = false;
+  insertRow.public_title = copyTitle;
+  if (insertRow.title != null) insertRow.title = copyTitle;
+  if (sourceRow.source_type === "MSP" && insertRow.source_job_title != null) {
+    insertRow.source_job_title = copyTitle;
+  }
+  insertRow.public_job_token = null;
+  insertRow.published_at = null;
+  insertRow.closed_at = null;
+  insertRow.archived_at = null;
+  insertRow.created_by = actorUserId;
+  insertRow.updated_by = actorUserId;
+  insertRow.tags = normalizeJobTags(sourceRow.tags);
+  insertRow.is_hot = false;
+  insertRow.hot_job = false;
+  insertRow.filled_positions = 0;
+  // Avoid unique MSP external-id collisions on the draft copy.
+  insertRow.external_req_id = null;
+  insertRow.external_requisition_id = null;
+  // FSD: draft copy — clear assignee.
+  insertRow.assigned_recruiter_user_id = null;
+  insertRow.assigned_recruiter = null;
+
+  const { data: created, error: createError } = await supabase
+    .from("job_requisitions")
+    .insert(insertRow)
+    .select("id, status, public_title, source_job_title, assigned_recruiter_user_id, tags, is_hot")
+    .single();
+  if (createError) throw createError;
+
+  const newJobId = String(created.id);
+  const screening = await loadJobScreeningQuestions(supabase, tenantId, jobId);
+  if (screening.length) {
+    await syncJobScreeningQuestions(supabase, {
+      tenantId,
+      jobId: newJobId,
+      actorUserId,
+      questions: screening.map((row) => {
+        const input = jobScreeningQuestionToInput(row);
+        return { ...input, id: null };
+      }),
+    });
+  }
+
+  return created;
+}
+
 export async function listInternalJobs(
   supabase: DbClient,
   tenantId: string,
@@ -909,12 +1186,18 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
-  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.status) {
+    if (filters.status === "open") {
+      query = query.in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY]);
+    } else {
+      query = query.eq("status", filters.status);
+    }
+  }
   if (filters.professionId) query = query.eq("profession_id", filters.professionId);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
   if (filters.createdBy) query = query.eq("created_by", filters.createdBy);
@@ -938,8 +1221,13 @@ export async function listInternalJobs(
     return {
       ...job,
       status: normalizeJobRequisitionStatus(String(job.status ?? "")),
+      is_hot: Boolean((job as { is_hot?: boolean | null }).is_hot),
+      tags: normalizeJobTags((job as { tags?: unknown }).tags),
+      assigned_recruiter_user_id:
+        (job as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ?? null,
       job_applications: [{ count: metrics.applicantCount }],
       new_application_count: metrics.newCount,
+      in_process_application_count: metrics.inProcessCount,
       analyzed_application_count: metrics.analyzedCount,
       strong_match_count: metrics.strongCount,
       ready_to_submit_count: metrics.readyCount,
@@ -978,7 +1266,7 @@ export async function listPublicJobs(
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     // MSP jobs publish without workflow_id; still list them on the public board.
     .or(`application_deadline.is.null,application_deadline.gte.${today}`)
     .order("published_at", { ascending: false })
@@ -1016,7 +1304,7 @@ export async function getPublishedJobByToken(
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     // MSP jobs are intentionally published without workflow_id; public detail still shows.
     .maybeSingle();
   if (error) throw error;
@@ -1041,7 +1329,7 @@ export async function startOrResumeJobApplication(
     .select("id, tenant_id, workflow_id, status")
     .eq("tenant_id", input.tenantId)
     .eq("public_job_token", input.jobToken)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .maybeSingle();
   if (jobError) throw jobError;
   if (!job?.workflow_id) {
@@ -1499,9 +1787,9 @@ export async function createAdminJobApplication(
       "JOB_UNAVAILABLE"
     );
   }
-  if (String(job.status) !== "published") {
+  if (!isOpenJobRequisitionStatus(String(job.status))) {
     throw new JobValidationError(
-      "Only published jobs can accept candidates. Publish the job first.",
+      "Only open jobs can accept candidates. Open the job first.",
       {},
       "JOB_NOT_PUBLISHED"
     );

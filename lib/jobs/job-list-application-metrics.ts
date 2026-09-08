@@ -19,6 +19,7 @@ export type JobListApplicationMetricRow = {
 export type JobListMetricCounts = {
   applicantCount: number;
   newCount: number;
+  inProcessCount: number;
   analyzedCount: number;
   strongCount: number;
   readyCount: number;
@@ -29,6 +30,7 @@ function emptyCounts(): JobListMetricCounts {
   return {
     applicantCount: 0,
     newCount: 0,
+    inProcessCount: 0,
     analyzedCount: 0,
     strongCount: 0,
     readyCount: 0,
@@ -43,9 +45,17 @@ function addApplicationToCounts(
   if (!isVisibleOnJobCandidatesAllTab(row)) return;
 
   const status = String(row.status ?? "").toLowerCase();
+  const pipeline = normalizeApplicationStatus(status);
   current.applicantCount += 1;
-  if (status === "new" || status === "submitted") current.newCount += 1;
-  if (normalizeApplicationStatus(status) === "hired") current.hiredCount += 1;
+  if (status === "new" || status === "submitted" || pipeline === "new") current.newCount += 1;
+  if (
+    pipeline === "reviewing" ||
+    pipeline === "shortlisted" ||
+    pipeline === "interviewing"
+  ) {
+    current.inProcessCount += 1;
+  }
+  if (pipeline === "hired") current.hiredCount += 1;
 
   const matchStatus = String(row.ai_match_status ?? "");
   const score = Number(row.ai_match_score);

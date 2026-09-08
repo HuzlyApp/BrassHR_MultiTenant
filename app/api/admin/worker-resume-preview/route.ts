@@ -7,6 +7,10 @@ import { getSupabaseUrl } from "@/lib/supabase-env";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path";
 import {
+  getLatestWorkerResumeStoragePath,
+  syncWorkerPrimaryResumePath,
+} from "@/lib/onboarding/sync-worker-primary-resume-path";
+import {
   buildDocxResumePreviewHtml,
   DOCX_PREVIEW_HTML_HEADERS,
   wordResumePreviewFallbackHtml,
@@ -28,6 +32,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: idCheck.error }, { status: 400 });
     }
     const workerId = idCheck.value;
+    const applicationIdRaw = req.nextUrl.searchParams.get("applicationId")?.trim() || "";
+    const applicationIdCheck = applicationIdRaw
+      ? parseRequiredUuid(applicationIdRaw, "applicationId")
+      : null;
+    const applicationId =
+      applicationIdCheck && applicationIdCheck.ok ? applicationIdCheck.value : null;
 
     const auth = await requireApiSession();
     if (auth instanceof NextResponse) return auth;
@@ -63,8 +73,37 @@ export async function GET(req: NextRequest) {
 
     const reqRow = Array.isArray(reqRows) ? reqRows[0] : null;
     const resumePathRaw = (reqRow as { resume_path?: string } | null | undefined)?.resume_path;
-    const normalized = resumePathRaw ? normalizeResumeStorageObjectPath(resumePathRaw) : null;
-    const resumePath = normalized?.trim() || "";
+    let resumePath = "";
+
+    if (applicationId) {
+      const scopedPath = await getLatestWorkerResumeStoragePath(supabase, workerId, {
+        jobApplicationId: applicationId,
+      });
+      const scopedNormalized = scopedPath
+        ? normalizeResumeStorageObjectPath(scopedPath)
+        : null;
+      resumePath = scopedNormalized?.trim() || "";
+    }
+
+    if (!resumePath) {
+      const normalized = resumePathRaw ? normalizeResumeStorageObjectPath(resumePathRaw) : null;
+      resumePath = normalized?.trim() || "";
+    }
+
+    if (!resumePath) {
+      const fallbackPath = await getLatestWorkerResumeStoragePath(supabase, workerId);
+      const fallbackNormalized = fallbackPath
+        ? normalizeResumeStorageObjectPath(fallbackPath)
+        : null;
+      resumePath = fallbackNormalized?.trim() || "";
+      if (resumePath) {
+        // Heal primary path for existing worker uploads that synced before insert.
+        void syncWorkerPrimaryResumePath(supabase, workerId, userIdForLegacy).catch((err) => {
+          console.warn("[admin/worker-resume-preview] sync primary resume path", err);
+        });
+      }
+    }
+
     if (!resumePath) {
       return NextResponse.json({ error: "Resume not found" }, { status: 404 });
     }

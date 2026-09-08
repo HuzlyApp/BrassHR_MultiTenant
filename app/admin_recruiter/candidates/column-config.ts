@@ -13,6 +13,7 @@ export type CandidateColumnId =
   | "notMet"
   | "currentStage"
   | "evaluation"
+  | "assignee"
   | "createdDate"
   | "location"
   | "city"
@@ -55,6 +56,7 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
   { id: "notMet", label: "Not Met" },
   { id: "currentStage", label: "Current Stage" },
   { id: "evaluation", label: "Evaluation" },
+  { id: "assignee", label: "Assignee" },
   { id: "createdDate", label: "Applied date" },
   { id: "location", label: "Location" },
   { id: "city", label: "City" },
@@ -158,6 +160,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   }
   if (colId === "currentStage") return "min-w-[170px]"
   if (colId === "evaluation") return "min-w-[110px] whitespace-nowrap"
+  if (colId === "assignee") return "min-w-[160px] whitespace-nowrap"
   if (colId === "matchJob") return "min-w-[200px] whitespace-nowrap"
   if (colId === "location") return "min-w-[220px] whitespace-nowrap"
   return ""

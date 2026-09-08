@@ -11,6 +11,7 @@ import { isUuid } from "@/lib/validation/uuid";
 import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import { getWorkerAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
   filterWorkerIdsMatchingSkills,
   parseSkillsFilterParam,
@@ -211,11 +212,47 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const recruiterIds = Array.from(
+    const siblingAssigneeByWorker = new Map<string, string>();
+    for (const row of applications) {
+      const workerId = String((row as { worker_id?: string | null }).worker_id ?? "").trim();
+      const assigneeId = String(
+        (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ?? ""
+      ).trim();
+      if (workerId && assigneeId && !siblingAssigneeByWorker.has(workerId)) {
+        siblingAssigneeByWorker.set(workerId, assigneeId);
+      }
+    }
+
+    const workerIdsForAssigneeFallback = Array.from(
       new Set(
         applications
-          .map((row) => (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id)
-          .filter((id): id is string => Boolean(id))
+          .map((row) => {
+            const assigned = (row as { assigned_recruiter_user_id?: string | null })
+              .assigned_recruiter_user_id;
+            const workerId = (row as { worker_id?: string | null }).worker_id;
+            if (assigned || !workerId) return "";
+            return String(workerId).trim();
+          })
+          .filter(Boolean)
+      )
+    );
+    const workerAssigneeFallback =
+      workerIdsForAssigneeFallback.length > 0
+        ? await getWorkerAssigneeFallbackByWorker(supabase, tenantId, workerIdsForAssigneeFallback)
+        : new Map<string, string>();
+
+    const recruiterIds = Array.from(
+      new Set(
+        [
+          ...applications
+            .map(
+              (row) =>
+                (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id
+            )
+            .filter((id): id is string => Boolean(id)),
+          ...workerAssigneeFallback.values(),
+          ...siblingAssigneeByWorker.values(),
+        ].filter(Boolean)
       )
     );
     const recruitersById = await loadStaffUsersByIds(supabase, tenantId, recruiterIds);
@@ -232,11 +269,22 @@ export async function GET(req: NextRequest) {
           ? (row as { application_statuses: Array<{ name?: string }> }).application_statuses[0]
           : (row as { application_statuses?: { name?: string } | null }).application_statuses;
         const workerIdValue = (row as { worker_id?: string | null }).worker_id;
+        const workerKey = workerIdValue ? String(workerIdValue).trim() : "";
         const applicationId = (row as { id: string }).id;
-        const assignedRecruiterUserId = (row as { assigned_recruiter_user_id?: string | null })
+        const directAssignedRecruiterUserId = (row as { assigned_recruiter_user_id?: string | null })
           .assigned_recruiter_user_id;
+        const fallbackAssigneeId =
+          !directAssignedRecruiterUserId && workerKey
+            ? workerAssigneeFallback.get(workerKey) ??
+              siblingAssigneeByWorker.get(workerKey) ??
+              null
+            : null;
+        const assignedRecruiterUserId = directAssignedRecruiterUserId || fallbackAssigneeId;
         return {
           ...row,
+          ...(fallbackAssigneeId && !directAssignedRecruiterUserId
+            ? { assigned_recruiter_user_id: fallbackAssigneeId }
+            : {}),
           statusName: statusJoin?.name ?? null,
           appliedJobCount: workerIdValue ? countByWorker.get(workerIdValue) ?? 1 : 1,
           statusNote: noteByApplication.get(applicationId) || null,

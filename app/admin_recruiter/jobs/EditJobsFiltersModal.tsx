@@ -282,7 +282,9 @@ export function EditJobsFiltersModal({
                 onChange={(v) => setField("status", v)}
               >
                 <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                <option value="open">Open</option>
+                <option value="paused">Paused</option>
+                <option value="filled">Filled</option>
                 <option value="closed">Closed</option>
                 <option value="archived">Archived</option>
               </ModalFilterField>

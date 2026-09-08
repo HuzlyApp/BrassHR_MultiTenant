@@ -8,6 +8,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
+import { isLiveJobRequisitionStatus } from "@/lib/jobs/job-status";
 import {
   jobRequiresWorkflow,
   placementTypeFromApiRow,
@@ -198,7 +199,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Failed to load job");
         const row = payload.job as Record<string, unknown>;
-        setOriginalStatus(row.status === "published" ? "published" : "draft");
+        setOriginalStatus(
+          isLiveJobRequisitionStatus(String(row.status ?? "")) ? "published" : "draft"
+        );
         const loadedJob = jobRequisitionInputFromApiRow(row);
         setJob(loadedJob);
         setUi(jobFormUiFromJob(loadedJob));

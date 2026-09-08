@@ -36,25 +36,40 @@ export type JobDetailsRow = {
   msp_name?: string | null;
   msp_client?: string | null;
   msp_client_name?: string | null;
+  tags?: string[] | null;
+  assigned_recruiter_user_id?: string | null;
+  is_hot?: boolean | null;
 };
 
 export type JobDetailsStats = {
   applicationsAll: number;
   applicationsNew: number;
+  applicationsInProcess: number;
+  applicationsAtMsp: number;
+  applicationsHired: number;
+  applicationsClosed: number;
+  /** @deprecated Prefer applicationsInProcess */
   applicationsStarted: number;
   applicationsSubmittedOrHired: number;
+  showSubmission?: boolean;
   impressions: number;
   clicks: number;
   totalCost: number;
 };
 
 export function jobDetailsStatusLabel(status: string): string {
-  switch (status) {
+  switch (String(status ?? "").trim().toLowerCase()) {
     case "published":
+    case "open":
       return "Open";
+    case "paused":
+      return "Paused";
+    case "filled":
+      return "Filled";
     case "draft":
       return "Draft";
     case "closed":
+    case "cancelled":
       return "Closed";
     case "archived":
       return "Archived";
@@ -64,12 +79,18 @@ export function jobDetailsStatusLabel(status: string): string {
 }
 
 export function jobDetailsStatusDotClass(status: string): string {
-  switch (status) {
+  switch (String(status ?? "").trim().toLowerCase()) {
     case "published":
+    case "open":
       return "bg-[#3B82F6]";
+    case "paused":
+      return "bg-[#F59E0B]";
+    case "filled":
+      return "bg-[#22C55E]";
     case "draft":
       return "bg-[#94A3B8]";
     case "closed":
+    case "cancelled":
     case "archived":
       return "bg-[#EF4444]";
     default:
@@ -179,17 +200,30 @@ export function performanceDateRangeLabel(job: JobDetailsRow): string {
   return `${start} - Today`;
 }
 
-export type StatusTransitionAction = "publish" | "unpublish" | "close" | "archive" | "unarchive";
+export type StatusTransitionAction =
+  | "publish"
+  | "unpublish"
+  | "close"
+  | "archive"
+  | "unarchive"
+  | "pause"
+  | "resume"
+  | "fill"
+  | "set_status";
 
 export function statusActionForTarget(
   current: string,
   target: JobStatus
 ): StatusTransitionAction | null {
-  if (current === target) return null;
-  if (target === "published") return "publish";
-  if (target === "draft") return "unpublish";
-  if (target === "closed") return "close";
-  if (target === "archived") return "archive";
-  if (current === "archived" && target === "draft") return "unarchive";
-  return null;
+  const from = String(current ?? "").trim().toLowerCase();
+  const to = target;
+  if (from === to || (from === "published" && to === "open")) return null;
+  if (to === "open") return from === "paused" ? "resume" : "publish";
+  if (to === "draft") return "unpublish";
+  if (to === "paused") return "pause";
+  if (to === "filled") return "fill";
+  if (to === "closed") return "close";
+  if (to === "archived") return "archive";
+  if (from === "archived" && to === "draft") return "unarchive";
+  return "set_status";
 }

@@ -45,6 +45,8 @@ import {
   isVerifiedInfoCategory,
   qualificationDisplayStatus,
   recruiterActionLabel,
+  recruiterVerifiedNeedsNoteDecision,
+  requirementShowsAddNote,
   type QualificationDisplayStatus,
   type QualificationFilter,
   type QualificationOutcomeCounts,
@@ -61,13 +63,14 @@ import { downloadMatchAnalysisAssessment } from "./download-match-analysis-asses
 import {
   RequirementNotesIndicator,
   RequirementVerificationNotesPanel,
+  pendingVerificationNotePrefill,
+  recruiterVerifiedNotePrefill,
 } from "./RequirementVerificationNotes";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 import {
   formatVerificationNoteStatus,
   type VerificationNote,
 } from "@/lib/jobs/match-analysis/verification-notes";
-import { requirementNeedsVerificationNotes } from "@/lib/jobs/match-analysis/workspace";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 
 const CARD =
@@ -556,6 +559,11 @@ export function AiAnalysisOverviewClient({
   const [filter, setFilter] = useState<FilterId>("All");
   const [query, setQuery] = useState("");
   const [openReqId, setOpenReqId] = useState("");
+  const [noteCreateSignal, setNoteCreateSignal] = useState<{
+    id: string;
+    n: number;
+    prefill: "verified" | "pending";
+  } | null>(null);
   const [dataQualityOpen, setDataQualityOpen] = useState(true);
 
   /* ── Resume History Modal state ── */
@@ -783,6 +791,16 @@ export function AiAnalysisOverviewClient({
     setAskCandidateNote(note);
     await markNoteSentToCandidate(note);
     setCommOpen(true);
+  }
+
+  function handleRecruiterVerifiedClick(row: QualificationRequirement) {
+    if (recruiterVerifiedNeedsNoteDecision(row)) {
+      setOpenReqId(row.id);
+      setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "verified" });
+      toast("Save a note as Verified or Rejected, then check Recruiter verified.");
+      return;
+    }
+    void toggleVerified(row);
   }
 
   const latestResumeId =
@@ -1087,13 +1105,14 @@ export function AiAnalysisOverviewClient({
                           <td className="py-3.5 text-sm text-[#475467]">
                             <div className="flex flex-wrap items-center gap-2">
                               <span>{actionLabel}</span>
-                              {requirementNeedsVerificationNotes(row, blocking) ? (
+                              {requirementShowsAddNote(row, blocking) ? (
                                 <button
                                   type="button"
                                   className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setOpenReqId(row.id);
+                                    setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "pending" });
                                   }}
                                 >
                                   Add Note
@@ -1140,33 +1159,31 @@ export function AiAnalysisOverviewClient({
                                       </p>
                                     ) : null}
                                   </div>
-                                  <label
-                                    htmlFor={`recruiter-verified-${row.id}`}
-                                    className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap pt-0.5 text-sm font-medium text-[#344054]"
-                                    onClick={(event) => event.stopPropagation()}
-                                    title={
-                                      row.recruiter_verified || row.has_verification_decision
-                                        ? undefined
-                                        : "Record Verified or Rejected on a note before confirming"
-                                    }
-                                  >
-                                    <ListTableCheckbox
-                                      id={`recruiter-verified-${row.id}`}
-                                      size="md"
-                                      className="cursor-pointer"
-                                      checked={row.recruiter_verified}
-                                      disabled={
-                                        verifyingId === row.id ||
-                                        (!row.recruiter_verified && !row.has_verification_decision)
-                                      }
-                                      onChange={() => void toggleVerified(row)}
-                                      aria-label={`Recruiter verified: ${row.requirement_text}`}
-                                    />
-                                    Recruiter verified
-                                    {verifyingId === row.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#98A2B3]" />
+                                  <div className="flex shrink-0 flex-col items-start gap-1 pt-0.5">
+                                    <label
+                                      htmlFor={`recruiter-verified-${row.id}`}
+                                      className="inline-flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm font-medium text-[#344054]"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      <ListTableCheckbox
+                                        id={`recruiter-verified-${row.id}`}
+                                        size="md"
+                                        checked={row.recruiter_verified}
+                                        disabled={verifyingId === row.id}
+                                        onChange={() => handleRecruiterVerifiedClick(row)}
+                                        aria-label={`Recruiter verified: ${row.requirement_text}`}
+                                      />
+                                      Recruiter verified
+                                      {verifyingId === row.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#98A2B3]" />
+                                      ) : null}
+                                    </label>
+                                    {recruiterVerifiedNeedsNoteDecision(row) ? (
+                                      <p className="max-w-[220px] text-[11px] leading-4 text-[#667085]">
+                                        Save a Verified or Rejected note first
+                                      </p>
                                     ) : null}
-                                  </label>
+                                  </div>
                                 </div>
                                 <RequirementVerificationNotesPanel
                                   applicationId={applicationId}
@@ -1176,6 +1193,17 @@ export function AiAnalysisOverviewClient({
                                   )}
                                   busyNoteId={busyVerificationNoteId}
                                   saving={savingVerificationNote}
+                                  openCreateSignal={
+                                    noteCreateSignal?.id === row.id ? noteCreateSignal.n : 0
+                                  }
+                                  createPrefill={
+                                    noteCreateSignal?.id === row.id
+                                      ? noteCreateSignal.prefill === "verified"
+                                        ? recruiterVerifiedNotePrefill(row)
+                                        : pendingVerificationNotePrefill(row)
+                                      : undefined
+                                  }
+                                  onOpenCreateConsumed={() => setNoteCreateSignal(null)}
                                   onCreate={(draft) => createVerificationNote(row.id, draft)}
                                   onUpdate={(noteId, draft) =>
                                     updateVerificationNote(row.id, noteId, draft)

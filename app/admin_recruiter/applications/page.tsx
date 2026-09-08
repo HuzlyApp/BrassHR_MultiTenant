@@ -112,6 +112,10 @@ import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
 import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
 import {
+  AssignRecruiterModal,
+  type AssignableTeamMember,
+} from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
+import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
@@ -672,6 +676,11 @@ export default function JobApplicationsPage() {
   const [applicationsRefreshNonce, setApplicationsRefreshNonce] = useState(0);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
+  const [assignRecruiterTarget, setAssignRecruiterTarget] = useState<ApplicationRow | null>(null);
+  const [assignRecruiterMembers, setAssignRecruiterMembers] = useState<AssignableTeamMember[]>([]);
+  const [assignRecruiterMembersLoading, setAssignRecruiterMembersLoading] = useState(false);
+  const [assignRecruiterBusy, setAssignRecruiterBusy] = useState(false);
+  const [assignRecruiterError, setAssignRecruiterError] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
@@ -1026,6 +1035,80 @@ export default function JobApplicationsPage() {
       setClaimError(err instanceof Error ? err.message : "Failed to claim candidates");
     } finally {
       setClaimBusy(false);
+    }
+  }
+
+  async function openAssignRecruiter(row: ApplicationRow) {
+    setAssignRecruiterTarget(row);
+    setAssignRecruiterError(null);
+    setAssignRecruiterMembersLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-members", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        members?: AssignableTeamMember[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to load team members");
+      }
+      setAssignRecruiterMembers(payload.members ?? []);
+    } catch (err) {
+      setAssignRecruiterMembers([]);
+      setAssignRecruiterError(err instanceof Error ? err.message : "Failed to load team members");
+    } finally {
+      setAssignRecruiterMembersLoading(false);
+    }
+  }
+
+  async function confirmAssignRecruiter(assigneeUserId: string | null) {
+    if (!assignRecruiterTarget || assignRecruiterBusy) return;
+    setAssignRecruiterBusy(true);
+    setAssignRecruiterError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(assignRecruiterTarget.id)}/assignment`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignedRecruiterUserId: assigneeUserId }),
+        }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        assignedRecruiterUserId?: string | null;
+        assignedRecruiter?: { id: string; name: string } | null;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to assign recruiter");
+      }
+      const nextId = payload.assignedRecruiterUserId ?? null;
+      const nextName = payload.assignedRecruiter?.name?.trim() || null;
+      setRows((current) =>
+        current.map((row) =>
+          row.id === assignRecruiterTarget.id
+            ? {
+                ...row,
+                assigned_recruiter_user_id: nextId,
+                assignedRecruiter: nextId
+                  ? {
+                      id: nextId,
+                      name: nextName || "Team member",
+                      profilePhotoUrl: null,
+                    }
+                  : null,
+              }
+            : row
+        )
+      );
+      toast.success(nextName ? `Assigned to ${nextName}` : "Recruiter unassigned");
+      setAssignRecruiterTarget(null);
+    } catch (err) {
+      setAssignRecruiterError(err instanceof Error ? err.message : "Failed to assign recruiter");
+    } finally {
+      setAssignRecruiterBusy(false);
     }
   }
 
@@ -2779,6 +2862,11 @@ export default function JobApplicationsPage() {
             setInterviewError(null);
             setInterviewOpen(true);
           }}
+          onAssignRecruiter={() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            if (!row) return;
+            void openAssignRecruiter(row);
+          }}
           onViewStatusHistory={() => {
             const row = rows.find((item) => item.id === rowActionsMenu.rowId);
             if (!row) return;
@@ -2794,6 +2882,26 @@ export default function JobApplicationsPage() {
           }
         />
       ) : null}
+
+      <AssignRecruiterModal
+        open={Boolean(assignRecruiterTarget)}
+        candidateName={
+          assignRecruiterTarget ? applicantName(assignRecruiterTarget) : "Candidate"
+        }
+        currentAssigneeId={assignRecruiterTarget?.assigned_recruiter_user_id ?? null}
+        members={assignRecruiterMembers}
+        membersLoading={assignRecruiterMembersLoading}
+        busy={assignRecruiterBusy}
+        error={assignRecruiterError}
+        onOpenChange={(open) => {
+          if (assignRecruiterBusy) return;
+          if (!open) {
+            setAssignRecruiterTarget(null);
+            setAssignRecruiterError(null);
+          }
+        }}
+        onAssign={(assigneeUserId) => void confirmAssignRecruiter(assigneeUserId)}
+      />
 
       {statusMenu ? (
         <StatusDropdownPortal

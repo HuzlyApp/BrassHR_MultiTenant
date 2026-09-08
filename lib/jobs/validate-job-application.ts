@@ -11,6 +11,7 @@ import {
   resolveApplicationEntryRoute,
 } from "@/lib/jobs/public-application-routing";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
+import { PUBLIC_ACCEPTING_JOB_STATUS_QUERY } from "@/lib/jobs/types";
 
 type DbClient = SupabaseClient;
 
@@ -47,7 +48,7 @@ export async function listOpenPublishedJobSummaries(
     .from("job_requisitions")
     .select("public_job_token, application_deadline")
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .not("workflow_id", "is", null)
     .or(`application_deadline.is.null,application_deadline.gte.${formatDateOnlyUtc(now)}`)
     .order("published_at", { ascending: false });
@@ -102,7 +103,7 @@ export async function validatePublishedJobForApplication(
     .select(JOB_APPLICATION_SELECT)
     .eq("tenant_id", tenant.id)
     .eq("public_job_token", jobToken)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .maybeSingle();
 
   if (error) throw error;
