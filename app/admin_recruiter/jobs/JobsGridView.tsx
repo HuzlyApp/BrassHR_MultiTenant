@@ -513,7 +513,7 @@ export function JobsGridView({
             key={job.id}
             job={job}
             tenantSlug={tenantSlug}
-            isHot={hotJobIds?.has(job.id) ?? false}
+            isHot={Boolean(job.is_hot) || (hotJobIds?.has(job.id) ?? false)}
             isSelected={selectedIds?.has(job.id) ?? false}
             menuOpen={openMenu?.job.id === job.id}
             selectionMode={selectionMode}

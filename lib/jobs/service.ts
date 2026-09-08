@@ -50,6 +50,10 @@ import {
   syncJobScreeningQuestions,
   type JobScreeningQuestionInput,
 } from "@/lib/jobs/screening-questions";
+import {
+  normalizeJobTags,
+  type JobRequisitionPatchInput,
+} from "@/lib/jobs/job-requisition-patch";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 
 type DbClient = SupabaseClient;
@@ -988,6 +992,187 @@ export async function openJobRequisition(
   return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "open");
 }
 
+/**
+ * Partial update for FSD PUT /requisitions/{id}: status, assignee, tags, is_hot.
+ */
+export async function patchJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string,
+  patch: JobRequisitionPatchInput
+) {
+  const { data: existing, error: existingError } = await supabase
+    .from("job_requisitions")
+    .select(
+      "id, status, application_deadline, published_at, closed_at, archived_at, assigned_recruiter_user_id, tags, is_hot"
+    )
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  let latest: Record<string, unknown> = { ...existing };
+
+  if (patch.status !== undefined) {
+    const target = normalizeJobRequisitionStatus(String(patch.status));
+    if (target === "open") {
+      latest = {
+        ...(await openJobRequisition(supabase, tenantId, actorUserId, jobId)),
+      } as Record<string, unknown>;
+    } else {
+      latest = {
+        ...(await transitionJobStatus(supabase, tenantId, actorUserId, jobId, target)),
+      } as Record<string, unknown>;
+    }
+  }
+
+  const fieldPatch: Record<string, unknown> = {
+    updated_by: actorUserId,
+  };
+  let hasFieldPatch = false;
+
+  if (patch.assignee !== undefined) {
+    fieldPatch.assigned_recruiter_user_id = patch.assignee;
+    hasFieldPatch = true;
+  }
+  if (patch.tags !== undefined) {
+    fieldPatch.tags = normalizeJobTags(patch.tags);
+    hasFieldPatch = true;
+  }
+  if (patch.isHot !== undefined) {
+    fieldPatch.is_hot = patch.isHot;
+    hasFieldPatch = true;
+  }
+
+  if (hasFieldPatch) {
+    const { data, error } = await supabase
+      .from("job_requisitions")
+      .update(fieldPatch)
+      .eq("id", jobId)
+      .eq("tenant_id", tenantId)
+      .select(
+        "id, status, published_at, closed_at, archived_at, assigned_recruiter_user_id, tags, is_hot"
+      )
+      .single();
+    if (error) throw error;
+    latest = data as Record<string, unknown>;
+  }
+
+  return {
+    id: String(latest.id),
+    status: normalizeJobRequisitionStatus(String(latest.status ?? "")),
+    published_at: latest.published_at ?? null,
+    closed_at: latest.closed_at ?? null,
+    archived_at: latest.archived_at ?? null,
+    assigned_recruiter_user_id:
+      latest.assigned_recruiter_user_id == null
+        ? null
+        : String(latest.assigned_recruiter_user_id),
+    tags: normalizeJobTags(latest.tags),
+    is_hot: Boolean(latest.is_hot),
+  };
+}
+
+/** FSD: Draft copy of a job with no applicants; new public token on publish. */
+export async function duplicateJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string
+) {
+  const { data: source, error } = await supabase
+    .from("job_requisitions")
+    .select("*")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!source) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const sourceRow = source as Record<string, unknown>;
+  // Identity / lifecycle fields must not be copied — job_number & idempotency_key are unique.
+  const omitKeys = new Set([
+    "id",
+    "created_at",
+    "updated_at",
+    "published_at",
+    "closed_at",
+    "archived_at",
+    "public_job_token",
+    "created_by",
+    "updated_by",
+    "job_number",
+    "idempotency_key",
+    "approved_at",
+    "approved_by",
+    "rejected_at",
+    "rejection_reason",
+  ]);
+
+  const insertRow: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(sourceRow)) {
+    if (omitKeys.has(key)) continue;
+    insertRow[key] = value;
+  }
+
+  const baseTitle = String(
+    sourceRow.public_title ?? sourceRow.source_job_title ?? sourceRow.title ?? "Untitled job"
+  ).trim();
+  const copyTitle = baseTitle.toLowerCase().endsWith("(copy)")
+    ? baseTitle
+    : `${baseTitle} (Copy)`;
+
+  insertRow.tenant_id = tenantId;
+  insertRow.status = "draft";
+  insertRow.is_published = false;
+  insertRow.public_title = copyTitle;
+  if (insertRow.title != null) insertRow.title = copyTitle;
+  if (sourceRow.source_type === "MSP" && insertRow.source_job_title != null) {
+    insertRow.source_job_title = copyTitle;
+  }
+  insertRow.public_job_token = null;
+  insertRow.published_at = null;
+  insertRow.closed_at = null;
+  insertRow.archived_at = null;
+  insertRow.created_by = actorUserId;
+  insertRow.updated_by = actorUserId;
+  insertRow.tags = normalizeJobTags(sourceRow.tags);
+  insertRow.is_hot = false;
+  insertRow.hot_job = false;
+  insertRow.filled_positions = 0;
+  // Avoid unique MSP external-id collisions on the draft copy.
+  insertRow.external_req_id = null;
+  insertRow.external_requisition_id = null;
+  // FSD: draft copy — clear assignee.
+  insertRow.assigned_recruiter_user_id = null;
+  insertRow.assigned_recruiter = null;
+
+  const { data: created, error: createError } = await supabase
+    .from("job_requisitions")
+    .insert(insertRow)
+    .select("id, status, public_title, source_job_title, assigned_recruiter_user_id, tags, is_hot")
+    .single();
+  if (createError) throw createError;
+
+  const newJobId = String(created.id);
+  const screening = await loadJobScreeningQuestions(supabase, tenantId, jobId);
+  if (screening.length) {
+    await syncJobScreeningQuestions(supabase, {
+      tenantId,
+      jobId: newJobId,
+      actorUserId,
+      questions: screening.map((row) => {
+        const input = jobScreeningQuestionToInput(row);
+        return { ...input, id: null };
+      }),
+    });
+  }
+
+  return created;
+}
+
 export async function listInternalJobs(
   supabase: DbClient,
   tenantId: string,
@@ -1001,7 +1186,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -1036,6 +1221,10 @@ export async function listInternalJobs(
     return {
       ...job,
       status: normalizeJobRequisitionStatus(String(job.status ?? "")),
+      is_hot: Boolean((job as { is_hot?: boolean | null }).is_hot),
+      tags: normalizeJobTags((job as { tags?: unknown }).tags),
+      assigned_recruiter_user_id:
+        (job as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ?? null,
       job_applications: [{ count: metrics.applicantCount }],
       new_application_count: metrics.newCount,
       in_process_application_count: metrics.inProcessCount,

@@ -25,6 +25,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "contractGroup", label: "End client" },
   { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
+  /** Shows Created By (job.createdBy) — not assigned recruiter. */
   { id: "assignee", label: "Assignee" },
   { id: "jobStatus", label: "Job Status" },
   { id: "payRate", label: "Pay Rate" },
@@ -46,7 +47,7 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "location",
   "candidates",
   "jobStatus",
-  "assignee",
+  "assignee", // Created By (not Assign recruiter)
   "actions",
 ]
 
@@ -96,7 +97,10 @@ const STORAGE_KEY = "nexus-jobs-list-columns"
 const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v5-fsd-defaults"
 
 /** Columns added after initial release — inject into saved layouts once. */
-const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = []
+const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
+  // Restore Assignee (Created By) for layouts that dropped it while Assign recruiter UI was hidden.
+  { id: "assignee", after: "jobStatus" },
+]
 
 export function loadJobColumnOrder(): JobColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_JOB_COLUMNS]

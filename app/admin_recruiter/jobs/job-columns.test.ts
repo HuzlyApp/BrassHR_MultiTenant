@@ -30,6 +30,10 @@ describe("visibleJobColumnsForTab", () => {
     expect(visibleJobColumnsForTab(saved, "msp")).toEqual(saved);
   });
 
+  it("keeps Assignee (Created By) on All by default", () => {
+    expect(visibleJobColumnsForTab(DEFAULT_JOB_COLUMNS, "all")).toContain("assignee");
+  });
+
   it("does not force End client on All / Hot", () => {
     expect(visibleJobColumnsForTab(DEFAULT_JOB_COLUMNS, "all")).not.toContain(
       "contractGroup"

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import {
@@ -12,6 +12,16 @@ import {
   jobDetailsStatsFromPipelineSummary,
   tallyJobPipelineSummary,
 } from "@/lib/jobs/pipeline-summary";
+import { JobValidationError } from "@/lib/jobs/types";
+import { parseJobRequisitionPatch, normalizeJobTags } from "@/lib/jobs/job-requisition-patch";
+import { patchJobRequisition } from "@/lib/jobs/service";
+
+export const runtime = "nodejs";
+
+function formatApiError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 
 export async function GET(
   _req: Request,
@@ -78,6 +88,11 @@ export async function GET(
       job: {
         ...job,
         status: normalizeJobRequisitionStatus(String(job.status ?? "")),
+        tags: normalizeJobTags((job as { tags?: unknown }).tags),
+        assigned_recruiter_user_id:
+          (job as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ??
+          null,
+        is_hot: Boolean((job as { is_hot?: boolean | null }).is_hot),
       },
       tenant: tenant
         ? {
@@ -88,13 +103,48 @@ export async function GET(
         : null,
       publicJobPath,
       screeningQuestions: screeningQuestionRows.map(jobScreeningQuestionToInput),
-      /** @deprecated Prefer GET /api/admin/jobs/{id}/pipeline-summary */
       stats,
       pipelineSummary,
     });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to load job" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * FSD PUT /api/requisitions/{id} — partial update: status, assignee, tags, is_hot.
+ * Admin path: PUT /api/admin/jobs/{id}
+ */
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const supabase = createServiceRoleClient();
+  if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+
+  try {
+    const tenantId = await resolveStaffTenantId(supabase, auth);
+    if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    const { id } = await context.params;
+    const body = await req.json().catch(() => null);
+    const patch = parseJobRequisitionPatch(body);
+    const job = await patchJobRequisition(supabase, tenantId, auth.userId, id, patch);
+    return NextResponse.json({ job });
+  } catch (error) {
+    if (error instanceof JobValidationError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code, fieldErrors: error.fieldErrors },
+        { status: 422 }
+      );
+    }
+    return NextResponse.json(
+      { error: formatApiError(error, "Failed to update job") },
       { status: 500 }
     );
   }

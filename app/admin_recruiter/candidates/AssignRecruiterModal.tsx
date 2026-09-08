@@ -20,6 +20,8 @@ export type AssignableTeamMember = {
 type AssignRecruiterModalProps = {
   open: boolean;
   candidateName: string;
+  /** Defaults to "candidate"; pass "job" for job-level assignment. */
+  subjectLabel?: string;
   currentAssigneeId?: string | null;
   busy?: boolean;
   error?: string | null;
@@ -51,6 +53,7 @@ const SELECT_CHEVRON = {
 export function AssignRecruiterModal({
   open,
   candidateName,
+  subjectLabel = "candidate",
   currentAssigneeId = null,
   busy = false,
   error = null,
@@ -97,7 +100,10 @@ export function AssignRecruiterModal({
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-sm text-[#64748B]">
                 Choose an admin or recruiter for{" "}
-                <span className="font-medium text-[#334155]">{candidateName || "this candidate"}</span>.
+                <span className="font-medium text-[#334155]">
+                  {candidateName || `this ${subjectLabel}`}
+                </span>
+                .
               </Dialog.Description>
             </div>
             <Dialog.Close

@@ -66,6 +66,11 @@ import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import {
+  AssignRecruiterModal,
+  type AssignableTeamMember,
+} from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
+import { JobTagsModal } from "./JobTagsModal";
+import {
   jobContractGroup,
   jobListDisplayTitle,
   jobLocation,
@@ -117,7 +122,6 @@ const JOBS_COLUMNS_ICON_SRC = "/icons/jobs-icons/columns.svg";
 const JOBS_CREATE_PLUS_ICON_SRC = "/icons/jobs-icons/create-plus.svg";
 const JOBS_MORE_FILTERS_ICON_SRC = "/icons/jobs-icons/more-filters.svg";
 const JOBS_CHEVRON_DOWN_ICON_SRC = "/icons/jobs-icons/chevron-down.svg";
-const JOBS_STARRED_STORAGE_KEY = "adminRecruiterJobsStarredIds";
 const JOBS_VIEW_STORAGE_KEY = "adminRecruiterJobsView";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
 const ACTION_TOAST_DURATION_MS = 4000;
@@ -246,19 +250,6 @@ function JobsListingGlyph({
   );
 }
 
-function loadStarredJobIds(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = localStorage.getItem(JOBS_STARRED_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0));
-  } catch {
-    return new Set();
-  }
-}
-
 function loadJobsListingView(): JobsListingView {
   if (typeof window === "undefined") return "list";
   try {
@@ -272,14 +263,6 @@ function loadJobsListingView(): JobsListingView {
 function saveJobsListingView(view: JobsListingView) {
   try {
     localStorage.setItem(JOBS_VIEW_STORAGE_KEY, view);
-  } catch {
-    /* ignore */
-  }
-}
-
-function saveStarredJobIds(ids: Set<string>) {
-  try {
-    localStorage.setItem(JOBS_STARRED_STORAGE_KEY, JSON.stringify(Array.from(ids)));
   } catch {
     /* ignore */
   }
@@ -564,7 +547,7 @@ function jobListStatus(job: JobListRow) {
   return normalizeJobRequisitionStatus(String(job.status ?? ""));
 }
 
-function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): boolean {
+function matchesJobTab(job: JobListRow, tab: JobTab): boolean {
   const status = jobListStatus(job);
   switch (tab) {
     case "all":
@@ -574,14 +557,14 @@ function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): b
     case "msp":
       return status !== "archived" && jobSourceType(job) === "MSP";
     case "hot":
-      return starredIds.has(job.id);
+      return status !== "archived" && Boolean(job.is_hot);
     default:
       return true;
   }
 }
 
-const JOB_ACTIONS_MENU_WIDTH = 184;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 400;
+const JOB_ACTIONS_MENU_WIDTH = 200;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 520;
 
 function canRepublishClosedJob(job: JobListRow): boolean {
   return isJobRequisitionOpen({ application_deadline: job.application_deadline });
@@ -591,20 +574,30 @@ function JobActionsMenuPortal({
   job,
   anchor,
   tenantSlug,
+  duplicateBusy = false,
   onClose,
   onTransition,
   onImportFromMsp,
   onAddCandidate,
   onImportCandidates,
+  onCopyApplyLink,
+  onTags,
+  onAssignRecruiter,
+  onDuplicate,
 }: {
   job: JobListRow;
   anchor: HTMLElement;
   tenantSlug: string | null;
+  duplicateBusy?: boolean;
   onClose: () => void;
   onTransition: (jobId: string, action: JobLifecycleAction) => void;
   onImportFromMsp: () => void;
   onAddCandidate: (job: JobListRow) => void;
   onImportCandidates: (job: JobListRow) => void;
+  onCopyApplyLink: (job: JobListRow) => void;
+  onTags: (job: JobListRow) => void;
+  onAssignRecruiter: (job: JobListRow) => void;
+  onDuplicate: (job: JobListRow) => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -659,42 +652,13 @@ function JobActionsMenuPortal({
 
   const status = jobListStatus(job);
   const publicHref = publicJobPathFor(job, tenantSlug);
+  const menuItemClass =
+    "block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]";
+  // Match Job Details ⋮ (FSD): Import / Add / Copy link / Tags / Assign / Duplicate.
   const figmaMenuItems = (
     <>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onImportFromMsp();
-          onClose();
-        }}
-        className="block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]"
-      >
-        Import from MSP
-      </button>
-      {status !== "archived" ? (
-        <Link
-          href={`/admin_recruiter/jobs/${job.id}/edit`}
-          role="menuitem"
-          className="block px-3 py-2 text-sm text-[#012352] hover:bg-[#F8FAFC]"
-          onClick={onClose}
-        >
-          Edit
-        </Link>
-      ) : null}
       {status !== "archived" ? (
         <>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onAddCandidate(job);
-              onClose();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]"
-          >
-            Add candidate
-          </button>
           <button
             type="button"
             role="menuitem"
@@ -702,11 +666,78 @@ function JobActionsMenuPortal({
               onImportCandidates(job);
               onClose();
             }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]"
+            className={menuItemClass}
           >
-            Import Candidates
+            Import candidates
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onAddCandidate(job);
+              onClose();
+            }}
+            className={menuItemClass}
+          >
+            Add candidate
           </button>
         </>
+      ) : null}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onCopyApplyLink(job);
+          onClose();
+        }}
+        className={menuItemClass}
+      >
+        Copy apply link
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onTags(job);
+          onClose();
+        }}
+        className={menuItemClass}
+      >
+        Tags
+      </button>
+      {/* Assign recruiter — hidden for now; restore later
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onAssignRecruiter(job);
+          onClose();
+        }}
+        className={menuItemClass}
+      >
+        Assign recruiter
+      </button>
+      */}
+      <button
+        type="button"
+        role="menuitem"
+        disabled={duplicateBusy}
+        onClick={() => {
+          onDuplicate(job);
+        }}
+        className={`${menuItemClass} disabled:opacity-60`}
+      >
+        {duplicateBusy ? "Duplicating…" : "Duplicate"}
+      </button>
+      {status !== "archived" ? (
+        <Link
+          href={`/admin_recruiter/jobs/${job.id}/edit`}
+          role="menuitem"
+          className={menuItemClass}
+          onClick={onClose}
+        >
+          Edit
+        </Link>
       ) : null}
       {publicHref ? (
         <Link
@@ -714,12 +745,23 @@ function JobActionsMenuPortal({
           target="_blank"
           rel="noopener noreferrer"
           role="menuitem"
-          className="block px-3 py-2 text-sm text-[#012352] hover:bg-[#F8FAFC]"
+          className={menuItemClass}
           onClick={onClose}
         >
           View Public Listing
         </Link>
       ) : null}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onImportFromMsp();
+          onClose();
+        }}
+        className={menuItemClass}
+      >
+        Import from MSP
+      </button>
     </>
   );
 
@@ -968,7 +1010,6 @@ export default function AdminRecruiterJobsPage() {
   const [actionSuccessModal, setActionSuccessModal] = useState<JobActionSuccessModalState | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<JobColumnId[]>(DEFAULT_JOB_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -977,6 +1018,7 @@ export default function AdminRecruiterJobsPage() {
     anchor: HTMLElement;
   } | null>(null);
   const [publishBusyIds, setPublishBusyIds] = useState<Set<string>>(new Set());
+  const [hotBusyIds, setHotBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -984,6 +1026,15 @@ export default function AdminRecruiterJobsPage() {
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [addCandidateJob, setAddCandidateJob] = useState<{ id: string; title: string } | null>(null);
   const [importCandidateJobId, setImportCandidateJobId] = useState<string | null>(null);
+  const [tagsJob, setTagsJob] = useState<JobListRow | null>(null);
+  const [tagsBusy, setTagsBusy] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [assignJob, setAssignJob] = useState<JobListRow | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<AssignableTeamMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+  const [duplicateBusyId, setDuplicateBusyId] = useState<string | null>(null);
 
   const [professionFilter, setProfessionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -1076,7 +1127,6 @@ export default function AdminRecruiterJobsPage() {
 
   useEffect(() => {
     setListColumnOrder(loadJobColumnOrder());
-    setStarredIds(loadStarredJobIds());
     setListingView(loadJobsListingView());
   }, []);
 
@@ -1191,18 +1241,26 @@ export default function AdminRecruiterJobsPage() {
     for (const job of jobs) {
       const status = jobListStatus(job);
       if (status !== "archived") counts.all += 1;
-      if (matchesJobTab(job, "internal", starredIds)) counts.internal += 1;
-      if (matchesJobTab(job, "msp", starredIds)) counts.msp += 1;
-      if (matchesJobTab(job, "hot", starredIds)) counts.hot += 1;
+      if (matchesJobTab(job, "internal")) counts.internal += 1;
+      if (matchesJobTab(job, "msp")) counts.msp += 1;
+      if (matchesJobTab(job, "hot")) counts.hot += 1;
     }
     return counts;
-  }, [jobs, starredIds]);
+  }, [jobs]);
+
+  const hotJobIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const job of jobs) {
+      if (job.is_hot) ids.add(job.id);
+    }
+    return ids;
+  }, [jobs]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
-      if (!matchesJobTab(job, jobTab, starredIds)) return false;
+      if (!matchesJobTab(job, jobTab)) return false;
 
-      if (showStarredOnly && !starredIds.has(job.id)) return false;
+      if (showStarredOnly && !job.is_hot) return false;
 
       if (titleQuery.trim()) {
         const q = titleQuery.trim().toLowerCase();
@@ -1244,7 +1302,6 @@ export default function AdminRecruiterJobsPage() {
     jobs,
     jobTab,
     showStarredOnly,
-    starredIds,
     professionFilter,
     statusFilter,
     placementTypeFilter,
@@ -1365,12 +1422,6 @@ export default function AdminRecruiterJobsPage() {
       const deletedCount =
         typeof payload.count === "number" ? payload.count : deletedIds.size;
       setJobs((current) => current.filter((job) => !deletedIds.has(job.id)));
-      setStarredIds((current) => {
-        const next = new Set(current);
-        for (const id of deletedIds) next.delete(id);
-        saveStarredJobIds(next);
-        return next;
-      });
       setSelectedIds(new Set());
       setDeleteConfirmOpen(false);
       if (deletedCount > 0) {
@@ -1392,6 +1443,138 @@ export default function AdminRecruiterJobsPage() {
 
   function handleImportFromMsp() {
     toast("Import from MSP is not available yet.");
+  }
+
+  function handleCopyApplyLink(job: JobListRow) {
+    const publicHref = publicJobPathFor(job, tenantSlug);
+    if (!publicHref) {
+      toast.error("Public apply link is not available for this job yet");
+      return;
+    }
+    void (async () => {
+      try {
+        const absolute =
+          typeof window !== "undefined"
+            ? new URL(publicHref, window.location.origin).toString()
+            : publicHref;
+        await navigator.clipboard.writeText(absolute);
+        toast.success("Apply link copied");
+      } catch {
+        toast.error("Could not copy apply link");
+      }
+    })();
+  }
+
+  async function loadTeamMembersForAssign() {
+    setTeamMembersLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-members", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to load team members"
+        );
+      }
+      const rows = Array.isArray(payload.members) ? payload.members : [];
+      setTeamMembers(
+        rows
+          .map((row: Record<string, unknown>) => ({
+            id: String(row.id ?? ""),
+            name: String(row.name ?? "").trim() || String(row.email ?? "Unknown"),
+            email: typeof row.email === "string" ? row.email : undefined,
+            role: typeof row.role === "string" ? row.role : undefined,
+          }))
+          .filter((member: AssignableTeamMember) => Boolean(member.id))
+      );
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Failed to load team members");
+      setTeamMembers([]);
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  }
+
+  async function saveListJobTags(nextTags: string[]) {
+    if (!tagsJob || tagsBusy) return;
+    setTagsBusy(true);
+    setTagsError(null);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(tagsJob.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "Failed to save tags");
+      }
+      setJobs((current) =>
+        current.map((job) => (job.id === tagsJob.id ? { ...job, tags: nextTags } : job))
+      );
+      toast.success("Tags updated");
+      setTagsJob(null);
+    } catch (err) {
+      setTagsError(err instanceof Error ? err.message : "Failed to save tags");
+    } finally {
+      setTagsBusy(false);
+    }
+  }
+
+  async function assignListJobRecruiter(assigneeUserId: string | null) {
+    if (!assignJob || assignBusy) return;
+    setAssignBusy(true);
+    setAssignError(null);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(assignJob.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignee: assigneeUserId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to assign recruiter"
+        );
+      }
+      setJobs((current) =>
+        current.map((job) =>
+          job.id === assignJob.id
+            ? { ...job, assigned_recruiter_user_id: assigneeUserId }
+            : job
+        )
+      );
+      toast.success(assigneeUserId ? "Recruiter assigned" : "Recruiter cleared");
+      setAssignJob(null);
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Failed to assign recruiter");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
+
+  async function duplicateListJob(job: JobListRow) {
+    if (duplicateBusyId) return;
+    setDuplicateBusyId(job.id);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}/duplicate`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to duplicate job"
+        );
+      }
+      const newId = payload?.job?.id ? String(payload.job.id) : "";
+      if (!newId) throw new Error("Duplicate job id missing");
+      setOpenActionsMenu(null);
+      toast.success("Job duplicated");
+      router.push(`/admin_recruiter/jobs/${encodeURIComponent(newId)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate job");
+    } finally {
+      setDuplicateBusyId(null);
+    }
   }
 
   async function handleBulkUnpublish() {
@@ -1615,20 +1798,61 @@ export default function AdminRecruiterJobsPage() {
     setShowStarredOnly(false);
   }, [handleSaveEditFilters]);
 
+  const toggleJobHot = useCallback(
+    async (jobId: string) => {
+      if (hotBusyIds.has(jobId)) return;
+      const current = jobs.find((job) => job.id === jobId);
+      if (!current) return;
+      const previousHot = Boolean(current.is_hot);
+      const nextHot = !previousHot;
+
+      setHotBusyIds((busy) => {
+        const next = new Set(busy);
+        next.add(jobId);
+        return next;
+      });
+      setJobs((list) =>
+        list.map((job) => (job.id === jobId ? { ...job, is_hot: nextHot } : job))
+      );
+
+      try {
+        const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_hot: nextHot }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof payload.error === "string" ? payload.error : "Failed to update Hot status"
+          );
+        }
+      } catch (err) {
+        setJobs((list) =>
+          list.map((job) => (job.id === jobId ? { ...job, is_hot: previousHot } : job))
+        );
+        toast.error(err instanceof Error ? err.message : "Failed to update Hot status", {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      } finally {
+        setHotBusyIds((busy) => {
+          const next = new Set(busy);
+          next.delete(jobId);
+          return next;
+        });
+      }
+    },
+    [hotBusyIds, jobs]
+  );
+
   const jobListCellContext = useMemo((): JobListCellContext => {
     return {
       brandingSecondaryHex: branding.secondaryHex,
       tenantSlug,
-      starredIds,
-      onToggleStar: (jobId) => {
-        setStarredIds((current) => {
-          const next = new Set(current);
-          if (next.has(jobId)) next.delete(jobId);
-          else next.add(jobId);
-          saveStarredJobIds(next);
-          return next;
-        });
+      onToggleHot: (jobId) => {
+        void toggleJobHot(jobId);
       },
+      hotBusyIds,
       openActionsJobId: openActionsMenu?.job.id ?? null,
       onOpenActionsMenu: (job, anchor) => {
         setOpenActionsMenu((current) => (current?.job.id === job.id ? null : { job, anchor }));
@@ -1636,7 +1860,14 @@ export default function AdminRecruiterJobsPage() {
       publishBusyIds,
       onPublishToggle: handlePublishToggle,
     };
-  }, [branding.secondaryHex, tenantSlug, starredIds, openActionsMenu?.job.id, publishBusyIds]);
+  }, [
+    branding.secondaryHex,
+    tenantSlug,
+    hotBusyIds,
+    openActionsMenu?.job.id,
+    publishBusyIds,
+    toggleJobHot,
+  ]);
 
   if (!showListing) {
     return (
@@ -1649,7 +1880,7 @@ export default function AdminRecruiterJobsPage() {
           loading={loading}
           tenantSlug={tenantSlug}
           totalCandidateCount={totalCandidateCount}
-          hotJobIds={starredIds}
+          hotJobIds={hotJobIds}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onSelectAll={(jobIds) => setSelectedIds(new Set(jobIds))}
@@ -1945,12 +2176,12 @@ export default function AdminRecruiterJobsPage() {
               jobs={paginatedJobs}
               loading={loading}
               emptyMessage={
-                showStarredOnly
-                  ? "No starred jobs yet. Click the star next to a job title to save it here."
+                showStarredOnly || jobTab === "hot"
+                  ? "No Hot jobs yet. Click the star next to a job title to mark it Hot."
                   : "No jobs match these filters."
               }
               tenantSlug={tenantSlug}
-              hotJobIds={starredIds}
+              hotJobIds={hotJobIds}
               selectedIds={selectedIds}
               selectionMode={listingCardBulkSelectMode}
               onToggleSelect={listingCardBulkSelectMode ? toggleSelect : undefined}
@@ -2028,8 +2259,8 @@ export default function AdminRecruiterJobsPage() {
                 <tr className="border-b border-[#E9EDF3]">
                   <td colSpan={listColumns.length + 1} className="p-0">
                     <p className="jobs-list-table-status">
-                      {showStarredOnly
-                        ? "No starred jobs yet. Click the star next to a job title to save it here."
+                      {showStarredOnly || jobTab === "hot"
+                        ? "No Hot jobs yet. Click the star next to a job title to mark it Hot."
                         : "No jobs match these filters."}
                     </p>
                   </td>
@@ -2098,6 +2329,7 @@ export default function AdminRecruiterJobsPage() {
           job={openActionsMenu.job}
           anchor={openActionsMenu.anchor}
           tenantSlug={tenantSlug}
+          duplicateBusy={duplicateBusyId === openActionsMenu.job.id}
           onClose={() => setOpenActionsMenu(null)}
           onTransition={(jobId, action) => void transition(jobId, action)}
           onImportFromMsp={handleImportFromMsp}
@@ -2107,6 +2339,17 @@ export default function AdminRecruiterJobsPage() {
           onImportCandidates={(job) => {
             setImportCandidateJobId(job.id);
           }}
+          onCopyApplyLink={handleCopyApplyLink}
+          onTags={(job) => {
+            setTagsError(null);
+            setTagsJob(job);
+          }}
+          onAssignRecruiter={(job) => {
+            setAssignError(null);
+            setAssignJob(job);
+            void loadTeamMembersForAssign();
+          }}
+          onDuplicate={(job) => void duplicateListJob(job)}
         />
       ) : null}
 
@@ -2162,6 +2405,35 @@ export default function AdminRecruiterJobsPage() {
           void load();
         }}
       />
+
+      <JobTagsModal
+        open={Boolean(tagsJob)}
+        jobTitle={tagsJob ? jobListDisplayTitle(tagsJob) : ""}
+        tags={Array.isArray(tagsJob?.tags) ? tagsJob.tags : []}
+        busy={tagsBusy}
+        error={tagsError}
+        onOpenChange={(open) => {
+          if (!open) setTagsJob(null);
+        }}
+        onSave={(nextTags) => void saveListJobTags(nextTags)}
+      />
+
+      {/* Assign recruiter — hidden for now; restore later
+      <AssignRecruiterModal
+        open={Boolean(assignJob)}
+        candidateName={assignJob ? jobListDisplayTitle(assignJob) : ""}
+        subjectLabel="job"
+        currentAssigneeId={assignJob?.assigned_recruiter_user_id ?? null}
+        busy={assignBusy}
+        error={assignError}
+        members={teamMembers}
+        membersLoading={teamMembersLoading}
+        onOpenChange={(open) => {
+          if (!open) setAssignJob(null);
+        }}
+        onAssign={(assigneeUserId) => void assignListJobRecruiter(assigneeUserId)}
+      />
+      */}
 
       <BulkDeleteConfirmModal
         open={deleteConfirmOpen}

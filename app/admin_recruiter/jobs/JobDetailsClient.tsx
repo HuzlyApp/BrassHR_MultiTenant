@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -13,6 +14,10 @@ import { MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
+import {
+  AssignRecruiterModal,
+  type AssignableTeamMember,
+} from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -33,6 +38,7 @@ import {
   JOB_POSTING_METADATA_CLASS,
 } from "./job-posting-typography";
 import { JobPublicViewLink } from "./JobPublicViewLink";
+import { JobTagsModal } from "./JobTagsModal";
 import {
   formatJobDetailsDate,
   formatJobDetailsClientName,
@@ -59,6 +65,9 @@ import { JOB_STATUSES } from "@/lib/jobs/types";
 type Props = {
   jobId: string;
 };
+
+/** How many tags to show beside the title before collapsing into “+N more”. */
+const JOB_DETAILS_VISIBLE_TAG_COUNT = 3;
 
 function BrandBackIcon({ className = "", flip = false }: { className?: string; flip?: boolean }) {
   return (
@@ -147,6 +156,7 @@ function CandidateCard({
 }
 
 export default function JobDetailsClient({ jobId }: Props) {
+  const router = useRouter();
   const branding = useTenantBranding();
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const brandStyle = primaryButtonStyle(brandVars);
@@ -159,7 +169,16 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [tagsBusy, setTagsBusy] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<AssignableTeamMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -218,14 +237,10 @@ export default function JobDetailsClient({ jobId }: Props) {
     setStatusBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/jobs", {
-        method: "POST",
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: job.id,
-          action: "set_status",
-          status: nextStatus,
-        }),
+        body: JSON.stringify({ status: nextStatus }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -241,6 +256,111 @@ export default function JobDetailsClient({ jobId }: Props) {
       toast.error(message);
     } finally {
       setStatusBusy(false);
+    }
+  }
+
+  async function loadTeamMembers() {
+    setTeamMembersLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-members", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to load team members"
+        );
+      }
+      const rows = Array.isArray(payload.members) ? payload.members : [];
+      setTeamMembers(
+        rows
+          .map((row: Record<string, unknown>) => ({
+            id: String(row.id ?? ""),
+            name: String(row.name ?? "").trim() || String(row.email ?? "Unknown"),
+            email: typeof row.email === "string" ? row.email : undefined,
+            role: typeof row.role === "string" ? row.role : undefined,
+          }))
+          .filter((member: AssignableTeamMember) => Boolean(member.id))
+      );
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Failed to load team members");
+      setTeamMembers([]);
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  }
+
+  async function saveJobTags(nextTags: string[]) {
+    if (!job || tagsBusy) return;
+    setTagsBusy(true);
+    setTagsError(null);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "Failed to save tags");
+      }
+      toast.success("Tags updated");
+      setTagsOpen(false);
+      await load({ silent: true });
+    } catch (err) {
+      setTagsError(err instanceof Error ? err.message : "Failed to save tags");
+    } finally {
+      setTagsBusy(false);
+    }
+  }
+
+  async function assignJobRecruiter(assigneeUserId: string | null) {
+    if (!job || assignBusy) return;
+    setAssignBusy(true);
+    setAssignError(null);
+    try {
+      const response = await fetch(`/api/admin/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignee: assigneeUserId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to assign recruiter"
+        );
+      }
+      toast.success(assigneeUserId ? "Recruiter assigned" : "Recruiter cleared");
+      setAssignOpen(false);
+      await load({ silent: true });
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Failed to assign recruiter");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
+
+  async function duplicateJob() {
+    if (!job || duplicateBusy) return;
+    setDuplicateBusy(true);
+    setActionsOpen(false);
+    try {
+      const response = await fetch(
+        `/api/admin/jobs/${encodeURIComponent(job.id)}/duplicate`,
+        { method: "POST" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to duplicate job"
+        );
+      }
+      const newId = String(payload.job?.id ?? "").trim();
+      if (!newId) throw new Error("Duplicate job id missing");
+      toast.success("Draft copy created");
+      router.push(`/admin_recruiter/jobs/${encodeURIComponent(newId)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate job");
+    } finally {
+      setDuplicateBusy(false);
     }
   }
 
@@ -268,6 +388,14 @@ export default function JobDetailsClient({ jobId }: Props) {
     () => (job ? preferredSkillsFromJob(job) : []),
     [job]
   );
+  const jobTags = useMemo(() => {
+    if (!Array.isArray(job?.tags)) return [];
+    return job.tags
+      .map((tag) => String(tag ?? "").trim())
+      .filter((tag) => tag.length > 0);
+  }, [job?.tags]);
+  const visibleJobTags = jobTags.slice(0, JOB_DETAILS_VISIBLE_TAG_COUNT);
+  const hiddenJobTagCount = Math.max(0, jobTags.length - visibleJobTags.length);
   const benefits = useMemo(() => splitJobListContent(job?.benefits), [job?.benefits]);
   const workLocation = job ? formatWorkLocationLabel(job) : "—";
   const summaryHtml = useMemo(() => {
@@ -371,10 +499,38 @@ export default function JobDetailsClient({ jobId }: Props) {
           <>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
-                <div className="flex min-w-0 items-start gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <h1 className="min-w-0 text-lg font-semibold leading-7 text-[#1D2739]">
                     {title}
                   </h1>
+                  {jobTags.length > 0 ? (
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {visibleJobTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex max-w-[10rem] truncate rounded-md px-2 py-0.5 text-xs font-semibold leading-4 text-white"
+                          style={{ backgroundColor: branding.secondaryHex || "#012352" }}
+                          title={tag}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {hiddenJobTagCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTagsError(null);
+                            setTagsOpen(true);
+                          }}
+                          className="inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold leading-4 text-white transition hover:opacity-90"
+                          style={{ backgroundColor: branding.secondaryHex || "#012352" }}
+                          aria-label={`Show ${hiddenJobTagCount} more tags`}
+                        >
+                          +{hiddenJobTagCount} more
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
                   Location: {location}
@@ -454,7 +610,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                             void updateJobStatus(next);
                           }
                         }}
-                        className={`h-10 min-w-[9.5rem] flex-1 appearance-none py-0 pl-7 pr-8 text-sm text-[#334155] outline-none disabled:opacity-60 min-[520px]:h-9 ${JOB_FORM_SURFACE_CLASS}`}
+                        className={`h-10 min-w-[9.5rem] flex-1 cursor-pointer appearance-none py-0 pl-7 pr-8 text-sm text-[#334155] outline-none disabled:cursor-not-allowed disabled:opacity-60 min-[520px]:h-9 ${JOB_FORM_SURFACE_CLASS}`}
                         aria-label={`Job status: ${jobDetailsStatusLabel(currentStatus)}`}
                       >
                         {JOB_STATUSES.filter((status) => allowed.has(status)).map((status) => (
@@ -518,6 +674,42 @@ export default function JobDetailsClient({ jobId }: Props) {
                         onClick={() => void copyApplyLink()}
                       >
                         Copy apply link
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                        onClick={() => {
+                          setActionsOpen(false);
+                          setTagsError(null);
+                          setTagsOpen(true);
+                        }}
+                      >
+                        Tags
+                      </button>
+                      {/* Assign recruiter — hidden for now; restore later
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                        onClick={() => {
+                          setActionsOpen(false);
+                          setAssignError(null);
+                          setAssignOpen(true);
+                          void loadTeamMembers();
+                        }}
+                      >
+                        Assign recruiter
+                      </button>
+                      */}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={duplicateBusy}
+                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-60"
+                        onClick={() => void duplicateJob()}
+                      >
+                        {duplicateBusy ? "Duplicating…" : "Duplicate"}
                       </button>
                     </div>
                   ) : null}
@@ -645,6 +837,29 @@ export default function JobDetailsClient({ jobId }: Props) {
           void load({ silent: true });
         }}
       />
+      <JobTagsModal
+        open={tagsOpen}
+        jobTitle={title}
+        tags={Array.isArray(job?.tags) ? job.tags : []}
+        busy={tagsBusy}
+        error={tagsError}
+        onOpenChange={setTagsOpen}
+        onSave={(nextTags) => void saveJobTags(nextTags)}
+      />
+      {/* Assign recruiter — hidden for now; restore later
+      <AssignRecruiterModal
+        open={assignOpen}
+        candidateName={title}
+        subjectLabel="job"
+        currentAssigneeId={job?.assigned_recruiter_user_id ?? null}
+        busy={assignBusy}
+        error={assignError}
+        members={teamMembers}
+        membersLoading={teamMembersLoading}
+        onOpenChange={setAssignOpen}
+        onAssign={(assigneeUserId) => void assignJobRecruiter(assigneeUserId)}
+      />
+      */}
     </div>
   );
 }

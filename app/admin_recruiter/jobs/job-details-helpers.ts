@@ -36,6 +36,9 @@ export type JobDetailsRow = {
   msp_name?: string | null;
   msp_client?: string | null;
   msp_client_name?: string | null;
+  tags?: string[] | null;
+  assigned_recruiter_user_id?: string | null;
+  is_hot?: boolean | null;
 };
 
 export type JobDetailsStats = {
