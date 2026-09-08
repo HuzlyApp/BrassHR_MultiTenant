@@ -15,7 +15,9 @@ import {
 import {
   qualificationDisplayStatus,
   recruiterActionLabel,
+  recruiterVerifiedNeedsNoteDecision,
   requirementNeedsVerificationNotes,
+  requirementShowsAddNote,
   type QualificationRequirement,
 } from "./workspace";
 
@@ -233,5 +235,25 @@ describe("qualification checklist + verification note display", () => {
         })
       )
     ).toBe("Confirmed");
+  });
+
+  it("keeps Recruiter verified locked until a Verified or Rejected note exists", () => {
+    expect(recruiterVerifiedNeedsNoteDecision(req())).toBe(true);
+    expect(recruiterVerifiedNeedsNoteDecision(req({ has_verification_decision: true }))).toBe(false);
+    expect(
+      recruiterVerifiedNeedsNoteDecision(req({ recruiter_verified: true, has_verification_decision: true }))
+    ).toBe(false);
+  });
+
+  it("still offers Add Note when confirmation is gated on a MET requirement", () => {
+    const met = req({
+      requirement_outcome: "MET",
+      status: "CONFIRMED",
+      verification_required: false,
+      recruiter_verified: false,
+      has_verification_decision: false,
+    });
+    expect(requirementNeedsVerificationNotes(met)).toBe(false);
+    expect(requirementShowsAddNote(met)).toBe(true);
   });
 });

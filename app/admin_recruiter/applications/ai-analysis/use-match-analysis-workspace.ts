@@ -356,7 +356,7 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   async function toggleVerified(req: QualificationRequirement) {
     if (!req.recruiter_verified && !req.has_verification_decision) {
       toast.error(
-        "Record a verification decision (Verified or Rejected) on a note before marking Confirmed."
+        "Save a note as Verified or Rejected, then check Recruiter verified."
       );
       return;
     }

@@ -301,6 +301,23 @@ export function requirementNeedsVerificationNotes(
   return display === "Needs Verification" || display === "Unknown";
 }
 
+/** Recruiter verified stays unchecked until a note is marked Verified or Rejected. */
+export function recruiterVerifiedNeedsNoteDecision(
+  req: Pick<QualificationRequirement, "recruiter_verified" | "has_verification_decision">
+): boolean {
+  return !req.recruiter_verified && !req.has_verification_decision;
+}
+
+/** Add Note must stay available whenever confirmation is still gated. */
+export function requirementShowsAddNote(
+  req: QualificationRequirement,
+  blockingTexts: string[] = []
+): boolean {
+  return (
+    requirementNeedsVerificationNotes(req, blockingTexts) || recruiterVerifiedNeedsNoteDecision(req)
+  );
+}
+
 export function formatRecruiterDecision(value: string | null | undefined): string {
   if (!value) return "Not recorded";
   if (isRecruiterDecision(value)) return RECRUITER_DECISION_LABELS[value];

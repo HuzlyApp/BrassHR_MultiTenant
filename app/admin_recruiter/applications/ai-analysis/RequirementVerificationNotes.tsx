@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, MessageSquarePlus, StickyNote } from "lucide-react";
 import {
   VERIFICATION_NOTE_STATUSES,
@@ -267,6 +267,32 @@ function NoteCard(props: {
   );
 }
 
+export function recruiterVerifiedNotePrefill(
+  requirement: QualificationRequirement
+): Partial<VerificationNoteDraft> {
+  return {
+    noteBody: requirement.candidate_evidence
+      ? `Evidence reviewed: ${requirement.candidate_evidence}`
+      : `Recruiter verified: ${requirement.requirement_text}`,
+    verificationStatus: "verified",
+  };
+}
+
+export function pendingVerificationNotePrefill(
+  requirement: QualificationRequirement
+): Partial<VerificationNoteDraft> {
+  const needsVerification = requirementNeedsVerificationNotes(requirement);
+  return {
+    noteBody: requirement.candidate_evidence
+      ? `Evidence reviewed: ${requirement.candidate_evidence}`
+      : "",
+    candidateQuestion: needsVerification
+      ? `Please confirm your experience related to: ${requirement.requirement_text}`
+      : "",
+    verificationStatus: "pending",
+  };
+}
+
 export function RequirementVerificationNotesPanel(props: {
   applicationId: string;
   requirement: QualificationRequirement;
@@ -278,6 +304,10 @@ export function RequirementVerificationNotesPanel(props: {
   onDelete: (noteId: string) => Promise<boolean>;
   onAskCandidate: (note: VerificationNote) => void;
   collapsedSummaryOnly?: boolean;
+  /** Increment to open the create form (e.g. after clicking Recruiter verified). */
+  openCreateSignal?: number;
+  createPrefill?: Partial<VerificationNoteDraft>;
+  onOpenCreateConsumed?: () => void;
 }) {
   const needsVerification = requirementNeedsVerificationNotes(props.requirement);
   const [showForm, setShowForm] = useState(false);
@@ -302,6 +332,14 @@ export function RequirementVerificationNotesPanel(props: {
     setFormError(null);
     setShowForm(true);
   }
+
+  useEffect(() => {
+    if (!props.openCreateSignal) return;
+    openCreate(props.createPrefill);
+    props.onOpenCreateConsumed?.();
+    // Prefill is read at signal time so clicking Recruiter verified can set Verified.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.openCreateSignal]);
 
   function openEdit(note: VerificationNote) {
     setEditingId(note.id);
@@ -362,44 +400,44 @@ export function RequirementVerificationNotesPanel(props: {
           <RequirementNotesIndicator requirement={props.requirement} />
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={props.saving}
+            onClick={() =>
+              openCreate({
+                noteBody: props.requirement.candidate_evidence
+                  ? `Evidence reviewed: ${props.requirement.candidate_evidence}`
+                  : "",
+                candidateQuestion: needsVerification
+                  ? `Please confirm your experience related to: ${props.requirement.requirement_text}`
+                  : "",
+                verificationStatus: "pending",
+              })
+            }
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#D0D5DD] bg-white px-2.5 py-1 text-xs font-semibold text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-60"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            Add Note
+          </button>
           {needsVerification ? (
-            <>
-              <button
-                type="button"
-                disabled={props.saving}
-                onClick={() =>
+            <button
+              type="button"
+              disabled={props.saving}
+              onClick={() => {
+                if (latest && "id" in latest && typeof (latest as VerificationNote).id === "string") {
+                  props.onAskCandidate(latest as VerificationNote);
+                } else {
                   openCreate({
-                    noteBody: props.requirement.candidate_evidence
-                      ? `Evidence reviewed: ${props.requirement.candidate_evidence}`
-                      : "",
-                    candidateQuestion: `Please confirm your experience related to: ${props.requirement.requirement_text}`,
-                    verificationStatus: "pending",
-                  })
+                    noteBody: `Please confirm: ${props.requirement.requirement_text}`,
+                    candidateQuestion: `Can you confirm your hands-on experience with: ${props.requirement.requirement_text}?`,
+                    verificationStatus: "sent_to_candidate",
+                  });
                 }
-                className="inline-flex items-center gap-1.5 rounded-md border border-[#D0D5DD] bg-white px-2.5 py-1 text-xs font-semibold text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-60"
-              >
-                <MessageSquarePlus className="h-3.5 w-3.5" />
-                Add Note
-              </button>
-              <button
-                type="button"
-                disabled={props.saving}
-                onClick={() => {
-                  if (latest && "id" in latest && typeof (latest as VerificationNote).id === "string") {
-                    props.onAskCandidate(latest as VerificationNote);
-                  } else {
-                    openCreate({
-                      noteBody: `Please confirm: ${props.requirement.requirement_text}`,
-                      candidateQuestion: `Can you confirm your hands-on experience with: ${props.requirement.requirement_text}?`,
-                      verificationStatus: "sent_to_candidate",
-                    });
-                  }
-                }}
-                className="rounded-md bg-[color:var(--brand-primary)] px-2.5 py-1 text-xs font-semibold text-white hover:brightness-95 disabled:opacity-60"
-              >
-                Request Confirmation
-              </button>
-            </>
+              }}
+              className="rounded-md bg-[color:var(--brand-primary)] px-2.5 py-1 text-xs font-semibold text-white hover:brightness-95 disabled:opacity-60"
+            >
+              Request Confirmation
+            </button>
           ) : null}
         </div>
       </div>
@@ -504,8 +542,8 @@ export function RequirementVerificationNotesPanel(props: {
             </button>
           </div>
           <p className="mt-2 text-[11px] text-[#98A2B3]">
-            Saving a note does not mark this requirement Confirmed. Set status to Verified or Rejected,
-            then use Recruiter verified.
+            Saving a note does not mark this requirement Confirmed. Set status to Verified or
+            Rejected, save, then check Recruiter verified.
           </p>
         </div>
       ) : null}
