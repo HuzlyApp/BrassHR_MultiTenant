@@ -12,6 +12,12 @@ export function jobOpenStatusBadge(status: string | null | undefined): {
   if (normalized === "published" || normalized === "open" || normalized === "active") {
     return { label: "Active", className: "bg-[#DCFCE7] text-[#166534]" };
   }
+  if (normalized === "paused") {
+    return { label: "Paused", className: "bg-[#FEF3C7] text-[#92400E]" };
+  }
+  if (normalized === "filled") {
+    return { label: "Filled", className: "bg-[#DCFCE7] text-[#166534]" };
+  }
   if (normalized === "closed") {
     return { label: "Closed", className: "bg-[#FEE2E2] text-[#B91C1C]" };
   }

@@ -85,7 +85,7 @@ export type JobListRow = {
   /** MSP end client (Contract Group / Client on job form → msp_name). */
   msp_name?: string | null
   msp_client?: string | null
-  status: "draft" | "published" | "closed" | "archived"
+  status: "draft" | "open" | "paused" | "filled" | "closed" | "archived" | "published"
   created_at: string
   published_at: string | null
   location: string | null
@@ -107,6 +107,8 @@ export type JobListRow = {
   /** Candidate count — from listInternalJobs, same set as the Job candidates All tab. */
   /** Candidates with status new/submitted — from listInternalJobs. */
   new_application_count?: number
+  /** Screening / interview pipeline candidates. */
+  in_process_application_count?: number
   /** Applications with completed AI match analysis. */
   analyzed_application_count?: number
   /** Applications whose AI match score is 90% or higher. */
@@ -201,6 +203,10 @@ export function applicantCount(job: JobListRow): number {
 
 export function newApplicantCount(job: JobListRow): number {
   return job.new_application_count ?? 0
+}
+
+export function inProcessApplicantCount(job: JobListRow): number {
+  return job.in_process_application_count ?? 0
 }
 
 export function analyzedApplicantCount(job: JobListRow): number {
@@ -314,17 +320,21 @@ export function formatJobListPayRateParts(
 }
 
 export function jobStatusSortLabel(status: JobListRow["status"]): string {
-  switch (status) {
-    case "published":
-      return "Published"
+  switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
+    case "open":
+      return "Open"
+    case "paused":
+      return "Paused"
+    case "filled":
+      return "Filled"
     case "draft":
-      return "Unpublished"
+      return "Draft"
     case "closed":
       return "Closed"
     case "archived":
       return "Archived"
     default:
-      return status
+      return String(status ?? "")
   }
 }
 
@@ -373,10 +383,14 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
 
 function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
   switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
-    case "published":
-      return { label: "Published", dotClass: "bg-[#3B82F6]" }
+    case "open":
+      return { label: "Open", dotClass: "bg-[#3B82F6]" }
+    case "paused":
+      return { label: "Paused", dotClass: "bg-[#F59E0B]" }
+    case "filled":
+      return { label: "Filled", dotClass: "bg-[#22C55E]" }
     case "draft":
-      return { label: "Unpublished", dotClass: "bg-[#94A3B8]" }
+      return { label: "Draft", dotClass: "bg-[#94A3B8]" }
     case "closed":
       return { label: "Closed", dotClass: "bg-[#EF4444]" }
     case "archived":
@@ -387,7 +401,7 @@ function displayJobStatus(status: JobListRow["status"]): { label: string; dotCla
 }
 
 function isPublishToggleChecked(status: JobListRow["status"]): boolean {
-  return normalizeJobRequisitionStatus(String(status ?? "")) === "published"
+  return normalizeJobRequisitionStatus(String(status ?? "")) === "open"
 }
 
 function isPublishToggleDisabled(job: JobListRow): boolean {
@@ -444,7 +458,7 @@ export type JobListCellContext = {
 }
 
 export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
-  if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "published") return null
+  if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "open") return null
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""
   if (!token || !slug) return null
@@ -555,6 +569,12 @@ export function renderJobListCell(
             label="New"
             count={newApplicantCount(job)}
             href={`${jobCandidatesHref(job.id)}&tab=new`}
+          />
+          <JobCandidateMetric
+            iconSrc={JOB_CANDIDATE_ICONS.all}
+            label="In process"
+            count={inProcessApplicantCount(job)}
+            href={jobCandidatesHref(job.id)}
           />
           <JobCandidateMetric
             iconSrc={JOB_CANDIDATE_ICONS.hired}

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import {
@@ -6,11 +6,15 @@ import {
   loadJobScreeningQuestions,
 } from "@/lib/jobs/screening-questions";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { isVisibleOnJobCandidatesAllTab } from "@/lib/jobs/application-status-tab";
 import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board";
+import { isOpenJobRequisitionStatus, normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import {
+  jobDetailsStatsFromPipelineSummary,
+  tallyJobPipelineSummary,
+} from "@/lib/jobs/pipeline-summary";
 
 export async function GET(
-  _req: NextRequest,
+  _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireStaffApiSession();
@@ -43,20 +47,20 @@ export async function GET(
 
     const { data: applications, error: appsError } = await supabase
       .from("job_applications")
-      .select("id, status, status_id, application_statuses!status_id(system_key)")
+      .select("id, status, status_id, application_statuses!status_id(system_key, name)")
       .eq("job_requisition_id", id)
       .eq("tenant_id", tenantId);
     if (appsError) throw appsError;
 
-    const rows = applications ?? [];
-    const visible = rows.filter((row) => isVisibleOnJobCandidatesAllTab(row));
-    const applicationsAll = visible.length;
-    const applicationsNew = visible.filter(
-      (row) => row.status === "submitted" || row.status === "new"
-    ).length;
-    const applicationsStarted = visible.filter(
-      (row) => row.status === "in_progress" || row.status === "reviewing"
-    ).length;
+    const showSubmission =
+      String((job as { source_type?: string | null }).source_type ?? "")
+        .trim()
+        .toLowerCase() === "msp";
+
+    const pipelineSummary = tallyJobPipelineSummary(applications ?? [], {
+      showSubmission,
+    });
+    const stats = jobDetailsStatsFromPipelineSummary(pipelineSummary);
 
     const tenantSlug = String(tenant?.slug ?? tenant?.subdomain ?? "")
       .trim()
@@ -64,14 +68,17 @@ export async function GET(
     const publicToken =
       typeof job.public_job_token === "string" ? job.public_job_token.trim() : "";
     const publicJobPath =
-      job.status === "published" && publicToken && tenantSlug
+      isOpenJobRequisitionStatus(String(job.status ?? "")) && publicToken && tenantSlug
         ? buildJobsBoardHref({ tenant: tenantSlug, job: publicToken })
         : null;
 
     const screeningQuestionRows = await loadJobScreeningQuestions(supabase, tenantId, id);
 
     return NextResponse.json({
-      job,
+      job: {
+        ...job,
+        status: normalizeJobRequisitionStatus(String(job.status ?? "")),
+      },
       tenant: tenant
         ? {
             id: String(tenant.id),
@@ -81,21 +88,9 @@ export async function GET(
         : null,
       publicJobPath,
       screeningQuestions: screeningQuestionRows.map(jobScreeningQuestionToInput),
-      stats: {
-        applicationsAll,
-        applicationsNew,
-        applicationsStarted,
-        applicationsSubmittedOrHired: visible.filter(
-          (row) =>
-            row.status === "submitted" ||
-            row.status === "new" ||
-            row.status === "hired"
-        ).length,
-        // Performance tracking is not persisted yet — surface zeros for Figma layout.
-        impressions: 0,
-        clicks: 0,
-        totalCost: 0,
-      },
+      /** @deprecated Prefer GET /api/admin/jobs/{id}/pipeline-summary */
+      stats,
+      pipelineSummary,
     });
   } catch (error) {
     return NextResponse.json(

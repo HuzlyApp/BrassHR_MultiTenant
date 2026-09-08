@@ -6,8 +6,10 @@ import Link from "next/link";
 import { Archive, Loader2, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
-import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
-import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import {
+  jobStatusDisplayLabel,
+  normalizeJobRequisitionStatus,
+} from "@/lib/jobs/job-status";
 import {
   analyzedApplicantCount,
   applicantCount,
@@ -61,12 +63,7 @@ const MENU_ITEM_CLASS =
 const MENU_ICON_CLASS = "h-4 w-4 shrink-0 text-[#94A3B8]";
 
 function gridStatusLabel(job: JobListRow): string {
-  const status = normalizeJobRequisitionStatus(String(job.status ?? ""));
-  if (status === "published" && isJobRequisitionOpen(job)) return "Open";
-  if (status === "draft") return "Draft";
-  if (status === "closed") return "Closed";
-  if (status === "archived") return "Archived";
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return jobStatusDisplayLabel(job.status);
 }
 
 function iconButtonClass(disabled?: boolean) {

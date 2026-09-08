@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  PUBLIC_ACCEPTING_JOB_STATUS_QUERY,
   JobValidationError,
   type EmploymentType,
   type JobRequisitionInput,
@@ -33,7 +34,12 @@ import {
   placementTypeFromApiRow,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
-import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import {
+  canTransitionJobStatus,
+  isLiveJobRequisitionStatus,
+  isOpenJobRequisitionStatus,
+  normalizeJobRequisitionStatus,
+} from "@/lib/jobs/job-status";
 import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
@@ -514,7 +520,7 @@ export async function saveJobRequisition(
       }
     }
 
-    if (existingJob?.status === "published") {
+    if (isLiveJobRequisitionStatus(String(existingJob?.status ?? ""))) {
       const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
       const isManual = existingJob?.workflow_assignment_mode === "manual";
       if (routingChanged && !isManual && !options.resetToAutomatic) {
@@ -559,7 +565,7 @@ export async function saveJobRequisition(
     workflow_mapping_id: assignmentMode === "automatic" ? match?.mappingId ?? null : null,
     workflow_assignment_mode: assignmentMode,
     workflow_assignment_error: match ? null : assignmentError,
-    status: options.publish ? ("published" as const) : ("draft" as const),
+    status: options.publish ? ("open" as const) : ("draft" as const),
     published_at: options.publish ? now : null,
     closed_at: null,
     archived_at: null,
@@ -589,7 +595,7 @@ export async function saveJobRequisition(
         const legacyPatch = {
           ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
           workflow_id: match?.workflowId ?? null,
-          status: options.publish ? ("published" as const) : ("draft" as const),
+          status: options.publish ? ("open" as const) : ("draft" as const),
           published_at: options.publish ? now : null,
           closed_at: null,
           archived_at: null,
@@ -645,7 +651,7 @@ export async function saveJobRequisition(
       const legacyPatch = {
         ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
         workflow_id: match?.workflowId ?? null,
-        status: options.publish ? ("published" as const) : ("draft" as const),
+        status: options.publish ? ("open" as const) : ("draft" as const),
         published_at: options.publish ? now : null,
         closed_at: null,
         archived_at: null,
@@ -688,22 +694,57 @@ export async function transitionJobStatus(
   tenantId: string,
   actorUserId: string,
   jobId: string,
-  status: Exclude<JobStatus, "published">
+  status: JobStatus,
+  options: { skipTransitionGuard?: boolean } = {}
 ) {
+  const { data: existing, error: existingError } = await supabase
+    .from("job_requisitions")
+    .select("id, status, published_at")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const fromStatus = normalizeJobRequisitionStatus(String(existing.status ?? ""));
+  const toStatus = normalizeJobRequisitionStatus(status);
+  if (!options.skipTransitionGuard && !canTransitionJobStatus(fromStatus, toStatus)) {
+    throw new JobValidationError(
+      `Cannot change job status from ${fromStatus} to ${toStatus}.`,
+      {},
+      "JOB_STATUS_TRANSITION_INVALID"
+    );
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, string | null> = {
-    status,
+    status: toStatus,
     updated_by: actorUserId,
   };
 
-  if (status === "draft") {
+  if (toStatus === "draft") {
     patch.published_at = null;
     patch.closed_at = null;
     patch.archived_at = null;
-  } else if (status === "closed") {
+  } else if (toStatus === "open") {
+    patch.published_at = existing.published_at
+      ? String(existing.published_at)
+      : now;
+    patch.closed_at = null;
+    patch.archived_at = null;
+  } else if (toStatus === "paused") {
+    patch.published_at = existing.published_at
+      ? String(existing.published_at)
+      : now;
+    patch.closed_at = null;
+    patch.archived_at = null;
+  } else if (toStatus === "filled") {
     patch.closed_at = now;
     patch.archived_at = null;
-  } else if (status === "archived") {
+  } else if (toStatus === "closed") {
+    patch.closed_at = now;
+    patch.archived_at = null;
+  } else if (toStatus === "archived") {
     patch.archived_at = now;
     patch.closed_at = null;
     patch.published_at = null;
@@ -741,7 +782,7 @@ export async function unarchiveJobRequisition(
   return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "draft");
 }
 
-/** Close published jobs whose application deadline has passed. */
+/** Close open jobs whose application deadline has passed. */
 export async function closeExpiredPublishedJobs(
   supabase: DbClient,
   tenantId: string,
@@ -757,7 +798,7 @@ export async function closeExpiredPublishedJobs(
       updated_by: actorUserId,
     })
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
+    .in("status", ["open", "published", "paused"])
     .not("application_deadline", "is", null)
     .lt("application_deadline", today);
   if (error) throw error;
@@ -867,8 +908,8 @@ export async function publishExistingJob(
   if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
 
   const status = String(row.status ?? "");
-  if (normalizeJobRequisitionStatus(status) === "published") {
-    throw new JobValidationError("Job is already published.", {}, "JOB_ALREADY_PUBLISHED");
+  if (isOpenJobRequisitionStatus(status)) {
+    throw new JobValidationError("Job is already open.", {}, "JOB_ALREADY_PUBLISHED");
   }
   if (normalizeJobRequisitionStatus(status) === "archived") {
     throw new JobValidationError("Unarchive the job before publishing.", {}, "JOB_ARCHIVED");
@@ -896,6 +937,57 @@ export async function publishExistingJob(
   return result.job;
 }
 
+/**
+ * Move a job to Open. Drafts go through full publish validation;
+ * paused/filled/closed use a status transition (with deadline guard).
+ */
+export async function openJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string
+) {
+  const { data: row, error } = await supabase
+    .from("job_requisitions")
+    .select("id, status, application_deadline, published_at, closed_at, archived_at")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const current = normalizeJobRequisitionStatus(String(row.status ?? ""));
+  if (current === "open") {
+    return {
+      id: row.id,
+      status: "open" as const,
+      published_at: row.published_at,
+      closed_at: row.closed_at,
+      archived_at: row.archived_at,
+    };
+  }
+  if (current === "draft") {
+    return publishExistingJob(supabase, tenantId, actorUserId, jobId);
+  }
+  if (current === "archived") {
+    throw new JobValidationError("Unarchive the job before opening.", {}, "JOB_ARCHIVED");
+  }
+
+  if (
+    !isJobRequisitionOpen({
+      application_deadline: row.application_deadline ? String(row.application_deadline) : null,
+    })
+  ) {
+    throw new JobValidationError(
+      "Update the application deadline before reopening this job.",
+      { applicationDeadline: "Application deadline has passed." },
+      "JOB_DEADLINE_EXPIRED"
+    );
+  }
+
+  return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "open");
+}
+
 export async function listInternalJobs(
   supabase: DbClient,
   tenantId: string,
@@ -914,7 +1006,13 @@ export async function listInternalJobs(
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
-  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.status) {
+    if (filters.status === "open") {
+      query = query.in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY]);
+    } else {
+      query = query.eq("status", filters.status);
+    }
+  }
   if (filters.professionId) query = query.eq("profession_id", filters.professionId);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
   if (filters.createdBy) query = query.eq("created_by", filters.createdBy);
@@ -940,6 +1038,7 @@ export async function listInternalJobs(
       status: normalizeJobRequisitionStatus(String(job.status ?? "")),
       job_applications: [{ count: metrics.applicantCount }],
       new_application_count: metrics.newCount,
+      in_process_application_count: metrics.inProcessCount,
       analyzed_application_count: metrics.analyzedCount,
       strong_match_count: metrics.strongCount,
       ready_to_submit_count: metrics.readyCount,
@@ -978,7 +1077,7 @@ export async function listPublicJobs(
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     // MSP jobs publish without workflow_id; still list them on the public board.
     .or(`application_deadline.is.null,application_deadline.gte.${today}`)
     .order("published_at", { ascending: false })
@@ -1016,7 +1115,7 @@ export async function getPublishedJobByToken(
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     // MSP jobs are intentionally published without workflow_id; public detail still shows.
     .maybeSingle();
   if (error) throw error;
@@ -1041,7 +1140,7 @@ export async function startOrResumeJobApplication(
     .select("id, tenant_id, workflow_id, status")
     .eq("tenant_id", input.tenantId)
     .eq("public_job_token", input.jobToken)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .maybeSingle();
   if (jobError) throw jobError;
   if (!job?.workflow_id) {
@@ -1499,9 +1598,9 @@ export async function createAdminJobApplication(
       "JOB_UNAVAILABLE"
     );
   }
-  if (String(job.status) !== "published") {
+  if (!isOpenJobRequisitionStatus(String(job.status))) {
     throw new JobValidationError(
-      "Only published jobs can accept candidates. Publish the job first.",
+      "Only open jobs can accept candidates. Open the job first.",
       {},
       "JOB_NOT_PUBLISHED"
     );

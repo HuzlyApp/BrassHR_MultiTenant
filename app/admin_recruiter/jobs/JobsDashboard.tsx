@@ -162,7 +162,7 @@ function sumMetric(jobs: JobListRow[], pick: (job: JobListRow) => number): numbe
 
 function isActiveJob(job: JobListRow): boolean {
   return (
-    normalizeJobRequisitionStatus(String(job.status ?? "")) === "published" && isJobRequisitionOpen(job)
+    normalizeJobRequisitionStatus(String(job.status ?? "")) === "open" && isJobRequisitionOpen(job)
   );
 }
 
@@ -286,7 +286,7 @@ export function JobsDashboard({
   onUnarchive,
 }: JobsDashboardProps) {
   const [query, setQuery] = useState("");
-  const [kpiCardsExpanded, setKpiCardsExpanded] = useState(true);
+  const [kpiCardsExpanded, setKpiCardsExpanded] = useState(false);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
   const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const summaryCards = useMemo(

@@ -1,5 +1,21 @@
-export const JOB_STATUSES = ["draft", "published", "closed", "archived"] as const;
+export const JOB_STATUSES = [
+  "draft",
+  "open",
+  "paused",
+  "filled",
+  "closed",
+  "archived",
+] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
+
+/** Statuses that appear on the public jobs board and accept applications. */
+export const PUBLIC_ACCEPTING_JOB_STATUSES = ["open"] as const;
+
+/**
+ * Dual-read values for public/open queries during rollout
+ * (legacy rows may still say "published" until backfilled).
+ */
+export const PUBLIC_ACCEPTING_JOB_STATUS_QUERY = ["open", "published"] as const;
 
 export const EMPLOYMENT_TYPES = ["W2", "1099", "Contract"] as const;
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];

@@ -52,6 +52,7 @@ import {
   isCenterAlignedJobColumn,
   loadJobColumnOrder,
   saveJobColumnOrder,
+  visibleJobColumnsForTab,
   type JobColumnId,
   type JobSortField,
 } from "./job-columns";
@@ -85,18 +86,14 @@ function relationNameFromJob(
   return row?.name?.trim() || "";
 }
 
-type JobTab = "all" | "internal" | "msp" | "draft" | "open" | "closed" | "archived" | "hot";
+type JobTab = "all" | "internal" | "msp" | "hot";
 
-/** Figma jobs listing tabs */
+/** FSD-JOB-UX-001: tabs = source/hot only. Status is a filter. */
 const JOB_TABS: Array<{ id: JobTab; label: string }> = [
   { id: "all", label: "All" },
   { id: "internal", label: "Internal" },
   { id: "msp", label: "MSP" },
-  { id: "draft", label: "Draft" },
-  { id: "open", label: "Open" },
-  { id: "closed", label: "Closed" },
-  { id: "archived", label: "Archived" },
-  { id: "hot", label: "Hot Jobs" },
+  { id: "hot", label: "Hot" },
 ];
 
 function parseJobTab(value: string | null): JobTab {
@@ -149,6 +146,16 @@ type JobActionSuccessModalState = {
   viewJobId: string;
 };
 
+type JobLifecycleAction =
+  | "publish"
+  | "unpublish"
+  | "close"
+  | "archive"
+  | "unarchive"
+  | "pause"
+  | "resume"
+  | "fill";
+
 function resolveJobActionErrorModal({
   code,
   message,
@@ -160,25 +167,25 @@ function resolveJobActionErrorModal({
   message: string;
   jobTitle: string;
   jobId: string;
-  action: "publish" | "unpublish" | "close" | "archive" | "unarchive";
+  action: JobLifecycleAction;
 }): JobActionErrorModalState {
   if (code === "JOB_DEADLINE_EXPIRED") {
     return {
       title: "Application deadline has passed",
-      message: `"${jobTitle}" cannot be published because its application deadline has already passed. Update the deadline in the job editor, then try publishing again.`,
+      message: `"${jobTitle}" cannot be opened because its application deadline has already passed. Update the deadline in the job editor, then try again.`,
       editJobId: jobId,
     };
   }
   if (code === "JOB_ALREADY_PUBLISHED") {
     return {
-      title: "Job already published",
-      message: `"${jobTitle}" is already published.`,
+      title: "Job already open",
+      message: `"${jobTitle}" is already open.`,
     };
   }
   if (code === "JOB_ARCHIVED") {
     return {
       title: "Job is archived",
-      message: `Unarchive "${jobTitle}" before publishing it again.`,
+      message: `Unarchive "${jobTitle}" before opening it again.`,
     };
   }
   if (code === "JOB_NOT_FOUND") {
@@ -189,15 +196,19 @@ function resolveJobActionErrorModal({
   }
 
   const actionLabel =
-    action === "publish"
-      ? "publish"
+    action === "publish" || action === "resume"
+      ? "open"
       : action === "unpublish"
-        ? "unpublish"
+        ? "move to draft"
         : action === "close"
           ? "close"
           : action === "archive"
             ? "archive"
-            : "restore";
+            : action === "pause"
+              ? "pause"
+              : action === "fill"
+                ? "mark filled"
+                : "restore";
 
   return {
     title: `Unable to ${actionLabel} job`,
@@ -360,7 +371,9 @@ function JobsCompactLabeledSelect({
 
 function jobStatusFilterDisplay(value: string) {
   if (value === "draft") return "Draft";
-  if (value === "published") return "Published";
+  if (value === "open" || value === "published") return "Open";
+  if (value === "paused") return "Paused";
+  if (value === "filled") return "Filled";
   if (value === "closed") return "Closed";
   if (value === "archived") return "Archived";
   return "All";
@@ -560,14 +573,6 @@ function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): b
       return status !== "archived" && jobSourceType(job) === "Internal";
     case "msp":
       return status !== "archived" && jobSourceType(job) === "MSP";
-    case "draft":
-      return status === "draft";
-    case "open":
-      return status === "published" && isJobRequisitionOpen(job);
-    case "closed":
-      return status === "closed";
-    case "archived":
-      return status === "archived";
     case "hot":
       return starredIds.has(job.id);
     default:
@@ -596,7 +601,7 @@ function JobActionsMenuPortal({
   anchor: HTMLElement;
   tenantSlug: string | null;
   onClose: () => void;
-  onTransition: (jobId: string, action: "publish" | "unpublish" | "close" | "archive" | "unarchive") => void;
+  onTransition: (jobId: string, action: JobLifecycleAction) => void;
   onImportFromMsp: () => void;
   onAddCandidate: (job: JobListRow) => void;
   onImportCandidates: (job: JobListRow) => void;
@@ -783,7 +788,7 @@ function JobActionsMenuPortal({
                 }}
                 className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
               >
-                Publish
+                Open
               </button>
               <button
                 type="button"
@@ -798,8 +803,30 @@ function JobActionsMenuPortal({
               </button>
             </>
           ) : null}
-          {status === "published" ? (
+          {status === "open" ? (
             <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "pause");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Pause
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "fill");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Mark filled
+              </button>
               <button
                 type="button"
                 role="menuitem"
@@ -809,7 +836,70 @@ function JobActionsMenuPortal({
                 }}
                 className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
               >
-                Unpublish
+                Move to draft
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "close");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Close
+              </button>
+            </>
+          ) : null}
+          {status === "paused" ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "resume");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Resume (Open)
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "fill");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Mark filled
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "close");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Close
+              </button>
+            </>
+          ) : null}
+          {status === "filled" ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "resume");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Reopen
               </button>
               <button
                 type="button"
@@ -836,7 +926,11 @@ function JobActionsMenuPortal({
             >
               Unarchive
             </button>
-          ) : status === "draft" || status === "published" ? (
+          ) : status === "draft" ||
+            status === "open" ||
+            status === "paused" ||
+            status === "filled" ||
+            status === "closed" ? (
             <button
               type="button"
               role="menuitem"
@@ -934,6 +1028,10 @@ export default function AdminRecruiterJobsPage() {
   const selectJobTab = useCallback(
     (next: JobTab) => {
       setJobTab(next);
+      // FSD: Internal hides End client — drop a filter that would never match visible rows.
+      if (next === "internal") {
+        setContractGroupFilter("");
+      }
       if (searchParams.get("view") !== "all") return;
       const params = new URLSearchParams(searchParams.toString());
       if (next === "all") params.delete("tab");
@@ -1003,10 +1101,7 @@ export default function AdminRecruiterJobsPage() {
     pageSize,
   ]);
 
-  async function transition(
-    jobId: string,
-    action: "publish" | "unpublish" | "close" | "archive" | "unarchive"
-  ) {
+  async function transition(jobId: string, action: JobLifecycleAction) {
     setPublishBusyIds((current) => new Set(current).add(jobId));
     const job = jobs.find((item) => item.id === jobId);
     const jobTitle = job ? jobListDisplayTitle(job) : "Job";
@@ -1035,20 +1130,26 @@ export default function AdminRecruiterJobsPage() {
       setError("");
       if (action === "archive") {
         toast.success(`${jobTitle} archived successfully`, { duration: ACTION_TOAST_DURATION_MS });
-        selectJobTab("archived");
+        setStatusFilter("archived");
+        selectJobTab("all");
       } else if (action === "unarchive") {
         toast.success(`${jobTitle} restored from archive`, { duration: ACTION_TOAST_DURATION_MS });
-        selectJobTab("draft");
+        setStatusFilter("draft");
+        selectJobTab("all");
       } else if (action === "close") {
         toast.success(`${jobTitle} closed`, { duration: ACTION_TOAST_DURATION_MS });
-      } else if (action === "publish") {
+      } else if (action === "publish" || action === "resume") {
         setActionSuccessModal({
-          title: "Job published successfully",
-          message: `"${jobTitle}" is now published and open for applications.`,
+          title: "Job opened successfully",
+          message: `"${jobTitle}" is now open for applications.`,
           viewJobId: jobId,
         });
       } else if (action === "unpublish") {
-        toast.success(`${jobTitle} unpublished`, { duration: ACTION_TOAST_DURATION_MS });
+        toast.success(`${jobTitle} moved to draft`, { duration: ACTION_TOAST_DURATION_MS });
+      } else if (action === "pause") {
+        toast.success(`${jobTitle} paused`, { duration: ACTION_TOAST_DURATION_MS });
+      } else if (action === "fill") {
+        toast.success(`${jobTitle} marked filled`, { duration: ACTION_TOAST_DURATION_MS });
       }
       await load();
     } finally {
@@ -1063,15 +1164,19 @@ export default function AdminRecruiterJobsPage() {
   function handlePublishToggle(job: JobListRow) {
     if (publishBusyIds.has(job.id)) return;
     const status = jobListStatus(job);
-    if (status === "published") {
+    if (status === "open") {
       void transition(job.id, "unpublish");
+      return;
+    }
+    if (status === "paused") {
+      void transition(job.id, "resume");
       return;
     }
     if (status === "draft") {
       void transition(job.id, "publish");
       return;
     }
-    if (status === "closed" && canRepublishClosedJob(job)) {
+    if ((status === "closed" || status === "filled") && canRepublishClosedJob(job)) {
       void transition(job.id, "publish");
     }
   }
@@ -1081,10 +1186,6 @@ export default function AdminRecruiterJobsPage() {
       all: 0,
       internal: 0,
       msp: 0,
-      draft: 0,
-      open: 0,
-      closed: 0,
-      archived: 0,
       hot: 0,
     };
     for (const job of jobs) {
@@ -1092,10 +1193,6 @@ export default function AdminRecruiterJobsPage() {
       if (status !== "archived") counts.all += 1;
       if (matchesJobTab(job, "internal", starredIds)) counts.internal += 1;
       if (matchesJobTab(job, "msp", starredIds)) counts.msp += 1;
-      if (matchesJobTab(job, "draft", starredIds)) counts.draft += 1;
-      if (matchesJobTab(job, "open", starredIds)) counts.open += 1;
-      if (matchesJobTab(job, "closed", starredIds)) counts.closed += 1;
-      if (matchesJobTab(job, "archived", starredIds)) counts.archived += 1;
       if (matchesJobTab(job, "hot", starredIds)) counts.hot += 1;
     }
     return counts;
@@ -1191,21 +1288,30 @@ export default function AdminRecruiterJobsPage() {
     return selected.length > 0 ? selected : sortedJobs;
   }, [jobs, sortedJobs, selectedIds]);
 
+  const listColumns = useMemo(
+    () =>
+      visibleJobColumnsForTab(
+        listColumnOrder.length ? listColumnOrder : DEFAULT_JOB_COLUMNS,
+        jobTab
+      ),
+    [jobTab, listColumnOrder]
+  );
+
   const handleExportCsv = useCallback(() => {
     if (exportJobs.length === 0) {
       toast.error("No jobs to export");
       return;
     }
-    exportJobsCsv(exportJobs, { columnOrder: listColumnOrder });
-  }, [exportJobs, listColumnOrder]);
+    exportJobsCsv(exportJobs, { columnOrder: listColumns });
+  }, [exportJobs, listColumns]);
 
   const handleExportXls = useCallback(() => {
     if (exportJobs.length === 0) {
       toast.error("No jobs to export");
       return;
     }
-    exportJobsXls(exportJobs, { columnOrder: listColumnOrder });
-  }, [exportJobs, listColumnOrder]);
+    exportJobsXls(exportJobs, { columnOrder: listColumns });
+  }, [exportJobs, listColumns]);
 
   const totalPages = Math.max(1, Math.ceil(sortedJobs.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -1290,7 +1396,7 @@ export default function AdminRecruiterJobsPage() {
 
   async function handleBulkUnpublish() {
     const targets = jobs.filter(
-      (job) => selectedIds.has(job.id) && jobListStatus(job) === "published"
+      (job) => selectedIds.has(job.id) && jobListStatus(job) === "open"
     );
     if (targets.length === 0) return;
     for (const job of targets) {
@@ -1333,7 +1439,8 @@ export default function AdminRecruiterJobsPage() {
           { duration: ACTION_TOAST_DURATION_MS }
         );
         setSelectedIds(new Set());
-        selectJobTab("archived");
+        setStatusFilter("archived");
+        selectJobTab("all");
         await load();
       } else if (targets.length > 0) {
         toast.error("No jobs could be archived", { duration: ACTION_TOAST_DURATION_MS });
@@ -1346,7 +1453,7 @@ export default function AdminRecruiterJobsPage() {
   const selectedPublishedCount = useMemo(() => {
     let count = 0;
     for (const job of jobs) {
-      if (selectedIds.has(job.id) && jobListStatus(job) === "published") count += 1;
+      if (selectedIds.has(job.id) && jobListStatus(job) === "open") count += 1;
     }
     return count;
   }, [jobs, selectedIds]);
@@ -1436,8 +1543,6 @@ export default function AdminRecruiterJobsPage() {
     }
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
-
-  const listColumns = listColumnOrder.length ? listColumnOrder : DEFAULT_JOB_COLUMNS;
 
   const hasActiveFilters = Boolean(
     professionFilter ||
@@ -1751,7 +1856,9 @@ export default function AdminRecruiterJobsPage() {
                 displayValue={jobStatusFilterDisplay(statusFilter)}
               >
                 <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                <option value="open">Open</option>
+                <option value="paused">Paused</option>
+                <option value="filled">Filled</option>
                 <option value="closed">Closed</option>
                 <option value="archived">Archived</option>
               </JobsCompactLabeledSelect>

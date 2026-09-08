@@ -28,6 +28,7 @@ import {
   resolvePublishedFlowForJobWorkflow,
 } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
+import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { normalizeApplicantEmail } from "@/lib/jobs/validation";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import {
@@ -991,9 +992,9 @@ export async function importExistingCandidatesToWorkspace(
   }
 
   const jobRow = await loadJobForImport(supabase, input.tenantId, input.jobId);
-  if (asText(jobRow.status) !== "published") {
+  if (!isOpenJobRequisitionStatus(asText(jobRow.status))) {
     throw new CandidateImportError(
-      "Only published jobs can accept candidates. Publish the job first.",
+      "Only open jobs can accept candidates. Open the job first.",
       "JOB_NOT_PUBLISHED",
       400
     );

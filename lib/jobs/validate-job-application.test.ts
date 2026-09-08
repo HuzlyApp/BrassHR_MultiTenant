@@ -31,6 +31,9 @@ function createSupabaseMock(options: {
     eq: vi.fn(function eq(this: unknown) {
       return this;
     }),
+    in: vi.fn(function inFn(this: unknown) {
+      return this;
+    }),
     not: vi.fn(function not(this: unknown) {
       return this;
     }),
@@ -66,7 +69,7 @@ describe("validatePublishedJobForApplication", () => {
         id: "job-1",
         tenant_id: "tenant-1",
         public_job_token: "token-1",
-        status: "published",
+        status: "open",
         workflow_id: "workflow-1",
         application_deadline: null,
         onboarding_flows: {
@@ -103,7 +106,7 @@ describe("validatePublishedJobForApplication", () => {
         id: "job-1",
         tenant_id: "tenant-1",
         public_job_token: "token-1",
-        status: "published",
+        status: "open",
         workflow_id: "workflow-1",
         application_deadline: null,
         onboarding_flows: {

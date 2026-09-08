@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { JobValidationError } from "@/lib/jobs/types";
+import { JobValidationError, JOB_STATUSES, type JobStatus } from "@/lib/jobs/types";
 import { jobMutationSchema } from "@/lib/jobs/validation";
 import {
   closeExpiredPublishedJobs,
   bulkDeleteJobRequisitions,
   listInternalJobs,
+  openJobRequisition,
   parseBulkDeleteIds,
   publishExistingJob,
   saveJobRequisition,
   transitionJobStatus,
   unarchiveJobRequisition,
 } from "@/lib/jobs/service";
+import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { parseScreeningQuestionsFromBody } from "@/lib/jobs/screening-questions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -30,6 +32,30 @@ function formatApiError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+const STATUS_FILTER_VALUES = new Set([
+  "draft",
+  "open",
+  "published",
+  "paused",
+  "filled",
+  "closed",
+  "archived",
+]);
+
+function parseJobStatusFilter(value: string | null): JobStatus | undefined {
+  if (!value || !STATUS_FILTER_VALUES.has(value)) return undefined;
+  return normalizeJobRequisitionStatus(value);
+}
+
+function parseTargetJobStatus(raw: unknown): JobStatus | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().toLowerCase();
+  if (!(JOB_STATUSES as readonly string[]).includes(trimmed) && trimmed !== "published") {
+    return null;
+  }
+  return normalizeJobRequisitionStatus(trimmed);
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
@@ -42,16 +68,10 @@ export async function GET(req: NextRequest) {
 
     await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
 
-    const status = req.nextUrl.searchParams.get("status") || undefined;
+    const status = parseJobStatusFilter(req.nextUrl.searchParams.get("status"));
     const [jobs, tenantResult, workerCountResult] = await Promise.all([
       listInternalJobs(supabase, tenantId, {
-        status:
-          status === "draft" ||
-          status === "published" ||
-          status === "closed" ||
-          status === "archived"
-            ? status
-            : undefined,
+        status,
         professionId: req.nextUrl.searchParams.get("professionId") || undefined,
         employmentType: req.nextUrl.searchParams.get("employmentType") || undefined,
         createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
@@ -97,7 +117,11 @@ export async function POST(req: NextRequest) {
       (action === "unpublish" ||
         action === "close" ||
         action === "archive" ||
-        action === "unarchive") &&
+        action === "unarchive" ||
+        action === "pause" ||
+        action === "resume" ||
+        action === "fill" ||
+        action === "set_status") &&
       !jobId
     ) {
       return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
@@ -120,8 +144,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ job: result });
     }
 
-    if (action === "unpublish" || action === "close" || action === "archive") {
-      const status = action === "unpublish" ? "draft" : action === "close" ? "closed" : "archived";
+    if (action === "set_status") {
+      const target = parseTargetJobStatus(rawRecord.status);
+      if (!target) {
+        return NextResponse.json({ error: "Valid status is required" }, { status: 400 });
+      }
+      if (target === "open") {
+        const result = await openJobRequisition(supabase, tenantId, auth.userId, jobId);
+        return NextResponse.json({ job: result });
+      }
+      const result = await transitionJobStatus(supabase, tenantId, auth.userId, jobId, target);
+      return NextResponse.json({ job: result });
+    }
+
+    if (
+      action === "unpublish" ||
+      action === "close" ||
+      action === "archive" ||
+      action === "pause" ||
+      action === "resume" ||
+      action === "fill"
+    ) {
+      if (action === "resume") {
+        const result = await openJobRequisition(supabase, tenantId, auth.userId, jobId);
+        return NextResponse.json({ job: result });
+      }
+      const status: JobStatus =
+        action === "unpublish"
+          ? "draft"
+          : action === "close"
+            ? "closed"
+            : action === "archive"
+              ? "archived"
+              : action === "pause"
+                ? "paused"
+                : "filled";
       const result = await transitionJobStatus(supabase, tenantId, auth.userId, jobId, status);
       return NextResponse.json({ job: result });
     }
