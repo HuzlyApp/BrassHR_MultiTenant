@@ -81,6 +81,8 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
   assigned_recruiter_user_id?: string | null;
+  assigned_recruiter_name?: string | null;
+  assigned_recruiter_photo_url?: string | null;
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
@@ -307,6 +309,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
         assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+        assignedRecruiterName: item.assigned_recruiter_name ?? null,
+        assignedRecruiterPhotoUrl: item.assigned_recruiter_photo_url ?? null,
         ...mapWorkerMatchFields(item),
         });
       });

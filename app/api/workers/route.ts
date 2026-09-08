@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
@@ -23,6 +24,7 @@ import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summa
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { statusOrFilter } from "@/lib/workers/workers-status-filter";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import { getApplicationAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
   candidateListRequiresServerSearch,
   parseCandidateListQueryParams,
@@ -541,6 +543,42 @@ export async function GET(req: Request) {
                 workerIds,
               }),
             ]);
+            const workersMissingAssignee = workersOut
+              .map((row) => {
+                const id = typeof row.id === "string" ? row.id.trim() : "";
+                const assigneeId =
+                  typeof row.assigned_recruiter_user_id === "string"
+                    ? row.assigned_recruiter_user_id.trim()
+                    : "";
+                return !assigneeId && id ? id : "";
+              })
+              .filter(Boolean);
+            const applicationAssigneeFallback =
+              tenantIdForApps && workersMissingAssignee.length > 0
+                ? await getApplicationAssigneeFallbackByWorker(
+                    supabase,
+                    tenantIdForApps,
+                    workersMissingAssignee
+                  )
+                : new Map<string, string>();
+            const assigneeIds = [
+              ...new Set(
+                workersOut
+                  .map((row) => {
+                    const id = typeof row.id === "string" ? row.id.trim() : "";
+                    const direct =
+                      typeof row.assigned_recruiter_user_id === "string"
+                        ? row.assigned_recruiter_user_id.trim()
+                        : "";
+                    return direct || (id ? applicationAssigneeFallback.get(id) ?? "" : "");
+                  })
+                  .filter(Boolean)
+              ),
+            ];
+            const assigneesById =
+              tenantIdForApps && assigneeIds.length > 0
+                ? await loadStaffUsersByIds(supabase, tenantIdForApps, assigneeIds)
+                : new Map();
             const matchApplicationIds = [
               ...new Set(
                 [...matchSummaries.values()]
@@ -571,9 +609,25 @@ export async function GET(req: Request) {
               const jobTitles = id ? jobTitlesByWorker.get(id) : undefined;
               const applicationJobTitlesText = joinApplicationJobTitles(jobTitles);
               const applicationSearchText = id ? searchTextByWorker.get(id) : undefined;
+              const directAssigneeId =
+                typeof row.assigned_recruiter_user_id === "string"
+                  ? row.assigned_recruiter_user_id.trim()
+                  : "";
+              const assigneeId =
+                directAssigneeId || (id ? applicationAssigneeFallback.get(id) ?? "" : "");
+              const assignee = assigneeId ? assigneesById.get(assigneeId) : undefined;
               return {
                 ...row,
+                ...(assigneeId && !directAssigneeId
+                  ? { assigned_recruiter_user_id: assigneeId }
+                  : {}),
                 applied_job_count: appliedJobCount,
+                ...(assignee
+                  ? {
+                      assigned_recruiter_name: assignee.name,
+                      assigned_recruiter_photo_url: assignee.profilePhotoUrl,
+                    }
+                  : {}),
                 ...(summary
                   ? {
                       application_id: summary.applicationId,

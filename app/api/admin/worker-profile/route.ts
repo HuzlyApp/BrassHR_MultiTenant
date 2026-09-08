@@ -24,6 +24,10 @@ import { requireApiSession, requireStaffApiSession } from "@/lib/auth/api-sessio
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
+import {
+  getLatestWorkerResumeStoragePath,
+  syncWorkerPrimaryResumePath,
+} from "@/lib/onboarding/sync-worker-primary-resume-path"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url"
@@ -93,6 +97,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: idCheck.error }, { status: 400 })
     }
     const workerId = idCheck.value
+    const applicationIdRaw = req.nextUrl.searchParams.get("applicationId")?.trim() || ""
+    const applicationIdCheck = applicationIdRaw
+      ? parseRequiredUuid(applicationIdRaw, "applicationId")
+      : null
+    const applicationId =
+      applicationIdCheck && applicationIdCheck.ok ? applicationIdCheck.value : null
 
     const auth = await requireApiSession()
     if (auth instanceof NextResponse) return auth
@@ -167,9 +177,60 @@ export async function GET(req: NextRequest) {
         ? resumePathRaw.trim()
         : null
 
-    const resumePath = resumePathStored ? normalizeResumeStorageObjectPath(resumePathStored) : null
-    const resumePathCanonical =
-      resumePath && resumePath.length > 0 ? resumePath : null
+    let resumePathCanonical: string | null = null
+    let resumeSource: "application_worker_resumes" | "worker_requirements.resume_path" | "worker_resumes" | "none" =
+      "none"
+
+    try {
+      if (applicationId) {
+        const scopedPath = await getLatestWorkerResumeStoragePath(supabase, workerId, {
+          jobApplicationId: applicationId,
+        })
+        const scopedNormalized = scopedPath
+          ? normalizeResumeStorageObjectPath(scopedPath)
+          : null
+        if (scopedNormalized) {
+          resumePathCanonical = scopedNormalized
+          resumeSource = "application_worker_resumes"
+        }
+      }
+    } catch (scopedErr) {
+      console.warn("[admin/worker-profile] application resume fallback", scopedErr)
+    }
+
+    if (!resumePathCanonical) {
+      const fromRequirements = resumePathStored
+        ? normalizeResumeStorageObjectPath(resumePathStored)
+        : null
+      if (fromRequirements) {
+        resumePathCanonical = fromRequirements
+        resumeSource = "worker_requirements.resume_path"
+      }
+    }
+
+    if (!resumePathCanonical) {
+      try {
+        const fallbackPath = await getLatestWorkerResumeStoragePath(supabase, workerId)
+        const fallbackNormalized = fallbackPath
+          ? normalizeResumeStorageObjectPath(fallbackPath)
+          : null
+        if (fallbackNormalized) {
+          resumePathCanonical = fallbackNormalized
+          resumeSource = "worker_resumes"
+        }
+      } catch (fallbackErr) {
+        console.warn("[admin/worker-profile] worker_resumes fallback", fallbackErr)
+      }
+    }
+
+    if (
+      resumePathCanonical &&
+      resumeSource !== "worker_requirements.resume_path"
+    ) {
+      void syncWorkerPrimaryResumePath(supabase, workerId, userIdForLegacy).catch((err) => {
+        console.warn("[admin/worker-profile] sync primary resume path", err)
+      })
+    }
 
     let resumeUrl: string | null = null
     if (resumePathCanonical) {
@@ -902,7 +963,7 @@ export async function GET(req: NextRequest) {
       profile_license: primaryLicense,
       license_records: licenseRecords,
       education: {
-        source: resumePathCanonical ? "worker_requirements.resume_path" : "none",
+        source: resumeSource,
         resume_available: Boolean(resumePathCanonical),
         items: [] as Array<Record<string, unknown>>,
       },

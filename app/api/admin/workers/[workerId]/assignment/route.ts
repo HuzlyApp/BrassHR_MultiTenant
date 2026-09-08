@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveStaffProfilePhotoUrl } from "@/lib/account/staff-profile-photo";
 import { appRoleToConsoleRole } from "@/lib/admin/staff-directory-types";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { syncAssigneeFromApplication } from "@/lib/candidates/sync-recruiter-assignment";
+import { syncAssigneeFromWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
-type RouteContext = { params: Promise<{ id: string }> };
+type RouteContext = { params: Promise<{ workerId: string }> };
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
@@ -18,7 +19,11 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   const tenantId = await resolveStaffTenantId(supabase, auth).catch(() => null);
   if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
-  const { id } = await context.params;
+  const { workerId } = await context.params;
+  if (!workerId?.trim()) {
+    return NextResponse.json({ error: "Missing workerId" }, { status: 400 });
+  }
+
   const body = (await req.json().catch(() => ({}))) as { assignedRecruiterUserId?: string | null };
   const assigned =
     typeof body.assignedRecruiterUserId === "string" && body.assignedRecruiterUserId.trim()
@@ -28,7 +33,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   if (assigned) {
     const { data: member } = await supabase
       .from("users")
-      .select("id, role")
+      .select("id, role, first_name, last_name, email")
       .eq("id", assigned)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -41,24 +46,30 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
   }
 
-  const syncResult = await syncAssigneeFromApplication(supabase, {
+  const { data: worker, error: workerErr } = await supabase
+    .from("worker")
+    .select("id, tenant_id")
+    .eq("id", workerId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (workerErr) return NextResponse.json({ error: workerErr.message }, { status: 500 });
+  if (!worker) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+
+  const syncResult = await syncAssigneeFromWorker(supabase, {
     tenantId,
-    applicationId: id,
+    workerId,
     assignedRecruiterUserId: assigned,
   });
-  if (syncResult.error === "Application not found") {
-    return NextResponse.json({ error: syncResult.error }, { status: 404 });
-  }
   if (syncResult.error) {
     return NextResponse.json({ error: syncResult.error }, { status: 500 });
   }
 
-  let assignedRecruiter: { id: string; name: string } | null = null;
-  if (syncResult.assignedRecruiterUserId) {
+  let assignedRecruiter: { id: string; name: string; profilePhotoUrl: string | null } | null = null;
+  if (assigned) {
     const { data: user } = await supabase
       .from("users")
-      .select("id, first_name, last_name, email")
-      .eq("id", syncResult.assignedRecruiterUserId)
+      .select("id, first_name, last_name, email, profile_photo")
+      .eq("id", assigned)
       .maybeSingle();
     if (user) {
       assignedRecruiter = {
@@ -67,27 +78,24 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() ||
           String(user.email ?? "").trim() ||
           "Team member",
+        profilePhotoUrl: await resolveStaffProfilePhotoUrl(supabase, user.profile_photo),
       };
     }
   }
 
   void writeActivityLog({
     actorUserId: auth.devBypass ? null : auth.userId,
-    action: "job_application.recruiter_assigned",
-    entityType: "job_application",
-    entityId: id,
+    action: "worker.recruiter_assigned",
+    entityType: "worker",
+    entityId: workerId,
     tenantId,
     request: req,
-    metadata: {
-      assignedRecruiterUserId: assigned,
-      workerId: syncResult.workerId,
-      syncedWorker: Boolean(syncResult.workerId),
-    },
+    metadata: { assignedRecruiterUserId: assigned, syncedApplications: true },
   });
 
   return NextResponse.json({
     ok: true,
-    assignedRecruiterUserId: syncResult.assignedRecruiterUserId,
+    assignedRecruiterUserId: assigned,
     assignedRecruiter,
   });
 }

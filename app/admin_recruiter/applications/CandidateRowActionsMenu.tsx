@@ -16,6 +16,7 @@ export type CandidateRowActionsHandlers = {
   onUpdateResume: () => void;
   onArchive: () => void;
   onUnarchive: () => void;
+  onAssignRecruiter?: () => void;
   onMessage: () => void;
   onCall: () => void;
   onSetupInterview: () => void;
@@ -58,6 +59,7 @@ export function CandidateRowActionsMenu({
   onUpdateResume,
   onArchive,
   onUnarchive,
+  onAssignRecruiter,
   onMessage,
   onCall,
   onSetupInterview,
@@ -252,6 +254,16 @@ export function CandidateRowActionsMenu({
           >
             Set up interview
           </button>
+          {onAssignRecruiter ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAndClose(onAssignRecruiter)}
+              className={menuItemClassName()}
+            >
+              Assign recruiter
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
