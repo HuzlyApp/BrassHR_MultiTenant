@@ -121,9 +121,19 @@ export type JobWorkflowAssignmentOptions = {
   overrideWorkflowId?: string | null;
 };
 
-/** Job form fields plus admin Add-candidate fields (`name`, `email`). */
+/** Job form fields plus admin Add-candidate and job-patch fields. */
 export type FieldErrors = Partial<
-  Record<keyof JobRequisitionInput | "workflowId" | "name" | "email", string>
+  Record<
+    | keyof JobRequisitionInput
+    | "workflowId"
+    | "name"
+    | "email"
+    | "status"
+    | "assignee"
+    | "tags"
+    | "is_hot",
+    string
+  >
 >;
 
 export class JobValidationError extends Error {
