@@ -9,7 +9,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { ChevronDown, MoreVertical } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
@@ -20,7 +20,6 @@ import {
   JobDescriptionHtml,
 } from "@/lib/jobs/job-description-html";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
-import type { JobStatus } from "@/lib/jobs/types";
 import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import {
   JOB_FORM_OUTLINE_BUTTON_CLASS,
@@ -45,13 +44,10 @@ import {
   performanceDateRangeLabel,
   preferredSkillsFromJob,
   splitJobListContent,
-  statusActionForTarget,
   type JobDetailsRow,
   type JobDetailsStats,
   type StatusTransitionAction,
 } from "./job-details-helpers";
-
-const STATUS_OPTIONS: JobStatus[] = ["published", "draft", "closed", "archived"];
 
 type Props = {
   jobId: string;
@@ -154,11 +150,9 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const statusRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -193,7 +187,6 @@ export default function JobDetailsClient({ jobId }: Props) {
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (statusRef.current && !statusRef.current.contains(target)) setStatusOpen(false);
       if (actionsRef.current && !actionsRef.current.contains(target)) setActionsOpen(false);
     };
     document.addEventListener("mousedown", onPointerDown);
@@ -211,7 +204,6 @@ export default function JobDetailsClient({ jobId }: Props) {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to update status");
-      setStatusOpen(false);
       setActionsOpen(false);
       if (action === "archive") {
         toast.success("Job archived successfully");
@@ -232,16 +224,6 @@ export default function JobDetailsClient({ jobId }: Props) {
     } finally {
       setStatusBusy(false);
     }
-  }
-
-  async function onSelectStatus(target: JobStatus) {
-    if (!job) return;
-    const action = statusActionForTarget(String(job.status), target);
-    if (!action) {
-      setStatusOpen(false);
-      return;
-    }
-    await transition(action);
   }
 
   const title = (() => {
@@ -367,47 +349,14 @@ export default function JobDetailsClient({ jobId }: Props) {
               </div>
 
               <div className="flex w-full shrink-0 items-center gap-2 self-stretch min-[520px]:w-auto min-[520px]:self-start lg:w-auto">
-                <div className="relative min-w-0 flex-1 min-[520px]:flex-none" ref={statusRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStatusOpen((open) => !open);
-                      setActionsOpen(false);
-                    }}
-                    disabled={statusBusy}
-                    className={`inline-flex h-10 w-full items-center justify-between gap-2 px-3 text-sm text-[#334155] min-[520px]:h-9 min-[520px]:w-auto min-[520px]:justify-center ${JOB_FORM_SURFACE_CLASS}`}
-                    aria-haspopup="listbox"
-                    aria-expanded={statusOpen}
-                  >
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(String(job.status))}`}
-                    />
-                    {jobDetailsStatusLabel(String(job.status))}
-                    <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
-                  </button>
-                  {statusOpen ? (
-                    <div
-                      role="listbox"
-                      className="absolute right-0 z-30 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          role="option"
-                          aria-selected={job.status === option}
-                          disabled={statusBusy}
-                          onClick={() => void onSelectStatus(option)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                        >
-                          <span
-                            className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(option)}`}
-                          />
-                          {jobDetailsStatusLabel(option)}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                <div
+                  className={`inline-flex h-10 min-w-0 flex-1 items-center gap-2 px-3 text-sm text-[#334155] min-[520px]:h-9 min-[520px]:w-auto min-[520px]:flex-none ${JOB_FORM_SURFACE_CLASS}`}
+                  aria-label={`Job status: ${jobDetailsStatusLabel(String(job.status))}`}
+                >
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(String(job.status))}`}
+                  />
+                  {jobDetailsStatusLabel(String(job.status))}
                 </div>
 
                 <div className="relative" ref={actionsRef}>
@@ -415,9 +364,9 @@ export default function JobDetailsClient({ jobId }: Props) {
                     type="button"
                     onClick={() => {
                       setActionsOpen((open) => !open);
-                      setStatusOpen(false);
                     }}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] min-[520px]:h-9 min-[520px]:w-9"
+                    disabled={statusBusy}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-60 min-[520px]:h-9 min-[520px]:w-9"
                     aria-label="More actions"
                     aria-haspopup="menu"
                     aria-expanded={actionsOpen}

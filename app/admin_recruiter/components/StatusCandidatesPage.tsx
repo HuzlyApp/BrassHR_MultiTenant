@@ -24,6 +24,7 @@ import {
   useCandidateProgressStatus,
 } from "../candidates/CandidateProgressStatusCell";
 import { CandidateGridCard } from "../candidates/CandidateGridCard";
+import { CandidatesCardBulkSelectHeader } from "../candidates/CandidatesCardBulkSelectHeader";
 import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
 import { CandidatesListSkeleton } from "../candidates/CandidatesListSkeleton";
@@ -215,6 +216,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [progressStatusFilter, setProgressStatusFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
+  const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -662,7 +664,13 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         hideAddCandidate
         hideClaimCandidates
         view={view}
-        onViewChange={setView}
+        onViewChange={(nextView) => {
+          setView(nextView);
+          if (nextView !== "card") {
+            setCardBulkSelectMode(false);
+            selection.clearSelection();
+          }
+        }}
         onEditColumns={() => setEditColumnsOpen(true)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
@@ -782,15 +790,63 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
-              {paginated.map((c) => (
-                <CandidateGridCard
-                  key={c.id}
-                  candidate={c}
-                  formatDateTime={formatDateTime}
-                  statusBadgeRounded="sm"
+            <div className="w-full">
+              {cardBulkSelectMode ? (
+                <CandidateBulkSelectionBar
+                  selectedCount={selection.selectedCount}
+                  eligibleCount={selection.selectedEligibleCount}
+                  scopeLabel={selection.selectionScopeLabel}
+                  claimBusy={claimBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
+                  onClear={selection.clearSelection}
                 />
-              ))}
+              ) : null}
+              <CandidatesCardBulkSelectHeader
+                bulkSelectEnabled={cardBulkSelectMode}
+                onBulkSelectEnabledChange={(enabled) => {
+                  setCardBulkSelectMode(enabled);
+                  if (!enabled) selection.clearSelection();
+                }}
+                selectAllChecked={selection.headerChecked}
+                selectAllIndeterminate={selection.headerIndeterminate}
+                selectAllDisabled={pageSelectableRows.every((row) => !row.eligible)}
+                onSelectAllChange={selection.toggleAllEligibleOnPage}
+              />
+              <div className="grid grid-cols-1 gap-4 px-3 pb-5 pt-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
+                {paginated.map((c) => {
+                  const eligibility = eligibilityById.get(c.id) ?? {
+                    eligible: true,
+                    reason: null,
+                  };
+                  return (
+                    <CandidateGridCard
+                      key={c.id}
+                      candidate={c}
+                      formatDateTime={formatDateTime}
+                      statusBadgeRounded="sm"
+                      selectionMode={cardBulkSelectMode}
+                      selected={selection.selectedIds.has(c.id)}
+                      selectionDisabled={!eligibility.eligible}
+                      selectionTitle={eligibility.reason ?? undefined}
+                      onToggleSelect={
+                        cardBulkSelectMode
+                          ? () => selection.toggleOne(c.id, eligibility.eligible)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             </div>
           );
         })()}

@@ -60,6 +60,7 @@ import { JobsDashboard } from "./JobsDashboard";
 import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import { JobsGridView } from "./JobsGridView";
 import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
+import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
@@ -909,6 +910,7 @@ export default function AdminRecruiterJobsPage() {
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [listingView, setListingView] = useState<JobsListingView>("list");
+  const [listingCardBulkSelectMode, setListingCardBulkSelectMode] = useState(false);
 
   const handleToggleSort = useCallback((field: JobSortField) => {
     setSortField((current) => {
@@ -925,6 +927,8 @@ export default function AdminRecruiterJobsPage() {
   const handleListingViewChange = useCallback((next: JobsListingView) => {
     setListingView(next);
     saveJobsListingView(next);
+    setListingCardBulkSelectMode(false);
+    setSelectedIds(new Set());
   }, []);
 
   const selectJobTab = useCallback(
@@ -1183,9 +1187,9 @@ export default function AdminRecruiterJobsPage() {
   /** Selected rows when any are checked; otherwise current filtered/sorted result set. */
   const exportJobs = useMemo(() => {
     if (selectedIds.size === 0) return sortedJobs;
-    const selected = sortedJobs.filter((job) => selectedIds.has(job.id));
+    const selected = jobs.filter((job) => selectedIds.has(job.id));
     return selected.length > 0 ? selected : sortedJobs;
-  }, [sortedJobs, selectedIds]);
+  }, [jobs, sortedJobs, selectedIds]);
 
   const handleExportCsv = useCallback(() => {
     if (exportJobs.length === 0) {
@@ -1541,6 +1545,24 @@ export default function AdminRecruiterJobsPage() {
           tenantSlug={tenantSlug}
           totalCandidateCount={totalCandidateCount}
           hotJobIds={starredIds}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onSelectAll={(jobIds) => setSelectedIds(new Set(jobIds))}
+          onClearSelection={() => setSelectedIds(new Set())}
+          selectedPublishedCount={selectedPublishedCount}
+          selectedArchivableCount={selectedArchivableCount}
+          archiveBusy={archiveBusy}
+          deleteBusy={deleteBusy}
+          exportDisabled={exportJobs.length === 0}
+          onBulkUnpublish={() => void handleBulkUnpublish()}
+          onBulkArchive={() => void handleBulkArchive()}
+          onBulkDelete={() => {
+            setDeleteError(null);
+            setDeleteConfirmOpen(true);
+          }}
+          onExportCsv={handleExportCsv}
+          onExportXls={handleExportXls}
+          onImportFromMsp={handleImportFromMsp}
           onAddCandidate={(job) => {
             setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
           }}
@@ -1775,55 +1797,75 @@ export default function AdminRecruiterJobsPage() {
           </div>
         ) : null}
 
-        <JobsBulkSelectionSnackbar
-          totalSelectedCount={selectedIds.size}
-          unpublishDisabled={selectedPublishedCount === 0}
-          archiveDisabled={archiveBusy || selectedArchivableCount === 0}
-          exportDisabled={exportJobs.length === 0}
-          busy={archiveBusy || deleteBusy}
-          onUnpublish={() => void handleBulkUnpublish()}
-          onArchive={() => void handleBulkArchive()}
-          onDelete={() => {
-            setDeleteError(null);
-            setDeleteConfirmOpen(true);
-          }}
-          onExportCsv={handleExportCsv}
-          onExportXls={handleExportXls}
-          onImportFromMsp={handleImportFromMsp}
-          onClear={() => setSelectedIds(new Set())}
-        />
-
-        {listingView === "grid" ? (
-          <JobsGridView
-            jobs={paginatedJobs}
-            loading={loading}
-            emptyMessage={
-              showStarredOnly
-                ? "No starred jobs yet. Click the star next to a job title to save it here."
-                : "No jobs match these filters."
-            }
-            tenantSlug={tenantSlug}
-            hotJobIds={starredIds}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onAddCandidate={(job) => {
-              setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
-            }}
-            onImportCandidates={(job) => {
-              setImportCandidateJobId(job.id);
-            }}
-            onDelete={(jobId) => {
-              setSelectedIds(new Set([jobId]));
+        {(listingView === "list" || listingCardBulkSelectMode) ? (
+          <JobsBulkSelectionSnackbar
+            totalSelectedCount={selectedIds.size}
+            unpublishDisabled={selectedPublishedCount === 0}
+            archiveDisabled={archiveBusy || selectedArchivableCount === 0}
+            exportDisabled={exportJobs.length === 0}
+            busy={archiveBusy || deleteBusy}
+            onUnpublish={() => void handleBulkUnpublish()}
+            onArchive={() => void handleBulkArchive()}
+            onDelete={() => {
               setDeleteError(null);
               setDeleteConfirmOpen(true);
             }}
-            onArchive={(jobId) => {
-              void transition(jobId, "archive");
-            }}
-            onUnarchive={(jobId) => {
-              void transition(jobId, "unarchive");
-            }}
+            onExportCsv={handleExportCsv}
+            onExportXls={handleExportXls}
+            onImportFromMsp={handleImportFromMsp}
+            onClear={() => setSelectedIds(new Set())}
           />
+        ) : null}
+
+        {listingView === "grid" ? (
+          <div className="w-full">
+            <div className="px-[14px] pb-2 pt-4">
+              <JobsCardBulkSelectHeader
+                bulkSelectEnabled={listingCardBulkSelectMode}
+                onBulkSelectEnabledChange={(enabled) => {
+                  setListingCardBulkSelectMode(enabled);
+                  if (!enabled) setSelectedIds(new Set());
+                }}
+                selectAllChecked={allVisibleSelected}
+                selectAllIndeterminate={
+                  paginatedJobs.some((job) => selectedIds.has(job.id)) && !allVisibleSelected
+                }
+                selectAllDisabled={paginatedJobs.length === 0}
+                onSelectAllChange={toggleSelectAllVisible}
+              />
+            </div>
+            <JobsGridView
+              jobs={paginatedJobs}
+              loading={loading}
+              emptyMessage={
+                showStarredOnly
+                  ? "No starred jobs yet. Click the star next to a job title to save it here."
+                  : "No jobs match these filters."
+              }
+              tenantSlug={tenantSlug}
+              hotJobIds={starredIds}
+              selectedIds={selectedIds}
+              selectionMode={listingCardBulkSelectMode}
+              onToggleSelect={listingCardBulkSelectMode ? toggleSelect : undefined}
+              onAddCandidate={(job) => {
+                setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+              }}
+              onImportCandidates={(job) => {
+                setImportCandidateJobId(job.id);
+              }}
+              onDelete={(jobId) => {
+                setSelectedIds(new Set([jobId]));
+                setDeleteError(null);
+                setDeleteConfirmOpen(true);
+              }}
+              onArchive={(jobId) => {
+                void transition(jobId, "archive");
+              }}
+              onUnarchive={(jobId) => {
+                void transition(jobId, "unarchive");
+              }}
+            />
+          </div>
         ) : (
         <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">

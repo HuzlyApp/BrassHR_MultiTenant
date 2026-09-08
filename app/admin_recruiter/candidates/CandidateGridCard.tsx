@@ -19,6 +19,12 @@ type CandidateGridCardProps = {
   formatDateTime: (iso: string | null) => string;
   onMessage?: (candidate: CandidateRow) => void;
   statusBadgeRounded?: "xl" | "sm";
+  /** When true, card click toggles selection and navigation/actions are disabled. */
+  selectionMode?: boolean;
+  selected?: boolean;
+  selectionDisabled?: boolean;
+  selectionTitle?: string;
+  onToggleSelect?: () => void;
 };
 
 export function CandidateGridCard({
@@ -26,20 +32,59 @@ export function CandidateGridCard({
   formatDateTime,
   onMessage,
   statusBadgeRounded = "xl",
+  selectionMode = false,
+  selected = false,
+  selectionDisabled = false,
+  selectionTitle,
+  onToggleSelect,
 }: CandidateGridCardProps) {
   const profileHref = candidateApplicantProfileHref(c.id, {
     from: "candidates",
     tab: "applications",
   });
   const statusRoundClass = statusBadgeRounded === "sm" ? "rounded-sm" : "rounded-xl";
+  const inSelectionMode = selectionMode && Boolean(onToggleSelect);
+  const surfaceClass = selected
+    ? "rounded-lg border-2 border-[color:var(--brand-primary)] bg-white p-3.5 shadow-[0_0_0_1px_color-mix(in_srgb,var(--brand-primary)_35%,transparent)] transition"
+    : CANDIDATE_CARD_SURFACE_CLASS;
 
   return (
-    <div className={`relative cursor-pointer ${CANDIDATE_CARD_SURFACE_CLASS}`}>
-      <Link
-        href={profileHref}
-        className="absolute inset-0 z-0 rounded-lg"
-        aria-label={`View ${c.name || "candidate"} profile`}
-      />
+    <div
+      className={`relative ${surfaceClass} ${
+        inSelectionMode
+          ? selectionDisabled
+            ? "cursor-not-allowed opacity-60"
+            : "cursor-pointer"
+          : "cursor-pointer"
+      }`}
+      title={inSelectionMode ? selectionTitle : undefined}
+      onClick={() => {
+        if (!inSelectionMode || selectionDisabled) return;
+        onToggleSelect?.();
+      }}
+      onKeyDown={(event) => {
+        if (!inSelectionMode || selectionDisabled) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggleSelect?.();
+        }
+      }}
+      role={inSelectionMode ? "button" : undefined}
+      tabIndex={inSelectionMode && !selectionDisabled ? 0 : undefined}
+      aria-pressed={inSelectionMode ? selected : undefined}
+      aria-label={
+        inSelectionMode
+          ? `${selected ? "Deselect" : "Select"} ${c.name || "candidate"}`
+          : undefined
+      }
+    >
+      {!inSelectionMode ? (
+        <Link
+          href={profileHref}
+          className="absolute inset-0 z-0 rounded-lg"
+          aria-label={`View ${c.name || "candidate"} profile`}
+        />
+      ) : null}
       <div className="relative z-10 pointer-events-none">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -50,37 +95,39 @@ export function CandidateGridCard({
             </div>
           </div>
 
-          <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
-            <CandidateAiAnalysisLink
-              workerId={c.id}
-              candidateName={c.name}
-              className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-            />
-            {onMessage ? (
-              <button
-                type="button"
-                onClick={() => onMessage(c)}
-                disabled={!c.email?.trim() && !c.phone?.trim()}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Message candidate"
+          {!inSelectionMode ? (
+            <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
+              <CandidateAiAnalysisLink
+                workerId={c.id}
+                candidateName={c.name}
+                className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+              />
+              {onMessage ? (
+                <button
+                  type="button"
+                  onClick={() => onMessage(c)}
+                  disabled={!c.email?.trim() && !c.phone?.trim()}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Message candidate"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </button>
+              ) : null}
+              <Link
+                href={`/admin_recruiter/new/attachments/${c.id}`}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                aria-label="View document"
               >
-                <MessageCircle className="h-4 w-4" />
-              </button>
-            ) : null}
-            <Link
-              href={`/admin_recruiter/new/attachments/${c.id}`}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-              aria-label="View document"
-            >
-              <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
-            </Link>
-            <CandidateProfileIconLink
-              workerId={c.id}
-              candidateName={c.name}
-              from="candidates"
-              className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-            />
-          </div>
+                <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
+              </Link>
+              <CandidateProfileIconLink
+                workerId={c.id}
+                candidateName={c.name}
+                from="candidates"
+                className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+              />
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3">
@@ -104,14 +151,18 @@ export function CandidateGridCard({
             />
             <span className="truncate text-black">
               {c.email?.trim() ? (
-                <Link
-                  href={candidateMailHref(c.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="pointer-events-auto transition hover:text-[color:var(--brand-primary)] hover:underline"
-                >
-                  {c.email}
-                </Link>
+                inSelectionMode ? (
+                  c.email
+                ) : (
+                  <Link
+                    href={candidateMailHref(c.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pointer-events-auto transition hover:text-[color:var(--brand-primary)] hover:underline"
+                  >
+                    {c.email}
+                  </Link>
+                )
               ) : (
                 "—"
               )}

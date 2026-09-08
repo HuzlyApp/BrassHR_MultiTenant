@@ -10,6 +10,8 @@ import {
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { JobsGridView, JOBS_GRID_INFINITE_PAGE_SIZE } from "./JobsGridView";
+import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
+import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
 import {
   applicantCount,
   hiredApplicantCount,
@@ -94,6 +96,21 @@ type JobsDashboardProps = {
   tenantSlug: string | null;
   hotJobIds: Set<string>;
   totalCandidateCount?: number | null;
+  selectedIds: Set<string>;
+  onToggleSelect: (jobId: string) => void;
+  onSelectAll: (jobIds: string[]) => void;
+  onClearSelection: () => void;
+  selectedPublishedCount: number;
+  selectedArchivableCount: number;
+  archiveBusy?: boolean;
+  deleteBusy?: boolean;
+  exportDisabled?: boolean;
+  onBulkUnpublish: () => void;
+  onBulkArchive: () => void;
+  onBulkDelete: () => void;
+  onExportCsv: () => void;
+  onExportXls: () => void;
+  onImportFromMsp: () => void;
   onAddCandidate: (job: JobListRow) => void;
   onImportCandidates: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
@@ -247,6 +264,21 @@ export function JobsDashboard({
   tenantSlug,
   hotJobIds,
   totalCandidateCount = null,
+  selectedIds,
+  onToggleSelect,
+  onSelectAll,
+  onClearSelection,
+  selectedPublishedCount,
+  selectedArchivableCount,
+  archiveBusy = false,
+  deleteBusy = false,
+  exportDisabled = false,
+  onBulkUnpublish,
+  onBulkArchive,
+  onBulkDelete,
+  onExportCsv,
+  onExportXls,
+  onImportFromMsp,
   onAddCandidate,
   onImportCandidates,
   onDelete,
@@ -256,6 +288,7 @@ export function JobsDashboard({
   const [query, setQuery] = useState("");
   const [kpiCardsExpanded, setKpiCardsExpanded] = useState(true);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
+  const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const summaryCards = useMemo(
     () => buildSummaryCards(jobs, totalCandidateCount),
     [jobs, totalCandidateCount]
@@ -299,6 +332,18 @@ export function JobsDashboard({
       return jobListDisplayTitle(job).toLowerCase().includes(q);
     });
   }, [jobs, query]);
+
+  const workspaceSelectedCount = useMemo(() => {
+    let count = 0;
+    for (const job of workspaceJobs) {
+      if (selectedIds.has(job.id)) count += 1;
+    }
+    return count;
+  }, [workspaceJobs, selectedIds]);
+
+  const allWorkspaceSelected =
+    workspaceJobs.length > 0 && workspaceJobs.every((job) => selectedIds.has(job.id));
+  const someWorkspaceSelected = workspaceJobs.some((job) => selectedIds.has(job.id));
 
   const hasStatusKpiCards = statusCards !== null && statusCards.length > 0;
   const showKpiToggle = hasStatusKpiCards;
@@ -369,6 +414,41 @@ export function JobsDashboard({
           <JobWorkspaceActions className="w-full sm:w-auto sm:justify-end sm:flex-nowrap" />
         </div>
 
+        {cardBulkSelectMode ? (
+          <JobsBulkSelectionSnackbar
+            totalSelectedCount={workspaceSelectedCount}
+            unpublishDisabled={selectedPublishedCount === 0}
+            archiveDisabled={archiveBusy || selectedArchivableCount === 0}
+            exportDisabled={exportDisabled}
+            busy={archiveBusy || deleteBusy}
+            onUnpublish={onBulkUnpublish}
+            onArchive={onBulkArchive}
+            onDelete={onBulkDelete}
+            onExportCsv={onExportCsv}
+            onExportXls={onExportXls}
+            onImportFromMsp={onImportFromMsp}
+            onClear={onClearSelection}
+          />
+        ) : null}
+
+        <JobsCardBulkSelectHeader
+          bulkSelectEnabled={cardBulkSelectMode}
+          onBulkSelectEnabledChange={(enabled) => {
+            setCardBulkSelectMode(enabled);
+            if (!enabled) onClearSelection();
+          }}
+          selectAllChecked={allWorkspaceSelected}
+          selectAllIndeterminate={someWorkspaceSelected && !allWorkspaceSelected}
+          selectAllDisabled={workspaceJobs.length === 0}
+          onSelectAllChange={() => {
+            if (allWorkspaceSelected) {
+              onSelectAll([]);
+              return;
+            }
+            onSelectAll(workspaceJobs.map((job) => job.id));
+          }}
+        />
+
         <JobsGridView
           jobs={workspaceJobs}
           loading={loading}
@@ -377,6 +457,9 @@ export function JobsDashboard({
           hotJobIds={hotJobIds}
           padded={false}
           infiniteScrollPageSize={JOBS_GRID_INFINITE_PAGE_SIZE}
+          selectedIds={selectedIds}
+          selectionMode={cardBulkSelectMode}
+          onToggleSelect={cardBulkSelectMode ? onToggleSelect : undefined}
           onAddCandidate={onAddCandidate}
           onImportCandidates={onImportCandidates}
           onDelete={onDelete}

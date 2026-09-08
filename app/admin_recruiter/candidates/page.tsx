@@ -22,6 +22,7 @@ import {
   useCandidateProgressStatus,
 } from "./CandidateProgressStatusCell";
 import { CandidateGridCard } from "./CandidateGridCard";
+import { CandidatesCardBulkSelectHeader } from "./CandidatesCardBulkSelectHeader";
 import { CandidateListSortableHeader } from "./CandidateListSortableHeader";
 import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
@@ -242,6 +243,7 @@ export default function CandidatesPage() {
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
+  const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -913,7 +915,13 @@ export default function CandidatesPage() {
           setMatchJobPickerOpen(true);
         }}
         view={view}
-        onViewChange={setView}
+        onViewChange={(nextView) => {
+          setView(nextView);
+          if (nextView !== "card") {
+            setCardBulkSelectMode(false);
+            selection.clearSelection();
+          }
+        }}
         onEditColumns={() => setEditColumnsOpen(true)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
@@ -1132,15 +1140,63 @@ export default function CandidatesPage() {
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-4 py-5 sm:gap-5 sm:px-5 sm:py-6 md:grid-cols-2 xl:grid-cols-3">
-              {paginated.map((c) => (
-                <CandidateGridCard
-                  key={c.id}
-                  candidate={c}
-                  formatDateTime={formatDateTime}
-                  onMessage={setCommTarget}
+            <div className="w-full">
+              {cardBulkSelectMode ? (
+                <CandidateBulkSelectionBar
+                  selectedCount={selection.selectedCount}
+                  eligibleCount={selection.selectedEligibleCount}
+                  scopeLabel={selection.selectionScopeLabel}
+                  claimBusy={claimBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
+                  onClear={selection.clearSelection}
                 />
-              ))}
+              ) : null}
+              <CandidatesCardBulkSelectHeader
+                bulkSelectEnabled={cardBulkSelectMode}
+                onBulkSelectEnabledChange={(enabled) => {
+                  setCardBulkSelectMode(enabled);
+                  if (!enabled) selection.clearSelection();
+                }}
+                selectAllChecked={selection.headerChecked}
+                selectAllIndeterminate={selection.headerIndeterminate}
+                selectAllDisabled={pageSelectableRows.every((row) => !row.eligible)}
+                onSelectAllChange={selection.toggleAllEligibleOnPage}
+              />
+              <div className="grid grid-cols-1 gap-4 px-4 pb-5 pt-3 sm:gap-5 sm:px-5 sm:pb-6 md:grid-cols-2 xl:grid-cols-3">
+                {paginated.map((c) => {
+                  const eligibility = eligibilityById.get(c.id) ?? {
+                    eligible: true,
+                    reason: null,
+                  };
+                  return (
+                    <CandidateGridCard
+                      key={c.id}
+                      candidate={c}
+                      formatDateTime={formatDateTime}
+                      onMessage={setCommTarget}
+                      selectionMode={cardBulkSelectMode}
+                      selected={selection.selectedIds.has(c.id)}
+                      selectionDisabled={!eligibility.eligible}
+                      selectionTitle={eligibility.reason ?? undefined}
+                      onToggleSelect={
+                        cardBulkSelectMode
+                          ? () => selection.toggleOne(c.id, eligibility.eligible)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
