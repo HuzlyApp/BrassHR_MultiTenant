@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Archive, Loader2, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
 import {
   jobStatusDisplayLabel,
   normalizeJobRequisitionStatus,
@@ -496,7 +497,15 @@ export function JobsGridView({
   }, [hasMore, isLoadingMore, loadNextPage, visibleCount]);
 
   if (loading) {
-    return <p className="px-4 py-12 text-center text-sm text-[#64748B]">Loading jobs…</p>;
+    return (
+      <CandidatesListSkeleton
+        view="card"
+        rows={8}
+        label="Loading jobs"
+        cardGridClassName="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        cardClassName="min-h-[200px] animate-pulse rounded-xl border border-[#E5E7EB] bg-gradient-to-br from-[#F8FAFC] to-[#EEF2F7]"
+      />
+    );
   }
 
   if (jobs.length === 0) {

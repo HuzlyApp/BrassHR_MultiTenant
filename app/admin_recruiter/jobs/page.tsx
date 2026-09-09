@@ -64,6 +64,7 @@ import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
 import { jobMatchesSkillsFilter, jobMatchesTextSearch } from "@/lib/jobs/jobs-list-search";
+import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import {
@@ -1918,6 +1919,10 @@ export default function AdminRecruiterJobsPage() {
               }}
             />
           </div>
+        ) : loading ? (
+          <div className="px-[14px] py-4">
+            <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view="list" label="Loading jobs" />
+          </div>
         ) : (
         <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">
@@ -1963,13 +1968,7 @@ export default function AdminRecruiterJobsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr className="border-b border-[#E9EDF3]">
-                  <td colSpan={listColumns.length + 1} className="p-0">
-                    <p className="jobs-list-table-status">Loading jobs…</p>
-                  </td>
-                </tr>
-              ) : paginatedJobs.length === 0 ? (
+              {paginatedJobs.length === 0 ? (
                 <tr className="border-b border-[#E9EDF3]">
                   <td colSpan={listColumns.length + 1} className="p-0">
                     <p className="jobs-list-table-status">

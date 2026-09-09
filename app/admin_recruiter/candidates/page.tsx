@@ -1054,7 +1054,7 @@ export default function CandidatesPage() {
           const formatDate = formatDateShort;
 
           if (loading) {
-            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
+            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} label="Loading candidates" />;
           }
           if (listError) {
             return (

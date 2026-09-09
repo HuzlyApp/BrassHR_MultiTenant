@@ -1,25 +1,20 @@
 "use client";
 
-import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
-import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
-import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
+import { useEffect, useState } from "react";
+import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { buildCandidatesSearchApplyPayload } from "@/lib/workers/candidates-search-ui";
 
-const JOBS_ICONS = "/icons/jobs-icons";
+const CANDIDATES_ICONS = "/icons/candidates-icons";
 
 const PRIMARY_TOOLBAR_BUTTON_CLASS =
   "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95";
 
 const OUTLINE_TOOLBAR_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
 
-const COMPACT_FILTER_SELECT_CLASS =
-  "inline-flex h-8 w-[150px] shrink-0 cursor-pointer appearance-none items-center overflow-hidden rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-3.5 pr-8 text-xs font-normal leading-4 text-[#374151] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0";
-
-const FILTER_SELECT_CHEVRON = {
-  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-  )}")`,
-} as const;
+const ICON_TOOLBAR_BUTTON_CLASS =
+  "inline-flex h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-zinc-50";
 
 function ListingGlyph({
   src,
@@ -47,241 +42,246 @@ function ListingGlyph({
   );
 }
 
-function ClaimClipboardIcon() {
-  return (
-    <ListingGlyph src={`/icons/candidates-icons/claim-clipboard.svg`} outer={16} leafWidth={10.83} leafHeight={13.5} />
-  );
+function UserSearchIcon() {
+  return <ListingGlyph src={`${CANDIDATES_ICONS}/user-search.svg`} outer={24} leafWidth={17} leafHeight={19} />;
+}
+
+function ResetSearchIcon() {
+  return <ListingGlyph src={`${CANDIDATES_ICONS}/reset-search.svg`} outer={16} leafWidth={16} leafHeight={16} />;
 }
 
 function ColumnsIcon() {
-  return <ListingGlyph src={`${JOBS_ICONS}/columns.svg`} outer={16} leafWidth={12.33} leafHeight={10} />;
+  return <ListingGlyph src={`${CANDIDATES_ICONS}/columns-icon-btn.svg`} outer={16} leafWidth={16} leafHeight={16} />;
 }
 
-function MoreFiltersIcon() {
-  return <ListingGlyph src={`${JOBS_ICONS}/more-filters.svg`} outer={16} leafWidth={13.5} leafHeight={13.5} />;
+function FiltersIcon() {
+  return <ListingGlyph src={`${CANDIDATES_ICONS}/filters-icon-btn.svg`} outer={16} leafWidth={16} leafHeight={16} />;
 }
 
-function CompactFilterSelect({
-  value,
-  onChange,
-  placeholder,
-  options,
-  ariaLabel,
-  className = "",
+function UserAddIcon() {
+  return <ListingGlyph src={`${CANDIDATES_ICONS}/user-add.svg`} outer={16} leafWidth={13.36} leafHeight={12.46} />;
+}
+
+function MatchExistingIcon() {
+  return <ListingGlyph src={`${CANDIDATES_ICONS}/match-existing.svg`} outer={16} leafWidth={12.17} leafHeight={14.16} />;
+}
+
+function skillsKey(skills: string[]): string {
+  return skills.map((skill) => skill.trim().toLowerCase()).filter(Boolean).join("|");
+}
+
+function HighlightMultiJobToggle({
+  on,
+  onToggle,
 }: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  options: { value: string; label: string }[];
-  ariaLabel: string;
-  className?: string;
+  on: boolean;
+  onToggle: () => void;
 }) {
   return (
-    <select
-      aria-label={ariaLabel}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className={`${COMPACT_FILTER_SELECT_CLASS} ${className}`.trim()}
-      style={FILTER_SELECT_CHEVRON}
-    >
-      <option value="">{placeholder}</option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={onToggle}
+        className="relative h-6 w-10 shrink-0"
+        aria-label="Highlight Multi-Job Applicants"
+      >
+        <span
+          className={`absolute left-1/2 top-1/2 h-5 w-[34px] -translate-x-1/2 -translate-y-1/2 rounded-[45px] transition-colors ${
+            on ? "bg-[color:var(--brand-secondary,#012352)]" : "bg-[#CBD5E1]"
+          }`}
+        />
+        <span
+          className={`absolute top-1 size-4 rounded-[20px] bg-white shadow-sm transition-[left] ${
+            on ? "left-5" : "left-1"
+          }`}
+        />
+      </button>
+      <span className="text-xs font-normal leading-4 text-[#374151]">Highlight Multi-Job Applicants</span>
+    </div>
   );
 }
 
 export type ApplicationsListToolbarProps = {
-  searchQuery: string;
-  onSearchQueryChange: (value: string) => void;
-  jobFilter: string;
-  onJobFilterChange: (value: string) => void;
-  jobFilterOptions: { value: string; label: string }[];
-  showJobFilter: boolean;
-  matchScoreFilter: string;
-  onMatchScoreFilterChange: (value: string) => void;
-  progressStatusFilter: string;
-  onProgressStatusFilterChange: (value: string) => void;
-  progressStatusOptions: { value: string; label: string }[];
-  locationFilter: string;
-  onLocationFilterChange: (value: string) => void;
-  locationOptions: string[];
-  sortBy: "newest" | "oldest" | "matchScore" | "matchScoreAsc";
-  onSortByChange: (value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") => void;
-  onOpenMoreFilters: () => void;
-  hideClaimCandidates?: boolean;
-  onClaimCandidates?: () => void;
+  query: string;
+  skillsFilter: string[];
+  onApplySearch: (next: { query: string; skills: string[] }) => void;
+  onResetSearch: () => void;
+  onOpenFilters: () => void;
   onEditColumns: () => void;
-  showResetFilters?: boolean;
-  onResetFilters?: () => void;
-  addCandidateButton: React.ReactNode;
-  multiJobToggle: React.ReactNode;
+  onAddCandidate: () => void;
+  onMatchExistingCandidate: () => void;
+  activeFilterCount: number;
+  highlightMultiJob: boolean;
+  onHighlightMultiJobChange: (value: boolean) => void;
+  searching?: boolean;
 };
 
+/**
+ * Old-candidates-style toolbar: advanced search + icon columns/filters + Add / Match Existing.
+ * Attribute filters live only in the All Filters modal (not inline).
+ */
 export function ApplicationsListToolbar({
-  searchQuery,
-  onSearchQueryChange,
-  jobFilter,
-  onJobFilterChange,
-  jobFilterOptions,
-  showJobFilter,
-  matchScoreFilter,
-  onMatchScoreFilterChange,
-  progressStatusFilter,
-  onProgressStatusFilterChange,
-  progressStatusOptions,
-  locationFilter,
-  onLocationFilterChange,
-  locationOptions,
-  sortBy,
-  onSortByChange,
-  onOpenMoreFilters,
-  hideClaimCandidates = true,
-  onClaimCandidates,
+  query,
+  skillsFilter,
+  onApplySearch,
+  onResetSearch,
+  onOpenFilters,
   onEditColumns,
-  showResetFilters = false,
-  onResetFilters,
-  addCandidateButton,
-  multiJobToggle,
+  onAddCandidate,
+  onMatchExistingCandidate,
+  activeFilterCount,
+  highlightMultiJob,
+  onHighlightMultiJobChange,
+  searching = false,
 }: ApplicationsListToolbarProps) {
+  const [draftQuery, setDraftQuery] = useState(query);
+  const [draftSkillTags, setDraftSkillTags] = useState(() => [...skillsFilter]);
+
+  useEffect(() => {
+    setDraftQuery(query);
+  }, [query]);
+
+  useEffect(() => {
+    setDraftSkillTags([...skillsFilter]);
+  }, [skillsFilter]);
+
+  const searchDirty =
+    draftQuery.trim() !== query.trim() || skillsKey(draftSkillTags) !== skillsKey(skillsFilter);
+  const hasAppliedSearch = Boolean(query.trim() || skillsFilter.length);
+  const hasDraftSearch = Boolean(draftQuery.trim() || draftSkillTags.length);
+
+  function submitSearch(skillTags = draftSkillTags) {
+    if (searching) return;
+    const payload = buildCandidatesSearchApplyPayload({ query: draftQuery, skillTags });
+    onApplySearch({
+      query: payload.query,
+      skills: parseSkillsFilterParam(payload.skillsFilter),
+    });
+  }
+
+  function resetSearch() {
+    if (searching) return;
+    setDraftQuery("");
+    setDraftSkillTags([]);
+    onResetSearch();
+  }
+
   return (
     <>
-      <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-between">
-        <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
-          {!hideClaimCandidates && onClaimCandidates ? (
-            <button type="button" onClick={onClaimCandidates} className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} w-full lg:w-auto`}>
-              <ClaimClipboardIcon />
-              Claim Candidates
-            </button>
-          ) : null}
-          <div className="flex w-full items-center gap-3 lg:w-auto">
+      <div className="flex w-full flex-col gap-3.5 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
+        <div className="flex w-full flex-col gap-3 rounded-lg border border-[#E5E7EB] p-1.5 sm:flex-row sm:items-center sm:gap-3.5 sm:px-2 sm:py-1.5">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md sm:flex-row sm:items-center">
+            <label className="flex min-h-10 min-w-0 flex-1 items-center gap-3 border-[#E5E7EB] p-2 sm:border-r">
+              <UserSearchIcon />
+              <input
+                type="search"
+                value={draftQuery}
+                onChange={(event) => setDraftQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitSearch();
+                  }
+                }}
+                placeholder="Search applicant or resume"
+                aria-label="Search applicant or resume"
+                title="Search by name, email, phone, job title, or resume text"
+                disabled={searching}
+                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#374151] outline-none placeholder:text-[#374151]/40 disabled:opacity-60 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
+              />
+            </label>
+            <div className="flex min-h-9 min-w-0 flex-1 items-center px-3 py-1.5 sm:px-4">
+              <FilterChipInput
+                embedded
+                values={draftSkillTags}
+                placeholder="Filter by Skills"
+                aria-label="Filter by Skills"
+                onChange={setDraftSkillTags}
+                onEnterSubmit={(nextSkills) => {
+                  setDraftSkillTags(nextSkills);
+                  submitSearch(nextSkills);
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3.5">
             <button
               type="button"
-              onClick={onEditColumns}
-              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none lg:w-auto`}
+              onClick={() => submitSearch()}
+              disabled={searching || (!searchDirty && !hasDraftSearch)}
+              title="Search uses AND when both applicant/resume text and skills are set"
+              className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none disabled:cursor-not-allowed disabled:opacity-50`}
             >
-              <ColumnsIcon />
-              Columns
+              {searching ? "Searching…" : "Search"}
+            </button>
+            <button
+              type="button"
+              onClick={resetSearch}
+              disabled={searching || (!hasAppliedSearch && !hasDraftSearch)}
+              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <ResetSearchIcon />
+              Reset search
             </button>
           </div>
-          {showResetFilters ? (
-            <button type="button" onClick={onResetFilters} className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} w-full lg:w-auto`}>
-              Reset Filters
-            </button>
-          ) : null}
         </div>
-        <div className="w-full shrink-0 lg:ml-3 lg:w-auto [&_button]:w-full lg:[&_button]:w-auto">
-          {addCandidateButton}
-        </div>
+        <p className="text-[11px] leading-4 text-[#64748B]">
+          Applicant/resume and skills can be used alone or together. When both are set, results must match
+          both (AND).
+        </p>
       </div>
 
-      <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5 lg:flex-row lg:flex-nowrap lg:items-center lg:gap-3">
-        <label className="flex h-8 w-full min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 lg:min-w-[200px]">
-          <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`${JOBS_ICONS}/search.svg`}
-              alt=""
-              width={16.67}
-              height={16.67}
-              className="size-[16.67px] shrink-0"
-            />
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
-            aria-label={CANDIDATE_LIST_SEARCH_PLACEHOLDER}
-            className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
-          />
-          {searchQuery.trim() ? (
-            <button
-              type="button"
-              onClick={() => onSearchQueryChange("")}
-              className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-[#94A3B8] transition hover:text-[#64748B]"
-              aria-label="Clear search"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                <path
-                  d="M9 3L3 9M3 3l6 6"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ) : null}
-        </label>
-
-        <button
-          type="button"
-          onClick={onOpenMoreFilters}
-          className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:hidden"
-        >
-          <MoreFiltersIcon />
-          All Filters
-        </button>
-
-        <div className="hidden shrink-0 flex-wrap items-center gap-3 lg:flex lg:flex-nowrap">
-          <CompactFilterSelect
-            ariaLabel="Location"
-            placeholder="Location"
-            value={locationFilter}
-            onChange={onLocationFilterChange}
-            options={locationOptions.map((location) => ({ value: location, label: location }))}
-          />
-          <CompactFilterSelect
-            ariaLabel="Sort by apply date"
-            placeholder="Apply date (Newest first)"
-            value={sortBy === "newest" || sortBy === "oldest" ? sortBy : ""}
-            onChange={(value) => {
-              if (value === "newest" || value === "oldest") onSortByChange(value);
-            }}
-            options={[
-              { value: "newest", label: "Apply date (Newest first)" },
-              { value: "oldest", label: "Apply date (Oldest first)" },
-            ]}
-          />
-          {showJobFilter ? (
-            <CompactFilterSelect
-              ariaLabel="Jobs"
-              placeholder="All Jobs"
-              value={jobFilter}
-              onChange={onJobFilterChange}
-              options={jobFilterOptions}
-            />
-          ) : null}
-          <MatchScoreRangeFilter
-            compact
-            value={matchScoreFilter}
-            onChange={onMatchScoreFilterChange}
-          />
-          <ScrollableFilterSelect
-            ariaLabel="Progress Status"
-            placeholder="Progress Status"
-            value={progressStatusFilter}
-            onChange={onProgressStatusFilterChange}
-            options={progressStatusOptions}
-            triggerClassName="w-[160px]"
-          />
+      <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={onOpenMoreFilters}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+            onClick={onEditColumns}
+            className={ICON_TOOLBAR_BUTTON_CLASS}
+            aria-label="Edit columns"
+            title="Columns"
           >
-            <MoreFiltersIcon />
-            More Filters
+            <ColumnsIcon />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenFilters}
+            className={`relative ${ICON_TOOLBAR_BUTTON_CLASS}`}
+            aria-label="All filters"
+            title="All Filters"
+          >
+            <FiltersIcon />
+            {activeFilterCount > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1 text-[9px] font-semibold leading-4 text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
+        </div>
+
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3.5">
+          <button type="button" onClick={onAddCandidate} className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto`}>
+            <UserAddIcon />
+            Add Candidate
+          </button>
+          <button
+            type="button"
+            onClick={onMatchExistingCandidate}
+            className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto`}
+          >
+            <MatchExistingIcon />
+            Match Existing Candidate
           </button>
         </div>
       </div>
 
-      <div className="flex w-full items-center justify-end border-b border-[#E5E7EB] px-3 py-3 sm:px-5">
-        {multiJobToggle}
+      <div className="flex w-full items-center justify-between gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
+        <HighlightMultiJobToggle
+          on={highlightMultiJob}
+          onToggle={() => onHighlightMultiJobChange(!highlightMultiJob)}
+        />
       </div>
     </>
   );
