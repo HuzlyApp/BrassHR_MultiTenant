@@ -128,7 +128,6 @@ describe("requirement verification notes API", () => {
         method: "POST",
         body: JSON.stringify({
           noteBody: sampleNote.noteBody,
-          candidateQuestion: sampleNote.candidateQuestion,
         }),
       }),
       { params: Promise.resolve({ id: "app-1", requirementId: "req-1" }) }
@@ -174,8 +173,7 @@ describe("requirement verification notes API", () => {
       new NextRequest("http://localhost", {
         method: "PATCH",
         body: JSON.stringify({
-          verificationStatus: "verified",
-          candidateResponse: "Confirmed",
+          noteBody: "Confirmed TypeScript experience on two projects.",
         }),
       }),
       {

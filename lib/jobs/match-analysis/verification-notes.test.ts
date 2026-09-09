@@ -71,9 +71,6 @@ describe("verification notes helpers", () => {
     expect(
       createVerificationNoteSchema.safeParse({
         noteBody: "Needs confirmation of TypeScript projects.",
-        candidateQuestion: "Which projects used TypeScript?",
-        dueDate: "2026-09-20",
-        verificationStatus: "pending",
       }).success
     ).toBe(true);
     expect(createVerificationNoteSchema.safeParse({ noteBody: "   " }).success).toBe(false);
@@ -83,6 +80,12 @@ describe("verification notes helpers", () => {
         dueDate: "09/20/2026",
       }).success
     ).toBe(false);
+    expect(
+      createVerificationNoteSchema.safeParse({
+        noteBody: "ok",
+        dueDate: "",
+      }).success
+    ).toBe(true);
   });
 
   it("requires at least one field on update", () => {
@@ -100,8 +103,9 @@ describe("verification notes helpers", () => {
     expect(formatVerificationNoteStatus("candidate_responded")).toBe("Candidate Responded");
     expect(noteHasVerificationDecision(note({ verificationStatus: "pending" }))).toBe(false);
     expect(noteHasVerificationDecision(note({ verificationStatus: "verified" }))).toBe(true);
-    expect(canConfirmRequirement([note({ verificationStatus: "pending" })])).toBe(false);
+    expect(canConfirmRequirement([note({ verificationStatus: "pending" })])).toBe(true);
     expect(canConfirmRequirement([note({ verificationStatus: "rejected" })])).toBe(true);
+    expect(canConfirmRequirement([])).toBe(false);
   });
 
   it("summarizes latest note, pending indicators, and decisions per requirement", () => {
@@ -128,7 +132,7 @@ describe("verification notes helpers", () => {
     expect(summaries.get("req-1")?.noteCount).toBe(2);
     expect(summaries.get("req-1")?.latestNote?.id).toBe("newer");
     expect(summaries.get("req-1")?.hasPending).toBe(true);
-    expect(summaries.get("req-1")?.hasDecision).toBe(false);
+    expect(summaries.get("req-1")?.hasDecision).toBe(true);
     expect(summaries.get("req-2")?.hasDecision).toBe(true);
     expect(summaries.get("req-2")?.hasPending).toBe(false);
   });
@@ -237,7 +241,7 @@ describe("qualification checklist + verification note display", () => {
     ).toBe("Confirmed");
   });
 
-  it("keeps Recruiter verified locked until a Verified or Rejected note exists", () => {
+  it("keeps Recruiter verified locked until a note is saved", () => {
     expect(recruiterVerifiedNeedsNoteDecision(req())).toBe(true);
     expect(recruiterVerifiedNeedsNoteDecision(req({ has_verification_decision: true }))).toBe(false);
     expect(

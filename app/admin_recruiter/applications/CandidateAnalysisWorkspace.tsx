@@ -256,9 +256,7 @@ export function CandidateAnalysisWorkspace({
 
   async function toggleVerified(req: QualificationRequirement) {
     if (!req.recruiter_verified && !req.has_verification_decision) {
-      toast.error(
-        "Save a note as Verified or Rejected, then check Recruiter verified."
-      );
+      toast.error("Save a note first, then check Recruiter verified.");
       return;
     }
     setVerifyingId(req.id);

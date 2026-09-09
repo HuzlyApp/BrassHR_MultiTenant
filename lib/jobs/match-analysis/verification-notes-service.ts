@@ -155,6 +155,35 @@ export async function createVerificationNote(args: {
   if (reqError) throw reqError;
   if (!requirement) throw new Error("Requirement not found");
 
+  const { data: existingNote, error: existingNoteError } = await supabase
+    .from("job_application_match_requirement_notes")
+    .select(NOTE_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("job_application_id", applicationId)
+    .eq("requirement_id", requirementId)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingNoteError) throw existingNoteError;
+  if (existingNote) {
+    return updateVerificationNote({
+      supabase,
+      tenantId,
+      applicationId,
+      requirementId,
+      noteId: String(existingNote.id),
+      actorUserId,
+      input: {
+        noteBody: input.noteBody,
+        candidateQuestion: input.candidateQuestion,
+        dueDate: input.dueDate,
+        verificationStatus: input.verificationStatus,
+        candidateResponse: input.candidateResponse,
+      },
+    });
+  }
+
   const status = input.verificationStatus ?? "pending";
   const candidateResponse = input.candidateResponse?.trim() || null;
   const respondedAt =
@@ -185,7 +214,39 @@ export async function createVerificationNote(args: {
     })
     .select(NOTE_SELECT)
     .single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === "23505") {
+      const { data: raced, error: racedError } = await supabase
+        .from("job_application_match_requirement_notes")
+        .select(NOTE_SELECT)
+        .eq("tenant_id", tenantId)
+        .eq("job_application_id", applicationId)
+        .eq("requirement_id", requirementId)
+        .is("deleted_at", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (racedError) throw racedError;
+      if (raced) {
+        return updateVerificationNote({
+          supabase,
+          tenantId,
+          applicationId,
+          requirementId,
+          noteId: String(raced.id),
+          actorUserId,
+          input: {
+            noteBody: input.noteBody,
+            candidateQuestion: input.candidateQuestion,
+            dueDate: input.dueDate,
+            verificationStatus: input.verificationStatus,
+            candidateResponse: input.candidateResponse,
+          },
+        });
+      }
+    }
+    throw error;
+  }
 
   await writeNoteAudit({
     supabase,
@@ -354,7 +415,6 @@ export async function requirementHasRecordedVerificationDecision(
     .eq("tenant_id", tenantId)
     .eq("job_application_id", applicationId)
     .eq("requirement_id", requirementId)
-    .in("verification_status", ["verified", "rejected"])
     .is("deleted_at", null)
     .limit(1);
   if (error) throw error;

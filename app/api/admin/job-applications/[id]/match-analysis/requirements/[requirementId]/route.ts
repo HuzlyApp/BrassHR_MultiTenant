@@ -16,7 +16,7 @@ const patchSchema = z.object({
 
 /**
  * Recruiter verification for a single match requirement (separate from AI output).
- * Confirming requires a recorded verification decision (Verified or Rejected note).
+ * Confirming requires a saved verification note.
  * Adding a note alone never auto-confirms.
  */
 export async function PATCH(req: NextRequest, context: RouteContext) {
@@ -73,8 +73,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       if (!hasDecision) {
         return NextResponse.json(
           {
-            error:
-              "Record a verification decision (Verified or Rejected) on a note before marking this requirement Confirmed.",
+            error: "Save a verification note before marking this requirement Confirmed.",
             code: "VERIFICATION_DECISION_REQUIRED",
           },
           { status: 400 }

@@ -104,13 +104,13 @@ export function noteHasVerificationDecision(
 export function requirementHasVerificationDecision(
   notes: Array<Pick<VerificationNote, "verificationStatus">>
 ): boolean {
-  return notes.some(noteHasVerificationDecision);
+  return notes.length > 0;
 }
 
 export function canConfirmRequirement(
   notes: Array<Pick<VerificationNote, "verificationStatus">>
 ): boolean {
-  return requirementHasVerificationDecision(notes);
+  return notes.length > 0;
 }
 
 export function summarizeRequirementNotes(
@@ -139,7 +139,7 @@ export function summarizeRequirementNotes(
           n.verificationStatus === "sent_to_candidate" ||
           n.verificationStatus === "candidate_responded"
       ),
-      hasDecision: requirementHasVerificationDecision(list),
+      hasDecision: list.length > 0,
     });
   }
   return summaries;
@@ -165,31 +165,37 @@ export function verificationNoteSnapshot(row: {
   };
 }
 
-export const createVerificationNoteSchema = z.object({
-  noteBody: z.string().trim().min(1, "Verification note is required").max(8000),
-  candidateQuestion: z.string().trim().max(4000).nullable().optional(),
-  dueDate: z
+const blankToNull = (max: number) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+    z.string().trim().max(max).nullable().optional()
+  );
+
+const optionalDueDate = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z
     .string()
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD")
     .nullable()
-    .optional(),
+    .optional()
+);
+
+export const createVerificationNoteSchema = z.object({
+  noteBody: z.string().trim().min(1, "Verification note is required").max(8000),
+  candidateQuestion: blankToNull(4000),
+  dueDate: optionalDueDate,
   verificationStatus: z.enum(VERIFICATION_NOTE_STATUSES).optional(),
-  candidateResponse: z.string().trim().max(8000).nullable().optional(),
+  candidateResponse: blankToNull(8000),
 });
 
 export const updateVerificationNoteSchema = z
   .object({
     noteBody: z.string().trim().min(1).max(8000).optional(),
-    candidateQuestion: z.string().trim().max(4000).nullable().optional(),
-    dueDate: z
-      .string()
-      .trim()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD")
-      .nullable()
-      .optional(),
+    candidateQuestion: blankToNull(4000),
+    dueDate: optionalDueDate,
     verificationStatus: z.enum(VERIFICATION_NOTE_STATUSES).optional(),
-    candidateResponse: z.string().trim().max(8000).nullable().optional(),
+    candidateResponse: blankToNull(8000),
   })
   .refine(
     (value) =>
@@ -206,10 +212,7 @@ export type UpdateVerificationNoteInput = z.infer<typeof updateVerificationNoteS
 
 export type VerificationNoteDraft = {
   noteBody: string;
-  candidateQuestion: string;
-  dueDate: string;
-  verificationStatus: VerificationNoteStatus;
-  candidateResponse: string;
+  verificationStatus?: VerificationNoteStatus;
 };
 
 export function mapVerificationNoteRow(
