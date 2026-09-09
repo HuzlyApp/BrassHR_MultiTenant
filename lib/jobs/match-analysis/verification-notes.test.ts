@@ -8,6 +8,7 @@ import {
   mapVerificationNoteRow,
   noteHasVerificationDecision,
   summarizeRequirementNotes,
+  supabaseErrorMessage,
   updateVerificationNoteSchema,
   verificationNoteSnapshot,
   type VerificationNote,
@@ -86,6 +87,16 @@ describe("verification notes helpers", () => {
         dueDate: "",
       }).success
     ).toBe(true);
+  });
+
+  it("reads PostgREST-style error objects that are not Error instances", () => {
+    expect(
+      supabaseErrorMessage(
+        { code: "23503", message: 'insert or update violates foreign key constraint "notes_created_by_fkey"' },
+        "Failed to create note"
+      )
+    ).toContain("foreign key");
+    expect(supabaseErrorMessage({}, "Failed to create note")).toBe("Failed to create note");
   });
 
   it("requires at least one field on update", () => {

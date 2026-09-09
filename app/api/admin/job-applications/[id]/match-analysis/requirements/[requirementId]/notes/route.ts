@@ -4,6 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import {
   createVerificationNoteSchema,
+  supabaseErrorMessage,
 } from "@/lib/jobs/match-analysis/verification-notes";
 import {
   createVerificationNote,
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ notes, audit });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to load notes" },
+      { error: supabaseErrorMessage(error, "Failed to load notes") },
       { status: 500 }
     );
   }
@@ -117,7 +118,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ note }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to create note";
+    const message = supabaseErrorMessage(error, "Failed to create note");
     const status = message.includes("not found") ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
   }

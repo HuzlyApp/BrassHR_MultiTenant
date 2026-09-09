@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
-import { updateVerificationNoteSchema } from "@/lib/jobs/match-analysis/verification-notes";
+import { updateVerificationNoteSchema, supabaseErrorMessage } from "@/lib/jobs/match-analysis/verification-notes";
 import {
   deleteVerificationNote,
   updateVerificationNote,
@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ note });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to update note";
+    const message = supabaseErrorMessage(error, "Failed to update note");
     const status = message.includes("not found") ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
   }
@@ -117,7 +117,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to delete note";
+    const message = supabaseErrorMessage(error, "Failed to delete note");
     const status = message.includes("not found") ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
   }
