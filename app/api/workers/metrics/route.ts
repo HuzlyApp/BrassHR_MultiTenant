@@ -11,6 +11,11 @@ import {
   type CandidateKpiMetricsPayload,
 } from "@/lib/workers/candidate-kpi-metrics";
 import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
+import {
+  candidatePhoneNameKey,
+  selectUniqueCandidateProfilesInOrder,
+} from "@/lib/workers/candidate-identity";
+import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -61,14 +66,22 @@ async function loadMetricsFallback(
 
   // Fetch tenant workers without fragile PostgREST enum filters; filter pipeline in JS.
   // Page past the default 1000-row API cap so large tenants are not silently undercounted.
-  type WorkerMetricRow = { id?: string; status?: string | null; created_at?: string | null };
+  type WorkerMetricRow = {
+    id?: string;
+    status?: string | null;
+    created_at?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  };
   type EmploymentMetricRow = { candidate_id?: string; created_at?: string | null };
   const pageSize = 1000;
   const workerRows: WorkerMetricRow[] = [];
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("worker")
-      .select("id, status, created_at")
+      .select("id, status, created_at, email, phone, first_name, last_name")
       .eq("tenant_id", tenantId)
       .range(from, from + pageSize - 1);
     if (error) throw error;
@@ -98,7 +111,7 @@ async function loadMetricsFallback(
     employmentRows.map((row) => String(row.candidate_id ?? "")).filter(Boolean)
   );
 
-  const base = workerRows.filter((row) => {
+  const baseRows = workerRows.filter((row) => {
     const id = String(row.id ?? "");
     const status = String(row.status ?? "").trim().toLowerCase();
     if (!id || converted.has(id) || status === "converted") return false;
@@ -109,6 +122,28 @@ async function loadMetricsFallback(
     }
     return isPipelineBaseStatus(status);
   });
+
+  const base = selectUniqueCandidateProfilesInOrder(
+    baseRows.map((row) => ({ ...row }))
+  ) as WorkerMetricRow[];
+
+  const profileIdByWorkerId = new Map<string, string>();
+  for (const row of baseRows) {
+    const workerId = String(row.id ?? "").trim();
+    if (!workerId) continue;
+    const email = normalizeTenantEmail(String(row.email ?? ""));
+    const phoneKey = candidatePhoneNameKey(row);
+    const match = base.find((profile) => {
+      const profileId = String(profile.id ?? "").trim();
+      if (!profileId) return false;
+      if (profileId === workerId) return true;
+      const profileEmail = normalizeTenantEmail(String(profile.email ?? ""));
+      if (email && profileEmail && email === profileEmail) return true;
+      const profilePhone = candidatePhoneNameKey(profile);
+      return Boolean(phoneKey && profilePhone && phoneKey === profilePhone);
+    });
+    if (match?.id) profileIdByWorkerId.set(workerId, String(match.id));
+  }
 
   const inWindow = (iso: string | null | undefined, start: string, end: number) => {
     if (!iso) return false;
@@ -129,9 +164,9 @@ async function loadMetricsFallback(
     inWindow(row.created_at, previousStart, new Date(currentStart).getTime())
   ).length;
 
-  const workerIds = base.map((row) => String(row.id)).filter(Boolean);
-  const analyzedIds = new Set<string>();
-  const analyzedAtByWorker = new Map<string, string>();
+  const workerIds = baseRows.map((row) => String(row.id)).filter(Boolean);
+  const analyzedProfileIds = new Set<string>();
+  const analyzedAtByProfile = new Map<string, string>();
   if (workerIds.length > 0) {
     const { data: analyzedRows, error: analyzedErr } = await queryInChunks(
       workerIds,
@@ -154,24 +189,25 @@ async function loadMetricsFallback(
       }>) {
         const status = String(row.status ?? "").toLowerCase();
         if (status === "rejected" || status === "withdrawn") continue;
-        const id = String(row.worker_id ?? "");
-        if (!id) continue;
-        analyzedIds.add(id);
+        const workerId = String(row.worker_id ?? "");
+        if (!workerId) continue;
+        const profileId = profileIdByWorkerId.get(workerId) ?? workerId;
+        analyzedProfileIds.add(profileId);
         const at = row.ai_analyzed_at;
         if (at) {
-          const prev = analyzedAtByWorker.get(id);
+          const prev = analyzedAtByProfile.get(profileId);
           if (!prev || new Date(at).getTime() > new Date(prev).getTime()) {
-            analyzedAtByWorker.set(id, at);
+            analyzedAtByProfile.set(profileId, at);
           }
         }
       }
     }
   }
 
-  const analyzedCurrent = [...analyzedAtByWorker.values()].filter((at) =>
+  const analyzedCurrent = [...analyzedAtByProfile.values()].filter((at) =>
     inWindow(at, currentStart, now)
   ).length;
-  const analyzedPrevious = [...analyzedAtByWorker.values()].filter((at) =>
+  const analyzedPrevious = [...analyzedAtByProfile.values()].filter((at) =>
     inWindow(at, previousStart, new Date(currentStart).getTime())
   ).length;
 
@@ -189,7 +225,7 @@ async function loadMetricsFallback(
       previousWindow: activePrevious,
     },
     analyzed: {
-      value: analyzedIds.size,
+      value: analyzedProfileIds.size,
       currentWindow: analyzedCurrent,
       previousWindow: analyzedPrevious,
     },
@@ -208,10 +244,14 @@ async function loadMetrics(
   pipelineStatus: string | null
 ): Promise<CandidateKpiMetricsPayload> {
   try {
-    return await loadMetricsViaRpc(supabase, tenantId, pipelineStatus);
-  } catch (err) {
-    console.warn("[api/workers/metrics] RPC failed, using fallback counts", errorMessage(err));
+    // Prefer unique candidate-profile counting so KPI cards match the Candidates list.
     return await loadMetricsFallback(supabase, tenantId, pipelineStatus);
+  } catch (err) {
+    console.warn(
+      "[api/workers/metrics] unique-profile fallback failed, trying RPC",
+      errorMessage(err)
+    );
+    return await loadMetricsViaRpc(supabase, tenantId, pipelineStatus);
   }
 }
 

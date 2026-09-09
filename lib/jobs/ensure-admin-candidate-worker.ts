@@ -7,6 +7,7 @@ import {
   normalizeTenantEmail,
   tenantEmailTakenResult,
 } from "@/lib/tenant/tenant-email-uniqueness";
+import { findWorkerByPhoneAndName } from "@/lib/workers/candidate-identity";
 
 export type EnsureAdminCandidateWorkerInput = {
   tenantId: string;
@@ -205,6 +206,7 @@ export async function ensureAdminCandidateWorker(
   };
 
   let workerId = clean(input.existingWorkerId);
+  let matchedByPhone = false;
   if (workerId) {
     const existing = await findWorkerById(supabase, input.tenantId, workerId);
     if (!existing) workerId = null;
@@ -218,6 +220,20 @@ export async function ensureAdminCandidateWorker(
     if (conflict?.id) workerId = conflict.id;
   }
 
+  // Reuse blank-email / alternate-profile duplicates matched by phone + name.
+  if (!workerId) {
+    const phoneMatch = await findWorkerByPhoneAndName(supabase, {
+      tenantId: input.tenantId,
+      phone: input.phone,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    });
+    if (phoneMatch?.id) {
+      workerId = phoneMatch.id;
+      matchedByPhone = true;
+    }
+  }
+
   if (workerId) {
     const linkedElsewhere = await findWorkerLinkedToAnotherProfile(
       supabase,
@@ -226,7 +242,38 @@ export async function ensureAdminCandidateWorker(
       input.applicantProfileId
     );
     if (linkedElsewhere) {
-      throw new Error(tenantEmailTakenResult().error);
+      if (matchedByPhone) {
+        // Reclaim candidate profile: free blank/orphan profile links so this applicant owns the worker.
+        const { error: unlinkError } = await supabase
+          .from("applicant_profiles")
+          .update({ worker_id: null, updated_at: nowIso })
+          .eq("tenant_id", input.tenantId)
+          .eq("worker_id", workerId)
+          .neq("id", input.applicantProfileId);
+        if (unlinkError) throw new Error(describeDbErr(unlinkError, "Failed to reclaim worker profile"));
+      } else {
+        throw new Error(tenantEmailTakenResult().error);
+      }
+    }
+  }
+
+  // When updating an existing worker, never wipe a stored email with a blank value;
+  // do fill email when the candidate profile was missing one.
+  const updatePayload = { ...workerPayload };
+  if (workerId) {
+    const { data: existingRow } = await supabase
+      .from("worker")
+      .select("email")
+      .eq("id", workerId)
+      .eq("tenant_id", input.tenantId)
+      .maybeSingle();
+    const existingEmail = normalizeTenantEmail(
+      String((existingRow as { email?: string | null } | null)?.email ?? "")
+    );
+    if (!emailNorm && existingEmail) {
+      updatePayload.email = existingEmail;
+    } else if (emailNorm) {
+      updatePayload.email = emailNorm;
     }
   }
 
@@ -235,7 +282,7 @@ export async function ensureAdminCandidateWorker(
     input,
     workerId,
     emailNorm,
-    workerPayload
+    updatePayload
   );
 
   try {

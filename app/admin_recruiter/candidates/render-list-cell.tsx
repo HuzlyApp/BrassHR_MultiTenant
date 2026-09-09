@@ -10,7 +10,7 @@ import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 import { CandidateProgressStatusCell } from "./CandidateProgressStatusCell"
 import type { ApplicationStatusOption } from "../applications/ApplicationStatusUi"
 import { MatchScoreCell, RequirementOutcomeCountCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
-import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
+import { getCandidateJobTitleOptions, resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema"
 
@@ -157,13 +157,25 @@ export function renderListCell(
     case "jobRole":
       return <span className="text-sm text-[#374151]">{c.role}</span>
     case "matchJob": {
-      const title = resolveCandidateMatchJobTitle(c)
-      return title ? (
-        <p className="whitespace-nowrap text-center text-xs leading-4 text-[#64748B]" title={title}>
-          {title}
-        </p>
-      ) : (
-        <span className="text-sm text-[#94A3B8]">—</span>
+      const titles = getCandidateJobTitleOptions(c)
+      if (titles.length === 0) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      if (titles.length === 1) {
+        return (
+          <p className="whitespace-normal text-left text-xs leading-4 text-[#64748B]" title={titles[0]}>
+            {titles[0]}
+          </p>
+        )
+      }
+      return (
+        <ol className="m-0 list-none space-y-0.5 p-0 text-left text-xs leading-4 text-[#64748B]">
+          {titles.map((title, index) => (
+            <li key={`${title}-${index}`} className="whitespace-normal" title={title}>
+              {index + 1}. {title}
+            </li>
+          ))}
+        </ol>
       )
     }
     case "jobMatch": {
