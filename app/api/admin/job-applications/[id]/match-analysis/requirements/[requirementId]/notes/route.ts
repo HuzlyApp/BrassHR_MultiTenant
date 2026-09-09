@@ -71,7 +71,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 }
 
 /**
- * Create a verification note for a requirement. Does not auto-confirm the requirement.
+ * Create or update the single verification note for a requirement. Does not auto-confirm.
  */
 export async function POST(req: NextRequest, context: RouteContext) {
   const gate = await authorize();

@@ -330,7 +330,7 @@ export async function syncJobScreeningQuestions(
       is_required: item.isRequired !== false,
       sort_order: item.sortOrder ?? index,
       is_active: item.isActive !== false,
-      created_by: args.actorUserId,
+      created_by: args.actorUserId === "00000000-0000-0000-0000-000000000001" ? null : args.actorUserId,
     };
     if (item.id) {
       const { error } = await supabase
@@ -440,12 +440,12 @@ export async function upsertApplicationScreeningAnswers(
     applicationId: string;
     jobId: string;
     answers: ApplicationScreeningAnswerInput[];
+    skipEmptyRequired?: boolean;
   }
 ): Promise<ApplicationScreeningQuestionView[]> {
   const questions = await loadJobScreeningQuestions(supabase, args.tenantId, args.jobId, {
     activeOnly: true,
   });
-  const questionById = new Map(questions.map((row) => [row.id, row]));
   const answerByQuestionId = new Map(
     args.answers.map((item) => [item.questionId, item.answer])
   );
@@ -456,8 +456,12 @@ export async function upsertApplicationScreeningAnswers(
       question.question_type,
       answerByQuestionId.get(question.id)
     );
-    if (question.is_required && isScreeningAnswerEmpty(question.question_type, normalized)) {
-      throw new Error(`Answer required for: ${question.question}`);
+    const empty = isScreeningAnswerEmpty(question.question_type, normalized);
+    if (empty) {
+      if (args.skipEmptyRequired) continue;
+      if (question.is_required) {
+        throw new Error(`Answer required for: ${question.question}`);
+      }
     }
     const payload = {
       tenant_id: args.tenantId,

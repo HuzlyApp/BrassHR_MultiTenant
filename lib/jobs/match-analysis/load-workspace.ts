@@ -9,7 +9,11 @@ import {
 } from "./verification-notes-service";
 import { summarizeRequirementNotes } from "./verification-notes";
 import { loadAnalysisHistory } from "./versions";
-import { aiScreeningQuestionKey } from "./workspace";
+import {
+  aiScreeningQuestionKey,
+  matchSavedAiScreeningAnswer,
+  normalizeAnalysisScreeningQuestions,
+} from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
 
 function displayName(first: string | null | undefined, last: string | null | undefined, email?: string | null) {
@@ -117,18 +121,22 @@ export async function loadMatchAnalysisWorkspace(
       }).catch(() => [])
     : [];
 
+  if (aiAnswersResult.error) throw aiAnswersResult.error;
+
   const aiAnswersByKey = new Map(
     (aiAnswersResult.data ?? []).map((row) => [String(row.question_key), row])
   );
-  const recommendedQuestions = (analysis?.screening_questions ?? []).map((question) => {
+  const recommendedQuestions = normalizeAnalysisScreeningQuestions(
+    analysis?.screening_questions
+  ).map((question) => {
     const key = aiScreeningQuestionKey(question.priority, question.question);
-    const saved = aiAnswersByKey.get(key);
+    const saved = matchSavedAiScreeningAnswer(aiAnswersByKey, key, question.question);
     return {
       key,
       priority: question.priority,
       question: question.question,
       reason: question.reason,
-      relatedRequirement: question.related_requirement,
+      relatedRequirement: question.relatedRequirement,
       answer: saved?.answer_text ?? "",
     };
   });

@@ -239,7 +239,7 @@ export function QualificationChecklist(props: {
                       </label>
                       {locked ? (
                         <p className="mt-1 text-[11px] leading-4 text-[#64748B]">
-                          Save a Verified or Rejected note first
+                          Save a note first
                         </p>
                       ) : null}
                     </div>

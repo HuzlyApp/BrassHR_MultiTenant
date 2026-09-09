@@ -30,8 +30,7 @@ async function authorize() {
 }
 
 /**
- * Update a verification note (body, question, due date, status, candidate response).
- * Soft-delete is handled by DELETE. Edits are audited; previous values are preserved.
+ * Update the requirement's verification note. Soft-delete is handled by DELETE.
  */
 export async function PATCH(req: NextRequest, context: RouteContext) {
   const gate = await authorize();

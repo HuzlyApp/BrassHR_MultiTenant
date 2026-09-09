@@ -67,10 +67,7 @@ import {
   recruiterVerifiedNotePrefill,
 } from "./RequirementVerificationNotes";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
-import {
-  formatVerificationNoteStatus,
-  type VerificationNote,
-} from "@/lib/jobs/match-analysis/verification-notes";
+import type { VerificationNote } from "@/lib/jobs/match-analysis/verification-notes";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 
 const CARD =
@@ -520,7 +517,7 @@ export function AiAnalysisOverviewClient({
     savingVerificationNote,
     busyVerificationNoteId,
     recommendedAnswers,
-    setRecommendedAnswers,
+    updateRecommendedAnswer,
     savingAnswers,
     decision,
     setDecision,
@@ -797,7 +794,7 @@ export function AiAnalysisOverviewClient({
     if (recruiterVerifiedNeedsNoteDecision(row)) {
       setOpenReqId(row.id);
       setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "verified" });
-      toast("Save a note as Verified or Rejected, then check Recruiter verified.");
+      toast("Save a note first, then check Recruiter verified.");
       return;
     }
     void toggleVerified(row);
@@ -1095,9 +1092,9 @@ export function AiAnalysisOverviewClient({
                               <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
                                 {displayStatus}
                               </span>
-                              {row.has_pending_verification_note ? (
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#854D0E]">
-                                  Notes pending
+                              {(row.verification_note_count ?? 0) > 0 ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#3730A3]">
+                                  Note saved
                                 </span>
                               ) : null}
                             </div>
@@ -1180,7 +1177,7 @@ export function AiAnalysisOverviewClient({
                                     </label>
                                     {recruiterVerifiedNeedsNoteDecision(row) ? (
                                       <p className="max-w-[220px] text-[11px] leading-4 text-[#667085]">
-                                        Save a Verified or Rejected note first
+                                        Save a note first
                                       </p>
                                     ) : null}
                                   </div>
@@ -1349,14 +1346,24 @@ export function AiAnalysisOverviewClient({
                             <span className="font-medium text-[#475467]">Related:</span> {item.relatedRequirement}
                           </p>
                         ) : null}
-                        <input
-                          value={recommendedAnswers[item.key] ?? ""}
-                          onChange={(event) =>
-                            setRecommendedAnswers((current) => ({ ...current, [item.key]: event.target.value }))
-                          }
-                          placeholder="Record the candidate answer..."
-                          className={`${FIELD} mt-3`}
-                        />
+                        <label className="mt-3 block">
+                          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Notes
+                          </span>
+                          <textarea
+                            value={recommendedAnswers[item.key] ?? ""}
+                            onChange={(event) =>
+                              updateRecommendedAnswer(item.key, event.target.value)
+                            }
+                            onBlur={(event) => {
+                              if (event.target.value.trim() === (item.answer ?? "").trim()) return;
+                              void saveScreeningAnswers();
+                            }}
+                            rows={3}
+                            placeholder="Record the candidate answer or recruiter notes..."
+                            className={`${AREA} min-h-[5.5rem] resize-y`}
+                          />
+                        </label>
                       </div>
                     </div>
                   </article>
@@ -1374,7 +1381,7 @@ export function AiAnalysisOverviewClient({
                   disabled={savingAnswers}
                   onClick={() => void saveScreeningAnswers()}
                 >
-                  {savingAnswers ? "Saving…" : "Save screening answers"}
+                  {savingAnswers ? "Saving…" : "Save notes"}
                 </button>
               </div>
             ) : null}
@@ -1598,23 +1605,11 @@ export function AiAnalysisOverviewClient({
                       className="rounded-lg border border-[#E5E7EB] bg-[#FCFCFD] px-3 py-2.5 text-sm text-[#344054]"
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded bg-[#FEF9C3] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#854D0E]">
+                        <span className="rounded bg-[#EEF2FF] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#3730A3]">
                           Requirement note
-                        </span>
-                        <span className="text-[11px] font-semibold text-[#667085]">
-                          {formatVerificationNoteStatus(entry.note.verificationStatus)}
                         </span>
                       </div>
                       <p className="mt-1">{entry.note.noteBody}</p>
-                      {entry.note.candidateQuestion ? (
-                        <p className="mt-1 text-xs text-[#475467]">
-                          Ask: {entry.note.candidateQuestion}
-                        </p>
-                      ) : null}
-                      <p className="mt-1 text-xs text-[#94A3B8]">
-                        {entry.note.updatedByName ?? entry.note.createdByName} ·{" "}
-                        {formatWhen(entry.note.updatedAt || entry.note.createdAt)}
-                      </p>
                     </li>
                   ) : (
                     <li

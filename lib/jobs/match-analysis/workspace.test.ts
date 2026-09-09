@@ -6,7 +6,10 @@ import {
   formatRecruiterDecision,
   groupRequirementOutcomeCountsByApplication,
   isRecruiterDecision,
+  matchSavedAiScreeningAnswer,
+  normalizeAnalysisScreeningQuestions,
   qualificationDisplayStatus,
+  resolveRecommendedScreeningAnswerUpsert,
   type QualificationRequirement,
 } from "./workspace";
 
@@ -129,5 +132,56 @@ describe("candidate analysis workspace helpers", () => {
     expect(aiScreeningQuestionKey(1, "Oil & Gas experience?")).not.toBe(
       aiScreeningQuestionKey(1, "Houston availability?")
     );
+  });
+
+  it("normalizes string or object screening questions from analysis JSON", () => {
+    expect(
+      normalizeAnalysisScreeningQuestions([
+        "Confirm TX compact license status.",
+        { priority: 2, question: " Verify ICU unit type. ", reason: "JD conflict", related_requirement: "ICU" },
+      ])
+    ).toEqual([
+      { priority: 1, question: "Confirm TX compact license status.", reason: "", relatedRequirement: "" },
+      { priority: 2, question: "Verify ICU unit type.", reason: "JD conflict", relatedRequirement: "ICU" },
+    ]);
+  });
+
+  it("matches saved notes by question text when the generated key changed", () => {
+    const rows = new Map([
+      [
+        "2:old wording",
+        { question_key: "2:old wording", question_text: "Are you licensed in Wisconsin?", answer_text: "Yes, compact." },
+      ],
+    ]);
+    expect(
+      matchSavedAiScreeningAnswer(rows, "1:are you licensed in wisconsin?", "Are you licensed in Wisconsin?")
+        ?.answer_text
+    ).toBe("Yes, compact.");
+  });
+
+  it("resolves screening notes for upsert even when analysis lookup needs question text", () => {
+    const questions = normalizeAnalysisScreeningQuestions([
+      { priority: 1, question: "Is your CNA certification currently active?", reason: "Verify cert" },
+    ]);
+    const resolved = resolveRecommendedScreeningAnswerUpsert(
+      {
+        key: "stale-key",
+        question: "Is your CNA certification currently active?",
+        answer: " Yes, expires 2027 ",
+      },
+      questions
+    );
+    expect(resolved?.question).toBe("Is your CNA certification currently active?");
+    expect(resolved?.answer_text).toBe("Yes, expires 2027");
+    expect(resolved?.reason).toBe("Verify cert");
+    expect(resolved?.key).toBe(
+      aiScreeningQuestionKey(1, "Is your CNA certification currently active?")
+    );
+  });
+
+  it("rejects a screening note that cannot be matched to a question", () => {
+    expect(() =>
+      resolveRecommendedScreeningAnswerUpsert({ answer: "Candidate said yes" }, [])
+    ).toThrow(/resolve which screening question/i);
   });
 });
