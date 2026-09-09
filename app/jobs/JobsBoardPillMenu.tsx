@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 export type JobsBoardPillOption = { value: string; label: string };
 
 export const jobsBoardPillTriggerClass =
-  "inline-flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-full border border-slate-200 bg-white px-3.5 text-sm text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_28%,transparent)] motion-reduce:transition-none";
+  "inline-flex min-h-10 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_28%,transparent)] motion-reduce:transition-none";
 
 const jobsBoardPillTriggerActiveClass =
   "border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] font-medium text-[color:var(--brand-primary)]";
@@ -161,7 +161,7 @@ export function JobsBoardPillMenu({
 
   const triggerClass =
     variant === "field"
-      ? `${jobsBoardPillTriggerClass} w-full min-w-0 rounded-xl`
+      ? `${jobsBoardPillTriggerClass} w-full min-w-0`
       : `${jobsBoardPillTriggerClass} min-w-[9.5rem] shrink-0`;
 
   const menu =
@@ -181,7 +181,7 @@ export function JobsBoardPillMenu({
           zIndex: 80,
           pointerEvents: "auto",
         }}
-        className="pointer-events-auto overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+        className="pointer-events-auto overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
       >
         {options.map((option) => {
           const active = option.value === value;

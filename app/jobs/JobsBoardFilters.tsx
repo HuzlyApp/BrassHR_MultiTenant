@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { JobsBoardPillMenu, jobsBoardPillTriggerClass } from "@/app/jobs/JobsBoardPillMenu";
+import { JobsBoardPillMenu } from "@/app/jobs/JobsBoardPillMenu";
 import {
   countSecondaryJobsBoardFilters,
   hasSecondaryJobsBoardFilters,
@@ -18,7 +18,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 type Option = { id: string; name: string; profession_id?: string };
 
 const searchInputClass =
-  "min-h-11 w-full border-0 bg-transparent px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-0";
+  "min-h-10 w-full border-0 bg-transparent px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-0";
 
 function withEmptyOption(options: Option[], emptyLabel: string) {
   return [{ value: "", label: emptyLabel }, ...options.map((item) => ({ value: item.id, label: item.name }))];
@@ -117,7 +117,7 @@ export function JobsBoardFilters({
     <div className="space-y-3">
       <div className="flex items-stretch gap-2">
         <form
-          className="flex min-w-0 flex-1 flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm sm:flex-row sm:items-center"
+          className="flex min-w-0 flex-1 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-1 sm:flex-row sm:items-center"
           onSubmit={(event) => {
             event.preventDefault();
             onSearch();
@@ -147,7 +147,7 @@ export function JobsBoardFilters({
           </label>
           <button
             type="submit"
-            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           >
             Search
           </button>
@@ -160,7 +160,7 @@ export function JobsBoardFilters({
           aria-controls="jobs-board-filter-row"
           onClick={() => setFiltersRowOpen((open) => !open)}
           title={filtersRowOpen ? "Hide filters" : "Show filters"}
-          className={`relative inline-flex size-11 shrink-0 items-center justify-center self-center rounded-xl border bg-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:size-[2.875rem] ${
+          className={`relative inline-flex size-10 shrink-0 items-center justify-center self-center rounded-lg border bg-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none ${
             filtersRowOpen || hasSecondary
               ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[color:var(--brand-primary)]"
               : "border-slate-200 text-[color:var(--brand-primary)] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_40%,#e2e8f0)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
@@ -196,7 +196,7 @@ export function JobsBoardFilters({
         id="jobs-board-filter-row"
         className={filtersRowOpen ? "flex flex-col gap-2" : "hidden"}
       >
-        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           <JobsBoardPillMenu
             value={professionId}
             options={professionOptions}
@@ -216,15 +216,13 @@ export function JobsBoardFilters({
               <button
                 type="button"
                 data-testid="jobs-all-filters"
-                className={`${jobsBoardPillTriggerClass} relative shrink-0 ${
-                  secondaryCount > 0
-                    ? "border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] font-medium text-[color:var(--brand-primary)]"
-                    : ""
+                className={`inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
+                  secondaryCount > 0 ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]" : ""
                 }`}
               >
-                All filters
+                More Filter
                 {secondaryCount > 0 ? (
-                  <span className="ml-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[11px] font-semibold text-white">
+                  <span className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-1.5 text-[11px] font-semibold text-white">
                     {secondaryCount}
                   </span>
                 ) : null}
@@ -235,7 +233,7 @@ export function JobsBoardFilters({
               <Dialog.Content
                 aria-describedby={undefined}
                 style={brandStyle}
-                className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl border border-[color:color-mix(in_srgb,var(--brand-primary)_22%,#e2e8f0)] bg-white shadow-xl outline-none focus:outline-none min-[1024px]:inset-auto min-[1024px]:left-1/2 min-[1024px]:top-1/2 min-[1024px]:w-[min(32rem,calc(100vw-2rem))] min-[1024px]:-translate-x-1/2 min-[1024px]:-translate-y-1/2 min-[1024px]:rounded-2xl"
+                className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col overflow-hidden rounded-t-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_22%,#e2e8f0)] bg-white shadow-xl outline-none focus:outline-none min-[1024px]:inset-auto min-[1024px]:left-1/2 min-[1024px]:top-1/2 min-[1024px]:w-[min(32rem,calc(100vw-2rem))] min-[1024px]:-translate-x-1/2 min-[1024px]:-translate-y-1/2 min-[1024px]:rounded-xl"
               >
                 <div
                   className="h-1.5 w-full shrink-0 bg-[color:var(--brand-primary)]"
@@ -313,14 +311,14 @@ export function JobsBoardFilters({
                   <button
                     type="button"
                     onClick={onClearSecondary}
-                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_28%,#e2e8f0)] bg-white px-4 text-sm font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                    className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--brand-primary)_28%,#e2e8f0)] bg-white px-4 text-sm font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                   >
                     Reset
                   </button>
                   <Dialog.Close asChild>
                     <button
                       type="button"
-                      className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95"
+                      className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95"
                     >
                       Show results
                     </button>
@@ -333,7 +331,7 @@ export function JobsBoardFilters({
             <button
               type="button"
               onClick={onClearSecondary}
-              className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm font-medium text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+              className="inline-flex min-h-10 shrink-0 items-center rounded-lg px-3 text-sm font-medium text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
             >
               Clear all
             </button>
@@ -341,19 +339,19 @@ export function JobsBoardFilters({
         </div>
 
         {chips.length ? (
-          <div className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {chips.map((chip) => (
               <span
                 key={chip.key}
                 data-testid={`jobs-active-chip-${chip.key}`}
-                className="inline-flex min-h-11 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] pl-3 text-sm text-[color:var(--brand-primary)]"
+                className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] pl-3 text-sm text-[color:var(--brand-primary)]"
               >
                 {chip.label}
                 <button
                   type="button"
                   aria-label={`Remove ${chip.label} filter`}
                   onClick={() => onRemoveChip(chip.key)}
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)]"
+                  className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)]"
                 >
                   ×
                 </button>

@@ -370,20 +370,24 @@ export default function JobsPortalClient() {
 
   return (
     <main
-      className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#F8FAFC] text-slate-900"
+      className="flex h-dvh min-h-0 flex-col overflow-hidden bg-white text-slate-900"
       style={{ "--brand-primary": primaryHex } as React.CSSProperties}
     >
       <header className="shrink-0 border-b border-slate-200/80 bg-white">
         <div className="h-1 w-full" style={{ backgroundColor: primaryHex }} />
-        <div className="mx-auto w-full max-w-[1440px] px-3 py-3 sm:px-4 lg:px-5">
+        <div className="w-full px-4 py-4 sm:px-5 lg:px-6">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]">
               {companyName}
             </p>
-            <h1 className="mt-0.5 text-lg font-semibold text-slate-900 sm:text-xl">Open positions</h1>
-            <p className="mt-0.5 text-sm text-slate-500">Find a published role that matches your background.</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+              Open Positions
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Find a published role that matches your background.
+            </p>
           </div>
-          <div id="jobs-board-filters" className="mt-3">
+          <div id="jobs-board-filters" className="mt-4">
             <JobsBoardFilters
               query={queryDraft}
               location={locationDraft}
@@ -409,12 +413,12 @@ export default function JobsPortalClient() {
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col px-3 py-3 sm:px-4 lg:px-5">
+      <div className="flex min-h-0 w-full flex-1 flex-col px-4 py-4 sm:px-5 lg:px-6">
         {error ? (
           <div
             role="alert"
             data-testid="jobs-error"
-            className="mb-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            className="mb-3 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700"
           >
             {error}
           </div>
@@ -423,40 +427,40 @@ export default function JobsPortalClient() {
         <div
           data-testid="jobs-split-view"
           data-layout={isDesktop ? "split" : "stack"}
-          className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:gap-5"
         >
           <section
             data-testid="jobs-results-panel"
             aria-label="Job results"
-            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,28rem)] lg:max-w-[42%] lg:flex-none lg:pr-4 xl:w-[38%] ${
+            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,28rem)] lg:max-w-[42%] lg:flex-none ${
               showMobileDetail ? "hidden" : "flex flex-1"
             }`}
           >
-            <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <p className="text-sm font-medium text-slate-700" aria-live="polite">
-                {total} {total === 1 ? "job" : "jobs"}
+                {total} {total === 1 ? "Job" : "Jobs"}
               </p>
               <JobsBoardSortMenu
                 value={boardState.sort}
                 onChange={(sort) => replaceBoardUrl({ sort })}
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm lg:rounded-xl lg:border-slate-200/60 lg:shadow-none">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <div
                 ref={listScrollRef}
                 className="jobs-board-scroll h-full min-h-0 overflow-y-auto"
               >
               {loading ? (
-                <div data-testid="jobs-loading" className="space-y-2" aria-busy="true" aria-label="Loading jobs">
+                <div data-testid="jobs-loading" className="space-y-2.5" aria-busy="true" aria-label="Loading jobs">
                   {Array.from({ length: 6 }).map((_, index) => (
-                    <div key={index} className="h-20 animate-pulse rounded-xl bg-white motion-reduce:animate-none" />
+                    <div key={index} className="h-24 animate-pulse rounded-lg border border-slate-100 bg-slate-50 motion-reduce:animate-none" />
                   ))}
                 </div>
               ) : null}
               {!loading && !error && jobs.length === 0 ? (
                 <div
                   data-testid="jobs-empty"
-                  className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center"
+                  className="rounded-lg border border-dashed border-slate-200 bg-white px-6 py-14 text-center"
                 >
                   <p className="text-sm font-medium text-slate-800">
                     {hasActiveFilters ? "No jobs matched your search." : NO_OPEN_POSITIONS_MESSAGE}
@@ -469,7 +473,7 @@ export default function JobsPortalClient() {
                       <button
                         type="button"
                         onClick={clearAllSearchAndFilters}
-                        className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white"
+                        className="mt-4 inline-flex min-h-10 items-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white"
                       >
                         Clear filters
                       </button>
@@ -478,7 +482,7 @@ export default function JobsPortalClient() {
                 </div>
               ) : null}
               {!loading && !error ? (
-                <div className="divide-y divide-slate-100" role="listbox" aria-label="Open positions">
+                <div className="space-y-2.5" role="listbox" aria-label="Open positions">
                   {visibleJobs.map((job) => {
                     const token = job.public_job_token;
                     const selected = token === selectedToken;
@@ -502,7 +506,7 @@ export default function JobsPortalClient() {
                 type="button"
                 disabled={boardState.page <= 1 || loading}
                 onClick={() => replaceBoardUrl({ page: Math.max(1, boardState.page - 1) })}
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:min-w-[7.5rem]"
+                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-[#EEF2F7] px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:min-w-[7.5rem]"
               >
                 Previous
               </button>
@@ -510,7 +514,7 @@ export default function JobsPortalClient() {
                 type="button"
                 disabled={boardState.page >= pageCount || loading}
                 onClick={() => replaceBoardUrl({ page: Math.min(pageCount, boardState.page + 1) })}
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:min-w-[7.5rem]"
+                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-[#EEF2F7] px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none sm:min-w-[7.5rem]"
               >
                 Next
               </button>
@@ -519,7 +523,7 @@ export default function JobsPortalClient() {
 
           <section
             aria-label="Selected job details"
-            className={`min-h-0 w-full flex-col bg-white lg:flex lg:min-h-0 lg:min-w-0 lg:flex-1 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200/80 ${
+            className={`min-h-0 w-full flex-col bg-white lg:flex lg:min-h-0 lg:min-w-0 lg:flex-1 lg:overflow-hidden lg:rounded-lg lg:border lg:border-slate-200 ${
               showMobileDetail ? "fixed inset-0 z-40 flex lg:static lg:z-auto" : "hidden"
             }`}
           >
