@@ -7,17 +7,13 @@ import {
   runMatchAnalysisBulk,
 } from "@/lib/jobs/match-analysis";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
-import { enforceRateLimit } from "@/lib/security/rate-limit";
+import { enforceMatchAnalysisRateLimits } from "@/lib/jobs/match-analysis/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const USER_LIMIT = Number(process.env.RATE_LIMIT_MATCH_ANALYSIS_AI_PER_HOUR ?? 40);
-const TENANT_LIMIT = Number(
-  process.env.RATE_LIMIT_MATCH_ANALYSIS_AI_TENANT_PER_HOUR ?? 200
-);
 const MAX_BULK = 25;
 
 const bodySchema = z.object({
@@ -39,33 +35,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
   }
 
-  const userLimited = await enforceRateLimit(req, {
-    namespace: "match-analysis-ai-user",
-    key: `${tenantId}:${auth.userId}`,
-    limit: USER_LIMIT,
-    windowMs: 60 * 60 * 1000,
-    failClosed: true,
-  });
-  if (userLimited) {
-    return NextResponse.json(
-      { error: MATCH_ANALYSIS_ERROR, code: "RATE_LIMIT" },
-      { status: 429, headers: userLimited.headers }
-    );
-  }
-
-  const tenantLimited = await enforceRateLimit(req, {
-    namespace: "match-analysis-ai-tenant",
-    key: tenantId,
-    limit: TENANT_LIMIT,
-    windowMs: 60 * 60 * 1000,
-    failClosed: true,
-  });
-  if (tenantLimited) {
-    return NextResponse.json(
-      { error: MATCH_ANALYSIS_ERROR, code: "RATE_LIMIT" },
-      { status: 429, headers: tenantLimited.headers }
-    );
-  }
+  const limited = await enforceMatchAnalysisRateLimits(req, tenantId, auth.userId);
+  if (limited) return limited;
 
   const raw = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);
