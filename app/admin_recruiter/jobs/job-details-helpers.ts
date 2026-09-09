@@ -82,17 +82,18 @@ export function jobDetailsStatusDotClass(status: string): string {
   switch (String(status ?? "").trim().toLowerCase()) {
     case "published":
     case "open":
-      return "bg-[#3B82F6]";
+      return "bg-[#22C55E]";
     case "paused":
       return "bg-[#F59E0B]";
     case "filled":
-      return "bg-[#22C55E]";
+      return "bg-[#1E3A8A]";
     case "draft":
-      return "bg-[#94A3B8]";
+      return "border border-[#94A3B8] bg-white";
     case "closed":
     case "cancelled":
-    case "archived":
       return "bg-[#EF4444]";
+    case "archived":
+      return "bg-[#94A3B8]";
     default:
       return "bg-[#94A3B8]";
   }
@@ -218,12 +219,12 @@ export function statusActionForTarget(
   const from = String(current ?? "").trim().toLowerCase();
   const to = target;
   if (from === to || (from === "published" && to === "open")) return null;
-  if (to === "open") return from === "paused" ? "resume" : "publish";
+  if (from === "archived" && to === "draft") return "unarchive";
+  if (to === "open") return from === "paused" || from === "filled" ? "resume" : "publish";
   if (to === "draft") return "unpublish";
   if (to === "paused") return "pause";
   if (to === "filled") return "fill";
   if (to === "closed") return "close";
   if (to === "archived") return "archive";
-  if (from === "archived" && to === "draft") return "unarchive";
   return "set_status";
 }

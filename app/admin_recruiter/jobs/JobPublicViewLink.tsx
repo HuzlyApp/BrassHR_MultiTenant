@@ -8,6 +8,8 @@ type Props = {
   href: string | null | undefined;
   className?: string;
   iconColor?: string;
+  /** Override icon path (defaults: list eye / job-details view-public). */
+  iconSrc?: string;
   /** Shown when the job has no public page yet (draft / unpublished). */
   disabledTitle?: string;
   /** Icon-only (lists) or full outline button with label (job details). */
@@ -20,14 +22,20 @@ export function JobPublicViewLink({
   href,
   className = "",
   iconColor = "var(--brand-primary)",
+  iconSrc,
   disabledTitle = "Publish this job to view the public page",
   variant = "icon",
   label = "View public job page",
 }: Props) {
+  const resolvedIconSrc =
+    iconSrc ??
+    (variant === "button"
+      ? "/icons/job-details-icons/view-public-job.svg"
+      : "/icons/admin-recruiter/eye.svg");
   const icon = (
     <BrandedSvgIcon
-      src="/icons/admin-recruiter/eye.svg"
-      className="h-4 w-4"
+      src={resolvedIconSrc}
+      className="h-4 w-4 shrink-0"
       color={href ? iconColor : "#94A3B8"}
     />
   );

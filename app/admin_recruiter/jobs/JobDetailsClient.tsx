@@ -10,7 +10,6 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
@@ -69,25 +68,9 @@ type Props = {
 /** How many tags to show beside the title before collapsing into “+N more”. */
 const JOB_DETAILS_VISIBLE_TAG_COUNT = 3;
 
-function BrandBackIcon({ className = "", flip = false }: { className?: string; flip?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={`inline-block h-[14px] w-[14px] shrink-0 ${flip ? "rotate-180" : ""} ${className}`}
-      style={{
-        backgroundColor: "currentColor",
-        maskImage: "url(/eva_arrow-back-fill.svg)",
-        WebkitMaskImage: "url(/eva_arrow-back-fill.svg)",
-        maskSize: "contain",
-        WebkitMaskSize: "contain",
-        maskRepeat: "no-repeat",
-        WebkitMaskRepeat: "no-repeat",
-        maskPosition: "center",
-        WebkitMaskPosition: "center",
-      }}
-    />
-  );
-}
+/** Figma action-menu icons — fixed slate, not tenant-branded. */
+const JOB_DETAILS_ACTION_ICON_COLOR = "#94A3B8";
+const JOB_DETAILS_ICON_BASE = "/icons/job-details-icons";
 
 function SummaryList({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
@@ -103,55 +86,77 @@ function SummaryList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+function ActionMenuItem({
+  iconSrc,
+  label,
+  onClick,
+  disabled,
+}: {
+  iconSrc: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-60"
+      onClick={onClick}
+    >
+      <BrandedSvgIcon
+        src={iconSrc}
+        className="h-3 w-3 shrink-0"
+        color={JOB_DETAILS_ACTION_ICON_COLOR}
+      />
+      {label}
+    </button>
+  );
+}
+
+/** Figma candidate KPI card: primary 20×20 icon on top; link + count on one row. */
 function CandidateCard({
   iconSrc,
   count,
   label,
   linkHref,
-  linkLabel,
+  primaryColor,
   secondaryColor,
 }: {
   iconSrc: string;
   count: number;
   label: string;
   linkHref: string;
-  linkLabel: string;
+  primaryColor: string;
   secondaryColor: string;
 }) {
-  const footerLinkClass =
-    "mt-4 inline-flex items-center gap-1 text-xs font-semibold leading-[18px] transition hover:opacity-80";
-
   return (
-    <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-      <Link
-        href={linkHref}
-        className="group flex items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
-        aria-label={`${count} ${label} applications`}
-      >
-        <BrandedSvgIcon
-          src={iconSrc}
-          className="h-[30px] w-[30px] shrink-0"
-          color={secondaryColor}
-        />
-        <div className="min-w-0">
-          <p className="text-base font-semibold leading-6 text-[#374151] transition group-hover:underline">
-            {count} {label}
-          </p>
-          <p className="mt-0.5 text-xs font-normal leading-4 text-[#6B7280]">
-            Applications received
-          </p>
-        </div>
-      </Link>
-      <Link
-        href={linkHref}
-        className={footerLinkClass}
-        style={{ color: secondaryColor }}
-        aria-label={linkLabel}
-      >
-        {linkLabel}
-        <BrandBackIcon flip />
-      </Link>
-    </div>
+    <Link
+      href={linkHref}
+      className="flex h-[86px] min-w-0 flex-1 basis-[11.5rem] flex-col gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-5 py-3.5 shadow-sm outline-none transition hover:border-[#D0D5DD] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
+      aria-label={`${count} ${label}`}
+    >
+      <BrandedSvgIcon
+        src={iconSrc}
+        className="h-5 w-5 shrink-0"
+        color={primaryColor}
+      />
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <span
+          className="min-w-0 text-sm font-medium leading-5 underline decoration-1 underline-offset-2"
+          style={{ color: secondaryColor }}
+        >
+          {label}
+        </span>
+        <span
+          className="shrink-0 text-2xl font-semibold leading-8 tabular-nums tracking-tight"
+          style={{ color: secondaryColor }}
+        >
+          {count}
+        </span>
+      </div>
+    </Link>
   );
 }
 
@@ -167,6 +172,7 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -180,6 +186,7 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [teamMembers, setTeamMembers] = useState<AssignableTeamMember[]>([]);
   const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
@@ -225,6 +232,9 @@ export default function JobDetailsClient({ jobId }: Props) {
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (actionsRef.current && !actionsRef.current.contains(target)) setActionsOpen(false);
+      if (statusMenuRef.current && !statusMenuRef.current.contains(target)) {
+        setStatusMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
@@ -412,55 +422,49 @@ export default function JobDetailsClient({ jobId }: Props) {
     const base = [
       {
         key: "all",
-        label: "All",
+        label: "All Applications",
         count: summary.all,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
-        linkLabel: "View All Applications",
-        iconSrc: "/all-applicants.svg",
+        iconSrc: `${JOB_DETAILS_ICON_BASE}/all-applications.svg`,
       },
       {
         key: "new",
-        label: "New",
+        label: "New Intake",
         count: summary.intake,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=new`,
-        linkLabel: "Review New Applications",
-        iconSrc: "/new-applicants.svg",
+        iconSrc: `${JOB_DETAILS_ICON_BASE}/new-intake.svg`,
       },
       {
         key: "in-process",
-        label: "In process",
+        label: "In Process",
         count: summary.screening + summary.interview,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
-        linkLabel: "View In-process Applications",
-        iconSrc: "/all-applicants.svg",
+        iconSrc: `${JOB_DETAILS_ICON_BASE}/in-process.svg`,
       },
     ];
     if (showSubmissionCard) {
       base.push({
         key: "at-msp",
-        label: "At MSP",
+        label: "At MSP Submission",
         count: summary.submission,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
-        linkLabel: "View MSP Submissions",
-        iconSrc: "/all-applicants.svg",
+        iconSrc: `${JOB_DETAILS_ICON_BASE}/at-msp-submission.svg`,
       });
     }
     base.push(
       {
         key: "hired",
-        label: "Selected / Hired",
+        label: "Selected/Hired",
         count: summary.selected + summary.onboarding,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=hired`,
-        linkLabel: "View Hired Candidates",
-        iconSrc: "/all-applicants.svg",
+        iconSrc: `${JOB_DETAILS_ICON_BASE}/selected-hired.svg`,
       },
       {
         key: "closed",
         label: "Closed",
         count: summary.closed,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
-        linkLabel: "View Closed Applications",
-        iconSrc: "/all-applicants.svg",
+        iconSrc: `${JOB_DETAILS_ICON_BASE}/closed.svg`,
       }
     );
     return base;
@@ -533,11 +537,20 @@ export default function JobDetailsClient({ jobId }: Props) {
                   ) : null}
                 </div>
                 <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
-                  Location: {location}
+                  <span className="font-semibold text-[#1D2739]">Location:</span>{" "}
+                  {location}
+                  {branding.companyName?.trim() ? (
+                    <>
+                      <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
+                      <span className="font-semibold text-[#1D2739]">Company:</span>{" "}
+                      {branding.companyName.trim()}
+                    </>
+                  ) : null}
                   {clientName ? (
                     <>
-                      <span className="mx-1.5 text-[#CBD5E1]">•</span>
-                      Client Name: {clientName}
+                      <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
+                      <span className="font-semibold text-[#1D2739]">Client:</span>{" "}
+                      {clientName}
                     </>
                   ) : null}
                 </p>
@@ -594,32 +607,75 @@ export default function JobDetailsClient({ jobId }: Props) {
                     currentStatus,
                     ...allowedJobStatusTransitions(currentStatus),
                   ]);
+                  const statusOptions = JOB_STATUSES.filter((status) => allowed.has(status));
                   return (
-                    <label className="relative inline-flex min-w-0 flex-1 items-center min-[520px]:w-auto min-[520px]:flex-none">
-                      <span className="sr-only">Job status</span>
-                      <span
-                        className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${jobDetailsStatusDotClass(currentStatus)}`}
-                        aria-hidden
-                      />
-                      <select
-                        value={currentStatus}
+                    <div className="relative min-w-0 flex-1 min-[520px]:w-auto min-[520px]:flex-none" ref={statusMenuRef}>
+                      <button
+                        type="button"
                         disabled={statusBusy}
-                        onChange={(event) => {
-                          const next = event.target.value as JobStatus;
-                          if ((JOB_STATUSES as readonly string[]).includes(next)) {
-                            void updateJobStatus(next);
-                          }
+                        onClick={() => {
+                          setActionsOpen(false);
+                          setStatusMenuOpen((open) => !open);
                         }}
-                        className={`h-10 min-w-[9.5rem] flex-1 cursor-pointer appearance-none py-0 pl-7 pr-8 text-sm text-[#334155] outline-none disabled:cursor-not-allowed disabled:opacity-60 min-[520px]:h-9 ${JOB_FORM_SURFACE_CLASS}`}
+                        className={`inline-flex h-10 min-w-[9.5rem] w-full cursor-pointer items-center gap-2 py-0 pl-3 pr-8 text-left text-sm text-[#334155] outline-none disabled:cursor-not-allowed disabled:opacity-60 min-[520px]:h-9 ${JOB_FORM_SURFACE_CLASS}`}
                         aria-label={`Job status: ${jobDetailsStatusLabel(currentStatus)}`}
+                        aria-haspopup="listbox"
+                        aria-expanded={statusMenuOpen}
                       >
-                        {JOB_STATUSES.filter((status) => allowed.has(status)).map((status) => (
-                          <option key={status} value={status}>
-                            {jobDetailsStatusLabel(status)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(currentStatus)}`}
+                          aria-hidden
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          {jobDetailsStatusLabel(currentStatus)}
+                        </span>
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 -translate-y-1/2 bg-no-repeat"
+                          style={{
+                            backgroundImage:
+                              'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\' fill=\'none\'%3E%3Cpath d=\'M3 4.5L6 7.5L9 4.5\' stroke=\'%2394A3B8\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")',
+                            backgroundSize: "12px 12px",
+                            backgroundPosition: "center",
+                          }}
+                        />
+                      </button>
+                      {statusMenuOpen ? (
+                        <div
+                          role="listbox"
+                          aria-label="Job status"
+                          className="absolute right-0 z-30 mt-1 min-w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                        >
+                          {statusOptions.map((status) => {
+                            const selected = status === currentStatus;
+                            return (
+                              <button
+                                key={status}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                disabled={statusBusy}
+                                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-60 ${
+                                  selected ? "bg-[#EFF6FF]" : ""
+                                }`}
+                                onClick={() => {
+                                  setStatusMenuOpen(false);
+                                  if (status !== currentStatus) {
+                                    void updateJobStatus(status);
+                                  }
+                                }}
+                              >
+                                <span
+                                  className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(status)}`}
+                                  aria-hidden
+                                />
+                                {jobDetailsStatusLabel(status)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
                   );
                 })()}
 
@@ -627,6 +683,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                   <button
                     type="button"
                     onClick={() => {
+                      setStatusMenuOpen(false);
                       setActionsOpen((open) => !open);
                     }}
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-60 min-[520px]:h-9 min-[520px]:w-9"
@@ -634,7 +691,11 @@ export default function JobDetailsClient({ jobId }: Props) {
                     aria-haspopup="menu"
                     aria-expanded={actionsOpen}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <BrandedSvgIcon
+                      src={`${JOB_DETAILS_ICON_BASE}/more-actions.svg`}
+                      className="h-3.5 w-3.5"
+                      color="#0F172A"
+                    />
                   </button>
                   {actionsOpen ? (
                     <div
@@ -643,74 +704,54 @@ export default function JobDetailsClient({ jobId }: Props) {
                     >
                       {job.status !== "archived" ? (
                         <>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                          <ActionMenuItem
+                            iconSrc={`${JOB_DETAILS_ICON_BASE}/import-candidates.svg`}
+                            label="Import Candidates"
                             onClick={() => {
                               setActionsOpen(false);
                               setImportOpen(true);
                             }}
-                          >
-                            Import candidates
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                          />
+                          <ActionMenuItem
+                            iconSrc={`${JOB_DETAILS_ICON_BASE}/add-candidate.svg`}
+                            label="Add Candidate"
                             onClick={() => {
                               setActionsOpen(false);
                               setAddCandidateOpen(true);
                             }}
-                          >
-                            Add candidate
-                          </button>
+                          />
                         </>
                       ) : null}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                      <ActionMenuItem
+                        iconSrc={`${JOB_DETAILS_ICON_BASE}/copy-apply-link.svg`}
+                        label="Copy apply link"
                         onClick={() => void copyApplyLink()}
-                      >
-                        Copy apply link
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                      />
+                      <ActionMenuItem
+                        iconSrc={`${JOB_DETAILS_ICON_BASE}/add-remove-tags.svg`}
+                        label="Add/remove tags"
                         onClick={() => {
                           setActionsOpen(false);
                           setTagsError(null);
                           setTagsOpen(true);
                         }}
-                      >
-                        Tags
-                      </button>
-                      {/* Assign recruiter — hidden for now; restore later
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                      />
+                      <ActionMenuItem
+                        iconSrc={`${JOB_DETAILS_ICON_BASE}/assign-recruiter.svg`}
+                        label="Assign recruiter"
                         onClick={() => {
                           setActionsOpen(false);
                           setAssignError(null);
                           setAssignOpen(true);
                           void loadTeamMembers();
                         }}
-                      >
-                        Assign recruiter
-                      </button>
-                      */}
-                      <button
-                        type="button"
-                        role="menuitem"
+                      />
+                      <ActionMenuItem
+                        iconSrc={`${JOB_DETAILS_ICON_BASE}/duplicate-job.svg`}
+                        label={duplicateBusy ? "Duplicating…" : "Duplicate job"}
                         disabled={duplicateBusy}
-                        className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-60"
                         onClick={() => void duplicateJob()}
-                      >
-                        {duplicateBusy ? "Duplicating…" : "Duplicate"}
-                      </button>
+                      />
                     </div>
                   ) : null}
                 </div>
@@ -730,11 +771,7 @@ export default function JobDetailsClient({ jobId }: Props) {
 
             <section className="mt-8">
               <h2 className="text-lg font-semibold text-[#1D2739]">Candidates</h2>
-              <div
-                className={`mt-4 grid gap-4 sm:grid-cols-2 ${
-                  showSubmissionCard ? "xl:grid-cols-3" : "xl:grid-cols-3"
-                }`}
-              >
+              <div className="mt-4 flex flex-row flex-wrap gap-3">
                 {pipelineCards.map((card) => (
                   <CandidateCard
                     key={card.key}
@@ -742,7 +779,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                     count={card.count}
                     label={card.label}
                     linkHref={card.href}
-                    linkLabel={card.linkLabel}
+                    primaryColor={branding.primaryHex || "#BC8B41"}
                     secondaryColor={branding.secondaryHex || "#012352"}
                   />
                 ))}
@@ -763,14 +800,28 @@ export default function JobDetailsClient({ jobId }: Props) {
                         color: branding.primaryHex || "#BC8B41",
                       }}
                     >
+                      <BrandedSvgIcon
+                        src={`${JOB_DETAILS_ICON_BASE}/import-candidates-btn.svg`}
+                        className="h-4 w-4 shrink-0"
+                        color={branding.primaryHex || "#BC8B41"}
+                      />
                       Import Candidates
                     </button>
                     <button
                       type="button"
                       onClick={() => setAddCandidateOpen(true)}
                       className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
+                      style={{
+                        borderColor: branding.primaryHex || "#BC8B41",
+                        color: branding.primaryHex || "#BC8B41",
+                      }}
                     >
-                      Upload résumés
+                      <BrandedSvgIcon
+                        src={`${JOB_DETAILS_ICON_BASE}/upload-resume.svg`}
+                        className="h-4 w-4 shrink-0"
+                        color={branding.primaryHex || "#BC8B41"}
+                      />
+                      Upload Resume&apos;s
                     </button>
                   </div>
                 </div>
@@ -846,7 +897,6 @@ export default function JobDetailsClient({ jobId }: Props) {
         onOpenChange={setTagsOpen}
         onSave={(nextTags) => void saveJobTags(nextTags)}
       />
-      {/* Assign recruiter — hidden for now; restore later
       <AssignRecruiterModal
         open={assignOpen}
         candidateName={title}
@@ -859,7 +909,6 @@ export default function JobDetailsClient({ jobId }: Props) {
         onOpenChange={setAssignOpen}
         onAssign={(assigneeUserId) => void assignJobRecruiter(assigneeUserId)}
       />
-      */}
     </div>
   );
 }

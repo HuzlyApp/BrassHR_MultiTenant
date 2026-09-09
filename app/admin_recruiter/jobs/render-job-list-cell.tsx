@@ -3,11 +3,12 @@ import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
+import { JobListStatusDropdown } from "./JobListStatusDropdown"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
 import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
-import type { SourceType } from "@/lib/jobs/types"
+import type { JobStatus, SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
 import { JobPublicViewLink } from "./JobPublicViewLink"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
@@ -387,25 +388,6 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
   }
 }
 
-function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
-  switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
-    case "open":
-      return { label: "Open", dotClass: "bg-[#3B82F6]" }
-    case "paused":
-      return { label: "Paused", dotClass: "bg-[#F59E0B]" }
-    case "filled":
-      return { label: "Filled", dotClass: "bg-[#22C55E]" }
-    case "draft":
-      return { label: "Draft", dotClass: "bg-[#94A3B8]" }
-    case "closed":
-      return { label: "Closed", dotClass: "bg-[#EF4444]" }
-    case "archived":
-      return { label: "Archived", dotClass: "bg-[#EF4444]" }
-    default:
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
-  }
-}
-
 function isPublishToggleChecked(status: JobListRow["status"]): boolean {
   return normalizeJobRequisitionStatus(String(status ?? "")) === "open"
 }
@@ -461,6 +443,7 @@ export type JobListCellContext = {
   onOpenActionsMenu: (job: JobListRow, anchor: HTMLElement) => void
   publishBusyIds: Set<string>
   onPublishToggle: (job: JobListRow) => void
+  onStatusChange: (job: JobListRow, nextStatus: JobStatus) => void
 }
 
 export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
@@ -479,7 +462,6 @@ export function renderJobListCell(
   const isHot = Boolean(job.is_hot)
   const hotBusy = ctx.hotBusyIds?.has(job.id) ?? false
   const posted = formatPostedDate(job.published_at || job.created_at)
-  const statusDisplay = displayJobStatus(job.status)
   const totalCandidates = applicantCount(job)
 
   switch (col) {
@@ -614,14 +596,11 @@ export function renderJobListCell(
     }
     case "jobStatus":
       return (
-        <div className="flex justify-center">
-          <div
-            className={`inline-flex h-8 w-fit items-center justify-center gap-2 whitespace-nowrap px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
-          >
-            <span className={`h-2 w-2 shrink-0 rounded-full ${statusDisplay.dotClass}`} />
-            {statusDisplay.label}
-          </div>
-        </div>
+        <JobListStatusDropdown
+          status={String(job.status ?? "")}
+          busy={ctx.publishBusyIds.has(job.id)}
+          onSelect={(nextStatus) => ctx.onStatusChange(job, nextStatus)}
+        />
       )
     case "payRate": {
       const pay = formatJobListPayRateParts(job)

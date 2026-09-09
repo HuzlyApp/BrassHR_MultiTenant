@@ -70,6 +70,8 @@ import {
   type AssignableTeamMember,
 } from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
 import { JobTagsModal } from "./JobTagsModal";
+import { statusActionForTarget } from "./job-details-helpers";
+import type { JobStatus } from "@/lib/jobs/types";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -158,7 +160,8 @@ type JobLifecycleAction =
   | "unarchive"
   | "pause"
   | "resume"
-  | "fill";
+  | "fill"
+  | "set_status";
 
 function resolveJobActionErrorModal({
   code,
@@ -564,7 +567,7 @@ function matchesJobTab(job: JobListRow, tab: JobTab): boolean {
 }
 
 const JOB_ACTIONS_MENU_WIDTH = 200;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 520;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 360;
 
 function canRepublishClosedJob(job: JobListRow): boolean {
   return isJobRequisitionOpen({ application_deadline: job.application_deadline });
@@ -576,7 +579,6 @@ function JobActionsMenuPortal({
   tenantSlug,
   duplicateBusy = false,
   onClose,
-  onTransition,
   onImportFromMsp,
   onAddCandidate,
   onImportCandidates,
@@ -590,7 +592,6 @@ function JobActionsMenuPortal({
   tenantSlug: string | null;
   duplicateBusy?: boolean;
   onClose: () => void;
-  onTransition: (jobId: string, action: JobLifecycleAction) => void;
   onImportFromMsp: () => void;
   onAddCandidate: (job: JobListRow) => void;
   onImportCandidates: (job: JobListRow) => void;
@@ -774,219 +775,14 @@ function JobActionsMenuPortal({
     >
       {figmaMenuItems}
       <div className="my-1 border-t border-[#E5E7EB]" aria-hidden />
-      {status === "closed" ? (
-        <>
-          <Link
-            href={`/admin_recruiter/jobs/${job.id}`}
-            role="menuitem"
-            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            onClick={onClose}
-          >
-            View
-          </Link>
-          {canRepublishClosedJob(job) ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onTransition(job.id, "publish");
-                onClose();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Republish
-            </button>
-          ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onTransition(job.id, "archive");
-              onClose();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            Archive
-          </button>
-        </>
-      ) : (
-        <>
-          <Link
-            href={`/admin_recruiter/jobs/${job.id}`}
-            role="menuitem"
-            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            onClick={onClose}
-          >
-            View
-          </Link>
-          {status === "draft" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "publish");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Open
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "open" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "pause");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Pause
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "fill");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Mark filled
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "unpublish");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Move to draft
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "paused" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "resume");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Resume (Open)
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "fill");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Mark filled
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "filled" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "resume");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Reopen
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "archived" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onTransition(job.id, "unarchive");
-                onClose();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Unarchive
-            </button>
-          ) : status === "draft" ||
-            status === "open" ||
-            status === "paused" ||
-            status === "filled" ||
-            status === "closed" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onTransition(job.id, "archive");
-                onClose();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Archive
-            </button>
-          ) : null}
-        </>
-      )}
+      <Link
+        href={`/admin_recruiter/jobs/${job.id}`}
+        role="menuitem"
+        className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+        onClick={onClose}
+      >
+        View
+      </Link>
     </div>,
     document.body
   );
@@ -1151,7 +947,11 @@ export default function AdminRecruiterJobsPage() {
     pageSize,
   ]);
 
-  async function transition(jobId: string, action: JobLifecycleAction) {
+  async function transition(
+    jobId: string,
+    action: JobLifecycleAction,
+    nextStatus?: JobStatus
+  ) {
     setPublishBusyIds((current) => new Set(current).add(jobId));
     const job = jobs.find((item) => item.id === jobId);
     const jobTitle = job ? jobListDisplayTitle(job) : "Job";
@@ -1159,7 +959,11 @@ export default function AdminRecruiterJobsPage() {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, action }),
+        body: JSON.stringify(
+          action === "set_status"
+            ? { jobId, action, status: nextStatus }
+            : { jobId, action }
+        ),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -1200,6 +1004,8 @@ export default function AdminRecruiterJobsPage() {
         toast.success(`${jobTitle} paused`, { duration: ACTION_TOAST_DURATION_MS });
       } else if (action === "fill") {
         toast.success(`${jobTitle} marked filled`, { duration: ACTION_TOAST_DURATION_MS });
+      } else if (action === "set_status" && nextStatus) {
+        toast.success(`${jobTitle} status updated`, { duration: ACTION_TOAST_DURATION_MS });
       }
       await load();
     } finally {
@@ -1209,6 +1015,17 @@ export default function AdminRecruiterJobsPage() {
         return next;
       });
     }
+  }
+
+  function handleStatusChange(job: JobListRow, nextStatus: JobStatus) {
+    if (publishBusyIds.has(job.id)) return;
+    const action = statusActionForTarget(jobListStatus(job), nextStatus);
+    if (!action) return;
+    if (action === "set_status") {
+      void transition(job.id, "set_status", nextStatus);
+      return;
+    }
+    void transition(job.id, action);
   }
 
   function handlePublishToggle(job: JobListRow) {
@@ -1859,6 +1676,7 @@ export default function AdminRecruiterJobsPage() {
       },
       publishBusyIds,
       onPublishToggle: handlePublishToggle,
+      onStatusChange: handleStatusChange,
     };
   }, [
     branding.secondaryHex,
@@ -2331,7 +2149,6 @@ export default function AdminRecruiterJobsPage() {
           tenantSlug={tenantSlug}
           duplicateBusy={duplicateBusyId === openActionsMenu.job.id}
           onClose={() => setOpenActionsMenu(null)}
-          onTransition={(jobId, action) => void transition(jobId, action)}
           onImportFromMsp={handleImportFromMsp}
           onAddCandidate={(job) => {
             setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
