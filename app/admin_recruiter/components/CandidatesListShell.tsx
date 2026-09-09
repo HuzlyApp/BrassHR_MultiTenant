@@ -23,6 +23,7 @@ import {
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandidatesToolbar";
+import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 
@@ -267,24 +268,11 @@ function HighlightMultiJobToggle({
       <span className="text-[10px] font-normal leading-[15px] text-[#374151] sm:text-xs">
         Highlight Multi-Job Applicants
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={onToggle}
-        className="relative h-6 w-10 shrink-0"
-      >
-        <span
-          className={`absolute left-1/2 top-1/2 h-5 w-[34px] -translate-x-1/2 -translate-y-1/2 rounded-[45px] transition-colors ${
-            on ? "bg-[color:var(--brand-secondary,#012352)]" : "bg-[#CBD5E1]"
-          }`}
-        />
-        <span
-          className={`absolute top-1 size-4 rounded-[20px] bg-white shadow-sm transition-[left] ${
-            on ? "left-5" : "left-1"
-          }`}
-        />
-      </button>
+      <JobPublishToggle
+        checked={on}
+        onChange={onToggle}
+        ariaLabel="Highlight Multi-Job Applicants"
+      />
     </div>
   );
 }

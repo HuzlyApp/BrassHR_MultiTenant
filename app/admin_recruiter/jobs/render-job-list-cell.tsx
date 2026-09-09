@@ -624,7 +624,11 @@ export function renderJobListCell(
               event.stopPropagation()
               ctx.onOpenActionsMenu(job, event.currentTarget)
             }}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-[#334155] transition hover:bg-[#E2E8F0]"
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#334155] transition ${
+              ctx.openActionsJobId === job.id
+                ? "bg-[#F1F5F9]"
+                : "bg-transparent hover:bg-[#F1F5F9]"
+            }`}
             aria-label="Job actions"
             aria-haspopup="menu"
             aria-expanded={ctx.openActionsJobId === job.id}

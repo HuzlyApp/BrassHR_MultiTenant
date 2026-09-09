@@ -12,7 +12,9 @@ type JobPublishToggleProps = {
   ariaLabel?: string;
 };
 
-/** Figma publish/unpublish toggle — active uses tenant secondary color. */
+/** Compact brand toggle (~70% of original / decreased 30%).
+ * Used for job publish/unpublish and Highlight Multi-Job Applicants.
+ */
 export default function JobPublishToggle({
   checked,
   disabled = false,
@@ -34,19 +36,19 @@ export default function JobPublishToggle({
         event.stopPropagation();
         if (!isDisabled) onChange();
       }}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`relative inline-flex h-[17px] w-[31px] shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${
         checked ? "" : "bg-[#E2E8F0]"
       }`}
       style={checked ? { backgroundColor: activeColor } : undefined}
       aria-label={ariaLabel ?? (checked ? "Unpublish job" : "Publish job")}
     >
       <span
-        className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-[22px]" : "translate-x-0.5"
+        className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
+          checked ? "translate-x-[15px]" : "translate-x-0.5"
         }`}
       >
         {checked ? (
-          <Check className="h-3 w-3" strokeWidth={3} style={{ color: activeColor }} aria-hidden />
+          <Check className="h-2 w-2" strokeWidth={3} style={{ color: activeColor }} aria-hidden />
         ) : null}
       </span>
     </button>
