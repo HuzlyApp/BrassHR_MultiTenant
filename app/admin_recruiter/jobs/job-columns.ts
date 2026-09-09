@@ -23,7 +23,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
   { id: "contractGroup", label: "MSP/Client" },
-  { id: "candidates", label: "# Applicants" },
+  { id: "candidates", label: "Applicants" },
   { id: "datePosted", label: "Date Posted" },
   /** Shows Created By (job.createdBy) — not assigned recruiter. */
   { id: "assignee", label: "Assignee" },

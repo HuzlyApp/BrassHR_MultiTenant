@@ -6,12 +6,16 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import type { JobListRow } from "./render-job-list-cell";
 
 export type JobsExtendedFilterValues = {
-  /** Job title search (also used as the main listing search). */
+  /** Free-text search (title, location, MSP/client, profession). */
   search: string;
+  /** Comma-separated skill tags (AND with search when both set). */
+  skills: string;
   profession: string;
   status: string;
   /** Employment Type (shift_type / job type chips). */
@@ -33,6 +37,7 @@ export type JobsExtendedFilterValues = {
 
 export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
   search: "",
+  skills: "",
   profession: "",
   status: "",
   employmentType: "",
@@ -47,7 +52,7 @@ export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
   datePosted: "",
 };
 
-/** Fixed pay-rate bands shown in More Filters (min inclusive, max exclusive; last band open-ended). */
+/** Fixed pay-rate bands shown in All Filters (min inclusive, max exclusive; last band open-ended). */
 export const JOB_PAY_RATE_FILTER_OPTIONS = [
   { id: "under_25", label: "Under $25", min: 0, max: 25 },
   { id: "25_40", label: "$25 – $40", min: 25, max: 40 },
@@ -233,10 +238,10 @@ export function EditJobsFiltersModal({
           <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4">
             <div className="min-w-0 pr-3">
               <Dialog.Title className="truncate text-lg font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
-                Edit Filters
+                All Filters
               </Dialog.Title>
               <Dialog.Description className="sr-only">
-                Choose additional filters to narrow the jobs list.
+                Choose filters to narrow the jobs list.
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -255,13 +260,32 @@ export function EditJobsFiltersModal({
                   type="search"
                   value={draft.search}
                   onChange={(e) => setField("search", e.target.value)}
-                  placeholder="Search by job title"
-                  aria-label="Search job"
+                  placeholder="Job name, location, MSP/client, or profession"
+                  aria-label="Search job by name, location, MSP client, or profession"
+                  title="Search by job name, location, MSP/client name, or profession"
                   className={`rounded-lg border border-[#CBD5E1] bg-white h-10 w-full min-w-0 px-3 text-sm font-normal leading-6 hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 ${
                     draft.search ? "text-[#334155]" : "text-[#94A3B8]"
                   }`}
                   style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                 />
+              </label>
+
+              <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
+                <span className="text-sm font-medium text-[#475569]">Skills</span>
+                <div className="rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5 hover:bg-zinc-50 focus-within:border-[color:var(--brand-primary)]">
+                  <FilterChipInput
+                    embedded
+                    values={parseSkillsFilterParam(draft.skills)}
+                    placeholder="Filter by Skills"
+                    aria-label="Filter by Skills"
+                    onChange={(nextSkills) =>
+                      setField(
+                        "skills",
+                        nextSkills.map((skill) => skill.trim()).filter(Boolean).join(", ")
+                      )
+                    }
+                  />
+                </div>
               </label>
 
               <ModalFilterField

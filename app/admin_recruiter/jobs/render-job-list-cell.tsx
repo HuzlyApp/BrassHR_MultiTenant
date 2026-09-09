@@ -102,6 +102,12 @@ export type JobListRow = {
   location_type?: string | null
   schedule?: string | null
   shift_type?: string | null
+  /** Text fields used by jobs listing skills search (AND with title query). */
+  qualifications?: string | null
+  public_description?: string | null
+  responsibilities?: string | null
+  special_requirements?: string | null
+  required_credentials?: string | string[] | null
   professions: { name?: string } | { name?: string }[] | null
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
