@@ -22,7 +22,7 @@ export type JobColumnId =
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
-  { id: "contractGroup", label: "End client" },
+  { id: "contractGroup", label: "MSP/Client" },
   { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
   /** Shows Created By (job.createdBy) — not assigned recruiter. */
@@ -39,28 +39,42 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "workflow", label: "Assigned Workflow" },
   { id: "createdDate", label: "Created Date" },
   { id: "applicationDeadline", label: "Application Deadline" },
-  { id: "actions", label: "Publish / Unpublish" },
+  { id: "actions", label: "Actions" },
 ]
 
 export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobTitle",
   "location",
+  "contractGroup",
   "candidates",
   "jobStatus",
-  "assignee", // Created By (not Assign recruiter)
   "actions",
 ]
 
-/** FSD: MSP tab defaults End client after Location. */
+/** FSD: MSP/Client column id (job form Contract Group / Client → msp_name). */
 export const MSP_DEFAULT_END_CLIENT_COLUMN: JobColumnId = "contractGroup"
 
 export type JobListSourceTab = "all" | "internal" | "msp" | "hot"
 
+function ensureMspClientColumn(columns: JobColumnId[]): JobColumnId[] {
+  if (columns.includes("contractGroup")) return columns
+  const locationIdx = columns.indexOf("location")
+  if (locationIdx >= 0) {
+    columns.splice(locationIdx + 1, 0, "contractGroup")
+    return columns
+  }
+  const titleIdx = columns.indexOf("jobTitle")
+  if (titleIdx >= 0) {
+    columns.splice(titleIdx + 1, 0, "contractGroup")
+    return columns
+  }
+  columns.unshift("contractGroup")
+  return columns
+}
+
 /**
- * FSD-JOB-UX-001 §2.3:
- * - MSP tab also defaults End client
- * - Internal tab hides End client
- * All / Hot keep the user's saved column prefs as-is.
+ * - Internal tab hides MSP/Client
+ * - All / MSP / Hot default MSP/Client after Location when missing
  */
 export function visibleJobColumnsForTab(
   savedOrder: JobColumnId[] | null | undefined,
@@ -73,33 +87,17 @@ export function visibleJobColumnsForTab(
     return base.filter((id) => id !== "contractGroup")
   }
 
-  if (tab === "msp") {
-    if (base.includes("contractGroup")) return base
-    const locationIdx = base.indexOf("location")
-    if (locationIdx >= 0) {
-      base.splice(locationIdx + 1, 0, "contractGroup")
-      return base
-    }
-    const titleIdx = base.indexOf("jobTitle")
-    if (titleIdx >= 0) {
-      base.splice(titleIdx + 1, 0, "contractGroup")
-      return base
-    }
-    base.unshift("contractGroup")
-    return base
-  }
-
-  return base
+  return ensureMspClientColumn(base)
 }
 
 const STORAGE_KEY = "nexus-jobs-list-columns"
-/** Bump when default visible columns change (FSD-JOB-UX-001). */
-const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v5-fsd-defaults"
+/** Bump when default visible columns change (Assignee removed from defaults). */
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v7-no-assignee-default"
 
 /** Columns added after initial release — inject into saved layouts once. */
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
-  // Restore Assignee (Created By) for layouts that dropped it while Assign recruiter UI was hidden.
-  { id: "assignee", after: "jobStatus" },
+  // Default MSP/Client after Location for All / MSP / Hot layouts.
+  { id: "contractGroup", after: "location" },
 ]
 
 export function loadJobColumnOrder(): JobColumnId[] {

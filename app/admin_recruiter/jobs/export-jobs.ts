@@ -37,7 +37,7 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
   jobTitle: { header: "Job Title", value: (row) => jobListDisplayTitle(row) },
   // jobId: { header: "Job Id", value: (row) => jobDisplayId(row) }, // Job ID hidden for now
   contractGroup: {
-    header: "End client",
+    header: "MSP/Client",
     value: (row) => jobContractGroup(row),
   },
   candidates: [

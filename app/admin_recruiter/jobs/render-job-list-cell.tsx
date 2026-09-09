@@ -139,7 +139,7 @@ export function jobShiftType(job: JobListRow): string {
   return job.shift_type?.trim() || ""
 }
 
-/** End client for MSP jobs (msp_name — not MSP Name / msp_client). */
+/** MSP/Client for MSP jobs (msp_name — not MSP Name / msp_client). */
 export function jobContractGroup(job: JobListRow): string {
   const source = String(job.source_type ?? "").trim().toLowerCase()
   if (source !== "msp") return ""

@@ -875,7 +875,7 @@ export default function AdminRecruiterJobsPage() {
   const selectJobTab = useCallback(
     (next: JobTab) => {
       setJobTab(next);
-      // FSD: Internal hides End client — drop a filter that would never match visible rows.
+      // FSD: Internal hides MSP/Client — drop a filter that would never match visible rows.
       if (next === "internal") {
         setContractGroupFilter("");
       }
