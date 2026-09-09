@@ -215,6 +215,16 @@ export type VerificationNoteDraft = {
   verificationStatus?: VerificationNoteStatus;
 };
 
+export function supabaseErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as { message?: unknown; details?: unknown };
+    if (typeof record.message === "string" && record.message.trim()) return record.message;
+    if (typeof record.details === "string" && record.details.trim()) return record.details;
+  }
+  return fallback;
+}
+
 export function mapVerificationNoteRow(
   row: {
     id: string;

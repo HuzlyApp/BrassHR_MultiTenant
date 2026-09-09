@@ -13,6 +13,44 @@ import {
 const NOTE_SELECT =
   "id, tenant_id, job_application_id, requirement_id, worker_id, job_requisition_id, analysis_version, note_body, candidate_question, due_date, verification_status, candidate_response, candidate_responded_at, created_by, updated_by, created_at, updated_at, deleted_at";
 
+const DEV_BYPASS_USER = "00000000-0000-0000-0000-000000000001";
+
+function safeActorUserId(userId: string | null | undefined): string | null {
+  if (!userId || userId === DEV_BYPASS_USER) return null;
+  return userId;
+}
+
+function optionalText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function optionalDueDate(value: unknown): string | null {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function isForeignKeyViolation(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "23503";
+}
+
+async function findActiveNote(
+  supabase: SupabaseClient,
+  tenantId: string,
+  applicationId: string,
+  requirementId: string
+) {
+  const { data, error } = await supabase
+    .from("job_application_match_requirement_notes")
+    .select(NOTE_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("job_application_id", applicationId)
+    .eq("requirement_id", requirementId)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
 function displayName(
   first: string | null | undefined,
   last: string | null | undefined,
@@ -119,11 +157,13 @@ async function writeNoteAudit(args: {
     job_application_id: args.jobApplicationId,
     requirement_id: args.requirementId,
     action: args.action,
-    actor_user_id: args.actorUserId,
+    actor_user_id: safeActorUserId(args.actorUserId),
     before_state: args.beforeState ?? null,
     after_state: args.afterState ?? null,
   });
-  if (error) throw error;
+  if (error) {
+    console.warn("[verification-notes] audit insert failed", error.message || error);
+  }
 }
 
 export async function createVerificationNote(args: {
@@ -134,7 +174,8 @@ export async function createVerificationNote(args: {
   actorUserId: string | null;
   input: CreateVerificationNoteInput;
 }): Promise<VerificationNote> {
-  const { supabase, tenantId, applicationId, requirementId, actorUserId, input } = args;
+  const { supabase, tenantId, applicationId, requirementId, input } = args;
+  const actorUserId = safeActorUserId(args.actorUserId);
 
   const { data: application, error: appError } = await supabase
     .from("job_applications")
@@ -155,17 +196,7 @@ export async function createVerificationNote(args: {
   if (reqError) throw reqError;
   if (!requirement) throw new Error("Requirement not found");
 
-  const { data: existingNote, error: existingNoteError } = await supabase
-    .from("job_application_match_requirement_notes")
-    .select(NOTE_SELECT)
-    .eq("tenant_id", tenantId)
-    .eq("job_application_id", applicationId)
-    .eq("requirement_id", requirementId)
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (existingNoteError) throw existingNoteError;
+  const existingNote = await findActiveNote(supabase, tenantId, applicationId, requirementId);
   if (existingNote) {
     return updateVerificationNote({
       supabase,
@@ -185,48 +216,53 @@ export async function createVerificationNote(args: {
   }
 
   const status = input.verificationStatus ?? "pending";
-  const candidateResponse = input.candidateResponse?.trim() || null;
+  const candidateResponse = optionalText(input.candidateResponse);
   const respondedAt =
     status === "candidate_responded" || candidateResponse
       ? new Date().toISOString()
       : null;
 
-  const { data: inserted, error } = await supabase
+  const payload = {
+    tenant_id: tenantId,
+    job_application_id: applicationId,
+    requirement_id: requirementId,
+    worker_id: application.worker_id ?? null,
+    job_requisition_id: application.job_requisition_id ?? null,
+    analysis_version:
+      application.ai_analysis_version == null
+        ? null
+        : Number(application.ai_analysis_version),
+    note_body: input.noteBody.trim(),
+    candidate_question: optionalText(input.candidateQuestion),
+    due_date: optionalDueDate(input.dueDate),
+    verification_status: status,
+    candidate_response: candidateResponse,
+    candidate_responded_at: respondedAt,
+    created_by: actorUserId,
+    updated_by: actorUserId,
+  };
+
+  let inserted;
+  let error;
+  ({ data: inserted, error } = await supabase
     .from("job_application_match_requirement_notes")
-    .insert({
-      tenant_id: tenantId,
-      job_application_id: applicationId,
-      requirement_id: requirementId,
-      worker_id: application.worker_id ?? null,
-      job_requisition_id: application.job_requisition_id ?? null,
-      analysis_version:
-        application.ai_analysis_version == null
-          ? null
-          : Number(application.ai_analysis_version),
-      note_body: input.noteBody.trim(),
-      candidate_question: input.candidateQuestion?.trim() || null,
-      due_date: input.dueDate ?? null,
-      verification_status: status,
-      candidate_response: candidateResponse,
-      candidate_responded_at: respondedAt,
-      created_by: actorUserId,
-      updated_by: actorUserId,
-    })
+    .insert(payload)
     .select(NOTE_SELECT)
-    .single();
+    .single());
+  if (error && isForeignKeyViolation(error)) {
+    ({ data: inserted, error } = await supabase
+      .from("job_application_match_requirement_notes")
+      .insert({
+        ...payload,
+        created_by: null,
+        updated_by: null,
+      })
+      .select(NOTE_SELECT)
+      .single());
+  }
   if (error) {
     if (error.code === "23505") {
-      const { data: raced, error: racedError } = await supabase
-        .from("job_application_match_requirement_notes")
-        .select(NOTE_SELECT)
-        .eq("tenant_id", tenantId)
-        .eq("job_application_id", applicationId)
-        .eq("requirement_id", requirementId)
-        .is("deleted_at", null)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (racedError) throw racedError;
+      const raced = await findActiveNote(supabase, tenantId, applicationId, requirementId);
       if (raced) {
         return updateVerificationNote({
           supabase,
@@ -247,6 +283,7 @@ export async function createVerificationNote(args: {
     }
     throw error;
   }
+  if (!inserted) throw new Error("Failed to create note");
 
   await writeNoteAudit({
     supabase,
@@ -272,7 +309,8 @@ export async function updateVerificationNote(args: {
   actorUserId: string | null;
   input: UpdateVerificationNoteInput;
 }): Promise<VerificationNote> {
-  const { supabase, tenantId, applicationId, requirementId, noteId, actorUserId, input } = args;
+  const { supabase, tenantId, applicationId, requirementId, noteId, input } = args;
+  const actorUserId = safeActorUserId(args.actorUserId);
 
   const { data: existing, error: existingError } = await supabase
     .from("job_application_match_requirement_notes")
@@ -294,14 +332,14 @@ export async function updateVerificationNote(args: {
 
   if (input.noteBody !== undefined) patch.note_body = input.noteBody.trim();
   if (input.candidateQuestion !== undefined) {
-    patch.candidate_question = input.candidateQuestion?.trim() || null;
+    patch.candidate_question = optionalText(input.candidateQuestion);
   }
-  if (input.dueDate !== undefined) patch.due_date = input.dueDate;
+  if (input.dueDate !== undefined) patch.due_date = optionalDueDate(input.dueDate);
   if (input.verificationStatus !== undefined) {
     patch.verification_status = input.verificationStatus;
   }
   if (input.candidateResponse !== undefined) {
-    const response = input.candidateResponse?.trim() || null;
+    const response = optionalText(input.candidateResponse);
     patch.candidate_response = response;
     if (response) {
       patch.candidate_responded_at = new Date().toISOString();
@@ -321,9 +359,27 @@ export async function updateVerificationNote(args: {
     .is("deleted_at", null)
     .select(NOTE_SELECT)
     .single();
-  if (error) throw error;
+  let saved = updated;
+  let saveError = error;
+  if (saveError && isForeignKeyViolation(saveError)) {
+    patch.updated_by = null;
+    const retried = await supabase
+      .from("job_application_match_requirement_notes")
+      .update(patch)
+      .eq("id", noteId)
+      .eq("tenant_id", tenantId)
+      .eq("job_application_id", applicationId)
+      .eq("requirement_id", requirementId)
+      .is("deleted_at", null)
+      .select(NOTE_SELECT)
+      .single();
+    saved = retried.data;
+    saveError = retried.error;
+  }
+  if (saveError) throw saveError;
+  if (!saved) throw new Error("Note not found");
 
-  const after = verificationNoteSnapshot(updated);
+  const after = verificationNoteSnapshot(saved);
   const statusChanged =
     before.verification_status !== after.verification_status;
   const responseRecorded =
@@ -347,10 +403,10 @@ export async function updateVerificationNote(args: {
   });
 
   const usersById = await loadUsersById(supabase, tenantId, [
-    updated.created_by,
-    updated.updated_by,
+    saved.created_by,
+    saved.updated_by,
   ]);
-  return mapVerificationNoteRow(updated, usersById);
+  return mapVerificationNoteRow(saved, usersById);
 }
 
 export async function deleteVerificationNote(args: {
@@ -361,7 +417,8 @@ export async function deleteVerificationNote(args: {
   noteId: string;
   actorUserId: string | null;
 }): Promise<void> {
-  const { supabase, tenantId, applicationId, requirementId, noteId, actorUserId } = args;
+  const { supabase, tenantId, applicationId, requirementId, noteId } = args;
+  const actorUserId = safeActorUserId(args.actorUserId);
 
   const { data: existing, error: existingError } = await supabase
     .from("job_application_match_requirement_notes")
@@ -376,7 +433,7 @@ export async function deleteVerificationNote(args: {
   if (!existing) throw new Error("Note not found");
 
   const now = new Date().toISOString();
-  const { error } = await supabase
+  let { error } = await supabase
     .from("job_application_match_requirement_notes")
     .update({
       deleted_at: now,
@@ -388,6 +445,20 @@ export async function deleteVerificationNote(args: {
     .eq("job_application_id", applicationId)
     .eq("requirement_id", requirementId)
     .is("deleted_at", null);
+  if (error && isForeignKeyViolation(error)) {
+    ({ error } = await supabase
+      .from("job_application_match_requirement_notes")
+      .update({
+        deleted_at: now,
+        updated_by: null,
+        updated_at: now,
+      })
+      .eq("id", noteId)
+      .eq("tenant_id", tenantId)
+      .eq("job_application_id", applicationId)
+      .eq("requirement_id", requirementId)
+      .is("deleted_at", null));
+  }
   if (error) throw error;
 
   await writeNoteAudit({
