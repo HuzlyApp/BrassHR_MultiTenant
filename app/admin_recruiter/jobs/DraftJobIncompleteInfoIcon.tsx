@@ -39,7 +39,7 @@ export function DraftJobIncompleteInfoIcon() {
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
-    };
+    };  
   }, [open]);
 
   return (

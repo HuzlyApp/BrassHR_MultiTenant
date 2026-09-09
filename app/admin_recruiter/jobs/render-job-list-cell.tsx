@@ -10,7 +10,6 @@ import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { JobStatus, SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
-import { JobPublicViewLink } from "./JobPublicViewLink"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
 import { formatCityState } from "@/lib/location/city-state"
@@ -23,10 +22,6 @@ const JOB_CANDIDATE_ICONS = {
   new: "/fluent_person-add-24-regular.svg",
   hired: "/fluent_person-star-24-regular.svg",
 } as const
-
-/** Figma jobs list star — 14×14 */
-const JOB_STAR_ICON_SIZE = 14
-const JOB_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg"
 
 function JobCandidateMetric({
   iconSrc,
@@ -459,67 +454,20 @@ export function renderJobListCell(
   job: JobListRow,
   ctx: JobListCellContext
 ): ReactNode {
-  const isHot = Boolean(job.is_hot)
-  const hotBusy = ctx.hotBusyIds?.has(job.id) ?? false
   const posted = formatPostedDate(job.published_at || job.created_at)
   const totalCandidates = applicantCount(job)
 
   switch (col) {
     case "jobTitle":
       return (
-        <div className="flex w-full min-w-0 items-center gap-2 pr-2">
-          <button
-            type="button"
-            disabled={hotBusy}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              ctx.onToggleHot(job.id);
-            }}
-            className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center disabled:opacity-50"
-            aria-label={isHot ? "Remove from Hot jobs" : "Mark as Hot job"}
-            aria-pressed={isHot}
+        <div className="min-w-0 w-full pr-2">
+          <Link
+            href={`/admin_recruiter/jobs/${job.id}`}
+            className="block truncate font-semibold hover:underline"
+            style={{ color: ctx.brandingSecondaryHex }}
           >
-            {isHot ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={JOB_STAR_FILLED_SRC}
-                alt=""
-                width={JOB_STAR_ICON_SIZE}
-                height={JOB_STAR_ICON_SIZE}
-                className="h-[14px] w-[14px]"
-                aria-hidden
-              />
-            ) : (
-              <span
-                aria-hidden
-                className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
-                style={{
-                  maskImage: `url(${JOB_STAR_FILLED_SRC})`,
-                  WebkitMaskImage: `url(${JOB_STAR_FILLED_SRC})`,
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                }}
-              />
-            )}
-          </button>
-          <div className="min-w-0 flex-1">
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}`}
-              className="block truncate font-semibold hover:underline"
-              style={{ color: ctx.brandingSecondaryHex }}
-            >
-              {jobListDisplayTitle(job)}
-            </Link>
-          </div>
-          <JobPublicViewLink
-            href={publicJobPathFor(job, ctx.tenantSlug)}
-            className="ml-auto shrink-0"
-          />
+            {jobListDisplayTitle(job)}
+          </Link>
         </div>
       )
     // case "jobId":

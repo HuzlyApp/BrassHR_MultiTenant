@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
 } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
@@ -72,12 +74,27 @@ const JOB_DETAILS_VISIBLE_TAG_COUNT = 3;
 const JOB_DETAILS_ACTION_ICON_COLOR = "#94A3B8";
 const JOB_DETAILS_ICON_BASE = "/icons/job-details-icons";
 
+/** Figma Job Details typography */
+const JOB_DETAILS_SECTION_TITLE_CLASS =
+  "text-xl font-bold leading-7 tracking-tight text-black";
+const JOB_DETAILS_CARD_TITLE_CLASS =
+  "text-lg font-bold leading-7 tracking-tight text-black";
+const JOB_DETAILS_CARD_SUBTITLE_CLASS =
+  "mt-1 text-sm font-normal leading-5 text-[#667085]";
+const JOB_DETAILS_SUMMARY_LABEL_CLASS =
+  "text-sm font-semibold leading-5 text-black";
+const JOB_DETAILS_SUMMARY_VALUE_CLASS =
+  "text-sm font-normal leading-6 text-[#667085]";
+
+/** Collapsed Job post summary preview height (Figma). */
+const JOB_SUMMARY_COLLAPSED_MAX_PX = 300;
+
 function SummaryList({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
   return (
-    <section className="mt-8">
-      <h3 className="text-sm font-semibold text-[#1D2739]">{title}</h3>
-      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-[#667085]">
+    <section className="mt-6">
+      <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>{title}</h3>
+      <ul className={`mt-2 list-disc space-y-1.5 pl-5 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
         {items.map((item) => (
           <li key={`${title}-${item}`}>{item}</li>
         ))}
@@ -143,18 +160,18 @@ function CandidateCard({
         color={primaryColor}
       />
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <span
-          className="min-w-0 text-sm font-medium leading-5 underline decoration-1 underline-offset-2"
-          style={{ color: secondaryColor }}
-        >
-          {label}
-        </span>
-        <span
-          className="shrink-0 text-2xl font-semibold leading-8 tabular-nums tracking-tight"
-          style={{ color: secondaryColor }}
-        >
-          {count}
-        </span>
+      <span
+        className="min-w-0 text-sm font-medium leading-5 underline decoration-1 underline-offset-2"
+        style={{ color: secondaryColor }}
+      >
+        {label}
+      </span>
+      <span
+        className="shrink-0 text-[28px] font-bold leading-8 tabular-nums tracking-tight"
+        style={{ color: secondaryColor }}
+      >
+        {count}
+      </span>
       </div>
     </Link>
   );
@@ -185,8 +202,11 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [teamMembers, setTeamMembers] = useState<AssignableTeamMember[]>([]);
   const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [summaryOverflows, setSummaryOverflows] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
+  const summaryContentRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
@@ -415,6 +435,41 @@ export default function JobDetailsClient({ jobId }: Props) {
     });
   }, [job?.public_description, benefits.length]);
 
+  useLayoutEffect(() => {
+    setSummaryExpanded(false);
+  }, [jobId, summaryHtml, responsibilities, qualifications, preferredSkills, benefits, workLocation]);
+
+  useLayoutEffect(() => {
+    const el = summaryContentRef.current;
+    if (!el) {
+      setSummaryOverflows(false);
+      return;
+    }
+    const measure = () => {
+      const previousMaxHeight = el.style.maxHeight;
+      const previousOverflow = el.style.overflow;
+      el.style.maxHeight = "none";
+      el.style.overflow = "visible";
+      const fullHeight = el.scrollHeight;
+      el.style.maxHeight = previousMaxHeight;
+      el.style.overflow = previousOverflow;
+      setSummaryOverflows(fullHeight > JOB_SUMMARY_COLLAPSED_MAX_PX + 8);
+    };
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(el);
+    return () => observer?.disconnect();
+  }, [
+    summaryHtml,
+    responsibilities,
+    qualifications,
+    preferredSkills,
+    benefits,
+    workLocation,
+    posted,
+    pay,
+  ]);
+
   const isMspJob = String(job?.source_type ?? "").trim().toLowerCase() === "msp";
   const summary = pipelineSummary ?? emptyJobPipelineSummary(isMspJob);
   const showSubmissionCard = Boolean(summary.show_submission || isMspJob);
@@ -436,7 +491,9 @@ export default function JobDetailsClient({ jobId }: Props) {
       },
       {
         key: "in-process",
-        label: "In Process",
+        label: showSubmissionCard
+          ? "In Process"
+          : "In Process Screening + Interview",
         count: summary.screening + summary.interview,
         href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
         iconSrc: `${JOB_DETAILS_ICON_BASE}/in-process.svg`,
@@ -770,7 +827,7 @@ export default function JobDetailsClient({ jobId }: Props) {
             ) : null}
 
             <section className="mt-8">
-              <h2 className="text-lg font-semibold text-[#1D2739]">Candidates</h2>
+              <h2 className={JOB_DETAILS_SECTION_TITLE_CLASS}>Candidates</h2>
               <div className="mt-4 flex flex-row flex-wrap gap-3">
                 {pipelineCards.map((card) => (
                   <CandidateCard
@@ -786,8 +843,8 @@ export default function JobDetailsClient({ jobId }: Props) {
               </div>
               {job.status !== "archived" ? (
                 <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-                  <h3 className="text-base font-semibold leading-6 text-[#1D2739]">Add Candidates</h3>
-                  <p className="mt-1 text-sm leading-5 text-[#64748B]">
+                  <h3 className={JOB_DETAILS_CARD_TITLE_CLASS}>Add Candidates</h3>
+                  <p className={JOB_DETAILS_CARD_SUBTITLE_CLASS}>
                     Upload multiple résumés or import existing candidates from your talent database.
                   </p>
                   <div className="mt-4 flex flex-col gap-3 min-[520px]:flex-row min-[520px]:flex-wrap">
@@ -828,44 +885,89 @@ export default function JobDetailsClient({ jobId }: Props) {
               ) : null}
             </section>
 
-            <section className="mt-8">
-              <h2 className="text-sm font-semibold text-[#1D2739]">Job post summary</h2>
-              <div className="mt-4 max-h-[560px] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-[#FCFCFD] p-5 sm:p-6">
-                <p className="text-sm text-[#334155]">
-                  <span className="font-medium text-[#1D2739]">Date posted:</span> {posted}
-                </p>
-                <p className="mt-1 text-sm text-[#334155]">
-                  <span className="font-medium text-[#1D2739]">Pay:</span> {pay}
-                </p>
+            <section className="mt-8 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
+              <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Job post summary</h2>
+              <div className="mt-4 border-t border-[#E5E7EB]" aria-hidden />
+              <div className="relative mt-4">
+                <div
+                  ref={summaryContentRef}
+                  className={
+                    summaryExpanded
+                      ? ""
+                      : "max-h-[300px] overflow-hidden"
+                  }
+                  style={
+                    summaryExpanded
+                      ? undefined
+                      : { maxHeight: JOB_SUMMARY_COLLAPSED_MAX_PX }
+                  }
+                >
+                  <p className={JOB_DETAILS_SUMMARY_VALUE_CLASS}>
+                    <span className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Date posted:</span> {posted}
+                  </p>
+                  <p className={`mt-1 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
+                    <span className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Pay:</span> {pay}
+                  </p>
 
-                <section className="mt-6">
-                  <h3 className="mb-4 text-sm font-semibold text-[#1D2739]">Job Summary</h3>
-                  <style>{JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".job-summary-description")}</style>
-                  <JobDescriptionHtml
-                    html={summaryHtml}
-                    className="job-summary-description mt-0 text-[#667085]"
-                    emptyLabel="No job summary added yet."
-                  />
-                </section>
-
-                <SummaryList title="Key Responsibilities" items={responsibilities} />
-                <SummaryList title="Qualifications" items={qualifications} />
-                <SummaryList title="Preferred Skills" items={preferredSkills} />
-
-                {benefits.length ? (
-                  <section className="mt-8">
-                    <h3 className="text-sm font-semibold text-[#1D2739]">Benefits</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#667085]">
-                      {benefits.join(", ")}
-                    </p>
+                  <section className="mt-6">
+                    <h3 className={`mb-2 ${JOB_DETAILS_SUMMARY_LABEL_CLASS}`}>Job Summary:</h3>
+                    <style>
+                      {JOB_POSTING_DESCRIPTION_CSS.replaceAll(
+                        ".job-posting-description",
+                        ".job-summary-description"
+                      )}
+                    </style>
+                    <JobDescriptionHtml
+                      html={summaryHtml}
+                      className="job-summary-description mt-0 text-[#667085]"
+                      emptyLabel="No job summary added yet."
+                    />
                   </section>
-                ) : null}
 
-                <section className="mt-8">
-                  <h3 className="text-sm font-semibold text-[#1D2739]">Work Location</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#667085]">{workLocation}</p>
-                </section>
+                  <SummaryList title="Key Responsibilities:" items={responsibilities} />
+                  <SummaryList title="Qualifications:" items={qualifications} />
+                  <SummaryList title="Preferred Skills:" items={preferredSkills} />
+
+                  {benefits.length ? (
+                    <section className="mt-6">
+                      <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Benefits:</h3>
+                      <p className={`mt-2 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
+                        {benefits.join(", ")}
+                      </p>
+                    </section>
+                  ) : null}
+
+                  <section className="mt-6">
+                    <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Work Location:</h3>
+                    <p className={`mt-2 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>{workLocation}</p>
+                  </section>
+                </div>
+
+                {!summaryExpanded && summaryOverflows ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent"
+                  />
+                ) : null}
               </div>
+
+              {summaryOverflows || summaryExpanded ? (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setSummaryExpanded((open) => !open)}
+                    className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-black transition hover:opacity-80"
+                    aria-expanded={summaryExpanded}
+                  >
+                    {summaryExpanded ? "Show less" : "Show more"}
+                    {summaryExpanded ? (
+                      <ChevronUp className="h-4 w-4 shrink-0 text-black" aria-hidden />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-black" aria-hidden />
+                    )}
+                  </button>
+                </div>
+              ) : null}
             </section>
           </>
         ) : null}
