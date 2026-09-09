@@ -49,7 +49,7 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
   { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
   { id: "jobRole", label: "Job Role" },
-  { id: "matchJob", label: "Job title" },
+  { id: "matchJob", label: "Applied jobs" },
   { id: "jobMatch", label: "Match Score" },
   { id: "conf", label: "Conf." },
   { id: "verify", label: "Verify" },
@@ -89,13 +89,14 @@ export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
   "contact",
   "clientName",
+  "matchJob",
   "progressStatus",
   "jobMatch",
   "currentStage",
   "createdDate",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns-v6"
+const STORAGE_KEY = "nexus-candidates-list-columns-v7"
 
 /** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
@@ -110,7 +111,8 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
 
   insertAfter("name", "contact")
   insertAfter("contact", "clientName")
-  insertAfter("clientName", "progressStatus")
+  insertAfter("clientName", "matchJob")
+  insertAfter("matchJob", "progressStatus")
   insertAfter("progressStatus", "jobMatch")
   insertAfter("jobMatch", "currentStage")
   insertAfter("currentStage", "createdDate")
@@ -161,7 +163,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "currentStage") return "min-w-[170px]"
   if (colId === "evaluation") return "min-w-[110px] whitespace-nowrap"
   if (colId === "assignee") return "min-w-[160px] whitespace-nowrap"
-  if (colId === "matchJob") return "min-w-[200px] whitespace-nowrap"
+  if (colId === "matchJob") return "min-w-[220px]"
   if (colId === "location") return "min-w-[220px] whitespace-nowrap"
   return ""
 }

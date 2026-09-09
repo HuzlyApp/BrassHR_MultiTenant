@@ -4,8 +4,8 @@ import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 type AppTitleRow = {
   worker_id: string | null;
   job_requisitions:
-    | { public_title: string | null }
-    | { public_title: string | null }[]
+    | { public_title: string | null; source_job_title?: string | null }
+    | { public_title: string | null; source_job_title?: string | null }[]
     | null;
 };
 
@@ -14,7 +14,10 @@ function oneJobTitle(
 ): string {
   if (!value) return "";
   const job = Array.isArray(value) ? value[0] : value;
-  return String(job?.public_title ?? "").trim();
+  return (
+    String(job?.public_title ?? "").trim() ||
+    String(job?.source_job_title ?? "").trim()
+  );
 }
 
 /** All applied job titles per worker (used for candidate search parity with applications list). */
@@ -29,7 +32,7 @@ export async function getApplicationJobTitlesByWorker(
   const { data, error } = await queryInChunks(workerIds, async (chunk) => {
     let query = supabase
       .from("job_applications")
-      .select("worker_id, job_requisitions(public_title)")
+      .select("worker_id, job_requisitions(public_title, source_job_title)")
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")');
 

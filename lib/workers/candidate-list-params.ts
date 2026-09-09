@@ -51,6 +51,7 @@ export type CandidateListQueryParams = {
   progressStatusId: string;
   jobTitle: string;
   stage: string;
+  assignee: string;
   sort: string;
   sortDir: "asc" | "desc";
   includePhotoUrls: boolean;
@@ -60,7 +61,7 @@ export type CandidateListQueryParams = {
 };
 
 /** True when the request needs RPC search/filter (must not use the unfiltered legacy path). */
-export function candidateListRequiresServerSearch(params: CandidateListQueryParams): boolean {
+export function candidateListRequiresRpcSearch(params: CandidateListQueryParams): boolean {
   return Boolean(
     params.q ||
       params.skills.length ||
@@ -73,6 +74,11 @@ export function candidateListRequiresServerSearch(params: CandidateListQueryPara
       params.progressStatusId ||
       params.jobTitle
   );
+}
+
+/** True when the request needs server search/filter (must not use the unfiltered legacy path). */
+export function candidateListRequiresServerSearch(params: CandidateListQueryParams): boolean {
+  return candidateListRequiresRpcSearch(params) || Boolean(params.assignee);
 }
 
 function parseStatus(v: string | null): WorkerStatus | null {
@@ -200,6 +206,7 @@ export function parseCandidateListQueryParams(
     ).trim(),
     jobTitle: (searchParams.get("jobTitle") ?? searchParams.get("job_title") ?? "").trim(),
     stage: (searchParams.get("stage") ?? "").trim(),
+    assignee: (searchParams.get("assignee") ?? searchParams.get("assigned_recruiter") ?? "").trim(),
     sort,
     sortDir,
     includePhotoUrls: searchParams.get("includePhotoUrls") === "1",
@@ -258,6 +265,7 @@ export function buildCandidatesListUrl(
     progressStatusId: string;
     jobTitle: string;
     stage: string;
+    assignee: string;
     sort: string;
     sortDir: "asc" | "desc";
     includePhotoUrls: boolean;
@@ -286,6 +294,7 @@ export function buildCandidatesListUrl(
   setIfProvided("progressStatusId", params.progressStatusId);
   setIfProvided("jobTitle", params.jobTitle);
   setIfProvided("stage", params.stage);
+  setIfProvided("assignee", params.assignee);
   setIfProvided("sort", params.sort);
   setIfProvided("sortDir", params.sortDir);
   if (params.includePhotoUrls === true) parsed.searchParams.set("includePhotoUrls", "1");

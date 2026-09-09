@@ -50,6 +50,7 @@ export type CandidatesListQuery = {
   progressStatusId?: string;
   jobTitle?: string;
   stage?: string;
+  assignee?: string;
   sort?: string;
   sortDir?: "asc" | "desc";
   page?: number;
@@ -80,6 +81,7 @@ export async function fetchWorkersPageFromApi<T = Record<string, unknown>>(
     progressStatusId: query.progressStatusId,
     jobTitle: query.jobTitle,
     stage: query.stage,
+    assignee: query.assignee,
     sort: query.sort,
     sortDir: query.sortDir,
     includePhotoUrls: query.includePhotoUrls ?? true,

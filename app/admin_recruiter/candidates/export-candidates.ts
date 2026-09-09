@@ -4,7 +4,7 @@ import {
   formatExportDate,
   type ExportColumn,
 } from "@/lib/admin/export-list-download";
-import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title";
+import { getCandidateJobTitleOptions } from "@/lib/admin/candidate-match-job-title";
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 import { formatMatchScore } from "@/lib/jobs/match-analysis/display";
 import {
@@ -38,7 +38,12 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   jobRole: { header: columnLabel("jobRole"), value: (row) => row.role },
   matchJob: {
     header: columnLabel("matchJob"),
-    value: (row) => resolveCandidateMatchJobTitle(row) || "—",
+    value: (row) => {
+      const titles = getCandidateJobTitleOptions(row);
+      if (titles.length === 0) return "—";
+      if (titles.length === 1) return titles[0];
+      return titles.map((title, index) => `${index + 1}. ${title}`).join("; ");
+    },
   },
   jobMatch: {
     header: columnLabel("jobMatch"),

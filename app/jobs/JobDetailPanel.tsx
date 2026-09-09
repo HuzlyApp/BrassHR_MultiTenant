@@ -28,7 +28,13 @@ import {
 } from "@/lib/jobs/public-jobs-board";
 
 const DESCRIPTION_STYLES = `
-  .public-jobs-board-description.job-description-html { max-width: 42rem; }
+  .public-jobs-board-description.job-description-html { max-width: none; width: 100%; }
+  .public-jobs-board-description.job-description-html p,
+  .public-jobs-board-description.job-description-html ul,
+  .public-jobs-board-description.job-description-html ol,
+  .public-jobs-board-description.job-description-html li {
+    max-width: none;
+  }
   ${JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".public-jobs-board-description")}
 `;
 
@@ -309,14 +315,14 @@ export function JobDetailPanel({
       aria-labelledby="jobs-detail-title"
     >
       <style>{DESCRIPTION_STYLES}</style>
-      <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 min-[1024px]:px-6">
+      <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 min-[1024px]:px-5">
         {onBack && stacked ? (
           <button
             ref={backButtonRef}
             type="button"
             onClick={onBack}
             data-testid="jobs-back-to-jobs"
-            className="mb-3 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
+            className="mb-3 inline-flex min-h-10 items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
           >
             ← Back to jobs
           </button>
@@ -326,7 +332,7 @@ export function JobDetailPanel({
             <p className={JOB_POSTING_COMPANY_CLASS}>{companyName}</p>
             <h2
               id="jobs-detail-title"
-              className="mt-1 text-[1.05rem] font-semibold leading-7 text-[#1D2739]"
+              className="mt-1 text-lg font-semibold leading-7 text-[#1D2739] sm:text-xl"
             >
               {title}
             </h2>
@@ -351,7 +357,7 @@ export function JobDetailPanel({
         </div>
       </header>
 
-      <div className="jobs-board-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 min-[1024px]:px-6">
+      <div className="jobs-board-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 min-[1024px]:px-5">
         <section aria-label="Job description">
           <JobDescriptionHtml
             html={descriptionHtml}
@@ -360,7 +366,7 @@ export function JobDetailPanel({
           />
         </section>
         {showResponsibilities ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Responsibilities</h3>
             <p className={`mt-2 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>
               {job.responsibilities}
@@ -368,7 +374,7 @@ export function JobDetailPanel({
           </section>
         ) : null}
         {showQualifications ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Qualifications</h3>
             <p className={`mt-2 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>
               {job.qualifications}
@@ -376,7 +382,7 @@ export function JobDetailPanel({
           </section>
         ) : null}
         {showBenefits ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Benefits</h3>
             <ul className={`mt-2 list-outside list-disc space-y-1 pl-5 ${JOB_POSTING_BODY_CLASS}`}>
               {benefits.map((benefit) => (
@@ -387,7 +393,7 @@ export function JobDetailPanel({
         ) : null}
         {(job.schedule || job.employment_type || workplace) &&
         !descriptionHasSection(descriptionHtml, "Employment details") ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Employment details</h3>
             <ul className={`mt-2 space-y-1 ${JOB_POSTING_BODY_CLASS}`}>
               {job.employment_type ? <li>Employment type: {job.employment_type}</li> : null}

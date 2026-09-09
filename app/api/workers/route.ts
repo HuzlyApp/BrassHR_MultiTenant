@@ -7,6 +7,7 @@ import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getApplicationStatusSummariesForWorkers } from "@/lib/jobs/application-statuses/attach-worker-application-status";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
 import {
   isApprovedPendingConversion,
@@ -20,6 +21,11 @@ import {
   getApplicationJobTitlesByWorker,
   joinApplicationJobTitles,
 } from "@/lib/workers/worker-application-job-titles";
+import {
+  candidatePhoneNameKey,
+  collapseWorkersToCandidateProfiles,
+  findIdentitySiblingWorkerIds,
+} from "@/lib/workers/candidate-identity";
 import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summary";
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { statusOrFilter } from "@/lib/workers/workers-status-filter";
@@ -239,7 +245,8 @@ export async function GET(req: Request) {
             status,
             excludeConverted: needsConversionFilter,
           });
-          usedServerPage = idPage.usedRpc;
+          // resolveCandidateIdPage already returns unique candidate-profile IDs + total.
+          usedServerPage = true;
           count = idPage.total;
           if (headOnly) {
             data = [];
@@ -388,8 +395,8 @@ export async function GET(req: Request) {
         }
 
         const paged = normalized;
-        const total = count ?? paged.length;
-        const hasMore = !headOnly && queryOffset + paged.length < total;
+        let total = count ?? paged.length;
+        let hasMore = !headOnly && queryOffset + paged.length < total;
 
         if (error) {
           const errMsg = error.message || "Supabase query failed";
@@ -523,26 +530,100 @@ export async function GET(req: Request) {
             const workerIds = workersOut
               .map((row) => (typeof row.id === "string" ? row.id : ""))
               .filter(Boolean);
+            let workerIdsForApps = workerIds;
+            try {
+              workerIdsForApps = await findIdentitySiblingWorkerIds(
+                supabase,
+                tenantIdForApps,
+                workersOut.map((row) => ({
+                  id: typeof row.id === "string" ? row.id : null,
+                  email: typeof row.email === "string" ? row.email : null,
+                  phone: typeof row.phone === "string" ? row.phone : null,
+                  first_name: typeof row.first_name === "string" ? row.first_name : null,
+                  last_name: typeof row.last_name === "string" ? row.last_name : null,
+                }))
+              );
+            } catch (siblingErr) {
+              console.warn("[api/workers] identity sibling expansion failed", siblingErr);
+            }
             const [summaries, appliedJobCounts, matchSummaries, jobTitlesByWorker, searchTextByWorker] =
               await Promise.all([
               getApplicationStatusSummariesForWorkers(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
-              getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIds),
+              getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIdsForApps),
               getWorkerJobMatchSummaries(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
               getApplicationJobTitlesByWorker(supabase, {
                 tenantId: tenantIdForApps,
-                workerIds,
+                workerIds: workerIdsForApps,
               }),
               getApplicationSearchTextByWorker(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
             ]);
+
+            // Roll up applied-job titles/counts across identity siblings (including off-page duplicates).
+            const titlesByPhoneName = new Map<string, Set<string>>();
+            const countsByPhoneName = new Map<string, number>();
+            const titlesByEmail = new Map<string, Set<string>>();
+            const countsByEmail = new Map<string, number>();
+            if (workerIdsForApps.length > 0) {
+              try {
+                const { data: siblingRows, error: siblingFetchErr } = await queryInChunks(
+                  workerIdsForApps,
+                  async (chunk) => {
+                    let query = supabase
+                      .from("worker")
+                      .select("id, email, phone, first_name, last_name")
+                      .in("id", chunk);
+                    if (tenantIdForApps) query = query.eq("tenant_id", tenantIdForApps);
+                    const result = await query;
+                    return {
+                      data: (result.data ?? []) as Array<{
+                        id?: string;
+                        email?: string | null;
+                        phone?: string | null;
+                        first_name?: string | null;
+                        last_name?: string | null;
+                      }>,
+                      error: result.error,
+                    };
+                  }
+                );
+                if (siblingFetchErr) throw siblingFetchErr;
+                for (const row of siblingRows) {
+                  const id = String(row.id ?? "").trim();
+                  if (!id) continue;
+                  const phoneKey = candidatePhoneNameKey(row);
+                  const emailNorm = normalizeTenantEmail(String(row.email ?? ""));
+                  const addTitles = (target: Map<string, Set<string>>, key: string) => {
+                    const titles = target.get(key) ?? new Set<string>();
+                    for (const title of jobTitlesByWorker.get(id) ?? []) {
+                      if (title.trim()) titles.add(title.trim());
+                    }
+                    target.set(key, titles);
+                  };
+                  const addCount = (target: Map<string, number>, key: string) => {
+                    target.set(key, (target.get(key) ?? 0) + (appliedJobCounts.get(id) ?? 0));
+                  };
+                  if (phoneKey) {
+                    addTitles(titlesByPhoneName, phoneKey);
+                    addCount(countsByPhoneName, phoneKey);
+                  }
+                  if (emailNorm) {
+                    addTitles(titlesByEmail, emailNorm);
+                    addCount(countsByEmail, emailNorm);
+                  }
+                }
+              } catch (rollupErr) {
+                console.warn("[api/workers] identity job-title rollup failed", rollupErr);
+              }
+            }
             const workersMissingAssignee = workersOut
               .map((row) => {
                 const id = typeof row.id === "string" ? row.id.trim() : "";
@@ -604,9 +685,34 @@ export async function GET(req: Request) {
             workersOut = workersOut.map((row) => {
               const id = typeof row.id === "string" ? row.id : "";
               const summary = id ? summaries.get(id) : undefined;
-              const appliedJobCount = id ? appliedJobCounts.get(id) ?? 1 : 1;
+              const identityFields = {
+                id,
+                email: typeof row.email === "string" ? row.email : null,
+                phone: typeof row.phone === "string" ? row.phone : null,
+                first_name: typeof row.first_name === "string" ? row.first_name : null,
+                last_name: typeof row.last_name === "string" ? row.last_name : null,
+              };
+              const phoneKey = candidatePhoneNameKey(identityFields);
+              const emailNorm = normalizeTenantEmail(String(row.email ?? ""));
+              const rolledTitleSet =
+                (phoneKey ? titlesByPhoneName.get(phoneKey) : undefined) ??
+                (emailNorm ? titlesByEmail.get(emailNorm) : undefined);
+              const rolledCount =
+                (phoneKey ? countsByPhoneName.get(phoneKey) : undefined) ??
+                (emailNorm ? countsByEmail.get(emailNorm) : undefined);
+              const appliedJobCount =
+                rolledCount && rolledCount > 0
+                  ? rolledCount
+                  : id
+                    ? appliedJobCounts.get(id) ?? 1
+                    : 1;
               const match = id ? matchSummaries.get(id) : undefined;
-              const jobTitles = id ? jobTitlesByWorker.get(id) : undefined;
+              const jobTitles =
+                rolledTitleSet && rolledTitleSet.size > 0
+                  ? [...rolledTitleSet]
+                  : id
+                    ? jobTitlesByWorker.get(id)
+                    : undefined;
               const applicationJobTitlesText = joinApplicationJobTitles(jobTitles);
               const applicationSearchText = id ? searchTextByWorker.get(id) : undefined;
               const directAssigneeId =
@@ -656,6 +762,21 @@ export async function GET(req: Request) {
                   : {}),
               };
             });
+
+            const beforeCollapse = workersOut.length;
+            workersOut = collapseWorkersToCandidateProfiles(workersOut, {
+              jobTitlesByWorker,
+              appliedJobCounts,
+            });
+            // ID page already pages unique candidate profiles; keep collapse as a
+            // safety net and align total if any on-page duplicates remain.
+            const collapsedAway = beforeCollapse - workersOut.length;
+            if (collapsedAway > 0) {
+              total = Math.max(workersOut.length, total - collapsedAway);
+              hasMore = !headOnly && queryOffset + workersOut.length < total;
+            } else {
+              hasMore = !headOnly && queryOffset + workersOut.length < total;
+            }
           } catch (attachErr) {
             console.warn("[api/workers] failed to attach application statuses", attachErr);
           }

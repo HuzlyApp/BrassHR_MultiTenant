@@ -25,6 +25,7 @@ describe("parseCandidateListQueryParams", () => {
         appliedFrom: "2026-01-01",
         appliedTo: "2026-01-31",
         matchScore: "80_90",
+        assignee: "unassigned",
         sort: "name",
         sortDir: "asc",
         limit: "50",
@@ -36,6 +37,7 @@ describe("parseCandidateListQueryParams", () => {
     expect(params.jobRole).toBe("RN");
     expect(params.city).toBe("Austin");
     expect(params.state).toBe("TX");
+    expect(params.assignee).toBe("unassigned");
     expect(params.limit).toBe(50);
     expect(params.offset).toBe(50);
     expect(params.sort).toBe("name");
@@ -75,5 +77,15 @@ describe("buildCandidatesListUrl", () => {
     ).toBe(
       "/api/workers?status=approved&limit=25&offset=25&q=bob&skills=ICU&includePhotoUrls=1"
     );
+  });
+
+  it("includes assignee filter", () => {
+    expect(
+      buildCandidatesListUrl("/api/workers", {
+        assignee: "unassigned",
+        limit: 25,
+        offset: 0,
+      })
+    ).toBe("/api/workers?limit=25&offset=0&assignee=unassigned");
   });
 });

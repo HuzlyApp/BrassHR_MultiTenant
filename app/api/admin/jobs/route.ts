@@ -17,6 +17,7 @@ import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { parseScreeningQuestionsFromBody } from "@/lib/jobs/screening-questions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { countUniqueActiveCandidateProfiles } from "@/lib/workers/count-unique-active-candidate-profiles";
 
 export const runtime = "nodejs";
 
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
     await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
 
     const status = parseJobStatusFilter(req.nextUrl.searchParams.get("status"));
-    const [jobs, tenantResult, workerCountResult] = await Promise.all([
+    const [jobs, tenantResult, totalCandidateCount] = await Promise.all([
       listInternalJobs(supabase, tenantId, {
         status,
         professionId: req.nextUrl.searchParams.get("professionId") || undefined,
@@ -77,10 +78,9 @@ export async function GET(req: NextRequest) {
         createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
       }),
       supabase.from("tenants").select("slug, subdomain").eq("id", tenantId).maybeSingle(),
-      supabase.from("worker").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      countUniqueActiveCandidateProfiles(supabase, tenantId),
     ]);
     if (tenantResult.error) throw tenantResult.error;
-    if (workerCountResult.error) throw workerCountResult.error;
     const tenantSlug = String(tenantResult.data?.slug ?? tenantResult.data?.subdomain ?? "")
       .trim()
       .toLowerCase();
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       jobs,
       tenantId,
       tenantSlug: tenantSlug || null,
-      totalCandidateCount: workerCountResult.count ?? 0,
+      totalCandidateCount,
     });
   } catch (error) {
     return NextResponse.json(

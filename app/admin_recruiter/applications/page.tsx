@@ -11,7 +11,6 @@ import {
   Mail,
   MoreHorizontal,
   Phone,
-  Plus,
   X,
 } from "lucide-react";
 import {
@@ -19,11 +18,12 @@ import {
   formatJobPostedOn,
 } from "@/app/admin_recruiter/applications/ApplicationsJobHeaderCard";
 import { ApplicationsListToolbar } from "@/app/admin_recruiter/applications/ApplicationsListToolbar";
+import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
+import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
 import { ListSortableHeader } from "@/app/admin_recruiter/components/ListSortableHeader";
 import {
   applicationListHeaderAlign,
   applicationListSortFromToolbar,
-  applicationToolbarScoreSort,
   applicationToolbarSortBy,
   EMPTY_APPLICATION_LIST_SORT,
   isApplicationListSortableColumn,
@@ -39,8 +39,6 @@ import {
   applicationMatchesDateAppliedFilter,
   applicationMatchesMatchScoreFilter,
   EditApplicationsFiltersModal,
-  EMPTY_APPLICATIONS_EXTENDED_FILTERS,
-  hasActiveApplicationsExtendedFilters,
   type ApplicationsExtendedFilterValues,
 } from "@/app/admin_recruiter/applications/EditApplicationsFiltersModal";
 import { JobsBreadcrumb } from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
@@ -120,10 +118,15 @@ import {
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import {
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+  type BulkMatchAnalysisItem,
+} from "@/lib/admin/bulk-match-analysis";
 import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
-import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 import { matchesApplicationListSearch } from "@/lib/admin/candidate-list-search";
 
 type ApplicationStatus = string;
@@ -151,6 +154,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_analyzed_at?: string | null;
   ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
   assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
@@ -220,8 +224,6 @@ type JobOption = {
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
-const ADD_CANDIDATE_BUTTON_CLASS =
-  "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50 lg:w-auto lg:justify-start";
 const FILTER_SELECT_CLASS = `${FORM_SURFACE_CLASS} h-8 cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0`;
 const FILTER_SELECT_CHEVRON = {
   backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
@@ -547,36 +549,6 @@ function workflowName(row: ApplicationRow): string {
   return String(one(row.onboarding_flows).name ?? row.workflow_id);
 }
 
-function HighlightMultiJobApplicantsRow({
-  on,
-  onToggle,
-  activeColor,
-  className = "px-[14px] py-3",
-}: {
-  on: boolean;
-  onToggle: () => void;
-  activeColor?: string;
-  className?: string;
-}) {
-  return (
-    <div className={`flex items-center justify-end gap-2 ${className}`}>
-      <span className="text-[10px] font-normal leading-[15px] text-[#374151]">
-        Highlight Multi-Job Applicants
-      </span>
-      <JobPublishToggle
-        checked={on}
-        onChange={onToggle}
-        activeColor={activeColor}
-        ariaLabel={
-          on
-            ? "Show all applicants"
-            : "Show only applicants who applied to multiple jobs"
-        }
-      />
-    </div>
-  );
-}
-
 export default function JobApplicationsPage() {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
@@ -657,6 +629,7 @@ export default function JobApplicationsPage() {
     }>
   >([]);
   const [matchAnalyzingId, setMatchAnalyzingId] = useState<string | null>(null);
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -673,6 +646,7 @@ export default function JobApplicationsPage() {
   const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
   const [resumeErrorMessage, setResumeErrorMessage] = useState("");
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [importCandidatesOpen, setImportCandidatesOpen] = useState(false);
   const [applicationsRefreshNonce, setApplicationsRefreshNonce] = useState(0);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
@@ -904,6 +878,14 @@ export default function JobApplicationsPage() {
     setAddCandidateOpen(true);
   }
 
+  function openMatchExistingCandidateModal() {
+    if (!jobId) {
+      toast.error("Select a job before matching an existing candidate.");
+      return;
+    }
+    setImportCandidatesOpen(true);
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function run() {
@@ -945,13 +927,6 @@ export default function JobApplicationsPage() {
     setSelectedIds(new Set());
   }, [page, pageSize, activeTab, locationFilter, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter, skillsFilter]);
   // Sorting intentionally preserves selection (stable IDs) and does not reset the page.
-
-  const scoreSort = applicationToolbarScoreSort(listSort);
-
-  function handleScoreSortChange(value: string) {
-    if (value === "low-high") setListSort(applicationListSortFromToolbar("matchScoreAsc"));
-    else if (value === "high-low") setListSort(applicationListSortFromToolbar("matchScore"));
-  }
 
   function handleSortByChange(value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") {
     setListSort(applicationListSortFromToolbar(value));
@@ -1230,14 +1205,42 @@ export default function JobApplicationsPage() {
     setSkillsFilter(next.skills);
   }, []);
 
-  const hasActiveModalFilters = useMemo(
-    () => hasActiveApplicationsExtendedFilters(editFiltersValue),
-    [editFiltersValue]
+  const activeFilterCount = useMemo(() => {
+    return [
+      listingStatusFilter,
+      listingStageFilter,
+      locationFilter,
+      evaluationFilter,
+      workflowFilter,
+      matchScoreFilter,
+      dateAppliedFilter,
+      listingJobFilter,
+    ].filter(Boolean).length;
+  }, [
+    listingStatusFilter,
+    listingStageFilter,
+    locationFilter,
+    evaluationFilter,
+    workflowFilter,
+    matchScoreFilter,
+    dateAppliedFilter,
+    listingJobFilter,
+  ]);
+
+  const handleApplyApplicationsSearch = useCallback(
+    (next: { query: string; skills: string[] }) => {
+      setCandidateSearchQuery(next.query);
+      setSkillsFilter(next.skills);
+      setPage(1);
+    },
+    []
   );
 
-  const handleResetModalFilters = useCallback(() => {
-    handleSaveEditFilters(EMPTY_APPLICATIONS_EXTENDED_FILTERS);
-  }, [handleSaveEditFilters]);
+  const handleResetApplicationsSearch = useCallback(() => {
+    setCandidateSearchQuery("");
+    setSkillsFilter([]);
+    setPage(1);
+  }, []);
 
   const statusTabs = useMemo(() => {
     const pipeline = statusOptions.filter((option) => option.systemKey !== "archived");
@@ -1387,6 +1390,15 @@ export default function JobApplicationsPage() {
       }).length,
     [selectedIds, rows, currentUserId]
   );
+
+  const { analyzeIds: jobAnalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        rows.map((row) => ({ applicationId: row.id, status: row.ai_match_status }))
+      ),
+    [rows]
+  );
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
   const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
 
@@ -1922,7 +1934,77 @@ export default function JobApplicationsPage() {
     await loadStatusHistory(row.id);
   }
 
+  function applyBulkMatchItem(row: ApplicationRow, item: BulkMatchAnalysisItem): ApplicationRow {
+    const result = item.result ?? {};
+    if (result.status === "FAILED") {
+      return { ...row, ai_match_status: "FAILED" };
+    }
+    return {
+      ...row,
+      ai_match_status: result.status ?? row.ai_match_status,
+      ai_match_score: result.score ?? row.ai_match_score,
+      ai_match_category: result.category ?? row.ai_match_category,
+      ai_match_action: result.action ?? row.ai_match_action,
+      ai_match_readiness: result.readiness ?? row.ai_match_readiness,
+      ai_match_display_category:
+        result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
+      ai_analyzed_at:
+        result.status === "ANALYZED"
+          ? result.analyzedAt ?? new Date().toISOString()
+          : row.ai_analyzed_at,
+    };
+  }
+
+  async function runBulkMatchAnalyze(ids: string[]) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error("All candidates on this job are already analyzed");
+      return;
+    }
+    if (bulkAnalyzeBusy || matchAnalyzingId) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setRows((current) =>
+      current.map((row) =>
+        uniqueIds.includes(row.id) ? { ...row, ai_match_status: "ANALYZING" } : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setRows((current) =>
+          current.map((row) => {
+            const item = byId.get(row.id);
+            return item ? applyBulkMatchItem(row, item) : row;
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setRows((current) =>
+        current.map((row) =>
+          uniqueIds.includes(row.id) && row.ai_match_status === "ANALYZING"
+            ? { ...row, ai_match_status: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
+    }
+  }
+
   async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
+    if (bulkAnalyzeBusy) return;
     setMatchAnalyzingId(applicationId);
     const candidateLabel = applicantName(
       rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
@@ -1954,6 +2036,10 @@ export default function JobApplicationsPage() {
                   row.ai_match_display_category,
                 ai_requirement_counts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
+                ai_analyzed_at:
+                  payload.status === "ANALYZED"
+                    ? payload.analyzedAt ?? new Date().toISOString()
+                    : row.ai_analyzed_at,
               }
             : row
         )
@@ -2050,7 +2136,7 @@ export default function JobApplicationsPage() {
           <MatchScoreCell
             status={row.ai_match_status}
             score={row.ai_match_score}
-            analyzing={matchAnalyzingId === row.id}
+            analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={(mode) => void runMatchAnalyze(row.id, mode)}
           />
         );
@@ -2228,20 +2314,28 @@ export default function JobApplicationsPage() {
         );
       }
       case "evaluation": {
-        const analyzing = matchAnalyzingId === row.id;
+        const analyzing = matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id);
         const analyzed = row.ai_match_status === "ANALYZED";
+        const analyzedWhen = analyzed ? formatApplicationDate(row.ai_analyzed_at) : null;
         return (
-          <span
-            className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
-              analyzing
-                ? "bg-[#F1F5F9] text-[#64748B]"
-                : analyzed
-                  ? "bg-[#EFF6FF] text-[#2563EB]"
-                  : "bg-[#F1F5F9] text-[#64748B]"
-            }`}
-          >
-            {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
-          </span>
+          <div className="text-center">
+            <span
+              className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
+                analyzing
+                  ? "bg-[#F1F5F9] text-[#64748B]"
+                  : analyzed
+                    ? "bg-[#EFF6FF] text-[#2563EB]"
+                    : "bg-[#F1F5F9] text-[#64748B]"
+              }`}
+            >
+              {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
+            </span>
+            {analyzedWhen && analyzedWhen.relative !== "—" ? (
+              <p className="mt-1 text-[11px] leading-4 text-[#64748B]" title={analyzedWhen.absolute || undefined}>
+                {analyzedWhen.relative}
+              </p>
+            ) : null}
+          </div>
         );
       }
       case "assignee": {
@@ -2556,45 +2650,24 @@ export default function JobApplicationsPage() {
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <ApplicationsListToolbar
-          searchQuery={candidateSearchQuery}
-          onSearchQueryChange={setCandidateSearchQuery}
-          jobFilter={listingJobFilter}
-          onJobFilterChange={setListingJobFilter}
-          jobFilterOptions={listingJobOptions}
-          showJobFilter={!jobId}
-          matchScoreFilter={matchScoreFilter}
-          onMatchScoreFilterChange={setMatchScoreFilter}
-          progressStatusFilter={listingStatusFilter}
-          onProgressStatusFilterChange={setListingStatusFilter}
-          progressStatusOptions={listingStatusOptions}
-          locationFilter={locationFilter}
-          onLocationFilterChange={setLocationFilter}
-          locationOptions={locationOptions}
-          sortBy={sortBy}
-          onSortByChange={handleSortByChange}
-          onOpenMoreFilters={() => setEditFiltersOpen(true)}
+          query={candidateSearchQuery}
+          skillsFilter={skillsFilter}
+          onApplySearch={handleApplyApplicationsSearch}
+          onResetSearch={handleResetApplicationsSearch}
+          onOpenFilters={() => setEditFiltersOpen(true)}
           onEditColumns={() => setEditColumnsOpen(true)}
-          showResetFilters={hasActiveModalFilters}
-          onResetFilters={handleResetModalFilters}
-          addCandidateButton={
-            <button type="button" onClick={openAddCandidateModal} className={ADD_CANDIDATE_BUTTON_CLASS}>
-              <Plus
-                className="h-5 w-5 shrink-0"
-                style={{ color: branding.secondaryHex }}
-                strokeWidth={2}
-                aria-hidden
-              />
-              Add candidate
-            </button>
+          onAddCandidate={openAddCandidateModal}
+          onMatchExistingCandidate={openMatchExistingCandidateModal}
+          activeFilterCount={activeFilterCount}
+          highlightMultiJob={highlightMultiJobApplicants}
+          onHighlightMultiJobChange={setHighlightMultiJobApplicants}
+          searching={loading}
+          onAnalyzeAll={
+            jobId ? () => void runBulkMatchAnalyze(jobAnalyzeIds) : undefined
           }
-          multiJobToggle={
-            <HighlightMultiJobApplicantsRow
-              on={highlightMultiJobApplicants}
-              onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
-              activeColor={branding.secondaryHex}
-              className="px-0 py-0"
-            />
-          }
+          analyzeAllLabel="Analyze all"
+          analyzeBusy={bulkAnalyzeBusy}
+          analyzeDisabled={jobAnalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
         />
 
         <CandidateBulkSelectionBar
@@ -2629,6 +2702,15 @@ export default function JobApplicationsPage() {
           </div>
         ) : null}
 
+        {loading ? (
+          <div className="px-[14px] py-4">
+            <CandidatesListSkeleton
+              rows={Math.min(pageSize, 10)}
+              view="list"
+              label="Loading candidates"
+            />
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
             <thead className="border-b border-[#E5E7EB] bg-brand-lite text-sm font-medium text-black">
@@ -2673,16 +2755,7 @@ export default function JobApplicationsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr className="border-b border-[#E9EDF3]">
-                  <td
-                    colSpan={listColumns.length + 1}
-                    className="px-[14px] py-12 text-center text-[#64748B]"
-                  >
-                    Loading candidates…
-                  </td>
-                </tr>
-              ) : paginatedRows.length === 0 ? (
+              {paginatedRows.length === 0 ? (
                 <tr className="border-b border-[#E9EDF3]">
                   <td
                     colSpan={listColumns.length + 1}
@@ -2741,6 +2814,7 @@ export default function JobApplicationsPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         <div className="flex flex-col gap-3 rounded-b-[12px] border-t border-[#E5E7EB] bg-white px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <p className="text-sm text-[#64748B]">
@@ -2793,8 +2867,6 @@ export default function JobApplicationsPage() {
         value={editFiltersValue}
         sortBy={sortBy}
         onSortByChange={handleSortByChange}
-        scoreSort={scoreSort}
-        onScoreSortChange={handleScoreSortChange}
         options={{
           statuses: listingStatusOptions,
           stages: listingStageOptions,
@@ -2809,7 +2881,9 @@ export default function JobApplicationsPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
-          analyzing={matchAnalyzingId === rowActionsMenu.rowId}
+          analyzing={
+            matchAnalyzingId === rowActionsMenu.rowId || bulkAnalyzingIds.has(rowActionsMenu.rowId)
+          }
           isAnalyzed={
             rows.find((item) => item.id === rowActionsMenu.rowId)?.ai_match_status === "ANALYZED"
           }
@@ -3022,6 +3096,16 @@ export default function JobApplicationsPage() {
         jobId={jobId}
         jobTitle={jobTitle}
         onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
+      />
+
+      <ImportCandidatesModal
+        open={importCandidatesOpen}
+        jobId={jobId}
+        onClose={() => setImportCandidatesOpen(false)}
+        onImported={() => {
+          setImportCandidatesOpen(false);
+          setApplicationsRefreshNonce((value) => value + 1);
+        }}
       />
 
       <SuccessModal

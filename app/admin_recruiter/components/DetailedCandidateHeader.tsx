@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Link2, Loader2, Mail } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
 import { CandidateApplicationStatusControl } from "./CandidateApplicationStatusControl";
 import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
+import { candidateAiAnalysisHref } from "@/app/admin_recruiter/candidates/candidate-links";
 
 const CANDIDATE_DETAIL_ICON = "/icons/candidate-detail-icon.svg";
 
@@ -20,6 +23,8 @@ type DetailedCandidateHeaderProps = {
   onResendStatusClick?: () => void;
   resendStatusDisabled?: boolean;
   resendingStatus?: boolean;
+  /** Override AI analysis URL; defaults to worker AI overview when workerId is set. */
+  aiAnalysisHref?: string | null;
 };
 
 const actionBtnBase =
@@ -38,6 +43,7 @@ export default function DetailedCandidateHeader({
   onResendStatusClick,
   resendStatusDisabled,
   resendingStatus,
+  aiAnalysisHref,
 }: DetailedCandidateHeaderProps) {
   const internalResend = useResendApplicationStatusLink(workerId);
   const showResendStatus = Boolean(workerId?.trim());
@@ -51,6 +57,12 @@ export default function DetailedCandidateHeader({
   const displayRole = loading ? "—" : role.trim() || "—";
   const displayStatus = status?.trim();
   const canEditApplicationStatus = Boolean(workerId?.trim()) && !loading;
+  const resolvedAiHref =
+    typeof aiAnalysisHref === "string" && aiAnalysisHref.trim()
+      ? aiAnalysisHref.trim()
+      : workerId?.trim()
+        ? candidateAiAnalysisHref(workerId.trim())
+        : null;
 
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 py-1 backdrop-blur-sm">
@@ -120,6 +132,27 @@ export default function DetailedCandidateHeader({
               <Mail className="h-3.5 w-3.5 shrink-0" />
               <span>Message</span>
             </button>
+          ) : null}
+          {resolvedAiHref && !loading ? (
+            <Link
+              href={resolvedAiHref}
+              className={`${actionBtnBase} border-[color:var(--brand-primary)] text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]`}
+              aria-label={
+                displayName !== "Applicant" && displayName !== "Loading..."
+                  ? `View AI analysis overview for ${displayName}`
+                  : "View AI analysis overview"
+              }
+              title="View AI analysis overview"
+            >
+              <BrandedSvgIcon
+                src="/ai-icon.svg"
+                className="h-3.5 w-3.5 shrink-0"
+                color="var(--brand-primary)"
+              />
+              <span className="hidden min-[480px]:inline min-[700px]:hidden">AI analysis</span>
+              <span className="hidden min-[700px]:inline">View AI analysis overview</span>
+              <span className="min-[480px]:hidden">AI</span>
+            </Link>
           ) : null}
         </div>
       </div>

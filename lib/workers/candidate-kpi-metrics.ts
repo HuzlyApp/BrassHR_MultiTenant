@@ -10,7 +10,7 @@
  *   with `candidate_id = worker.id`
  * - Status tabs add an exact pipeline status filter (pending includes under_review)
  *
- * Each metric counts a worker at most once (DISTINCT worker id).
+ * Each metric counts a candidate profile at most once (email / phone+name identity).
  */
 
 import type { CandidateKpiCard } from "@/app/admin_recruiter/candidates/candidate-kpis";
@@ -47,9 +47,10 @@ export const CANDIDATE_KPI_DEFINITIONS: CandidateKpiMetricDefinition[] = [
       "tenant-scoped active pipeline (excl. converted / employment)",
       "created_at within the last 30 days (value)",
     ],
-    countingMethod: "COUNT(*) of matching worker rows",
+    countingMethod: "COUNT of unique candidate profiles created in the last 30 days",
     denominator: "Prior 30-day window count for trend % (0 → 100% if current > 0, else 0)",
-    duplicateHandling: "One row per worker PK; converted/employment rows excluded",
+    duplicateHandling:
+      "One profile per email, or phone+name when email is blank; converted/employment excluded",
   },
   {
     key: "activeCandidates",
@@ -59,9 +60,10 @@ export const CANDIDATE_KPI_DEFINITIONS: CandidateKpiMetricDefinition[] = [
       "tenant-scoped active pipeline (excl. converted / employment)",
       "status NOT IN (disapproved, rejected)",
     ],
-    countingMethod: "COUNT(*) of matching workers (all-time active set for value)",
+    countingMethod: "COUNT of unique active candidate profiles (all-time for value)",
     denominator: "Prior 30-day created_at window among active for trend %",
-    duplicateHandling: "One row per worker; rejected/disapproved excluded from active",
+    duplicateHandling:
+      "One profile per email, or phone+name when email is blank; rejected/disapproved excluded",
   },
   {
     key: "analyzed",
@@ -73,10 +75,10 @@ export const CANDIDATE_KPI_DEFINITIONS: CandidateKpiMetricDefinition[] = [
       "application status NOT IN (rejected, withdrawn)",
     ],
     countingMethod:
-      "COUNT(DISTINCT worker_id) with at least one ANALYZED application; trend uses MAX(ai_analyzed_at)",
+      "COUNT of unique candidate profiles with at least one ANALYZED application; trend uses MAX(ai_analyzed_at)",
     denominator: "Prior 30-day analyzed_at window for trend %",
     duplicateHandling:
-      "Multiple analysis attempts / apps collapse to one worker; rejected/withdrawn apps ignored; score-only without ANALYZED does not count",
+      "Duplicate worker rows for the same person collapse to one profile; rejected/withdrawn apps ignored",
   },
   {
     key: "hired",

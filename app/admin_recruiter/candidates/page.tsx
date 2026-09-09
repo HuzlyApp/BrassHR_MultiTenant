@@ -75,6 +75,10 @@ import {
   fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
 import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
+import {
+  buildAssigneeFilterOptions,
+  candidateMatchesAssigneeFilter,
+} from "@/lib/candidates/assignee-filter";
 import toast from "react-hot-toast";
 import {
   formatCityStateFromParts,
@@ -245,6 +249,7 @@ export default function CandidatesPage() {
   const [stageFilter, setStageFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
   const [clientNameFilter, setClientNameFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
   const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
@@ -477,6 +482,7 @@ export default function CandidatesPage() {
           progressStatusId: progressStatusFilter || undefined,
           jobTitle: jobFilter || undefined,
           stage: stageFilter || undefined,
+          assignee: assigneeFilter || undefined,
           sort: listSort.column ?? "createdDate",
           sortDir: listSort.column ? listSort.direction : "desc",
           includePhotoUrls: true,
@@ -540,6 +546,7 @@ export default function CandidatesPage() {
     progressStatusFilter,
     jobFilter,
     stageFilter,
+    assigneeFilter,
     listSort,
   ]);
 
@@ -563,6 +570,17 @@ export default function CandidatesPage() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [facetOptions.clientNames, addCandidateJobs]);
 
+  const assigneeOptions = useMemo(
+    () =>
+      buildAssigneeFilterOptions(
+        candidates.map((row) => ({
+          id: row.assignedRecruiterUserId,
+          name: row.assignedRecruiterName,
+        }))
+      ),
+    [candidates]
+  );
+
   const progressStatusFilterOptions = useMemo(
     () =>
       progressStatusOptions.map((option) => ({
@@ -578,15 +596,21 @@ export default function CandidatesPage() {
   );
 
   const visibleCandidates = useMemo(() => {
-    if (!clientNameFilter.trim()) return candidates;
-    const wanted = clientNameFilter.trim().toLowerCase();
-    return candidates.filter(
-      (row) => (row.applicationClientName ?? "").trim().toLowerCase() === wanted
-    );
-  }, [candidates, clientNameFilter]);
-  const listDisplayTotal = clientNameFilter.trim()
-    ? visibleCandidates.length
-    : (totalFromApi ?? candidates.length);
+    return candidates.filter((row) => {
+      if (clientNameFilter.trim()) {
+        const wanted = clientNameFilter.trim().toLowerCase();
+        if ((row.applicationClientName ?? "").trim().toLowerCase() !== wanted) return false;
+      }
+      if (advancedSearchContext.active) {
+        return candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter);
+      }
+      return true;
+    });
+  }, [candidates, clientNameFilter, assigneeFilter, advancedSearchContext.active]);
+  const listDisplayTotal =
+    clientNameFilter.trim() || (advancedSearchContext.active && assigneeFilter.trim())
+      ? visibleCandidates.length
+      : (totalFromApi ?? candidates.length);
 
   useEffect(() => {
     setPage(1);
@@ -600,6 +624,7 @@ export default function CandidatesPage() {
     stageFilter,
     matchScoreFilter,
     clientNameFilter,
+    assigneeFilter,
     locationFilter,
     appliedDateFrom,
     appliedDateTo,
@@ -648,6 +673,7 @@ export default function CandidatesPage() {
         stageFilter,
         matchScoreFilter,
         clientNameFilter,
+        assigneeFilter,
         locationFilter,
         appliedDateFrom,
         appliedDateTo,
@@ -665,6 +691,7 @@ export default function CandidatesPage() {
       stageFilter,
       matchScoreFilter,
       clientNameFilter,
+      assigneeFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -987,7 +1014,10 @@ export default function CandidatesPage() {
         onMatchScoreFilterChange={setMatchScoreFilter}
         clientNameFilter={clientNameFilter}
         onClientNameFilterChange={setClientNameFilter}
+        assigneeFilter={assigneeFilter}
+        onAssigneeFilterChange={setAssigneeFilter}
         clientNameOptions={clientNameOptions}
+        assigneeOptions={assigneeOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
@@ -1012,6 +1042,7 @@ export default function CandidatesPage() {
           setStageFilter("");
           setMatchScoreFilter("");
           setClientNameFilter("");
+          setAssigneeFilter("");
           setListSort(EMPTY_CANDIDATE_LIST_SORT);
           applyAdvancedSearchParams(null);
           setPage(1);
@@ -1054,7 +1085,7 @@ export default function CandidatesPage() {
           const formatDate = formatDateShort;
 
           if (loading) {
-            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
+            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} label="Loading candidates" />;
           }
           if (listError) {
             return (

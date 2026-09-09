@@ -2202,6 +2202,14 @@ export function JobFormStepReview({
           onEdit={() => onEditField("jobType")}
         />
       ) : null}
+      {job.sourceType !== "MSP" ? (
+        <ReviewRow
+          label="Application Deadline"
+          value={formatReviewDate(job.applicationDeadline)}
+          addLabel="application deadline"
+          onEdit={() => onEditField("applicationDeadline")}
+        />
+      ) : null}
       {/* EOR hidden on review — removed from create job flow
       <ReviewRow
         label="Are you the employer on Record"

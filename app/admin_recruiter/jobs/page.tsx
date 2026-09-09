@@ -30,7 +30,6 @@ import {
   jobMatchesPayRateFilter,
   type JobsExtendedFilterValues,
 } from "./EditJobsFiltersModal";
-import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -63,6 +62,9 @@ import { JobsGridView } from "./JobsGridView";
 import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
 import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
+import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
+import { jobMatchesSkillsFilter, jobMatchesTextSearch } from "@/lib/jobs/jobs-list-search";
+import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import {
@@ -70,6 +72,8 @@ import {
   type AssignableTeamMember,
 } from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
 import { JobTagsModal } from "./JobTagsModal";
+import { statusActionForTarget } from "./job-details-helpers";
+import type { JobStatus } from "@/lib/jobs/types";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -117,11 +121,9 @@ const JOBS_TOOLBAR_BUTTON_CLASS =
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
 
-const JOBS_SEARCH_ICON_SRC = "/icons/jobs-icons/search.svg";
 const JOBS_COLUMNS_ICON_SRC = "/icons/jobs-icons/columns.svg";
 const JOBS_CREATE_PLUS_ICON_SRC = "/icons/jobs-icons/create-plus.svg";
 const JOBS_MORE_FILTERS_ICON_SRC = "/icons/jobs-icons/more-filters.svg";
-const JOBS_CHEVRON_DOWN_ICON_SRC = "/icons/jobs-icons/chevron-down.svg";
 const JOBS_VIEW_STORAGE_KEY = "adminRecruiterJobsView";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
 const ACTION_TOAST_DURATION_MS = 4000;
@@ -158,7 +160,8 @@ type JobLifecycleAction =
   | "unarchive"
   | "pause"
   | "resume"
-  | "fill";
+  | "fill"
+  | "set_status";
 
 function resolveJobActionErrorModal({
   code,
@@ -280,86 +283,6 @@ function JobsColumnsIcon() {
 
 function JobsCreatePlusIcon() {
   return <JobsListingGlyph src={JOBS_CREATE_PLUS_ICON_SRC} outer={16} leafWidth={9.33} leafHeight={9.33} />;
-}
-
-function JobsListingSearchField({
-  value,
-  onChange,
-  className = "",
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-}) {
-  return (
-    <label
-      className={`flex h-8 w-full min-w-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 ${className}`}
-    >
-      <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={JOBS_SEARCH_ICON_SRC}
-          alt=""
-          width={16.67}
-          height={16.67}
-          className="size-[16.67px] shrink-0"
-        />
-      </span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Search job"
-        aria-label="Search job"
-        className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
-      />
-    </label>
-  );
-}
-
-function JobsCompactLabeledSelect({
-  label,
-  value,
-  onChange,
-  displayValue,
-  children,
-  className = "",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  displayValue: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`relative inline-flex h-8 min-w-0 shrink-0 items-center justify-between gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white pl-3.5 pr-2.5 ${className}`}
-    >
-      <span className="pointer-events-none whitespace-nowrap text-xs font-normal leading-4 text-[#374151]">
-        {label}: {displayValue}
-      </span>
-      <JobsListingGlyph src={JOBS_CHEVRON_DOWN_ICON_SRC} outer={16} leafWidth={8} leafHeight={4.8} />
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="absolute inset-0 cursor-pointer opacity-0"
-      >
-        <option value="">All</option>
-        {children}
-      </select>
-    </div>
-  );
-}
-
-function jobStatusFilterDisplay(value: string) {
-  if (value === "draft") return "Draft";
-  if (value === "open" || value === "published") return "Open";
-  if (value === "paused") return "Paused";
-  if (value === "filled") return "Filled";
-  if (value === "closed") return "Closed";
-  if (value === "archived") return "Archived";
-  return "All";
 }
 
 type SortDirection = "asc" | "desc";
@@ -564,7 +487,7 @@ function matchesJobTab(job: JobListRow, tab: JobTab): boolean {
 }
 
 const JOB_ACTIONS_MENU_WIDTH = 200;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 520;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 360;
 
 function canRepublishClosedJob(job: JobListRow): boolean {
   return isJobRequisitionOpen({ application_deadline: job.application_deadline });
@@ -576,7 +499,6 @@ function JobActionsMenuPortal({
   tenantSlug,
   duplicateBusy = false,
   onClose,
-  onTransition,
   onImportFromMsp,
   onAddCandidate,
   onImportCandidates,
@@ -590,7 +512,6 @@ function JobActionsMenuPortal({
   tenantSlug: string | null;
   duplicateBusy?: boolean;
   onClose: () => void;
-  onTransition: (jobId: string, action: JobLifecycleAction) => void;
   onImportFromMsp: () => void;
   onAddCandidate: (job: JobListRow) => void;
   onImportCandidates: (job: JobListRow) => void;
@@ -774,219 +695,14 @@ function JobActionsMenuPortal({
     >
       {figmaMenuItems}
       <div className="my-1 border-t border-[#E5E7EB]" aria-hidden />
-      {status === "closed" ? (
-        <>
-          <Link
-            href={`/admin_recruiter/jobs/${job.id}`}
-            role="menuitem"
-            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            onClick={onClose}
-          >
-            View
-          </Link>
-          {canRepublishClosedJob(job) ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onTransition(job.id, "publish");
-                onClose();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Republish
-            </button>
-          ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onTransition(job.id, "archive");
-              onClose();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            Archive
-          </button>
-        </>
-      ) : (
-        <>
-          <Link
-            href={`/admin_recruiter/jobs/${job.id}`}
-            role="menuitem"
-            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            onClick={onClose}
-          >
-            View
-          </Link>
-          {status === "draft" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "publish");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Open
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "open" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "pause");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Pause
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "fill");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Mark filled
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "unpublish");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Move to draft
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "paused" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "resume");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Resume (Open)
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "fill");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Mark filled
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "filled" ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "resume");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Reopen
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onTransition(job.id, "close");
-                  onClose();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              >
-                Close
-              </button>
-            </>
-          ) : null}
-          {status === "archived" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onTransition(job.id, "unarchive");
-                onClose();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Unarchive
-            </button>
-          ) : status === "draft" ||
-            status === "open" ||
-            status === "paused" ||
-            status === "filled" ||
-            status === "closed" ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onTransition(job.id, "archive");
-                onClose();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Archive
-            </button>
-          ) : null}
-        </>
-      )}
+      <Link
+        href={`/admin_recruiter/jobs/${job.id}`}
+        role="menuitem"
+        className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+        onClick={onClose}
+      >
+        View
+      </Link>
     </div>,
     document.body
   );
@@ -1046,11 +762,11 @@ export default function AdminRecruiterJobsPage() {
   const [contractGroupFilter, setContractGroupFilter] = useState("");
   const [w2TypeFilter, setW2TypeFilter] = useState("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState("");
-  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [workflowFilter, setWorkflowFilter] = useState("");
   const [payRateFilter, setPayRateFilter] = useState("");
   const [datePostedFilter, setDatePostedFilter] = useState("");
   const [titleQuery, setTitleQuery] = useState("");
+  const [skillsFilter, setSkillsFilter] = useState("");
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -1079,7 +795,7 @@ export default function AdminRecruiterJobsPage() {
   const selectJobTab = useCallback(
     (next: JobTab) => {
       setJobTab(next);
-      // FSD: Internal hides End client — drop a filter that would never match visible rows.
+      // FSD: Internal hides MSP/Client — drop a filter that would never match visible rows.
       if (next === "internal") {
         setContractGroupFilter("");
       }
@@ -1151,7 +867,11 @@ export default function AdminRecruiterJobsPage() {
     pageSize,
   ]);
 
-  async function transition(jobId: string, action: JobLifecycleAction) {
+  async function transition(
+    jobId: string,
+    action: JobLifecycleAction,
+    nextStatus?: JobStatus
+  ) {
     setPublishBusyIds((current) => new Set(current).add(jobId));
     const job = jobs.find((item) => item.id === jobId);
     const jobTitle = job ? jobListDisplayTitle(job) : "Job";
@@ -1159,7 +879,11 @@ export default function AdminRecruiterJobsPage() {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, action }),
+        body: JSON.stringify(
+          action === "set_status"
+            ? { jobId, action, status: nextStatus }
+            : { jobId, action }
+        ),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -1200,6 +924,8 @@ export default function AdminRecruiterJobsPage() {
         toast.success(`${jobTitle} paused`, { duration: ACTION_TOAST_DURATION_MS });
       } else if (action === "fill") {
         toast.success(`${jobTitle} marked filled`, { duration: ACTION_TOAST_DURATION_MS });
+      } else if (action === "set_status" && nextStatus) {
+        toast.success(`${jobTitle} status updated`, { duration: ACTION_TOAST_DURATION_MS });
       }
       await load();
     } finally {
@@ -1209,6 +935,17 @@ export default function AdminRecruiterJobsPage() {
         return next;
       });
     }
+  }
+
+  function handleStatusChange(job: JobListRow, nextStatus: JobStatus) {
+    if (publishBusyIds.has(job.id)) return;
+    const action = statusActionForTarget(jobListStatus(job), nextStatus);
+    if (!action) return;
+    if (action === "set_status") {
+      void transition(job.id, "set_status", nextStatus);
+      return;
+    }
+    void transition(job.id, action);
   }
 
   function handlePublishToggle(job: JobListRow) {
@@ -1262,10 +999,9 @@ export default function AdminRecruiterJobsPage() {
 
       if (showStarredOnly && !job.is_hot) return false;
 
-      if (titleQuery.trim()) {
-        const q = titleQuery.trim().toLowerCase();
-        if (!jobListDisplayTitle(job).toLowerCase().includes(q)) return false;
-      }
+      if (titleQuery.trim() && !jobMatchesTextSearch(job, titleQuery)) return false;
+
+      if (skillsFilter.trim() && !jobMatchesSkillsFilter(job, skillsFilter)) return false;
 
       if (professionFilter && jobProfession(job) !== professionFilter) return false;
 
@@ -1315,6 +1051,7 @@ export default function AdminRecruiterJobsPage() {
     payRateFilter,
     datePostedFilter,
     titleQuery,
+    skillsFilter,
   ]);
 
   const sortedJobs = useMemo(() => {
@@ -1741,12 +1478,30 @@ export default function AdminRecruiterJobsPage() {
       payRateFilter ||
       datePostedFilter ||
       titleQuery.trim() ||
+      skillsFilter.trim() ||
       showStarredOnly
   );
+
+  const activeAttributeFilterCount = [
+    professionFilter,
+    statusFilter,
+    placementTypeFilter,
+    locationFilter,
+    locationTypeFilter,
+    specialtyFilter,
+    contractGroupFilter,
+    w2TypeFilter,
+    sourceTypeFilter,
+    workflowFilter,
+    payRateFilter,
+    datePostedFilter,
+    skillsFilter.trim(),
+  ].filter(Boolean).length;
 
   const editFiltersValue = useMemo(
     (): JobsExtendedFilterValues => ({
       search: titleQuery,
+      skills: skillsFilter,
       profession: professionFilter,
       status: statusFilter,
       employmentType: placementTypeFilter,
@@ -1762,6 +1517,7 @@ export default function AdminRecruiterJobsPage() {
     }),
     [
       titleQuery,
+      skillsFilter,
       professionFilter,
       statusFilter,
       placementTypeFilter,
@@ -1779,6 +1535,7 @@ export default function AdminRecruiterJobsPage() {
 
   const handleSaveEditFilters = useCallback((next: JobsExtendedFilterValues) => {
     setTitleQuery(next.search);
+    setSkillsFilter(next.skills);
     setProfessionFilter(next.profession);
     setStatusFilter(next.status);
     setPlacementTypeFilter(next.employmentType);
@@ -1791,6 +1548,19 @@ export default function AdminRecruiterJobsPage() {
     setWorkflowFilter(next.workflow);
     setPayRateFilter(next.payRate);
     setDatePostedFilter(next.datePosted);
+    setPage(1);
+  }, []);
+
+  const handleApplyJobsSearch = useCallback((next: { query: string; skillsFilter: string }) => {
+    setTitleQuery(next.query);
+    setSkillsFilter(next.skillsFilter);
+    setPage(1);
+  }, []);
+
+  const handleResetJobsSearch = useCallback(() => {
+    setTitleQuery("");
+    setSkillsFilter("");
+    setPage(1);
   }, []);
 
   const handleResetFilters = useCallback(() => {
@@ -1859,6 +1629,7 @@ export default function AdminRecruiterJobsPage() {
       },
       publishBusyIds,
       onPublishToggle: handlePublishToggle,
+      onStatusChange: handleStatusChange,
     };
   }, [
     branding.secondaryHex,
@@ -2030,6 +1801,21 @@ export default function AdminRecruiterJobsPage() {
               <JobsColumnsIcon />
               Columns
             </button>
+            <button
+              type="button"
+              onClick={() => setEditFiltersOpen(true)}
+              className={`relative ${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0`}
+              aria-label="All filters"
+              title="All Filters"
+            >
+              <JobsFilterIcon />
+              All Filters
+              {activeAttributeFilterCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1 text-[9px] font-semibold leading-4 text-white">
+                  {activeAttributeFilterCount}
+                </span>
+              ) : null}
+            </button>
             {hasActiveFilters ? (
               <button type="button" onClick={handleResetFilters} className={`${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0`}>
                 Reset Filters
@@ -2050,84 +1836,13 @@ export default function AdminRecruiterJobsPage() {
           </div>
         </div>
 
-        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
-          <div className="xl:hidden">
-            <button
-              type="button"
-              onClick={() => setEditFiltersOpen(true)}
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
-            >
-              <JobsFilterIcon />
-              Show all filters
-            </button>
-          </div>
-          {showFilterRows ? (
-            <div className="hidden items-center gap-2 xl:flex xl:flex-nowrap xl:gap-3">
-              <JobsListingSearchField
-                value={titleQuery}
-                onChange={setTitleQuery}
-                className="max-w-[220px] min-w-0 flex-1"
-              />
-              <JobsCompactLabeledSelect
-                label="Profession"
-                value={professionFilter}
-                onChange={setProfessionFilter}
-                displayValue={professionFilter || "All"}
-              >
-                {professionOptions.map((profession) => (
-                  <option key={profession} value={profession}>
-                    {profession}
-                  </option>
-                ))}
-              </JobsCompactLabeledSelect>
-              <JobsCompactLabeledSelect
-                label="Status"
-                value={statusFilter}
-                onChange={setStatusFilter}
-                displayValue={jobStatusFilterDisplay(statusFilter)}
-              >
-                <option value="draft">Draft</option>
-                <option value="open">Open</option>
-                <option value="paused">Paused</option>
-                <option value="filled">Filled</option>
-                <option value="closed">Closed</option>
-                <option value="archived">Archived</option>
-              </JobsCompactLabeledSelect>
-              <JobsCompactLabeledSelect
-                label="Placement Type"
-                value={placementTypeFilter}
-                onChange={setPlacementTypeFilter}
-                displayValue={placementTypeFilter || "All"}
-              >
-                {placementTypeOptions.map((placementType) => (
-                  <option key={placementType} value={placementType}>
-                    {placementType}
-                  </option>
-                ))}
-              </JobsCompactLabeledSelect>
-              <JobsCompactLabeledSelect
-                label="Location"
-                value={locationFilter}
-                onChange={setLocationFilter}
-                displayValue={locationFilter || "All"}
-              >
-                {locationOptions.map((location) => (
-                  <option key={location} value={location}>
-                    {location}
-                  </option>
-                ))}
-              </JobsCompactLabeledSelect>
-              <button
-                type="button"
-                onClick={() => setEditFiltersOpen(true)}
-                className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
-              >
-                <JobsFilterIcon />
-                More Filters
-              </button>
-            </div>
-          ) : null}
-        </div>
+        <JobsAdvancedSearchBar
+          query={titleQuery}
+          skillsFilter={skillsFilter}
+          onApplySearch={handleApplyJobsSearch}
+          onResetSearch={handleResetJobsSearch}
+          searching={loading}
+        />
 
         {error ? (
           <div className="mx-[14px] mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
@@ -2204,6 +1919,10 @@ export default function AdminRecruiterJobsPage() {
               }}
             />
           </div>
+        ) : loading ? (
+          <div className="px-[14px] py-4">
+            <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view="list" label="Loading jobs" />
+          </div>
         ) : (
         <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">
@@ -2249,13 +1968,7 @@ export default function AdminRecruiterJobsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr className="border-b border-[#E9EDF3]">
-                  <td colSpan={listColumns.length + 1} className="p-0">
-                    <p className="jobs-list-table-status">Loading jobs…</p>
-                  </td>
-                </tr>
-              ) : paginatedJobs.length === 0 ? (
+              {paginatedJobs.length === 0 ? (
                 <tr className="border-b border-[#E9EDF3]">
                   <td colSpan={listColumns.length + 1} className="p-0">
                     <p className="jobs-list-table-status">
@@ -2331,7 +2044,6 @@ export default function AdminRecruiterJobsPage() {
           tenantSlug={tenantSlug}
           duplicateBusy={duplicateBusyId === openActionsMenu.job.id}
           onClose={() => setOpenActionsMenu(null)}
-          onTransition={(jobId, action) => void transition(jobId, action)}
           onImportFromMsp={handleImportFromMsp}
           onAddCandidate={(job) => {
             setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });

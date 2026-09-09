@@ -150,5 +150,10 @@ describe("candidate search fixtures → RPC args", () => {
     expect(
       candidateListRequiresServerSearch(parseCandidateListQueryParams(new URLSearchParams()))
     ).toBe(false);
+    expect(
+      candidateListRequiresServerSearch(
+        parseCandidateListQueryParams(new URLSearchParams({ assignee: "unassigned" }))
+      )
+    ).toBe(true);
   });
 });

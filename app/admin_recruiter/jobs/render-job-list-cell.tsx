@@ -3,13 +3,13 @@ import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
+import { JobListStatusDropdown } from "./JobListStatusDropdown"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
 import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
-import type { SourceType } from "@/lib/jobs/types"
+import type { JobStatus, SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
-import { JobPublicViewLink } from "./JobPublicViewLink"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
 import { formatCityState } from "@/lib/location/city-state"
@@ -22,10 +22,6 @@ const JOB_CANDIDATE_ICONS = {
   new: "/fluent_person-add-24-regular.svg",
   hired: "/fluent_person-star-24-regular.svg",
 } as const
-
-/** Figma jobs list star — 14×14 */
-const JOB_STAR_ICON_SIZE = 14
-const JOB_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg"
 
 function JobCandidateMetric({
   iconSrc,
@@ -106,6 +102,12 @@ export type JobListRow = {
   location_type?: string | null
   schedule?: string | null
   shift_type?: string | null
+  /** Text fields used by jobs listing skills search (AND with title query). */
+  qualifications?: string | null
+  public_description?: string | null
+  responsibilities?: string | null
+  special_requirements?: string | null
+  required_credentials?: string | string[] | null
   professions: { name?: string } | { name?: string }[] | null
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
@@ -143,7 +145,7 @@ export function jobShiftType(job: JobListRow): string {
   return job.shift_type?.trim() || ""
 }
 
-/** End client for MSP jobs (msp_name — not MSP Name / msp_client). */
+/** MSP/Client for MSP jobs (msp_name — not MSP Name / msp_client). */
 export function jobContractGroup(job: JobListRow): string {
   const source = String(job.source_type ?? "").trim().toLowerCase()
   if (source !== "msp") return ""
@@ -387,25 +389,6 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
   }
 }
 
-function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
-  switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
-    case "open":
-      return { label: "Open", dotClass: "bg-[#3B82F6]" }
-    case "paused":
-      return { label: "Paused", dotClass: "bg-[#F59E0B]" }
-    case "filled":
-      return { label: "Filled", dotClass: "bg-[#22C55E]" }
-    case "draft":
-      return { label: "Draft", dotClass: "bg-[#94A3B8]" }
-    case "closed":
-      return { label: "Closed", dotClass: "bg-[#EF4444]" }
-    case "archived":
-      return { label: "Archived", dotClass: "bg-[#EF4444]" }
-    default:
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
-  }
-}
-
 function isPublishToggleChecked(status: JobListRow["status"]): boolean {
   return normalizeJobRequisitionStatus(String(status ?? "")) === "open"
 }
@@ -461,6 +444,7 @@ export type JobListCellContext = {
   onOpenActionsMenu: (job: JobListRow, anchor: HTMLElement) => void
   publishBusyIds: Set<string>
   onPublishToggle: (job: JobListRow) => void
+  onStatusChange: (job: JobListRow, nextStatus: JobStatus) => void
 }
 
 export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
@@ -476,68 +460,20 @@ export function renderJobListCell(
   job: JobListRow,
   ctx: JobListCellContext
 ): ReactNode {
-  const isHot = Boolean(job.is_hot)
-  const hotBusy = ctx.hotBusyIds?.has(job.id) ?? false
   const posted = formatPostedDate(job.published_at || job.created_at)
-  const statusDisplay = displayJobStatus(job.status)
   const totalCandidates = applicantCount(job)
 
   switch (col) {
     case "jobTitle":
       return (
-        <div className="flex w-full min-w-0 items-center gap-2 pr-2">
-          <button
-            type="button"
-            disabled={hotBusy}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              ctx.onToggleHot(job.id);
-            }}
-            className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center disabled:opacity-50"
-            aria-label={isHot ? "Remove from Hot jobs" : "Mark as Hot job"}
-            aria-pressed={isHot}
+        <div className="min-w-0 w-full pr-2">
+          <Link
+            href={`/admin_recruiter/jobs/${job.id}`}
+            className="block truncate font-semibold hover:underline"
+            style={{ color: ctx.brandingSecondaryHex }}
           >
-            {isHot ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={JOB_STAR_FILLED_SRC}
-                alt=""
-                width={JOB_STAR_ICON_SIZE}
-                height={JOB_STAR_ICON_SIZE}
-                className="h-[14px] w-[14px]"
-                aria-hidden
-              />
-            ) : (
-              <span
-                aria-hidden
-                className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
-                style={{
-                  maskImage: `url(${JOB_STAR_FILLED_SRC})`,
-                  WebkitMaskImage: `url(${JOB_STAR_FILLED_SRC})`,
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                }}
-              />
-            )}
-          </button>
-          <div className="min-w-0 flex-1">
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}`}
-              className="block truncate font-semibold hover:underline"
-              style={{ color: ctx.brandingSecondaryHex }}
-            >
-              {jobListDisplayTitle(job)}
-            </Link>
-          </div>
-          <JobPublicViewLink
-            href={publicJobPathFor(job, ctx.tenantSlug)}
-            className="ml-auto shrink-0"
-          />
+            {jobListDisplayTitle(job)}
+          </Link>
         </div>
       )
     // case "jobId":
@@ -614,14 +550,11 @@ export function renderJobListCell(
     }
     case "jobStatus":
       return (
-        <div className="flex justify-center">
-          <div
-            className={`inline-flex h-8 w-fit items-center justify-center gap-2 whitespace-nowrap px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
-          >
-            <span className={`h-2 w-2 shrink-0 rounded-full ${statusDisplay.dotClass}`} />
-            {statusDisplay.label}
-          </div>
-        </div>
+        <JobListStatusDropdown
+          status={String(job.status ?? "")}
+          busy={ctx.publishBusyIds.has(job.id)}
+          onSelect={(nextStatus) => ctx.onStatusChange(job, nextStatus)}
+        />
       )
     case "payRate": {
       const pay = formatJobListPayRateParts(job)
@@ -691,7 +624,11 @@ export function renderJobListCell(
               event.stopPropagation()
               ctx.onOpenActionsMenu(job, event.currentTarget)
             }}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-[#334155] transition hover:bg-[#E2E8F0]"
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#334155] transition ${
+              ctx.openActionsJobId === job.id
+                ? "bg-[#F1F5F9]"
+                : "bg-transparent hover:bg-[#F1F5F9]"
+            }`}
             aria-label="Job actions"
             aria-haspopup="menu"
             aria-expanded={ctx.openActionsJobId === job.id}

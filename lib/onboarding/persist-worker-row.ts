@@ -15,6 +15,7 @@ import {
   tenantEmailTakenResult,
 } from "@/lib/tenant/tenant-email-uniqueness"
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
+import { findWorkerByPhoneAndName } from "@/lib/workers/candidate-identity"
 
 function isMissingColumnErr(e: unknown) {
   const err = e as { code?: string; message?: string } | null
@@ -341,6 +342,21 @@ export async function persistWorkerRow(
     return { ok: false, error: taken.error, code: taken.code, status: taken.status }
   }
   let targetId = resolved.targetId
+
+  // Prefer an existing blank-email duplicate matched by phone + name over inserting a new worker.
+  if (!targetId) {
+    try {
+      const phoneMatch = await findWorkerByPhoneAndName(supabase, {
+        tenantId,
+        phone: fields.phone,
+        firstName: fields.firstName,
+        lastName: fields.lastName,
+      })
+      if (phoneMatch?.id) targetId = phoneMatch.id
+    } catch (phoneMatchErr) {
+      console.warn("[persist-worker-row] phone+name reuse lookup failed", phoneMatchErr)
+    }
+  }
 
   if (targetId) {
     let updated = await updateWorkerWithFallback(supabase, targetId, rowAttempts)
