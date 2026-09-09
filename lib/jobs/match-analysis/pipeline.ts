@@ -43,6 +43,7 @@ export type RunMatchAnalysisResult = {
   repaired: boolean;
   model: string | null;
   requirementCounts: { confirmed: number; verify: number; notMet: number } | null;
+  analyzedAt?: string | null;
 };
 
 async function setProgress(
@@ -288,6 +289,8 @@ export async function runMatchAnalysisForApplication(args: {
       analysis,
     });
 
+    const analyzedAt = new Date().toISOString();
+
     await updateApplicationMatchFields({
       supabase,
       tenantId,
@@ -303,7 +306,7 @@ export async function runMatchAnalysisForApplication(args: {
           analysis.candidate_match.match_category,
         ai_analysis_raw: modelResult.rawObject,
         ai_analysis: analysis,
-        ai_analyzed_at: new Date().toISOString(),
+        ai_analyzed_at: analyzedAt,
         ai_analyzed_by: analyzedByUserId ?? null,
         ai_analysis_model: modelResult.model,
         ai_analysis_version: nextVersion,
@@ -326,7 +329,7 @@ export async function runMatchAnalysisForApplication(args: {
           analysis.candidate_match.match_category,
         model: modelResult.model,
         analyzed_by: analyzedByUserId ?? null,
-        analyzed_at: new Date().toISOString(),
+        analyzed_at: analyzedAt,
       },
       { onConflict: "application_id,version" }
     );
@@ -344,6 +347,7 @@ export async function runMatchAnalysisForApplication(args: {
       repaired: modelResult.repaired,
       model: modelResult.model,
       requirementCounts: listingRequirementOutcomeCounts(persistedRequirements),
+      analyzedAt,
     };
   } catch (error) {
     const message =
@@ -374,6 +378,8 @@ export async function runMatchAnalysisBulk(args: {
   supabase: SupabaseClient;
   tenantId: string;
   jobApplicationIds: string[];
+  analyzedByUserId?: string | null;
+  analysisMode?: AnalysisMode;
   onProgress?: (applicationId: string, event: MatchAnalysisProgressEvent) => void;
 }): Promise<
   Array<{ jobApplicationId: string; result: RunMatchAnalysisResult | { status: "FAILED"; error: string } }>
@@ -389,6 +395,8 @@ export async function runMatchAnalysisBulk(args: {
         supabase: args.supabase,
         tenantId: args.tenantId,
         jobApplicationId: id,
+        analyzedByUserId: args.analyzedByUserId,
+        analysisMode: args.analysisMode,
         onProgress: (event) => args.onProgress?.(id, event),
       });
       results.push({ jobApplicationId: id, result });

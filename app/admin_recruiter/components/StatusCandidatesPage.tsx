@@ -34,6 +34,7 @@ import {
   fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
 import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
+import { buildAssigneeFilterOptions } from "@/lib/candidates/assignee-filter";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
@@ -217,6 +218,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [statusFilter, setStatusFilter] = useState("");
   const [progressStatusFilter, setProgressStatusFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
   const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -274,6 +276,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           appliedTo: appliedDateTo || undefined,
           matchScore: matchScoreFilter || undefined,
           progressStatusId: progressStatusFilter || undefined,
+          assignee: assigneeFilter || undefined,
           includePhotoUrls: true,
         },
         { signal: controller.signal }
@@ -336,6 +339,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     appliedDateTo,
     matchScoreFilter,
     progressStatusFilter,
+    assigneeFilter,
   ]);
 
   useEffect(() => {
@@ -374,6 +378,17 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     [progressStatusOptions]
   );
 
+  const assigneeOptions = useMemo(
+    () =>
+      buildAssigneeFilterOptions(
+        candidates.map((row) => ({
+          id: row.assignedRecruiterUserId,
+          name: row.assignedRecruiterName,
+        }))
+      ),
+    [candidates]
+  );
+
   const listDisplayTotal = totalFromApi ?? candidates.length;
 
   useEffect(() => {
@@ -385,6 +400,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
+    assigneeFilter,
     appliedDateFrom,
     appliedDateTo,
     pageSize,
@@ -424,6 +440,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusFilter,
         matchScoreFilter,
         locationFilter,
+        assigneeFilter,
         appliedDateFrom,
         appliedDateTo,
       ].join("|"),
@@ -436,6 +453,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
+      assigneeFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -662,6 +680,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusOptions={progressStatusFilterOptions}
         matchScoreFilter={matchScoreFilter}
         onMatchScoreFilterChange={setMatchScoreFilter}
+        assigneeFilter={assigneeFilter}
+        onAssigneeFilterChange={setAssigneeFilter}
+        assigneeOptions={assigneeOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}

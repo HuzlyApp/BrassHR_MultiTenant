@@ -118,6 +118,12 @@ import {
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import {
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+  type BulkMatchAnalysisItem,
+} from "@/lib/admin/bulk-match-analysis";
 import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
@@ -148,6 +154,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_analyzed_at?: string | null;
   ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
   assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
@@ -622,6 +629,7 @@ export default function JobApplicationsPage() {
     }>
   >([]);
   const [matchAnalyzingId, setMatchAnalyzingId] = useState<string | null>(null);
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1383,6 +1391,15 @@ export default function JobApplicationsPage() {
     [selectedIds, rows, currentUserId]
   );
 
+  const { analyzeIds: jobAnalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        rows.map((row) => ({ applicationId: row.id, status: row.ai_match_status }))
+      ),
+    [rows]
+  );
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
+
   const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
 
   function rowsForExport() {
@@ -1917,7 +1934,77 @@ export default function JobApplicationsPage() {
     await loadStatusHistory(row.id);
   }
 
+  function applyBulkMatchItem(row: ApplicationRow, item: BulkMatchAnalysisItem): ApplicationRow {
+    const result = item.result ?? {};
+    if (result.status === "FAILED") {
+      return { ...row, ai_match_status: "FAILED" };
+    }
+    return {
+      ...row,
+      ai_match_status: result.status ?? row.ai_match_status,
+      ai_match_score: result.score ?? row.ai_match_score,
+      ai_match_category: result.category ?? row.ai_match_category,
+      ai_match_action: result.action ?? row.ai_match_action,
+      ai_match_readiness: result.readiness ?? row.ai_match_readiness,
+      ai_match_display_category:
+        result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
+      ai_analyzed_at:
+        result.status === "ANALYZED"
+          ? result.analyzedAt ?? new Date().toISOString()
+          : row.ai_analyzed_at,
+    };
+  }
+
+  async function runBulkMatchAnalyze(ids: string[]) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error("All candidates on this job are already analyzed");
+      return;
+    }
+    if (bulkAnalyzeBusy || matchAnalyzingId) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setRows((current) =>
+      current.map((row) =>
+        uniqueIds.includes(row.id) ? { ...row, ai_match_status: "ANALYZING" } : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setRows((current) =>
+          current.map((row) => {
+            const item = byId.get(row.id);
+            return item ? applyBulkMatchItem(row, item) : row;
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setRows((current) =>
+        current.map((row) =>
+          uniqueIds.includes(row.id) && row.ai_match_status === "ANALYZING"
+            ? { ...row, ai_match_status: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
+    }
+  }
+
   async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
+    if (bulkAnalyzeBusy) return;
     setMatchAnalyzingId(applicationId);
     const candidateLabel = applicantName(
       rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
@@ -1949,6 +2036,10 @@ export default function JobApplicationsPage() {
                   row.ai_match_display_category,
                 ai_requirement_counts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
+                ai_analyzed_at:
+                  payload.status === "ANALYZED"
+                    ? payload.analyzedAt ?? new Date().toISOString()
+                    : row.ai_analyzed_at,
               }
             : row
         )
@@ -2045,7 +2136,7 @@ export default function JobApplicationsPage() {
           <MatchScoreCell
             status={row.ai_match_status}
             score={row.ai_match_score}
-            analyzing={matchAnalyzingId === row.id}
+            analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={(mode) => void runMatchAnalyze(row.id, mode)}
           />
         );
@@ -2223,20 +2314,28 @@ export default function JobApplicationsPage() {
         );
       }
       case "evaluation": {
-        const analyzing = matchAnalyzingId === row.id;
+        const analyzing = matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id);
         const analyzed = row.ai_match_status === "ANALYZED";
+        const analyzedWhen = analyzed ? formatApplicationDate(row.ai_analyzed_at) : null;
         return (
-          <span
-            className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
-              analyzing
-                ? "bg-[#F1F5F9] text-[#64748B]"
-                : analyzed
-                  ? "bg-[#EFF6FF] text-[#2563EB]"
-                  : "bg-[#F1F5F9] text-[#64748B]"
-            }`}
-          >
-            {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
-          </span>
+          <div className="text-center">
+            <span
+              className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
+                analyzing
+                  ? "bg-[#F1F5F9] text-[#64748B]"
+                  : analyzed
+                    ? "bg-[#EFF6FF] text-[#2563EB]"
+                    : "bg-[#F1F5F9] text-[#64748B]"
+              }`}
+            >
+              {analyzing ? "Analyzing…" : analyzed ? "Analyzed" : "Not Yet"}
+            </span>
+            {analyzedWhen && analyzedWhen.relative !== "—" ? (
+              <p className="mt-1 text-[11px] leading-4 text-[#64748B]" title={analyzedWhen.absolute || undefined}>
+                {analyzedWhen.relative}
+              </p>
+            ) : null}
+          </div>
         );
       }
       case "assignee": {
@@ -2563,6 +2662,12 @@ export default function JobApplicationsPage() {
           highlightMultiJob={highlightMultiJobApplicants}
           onHighlightMultiJobChange={setHighlightMultiJobApplicants}
           searching={loading}
+          onAnalyzeAll={
+            jobId ? () => void runBulkMatchAnalyze(jobAnalyzeIds) : undefined
+          }
+          analyzeAllLabel="Analyze all"
+          analyzeBusy={bulkAnalyzeBusy}
+          analyzeDisabled={jobAnalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
         />
 
         <CandidateBulkSelectionBar
@@ -2776,7 +2881,9 @@ export default function JobApplicationsPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
-          analyzing={matchAnalyzingId === rowActionsMenu.rowId}
+          analyzing={
+            matchAnalyzingId === rowActionsMenu.rowId || bulkAnalyzingIds.has(rowActionsMenu.rowId)
+          }
           isAnalyzed={
             rows.find((item) => item.id === rowActionsMenu.rowId)?.ai_match_status === "ANALYZED"
           }

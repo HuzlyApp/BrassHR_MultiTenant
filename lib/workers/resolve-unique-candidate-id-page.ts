@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  candidateListRequiresRpcSearch,
   toListCandidateIdsRpcArgs,
   type CandidateListQueryParams,
 } from "@/lib/workers/candidate-list-params";
 import { selectUniqueCandidateProfilesInOrder } from "@/lib/workers/candidate-identity";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import { loadWorkerIdsForAssigneeFilter } from "@/lib/candidates/assignee-filter";
 
 /** Max worker rows to scan when building unique candidate-profile pages. */
 export const UNIQUE_CANDIDATE_SCAN_CAP = 5000;
@@ -99,13 +101,26 @@ export async function resolveUniqueCandidateIdPage(
 ): Promise<{ ids: string[]; total: number; usedRpc: boolean }> {
   let matchingIds = options?.matchingIds ?? [];
   let usedRpc = false;
+  const assigneeFilter = params.assignee.trim();
+  const needsRpcSearch = candidateListRequiresRpcSearch(params);
+  let startedFromAssignee = false;
 
-  if ((!matchingIds || matchingIds.length === 0) && tenantId) {
+  if (assigneeFilter && tenantId && matchingIds.length === 0 && !needsRpcSearch) {
+    matchingIds = await loadWorkerIdsForAssigneeFilter(supabase, tenantId, assigneeFilter);
+    usedRpc = true;
+    startedFromAssignee = true;
+  } else if ((!matchingIds || matchingIds.length === 0) && tenantId) {
     const scanned = await fetchMatchingWorkerIdsViaRpc(supabase, tenantId, params);
     if (scanned) {
       matchingIds = scanned.ids;
       usedRpc = true;
     }
+  }
+
+  if (assigneeFilter && tenantId && matchingIds.length > 0 && !startedFromAssignee) {
+    const allowed = new Set(await loadWorkerIdsForAssigneeFilter(supabase, tenantId, assigneeFilter));
+    matchingIds = matchingIds.filter((id) => allowed.has(id));
+    usedRpc = true;
   }
 
   if (matchingIds.length === 0) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
@@ -26,6 +26,8 @@ import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandid
 import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { appRoleToConsoleRole } from "@/lib/admin/staff-directory-types";
+import { buildAssigneeFilterOptions } from "@/lib/candidates/assignee-filter";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -68,9 +70,12 @@ export type CandidatesListShellProps = {
   onMatchScoreFilterChange?: (value: string) => void;
   clientNameFilter?: string;
   onClientNameFilterChange?: (value: string) => void;
+  assigneeFilter?: string;
+  onAssigneeFilterChange?: (value: string) => void;
   jobRoleOptions: string[];
   locationOptions: string[];
   clientNameOptions?: string[];
+  assigneeOptions?: { value: string; label: string }[];
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
@@ -306,9 +311,12 @@ export function CandidatesListShell({
   onMatchScoreFilterChange,
   clientNameFilter: clientNameFilterProp,
   onClientNameFilterChange,
+  assigneeFilter: assigneeFilterProp,
+  onAssigneeFilterChange,
   jobRoleOptions,
   locationOptions,
   clientNameOptions = [],
+  assigneeOptions: assigneeOptionsProp = [],
   view,
   onViewChange,
   onEditColumns,
@@ -368,10 +376,55 @@ export function CandidatesListShell({
   const [internalClientNameFilter, setInternalClientNameFilter] = useState("");
   const clientNameFilter = clientNameFilterProp ?? internalClientNameFilter;
   const setClientNameFilter = onClientNameFilterChange ?? setInternalClientNameFilter;
+  const [internalAssigneeFilter, setInternalAssigneeFilter] = useState("");
+  const assigneeFilter = assigneeFilterProp ?? internalAssigneeFilter;
+  const setAssigneeFilter = onAssigneeFilterChange ?? setInternalAssigneeFilter;
+  const [teamAssigneeOptions, setTeamAssigneeOptions] = useState<{ value: string; label: string }[]>(
+    []
+  );
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
   const setHighlightMultiJob = onHighlightMultiJobChange ?? setHighlightMultiJobInternal;
+
+  useEffect(() => {
+    if (!filtersModalOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/team-members", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          members?: Array<{ id?: string; name?: string; role?: string }>;
+        };
+        if (!response.ok || cancelled) return;
+        const next = buildAssigneeFilterOptions(
+          (payload.members ?? [])
+            .filter((member) => appRoleToConsoleRole(member.role) != null)
+            .map((member) => ({ id: member.id, name: member.name }))
+        );
+        if (!cancelled) setTeamAssigneeOptions(next);
+      } catch {
+        if (!cancelled) setTeamAssigneeOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filtersModalOpen]);
+
+  const assigneeOptions = useMemo(
+    () =>
+      buildAssigneeFilterOptions(
+        [...assigneeOptionsProp, ...teamAssigneeOptions].map((row) => ({
+          id: row.value,
+          name: row.label,
+        }))
+      ),
+    [assigneeOptionsProp, teamAssigneeOptions]
+  );
 
   const filterValues = useMemo<CandidatesFilterValues>(
     () => ({
@@ -384,6 +437,7 @@ export function CandidatesListShell({
       matchScoreFilter,
       locationFilter,
       clientNameFilter,
+      assigneeFilter,
       skills: parseSkillsFilterParam(skillsFilter),
       appliedDateFrom,
       appliedDateTo,
@@ -398,6 +452,7 @@ export function CandidatesListShell({
       matchScoreFilter,
       locationFilter,
       clientNameFilter,
+      assigneeFilter,
       skillsFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -413,6 +468,7 @@ export function CandidatesListShell({
         matchScoreFilter,
         locationFilter,
         clientNameFilter,
+        assigneeFilter,
         skillsFilter.trim(),
         appliedDateFrom,
         appliedDateTo,
@@ -438,6 +494,7 @@ export function CandidatesListShell({
     setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
     setClientNameFilter(next.clientNameFilter);
+    setAssigneeFilter(next.assigneeFilter);
     applySkillsFilter(next.skills);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
@@ -452,6 +509,7 @@ export function CandidatesListShell({
       setMatchScoreFilter("");
       onLocationFilterChange("");
       setClientNameFilter("");
+      setAssigneeFilter("");
       applySkillsFilter([]);
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
@@ -785,6 +843,7 @@ export function CandidatesListShell({
           progressStatusOptions,
           locationOptions,
           clientNameOptions,
+          assigneeOptions,
           jobOptions,
           stageOptions,
         }}

@@ -8,6 +8,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "./candidates-typography";
 import { MatchScoreRangeFilter } from "./MatchScoreRangeFilter";
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
+import { UNASSIGNED_ASSIGNEE_FILTER } from "@/lib/candidates/assignee-filter";
 
 export type CandidatesFilterValues = {
   scoreSort: string;
@@ -19,6 +20,7 @@ export type CandidatesFilterValues = {
   matchScoreFilter: string;
   locationFilter: string;
   clientNameFilter: string;
+  assigneeFilter: string;
   skills: string[];
   appliedDateFrom: string;
   appliedDateTo: string;
@@ -34,6 +36,7 @@ export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
   matchScoreFilter: "",
   locationFilter: "",
   clientNameFilter: "",
+  assigneeFilter: "",
   skills: [],
   appliedDateFrom: "",
   appliedDateTo: "",
@@ -50,6 +53,7 @@ export function hasActiveCandidatesFilters(value: CandidatesFilterValues): boole
     Boolean(value.matchScoreFilter) ||
     Boolean(value.locationFilter) ||
     Boolean(value.clientNameFilter) ||
+    Boolean(value.assigneeFilter) ||
     value.skills.length > 0 ||
     Boolean(value.appliedDateFrom) ||
     Boolean(value.appliedDateTo)
@@ -68,6 +72,7 @@ export function countActiveCandidatesFilters(value: CandidatesFilterValues): num
       value.matchScoreFilter,
       value.locationFilter,
       value.clientNameFilter,
+      value.assigneeFilter,
       value.appliedDateFrom,
       value.appliedDateTo,
     ].filter(Boolean).length + (value.skills.length > 0 ? 1 : 0)
@@ -80,6 +85,7 @@ type FilterOptions = {
   progressStatusOptions?: { value: string; label: string }[];
   locationOptions: string[];
   clientNameOptions?: string[];
+  assigneeOptions?: { value: string; label: string }[];
   jobOptions?: string[];
   stageOptions?: string[];
 };
@@ -184,7 +190,7 @@ export function EditCandidatesFiltersModal({
                 Filters
               </Dialog.Title>
               <Dialog.Description className="sr-only">
-                Filter the candidates list by status, skills, location, client name, and date.
+                Filter the candidates list by status, skills, location, client name, assignee, and date.
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -303,6 +309,20 @@ export function EditCandidatesFiltersModal({
                 {(options.clientNameOptions ?? []).map((clientName) => (
                   <option key={clientName} value={clientName}>
                     {clientName}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <ModalFilterField
+                label="Assignee"
+                value={draft.assigneeFilter}
+                onChange={(v) => setField("assigneeFilter", v)}
+                placeholder="All Assignees"
+              >
+                <option value={UNASSIGNED_ASSIGNEE_FILTER}>Unassigned</option>
+                {(options.assigneeOptions ?? []).map((assignee) => (
+                  <option key={assignee.value} value={assignee.value}>
+                    {assignee.label}
                   </option>
                 ))}
               </ModalFilterField>

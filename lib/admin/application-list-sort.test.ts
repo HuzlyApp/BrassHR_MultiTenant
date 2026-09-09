@@ -60,13 +60,40 @@ describe("sortApplicationRows", () => {
     expect(sorted.map((item) => item.id)).toEqual(["2", "1", "3"]);
   });
 
-  it("sorts progress status labels", () => {
-    const sorted = sortApplicationRows(rows, { column: "status", direction: "asc" });
-    expect(sorted.map((item) => item.id)).toEqual(["2", "1", "3"]);
+  it("sorts by recent analyzed timestamp with unanalyzed last", () => {
+    const analyzedRows = [
+      row({
+        id: "old",
+        applicant_profiles: { first_name: "Old", last_name: "A", email: "old@x.com" },
+        ai_match_status: "ANALYZED",
+        ai_analyzed_at: "2026-01-01T00:00:00.000Z",
+      }),
+      row({
+        id: "new",
+        applicant_profiles: { first_name: "New", last_name: "B", email: "new@x.com" },
+        ai_match_status: "ANALYZED",
+        ai_analyzed_at: "2026-09-10T12:00:00.000Z",
+      }),
+      row({
+        id: "none",
+        applicant_profiles: { first_name: "None", last_name: "C", email: "none@x.com" },
+        ai_match_status: "READY",
+        ai_analyzed_at: null,
+      }),
+    ];
+    const sorted = sortApplicationRows(analyzedRows, { column: "evaluation", direction: "desc" });
+    expect(sorted.map((item) => item.id)).toEqual(["new", "old", "none"]);
   });
 });
 
 describe("toggleApplicationListSort", () => {
+  it("defaults evaluation (analyzed at) to descending", () => {
+    expect(toggleApplicationListSort({ column: null, direction: "desc" }, "evaluation")).toEqual({
+      column: "evaluation",
+      direction: "desc",
+    });
+  });
+
   it("defaults match score to descending", () => {
     expect(toggleApplicationListSort({ column: null, direction: "desc" }, "matches")).toEqual({
       column: "matches",
