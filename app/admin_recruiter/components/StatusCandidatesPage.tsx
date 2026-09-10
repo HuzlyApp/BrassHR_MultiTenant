@@ -46,6 +46,11 @@ import {
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import {
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+} from "@/lib/admin/bulk-match-analysis";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   formatCityStateFromParts,
@@ -247,6 +252,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   useEffect(() => {
@@ -575,6 +581,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   }
 
   async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
+    if (bulkAnalyzingIds.size > 0) return;
     const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
     setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
     try {
@@ -617,6 +624,80 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         next.delete(applicationId);
         return next;
       });
+    }
+  }
+
+  const { analyzeIds: pageAnalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        candidates.map((row) => ({
+          applicationId: row.matchApplicationId,
+          status: row.aiMatchStatus,
+        }))
+      ),
+    [candidates]
+  );
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
+
+  async function runBulkMatchAnalyze(ids: string[]) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error("All candidates on this page are already analyzed");
+      return;
+    }
+    if (bulkAnalyzeBusy || matchAnalyzingApplicationIds.size > 0) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setCandidates((current) =>
+      current.map((row) =>
+        row.matchApplicationId && uniqueIds.includes(row.matchApplicationId)
+          ? { ...row, aiMatchStatus: "ANALYZING" }
+          : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setCandidates((current) =>
+          current.map((row) => {
+            const applicationId = row.matchApplicationId?.trim() ?? "";
+            const item = applicationId ? byId.get(applicationId) : undefined;
+            if (!item?.result) return row;
+            const result = item.result;
+            return {
+              ...row,
+              aiMatchStatus: result.status ?? row.aiMatchStatus,
+              aiMatchScore: result.score ?? row.aiMatchScore,
+              aiMatchCategory: result.category ?? row.aiMatchCategory,
+              aiMatchDisplayCategory:
+                result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
+            };
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId &&
+          uniqueIds.includes(row.matchApplicationId) &&
+          row.aiMatchStatus === "ANALYZING"
+            ? { ...row, aiMatchStatus: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
     }
   }
 
@@ -698,6 +779,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         }}
         onEditColumns={() => setEditColumnsOpen(true)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
+        onAnalyzeAll={() => void runBulkMatchAnalyze(pageAnalyzeIds)}
+        analyzeAllLabel="Analyze all"
+        analyzeBusy={bulkAnalyzeBusy}
+        analyzeDisabled={pageAnalyzeIds.length === 0 || matchAnalyzingApplicationIds.size > 0}
         totalCount={listDisplayTotal}
         loading={loading}
         totalLabel={`${statusLabel} applicants`}

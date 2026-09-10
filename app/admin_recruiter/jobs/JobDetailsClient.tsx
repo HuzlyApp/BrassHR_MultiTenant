@@ -162,7 +162,7 @@ function CandidateCard({
       />
       <div className="flex min-w-0 items-center justify-between gap-2 min-[400px]:gap-3">
       <span
-        className="min-w-0 truncate text-sm font-medium leading-5 underline decoration-1 underline-offset-2"
+        className="min-w-0 truncate text-sm font-medium leading-5 no-underline"
         style={{ color: JOB_DETAILS_ACTIVITY_LINK_COLOR }}
       >
         {label}
@@ -722,12 +722,14 @@ export default function JobDetailsClient({ jobId }: Props) {
               <div
                 className={`min-w-0 ${
                   job.status !== "archived"
-                    ? "min-[900px]:min-w-0 min-[900px]:flex-1 min-[900px]:basis-0 min-[900px]:pr-6"
+                    ? "flex flex-col min-[900px]:min-w-0 min-[900px]:flex-1 min-[900px]:basis-0 min-[900px]:pr-6"
                     : "w-full"
                 }`}
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h1 className="min-w-0 break-words text-lg font-bold leading-6 tracking-tight text-black min-[400px]:text-xl min-[400px]:leading-7">
+                  <h1
+                    className="min-w-0 break-words font-bold tracking-tight text-black text-[length:calc(1.125rem*1.1)] leading-[calc(1.5rem*1.1)] min-[400px]:text-[length:calc(1.25rem*1.1)] min-[400px]:leading-[calc(1.75rem*1.1)]"
+                  >
                     {title}
                   </h1>
                   {jobTags.length > 0 ? (
@@ -807,7 +809,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                   );
                 })()}
 
-                <div className="mt-4 flex w-full flex-col gap-2.5 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap min-[500px]:items-center">
+                <div className="mt-auto flex w-full flex-col gap-2.5 pt-4 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap min-[500px]:items-center">
                   <Link
                     href={`/admin_recruiter/jobs/${job.id}/edit`}
                     className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
@@ -836,38 +838,42 @@ export default function JobDetailsClient({ jobId }: Props) {
                     className="hidden w-px shrink-0 self-stretch bg-[#E5E7EB] min-[900px]:block"
                     aria-hidden
                   />
-                  <div className="flex min-w-0 flex-col items-start justify-center border-t border-[#E5E7EB] pt-4 text-left min-[500px]:pt-5 min-[900px]:min-w-0 min-[900px]:flex-1 min-[900px]:basis-0 min-[900px]:border-t-0 min-[900px]:pt-0 min-[900px]:pl-6">
-                    <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Add Candidates</h2>
-                    <p className={JOB_DETAILS_CARD_SUBTITLE_CLASS}>
-                      Upload multiple résumés or import existing candidates from your talent database.
-                    </p>
-                    <div className="mt-4 flex w-full flex-col gap-2.5 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => setImportOpen(true)}
-                        className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
-                        style={outlineBrandStyle}
-                      >
-                        <BrandedSvgIcon
-                          src={`${JOB_DETAILS_ICON_BASE}/match-candidates.svg`}
-                          className="h-4 w-4 shrink-0"
-                          color={primaryColor}
-                        />
-                        Match Candidates
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAddCandidateOpen(true)}
-                        className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
-                        style={outlineBrandStyle}
-                      >
-                        <BrandedSvgIcon
-                          src={`${JOB_DETAILS_ICON_BASE}/upload-resumes.svg`}
-                          className="h-4 w-4 shrink-0"
-                          color={primaryColor}
-                        />
-                        Upload Resume&apos;s
-                      </button>
+                  <div className="flex min-w-0 flex-col items-start border-t border-[#E5E7EB] pt-4 text-left min-[500px]:pt-5 min-[900px]:min-w-0 min-[900px]:flex-1 min-[900px]:basis-0 min-[900px]:border-t-0 min-[900px]:pt-0 min-[900px]:pl-6">
+                    <div className="mt-auto w-full min-w-0">
+                      <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Add Candidates</h2>
+                      <p className={JOB_DETAILS_CARD_SUBTITLE_CLASS}>
+                        Upload multiple résumés or import existing candidates
+                        <br />
+                        from your talent database.
+                      </p>
+                      <div className="mt-2 flex w-full flex-col gap-2.5 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setImportOpen(true)}
+                          className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
+                          style={outlineBrandStyle}
+                        >
+                          <BrandedSvgIcon
+                            src={`${JOB_DETAILS_ICON_BASE}/match-candidates.svg`}
+                            className="h-4 w-4 shrink-0"
+                            color={primaryColor}
+                          />
+                          Match Candidates
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddCandidateOpen(true)}
+                          className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
+                          style={outlineBrandStyle}
+                        >
+                          <BrandedSvgIcon
+                            src={`${JOB_DETAILS_ICON_BASE}/upload-resumes.svg`}
+                            className="h-4 w-4 shrink-0"
+                            color={primaryColor}
+                          />
+                          Upload Resume&apos;s
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </>

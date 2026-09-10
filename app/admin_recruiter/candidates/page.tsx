@@ -734,6 +734,17 @@ export default function CandidatesPage() {
     [selectedMatchTargets]
   );
 
+  const { analyzeIds: pageAnalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        candidates.map((row) => ({
+          applicationId: row.matchApplicationId,
+          status: row.aiMatchStatus,
+        }))
+      ),
+    [candidates]
+  );
+
   const handleExportCandidatesCsv = useCallback(() => {
     if (exportCandidates.length === 0) {
       toast.error("No candidates to export");
@@ -845,13 +856,18 @@ export default function CandidatesPage() {
     }
   }
 
-  async function runBulkMatchAnalyze(ids: string[], label: "Analyze" | "Reanalyze") {
+  async function runBulkMatchAnalyze(
+    ids: string[],
+    label: "Analyze" | "Reanalyze",
+    options?: { emptyMessage?: string }
+  ) {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
     if (!uniqueIds.length) {
       toast.error(
-        label === "Reanalyze"
-          ? "None of the selected candidates have been analyzed yet"
-          : "Selected candidates are already analyzed — use Reanalyze"
+        options?.emptyMessage ??
+          (label === "Reanalyze"
+            ? "None of the selected candidates have been analyzed yet"
+            : "Selected candidates are already analyzed — use Reanalyze")
       );
       return;
     }
@@ -1141,6 +1157,14 @@ export default function CandidatesPage() {
           setMatchJobPickerValue("");
           setMatchJobPickerOpen(true);
         }}
+        onAnalyzeAll={() =>
+          void runBulkMatchAnalyze(pageAnalyzeIds, "Analyze", {
+            emptyMessage: "All candidates on this page are already analyzed",
+          })
+        }
+        analyzeAllLabel="Analyze all"
+        analyzeBusy={bulkAnalyzeBusy}
+        analyzeDisabled={pageAnalyzeIds.length === 0 || matchAnalyzingApplicationIds.size > 0}
         view={view}
         onViewChange={(nextView) => {
           setView(nextView);

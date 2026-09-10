@@ -68,6 +68,19 @@ function MatchExistingIcon() {
   return <ListingGlyph src={`${CANDIDATES_ICONS}/match-existing.svg`} outer={16} leafWidth={12.17} leafHeight={14.16} />;
 }
 
+function AnalyzeSparklesIcon() {
+  return (
+    <span className="relative flex size-4 shrink-0 items-center justify-center" aria-hidden>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+        <path
+          d="M12 3l1.2 4.2L17.5 8.5 13.2 9.8 12 14l-1.2-4.2L6.5 8.5l4.3-1.3L12 3zM18.5 13.5l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3zM6.2 14.5l.55 1.8 1.8.55-1.8.55-.55 1.8-.55-1.8-1.8-.55 1.8-.55.55-1.8z"
+          fill="currentColor"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function skillsKey(skills: string[]): string {
   return skills.map((skill) => skill.trim().toLowerCase()).filter(Boolean).join("|");
 }
@@ -88,6 +101,10 @@ export type AllCandidatesToolbarProps = {
   onHighlightMultiJobChange: (value: boolean) => void;
   /** Disable Search while a request is in flight (prevents duplicate submissions). */
   searching?: boolean;
+  onAnalyzeAll?: () => void;
+  analyzeAllLabel?: string;
+  analyzeBusy?: boolean;
+  analyzeDisabled?: boolean;
 };
 
 function HighlightMultiJobToggle({
@@ -124,6 +141,10 @@ export function AllCandidatesToolbar({
   highlightMultiJob,
   onHighlightMultiJobChange,
   searching = false,
+  onAnalyzeAll,
+  analyzeAllLabel = "Analyze all",
+  analyzeBusy = false,
+  analyzeDisabled = false,
 }: AllCandidatesToolbarProps) {
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftSkillTags, setDraftSkillTags] = useState(() => parseSkillsFilterParam(skillsFilter));
@@ -248,6 +269,18 @@ export function AllCandidatesToolbar({
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3.5">
+          {onAnalyzeAll ? (
+            <button
+              type="button"
+              onClick={onAnalyzeAll}
+              disabled={analyzeBusy || analyzeDisabled}
+              title="Analyze all unanalyzed candidates on this page"
+              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <AnalyzeSparklesIcon />
+              {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+            </button>
+          ) : null}
           {onAddCandidate ? (
             <button type="button" onClick={onAddCandidate} className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto`}>
               <UserAddIcon />
