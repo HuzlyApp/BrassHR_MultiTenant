@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { prefetchCandidateProfile } from "@/lib/admin/staff-detail-fetch-cache";
 import { candidateApplicantProfileHref } from "./candidate-links";
 
 type CandidateProfileIconLinkProps = {
@@ -36,6 +37,8 @@ export function CandidateProfileIconLink({
       className={className}
       aria-label={label}
       title="View profile"
+      onMouseEnter={() => prefetchCandidateProfile(id)}
+      onFocus={() => prefetchCandidateProfile(id)}
       onClick={(event) => event.stopPropagation()}
     >
       <BrandedSvgIcon

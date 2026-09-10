@@ -11,6 +11,7 @@ import type { CandidateRow } from "./types";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink";
 import { candidateApplicantProfileHref, candidateMailHref } from "./candidate-links";
+import { prefetchCandidateProfile } from "@/lib/admin/staff-detail-fetch-cache";
 
 const BRAND_ICON = "var(--brand-primary)";
 
@@ -83,6 +84,8 @@ export function CandidateGridCard({
           href={profileHref}
           className="absolute inset-0 z-0 rounded-lg"
           aria-label={`View ${c.name || "candidate"} profile`}
+          onMouseEnter={() => prefetchCandidateProfile(c.id)}
+          onFocus={() => prefetchCandidateProfile(c.id)}
         />
       ) : null}
       <div className="relative z-10 pointer-events-none">

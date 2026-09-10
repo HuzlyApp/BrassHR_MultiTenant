@@ -40,6 +40,10 @@ import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
 } from "@/lib/admin/worker-profile-field-client";
+import {
+  fetchStaffDetailJson,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import {
@@ -322,11 +326,11 @@ export default function NewApplicantProfilePage() {
 
   async function reloadProfile() {
     if (!applicantId) return;
-    const res = await fetch(
-      `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+    const { ok, payload: json } = await fetchStaffDetailJson<ProfilePayload & { error?: string }>(
+      workerProfileApiUrl(applicantId),
+      { bust: true }
     );
-    const json = (await res.json()) as ProfilePayload & { error?: string };
-    if (!res.ok) throw new Error(json.error || "Failed to reload profile");
+    if (!ok) throw new Error(json.error || "Failed to reload profile");
     setData(json);
   }
 
@@ -414,11 +418,10 @@ export default function NewApplicantProfilePage() {
       setError(null);
 
       try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+        const { ok, payload: json } = await fetchStaffDetailJson<ProfilePayload & { error?: string }>(
+          workerProfileApiUrl(applicantId)
         );
-        const json = (await res.json()) as ProfilePayload & { error?: string };
-        if (!res.ok) throw new Error(json.error || "Failed to load profile");
+        if (!ok) throw new Error(json.error || "Failed to load profile");
         if (!cancelled) setData(json);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed to load";

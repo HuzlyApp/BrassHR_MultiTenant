@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StepProgressRow, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
@@ -37,7 +38,9 @@ async function loadLatestWorkerProgress(
   return data?.[0] ?? null;
 }
 
-export async function ensureWorkerOnboardingProgress(
+export const ensureWorkerOnboardingProgress = cache(ensureWorkerOnboardingProgressUncached);
+
+async function ensureWorkerOnboardingProgressUncached(
   supabase: SupabaseClient,
   workerId: string,
   tenantId: string,
