@@ -28,6 +28,7 @@ import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/Scrolla
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import { appRoleToConsoleRole } from "@/lib/admin/staff-directory-types";
 import { buildAssigneeFilterOptions } from "@/lib/candidates/assignee-filter";
+import { CANDIDATES_PAGE_SIZE_OPTIONS } from "@/lib/workers/candidate-list-params";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -810,7 +811,7 @@ export function CandidatesListShell({
             <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-center xl:gap-3">
               <ListPaginationShowLabel
                 pageSize={pageSize}
-                options={[25, 50, 100]}
+                options={[...CANDIDATES_PAGE_SIZE_OPTIONS]}
                 onPageSizeChange={onPageSizeChange}
               />
               <ListPaginationControls

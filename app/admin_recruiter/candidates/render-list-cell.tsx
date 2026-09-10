@@ -61,9 +61,11 @@ export function renderListCell(
                 Applied to {appliedJobCount} jobs
               </span>
             ) : null}
-            <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]" title={jobTitle || undefined}>
-              {jobTitle || "—"}
-            </p>
+            {!highlightMultiJob ? (
+              <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]" title={jobTitle || undefined}>
+                {jobTitle || "—"}
+              </p>
+            ) : null}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />

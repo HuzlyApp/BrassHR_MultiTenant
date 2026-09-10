@@ -41,11 +41,15 @@ import AddCandidateModal from "../applications/AddCandidateModal";
 import ImportCandidatesModal from "../applications/ImportCandidatesModal";
 import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
-import { isWorkerClaimEligible } from "@/lib/candidates/claim";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import {
   getCandidateJobTitleOptions,
 } from "@/lib/admin/candidate-match-job-title";
+import {
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+} from "@/lib/admin/bulk-match-analysis";
 import {
   ACTIVE_CANDIDATE_PIPELINE_STATUSES,
   formatPipelineStatusLabel,
@@ -299,6 +303,7 @@ export default function CandidatesPage() {
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
@@ -597,6 +602,7 @@ export default function CandidatesPage() {
 
   const visibleCandidates = useMemo(() => {
     return candidates.filter((row) => {
+      if (highlightMultiJob && Number(row.appliedJobCount ?? 1) <= 1) return false;
       if (clientNameFilter.trim()) {
         const wanted = clientNameFilter.trim().toLowerCase();
         if ((row.applicationClientName ?? "").trim().toLowerCase() !== wanted) return false;
@@ -606,11 +612,20 @@ export default function CandidatesPage() {
       }
       return true;
     });
-  }, [candidates, clientNameFilter, assigneeFilter, advancedSearchContext.active]);
-  const listDisplayTotal =
-    clientNameFilter.trim() || (advancedSearchContext.active && assigneeFilter.trim())
-      ? visibleCandidates.length
-      : (totalFromApi ?? candidates.length);
+  }, [
+    candidates,
+    highlightMultiJob,
+    clientNameFilter,
+    assigneeFilter,
+    advancedSearchContext.active,
+  ]);
+  const hasClientSideListFilter =
+    highlightMultiJob ||
+    Boolean(clientNameFilter.trim()) ||
+    (advancedSearchContext.active && Boolean(assigneeFilter.trim()));
+  const listDisplayTotal = hasClientSideListFilter
+    ? visibleCandidates.length
+    : (totalFromApi ?? candidates.length);
 
   useEffect(() => {
     setPage(1);
@@ -630,6 +645,7 @@ export default function CandidatesPage() {
     appliedDateTo,
     pageSize,
     listSort,
+    highlightMultiJob,
   ]);
 
   const paginated = visibleCandidates;
@@ -640,25 +656,13 @@ export default function CandidatesPage() {
 
   const pageSelectableRows = useMemo(
     () =>
-      paginated.map((candidate) => {
-        const eligibility = isWorkerClaimEligible({
-          assignedRecruiterUserId: candidate.assignedRecruiterUserId,
-          status: candidate.statusKey ?? candidate.status,
-          currentUserId: currentUserId ?? "",
-        });
-        return { id: candidate.id, eligible: eligibility.eligible, reason: eligibility.reason };
-      }),
-    [paginated, currentUserId]
+      paginated.map((candidate) => ({
+        id: candidate.id,
+        // Selection is for export / archive / delete / analyze — not claim-gated.
+        eligible: true,
+      })),
+    [paginated]
   );
-
-  const eligibilityById = useMemo(() => {
-    const map = new Map<string, { eligible: boolean; reason: string | null }>();
-    for (const row of pageSelectableRows) {
-      map.set(row.id, { eligible: row.eligible, reason: row.reason });
-    }
-    return map;
-  }, [pageSelectableRows]);
-
   const selectionClearKey = useMemo(
     () =>
       [
@@ -715,6 +719,20 @@ export default function CandidatesPage() {
     const selected = visibleCandidates.filter((row) => selection.selectedIds.has(row.id));
     return selected.length > 0 ? selected : visibleCandidates;
   }, [visibleCandidates, selection.selectedCount, selection.selectedIds]);
+
+  const selectedMatchTargets = useMemo(
+    () =>
+      selectedCandidates.map((row) => ({
+        applicationId: row.matchApplicationId,
+        status: row.aiMatchStatus,
+      })),
+    [selectedCandidates]
+  );
+
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } = useMemo(
+    () => partitionMatchAnalysisTargets(selectedMatchTargets),
+    [selectedMatchTargets]
+  );
 
   const handleExportCandidatesCsv = useCallback(() => {
     if (exportCandidates.length === 0) {
@@ -826,6 +844,74 @@ export default function CandidatesPage() {
       });
     }
   }
+
+  async function runBulkMatchAnalyze(ids: string[], label: "Analyze" | "Reanalyze") {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error(
+        label === "Reanalyze"
+          ? "None of the selected candidates have been analyzed yet"
+          : "Selected candidates are already analyzed — use Reanalyze"
+      );
+      return;
+    }
+    if (bulkAnalyzingIds.size > 0 || matchAnalyzingApplicationIds.size > 0) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setCandidates((current) =>
+      current.map((row) =>
+        row.matchApplicationId && uniqueIds.includes(row.matchApplicationId)
+          ? { ...row, aiMatchStatus: "ANALYZING" }
+          : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setCandidates((current) =>
+          current.map((row) => {
+            const applicationId = row.matchApplicationId?.trim() ?? "";
+            const item = applicationId ? byId.get(applicationId) : undefined;
+            if (!item?.result) return row;
+            const result = item.result;
+            return {
+              ...row,
+              aiMatchStatus: result.status ?? row.aiMatchStatus,
+              aiMatchScore: result.score ?? row.aiMatchScore,
+              aiMatchCategory: result.category ?? row.aiMatchCategory,
+              aiMatchDisplayCategory:
+                result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
+            };
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId &&
+          uniqueIds.includes(row.matchApplicationId) &&
+          row.aiMatchStatus === "ANALYZING"
+            ? { ...row, aiMatchStatus: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
+    }
+  }
+
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
   async function openAssignRecruiter(row: CandidateRow) {
     setAssignRecruiterTarget(row);
@@ -1106,18 +1192,22 @@ export default function CandidatesPage() {
             return (
               <div className="py-12 text-center text-gray-600">
                 <div>
-                  {query.trim() || parseSkillsFilterParam(skillsFilter).length
-                    ? "No candidates match your search."
-                    : "No candidates found."}
+                  {highlightMultiJob
+                    ? "No multi-job applicants match these filters."
+                    : query.trim() || parseSkillsFilterParam(skillsFilter).length
+                      ? "No candidates match your search."
+                      : "No candidates found."}
                 </div>
                 {query.trim() ||
                 parseSkillsFilterParam(skillsFilter).length ||
-                advancedSearchContext.active ? (
+                advancedSearchContext.active ||
+                highlightMultiJob ? (
                   <button
                     type="button"
                     onClick={() => {
                       setQuery("");
                       setSkillsFilter("");
+                      setHighlightMultiJob(false);
                       applyAdvancedSearchParams(null);
                       setPage(1);
                       void loadCandidates(null);
@@ -1142,11 +1232,16 @@ export default function CandidatesPage() {
                   claimBusy={claimBusy}
                   archiveBusy={archiveBusy}
                   deleteBusy={deleteBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
                   onArchive={() => void handleBulkArchiveSelected()}
                   onDelete={() => {
                     setDeleteError(null);
                     setDeleteConfirmOpen(true);
                   }}
+                  onAnalyze={() => void runBulkMatchAnalyze(selectedAnalyzeIds, "Analyze")}
+                  onReanalyze={() => void runBulkMatchAnalyze(selectedReanalyzeIds, "Reanalyze")}
+                  analyzeDisabled={selectedAnalyzeIds.length === 0}
+                  reanalyzeDisabled={selectedReanalyzeIds.length === 0}
                   onExportCsv={handleExportCandidatesCsv}
                   onExportXls={handleExportCandidatesXls}
                   exportDisabled={exportCandidates.length === 0}
@@ -1162,9 +1257,9 @@ export default function CandidatesPage() {
                             size="md"
                             checked={selection.headerChecked}
                             indeterminate={selection.headerIndeterminate}
-                            disabled={pageSelectableRows.every((row) => !row.eligible)}
+                            disabled={paginated.length === 0}
                             onChange={selection.toggleAllEligibleOnPage}
-                            aria-label="Select all eligible candidates on this page"
+                            aria-label="Select all candidates on this page"
                           />
                         </th>
                         {cols.map((colId) => (
@@ -1192,18 +1287,10 @@ export default function CandidatesPage() {
                     </thead>
                     <tbody>
                       {paginated.map((c) => {
-                        const eligibility = eligibilityById.get(c.id) ?? {
-                          eligible: true,
-                          reason: null,
-                        };
-                        const isMultiJobHighlighted =
-                          highlightMultiJob && Number(c.appliedJobCount ?? 1) > 1;
                         return (
                         <tr
                           key={c.id}
-                          className={`border-b border-[#E9EDF3] hover:bg-[#F9FBFB] ${
-                            isMultiJobHighlighted ? "bg-[#EFF6FF]" : ""
-                          }`}
+                          className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]"
                         >
                           <td
                             className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle"
@@ -1212,9 +1299,7 @@ export default function CandidatesPage() {
                             <ListTableCheckbox
                               size="md"
                               checked={selection.selectedIds.has(c.id)}
-                              disabled={!eligibility.eligible}
-                              title={eligibility.reason ?? undefined}
-                              onChange={() => selection.toggleOne(c.id, eligibility.eligible)}
+                              onChange={() => selection.toggleOne(c.id, true)}
                               aria-label={`Select ${c.name || "candidate"}`}
                             />
                           </td>
@@ -1290,11 +1375,16 @@ export default function CandidatesPage() {
                   claimBusy={claimBusy}
                   archiveBusy={archiveBusy}
                   deleteBusy={deleteBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
                   onArchive={() => void handleBulkArchiveSelected()}
                   onDelete={() => {
                     setDeleteError(null);
                     setDeleteConfirmOpen(true);
                   }}
+                  onAnalyze={() => void runBulkMatchAnalyze(selectedAnalyzeIds, "Analyze")}
+                  onReanalyze={() => void runBulkMatchAnalyze(selectedReanalyzeIds, "Reanalyze")}
+                  analyzeDisabled={selectedAnalyzeIds.length === 0}
+                  reanalyzeDisabled={selectedReanalyzeIds.length === 0}
                   onExportCsv={handleExportCandidatesCsv}
                   onExportXls={handleExportCandidatesXls}
                   exportDisabled={exportCandidates.length === 0}
@@ -1310,15 +1400,11 @@ export default function CandidatesPage() {
                 }}
                 selectAllChecked={selection.headerChecked}
                 selectAllIndeterminate={selection.headerIndeterminate}
-                selectAllDisabled={pageSelectableRows.every((row) => !row.eligible)}
+                selectAllDisabled={paginated.length === 0}
                 onSelectAllChange={selection.toggleAllEligibleOnPage}
               />
               <div className="grid grid-cols-1 gap-4 px-4 pb-5 pt-3 sm:gap-5 sm:px-5 sm:pb-6 md:grid-cols-2 xl:grid-cols-3">
                 {paginated.map((c) => {
-                  const eligibility = eligibilityById.get(c.id) ?? {
-                    eligible: true,
-                    reason: null,
-                  };
                   return (
                     <CandidateGridCard
                       key={c.id}
@@ -1327,11 +1413,9 @@ export default function CandidatesPage() {
                       onMessage={setCommTarget}
                       selectionMode={cardBulkSelectMode}
                       selected={selection.selectedIds.has(c.id)}
-                      selectionDisabled={!eligibility.eligible}
-                      selectionTitle={eligibility.reason ?? undefined}
                       onToggleSelect={
                         cardBulkSelectMode
-                          ? () => selection.toggleOne(c.id, eligibility.eligible)
+                          ? () => selection.toggleOne(c.id, true)
                           : undefined
                       }
                     />
