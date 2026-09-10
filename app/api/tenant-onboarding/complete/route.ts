@@ -47,6 +47,7 @@ type Body = {
   email?: string;
   zipCode?: string;
   ein?: string;
+  industryKeys?: string[];
   /** When true, business information step was skipped — fields are optional. */
   businessInfoSkipped?: boolean;
 };
@@ -230,6 +231,10 @@ export async function POST(req: Request) {
     postal_code: businessInputForValidation.zipCode,
     ein: businessInputForValidation.ein || null,
     is_active: true,
+    primary_city: businessInputForValidation.city,
+    primary_state: businessInputForValidation.state,
+    primary_postal_code: businessInputForValidation.zipCode,
+    hq_state: businessInputForValidation.state,
   };
 
   if (tenantId) {
@@ -282,12 +287,65 @@ export async function POST(req: Request) {
     }
   }
 
+  let userId: string | undefined = sessionUserId;
+
+  try {
+    const { evaluateSignupPrimaryLocation } = await import("@/lib/service-area/signup");
+    const { data: owner } = userId
+      ? await svc
+          .from("users")
+          .select("primary_city, primary_state, primary_postal_code, hq_state, email")
+          .eq("id", userId)
+          .maybeSingle()
+      : { data: null };
+    const primaryCity = String(owner?.primary_city ?? businessInputForValidation.city ?? "");
+    const primaryState = String(owner?.primary_state ?? businessInputForValidation.state ?? "");
+    const result = await evaluateSignupPrimaryLocation(svc, {
+      city: primaryCity,
+      state: primaryState,
+      postalCode: owner?.primary_postal_code ?? businessInputForValidation.zipCode,
+      hqState: owner?.hq_state ?? businessInputForValidation.state,
+      email: owner?.email ?? adminEmail,
+    });
+    await svc
+      .from("tenants")
+      .update({
+        primary_city: primaryCity,
+        primary_state: primaryState,
+        primary_postal_code: owner?.primary_postal_code ?? businessInputForValidation.zipCode,
+        hq_state: owner?.hq_state ?? businessInputForValidation.state,
+        account_access: result.accountAccess,
+        hq_in_hold: result.hqInHold,
+      })
+      .eq("id", tenantId);
+    await svc.from("tenant_hiring_areas").upsert({
+      tenant_id: tenantId,
+      mode: "locations_only",
+      extra_allowed_states: [],
+    });
+  } catch (areaError) {
+    console.error(
+      "[tenant-onboarding] service area",
+      areaError instanceof Error ? areaError.message : areaError
+    );
+  }
+
+  try {
+    const { syncTenantIndustryFromLabels } = await import("@/lib/ai-catalog/sync-tenant-industry");
+    await syncTenantIndustryFromLabels(svc, {
+      tenantId,
+      primaryLabel: businessInputForValidation.industry,
+      additionalKeys: Array.isArray(body.industryKeys) ? body.industryKeys.map((value) => String(value)) : [],
+    });
+  } catch (bindError) {
+    console.error("[tenant-onboarding] industry binding", bindError);
+  }
+
   const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
   if (listErr) {
     return NextResponse.json({ error: listErr.message }, { status: 500 });
   }
 
-  let userId: string | undefined = sessionUserId;
   if (!userId) {
     const found = list?.users?.find((u) => (u.email || "").toLowerCase() === effectiveAdminEmail);
     userId = found?.id;

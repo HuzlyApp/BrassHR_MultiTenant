@@ -7,6 +7,7 @@ import AdminConsolePanel from "@/app/admin_recruiter/settings/AdminConsolePanel"
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
 import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
+import HiringAreaSettingsPanel from "@/app/admin_recruiter/settings/HiringAreaSettingsPanel";
 
 function SettingsContent() {
   const router = useRouter();
@@ -50,6 +51,13 @@ function SettingsContent() {
           Assessment
         </h2>
         <AssessmentSettingsPanel />
+      </section>
+
+      <section aria-labelledby="hiring-area-heading">
+        <h2 id="hiring-area-heading" className="sr-only">
+          Hiring area
+        </h2>
+        <HiringAreaSettingsPanel />
       </section>
 
       <section aria-labelledby="candidate-statuses-heading">

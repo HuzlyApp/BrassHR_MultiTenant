@@ -34,7 +34,10 @@ import {
   fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
 import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
-import { buildAssigneeFilterOptions } from "@/lib/candidates/assignee-filter";
+import {
+  buildAssigneeFilterOptions,
+  candidateMatchesAssigneeFilter,
+} from "@/lib/candidates/assignee-filter";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
@@ -412,7 +415,13 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     pageSize,
   ]);
 
-  const paginated = candidates;
+  const paginated = useMemo(
+    () =>
+      candidates.filter((row) =>
+        candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter)
+      ),
+    [candidates, assigneeFilter]
+  );
 
   const pageSelectableRows = useMemo(
     () =>

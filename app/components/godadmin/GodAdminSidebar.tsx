@@ -7,7 +7,17 @@ const NAV_ITEMS = [
   {
     label: "Tenants Console",
     href: "/godadmin/tenants",
-    matchPrefixes: ["/godadmin/tenants", "/godadmin"],
+    matchPrefixes: ["/godadmin/tenants"],
+  },
+  {
+    label: "Prompt Catalog",
+    href: "/godadmin/prompt-catalog",
+    matchPrefixes: ["/godadmin/prompt-catalog"],
+  },
+  {
+    label: "Service Area",
+    href: "/godadmin/service-area",
+    matchPrefixes: ["/godadmin/service-area"],
   },
 ] as const;
 

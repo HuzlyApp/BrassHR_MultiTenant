@@ -56,6 +56,9 @@ export type OwnerSignupPayload = {
   address1: string;
   address2: string;
   password: string;
+  hqState?: string;
+  primaryCity?: string;
+  primaryState?: string;
 };
 
 export type SignupStateOption = {
@@ -85,6 +88,9 @@ export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial
     address1: String(body.address1 ?? "").trim(),
     address2: String(body.address2 ?? "").trim(),
     password: String(body.password ?? ""),
+    hqState: String(body.hqState ?? body.state ?? "").trim(),
+    primaryCity: String(body.primaryCity ?? body.city ?? "").trim(),
+    primaryState: String(body.primaryState ?? body.state ?? "").trim(),
   };
 }
 
@@ -97,6 +103,10 @@ export function validateOwnerSignupDetails(
   if (!payload.jobTitle) return "Job title is required.";
   if (!payload.city) return "City is required.";
   if (!payload.state) return "State is required.";
+  if (!(payload.hqState || payload.state)) return "Headquarters state is required.";
+  if (!(payload.primaryCity || payload.city) || !(payload.primaryState || payload.state)) {
+    return "Primary work location is required.";
+  }
   if (!payload.zipCode || payload.zipCode.length < 5) return "Enter a valid 5-digit ZIP code.";
   const address1Error = signupAddress1ValidationMessage(payload.address1 ?? "");
   if (address1Error) return address1Error;
@@ -146,6 +156,10 @@ export function buildUsersSignupRow(
     city: payload.city || null,
     state: payload.state || null,
     zip_code: payload.zipCode || null,
+    hq_state: payload.hqState || payload.state || null,
+    primary_city: payload.primaryCity || payload.city || null,
+    primary_state: payload.primaryState || payload.state || null,
+    primary_postal_code: payload.zipCode || null,
     role: "admin" as const,
     email_verified: true,
     signup_completed_at: completedAt,

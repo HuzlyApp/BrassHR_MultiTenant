@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { adminAddCandidateFromResume } from "@/lib/jobs/admin-add-candidate-from-resume";
 import { JobValidationError } from "@/lib/jobs/types";
+import { jobValidationServiceAreaResponse } from "@/lib/service-area/http";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { enforceRateLimit, envRateLimit } from "@/lib/security/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -58,6 +59,10 @@ export async function POST(req: NextRequest) {
     const lastName = String(form.get("lastName") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
     const phone = String(form.get("phone") ?? "").trim();
+    const workCity = String(form.get("workCity") ?? "").trim();
+    const workState = String(form.get("workState") ?? "").trim();
+    const workPostalCode = String(form.get("workPostalCode") ?? "").trim();
+    const relocateToJobSite = String(form.get("relocateToJobSite") ?? "") === "true";
     const resumeFile = form.get("resume");
     const file = resumeFile instanceof File && resumeFile.size > 0 ? resumeFile : null;
 
@@ -82,6 +87,10 @@ export async function POST(req: NextRequest) {
       lastName: lastName || null,
       email: email || null,
       phone: phone || null,
+      workCity: workCity || null,
+      workState: workState || null,
+      workPostalCode: workPostalCode || null,
+      relocateToJobSite,
     });
 
     return NextResponse.json(
@@ -95,11 +104,18 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    const status = error instanceof JobValidationError ? 400 : 500;
+    if (error instanceof JobValidationError) {
+      const serviceArea = jobValidationServiceAreaResponse(error);
+      if (serviceArea) return serviceArea;
+      return NextResponse.json(
+        { error: formatApiError(error, "Failed to add candidate from resume") },
+        { status: error.code === "ALREADY_APPLIED" ? 409 : 400 }
+      );
+    }
     console.error("[admin/add-candidate-from-resume]", error);
     return NextResponse.json(
       { error: formatApiError(error, "Failed to add candidate from resume") },
-      { status }
+      { status: 500 }
     );
   }
 }

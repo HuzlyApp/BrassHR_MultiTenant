@@ -9,6 +9,7 @@ import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 import type { JobListRow } from "./render-job-list-cell";
 
 export type JobsExtendedFilterValues = {
@@ -31,6 +32,8 @@ export type JobsExtendedFilterValues = {
   payRate: string;
   /** Date posted preset id (see JOB_DATE_POSTED_FILTER_OPTIONS). */
   datePosted: string;
+  /** User-facing industry key. */
+  industry: string;
 };
 
 export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
@@ -47,6 +50,7 @@ export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
   workflow: "",
   payRate: "",
   datePosted: "",
+  industry: "",
 };
 
 /** Fixed pay-rate bands shown in All Filters (min inclusive, max exclusive; last band open-ended). */
@@ -268,6 +272,18 @@ export function EditJobsFiltersModal({
                   />
                 </div>
               </label>
+
+              <ModalFilterField
+                label="Job Industry"
+                value={draft.industry}
+                onChange={(v) => setField("industry", v)}
+              >
+                {activeUserFacingIndustries().map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </ModalFilterField>
 
               <ModalFilterField
                 label="Profession"

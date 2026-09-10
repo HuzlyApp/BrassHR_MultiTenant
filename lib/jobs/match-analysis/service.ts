@@ -1,13 +1,11 @@
 import "server-only";
 
 import OpenAI from "openai";
-import {
-  buildMatchAnalysisRepairPrompt,
-  buildMatchAnalysisUserPrompt,
-  systemPromptForMode,
-  truncateStrengthsAndGaps,
-  type MatchAnalysisUserPromptInput,
-} from "./prompts";
+import { assembleMatchAnalysisVariables } from "@/lib/ai-catalog/assemble-match-variables";
+import { renderPromptTemplate } from "@/lib/ai-catalog/render-prompt";
+import { parseJsonObject, validateAgainstJsonSchema } from "@/lib/ai-catalog/validate-response";
+import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
+import { buildMatchAnalysisRepairPrompt, truncateStrengthsAndGaps, type MatchAnalysisUserPromptInput } from "./prompts";
 import { parseAndValidateMatchAnalysis } from "./parse";
 import { rescoreMatchAnalysis } from "./score";
 import { MATCH_ANALYSIS_ERROR, type MatchAnalysisResponse } from "./schema";
@@ -28,7 +26,8 @@ export class MatchAnalysisGenerationError extends Error {
     | "INVALID_RESPONSE"
     | "EMPTY"
     | "NETWORK"
-    | "UNKNOWN";
+    | "UNKNOWN"
+    | "PROMPT_NOT_CONFIGURED";
 
   constructor(
     code: MatchAnalysisGenerationError["code"],
@@ -150,11 +149,12 @@ async function callGrok(args: {
   system: string;
   user: string;
   maxTokens: number;
+  model?: string;
 }): Promise<string> {
   const openai = getGrokClient();
   try {
     const response = await openai.responses.create({
-      model: resolveModel(),
+      model: args.model || resolveModel(),
       temperature: TEMPERATURE,
       max_output_tokens: args.maxTokens,
       reasoning: { effort: "none" },
@@ -182,42 +182,66 @@ export type GrokMatchAnalysisResult = {
 };
 
 /**
- * Call Grok, parse/validate JSON, one repair turn on failure, then deterministic rescore.
+ * Call Grok using a database-resolved prompt. Never falls back to a hard-coded body.
  */
 export async function generateMatchAnalysisWithGrok(
-  input: MatchAnalysisUserPromptInput
+  input: MatchAnalysisUserPromptInput,
+  resolved: ResolvedPromptVersion
 ): Promise<GrokMatchAnalysisResult> {
   const resumeLen = input.resumeText.length;
-  const maxTokens = resumeLen > LONG_RESUME_CHARS ? LONG_RESUME_MAX_TOKENS : BASE_MAX_TOKENS;
-  const analysisMode = input.analysisMode === "deep" ? "deep" : "analyze";
-  const system = systemPromptForMode(analysisMode);
-  const userPrompt = buildMatchAnalysisUserPrompt({ ...input, analysisMode });
+  const cfg = resolved.modelConfig ?? {};
+  const longResumeChars = Number(cfg.long_resume_chars ?? LONG_RESUME_CHARS);
+  const maxTokens =
+    resumeLen > longResumeChars
+      ? Number(cfg.long_resume_max_tokens ?? LONG_RESUME_MAX_TOKENS)
+      : Number(cfg.base_max_tokens ?? BASE_MAX_TOKENS);
+  const analysisMode = resolved.variantKey === "deep" ? "deep" : "analyze";
+  const system = resolved.systemPrompt;
+  if (!system.trim()) {
+    throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
+  }
+  const userPrompt = renderPromptTemplate(
+    resolved.userPromptTemplate,
+    assembleMatchAnalysisVariables(input),
+    { required: ["job_description", "candidate_resume"] }
+  );
 
   const rawText = await callGrok({
     system,
     user: userPrompt,
     maxTokens,
+    model: typeof cfg.model === "string" && cfg.model.trim() ? cfg.model : resolveModel(),
   });
 
+  let parsedJson = parseJsonObject(rawText);
+  let schemaErrors = parsedJson.ok
+    ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
+    : [parsedJson.error];
   let parsed = parseAndValidateMatchAnalysis(rawText);
   let repaired = false;
   let finalRawText = rawText;
 
-  if (!parsed.ok) {
+  if (!parsed.ok || schemaErrors.length) {
     const repairUser = buildMatchAnalysisRepairPrompt({
       badJson: rawText,
-      validationErrors: parsed.errors,
+      validationErrors: [...schemaErrors, ...(parsed.ok ? [] : parsed.errors)],
       analysisMode,
+      responseSchema: resolved.responseSchema,
     });
     const repairedText = await callGrok({
       system,
       user: repairUser,
       maxTokens,
+      model: typeof cfg.model === "string" && cfg.model.trim() ? cfg.model : resolveModel(),
     });
     finalRawText = repairedText;
+    parsedJson = parseJsonObject(repairedText);
+    schemaErrors = parsedJson.ok
+      ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
+      : [parsedJson.error];
     parsed = parseAndValidateMatchAnalysis(repairedText);
     repaired = true;
-    if (!parsed.ok) {
+    if (!parsed.ok || schemaErrors.length) {
       throw new MatchAnalysisGenerationError("INVALID_RESPONSE");
     }
   }
@@ -230,6 +254,6 @@ export async function generateMatchAnalysisWithGrok(
     rawText: finalRawText,
     rawObject: parsed.rawObject,
     repaired,
-    model: resolveModel(),
+    model: typeof cfg.model === "string" && cfg.model.trim() ? cfg.model : resolveModel(),
   };
 }

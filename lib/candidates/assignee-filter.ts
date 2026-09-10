@@ -4,8 +4,9 @@ import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 export const UNASSIGNED_ASSIGNEE_FILTER = "unassigned";
 
+/** Accept any RFC-4122-shaped UUID, including v6/v7 used by newer auth generators. */
 const ASSIGNEE_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SCAN_PAGE = 1000;
 const SCAN_CAP = 5000;
@@ -61,6 +62,63 @@ function rowIds(data: Array<{ id?: string | null; worker_id?: string | null }> |
       return typeof value === "string" ? value.trim() : "";
     })
     .filter(Boolean);
+}
+
+function asId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Keep candidate-universe IDs whose effective assignee matches the filter.
+ * Effective assignee is worker.assigned_recruiter_user_id, else the latest application assignee.
+ * Preserves input order.
+ */
+export async function filterWorkerIdsByAssignee(
+  supabase: SupabaseClient,
+  tenantId: string,
+  workerIds: string[],
+  assigneeFilter: string
+): Promise<string[]> {
+  const wanted = assigneeFilter.trim();
+  const ids = [...new Set(workerIds.map((id) => id.trim()).filter(Boolean))];
+  if (!wanted || !tenantId || ids.length === 0) return [];
+
+  if (!isUnassignedAssigneeFilter(wanted) && !ASSIGNEE_ID_RE.test(wanted)) return [];
+
+  const { data: rows, error } = await queryInChunks(ids, async (chunk) => {
+    const result = await supabase
+      .from("worker")
+      .select("id, assigned_recruiter_user_id")
+      .eq("tenant_id", tenantId)
+      .in("id", chunk);
+    return {
+      data: (result.data ?? []) as Array<{ id?: string | null; assigned_recruiter_user_id?: string | null }>,
+      error: result.error,
+    };
+  });
+  if (error) {
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to load candidate assignees"
+    );
+  }
+
+  const directByWorker = new Map<string, string>();
+  for (const row of rows) {
+    const id = asId(row.id);
+    const assigneeId = asId(row.assigned_recruiter_user_id);
+    if (id && assigneeId) directByWorker.set(id, assigneeId);
+  }
+
+  const missingDirect = ids.filter((id) => !directByWorker.has(id));
+  const fallbackByWorker =
+    missingDirect.length > 0
+      ? await getApplicationAssigneeFallbackByWorker(supabase, tenantId, missingDirect)
+      : new Map<string, string>();
+
+  return ids.filter((id) => {
+    const current = directByWorker.get(id) || fallbackByWorker.get(id) || "";
+    return candidateMatchesAssigneeFilter(current, wanted);
+  });
 }
 
 /** Worker IDs whose effective assignee matches the filter (worker column + application fallback). */

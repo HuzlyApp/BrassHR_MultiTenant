@@ -6,13 +6,13 @@ import {
   loadJobScreeningQuestions,
 } from "@/lib/jobs/screening-questions";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board";
+import { buildPublicJobSharePath } from "@/lib/jobs/public-job-share";
 import { isOpenJobRequisitionStatus, normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import {
   jobDetailsStatsFromPipelineSummary,
   tallyJobPipelineSummary,
 } from "@/lib/jobs/pipeline-summary";
-import { JobValidationError } from "@/lib/jobs/types";
+import { JobValidationError, jobValidationHttpStatus } from "@/lib/jobs/types";
 import { parseJobRequisitionPatch, normalizeJobTags } from "@/lib/jobs/job-requisition-patch";
 import { patchJobRequisition } from "@/lib/jobs/service";
 
@@ -79,7 +79,7 @@ export async function GET(
       typeof job.public_job_token === "string" ? job.public_job_token.trim() : "";
     const publicJobPath =
       isOpenJobRequisitionStatus(String(job.status ?? "")) && publicToken && tenantSlug
-        ? buildJobsBoardHref({ tenant: tenantSlug, job: publicToken })
+        ? buildPublicJobSharePath(tenantSlug, publicToken)
         : null;
 
     const screeningQuestionRows = await loadJobScreeningQuestions(supabase, tenantId, id);
@@ -140,7 +140,7 @@ export async function PUT(
     if (error instanceof JobValidationError) {
       return NextResponse.json(
         { error: error.message, code: error.code, fieldErrors: error.fieldErrors },
-        { status: 422 }
+        { status: jobValidationHttpStatus(error) }
       );
     }
     return NextResponse.json(

@@ -61,9 +61,16 @@ export type JobRequisitionInput = {
   hoursPerWeek?: number | null;
   publicTitle?: string | null;
   publicDescription?: string | null;
+  /** User-facing industry key from industry_catalog. */
+  industryKey?: string | null;
   location?: string | null;
   /** ZIP from location search when available; not shown in the form UI. */
   postalCode?: string | null;
+  worksiteCity?: string | null;
+  worksiteState?: string | null;
+  worksitePostalCode?: string | null;
+  /** Required when work location type is Remote. No United States shortcut. */
+  remoteAllowedStates?: string[] | null;
   schedule?: string | null;
   qualifications?: string | null;
   responsibilities?: string | null;
@@ -131,7 +138,10 @@ export type FieldErrors = Partial<
     | "status"
     | "assignee"
     | "tags"
-    | "is_hot",
+    | "is_hot"
+    | "remoteAllowedStates"
+    | "worksite_state"
+    | "work_state",
     string
   >
 >;
@@ -146,4 +156,9 @@ export class JobValidationError extends Error {
     this.fieldErrors = fieldErrors;
     this.code = code;
   }
+}
+
+/** Invalid industry keys are HTTP 400; other job validation stays 422. */
+export function jobValidationHttpStatus(error: JobValidationError): number {
+  return error.fieldErrors.industryKey ? 400 : 422;
 }

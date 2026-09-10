@@ -6,6 +6,7 @@ import {
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
+import { JobValidationError, jobValidationHttpStatus } from "@/lib/jobs/types";
 
 const validJob: JobRequisitionInput = {
   sourceType: "Internal",
@@ -27,6 +28,21 @@ describe("job requisition validation", () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("rejects unsupported industry keys with a clear message", () => {
+    const errors = validatePublishableJob(
+      { ...validJob, industryKey: "cybersecurity", shiftType: "Full-time" },
+      "11111111-1111-4111-8111-111111111111"
+    );
+    expect(errors.industryKey).toBe("Select a valid job industry.");
+  });
+
+  it("maps invalid industry keys to HTTP 400", () => {
+    const error = new JobValidationError("Select a valid job industry.", {
+      industryKey: "Select a valid job industry.",
+    });
+    expect(jobValidationHttpStatus(error)).toBe(400);
   });
 
   it("requires public fields and a workflow before publishing Internal jobs", () => {

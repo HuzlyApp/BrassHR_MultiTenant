@@ -1,23 +1,12 @@
-export const INDUSTRY_OPTIONS = [
-  "Staffing & Recruiting",
-  "Healthcare",
-  "Home Care / Home Health",
-  "Allied Health",
-  "Senior Care / Assisted Living",
-  "Hospitality / Food Service",
-  "Retail & Convenience Stores",
-  "Technology / IT Services",
-  "Construction & Trades",
-  "Cleaning & Janitorial Services",
-  "Education / Childcare / Daycare",
-  "Nonprofit / Community Organizations",
-  "Manufacturing / Warehouse / Distribution",
-  "Transportation & Logistics",
-  "Professional Services",
-  "Beauty / Salon / Spa",
-  "Fitness / Wellness / Gyms",
-  "Other",
-] as const;
+import { INDUSTRY_CATALOG } from "@/lib/ai-catalog/industry-catalog";
+
+/** User-facing hire-for industries. Staffing is a delivery type, not a job industry. */
+export const INDUSTRY_OPTIONS = INDUSTRY_CATALOG.filter(
+  (entry) => entry.isActive && entry.isUserFacing
+).map((entry) => entry.label);
+
+/** Legacy tenant/business type label. Never used as a job industry or AI pack. */
+export const STAFFING_BUSINESS_TYPE = "Staffing & Recruiting";
 
 export const COMPANY_SIZE_OPTIONS = [
   "1-10",
@@ -65,6 +54,7 @@ export type BusinessInfoForm = {
   email: string;
   zipCode: string;
   ein: string;
+  hireForIndustryKeys: string[];
 };
 
 export const initialBusinessInfoForm = (): BusinessInfoForm => ({
@@ -77,6 +67,7 @@ export const initialBusinessInfoForm = (): BusinessInfoForm => ({
   email: "",
   zipCode: "",
   ein: "",
+  hireForIndustryKeys: [],
 });
 
 export const TENANT_GOAL_OPTIONS = [

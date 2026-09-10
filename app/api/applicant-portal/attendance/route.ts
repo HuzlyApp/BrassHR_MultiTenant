@@ -291,6 +291,16 @@ export async function POST(req: NextRequest) {
 
       if (action === "clock_in") {
         if (active) return NextResponse.json({ error: "You are already clocked in." }, { status: 409 });
+        const { assertTenantCanOperate } = await import("@/lib/service-area/db");
+        const { TenantWaitlistedError } = await import("@/lib/service-area/errors");
+        try {
+          await assertTenantCanOperate(resolved.supabase, resolved.tenantId);
+        } catch (error) {
+          if (error instanceof TenantWaitlistedError) {
+            return NextResponse.json({ error: error.message }, { status: 422 });
+          }
+          throw error;
+        }
         const address = await reverseGeocodeAddress(location.latitude, location.longitude);
 
         const { error } = await resolved.supabase.from("applicant_attendance_logs").insert({

@@ -123,7 +123,7 @@ async function completeTenant(body: Record<string, unknown> = {}) {
         organizationName: "Testy",
         subdomain: "workspacetesty",
         adminEmail: authState.email,
-        industry: "Staffing & Recruiting",
+        industry: "Healthcare",
         companySize: "1-10",
         state: "California",
         city: "Los Angeles",

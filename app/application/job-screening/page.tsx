@@ -9,6 +9,10 @@ import { applicationPath } from "@/lib/tenant/with-tenant";
 import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding";
 import { currentOnboardingTenantSlug } from "@/lib/tenant/with-tenant";
 import type { JobScreeningQuestionType } from "@/lib/jobs/screening-questions";
+import {
+  readStoredApplyLocation,
+  storedApplyLocationSearchParams,
+} from "@/lib/service-area/apply-location-client";
 
 type ScreeningQuestion = {
   id: string;
@@ -56,7 +60,7 @@ export default function JobScreeningPage() {
     }
 
     void fetch(
-      `/api/onboarding/job-screening-answers?applicantId=${encodeURIComponent(applicantId)}&jobToken=${encodeURIComponent(jobToken)}&tenantSlug=${encodeURIComponent(tenantSlug)}`,
+      `/api/onboarding/job-screening-answers?applicantId=${encodeURIComponent(applicantId)}&jobToken=${encodeURIComponent(jobToken)}&tenantSlug=${encodeURIComponent(tenantSlug)}&${storedApplyLocationSearchParams(tenantSlug, jobToken).toString()}`,
       { cache: "no-store" }
     )
       .then(async (response) => {
@@ -110,6 +114,7 @@ export default function JobScreeningPage() {
           applicantId,
           tenantSlug,
           jobToken,
+          workLocation: readStoredApplyLocation(tenantSlug, jobToken),
           answers: questions.map((item) => ({
             questionId: item.id,
             answer: answers[item.id],

@@ -4,6 +4,8 @@ import { createFacility, validateFacilityFormInput } from "@/lib/facilities/faci
 import type { CreateFacilityResult, FacilityFormInput } from "@/lib/facilities/types";
 import { resolveWorkerContext } from "@/lib/facilities/worker-access";
 import { resolveStaffFacilityTenantContext } from "@/lib/facilities/staff-tenant-access";
+import { ServiceAreaDeniedError } from "@/lib/service-area/errors";
+import { serviceAreaDeniedResponse } from "@/lib/service-area/http";
 
 export const runtime = "nodejs";
 
@@ -113,6 +115,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/facilities POST]", err);
+    if (err instanceof ServiceAreaDeniedError) {
+      return serviceAreaDeniedResponse(err);
+    }
     const message = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

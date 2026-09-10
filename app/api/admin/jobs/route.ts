@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { JobValidationError, JOB_STATUSES, type JobStatus } from "@/lib/jobs/types";
+import { JobValidationError, jobValidationHttpStatus, JOB_STATUSES, type JobStatus } from "@/lib/jobs/types";
 import { jobMutationSchema } from "@/lib/jobs/validation";
 import {
   closeExpiredPublishedJobs,
@@ -18,6 +18,9 @@ import { parseScreeningQuestionsFromBody } from "@/lib/jobs/screening-questions"
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { countUniqueActiveCandidateProfiles } from "@/lib/workers/count-unique-active-candidate-profiles";
+import { TenantWaitlistedError } from "@/lib/service-area/errors";
+import { isServiceAreaValidationCode } from "@/lib/service-area/http";
+import { serviceAreaMessage } from "@/lib/service-area/copy";
 
 export const runtime = "nodejs";
 
@@ -207,8 +210,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: jobId ? 200 : 201 });
   } catch (error) {
     if (error instanceof JobValidationError) {
+      const field = Object.keys(error.fieldErrors)[0] || "location";
+      const messageKey = isServiceAreaValidationCode(error.code)
+        ? error.code === "remote_unscoped" || error.code === "platform_hold" || error.code === "outside_hiring_area"
+          ? "location_not_enabled"
+          : "location_not_available"
+        : undefined;
       return NextResponse.json(
-        { error: error.message, code: error.code, fieldErrors: error.fieldErrors },
+        {
+          error: error.message,
+          code: error.code,
+          messageKey,
+          field,
+          fieldErrors: error.fieldErrors,
+        },
+        { status: jobValidationHttpStatus(error) }
+      );
+    }
+    if (error instanceof TenantWaitlistedError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          messageKey: "signup_waitlist",
+          field: "worksite_state",
+          fieldErrors: { location: serviceAreaMessage("signup_waitlist") },
+        },
         { status: 422 }
       );
     }

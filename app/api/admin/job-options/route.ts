@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { EMPLOYMENT_TYPES, SOURCE_TYPES } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function GET() {
@@ -33,7 +34,7 @@ export async function GET() {
         .eq("tenant_id", tenantId)
         .eq("status", "published")
         .order("name"),
-      supabase.from("tenants").select("id, name").eq("id", tenantId).maybeSingle(),
+      supabase.from("tenants").select("id, name, primary_industry_key, industry").eq("id", tenantId).maybeSingle(),
     ]);
     const error = professions.error ?? specialties.error ?? workflows.error ?? tenant.error;
     if (error) throw error;
@@ -42,6 +43,9 @@ export async function GET() {
     const employerOfRecordOptions = tenantName
       ? [{ id: String(tenant.data?.id ?? tenantId), name: tenantName }]
       : [];
+    const primaryIndustryKey =
+      (tenant.data?.primary_industry_key ? String(tenant.data.primary_industry_key) : null) ||
+      industryKeyFromLegacyLabel(tenant.data?.industry ? String(tenant.data.industry) : null);
 
     return NextResponse.json({
       professions: professions.data ?? [],
@@ -51,6 +55,7 @@ export async function GET() {
       sourceTypes: SOURCE_TYPES,
       employerOfRecordOptions,
       canManageWorkflows: auth.role === "admin" || auth.godAdmin,
+      primaryIndustryKey,
     });
   } catch (error) {
     return NextResponse.json(

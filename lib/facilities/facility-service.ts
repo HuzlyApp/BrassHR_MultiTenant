@@ -351,7 +351,7 @@ export async function assignFacilityToWorker(
 ): Promise<{ assignmentId: string; alreadyAssigned: boolean }> {
   const { data: facility, error: facilityError } = await supabase
     .from("facility")
-    .select("id, tenant_id, client_id, name")
+    .select("id, tenant_id, client_id, name, address")
     .eq("id", facilityId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -359,6 +359,32 @@ export async function assignFacilityToWorker(
   if (facilityError) throw facilityError;
   if (!facility?.id) {
     throw new Error("Facility not found.");
+  }
+
+  const { locationFromFreeText } = await import("@/lib/service-area/normalize");
+  const { evaluateServiceAreaWithDb } = await import("@/lib/service-area/db");
+  const { serviceAreaMessage } = await import("@/lib/service-area/copy");
+  const { ServiceAreaDeniedError } = await import("@/lib/service-area/errors");
+  const { fieldForDecision } = await import("@/lib/service-area/evaluate");
+  const parsed = locationFromFreeText(facility.address);
+  const decision = await evaluateServiceAreaWithDb(supabase, {
+    tenantId,
+    action: "update_worker_site",
+    location: {
+      country: "US",
+      city: parsed.city,
+      state: parsed.state,
+      postalCode: parsed.postalCode,
+      locationType: "onsite",
+    },
+  });
+  if (!decision.allowed) {
+    throw new ServiceAreaDeniedError({
+      code: decision.reasonCode,
+      messageKey: decision.messageKey,
+      field: fieldForDecision("update_worker_site", decision),
+      publicMessage: serviceAreaMessage(decision.messageKey),
+    });
   }
 
   const { data: existingAssignments, error: assignmentLookupError } = await supabase
@@ -418,6 +444,30 @@ export async function createFacility(
   input: FacilityFormInput,
   options?: { assignToWorkerAuthId?: string; staffUserId?: string | null }
 ): Promise<CreateFacilityResult | DuplicateFacilityResult> {
+  const { evaluateServiceAreaWithDb } = await import("@/lib/service-area/db");
+  const { serviceAreaMessage } = await import("@/lib/service-area/copy");
+  const { ServiceAreaDeniedError } = await import("@/lib/service-area/errors");
+  const { fieldForDecision } = await import("@/lib/service-area/evaluate");
+  const decision = await evaluateServiceAreaWithDb(supabase, {
+    tenantId,
+    action: "add_location",
+    location: {
+      country: "US",
+      city: input.city,
+      state: input.state,
+      postalCode: input.zipCode,
+      locationType: "onsite",
+    },
+  }, { createdBy: options?.staffUserId });
+  if (!decision.allowed) {
+    throw new ServiceAreaDeniedError({
+      code: decision.reasonCode,
+      messageKey: decision.messageKey,
+      field: fieldForDecision("add_location", decision),
+      publicMessage: serviceAreaMessage(decision.messageKey),
+    });
+  }
+
   const duplicate = await findDuplicateFacility(supabase, tenantId, input);
   if (duplicate) {
     return { duplicate: true, facility: duplicate };

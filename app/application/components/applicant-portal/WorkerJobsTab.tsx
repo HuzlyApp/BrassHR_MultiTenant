@@ -18,6 +18,9 @@ import {
 import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WORKER_BTN_OUTLINE, WORKER_BTN_PRIMARY, WORKER_BTN_PRIMARY_SM } from "./worker-portal-buttons";
+import { US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
+import { SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
@@ -315,18 +318,44 @@ function JobGridCard({
   );
 }
 
+type RelocateChoice = "onsite" | "relocate" | "remote";
+
 function ApplyConfirmModal({
   open,
   jobTitle,
+  jobLocation,
   submitting,
   error,
+  workCity,
+  workState,
+  workPostal,
+  relocate,
+  previewMessage,
+  previewLoading,
+  submitDisabled,
+  onWorkCity,
+  onWorkState,
+  onWorkPostal,
+  onRelocate,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   jobTitle: string;
+  jobLocation: string;
   submitting: boolean;
   error: string | null;
+  workCity: string;
+  workState: string;
+  workPostal: string;
+  relocate: RelocateChoice | "";
+  previewMessage: string | null;
+  previewLoading: boolean;
+  submitDisabled: boolean;
+  onWorkCity: (value: string) => void;
+  onWorkState: (value: string) => void;
+  onWorkPostal: (value: string) => void;
+  onRelocate: (value: RelocateChoice) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -362,9 +391,80 @@ function ApplyConfirmModal({
 
         <div className="space-y-3 px-4 py-5 sm:px-5">
           <p className="text-sm text-[#64748B]">
-            Your latest uploaded resume from Documents will be attached automatically. Continue to
-            apply with your existing worker profile?
+            Confirm where you will work this opening. Home address is not used for this check. Your
+            latest uploaded resume from Documents will be attached automatically.
           </p>
+          <label className="block text-sm font-medium text-[#0F172A]" htmlFor="worker-work-city">
+            Work city
+          </label>
+          <input
+            id="worker-work-city"
+            className={FILTER_INPUT_CLASS}
+            value={workCity}
+            onChange={(event) => onWorkCity(event.target.value)}
+          />
+          <label className="block text-sm font-medium text-[#0F172A]" htmlFor="worker-work-state">
+            Work state
+          </label>
+          <select
+            id="worker-work-state"
+            className={FILTER_INPUT_CLASS}
+            value={workState}
+            onChange={(event) => onWorkState(event.target.value)}
+          >
+            <option value="">Select state</option>
+            {Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => (
+              <option key={code} value={code}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <label className="block text-sm font-medium text-[#0F172A]" htmlFor="worker-work-zip">
+            ZIP (optional)
+          </label>
+          <input
+            id="worker-work-zip"
+            className={FILTER_INPUT_CLASS}
+            value={workPostal}
+            onChange={(event) => onWorkPostal(event.target.value.replace(/\D/g, "").slice(0, 5))}
+          />
+          <fieldset>
+            <legend className="text-sm font-medium text-[#0F172A]">
+              Will you work on-site{jobLocation ? ` at ${jobLocation}` : ""}?
+            </legend>
+            <label className="mt-2 flex items-center gap-2 text-sm text-[#334155]">
+              <input
+                type="radio"
+                name="worker-relocate"
+                checked={relocate === "onsite"}
+                onChange={() => onRelocate("onsite")}
+              />
+              Yes
+            </label>
+            <label className="mt-2 flex items-center gap-2 text-sm text-[#334155]">
+              <input
+                type="radio"
+                name="worker-relocate"
+                checked={relocate === "relocate"}
+                onChange={() => onRelocate("relocate")}
+              />
+              Yes, I will relocate
+            </label>
+            <label className="mt-2 flex items-center gap-2 text-sm text-[#334155]">
+              <input
+                type="radio"
+                name="worker-relocate"
+                checked={relocate === "remote"}
+                onChange={() => onRelocate("remote")}
+              />
+              No, I would work remote from the location above
+            </label>
+          </fieldset>
+          {previewMessage ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {previewMessage}
+            </div>
+          ) : null}
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
@@ -378,7 +478,7 @@ function ApplyConfirmModal({
           </button>
           <button
             type="button"
-            disabled={submitting}
+            disabled={submitDisabled || submitting || previewLoading}
             className={WORKER_BTN_PRIMARY}
             onClick={onConfirm}
           >
@@ -410,6 +510,30 @@ export function WorkerJobsTab() {
   const [applyJob, setApplyJob] = useState<WorkerJobRow | null>(null);
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [workCity, setWorkCity] = useState("");
+  const [workState, setWorkState] = useState("");
+  const [workPostal, setWorkPostal] = useState("");
+  const [relocate, setRelocate] = useState<RelocateChoice | "">("");
+
+  const applyLocation = useMemo(
+    () =>
+      applyJob && workCity && workState && relocate
+        ? {
+            city: workCity,
+            state: workState,
+            postalCode: workPostal,
+            locationType: relocate === "remote" ? ("remote" as const) : ("onsite" as const),
+            relocateToJobSite: relocate === "relocate" || relocate === "onsite",
+          }
+        : null,
+    [applyJob, workCity, workState, workPostal, relocate]
+  );
+  const applyPreview = useServiceAreaPreview(applyLocation, "apply", {
+    jobToken: applyJob?.token,
+    tenantSlug,
+    publicClient: true,
+    enabled: Boolean(applyJob),
+  });
 
   useEffect(() => {
     const next = (searchParams?.get("q") ?? "").trim();
@@ -584,10 +708,14 @@ export function WorkerJobsTab() {
     if (row.applied) return;
     setApplyJob(row);
     setApplyError(null);
+    setWorkCity("");
+    setWorkState("");
+    setWorkPostal("");
+    setRelocate("");
   }
 
   async function submitApplication() {
-    if (!applyJob) return;
+    if (!applyJob || !applyLocation || applyPreview.allowed === false) return;
     setApplying(true);
     setApplyError(null);
     try {
@@ -596,10 +724,21 @@ export function WorkerJobsTab() {
       const res = await fetch(applicantPortalApiPath("/api/applicant-portal/jobs/apply"), {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ jobToken: applyJob.token }),
+        body: JSON.stringify({ jobToken: applyJob.token, workLocation: applyLocation }),
       });
-      const payload = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(payload.error || "Could not apply for this job.");
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string | { messageKey?: string; code?: string };
+      };
+      if (!res.ok) {
+        const message =
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error?.messageKey
+              ? SERVICE_AREA_COPY[payload.error.messageKey as keyof typeof SERVICE_AREA_COPY] ??
+                SERVICE_AREA_COPY.location_not_available
+              : "Could not apply for this job.";
+        throw new Error(message);
+      }
       setApplyJob(null);
       await load();
     } catch (err) {
@@ -821,8 +960,20 @@ export function WorkerJobsTab() {
       <ApplyConfirmModal
         open={Boolean(applyJob)}
         jobTitle={applyJob?.title || ""}
+        jobLocation={applyJob?.location || ""}
         submitting={applying}
         error={applyError}
+        workCity={workCity}
+        workState={workState}
+        workPostal={workPostal}
+        relocate={relocate}
+        previewMessage={applyPreview.message}
+        previewLoading={applyPreview.loading}
+        submitDisabled={!applyLocation || applyPreview.allowed === false || applyPreview.loading}
+        onWorkCity={setWorkCity}
+        onWorkState={setWorkState}
+        onWorkPostal={setWorkPostal}
+        onRelocate={setRelocate}
         onClose={() => {
           if (applying) return;
           setApplyJob(null);

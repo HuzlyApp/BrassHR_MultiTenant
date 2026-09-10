@@ -139,7 +139,8 @@ async function createOwnerSignup(req: Request) {
       return NextResponse.json({ error: uErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, email: payload.workEmail });
+    const waitlist = await evaluateAndMarkSignupWaitlist(svc, userId, payload);
+    return NextResponse.json({ ok: true, email: payload.workEmail, ...waitlist });
   }
 
   const { data: created, error: cuErr } = await svc.auth.admin.createUser({
@@ -181,5 +182,38 @@ async function createOwnerSignup(req: Request) {
     return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, email: payload.workEmail });
+  const waitlist = await evaluateAndMarkSignupWaitlist(svc, userId, payload);
+  return NextResponse.json({ ok: true, email: payload.workEmail, ...waitlist });
+}
+
+async function evaluateAndMarkSignupWaitlist(
+  svc: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  userId: string,
+  payload: OwnerSignupPayload
+) {
+  const { evaluateSignupPrimaryLocation } = await import("@/lib/service-area/signup");
+  const { ACCOUNT_ACCESS_WAITLIST } = await import("@/lib/service-area/types");
+  const result = await evaluateSignupPrimaryLocation(svc, {
+    city: payload.primaryCity || payload.city,
+    state: payload.primaryState || payload.state,
+    postalCode: payload.zipCode,
+    hqState: payload.hqState || payload.state,
+    email: payload.workEmail,
+  });
+  const waitlisted = result.accountAccess === ACCOUNT_ACCESS_WAITLIST;
+  await svc
+    .from("users")
+    .update({
+      signup_waitlist_pending: waitlisted,
+      hq_state: payload.hqState || payload.state,
+      primary_city: payload.primaryCity || payload.city,
+      primary_state: payload.primaryState || payload.state,
+      primary_postal_code: payload.zipCode,
+    })
+    .eq("id", userId);
+  return {
+    waitlisted,
+    hqInHold: result.hqInHold,
+    messageKey: waitlisted ? result.decision.messageKey : null,
+  };
 }

@@ -9,6 +9,8 @@ import type { FacilityFormInput } from "@/lib/facilities/types";
 import { logFacilityTenantDebug } from "@/lib/facilities/tenant-scope";
 import { resolveWorkerContext } from "@/lib/facilities/worker-access";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
+import { ServiceAreaDeniedError } from "@/lib/service-area/errors";
+import { serviceAreaDeniedResponse } from "@/lib/service-area/http";
 
 export const runtime = "nodejs";
 
@@ -72,6 +74,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/facility-assignments POST]", err);
+    if (err instanceof ServiceAreaDeniedError) {
+      return serviceAreaDeniedResponse(err);
+    }
     const message = err instanceof Error ? err.message : "Failed to assign facility.";
     const status = message === "Facility not found." ? 404 : 500;
     return NextResponse.json(

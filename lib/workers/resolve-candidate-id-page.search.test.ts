@@ -319,4 +319,78 @@ describe("resolveCandidateIdPage search", () => {
     expect(page.ids).toEqual(["dddddddd-dddd-dddd-dddd-dddddddddddd"]);
     expect(page.total).toBe(1);
   });
+
+  it("filters assignee against the RPC candidate universe instead of replacing it", async () => {
+    const assignee = "018d5c8a-7e3f-7c4a-8b2d-1a2b3c4d5e6f";
+    const assignedId = "11111111-1111-4111-8111-111111111111";
+    const otherId = "22222222-2222-4222-8222-222222222222";
+    rpc.mockResolvedValue({
+      data: [
+        { id: assignedId, total_count: 2 },
+        { id: otherId, total_count: 2 },
+      ],
+      error: null,
+    });
+    from.mockImplementation((table: string) => {
+      let columns = "";
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn((cols: string) => {
+        columns = cols;
+        return builder;
+      });
+      builder.eq = vi.fn(() => builder);
+      builder.in = vi.fn(() => builder);
+      builder.not = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
+      builder.range = vi.fn(() => builder);
+      (builder as { then?: unknown }).then = (
+        onFulfilled: (value: unknown) => unknown,
+        onRejected?: (reason: unknown) => unknown
+      ) => {
+        if (table === "job_applications") {
+          return Promise.resolve({ data: [], error: null }).then(onFulfilled, onRejected);
+        }
+        if (columns.includes("assigned_recruiter_user_id")) {
+          return Promise.resolve({
+            data: [
+              { id: assignedId, assigned_recruiter_user_id: assignee },
+              { id: otherId, assigned_recruiter_user_id: null },
+            ],
+            error: null,
+          }).then(onFulfilled, onRejected);
+        }
+        return Promise.resolve({
+          data: [
+            {
+              id: assignedId,
+              email: "assigned@example.com",
+              first_name: "Ann",
+              last_name: "Signed",
+            },
+          ],
+          error: null,
+        }).then(onFulfilled, onRejected);
+      };
+      return builder;
+    });
+
+    const page = await resolveCandidateIdPage(
+      supabase(),
+      "tenant-a",
+      parseCandidateListQueryParams(
+        new URLSearchParams({ assignee, limit: "25", offset: "0" })
+      )
+    );
+
+    expect(rpc).toHaveBeenCalledWith(
+      "list_candidate_ids_page",
+      expect.objectContaining({
+        p_tenant_id: "tenant-a",
+        p_search: null,
+      })
+    );
+    expect(page.usedRpc).toBe(true);
+    expect(page.ids).toEqual([assignedId]);
+    expect(page.total).toBe(1);
+  });
 });

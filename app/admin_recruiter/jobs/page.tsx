@@ -847,6 +847,7 @@ export default function AdminRecruiterJobsPage() {
   const [payRateFilter, setPayRateFilter] = useState("");
   const [datePostedFilter, setDatePostedFilter] = useState("");
   const [searchTags, setSearchTags] = useState<string[]>([]);
+  const [industryFilter, setIndustryFilter] = useState("");
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [filtersBarOpen, setFiltersBarOpen] = useState(false);
   const [sortField, setSortField] = useState<JobSortField | null>(null);
@@ -948,6 +949,7 @@ export default function AdminRecruiterJobsPage() {
     payRateFilter,
     datePostedFilter,
     searchTags,
+    industryFilter,
     showStarredOnly,
     pageSize,
   ]);
@@ -1123,6 +1125,8 @@ export default function AdminRecruiterJobsPage() {
 
       if (!jobMatchesDatePostedFilter(job, datePostedFilter)) return false;
 
+      if (industryFilter && String(job.industry_key ?? "") !== industryFilter) return false;
+
       return true;
     });
   }, [
@@ -1142,6 +1146,7 @@ export default function AdminRecruiterJobsPage() {
     payRateFilter,
     datePostedFilter,
     searchTags,
+    industryFilter,
   ]);
 
   const sortedJobs = useMemo(() => {
@@ -1568,6 +1573,7 @@ export default function AdminRecruiterJobsPage() {
       payRateFilter ||
       datePostedFilter ||
       searchTags.length > 0 ||
+      industryFilter ||
       showStarredOnly
   );
 
@@ -1584,6 +1590,7 @@ export default function AdminRecruiterJobsPage() {
     workflowFilter,
     payRateFilter,
     datePostedFilter,
+    industryFilter,
   ].filter(Boolean).length;
 
   const editFiltersValue = useMemo(
@@ -1601,6 +1608,7 @@ export default function AdminRecruiterJobsPage() {
       workflow: workflowFilter,
       payRate: payRateFilter,
       datePosted: datePostedFilter,
+      industry: industryFilter,
     }),
     [
       searchTags,
@@ -1616,6 +1624,7 @@ export default function AdminRecruiterJobsPage() {
       workflowFilter,
       payRateFilter,
       datePostedFilter,
+      industryFilter,
     ]
   );
 
@@ -1633,6 +1642,7 @@ export default function AdminRecruiterJobsPage() {
     setWorkflowFilter(next.workflow);
     setPayRateFilter(next.payRate);
     setDatePostedFilter(next.datePosted);
+    setIndustryFilter(next.industry);
     setPage(1);
   }, []);
 

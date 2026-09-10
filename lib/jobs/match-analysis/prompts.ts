@@ -676,6 +676,7 @@ export function buildMatchAnalysisRepairPrompt(args: {
   validationErrors: string[];
   truncated?: boolean;
   analysisMode?: AnalysisMode;
+  responseSchema?: Record<string, unknown> | string | null;
 }): string {
   const lean = resolveAnalysisMode(args) === "analyze";
   const truncationNote = args.truncated
@@ -689,6 +690,14 @@ Your previous response was CUT OFF because it exceeded the output token limit. R
 Use one short sentence per candidate_evidence. Limit strengths to the top 5 items and gaps_and_risks to the top 8 items.
 `
     : "";
+  const schemaText =
+    args.responseSchema == null
+      ? lean
+        ? ANALYZE_RESPONSE_SCHEMA
+        : DEEP_ANALYSIS_RESPONSE_SCHEMA_TEXT
+      : typeof args.responseSchema === "string"
+        ? args.responseSchema
+        : JSON.stringify(args.responseSchema, null, 2);
   return `Your previous response was not valid against the required schema.
 ${truncationNote}
 Return corrected JSON only (no markdown, no commentary).
@@ -700,7 +709,7 @@ Invalid / previous JSON:
 ${args.badJson.slice(0, 120_000)}
 
 Required JSON structure:
-${lean ? ANALYZE_RESPONSE_SCHEMA : DEEP_ANALYSIS_RESPONSE_SCHEMA_TEXT}`;
+${schemaText}`;
 }
 
 export function truncateStrengthsAndGaps(
