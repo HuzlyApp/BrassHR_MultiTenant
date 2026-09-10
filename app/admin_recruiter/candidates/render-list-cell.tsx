@@ -4,6 +4,7 @@ import { Mail, Phone } from "lucide-react"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
+import { prefetchWorkerProfile } from "@/lib/admin/staff-detail-fetch-cache"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
@@ -48,6 +49,8 @@ export function renderListCell(
                 href={candidateProfileHref(c.id)}
                 className={`block text-sm font-semibold leading-5 ${LINK_CLASS}`}
                 style={{ color: "var(--brand-secondary)" }}
+                onMouseEnter={() => prefetchWorkerProfile(c.id)}
+                onFocus={() => prefetchWorkerProfile(c.id)}
               >
                 {c.name}
               </Link>

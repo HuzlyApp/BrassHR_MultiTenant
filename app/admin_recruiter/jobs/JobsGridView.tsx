@@ -7,6 +7,7 @@ import { Archive, Loader2, PlusSquare, SquarePen, Trash2, UserPlus } from "lucid
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
+import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache";
 import {
   jobStatusDisplayLabel,
   normalizeJobRequisitionStatus,
@@ -304,6 +305,8 @@ function JobGridCard({
               <Link
                 href={`/admin_recruiter/jobs/${job.id}`}
                 className="block truncate font-[Inter,sans-serif] text-xs font-semibold leading-4 text-black hover:underline"
+                onMouseEnter={() => prefetchJobDetails(job.id)}
+                onFocus={() => prefetchJobDetails(job.id)}
               >
                 {title}
               </Link>

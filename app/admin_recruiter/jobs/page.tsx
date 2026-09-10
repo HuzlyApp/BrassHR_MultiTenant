@@ -24,6 +24,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import toast from "react-hot-toast";
 import { normalizeJobRequisitionStatus, jobStatusDisplayLabel } from "@/lib/jobs/job-status";
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
+import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache";
 import {
   EditJobsFiltersModal,
   EMPTY_JOBS_EXTENDED_FILTERS,
@@ -780,6 +781,8 @@ function JobActionsMenuPortal({
         href={`/admin_recruiter/jobs/${job.id}`}
         role="menuitem"
         className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+        onMouseEnter={() => prefetchJobDetails(job.id)}
+        onFocus={() => prefetchJobDetails(job.id)}
         onClick={onClose}
       >
         View

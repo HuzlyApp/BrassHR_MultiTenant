@@ -60,6 +60,11 @@ import {
 } from "@/lib/jobs/pipeline-summary";
 import type { JobStatus } from "@/lib/jobs/types";
 import { JOB_STATUSES } from "@/lib/jobs/types";
+import {
+  fetchStaffDetailJson,
+  invalidateStaffDetailCache,
+  jobDetailsApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 
 type Props = {
   jobId: string;
@@ -220,27 +225,26 @@ export default function JobDetailsClient({ jobId }: Props) {
       setError("");
     }
     try {
-      const [jobResponse, summaryResponse] = await Promise.all([
-        fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" }),
-        fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}/pipeline-summary`, {
-          cache: "no-store",
-        }),
-      ]);
-      const jobPayload = await jobResponse.json();
-      if (!jobResponse.ok) throw new Error(jobPayload.error || "Failed to load job");
+      const { ok, payload: jobPayload } = await fetchStaffDetailJson<{
+        job?: JobDetailsRow;
+        publicJobPath?: string;
+        pipelineSummary?: JobPipelineSummary;
+        error?: string;
+      }>(jobDetailsApiUrl(jobId), { bust: silent });
+      if (!ok) throw new Error(jobPayload.error || "Failed to load job");
       setJob(jobPayload.job as JobDetailsRow);
       setPublicJobPath(
         typeof jobPayload.publicJobPath === "string" ? jobPayload.publicJobPath : null
       );
-
-      if (summaryResponse.ok) {
-        const summaryPayload = (await summaryResponse.json()) as JobPipelineSummary;
-        setPipelineSummary(summaryPayload);
-      } else if (jobPayload.pipelineSummary) {
-        setPipelineSummary(jobPayload.pipelineSummary as JobPipelineSummary);
-      } else {
-        setPipelineSummary(null);
-      }
+      setPipelineSummary(
+        jobPayload.pipelineSummary
+          ? (jobPayload.pipelineSummary as JobPipelineSummary)
+          : emptyJobPipelineSummary(
+              String((jobPayload.job as JobDetailsRow | undefined)?.source_type ?? "")
+                .trim()
+                .toLowerCase() === "msp"
+            )
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
       if (!silent) setJob(null);
@@ -284,6 +288,7 @@ export default function JobDetailsClient({ jobId }: Props) {
         );
       }
       toast.success(`Status updated to ${jobDetailsStatusLabel(nextStatus)}`);
+      invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
       await load({ silent: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update job status";
@@ -339,6 +344,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       }
       toast.success("Tags updated");
       setTagsOpen(false);
+      invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
       await load({ silent: true });
     } catch (err) {
       setTagsError(err instanceof Error ? err.message : "Failed to save tags");
@@ -365,6 +371,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       }
       toast.success(assigneeUserId ? "Recruiter assigned" : "Recruiter cleared");
       setAssignOpen(false);
+      invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
       await load({ silent: true });
     } catch (err) {
       setAssignError(err instanceof Error ? err.message : "Failed to assign recruiter");

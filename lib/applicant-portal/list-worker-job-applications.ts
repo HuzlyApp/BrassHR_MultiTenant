@@ -97,33 +97,43 @@ export async function listWorkerJobApplications(
   supabase: SupabaseClient,
   input: { workerId: string; tenantId: string }
 ): Promise<WorkerJobApplicationListItem[]> {
-  const { data: applications, error } = await supabase
-    .from("job_applications")
-    .select(
-      [
-        "id",
-        "job_requisition_id",
-        "status",
-        "status_id",
-        "created_at",
-        "submitted_at",
-        "tenant_id",
-        "ai_match_score",
-        "ai_match_category",
-        "ai_match_status",
-        "application_statuses(name, system_key, color)",
-        "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name, location, status)",
-        "tenants:tenant_id(name)",
-      ].join(", ")
-    )
-    .eq("worker_id", input.workerId)
-    .eq("tenant_id", input.tenantId)
-    .order("created_at", { ascending: false });
+  const [applicationResult, resumeResult] = await Promise.all([
+    supabase
+      .from("job_applications")
+      .select(
+        [
+          "id",
+          "job_requisition_id",
+          "status",
+          "status_id",
+          "created_at",
+          "submitted_at",
+          "tenant_id",
+          "ai_match_score",
+          "ai_match_category",
+          "ai_match_status",
+          "application_statuses(name, system_key, color)",
+          "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name, location, status)",
+          "tenants:tenant_id(name)",
+        ].join(", ")
+      )
+      .eq("worker_id", input.workerId)
+      .eq("tenant_id", input.tenantId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("worker_resumes")
+      .select("id, original_file_name, file_name, file_type, file_size_bytes, uploaded_at, job_application_id")
+      .eq("worker_id", input.workerId)
+      .eq("tenant_id", input.tenantId)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false }),
+  ]);
 
-  if (error) throw error;
+  if (applicationResult.error) throw applicationResult.error;
 
-  const rows = (applications ?? []) as unknown as ApplicationRow[];
+  const rows = (applicationResult.data ?? []) as unknown as ApplicationRow[];
   const applicationIds = rows.map((row) => String(row.id)).filter(Boolean);
+  const resumeRows = resumeResult.error ? [] : resumeResult.data;
 
   const noteByApplication = new Map<string, string>();
   if (applicationIds.length > 0) {
@@ -141,14 +151,6 @@ export async function listWorkerJobApplications(
       noteByApplication.set(applicationId, note);
     }
   }
-
-  const { data: resumeRows } = await supabase
-    .from("worker_resumes")
-    .select("id, original_file_name, file_name, file_type, file_size_bytes, uploaded_at, job_application_id")
-    .eq("worker_id", input.workerId)
-    .eq("tenant_id", input.tenantId)
-    .is("deleted_at", null)
-    .order("uploaded_at", { ascending: false });
 
   const latestResumeByApplication = new Map<string, WorkerJobApplicationResume>();
   let latestResume: WorkerJobApplicationResume | null = null;

@@ -10,6 +10,7 @@ import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { JobStatus, SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
+import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
 import { formatCityState } from "@/lib/location/city-state"
@@ -524,6 +525,8 @@ export function renderJobListCell(
             href={`/admin_recruiter/jobs/${job.id}`}
             className="min-w-0 flex-1 truncate font-semibold hover:underline"
             style={{ color: ctx.brandingSecondaryHex }}
+            onMouseEnter={() => prefetchJobDetails(job.id)}
+            onFocus={() => prefetchJobDetails(job.id)}
           >
             {jobListDisplayTitle(job)}
           </Link>

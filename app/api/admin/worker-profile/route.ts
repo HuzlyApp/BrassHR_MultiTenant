@@ -419,6 +419,8 @@ export async function GET(req: NextRequest) {
       return fromDb ?? storageFallback
     }
 
+    const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
+
     const [
       refResult,
       workerRoleResult,
@@ -435,6 +437,11 @@ export async function GET(req: NextRequest) {
       driversLicenseBackUrl,
       agreementW2UrlResolved,
       agreementI9UrlResolved,
+      licenseRecordResult,
+      profileSkills,
+      mapped,
+      onboardingSubmissionResult,
+      profilePhotoUrl,
     ] = await Promise.all([
       supabase
         .from("worker_references")
@@ -445,7 +452,7 @@ export async function GET(req: NextRequest) {
       supabase.from("worker_category_roles").select("*").eq("worker_id", workerId),
       supabase
         .from("activity_logs")
-        .select("*")
+        .select("id, action, entity_type, entity_id, details, created_at")
         .eq("entity_id", workerId)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -475,6 +482,37 @@ export async function GET(req: NextRequest) {
       resolveDocUrl(docs?.drivers_license_back_url, null),
       resolveDocUrl(docs?.agreement_w2_url, storageAgreementW2Url),
       resolveDocUrl(docs?.agreement_i9_url, storageAgreementI9Url),
+      supabase
+        .from("worker_license_records")
+        .select(
+          "id, license_type, license_number, expires_at, file_url, storage_path, status, uploaded_at"
+        )
+        .eq("worker_id", workerId)
+        .order("uploaded_at", { ascending: false })
+        .limit(5),
+      loadWorkerProfileSkills(supabase, workerId),
+      mapAdminOnboardingProgress({
+        supabase,
+        workerId,
+        userId: userIdForLegacy,
+        applicantName,
+        workerDocuments: docs,
+        resumePathRaw: resumePathStored,
+        candidateBuckets,
+        storageHits: listHits,
+        firmaSigningStatus: null,
+        referencesCount: 0,
+        tenantId: tenantIdForWorker,
+      }),
+      tenantIdForWorker
+        ? loadOnboardingApplicationSubmission(supabase, workerId, tenantIdForWorker).catch(
+            (submissionErr) => {
+              console.warn("[admin/worker-profile] onboarding submission", submissionErr)
+              return null
+            }
+          )
+        : Promise.resolve(null),
+      resolveWorkerProfilePhotoUrl(supabase, w.profile_photo),
     ])
 
     const nursingLicenseUrl = nursingLicenseUrlResolved ?? storageNursingUrl
@@ -500,14 +538,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const { data: licenseRecordRows } = await supabase
-      .from("worker_license_records")
-      .select(
-        "id, license_type, license_number, expires_at, file_url, storage_path, status, uploaded_at"
-      )
-      .eq("worker_id", workerId)
-      .order("uploaded_at", { ascending: false })
-      .limit(5)
+    const { data: licenseRecordRows } = licenseRecordResult
 
     const licenseRecords = ((licenseRecordRows ?? []) as Record<string, unknown>[]).map((row) => {
       const licenseType = asTrimmedString(row.license_type) ?? ""
@@ -666,8 +697,6 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const profileSkills = await loadWorkerProfileSkills(supabase, workerId)
-
     let firmaSigning: FirmaSigningRow | null = null
     const { data: firmaRow, error: firmaErr } = firmaSigningResult
     if (firmaErr) {
@@ -676,19 +705,6 @@ export async function GET(req: NextRequest) {
       firmaSigning = (firmaRow as FirmaSigningRow | null) ?? null
     }
 
-    const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
-    const mapped = await mapAdminOnboardingProgress({
-      supabase,
-      workerId,
-      userId: userIdForLegacy,
-      applicantName,
-      workerDocuments: docs,
-      resumePathRaw: resumePathStored,
-      candidateBuckets,
-      storageHits: listHits,
-      firmaSigningStatus: firmaSigning?.firma_status ?? null,
-      referencesCount: references.length,
-    })
     skillAssessmentRows = mapped.skillAssessments.rows
     saCompleted = mapped.skillAssessments.completed
     saTotal = mapped.skillAssessments.total
@@ -699,18 +715,7 @@ export async function GET(req: NextRequest) {
       percent: mapped.completionPercent,
     }
 
-    let onboardingSubmission: Awaited<ReturnType<typeof loadOnboardingApplicationSubmission>> = null
-    if (tenantIdForWorker) {
-      try {
-        onboardingSubmission = await loadOnboardingApplicationSubmission(
-          supabase,
-          workerId,
-          tenantIdForWorker
-        )
-      } catch (submissionErr) {
-        console.warn("[admin/worker-profile] onboarding submission", submissionErr)
-      }
-    }
+    const onboardingSubmission = onboardingSubmissionResult
 
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
@@ -864,8 +869,6 @@ export async function GET(req: NextRequest) {
       },
       request: req,
     })
-
-    const profilePhotoUrl = await resolveWorkerProfilePhotoUrl(supabase, w.profile_photo)
 
     return NextResponse.json({
       worker: {

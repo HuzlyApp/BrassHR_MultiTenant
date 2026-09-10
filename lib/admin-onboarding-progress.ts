@@ -33,6 +33,7 @@ type MapperArgs = {
   storageHits: StorageHit[]
   firmaSigningStatus: string | null
   referencesCount: number
+  tenantId?: string | null
 }
 
 type MapperResult = {
@@ -81,56 +82,56 @@ export async function mapAdminOnboardingProgress({
   storageHits,
   firmaSigningStatus,
   referencesCount,
+  tenantId: tenantIdInput,
 }: MapperArgs): Promise<MapperResult> {
-  const { data: workerTenant } = await supabase
-    .from("worker")
-    .select("tenant_id")
-    .eq("id", workerId)
-    .maybeSingle()
-
   const tenantId =
-    workerTenant && typeof workerTenant === "object" && workerTenant.tenant_id != null
-      ? String((workerTenant as { tenant_id: string }).tenant_id)
-      : null
+    tenantIdInput ??
+    (await (async () => {
+      const { data: workerTenant } = await supabase
+        .from("worker")
+        .select("tenant_id")
+        .eq("id", workerId)
+        .maybeSingle()
+      return workerTenant && typeof workerTenant === "object" && workerTenant.tenant_id != null
+        ? String((workerTenant as { tenant_id: string }).tenant_id)
+        : null
+    })())
 
-  const skillProgress = await loadWorkerSkillAssessmentProgress(supabase, workerId, userId)
-  const skillAssessmentRows = skillProgress.rows
-  const saCompleted = skillProgress.completed
-  const saTotal = skillProgress.total
+  const skillProgressPromise = loadWorkerSkillAssessmentProgress(supabase, workerId, userId)
 
   if (tenantId) {
     try {
-      const { data: tenantRow } = await supabase
-        .from("tenants")
-        .select("onboarding_config_version")
-        .eq("id", tenantId)
-        .maybeSingle()
-      const version = (tenantRow as { onboarding_config_version?: number } | null)?.onboarding_config_version ?? 0
-      if (version >= 1) {
-        const dynamic = await mapDynamicAdminOnboardingProgress(supabase, workerId, tenantId)
-        if (dynamic.steps.length > 0) {
-          return {
-            steps: dynamic.steps.map((s) => ({
-              id: s.id,
-              label: s.label,
-              state: s.state,
-              detail: s.detail,
-            })),
-            skillAssessments: {
-              completed: saCompleted,
-              total: saTotal,
-              rows: skillAssessmentRows,
-            },
-            completedSteps: dynamic.completedSteps,
-            totalSteps: dynamic.totalSteps,
-            completionPercent: dynamic.completionPercent,
-          }
+      const [skillProgress, dynamic] = await Promise.all([
+        skillProgressPromise,
+        mapDynamicAdminOnboardingProgress(supabase, workerId, tenantId),
+      ])
+      if (dynamic.steps.length > 0) {
+        return {
+          steps: dynamic.steps.map((s) => ({
+            id: s.id,
+            label: s.label,
+            state: s.state,
+            detail: s.detail,
+          })),
+          skillAssessments: {
+            completed: skillProgress.completed,
+            total: skillProgress.total,
+            rows: skillProgress.rows,
+          },
+          completedSteps: dynamic.completedSteps,
+          totalSteps: dynamic.totalSteps,
+          completionPercent: dynamic.completionPercent,
         }
       }
     } catch (e) {
       console.warn("[admin-onboarding-progress] dynamic config fallback to legacy", e)
     }
   }
+
+  const skillProgress = await skillProgressPromise
+  const skillAssessmentRows = skillProgress.rows
+  const saCompleted = skillProgress.completed
+  const saTotal = skillProgress.total
 
   const normalizedResumePath = resumePathRaw ? normalizeResumeStorageObjectPath(resumePathRaw) : null
   const resumeStoragePathCandidates = [
