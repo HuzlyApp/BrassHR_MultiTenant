@@ -36,9 +36,18 @@ import { CandidatesListSkeleton } from "./CandidatesListSkeleton";
 import { useCandidateKpiMetrics } from "./useCandidateKpiMetrics";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import UpdateResumeModal from "../applications/UpdateResumeModal";
 import { AssignRecruiterModal, type AssignableTeamMember } from "./AssignRecruiterModal";
 import AddCandidateModal from "../applications/AddCandidateModal";
 import ImportCandidatesModal from "../applications/ImportCandidatesModal";
+import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
+import {
+  invitationSuccessMessage,
+  type ScheduleInterviewPayload,
+} from "@/lib/interviews/schedule-payload";
+import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import SuccessModal from "@/app/components/SuccessModal";
+import ErrorModal from "@/app/components/ErrorModal";
 import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
@@ -90,6 +99,10 @@ import {
 } from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
+
+function resolveCandidateApplicationId(row: CandidateRow): string {
+  return (row.matchApplicationId ?? row.progressStatusApplicationId ?? "").trim();
+}
 
 type WorkerProfile = {
   id: string;
@@ -306,6 +319,14 @@ export default function CandidatesPage() {
   const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
+  const [updateResumeApplicationId, setUpdateResumeApplicationId] = useState<string | null>(null);
+  const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
+  const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
+  const [resumeErrorMessage, setResumeErrorMessage] = useState("");
+  const [interviewTarget, setInterviewTarget] = useState<CandidateRow | null>(null);
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewSubmitting, setInterviewSubmitting] = useState(false);
+  const [interviewError, setInterviewError] = useState<string | null>(null);
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
 
@@ -929,6 +950,166 @@ export default function CandidatesPage() {
 
   const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
+  function beginUpdateResume(workerId: string) {
+    const row = candidates.find((item) => item.id === workerId);
+    if (!row) return;
+    const applicationId = resolveCandidateApplicationId(row);
+    if (!applicationId) {
+      setResumeErrorMessage(
+        "This candidate has no linked job application yet. Open a job application to update the resume."
+      );
+      setResumeErrorOpen(true);
+      return;
+    }
+    setUpdateResumeApplicationId(applicationId);
+  }
+
+  function handleResumeUpdated(
+    applicationId: string,
+    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+  ) {
+    const nextName =
+      [result.firstName, result.lastName].filter(Boolean).join(" ").trim() || "Candidate";
+    setCandidates((current) =>
+      current.map((row) => {
+        if (resolveCandidateApplicationId(row) !== applicationId) return row;
+        const renamed: CandidateRow = {
+          ...row,
+          firstName: result.firstName,
+          lastName: result.lastName,
+          name: nextName,
+        };
+        if (!result.resumeUploaded) return renamed;
+        return {
+          ...renamed,
+          aiMatchStatus: "ANALYZING",
+          aiMatchScore: null,
+          aiMatchCategory: null,
+          aiMatchDisplayCategory: null,
+          aiRequirementCounts: null,
+        };
+      })
+    );
+
+    if (result.resumeUploaded) {
+      toast.success(`${nextName}: resume updated successfully`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
+      setResumeSuccessOpen(true);
+      void (async () => {
+        try {
+          const matchResponse = await fetch(
+            `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }
+          );
+          const matchPayload = await matchResponse.json().catch(() => ({}));
+          if (!matchResponse.ok) return;
+          setCandidates((current) =>
+            current.map((row) =>
+              resolveCandidateApplicationId(row) === applicationId
+                ? {
+                    ...row,
+                    aiMatchStatus: matchPayload.status ?? row.aiMatchStatus,
+                    aiMatchScore: matchPayload.score ?? row.aiMatchScore,
+                    aiMatchCategory: matchPayload.category ?? row.aiMatchCategory,
+                    aiMatchDisplayCategory:
+                      matchPayload.analysis?.candidate_match?.display_category ??
+                      row.aiMatchDisplayCategory,
+                    aiRequirementCounts:
+                      requirementCountsFromAnalyzePayload(matchPayload) ?? row.aiRequirementCounts,
+                  }
+                : row
+            )
+          );
+        } catch {
+          // Keep analyzing state; user can re-run from the list.
+        }
+      })();
+    } else {
+      toast.success(`${nextName}: candidate details updated`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
+    }
+  }
+
+  function beginSetupInterview(workerId: string) {
+    const row = candidates.find((item) => item.id === workerId);
+    if (!row) return;
+    if (!resolveCandidateApplicationId(row)) {
+      toast.error("Candidate has no linked job application yet");
+      return;
+    }
+    setInterviewTarget(row);
+    setInterviewError(null);
+    setInterviewOpen(true);
+  }
+
+  async function handleScheduleInterview(payload: ScheduleInterviewPayload) {
+    if (!interviewTarget) return;
+    const applicationId = resolveCandidateApplicationId(interviewTarget);
+    if (!applicationId) {
+      toast.error("Candidate has no linked job application yet");
+      return;
+    }
+    setInterviewSubmitting(true);
+    setInterviewError(null);
+    try {
+      const response = await fetch("/api/admin/applicant-appointments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          applicationId,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        statusUpdated?: boolean;
+        invitation?: {
+          sentCount: number;
+          failedCount: number;
+          skippedCount: number;
+          invitationStatus: "sent" | "partial" | "failed" | "pending";
+        };
+      };
+      if (!response.ok) throw new Error(data.error || "Failed to schedule interview");
+      if (data.statusUpdated) {
+        setCandidates((current) =>
+          current.map((row) =>
+            row.id === interviewTarget.id
+              ? {
+                  ...row,
+                  status: "interviewing",
+                  statusKey: "interviewing",
+                  progressStatusKey: "interviewing",
+                }
+              : row
+          )
+        );
+      }
+      setInterviewOpen(false);
+      setInterviewError(null);
+      setInterviewTarget(null);
+      toast.success(
+        `${interviewTarget.name || "Candidate"}: ${invitationSuccessMessage(data.invitation)}`,
+        { duration: ACTION_TOAST_DURATION_MS }
+      );
+    } catch (scheduleError) {
+      const message =
+        scheduleError instanceof Error ? scheduleError.message : "Failed to schedule interview";
+      setInterviewError(message);
+      toast.error(message);
+    } finally {
+      setInterviewSubmitting(false);
+    }
+  }
+
   async function openAssignRecruiter(row: CandidateRow) {
     setAssignRecruiterTarget(row);
     setAssignRecruiterError(null);
@@ -1519,6 +1700,7 @@ export default function CandidatesPage() {
             const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
             return normalized === "hired" || normalized === "converted";
           })()}
+          resumeUploading={Boolean(updateResumeApplicationId)}
           onClose={() => setRowActionsMenu(null)}
           onAnalyze={(mode) => {
             const applicationId = candidates
@@ -1530,7 +1712,7 @@ export default function CandidatesPage() {
             }
             void runMatchAnalyze(applicationId, mode);
           }}
-          onUpdateResume={() => toast("Update resume from the candidate profile.")}
+          onUpdateResume={() => beginUpdateResume(rowActionsMenu.rowId)}
           onArchive={() => toast("Archive is available from the candidate application.")}
           onUnarchive={() => toast("Unarchive is available from the candidate application.")}
           onMessage={() => {
@@ -1545,7 +1727,7 @@ export default function CandidatesPage() {
             }
             toast("No phone number on file for this candidate.");
           }}
-          onSetupInterview={() => toast("Set up interview from the candidate application.")}
+          onSetupInterview={() => beginSetupInterview(rowActionsMenu.rowId)}
           onAssignRecruiter={() => {
             const row = candidates.find((item) => item.id === rowActionsMenu.rowId);
             if (row) void openAssignRecruiter(row);
@@ -1555,6 +1737,80 @@ export default function CandidatesPage() {
           onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
         />
       ) : null}
+
+      {(() => {
+        const target = updateResumeApplicationId
+          ? candidates.find((row) => resolveCandidateApplicationId(row) === updateResumeApplicationId) ??
+            null
+          : null;
+        if (!updateResumeApplicationId) return null;
+        return (
+          <UpdateResumeModal
+            open
+            applicationId={updateResumeApplicationId}
+            candidateName={target?.name || ""}
+            initialFirstName={target?.firstName || ""}
+            initialLastName={target?.lastName || ""}
+            onClose={() => setUpdateResumeApplicationId(null)}
+            onUpdated={(result) => handleResumeUpdated(updateResumeApplicationId, result)}
+          />
+        );
+      })()}
+
+      {interviewTarget ? (
+        <ScheduleInterviewModal
+          open={interviewOpen}
+          applicants={[
+            {
+              id: interviewTarget.id,
+              name: interviewTarget.name || "Candidate",
+              status: normalizeApplicationStatus(
+                interviewTarget.progressStatusKey ||
+                  interviewTarget.statusKey ||
+                  interviewTarget.status ||
+                  ""
+              ),
+            },
+          ]}
+          submitting={interviewSubmitting}
+          error={interviewError}
+          onClose={() => {
+            setInterviewOpen(false);
+            setInterviewError(null);
+            setInterviewTarget(null);
+          }}
+          onSubmit={(payload) => void handleScheduleInterview(payload)}
+          fixedWorkerId={interviewTarget.id}
+          fixedApplicantName={interviewTarget.name || "Candidate"}
+          fixedApplicationId={resolveCandidateApplicationId(interviewTarget) || undefined}
+          fixedJobTitle={interviewTarget.applicationJobTitle || undefined}
+          defaultTitle={
+            interviewTarget.name
+              ? `Interview with ${interviewTarget.name}`
+              : undefined
+          }
+        />
+      ) : null}
+
+      <SuccessModal
+        open={resumeSuccessOpen}
+        onClose={() => setResumeSuccessOpen(false)}
+        title="Success!"
+        message="Resume updated successfully."
+        size="large"
+        actionLabel="Close"
+        onAction={() => setResumeSuccessOpen(false)}
+      />
+
+      <ErrorModal
+        open={resumeErrorOpen}
+        onClose={() => {
+          setResumeErrorOpen(false);
+          setResumeErrorMessage("");
+        }}
+        title="Upload failed"
+        message={resumeErrorMessage || "Failed to upload resume. Please try again."}
+      />
 
       {commTarget ? (
         <CandidateCommunicationDialog
