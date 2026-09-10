@@ -41,6 +41,7 @@ type AdminRecruiterHeaderProps = {
 
 const DEFAULT_TENANT_LOGO = BRAAS_PLATFORM_FAVICON;
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
+const HEADER_HELP_SUPPORT_ICON = "/icons/admin-recruiter/help-support.svg";
 
 /** Static count removed — use live unreadNotifications from header data API. */
 
@@ -276,8 +277,8 @@ export function AdminRecruiterHeader({
         </div>
 
         <div className="relative ml-auto shrink-0">
-          <div className="flex items-center gap-1 sm:gap-3">
-            <div ref={messagesAreaRef} className="relative flex items-center gap-0">
+          <div className="flex items-center">
+            <div ref={messagesAreaRef} className="relative flex items-center gap-[14px]">
               <button
                 type="button"
                 onClick={() => {
@@ -285,10 +286,10 @@ export function AdminRecruiterHeader({
                   setShowNotifications(false);
                   setShowProfileMenu(false);
                 }}
-                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-slate-100"
                 aria-label="Open messages"
               >
-                <SidebarNavIcon iconType="Chat" active={false} />
+                <SidebarNavIcon iconType="Chat" active={false} colorHex="#94A3B8" />
                 {unreadMessages > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#0EA5A4] px-1 text-[10px] font-semibold text-white">
                     {unreadMessages > 9 ? "9+" : unreadMessages}
@@ -303,7 +304,7 @@ export function AdminRecruiterHeader({
                   setShowMessages(false);
                   setShowProfileMenu(false);
                 }}
-                className="relative inline-flex h-11 w-11 items-center justify-center rounded-md transition hover:bg-slate-100"
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-slate-100"
                 aria-label={
                   unreadNotifications > 0
                     ? `Notifications, ${unreadNotifications} unread`
@@ -316,11 +317,7 @@ export function AdminRecruiterHeader({
                     : "Notifications"
                 }
               >
-                <SidebarNavIcon
-                  iconType="Notifications"
-                  active={false}
-                  colorHex={unreadNotifications > 0 ? "#EF4444" : undefined}
-                />
+                <SidebarNavIcon iconType="Notifications" active={false} colorHex="#94A3B8" />
                 <HeaderIconCountBadge count={unreadNotifications} />
               </button>
 
@@ -450,7 +447,29 @@ export function AdminRecruiterHeader({
               ) : null}
             </div>
 
-            <div ref={profileAreaRef} className="relative">
+            <Link
+              href="/admin_recruiter/help-support"
+              onClick={() => {
+                setShowMessages(false);
+                setShowNotifications(false);
+                setShowProfileMenu(false);
+              }}
+              className="ml-[14px] inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-slate-100"
+              aria-label="Help and support"
+              title="Help and support"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={HEADER_HELP_SUPPORT_ICON}
+                alt=""
+                width={17}
+                height={17}
+                className="size-[17px] shrink-0"
+                aria-hidden
+              />
+            </Link>
+
+            <div ref={profileAreaRef} className="relative ml-5">
             <button
               type="button"
               onClick={() => {

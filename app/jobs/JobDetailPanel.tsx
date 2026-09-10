@@ -50,7 +50,10 @@ const applyClassName =
   "inline-flex h-9 min-w-[8.75rem] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none";
 
 const BRAND_ICON_COLOR = "var(--brand-primary)";
-const BRAND_ICON_CLASS = "h-5 w-5";
+const BRAND_ICON_CLASS = "h-4 w-4";
+const BOOKMARK_ICON_SRC = "/icons/jobs-board/bookmark.svg";
+const BOOKMARK_FILLED_ICON_SRC = "/icons/jobs-board/bookmark-filled.svg";
+const EXTERNAL_LINK_ICON_SRC = "/icons/jobs-board/external-link.svg";
 
 function savedJobsStorageKey(tenantSlug: string): string {
   return `${SAVED_JOBS_STORAGE_KEY}:${tenantSlug.trim().toLowerCase()}`;
@@ -172,7 +175,7 @@ function JobDetailActions({
     }
   }, [boardHref]);
 
-  const heartButton = (
+  const saveButton = (
     <button
       type="button"
       onClick={toggleSaved}
@@ -183,7 +186,7 @@ function JobDetailActions({
       data-testid="jobs-save-button"
     >
       <BrandedSvgIcon
-        src={saved ? "/icons/heart-icon-filled.svg" : "/icons/heart-icon.svg"}
+        src={saved ? BOOKMARK_FILLED_ICON_SRC : BOOKMARK_ICON_SRC}
         className={BRAND_ICON_CLASS}
         color={BRAND_ICON_COLOR}
       />
@@ -218,7 +221,7 @@ function JobDetailActions({
       data-testid="jobs-view-button"
     >
       <BrandedSvgIcon
-        src="/icons/eye-icon.svg"
+        src={EXTERNAL_LINK_ICON_SRC}
         className={BRAND_ICON_CLASS}
         color={BRAND_ICON_COLOR}
       />
@@ -229,7 +232,7 @@ function JobDetailActions({
     return (
       <div className="flex w-full flex-col gap-3" data-testid="jobs-detail-actions">
         <div className="flex items-center justify-center gap-1.5">
-          {heartButton}
+          {saveButton}
           {shareButton}
           {viewButton}
         </div>
@@ -238,13 +241,13 @@ function JobDetailActions({
     );
   }
 
-  // Desktop Figma order: heart → share → Apply now → view
+  // Desktop Figma order: bookmark → share → Apply now → external link
   return (
     <div
       className="flex shrink-0 items-center justify-end gap-2"
       data-testid="jobs-detail-actions"
     >
-      {heartButton}
+      {saveButton}
       {shareButton}
       <ApplyControl href={applyHref} className={applyClassName} />
       {viewButton}

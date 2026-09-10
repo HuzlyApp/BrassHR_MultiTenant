@@ -1895,19 +1895,31 @@ export default function AdminRecruiterJobsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setFiltersBarOpen((open) => !open)}
+                onClick={() => {
+                  // Mobile: all filters live in the modal. Desktop: toggle the quick-filter row.
+                  if (
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(max-width: 639px)").matches
+                  ) {
+                    setEditFiltersOpen(true);
+                    return;
+                  }
+                  setFiltersBarOpen((open) => !open);
+                }}
                 className={`relative ${
-                  filtersBarOpen ? JOBS_TOOLBAR_ICON_BUTTON_ACTIVE_CLASS : JOBS_TOOLBAR_ICON_BUTTON_CLASS
+                  filtersBarOpen || editFiltersOpen
+                    ? JOBS_TOOLBAR_ICON_BUTTON_ACTIVE_CLASS
+                    : JOBS_TOOLBAR_ICON_BUTTON_CLASS
                 }`}
                 aria-label="Toggle filters"
-                aria-pressed={filtersBarOpen}
+                aria-pressed={filtersBarOpen || editFiltersOpen}
                 title="Filters"
               >
                 <span className="relative size-4 overflow-hidden" aria-hidden>
                   <BrandedSvgIcon
                     src={JOBS_FILTERS_ICON_BTN_SRC}
                     className="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2"
-                    color={filtersBarOpen ? "#FFFFFF" : "#94A3B8"}
+                    color={filtersBarOpen || editFiltersOpen ? "#FFFFFF" : "#94A3B8"}
                   />
                 </span>
                 {activeAttributeFilterCount > 0 ? (
@@ -1938,7 +1950,7 @@ export default function AdminRecruiterJobsPage() {
         </div>
 
         {filtersBarOpen ? (
-          <div className="flex w-full min-w-0 flex-col gap-2.5 border-b border-[#E5E7EB] px-[14px] py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="hidden w-full min-w-0 flex-col gap-2.5 border-b border-[#E5E7EB] px-[14px] py-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <JobsQuickFilterSelect
                 label="Profession"

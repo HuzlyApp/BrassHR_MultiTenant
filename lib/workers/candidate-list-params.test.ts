@@ -8,7 +8,7 @@ import {
 } from "@/lib/workers/candidate-list-params";
 
 describe("parseCandidateListQueryParams", () => {
-  it("defaults to page size 25", () => {
+  it("defaults to page size 15", () => {
     const params = parseCandidateListQueryParams(new URLSearchParams());
     expect(params.limit).toBe(DEFAULT_CANDIDATES_PAGE_SIZE);
     expect(params.offset).toBe(0);

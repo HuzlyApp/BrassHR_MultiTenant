@@ -44,8 +44,8 @@ describe("resolveCandidatesListTotal", () => {
 });
 
 describe("DEFAULT_CANDIDATES_PAGE_SIZE", () => {
-  it("defaults to 25 for server-side paging", () => {
-    expect(DEFAULT_CANDIDATES_PAGE_SIZE).toBe(25);
+  it("defaults to 15 for server-side paging", () => {
+    expect(DEFAULT_CANDIDATES_PAGE_SIZE).toBe(15);
     expect(
       buildCandidatesListUrl("/api/workers", {
         limit: DEFAULT_CANDIDATES_PAGE_SIZE,

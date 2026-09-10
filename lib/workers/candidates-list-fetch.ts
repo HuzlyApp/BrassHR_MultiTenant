@@ -3,7 +3,7 @@ import {
   DEFAULT_CANDIDATES_PAGE_SIZE,
 } from "@/lib/workers/candidate-list-params";
 
-/** @deprecated Prefer DEFAULT_CANDIDATES_PAGE_SIZE (25). Kept for export/bulk helpers. */
+/** @deprecated Prefer DEFAULT_CANDIDATES_PAGE_SIZE (15). Kept for export/bulk helpers. */
 export const CANDIDATES_LIST_FETCH_LIMIT = 500;
 
 export function withWorkersListFetchLimit(

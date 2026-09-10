@@ -16,8 +16,8 @@ import type { WorkerStatus } from "@/lib/workers/workers-status-types";
  * - Search runs only via `list_candidate_ids_page`; never silently fall back to an unfiltered page.
  */
 
-export const DEFAULT_CANDIDATES_PAGE_SIZE = 25;
-export const CANDIDATES_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+export const DEFAULT_CANDIDATES_PAGE_SIZE = 15;
+export const CANDIDATES_PAGE_SIZE_OPTIONS = [15, 25, 50, 100] as const;
 
 const SERVER_SORT_COLUMNS = new Set([
   "name",
