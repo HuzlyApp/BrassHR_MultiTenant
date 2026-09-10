@@ -12,6 +12,11 @@ export type JobPipelineSummary = {
   onboarding: number;
   closed: number;
   show_submission: boolean;
+  /**
+   * Best applications-list `?tab=` for the Closed card (system key or status name slug).
+   * Closed spans rejected / undecided / archived (+ custom statuses that roll into closed).
+   */
+  closed_redirect_tab: string | null;
 };
 
 export type JobPipelineSummaryRow = {
@@ -33,6 +38,8 @@ const AT_MSP_SYSTEM_KEYS = new Set([
   "msp_presented",
 ]);
 
+const CLOSED_PIPELINE_KEYS = new Set(["rejected", "undecided", "archived"]);
+
 function applicationSystemKey(row: JobPipelineSummaryRow): string {
   const joined = Array.isArray(row.application_statuses)
     ? row.application_statuses[0]
@@ -49,6 +56,36 @@ function applicationStatusName(row: JobPipelineSummaryRow): string {
   return String(joined?.name ?? "")
     .trim()
     .toLowerCase();
+}
+
+function statusNameSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Prefer real status catalog key/name so Closed redirects to the tab that has the row. */
+export function closedApplicationRedirectTab(row: JobPipelineSummaryRow): string {
+  const key = applicationSystemKey(row);
+  if (CLOSED_PIPELINE_KEYS.has(key)) return key;
+
+  const name = applicationStatusName(row);
+  if (name) {
+    const slug = statusNameSlug(name);
+    if (slug) return slug;
+  }
+
+  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  if (CLOSED_PIPELINE_KEYS.has(pipeline)) return pipeline;
+  return "rejected";
+}
+
+export function isClosedPipelineApplication(row: JobPipelineSummaryRow): boolean {
+  if (isAtMspPipelineApplication(row) || isOnboardingPipelineApplication(row)) return false;
+  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  return CLOSED_PIPELINE_KEYS.has(pipeline);
 }
 
 export function isAtMspPipelineApplication(row: JobPipelineSummaryRow): boolean {
@@ -85,6 +122,7 @@ export function emptyJobPipelineSummary(
     onboarding: 0,
     closed: 0,
     show_submission: showSubmission,
+    closed_redirect_tab: null,
   };
 }
 
@@ -98,6 +136,7 @@ export function tallyJobPipelineSummary(
   options: { showSubmission: boolean }
 ): JobPipelineSummary {
   const summary = emptyJobPipelineSummary(options.showSubmission);
+  const closedTabCounts = new Map<string, number>();
 
   for (const row of rows) {
     if (!isVisibleOnJobCandidatesAllTab(row)) continue;
@@ -130,14 +169,27 @@ export function tallyJobPipelineSummary(
         break;
       case "rejected":
       case "undecided":
-      case "archived":
+      case "archived": {
         summary.closed += 1;
+        const tab = closedApplicationRedirectTab(row);
+        closedTabCounts.set(tab, (closedTabCounts.get(tab) ?? 0) + 1);
         break;
+      }
       default:
         summary.screening += 1;
         break;
     }
   }
+
+  let bestTab: string | null = null;
+  let bestCount = 0;
+  for (const [tab, count] of closedTabCounts) {
+    if (count > bestCount) {
+      bestTab = tab;
+      bestCount = count;
+    }
+  }
+  summary.closed_redirect_tab = bestTab;
 
   return summary;
 }

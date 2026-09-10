@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { JOB_FORM_OUTLINE_BUTTON_CLASS } from "./job-form-shared";
 
 type Props = {
   href: string | null | undefined;
   className?: string;
+  style?: CSSProperties;
   iconColor?: string;
   /** Override icon path (defaults: list eye / job-details view-public). */
   iconSrc?: string;
@@ -21,6 +23,7 @@ type Props = {
 export function JobPublicViewLink({
   href,
   className = "",
+  style,
   iconColor = "var(--brand-primary)",
   iconSrc,
   disabledTitle = "Publish this job to view the public page",
@@ -51,6 +54,7 @@ export function JobPublicViewLink({
           title={disabledTitle}
           aria-label={disabledTitle}
           className={`${buttonClass} opacity-50`}
+          style={style}
         >
           {icon}
           {label}
@@ -64,6 +68,7 @@ export function JobPublicViewLink({
         target="_blank"
         rel="noopener noreferrer"
         className={buttonClass}
+        style={style}
         aria-label={label}
         title="Public view"
       >
