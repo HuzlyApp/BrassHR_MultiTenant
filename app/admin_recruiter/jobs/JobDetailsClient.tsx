@@ -30,9 +30,7 @@ import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import {
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
-  JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_SURFACE_CLASS,
-  primaryButtonStyle,
 } from "./job-form-shared";
 import {
   JOB_POSTING_DESCRIPTION_CSS,
@@ -76,15 +74,15 @@ const JOB_DETAILS_ICON_BASE = "/icons/job-details-icons";
 
 /** Figma Job Details typography */
 const JOB_DETAILS_SECTION_TITLE_CLASS =
-  "text-xl font-bold leading-7 tracking-tight text-black";
+  "text-lg font-bold leading-6 tracking-tight text-black min-[400px]:text-xl min-[400px]:leading-7";
 const JOB_DETAILS_CARD_TITLE_CLASS =
-  "text-lg font-bold leading-7 tracking-tight text-black";
+  "text-base font-bold leading-6 tracking-tight text-black min-[400px]:text-lg min-[400px]:leading-7";
 const JOB_DETAILS_CARD_SUBTITLE_CLASS =
   "mt-1 text-sm font-normal leading-5 text-[#667085]";
 const JOB_DETAILS_SUMMARY_LABEL_CLASS =
   "text-sm font-semibold leading-5 text-black";
 const JOB_DETAILS_SUMMARY_VALUE_CLASS =
-  "text-sm font-normal leading-6 text-[#667085]";
+  "break-words text-sm font-normal leading-6 text-[#667085]";
 
 /** Collapsed Job post summary preview height (Figma). */
 const JOB_SUMMARY_COLLAPSED_MAX_PX = 300;
@@ -132,6 +130,9 @@ function ActionMenuItem({
   );
 }
 
+/** Figma Candidates Activity: link label stays navy (not tenant secondary). */
+const JOB_DETAILS_ACTIVITY_LINK_COLOR = "#012352";
+
 /** Figma candidate KPI card: primary 20×20 icon on top; link + count on one row. */
 function CandidateCard({
   iconSrc,
@@ -151,7 +152,7 @@ function CandidateCard({
   return (
     <Link
       href={linkHref}
-      className="flex h-[86px] min-w-0 flex-1 basis-[11.5rem] flex-col gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-5 py-3.5 shadow-sm outline-none transition hover:border-[#D0D5DD] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
+      className="flex h-[86px] w-full min-w-0 flex-col gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-sm outline-none transition hover:border-[#D0D5DD] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 min-[400px]:px-4 min-[500px]:px-5 min-[500px]:py-3.5 min-[900px]:flex-1 min-[900px]:basis-[11.5rem]"
       aria-label={`${count} ${label}`}
     >
       <BrandedSvgIcon
@@ -159,15 +160,15 @@ function CandidateCard({
         className="h-5 w-5 shrink-0"
         color={primaryColor}
       />
-      <div className="flex min-w-0 items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center justify-between gap-2 min-[400px]:gap-3">
       <span
-        className="min-w-0 text-sm font-medium leading-5 underline decoration-1 underline-offset-2"
-        style={{ color: secondaryColor }}
+        className="min-w-0 truncate text-sm font-medium leading-5 underline decoration-1 underline-offset-2"
+        style={{ color: JOB_DETAILS_ACTIVITY_LINK_COLOR }}
       >
         {label}
       </span>
       <span
-        className="shrink-0 text-[28px] font-bold leading-8 tabular-nums tracking-tight"
+        className="shrink-0 text-2xl font-bold leading-8 tabular-nums tracking-tight min-[400px]:text-[28px]"
         style={{ color: secondaryColor }}
       >
         {count}
@@ -181,7 +182,11 @@ export default function JobDetailsClient({ jobId }: Props) {
   const router = useRouter();
   const branding = useTenantBranding();
   const brandVars = brandingToCssVars(branding) as CSSProperties;
-  const brandStyle = primaryButtonStyle(brandVars);
+  const primaryColor = branding.primaryHex || "#BC8B41";
+  const outlineBrandStyle: CSSProperties = {
+    borderColor: primaryColor,
+    color: primaryColor,
+  };
 
   const [job, setJob] = useState<JobDetailsRow | null>(null);
   const [pipelineSummary, setPipelineSummary] = useState<JobPipelineSummary | null>(null);
@@ -495,7 +500,7 @@ export default function JobDetailsClient({ jobId }: Props) {
           ? "In Process"
           : "In Process Screening + Interview",
         count: summary.screening + summary.interview,
-        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=reviewing`,
         iconSrc: `${JOB_DETAILS_ICON_BASE}/in-process.svg`,
       },
     ];
@@ -504,7 +509,7 @@ export default function JobDetailsClient({ jobId }: Props) {
         key: "at-msp",
         label: "At MSP Submission",
         count: summary.submission,
-        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=submitted-for-msp-review`,
         iconSrc: `${JOB_DETAILS_ICON_BASE}/at-msp-submission.svg`,
       });
     }
@@ -520,7 +525,9 @@ export default function JobDetailsClient({ jobId }: Props) {
         key: "closed",
         label: "Closed",
         count: summary.closed,
-        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`,
+        href: `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}&tab=${encodeURIComponent(
+          summary.closed_redirect_tab || "closed"
+        )}`,
         iconSrc: `${JOB_DETAILS_ICON_BASE}/closed.svg`,
       }
     );
@@ -545,23 +552,180 @@ export default function JobDetailsClient({ jobId }: Props) {
     }
   }
 
+  const statusAndActions =
+    job && !loading ? (
+      <div className="flex w-full min-w-0 shrink-0 items-center gap-2 min-[500px]:w-auto">
+        {(() => {
+          const currentStatus = normalizeJobRequisitionStatus(String(job.status ?? ""));
+          const allowed = new Set<JobStatus>([
+            currentStatus,
+            ...allowedJobStatusTransitions(currentStatus),
+          ]);
+          const statusOptions = JOB_STATUSES.filter((status) => allowed.has(status));
+          return (
+            <div className="relative min-w-0 flex-1 min-[500px]:flex-none" ref={statusMenuRef}>
+              <button
+                type="button"
+                disabled={statusBusy}
+                onClick={() => {
+                  setActionsOpen(false);
+                  setStatusMenuOpen((open) => !open);
+                }}
+                className={`inline-flex h-9 w-full min-w-0 cursor-pointer items-center gap-2 py-0 pl-3 pr-8 text-left text-sm text-[#334155] outline-none disabled:cursor-not-allowed disabled:opacity-60 min-[500px]:w-auto min-[500px]:min-w-[9.5rem] ${JOB_FORM_SURFACE_CLASS}`}
+                aria-label={`Job status: ${jobDetailsStatusLabel(currentStatus)}`}
+                aria-haspopup="listbox"
+                aria-expanded={statusMenuOpen}
+              >
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(currentStatus)}`}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {jobDetailsStatusLabel(currentStatus)}
+                </span>
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 -translate-y-1/2 bg-no-repeat"
+                  style={{
+                    backgroundImage:
+                      'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\' fill=\'none\'%3E%3Cpath d=\'M3 4.5L6 7.5L9 4.5\' stroke=\'%2394A3B8\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")',
+                    backgroundSize: "12px 12px",
+                    backgroundPosition: "center",
+                  }}
+                />
+              </button>
+              {statusMenuOpen ? (
+                <div
+                  role="listbox"
+                  aria-label="Job status"
+                  className="absolute right-0 z-30 mt-1 min-w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                >
+                  {statusOptions.map((status) => {
+                    const selected = status === currentStatus;
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        disabled={statusBusy}
+                        className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-60 ${
+                          selected ? "bg-[#EFF6FF]" : ""
+                        }`}
+                        onClick={() => {
+                          setStatusMenuOpen(false);
+                          if (status !== currentStatus) {
+                            void updateJobStatus(status);
+                          }
+                        }}
+                      >
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(status)}`}
+                          aria-hidden
+                        />
+                        {jobDetailsStatusLabel(status)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          );
+        })()}
+
+        <div className="relative" ref={actionsRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusMenuOpen(false);
+              setActionsOpen((open) => !open);
+            }}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-60"
+            aria-label="More actions"
+            aria-haspopup="menu"
+            aria-expanded={actionsOpen}
+          >
+            <BrandedSvgIcon
+              src={`${JOB_DETAILS_ICON_BASE}/more-actions.svg`}
+              className="h-3.5 w-3.5"
+              color="#0F172A"
+            />
+          </button>
+          {actionsOpen ? (
+            <div
+              role="menu"
+              className="absolute right-0 z-30 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+            >
+              <ActionMenuItem
+                iconSrc={`${JOB_DETAILS_ICON_BASE}/copy-apply-link.svg`}
+                label="Copy apply link"
+                onClick={() => void copyApplyLink()}
+              />
+              <ActionMenuItem
+                iconSrc={`${JOB_DETAILS_ICON_BASE}/add-remove-tags.svg`}
+                label="Add/remove tags"
+                onClick={() => {
+                  setActionsOpen(false);
+                  setTagsError(null);
+                  setTagsOpen(true);
+                }}
+              />
+              <ActionMenuItem
+                iconSrc={`${JOB_DETAILS_ICON_BASE}/assign-recruiter.svg`}
+                label="Assign recruiter"
+                onClick={() => {
+                  setActionsOpen(false);
+                  setAssignError(null);
+                  setAssignOpen(true);
+                  void loadTeamMembers();
+                }}
+              />
+              <ActionMenuItem
+                iconSrc={`${JOB_DETAILS_ICON_BASE}/duplicate-job.svg`}
+                label={duplicateBusy ? "Duplicating…" : "Duplicate job"}
+                disabled={duplicateBusy}
+                onClick={() => void duplicateJob()}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    ) : null;
+
   return (
     <div
-      className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8"
+      className="box-border w-full min-w-0 max-w-full px-2.5 pb-6 pt-3 min-[400px]:px-3 min-[400px]:pb-8 min-[400px]:pt-4 min-[500px]:px-5 min-[500px]:pt-5 min-[900px]:px-8"
       style={brandVars}
     >
-      <JobsBreadcrumb page="job-details" className="mb-4" />
-      <div className={`${JOB_FORM_PAGE_CARD_CLASS} p-4 sm:p-6 lg:p-8`}>
-        {loading ? (
+      <div className="mb-3 flex flex-col gap-3 min-[500px]:mb-4 min-[500px]:flex-row min-[500px]:flex-wrap min-[500px]:items-center min-[500px]:justify-between">
+        <JobsBreadcrumb page="job-details" className="mb-0 min-w-0" />
+        {statusAndActions}
+      </div>
+      {loading ? (
+        <div className={`${JOB_FORM_PAGE_CARD_CLASS} p-4 sm:p-6 lg:p-8`}>
           <p className="mt-8 text-sm text-[#64748B]">Loading job details…</p>
-        ) : error && !job ? (
+        </div>
+      ) : error && !job ? (
+        <div className={`${JOB_FORM_PAGE_CARD_CLASS} p-4 sm:p-6 lg:p-8`}>
           <p className="mt-8 text-sm text-red-600">{error}</p>
-        ) : job ? (
-          <>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 w-full lg:w-auto">
+        </div>
+      ) : job ? (
+        <>
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-3.5 shadow-sm min-[400px]:p-4 min-[500px]:p-5 min-[600px]:p-6">
+            <div
+              className={`flex flex-col gap-4 min-[500px]:gap-5 min-[900px]:flex-row min-[900px]:items-stretch ${
+                job.status !== "archived" ? "min-[900px]:gap-0" : ""
+              }`}
+            >
+              <div
+                className={`min-w-0 ${
+                  job.status !== "archived"
+                    ? "min-[900px]:min-w-0 min-[900px]:flex-1 min-[900px]:basis-0 min-[900px]:pr-6"
+                    : "w-full"
+                }`}
+              >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h1 className="min-w-0 text-lg font-semibold leading-7 text-[#1D2739]">
+                  <h1 className="min-w-0 break-words text-lg font-bold leading-6 tracking-tight text-black min-[400px]:text-xl min-[400px]:leading-7">
                     {title}
                   </h1>
                   {jobTags.length > 0 ? (
@@ -569,7 +733,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                       {visibleJobTags.map((tag) => (
                         <span
                           key={tag}
-                          className="inline-flex max-w-[10rem] truncate rounded-md px-2 py-0.5 text-xs font-semibold leading-4 text-white"
+                          className="inline-flex max-w-[8rem] truncate rounded-md px-2 py-0.5 text-xs font-semibold leading-4 text-white min-[400px]:max-w-[10rem]"
                           style={{ backgroundColor: branding.secondaryHex || "#012352" }}
                           title={tag}
                         >
@@ -593,7 +757,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                     </div>
                   ) : null}
                 </div>
-                <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
+                <p className={`mt-1.5 break-words ${JOB_POSTING_METADATA_CLASS}`}>
                   <span className="font-semibold text-[#1D2739]">Location:</span>{" "}
                   {location}
                   {branding.companyName?.trim() ? (
@@ -618,7 +782,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                     : flow?.name;
                   if (!workflowName && !job.workflow_assignment_error) return null;
                   return (
-                    <p className="mt-2 text-sm text-[#475569]">
+                    <p className="mt-2 break-words text-sm text-[#475569]">
                       Assigned workflow:{" "}
                       <span className="font-semibold text-[#111827]">
                         {workflowName || "Unmapped"}
@@ -641,337 +805,188 @@ export default function JobDetailsClient({ jobId }: Props) {
                   );
                 })()}
 
-                <div className="mt-4 flex w-full flex-col gap-3 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:items-center">
+                <div className="mt-4 flex w-full flex-col gap-2.5 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap min-[500px]:items-center">
                   <Link
                     href={`/admin_recruiter/jobs/${job.id}/edit`}
-                    className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[520px]:w-auto`}
-                    style={brandStyle}
+                    className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
+                    style={outlineBrandStyle}
                   >
+                    <BrandedSvgIcon
+                      src={`${JOB_DETAILS_ICON_BASE}/edit-job.svg`}
+                      className="h-4 w-4 shrink-0"
+                      color={primaryColor}
+                    />
                     Edit Job
                   </Link>
                   <JobPublicViewLink
                     href={publicJobPath}
                     variant="button"
-                    className="w-full min-[520px]:w-auto"
+                    iconColor={primaryColor}
+                    className="w-full min-[500px]:w-auto"
+                    style={outlineBrandStyle}
                   />
                 </div>
               </div>
 
-              <div className="flex w-full shrink-0 items-center gap-2 self-stretch min-[520px]:w-auto min-[520px]:self-start lg:w-auto">
-                {(() => {
-                  const currentStatus = normalizeJobRequisitionStatus(String(job.status ?? ""));
-                  const allowed = new Set<JobStatus>([
-                    currentStatus,
-                    ...allowedJobStatusTransitions(currentStatus),
-                  ]);
-                  const statusOptions = JOB_STATUSES.filter((status) => allowed.has(status));
-                  return (
-                    <div className="relative min-w-0 flex-1 min-[520px]:w-auto min-[520px]:flex-none" ref={statusMenuRef}>
+              {job.status !== "archived" ? (
+                <>
+                  <div
+                    className="hidden w-px shrink-0 self-stretch bg-[#E5E7EB] min-[900px]:block"
+                    aria-hidden
+                  />
+                  <div className="flex min-w-0 flex-col items-start justify-center border-t border-[#E5E7EB] pt-4 text-left min-[500px]:pt-5 min-[900px]:min-w-0 min-[900px]:flex-1 min-[900px]:basis-0 min-[900px]:border-t-0 min-[900px]:pt-0 min-[900px]:pl-6">
+                    <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Add Candidates</h2>
+                    <p className={JOB_DETAILS_CARD_SUBTITLE_CLASS}>
+                      Upload multiple résumés or import existing candidates from your talent database.
+                    </p>
+                    <div className="mt-4 flex w-full flex-col gap-2.5 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap">
                       <button
                         type="button"
-                        disabled={statusBusy}
-                        onClick={() => {
-                          setActionsOpen(false);
-                          setStatusMenuOpen((open) => !open);
-                        }}
-                        className={`inline-flex h-10 min-w-[9.5rem] w-full cursor-pointer items-center gap-2 py-0 pl-3 pr-8 text-left text-sm text-[#334155] outline-none disabled:cursor-not-allowed disabled:opacity-60 min-[520px]:h-9 ${JOB_FORM_SURFACE_CLASS}`}
-                        aria-label={`Job status: ${jobDetailsStatusLabel(currentStatus)}`}
-                        aria-haspopup="listbox"
-                        aria-expanded={statusMenuOpen}
+                        onClick={() => setImportOpen(true)}
+                        className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
+                        style={outlineBrandStyle}
                       >
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(currentStatus)}`}
-                          aria-hidden
+                        <BrandedSvgIcon
+                          src={`${JOB_DETAILS_ICON_BASE}/match-candidates.svg`}
+                          className="h-4 w-4 shrink-0"
+                          color={primaryColor}
                         />
-                        <span className="min-w-0 flex-1 truncate">
-                          {jobDetailsStatusLabel(currentStatus)}
-                        </span>
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 -translate-y-1/2 bg-no-repeat"
-                          style={{
-                            backgroundImage:
-                              'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\' fill=\'none\'%3E%3Cpath d=\'M3 4.5L6 7.5L9 4.5\' stroke=\'%2394A3B8\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")',
-                            backgroundSize: "12px 12px",
-                            backgroundPosition: "center",
-                          }}
-                        />
+                        Match Candidates
                       </button>
-                      {statusMenuOpen ? (
-                        <div
-                          role="listbox"
-                          aria-label="Job status"
-                          className="absolute right-0 z-30 mt-1 min-w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
-                        >
-                          {statusOptions.map((status) => {
-                            const selected = status === currentStatus;
-                            return (
-                              <button
-                                key={status}
-                                type="button"
-                                role="option"
-                                aria-selected={selected}
-                                disabled={statusBusy}
-                                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-60 ${
-                                  selected ? "bg-[#EFF6FF]" : ""
-                                }`}
-                                onClick={() => {
-                                  setStatusMenuOpen(false);
-                                  if (status !== currentStatus) {
-                                    void updateJobStatus(status);
-                                  }
-                                }}
-                              >
-                                <span
-                                  className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(status)}`}
-                                  aria-hidden
-                                />
-                                {jobDetailsStatusLabel(status)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setAddCandidateOpen(true)}
+                        className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
+                        style={outlineBrandStyle}
+                      >
+                        <BrandedSvgIcon
+                          src={`${JOB_DETAILS_ICON_BASE}/upload-resumes.svg`}
+                          className="h-4 w-4 shrink-0"
+                          color={primaryColor}
+                        />
+                        Upload Resume&apos;s
+                      </button>
                     </div>
-                  );
-                })()}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
 
-                <div className="relative" ref={actionsRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStatusMenuOpen(false);
-                      setActionsOpen((open) => !open);
-                    }}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-60 min-[520px]:h-9 min-[520px]:w-9"
-                    aria-label="More actions"
-                    aria-haspopup="menu"
-                    aria-expanded={actionsOpen}
-                  >
-                    <BrandedSvgIcon
-                      src={`${JOB_DETAILS_ICON_BASE}/more-actions.svg`}
-                      className="h-3.5 w-3.5"
-                      color="#0F172A"
-                    />
-                  </button>
-                  {actionsOpen ? (
-                    <div
-                      role="menu"
-                      className="absolute right-0 z-30 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
-                    >
-                      {job.status !== "archived" ? (
-                        <>
-                          <ActionMenuItem
-                            iconSrc={`${JOB_DETAILS_ICON_BASE}/import-candidates.svg`}
-                            label="Import Candidates"
-                            onClick={() => {
-                              setActionsOpen(false);
-                              setImportOpen(true);
-                            }}
-                          />
-                          <ActionMenuItem
-                            iconSrc={`${JOB_DETAILS_ICON_BASE}/add-candidate.svg`}
-                            label="Add Candidate"
-                            onClick={() => {
-                              setActionsOpen(false);
-                              setAddCandidateOpen(true);
-                            }}
-                          />
-                        </>
-                      ) : null}
-                      <ActionMenuItem
-                        iconSrc={`${JOB_DETAILS_ICON_BASE}/copy-apply-link.svg`}
-                        label="Copy apply link"
-                        onClick={() => void copyApplyLink()}
-                      />
-                      <ActionMenuItem
-                        iconSrc={`${JOB_DETAILS_ICON_BASE}/add-remove-tags.svg`}
-                        label="Add/remove tags"
-                        onClick={() => {
-                          setActionsOpen(false);
-                          setTagsError(null);
-                          setTagsOpen(true);
-                        }}
-                      />
-                      <ActionMenuItem
-                        iconSrc={`${JOB_DETAILS_ICON_BASE}/assign-recruiter.svg`}
-                        label="Assign recruiter"
-                        onClick={() => {
-                          setActionsOpen(false);
-                          setAssignError(null);
-                          setAssignOpen(true);
-                          void loadTeamMembers();
-                        }}
-                      />
-                      <ActionMenuItem
-                        iconSrc={`${JOB_DETAILS_ICON_BASE}/duplicate-job.svg`}
-                        label={duplicateBusy ? "Duplicating…" : "Duplicate job"}
-                        disabled={duplicateBusy}
-                        onClick={() => void duplicateJob()}
-                      />
-                    </div>
-                  ) : null}
-                </div>
+          {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+
+          {normalizeJobRequisitionStatus(String(job.status)) === "paused" ? (
+            <div
+              role="status"
+              className="mt-4 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-3 py-3 text-sm text-[#92400E] min-[400px]:px-4"
+            >
+              This job is paused. Public applications are blocked until it is reopened.
+            </div>
+          ) : null}
+
+          <section className="mt-6 min-[500px]:mt-8">
+            <h2 className={JOB_DETAILS_SECTION_TITLE_CLASS}>Candidates Activity</h2>
+            <div className="mt-3 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 min-[600px]:grid-cols-2 min-[700px]:grid-cols-3 min-[900px]:mt-4 min-[900px]:flex min-[900px]:flex-row min-[900px]:flex-wrap">
+              {pipelineCards.map((card) => (
+                <CandidateCard
+                  key={card.key}
+                  iconSrc={card.iconSrc}
+                  count={card.count}
+                  label={card.label}
+                  linkHref={card.href}
+                  primaryColor={branding.primaryHex || "#BC8B41"}
+                  secondaryColor={branding.secondaryHex || "#012352"}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-6 rounded-xl border border-[#E5E7EB] bg-white p-3.5 shadow-sm min-[400px]:p-4 min-[500px]:mt-8 min-[500px]:p-5 min-[600px]:p-6">
+            <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Job post summary</h2>
+            <div className="mt-4 border-t border-[#E5E7EB]" aria-hidden />
+            <div className="relative mt-4">
+              <div
+                ref={summaryContentRef}
+                className={
+                  summaryExpanded
+                    ? ""
+                    : "max-h-[300px] overflow-hidden"
+                }
+                style={
+                  summaryExpanded
+                    ? undefined
+                    : { maxHeight: JOB_SUMMARY_COLLAPSED_MAX_PX }
+                }
+              >
+                <p className={JOB_DETAILS_SUMMARY_VALUE_CLASS}>
+                  <span className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Date posted:</span> {posted}
+                </p>
+                <p className={`mt-1 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
+                  <span className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Pay:</span> {pay}
+                </p>
+
+                <section className="mt-6">
+                  <h3 className={`mb-2 ${JOB_DETAILS_SUMMARY_LABEL_CLASS}`}>Job Summary:</h3>
+                  <style>
+                    {JOB_POSTING_DESCRIPTION_CSS.replaceAll(
+                      ".job-posting-description",
+                      ".job-summary-description"
+                    )}
+                  </style>
+                  <JobDescriptionHtml
+                    html={summaryHtml}
+                    className="job-summary-description mt-0 text-[#667085]"
+                    emptyLabel="No job summary added yet."
+                  />
+                </section>
+
+                <SummaryList title="Key Responsibilities:" items={responsibilities} />
+                <SummaryList title="Qualifications:" items={qualifications} />
+                <SummaryList title="Preferred Skills:" items={preferredSkills} />
+
+                {benefits.length ? (
+                  <section className="mt-6">
+                    <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Benefits:</h3>
+                    <p className={`mt-2 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
+                      {benefits.join(", ")}
+                    </p>
+                  </section>
+                ) : null}
+
+                <section className="mt-6">
+                  <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Work Location:</h3>
+                  <p className={`mt-2 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>{workLocation}</p>
+                </section>
               </div>
+
+              {!summaryExpanded && summaryOverflows ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent"
+                />
+              ) : null}
             </div>
 
-            {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-
-            {normalizeJobRequisitionStatus(String(job.status)) === "paused" ? (
-              <div
-                role="status"
-                className="mt-4 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]"
-              >
-                This job is paused. Public applications are blocked until it is reopened.
+            {summaryOverflows || summaryExpanded ? (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setSummaryExpanded((open) => !open)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-black transition hover:opacity-80"
+                  aria-expanded={summaryExpanded}
+                >
+                  {summaryExpanded ? "Show less" : "Show more"}
+                  {summaryExpanded ? (
+                    <ChevronUp className="h-4 w-4 shrink-0 text-black" aria-hidden />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-black" aria-hidden />
+                  )}
+                </button>
               </div>
             ) : null}
-
-            <section className="mt-8">
-              <h2 className={JOB_DETAILS_SECTION_TITLE_CLASS}>Candidates</h2>
-              <div className="mt-4 flex flex-row flex-wrap gap-3">
-                {pipelineCards.map((card) => (
-                  <CandidateCard
-                    key={card.key}
-                    iconSrc={card.iconSrc}
-                    count={card.count}
-                    label={card.label}
-                    linkHref={card.href}
-                    primaryColor={branding.primaryHex || "#BC8B41"}
-                    secondaryColor={branding.secondaryHex || "#012352"}
-                  />
-                ))}
-              </div>
-              {job.status !== "archived" ? (
-                <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-                  <h3 className={JOB_DETAILS_CARD_TITLE_CLASS}>Add Candidates</h3>
-                  <p className={JOB_DETAILS_CARD_SUBTITLE_CLASS}>
-                    Upload multiple résumés or import existing candidates from your talent database.
-                  </p>
-                  <div className="mt-4 flex flex-col gap-3 min-[520px]:flex-row min-[520px]:flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => setImportOpen(true)}
-                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
-                      style={{
-                        borderColor: branding.primaryHex || "#BC8B41",
-                        color: branding.primaryHex || "#BC8B41",
-                      }}
-                    >
-                      <BrandedSvgIcon
-                        src={`${JOB_DETAILS_ICON_BASE}/import-candidates-btn.svg`}
-                        className="h-4 w-4 shrink-0"
-                        color={branding.primaryHex || "#BC8B41"}
-                      />
-                      Import Candidates
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAddCandidateOpen(true)}
-                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
-                      style={{
-                        borderColor: branding.primaryHex || "#BC8B41",
-                        color: branding.primaryHex || "#BC8B41",
-                      }}
-                    >
-                      <BrandedSvgIcon
-                        src={`${JOB_DETAILS_ICON_BASE}/upload-resume.svg`}
-                        className="h-4 w-4 shrink-0"
-                        color={branding.primaryHex || "#BC8B41"}
-                      />
-                      Upload Resume&apos;s
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-
-            <section className="mt-8 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-              <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Job post summary</h2>
-              <div className="mt-4 border-t border-[#E5E7EB]" aria-hidden />
-              <div className="relative mt-4">
-                <div
-                  ref={summaryContentRef}
-                  className={
-                    summaryExpanded
-                      ? ""
-                      : "max-h-[300px] overflow-hidden"
-                  }
-                  style={
-                    summaryExpanded
-                      ? undefined
-                      : { maxHeight: JOB_SUMMARY_COLLAPSED_MAX_PX }
-                  }
-                >
-                  <p className={JOB_DETAILS_SUMMARY_VALUE_CLASS}>
-                    <span className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Date posted:</span> {posted}
-                  </p>
-                  <p className={`mt-1 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
-                    <span className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Pay:</span> {pay}
-                  </p>
-
-                  <section className="mt-6">
-                    <h3 className={`mb-2 ${JOB_DETAILS_SUMMARY_LABEL_CLASS}`}>Job Summary:</h3>
-                    <style>
-                      {JOB_POSTING_DESCRIPTION_CSS.replaceAll(
-                        ".job-posting-description",
-                        ".job-summary-description"
-                      )}
-                    </style>
-                    <JobDescriptionHtml
-                      html={summaryHtml}
-                      className="job-summary-description mt-0 text-[#667085]"
-                      emptyLabel="No job summary added yet."
-                    />
-                  </section>
-
-                  <SummaryList title="Key Responsibilities:" items={responsibilities} />
-                  <SummaryList title="Qualifications:" items={qualifications} />
-                  <SummaryList title="Preferred Skills:" items={preferredSkills} />
-
-                  {benefits.length ? (
-                    <section className="mt-6">
-                      <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Benefits:</h3>
-                      <p className={`mt-2 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>
-                        {benefits.join(", ")}
-                      </p>
-                    </section>
-                  ) : null}
-
-                  <section className="mt-6">
-                    <h3 className={JOB_DETAILS_SUMMARY_LABEL_CLASS}>Work Location:</h3>
-                    <p className={`mt-2 ${JOB_DETAILS_SUMMARY_VALUE_CLASS}`}>{workLocation}</p>
-                  </section>
-                </div>
-
-                {!summaryExpanded && summaryOverflows ? (
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent"
-                  />
-                ) : null}
-              </div>
-
-              {summaryOverflows || summaryExpanded ? (
-                <div className="mt-4 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setSummaryExpanded((open) => !open)}
-                    className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-black transition hover:opacity-80"
-                    aria-expanded={summaryExpanded}
-                  >
-                    {summaryExpanded ? "Show less" : "Show more"}
-                    {summaryExpanded ? (
-                      <ChevronUp className="h-4 w-4 shrink-0 text-black" aria-hidden />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-black" aria-hidden />
-                    )}
-                  </button>
-                </div>
-              ) : null}
-            </section>
-          </>
-        ) : null}
-      </div>
+          </section>
+        </>
+      ) : null}
 
       <AddCandidateModal
         open={addCandidateOpen}

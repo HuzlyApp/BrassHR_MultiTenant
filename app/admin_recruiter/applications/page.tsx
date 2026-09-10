@@ -87,7 +87,7 @@ import {
   isApplicationRowArchived,
   matchesApplicationStatusTab,
 } from "@/lib/jobs/application-status-tab";
-import { isUuid } from "@/lib/validation/uuid";
+import { isClosedPipelineApplication } from "@/lib/jobs/pipeline-summary";
 import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
@@ -427,7 +427,39 @@ function matchesTab(
   tab: ApplicationTab,
   options: ApplicationStatusOption[]
 ): boolean {
+  if (tab === "closed") {
+    return isClosedPipelineApplication(row);
+  }
   return matchesApplicationStatusTab(row, tab, options);
+}
+
+/** Resolve ?tab= from status id, system key, or name slug (e.g. submitted-for-msp-review). */
+function resolveApplicationTabParam(
+  tabParam: string,
+  options: ApplicationStatusOption[]
+): ApplicationTab {
+  const raw = tabParam.trim();
+  if (!raw || raw === "all") return "all";
+  if (raw === "closed") return "closed";
+
+  const byId = options.find((option) => option.id === raw);
+  if (byId) return byId.id;
+
+  const byKey = options.find((option) => option.systemKey === raw);
+  if (byKey) return byKey.id;
+
+  const slug = raw.toLowerCase();
+  const byNameSlug = options.find((option) => {
+    const nameSlug = option.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return nameSlug === slug || option.name.trim().toLowerCase() === slug;
+  });
+  if (byNameSlug) return byNameSlug.id;
+
+  return raw;
 }
 
 function formatTimeAgo(iso: string): string {
@@ -573,6 +605,8 @@ export default function JobApplicationsPage() {
   const [activeTab, setActiveTab] = useState<ApplicationTab>(() => {
     return searchParams.get("tab")?.trim() || "all";
   });
+  const statusTabsScrollRef = useRef<HTMLElement>(null);
+  const activeStatusTabRef = useRef<HTMLButtonElement>(null);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<ApplicationColumnId[]>([
@@ -697,13 +731,11 @@ export default function JobApplicationsPage() {
       setActiveTab("all");
       return;
     }
-    const byId = statusOptions.find((option) => option.id === tabParam);
-    if (byId) {
-      setActiveTab(byId.id);
+    if (statusOptions.length === 0) {
+      setActiveTab(tabParam);
       return;
     }
-    const byKey = statusOptions.find((option) => option.systemKey === tabParam);
-    setActiveTab(byKey?.id ?? tabParam);
+    setActiveTab(resolveApplicationTabParam(tabParam, statusOptions));
   }, [searchParams, statusOptions]);
 
   useEffect(() => {
@@ -826,22 +858,11 @@ export default function JobApplicationsPage() {
     let cancelled = false;
     async function run() {
       const requestJobId = jobId;
-      const tabParam = searchParams.get("tab")?.trim() || "all";
-      let statusId = "";
-      if (tabParam !== "all") {
-        if (isUuid(tabParam)) {
-          statusId = tabParam;
-        } else {
-          const byKey = statusOptions.find((option) => option.systemKey === tabParam);
-          if (!byKey && statusOptions.length === 0) return;
-          statusId = byKey?.id ?? "";
-        }
-      }
-      const matchScore = searchParams.get("matchScore")?.trim() || "";
+      // Load all applications for the job. Tab filtering is client-side so every
+      // status tab keeps accurate counts after card redirects (?tab=hired, etc.).
       const params = new URLSearchParams();
       if (requestJobId) params.set("jobId", requestJobId);
-      if (statusId) params.set("statusId", statusId);
-      if (matchScore) params.set("matchScore", matchScore);
+      if (matchScoreFilter) params.set("matchScore", matchScoreFilter);
       if (skillsFilter.length) params.set("skills", skillsFilter.join(","));
       setLoading(true);
       try {
@@ -868,7 +889,7 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId, applicationsRefreshNonce, searchParams, statusOptions, skillsFilter]);
+  }, [jobId, applicationsRefreshNonce, matchScoreFilter, skillsFilter]);
 
   function openAddCandidateModal() {
     if (!jobId) {
@@ -1252,6 +1273,74 @@ export default function JobApplicationsPage() {
     ];
   }, [statusOptions]);
 
+  const resolvedActiveTab = useMemo(
+    () => resolveApplicationTabParam(String(activeTab), statusOptions),
+    [activeTab, statusOptions]
+  );
+
+  /** When ?tab=closed, jump to the concrete status tab that owns the closed candidates. */
+  useEffect(() => {
+    if (resolvedActiveTab !== "closed") return;
+    if (!rows.length || !statusOptions.length) return;
+
+    const closedCounts = new Map<string, number>();
+    for (const row of rows) {
+      if (!isClosedPipelineApplication(row)) continue;
+      const statusId =
+        rowStatusId(row) ||
+        statusOptions.find(
+          (option) =>
+            option.systemKey &&
+            option.systemKey === normalizeApplicationStatus(String(row.status ?? ""))
+        )?.id ||
+        "";
+      if (!statusId) continue;
+      closedCounts.set(statusId, (closedCounts.get(statusId) ?? 0) + 1);
+    }
+
+    let bestId = "";
+    let bestCount = 0;
+    for (const [id, count] of closedCounts) {
+      if (count > bestCount) {
+        bestId = id;
+        bestCount = count;
+      }
+    }
+    if (!bestId) return;
+
+    setActiveTab(bestId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", bestId);
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [resolvedActiveTab, rows, statusOptions, searchParams, router, pathname]);
+
+  useLayoutEffect(() => {
+    const scroller = statusTabsScrollRef.current;
+    const tabButton = activeStatusTabRef.current;
+    if (!scroller || !tabButton) return;
+
+    const scrollTabIntoView = () => {
+      const scrollerRect = scroller.getBoundingClientRect();
+      const tabRect = tabButton.getBoundingClientRect();
+      const tabCenter = tabRect.left + tabRect.width / 2;
+      const scrollerCenter = scrollerRect.left + scrollerRect.width / 2;
+      const nextLeft = scroller.scrollLeft + (tabCenter - scrollerCenter);
+      const maxLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+      scroller.scrollTo({
+        left: Math.max(0, Math.min(maxLeft, nextLeft)),
+        behavior: "smooth",
+      });
+    };
+
+    scrollTabIntoView();
+    const frame = window.requestAnimationFrame(scrollTabIntoView);
+    const timer = window.setTimeout(scrollTabIntoView, 120);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [resolvedActiveTab, statusTabs]);
+
   const selectableStatusOptions = useMemo(
     () => statusOptions.filter((option) => option.systemKey !== "archived"),
     [statusOptions]
@@ -1281,7 +1370,7 @@ export default function JobApplicationsPage() {
   }, [rows, statusOptions]);
 
   const baseFilteredRows = useMemo(() => {
-    let next = rows.filter((row) => matchesTab(row, activeTab, statusOptions));
+    let next = rows.filter((row) => matchesTab(row, resolvedActiveTab, statusOptions));
     if (locationFilter) {
       next = next.filter((row) => {
         const loc = applicantLocation(row);
@@ -1322,7 +1411,7 @@ export default function JobApplicationsPage() {
       );
     }
     return sortApplicationRows(next, listSort);
-  }, [rows, activeTab, locationFilter, listSort, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+  }, [rows, resolvedActiveTab, locationFilter, listSort, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
 
   const multiJobApplicantCount = useMemo(
     () =>
@@ -2606,15 +2695,17 @@ export default function JobApplicationsPage() {
       </div>
 
       <nav
+        ref={statusTabsScrollRef}
         className="applications-status-tabs-scroll mb-4 w-full min-w-0 overflow-x-auto"
         aria-label="Candidates status"
       >
         <div className="flex w-max flex-nowrap items-center justify-start gap-5">
           {statusTabs.map((tab) => {
-            const active = activeTab === tab.id;
+            const active = resolvedActiveTab === tab.id;
             return (
                 <button
                   key={tab.id}
+                  ref={active ? activeStatusTabRef : undefined}
                   type="button"
                   onClick={() => {
                     setActiveTab(tab.id);

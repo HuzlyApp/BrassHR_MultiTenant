@@ -37,6 +37,7 @@ describe("tallyJobPipelineSummary", () => {
       onboarding: 1,
       closed: 1,
       show_submission: true,
+      closed_redirect_tab: "rejected",
     });
 
     const stats = jobDetailsStatsFromPipelineSummary(summary);
@@ -60,5 +61,50 @@ describe("tallyJobPipelineSummary", () => {
     expect(summary.submission).toBe(0);
     expect(summary.screening).toBe(1);
     expect(summary.show_submission).toBe(false);
+  });
+
+  it("redirects Closed card to the status tab that owns the closed candidate", () => {
+    const summary = tallyJobPipelineSummary(
+      [
+        {
+          status: "rejected",
+          application_statuses: {
+            system_key: null,
+            name: "Candidate Withdrew",
+          },
+        },
+        {
+          status: "rejected",
+          application_statuses: { system_key: "rejected", name: "Not a Fit" },
+        },
+      ],
+      { showSubmission: false }
+    );
+
+    expect(summary.closed).toBe(2);
+    expect(summary.closed_redirect_tab).toBe("candidate-withdrew");
+  });
+
+  it("prefers the closed status with the most candidates for redirect", () => {
+    const summary = tallyJobPipelineSummary(
+      [
+        {
+          status: "rejected",
+          application_statuses: { system_key: "rejected", name: "Not a Fit" },
+        },
+        {
+          status: "rejected",
+          application_statuses: { system_key: "rejected", name: "Not a Fit" },
+        },
+        {
+          status: "archived",
+          application_statuses: { system_key: "archived", name: "Position Closed" },
+        },
+      ],
+      { showSubmission: false }
+    );
+
+    expect(summary.closed).toBe(3);
+    expect(summary.closed_redirect_tab).toBe("rejected");
   });
 });
