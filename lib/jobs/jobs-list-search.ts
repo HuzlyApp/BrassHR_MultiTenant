@@ -134,3 +134,49 @@ export function jobMatchesSkillsFilter(
   if (!skills.length) return true;
   return skillsPresentInHaystack(jobSkillsSearchHaystack(job), skills);
 }
+
+/** Dashboard tag search: titles, skills, experience, location, profession (and related copy). */
+export type JobDashboardSearchRow = JobTextSearchRow &
+  JobSkillsSearchRow & {
+    schedule?: string | null;
+    employment_type?: string | null;
+    shift_type?: string | null;
+  };
+
+export function jobDashboardSearchHaystack(job: JobDashboardSearchRow): string {
+  const rawLocation =
+    job.location?.trim() || job.facility_name?.trim() || job.facility?.trim() || "";
+  const formattedLocation = rawLocation ? formatCityState(rawLocation) || rawLocation : "";
+  const parts = [
+    jobDisplayTitleForSearch(job),
+    job.public_title,
+    job.source_job_title,
+    rawLocation,
+    formattedLocation,
+    job.msp_name,
+    job.msp_client,
+    relationName(job.professions),
+    relationName(job.specialties),
+    job.schedule,
+    job.employment_type,
+    job.shift_type,
+    jobSkillsSearchHaystack(job),
+  ];
+  return parts
+    .map((part) => asText(part).toLowerCase())
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Jobs Dashboard tag search: every tag must match somewhere in the dashboard haystack (AND).
+ * Covers job title, skills/tags, experience-related copy, location, and profession.
+ */
+export function jobMatchesDashboardSearchTags(
+  job: JobDashboardSearchRow,
+  tags: string[]
+): boolean {
+  const normalized = tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean);
+  if (!normalized.length) return true;
+  return skillsPresentInHaystack(jobDashboardSearchHaystack(job), normalized);
+}

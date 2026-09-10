@@ -22,7 +22,8 @@ import ErrorModal from "@/app/components/ErrorModal";
 import SuccessModal from "@/app/components/SuccessModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import toast from "react-hot-toast";
-import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import { normalizeJobRequisitionStatus, jobStatusDisplayLabel } from "@/lib/jobs/job-status";
+import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
 import {
   EditJobsFiltersModal,
   EMPTY_JOBS_EXTENDED_FILTERS,
@@ -63,7 +64,8 @@ import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
 import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
-import { jobMatchesSkillsFilter, jobMatchesTextSearch } from "@/lib/jobs/jobs-list-search";
+import { jobMatchesDashboardSearchTags } from "@/lib/jobs/jobs-list-search";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
@@ -95,15 +97,41 @@ function relationNameFromJob(
   return row?.name?.trim() || "";
 }
 
-type JobTab = "all" | "internal" | "msp" | "hot";
+type JobTab = "all" | "internal" | "msp" | "draft" | "open" | "closed" | "hot" | "archived";
 
-/** FSD-JOB-UX-001: tabs = source/hot only. Status is a filter. */
+/** Figma Client job listing: source + status + hot tabs. */
 const JOB_TABS: Array<{ id: JobTab; label: string }> = [
   { id: "all", label: "All" },
   { id: "internal", label: "Internal" },
   { id: "msp", label: "MSP" },
-  { id: "hot", label: "Hot" },
+  { id: "draft", label: "Draft" },
+  { id: "open", label: "Open" },
+  { id: "closed", label: "Closed" },
+  { id: "hot", label: "Hot Jobs" },
+  { id: "archived", label: "Archived" },
 ];
+
+function jobsTabEmptyMessage(tab: JobTab, starredOnly: boolean): string {
+  if (starredOnly || tab === "hot") {
+    return "No Hot jobs yet. Mark a job as Hot from the job actions menu.";
+  }
+  switch (tab) {
+    case "draft":
+      return "No draft jobs to show.";
+    case "open":
+      return "No open jobs to show.";
+    case "closed":
+      return "No closed jobs to show.";
+    case "internal":
+      return "No internal jobs to show.";
+    case "msp":
+      return "No MSP jobs to show.";
+    case "archived":
+      return "No archived jobs to show.";
+    default:
+      return "No jobs match these filters.";
+  }
+}
 
 function parseJobTab(value: string | null): JobTab {
   if (value && JOB_TABS.some((tab) => tab.id === value)) return value as JobTab;
@@ -115,15 +143,26 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 /** Figma form fields: 8px radius, #CBD5E1 border, white background */
 const JOBS_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 
-const JOBS_TOOLBAR_BUTTON_CLASS =
-  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
+const JOBS_TOOLBAR_ICON_BUTTON_CLASS =
+  "inline-flex h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-zinc-50";
 
-const JOBS_POST_JOB_BUTTON_CLASS =
-  "inline-flex h-8 items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
+const JOBS_TOOLBAR_ICON_BUTTON_ACTIVE_CLASS =
+  "inline-flex h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent bg-[color:var(--brand-primary)] transition hover:brightness-95";
+
+const JOBS_CREATE_BUTTON_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95";
+
+const JOBS_OUTLINE_ACTION_BUTTON_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]";
+
+const JOBS_MORE_FILTERS_BUTTON_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]";
 
 const JOBS_COLUMNS_ICON_SRC = "/icons/jobs-icons/columns.svg";
 const JOBS_CREATE_PLUS_ICON_SRC = "/icons/jobs-icons/create-plus.svg";
 const JOBS_MORE_FILTERS_ICON_SRC = "/icons/jobs-icons/more-filters.svg";
+/** Same filter control icon as Candidates listing toolbar. */
+const JOBS_FILTERS_ICON_BTN_SRC = "/icons/candidates-icons/filters-icon-btn.svg";
 const JOBS_VIEW_STORAGE_KEY = "adminRecruiterJobsView";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
 const ACTION_TOAST_DURATION_MS = 4000;
@@ -281,8 +320,42 @@ function JobsColumnsIcon() {
   return <JobsListingGlyph src={JOBS_COLUMNS_ICON_SRC} outer={16} leafWidth={12.33} leafHeight={10} />;
 }
 
-function JobsCreatePlusIcon() {
-  return <JobsListingGlyph src={JOBS_CREATE_PLUS_ICON_SRC} outer={16} leafWidth={9.33} leafHeight={9.33} />;
+function JobsQuickFilterSelect({
+  label,
+  value,
+  displayValue,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  /** Visible selected text (defaults to value or "All"). */
+  displayValue?: string;
+  onChange: (next: string) => void;
+  children: ReactNode;
+}) {
+  const shown = displayValue ?? (value.trim() ? value : "All");
+  return (
+    <label className="relative inline-flex h-8 min-w-[9.5rem] max-w-full cursor-pointer items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 text-xs text-[#475569]">
+      <span className="pointer-events-none relative z-0 flex min-w-0 flex-1 items-center gap-1 pr-4">
+        <span className="shrink-0 whitespace-nowrap font-medium text-[#64748B]">{label}:</span>
+        <span className="min-w-0 truncate font-semibold text-[#334155]">{shown}</span>
+      </span>
+      <span
+        className="pointer-events-none absolute right-2 top-1/2 z-0 size-0 -translate-y-1/2 border-x-[4px] border-t-[5px] border-x-transparent border-t-[#64748B]"
+        aria-hidden
+      />
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={label}
+        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+      >
+        <option value="">All</option>
+        {children}
+      </select>
+    </label>
+  );
 }
 
 type SortDirection = "asc" | "desc";
@@ -479,8 +552,16 @@ function matchesJobTab(job: JobListRow, tab: JobTab): boolean {
       return status !== "archived" && jobSourceType(job) === "Internal";
     case "msp":
       return status !== "archived" && jobSourceType(job) === "MSP";
+    case "draft":
+      return status === "draft";
+    case "open":
+      return status === "open";
+    case "closed":
+      return status === "closed" || status === "filled";
     case "hot":
       return status !== "archived" && Boolean(job.is_hot);
+    case "archived":
+      return status === "archived";
     default:
       return true;
   }
@@ -765,9 +846,9 @@ export default function AdminRecruiterJobsPage() {
   const [workflowFilter, setWorkflowFilter] = useState("");
   const [payRateFilter, setPayRateFilter] = useState("");
   const [datePostedFilter, setDatePostedFilter] = useState("");
-  const [titleQuery, setTitleQuery] = useState("");
-  const [skillsFilter, setSkillsFilter] = useState("");
+  const [searchTags, setSearchTags] = useState<string[]>([]);
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
+  const [filtersBarOpen, setFiltersBarOpen] = useState(false);
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [listingView, setListingView] = useState<JobsListingView>("list");
@@ -798,6 +879,10 @@ export default function AdminRecruiterJobsPage() {
       // FSD: Internal hides MSP/Client — drop a filter that would never match visible rows.
       if (next === "internal") {
         setContractGroupFilter("");
+      }
+      // Status tabs already scope by status — clear conflicting status filter.
+      if (next === "draft" || next === "open" || next === "closed" || next === "archived") {
+        setStatusFilter("");
       }
       if (searchParams.get("view") !== "all") return;
       const params = new URLSearchParams(searchParams.toString());
@@ -862,7 +947,7 @@ export default function AdminRecruiterJobsPage() {
     workflowFilter,
     payRateFilter,
     datePostedFilter,
-    titleQuery,
+    searchTags,
     showStarredOnly,
     pageSize,
   ]);
@@ -973,14 +1058,22 @@ export default function AdminRecruiterJobsPage() {
       all: 0,
       internal: 0,
       msp: 0,
+      draft: 0,
+      open: 0,
+      closed: 0,
       hot: 0,
+      archived: 0,
     };
     for (const job of jobs) {
       const status = jobListStatus(job);
       if (status !== "archived") counts.all += 1;
       if (matchesJobTab(job, "internal")) counts.internal += 1;
       if (matchesJobTab(job, "msp")) counts.msp += 1;
+      if (matchesJobTab(job, "draft")) counts.draft += 1;
+      if (matchesJobTab(job, "open")) counts.open += 1;
+      if (matchesJobTab(job, "closed")) counts.closed += 1;
       if (matchesJobTab(job, "hot")) counts.hot += 1;
+      if (matchesJobTab(job, "archived")) counts.archived += 1;
     }
     return counts;
   }, [jobs]);
@@ -999,9 +1092,7 @@ export default function AdminRecruiterJobsPage() {
 
       if (showStarredOnly && !job.is_hot) return false;
 
-      if (titleQuery.trim() && !jobMatchesTextSearch(job, titleQuery)) return false;
-
-      if (skillsFilter.trim() && !jobMatchesSkillsFilter(job, skillsFilter)) return false;
+      if (searchTags.length > 0 && !jobMatchesDashboardSearchTags(job, searchTags)) return false;
 
       if (professionFilter && jobProfession(job) !== professionFilter) return false;
 
@@ -1050,8 +1141,7 @@ export default function AdminRecruiterJobsPage() {
     workflowFilter,
     payRateFilter,
     datePostedFilter,
-    titleQuery,
-    skillsFilter,
+    searchTags,
   ]);
 
   const sortedJobs = useMemo(() => {
@@ -1477,8 +1567,7 @@ export default function AdminRecruiterJobsPage() {
       workflowFilter ||
       payRateFilter ||
       datePostedFilter ||
-      titleQuery.trim() ||
-      skillsFilter.trim() ||
+      searchTags.length > 0 ||
       showStarredOnly
   );
 
@@ -1495,13 +1584,11 @@ export default function AdminRecruiterJobsPage() {
     workflowFilter,
     payRateFilter,
     datePostedFilter,
-    skillsFilter.trim(),
   ].filter(Boolean).length;
 
   const editFiltersValue = useMemo(
     (): JobsExtendedFilterValues => ({
-      search: titleQuery,
-      skills: skillsFilter,
+      searchTags: searchTags.join(", "),
       profession: professionFilter,
       status: statusFilter,
       employmentType: placementTypeFilter,
@@ -1516,8 +1603,7 @@ export default function AdminRecruiterJobsPage() {
       datePosted: datePostedFilter,
     }),
     [
-      titleQuery,
-      skillsFilter,
+      searchTags,
       professionFilter,
       statusFilter,
       placementTypeFilter,
@@ -1534,8 +1620,7 @@ export default function AdminRecruiterJobsPage() {
   );
 
   const handleSaveEditFilters = useCallback((next: JobsExtendedFilterValues) => {
-    setTitleQuery(next.search);
-    setSkillsFilter(next.skills);
+    setSearchTags(parseSkillsFilterParam(next.searchTags));
     setProfessionFilter(next.profession);
     setStatusFilter(next.status);
     setPlacementTypeFilter(next.employmentType);
@@ -1551,15 +1636,13 @@ export default function AdminRecruiterJobsPage() {
     setPage(1);
   }, []);
 
-  const handleApplyJobsSearch = useCallback((next: { query: string; skillsFilter: string }) => {
-    setTitleQuery(next.query);
-    setSkillsFilter(next.skillsFilter);
+  const handleApplyJobsSearch = useCallback((tags: string[]) => {
+    setSearchTags(tags.map((tag) => tag.trim()).filter(Boolean));
     setPage(1);
   }, []);
 
   const handleResetJobsSearch = useCallback(() => {
-    setTitleQuery("");
-    setSkillsFilter("");
+    setSearchTags([]);
     setPage(1);
   }, []);
 
@@ -1791,58 +1874,144 @@ export default function AdminRecruiterJobsPage() {
       </nav>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-[14px] py-3 max-[419px]:flex-nowrap max-[419px]:gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 max-[419px]:flex-nowrap max-[419px]:gap-1.5 max-[419px]:overflow-x-auto max-[419px]:[scrollbar-width:none] max-[419px]:[&::-webkit-scrollbar]:hidden">
-            <button
-              type="button"
-              onClick={() => setEditColumnsOpen(true)}
-              className={`${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0`}
-            >
-              <JobsColumnsIcon />
-              Columns
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditFiltersOpen(true)}
-              className={`relative ${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0`}
-              aria-label="All filters"
-              title="All Filters"
-            >
-              <JobsFilterIcon />
-              All Filters
-              {activeAttributeFilterCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1 text-[9px] font-semibold leading-4 text-white">
-                  {activeAttributeFilterCount}
-                </span>
-              ) : null}
-            </button>
-            {hasActiveFilters ? (
-              <button type="button" onClick={handleResetFilters} className={`${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0`}>
-                Reset Filters
-              </button>
-            ) : null}
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-3 max-[419px]:flex-nowrap max-[419px]:gap-1.5">
-            <Link
-              href="/admin_recruiter/jobs/new"
-              className={`${JOBS_POST_JOB_BUTTON_CLASS} shrink-0 max-[419px]:px-2`}
-            >
-              <JobsCreatePlusIcon />
-              <span className="hidden min-[420px]:inline">Create a job</span>
-              <span className="min-[420px]:hidden">Create</span>
-            </Link>
-            <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
-          </div>
-        </div>
-
         <JobsAdvancedSearchBar
-          query={titleQuery}
-          skillsFilter={skillsFilter}
+          tags={searchTags}
           onApplySearch={handleApplyJobsSearch}
           onResetSearch={handleResetJobsSearch}
           searching={loading}
         />
+
+        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3 max-[419px]:flex-nowrap max-[419px]:gap-2">
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditColumnsOpen(true)}
+                className={JOBS_TOOLBAR_ICON_BUTTON_CLASS}
+                aria-label="Edit columns"
+                title="Columns"
+              >
+                <JobsColumnsIcon />
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltersBarOpen((open) => !open)}
+                className={`relative ${
+                  filtersBarOpen ? JOBS_TOOLBAR_ICON_BUTTON_ACTIVE_CLASS : JOBS_TOOLBAR_ICON_BUTTON_CLASS
+                }`}
+                aria-label="Toggle filters"
+                aria-pressed={filtersBarOpen}
+                title="Filters"
+              >
+                <span className="relative size-4 overflow-hidden" aria-hidden>
+                  <BrandedSvgIcon
+                    src={JOBS_FILTERS_ICON_BTN_SRC}
+                    className="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2"
+                    color={filtersBarOpen ? "#FFFFFF" : "#94A3B8"}
+                  />
+                </span>
+                {activeAttributeFilterCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1 text-[9px] font-semibold leading-4 text-white">
+                    {activeAttributeFilterCount}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3 max-[419px]:flex-nowrap max-[419px]:gap-1.5">
+              <Link href="/admin_recruiter/jobs/new" className={`${JOBS_CREATE_BUTTON_CLASS} max-[419px]:px-2`}>
+                <span className="relative size-4 overflow-hidden" aria-hidden>
+                  <BrandedSvgIcon
+                    src={JOBS_CREATE_PLUS_ICON_SRC}
+                    className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
+                    color="#FFFFFF"
+                  />
+                </span>
+                <span className="hidden min-[420px]:inline">Create a job</span>
+                <span className="min-[420px]:hidden">Create</span>
+              </Link>
+              <Link href="/admin_recruiter/applications" className={`${JOBS_OUTLINE_ACTION_BUTTON_CLASS} max-[419px]:hidden`}>
+                View Candidates
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {filtersBarOpen ? (
+          <div className="flex w-full min-w-0 flex-col gap-2.5 border-b border-[#E5E7EB] px-[14px] py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <JobsQuickFilterSelect
+                label="Profession"
+                value={professionFilter}
+                onChange={setProfessionFilter}
+              >
+                {professionOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </JobsQuickFilterSelect>
+              <JobsQuickFilterSelect
+                label="Status"
+                value={statusFilter}
+                displayValue={statusFilter ? jobStatusDisplayLabel(statusFilter) : "All"}
+                onChange={setStatusFilter}
+              >
+                {(["draft", "open", "paused", "filled", "closed", "archived"] as const).map((status) => (
+                  <option key={status} value={status}>
+                    {jobStatusDisplayLabel(status)}
+                  </option>
+                ))}
+              </JobsQuickFilterSelect>
+              <JobsQuickFilterSelect
+                label="Placement Type"
+                value={placementTypeFilter}
+                displayValue={
+                  placementTypeFilter ? employmentTypeDisplayLabel(placementTypeFilter) : "All"
+                }
+                onChange={setPlacementTypeFilter}
+              >
+                {placementTypeOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {employmentTypeDisplayLabel(item)}
+                  </option>
+                ))}
+              </JobsQuickFilterSelect>
+              <JobsQuickFilterSelect label="Location" value={locationFilter} onChange={setLocationFilter}>
+                {locationOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </JobsQuickFilterSelect>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50"
+                >
+                  Reset Filters
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setEditFiltersOpen(true)}
+                className={JOBS_MORE_FILTERS_BUTTON_CLASS}
+                aria-label="More filters"
+                title="More filters"
+              >
+                <JobsFilterIcon />
+                More filters
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex w-full items-center justify-end border-b border-[#E5E7EB] px-[14px] py-2.5">
+          <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
+        </div>
 
         {error ? (
           <div className="mx-[14px] mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
@@ -1890,11 +2059,7 @@ export default function AdminRecruiterJobsPage() {
             <JobsGridView
               jobs={paginatedJobs}
               loading={loading}
-              emptyMessage={
-                showStarredOnly || jobTab === "hot"
-                  ? "No Hot jobs yet. Click the star next to a job title to mark it Hot."
-                  : "No jobs match these filters."
-              }
+              emptyMessage={jobsTabEmptyMessage(jobTab, showStarredOnly)}
               tenantSlug={tenantSlug}
               hotJobIds={hotJobIds}
               selectedIds={selectedIds}
@@ -1972,9 +2137,7 @@ export default function AdminRecruiterJobsPage() {
                 <tr className="border-b border-[#E9EDF3]">
                   <td colSpan={listColumns.length + 1} className="p-0">
                     <p className="jobs-list-table-status">
-                      {showStarredOnly || jobTab === "hot"
-                        ? "No Hot jobs yet. Click the star next to a job title to mark it Hot."
-                        : "No jobs match these filters."}
+                      {jobsTabEmptyMessage(jobTab, showStarredOnly)}
                     </p>
                   </td>
                 </tr>
@@ -2071,6 +2234,7 @@ export default function AdminRecruiterJobsPage() {
         onOpenChange={setEditColumnsOpen}
         options={JOB_COLUMN_OPTIONS}
         value={listColumnOrder}
+        defaultValue={DEFAULT_JOB_COLUMNS}
         title="Edit Columns"
         description="Choose which columns appear in the jobs list and drag to reorder them."
         onSave={(order) => {

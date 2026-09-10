@@ -44,17 +44,28 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
 
 export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobTitle",
-  "location",
   "contractGroup",
+  "location",
+  "placementType",
   "candidates",
   "jobStatus",
+  "payRate",
+  "datePosted",
   "actions",
 ]
 
 /** FSD: MSP/Client column id (job form Contract Group / Client → msp_name). */
 export const MSP_DEFAULT_END_CLIENT_COLUMN: JobColumnId = "contractGroup"
 
-export type JobListSourceTab = "all" | "internal" | "msp" | "hot"
+export type JobListSourceTab =
+  | "all"
+  | "internal"
+  | "msp"
+  | "draft"
+  | "open"
+  | "closed"
+  | "hot"
+  | "archived"
 
 function ensureMspClientColumn(columns: JobColumnId[]): JobColumnId[] {
   if (columns.includes("contractGroup")) return columns
@@ -74,7 +85,7 @@ function ensureMspClientColumn(columns: JobColumnId[]): JobColumnId[] {
 
 /**
  * - Internal tab hides MSP/Client
- * - All / MSP / Hot default MSP/Client after Location when missing
+ * - All / MSP / Hot / status tabs default MSP/Client after Location when missing
  */
 export function visibleJobColumnsForTab(
   savedOrder: JobColumnId[] | null | undefined,
@@ -91,8 +102,8 @@ export function visibleJobColumnsForTab(
 }
 
 const STORAGE_KEY = "nexus-jobs-list-columns"
-/** Bump when default visible columns change (Assignee removed from defaults). */
-const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v7-no-assignee-default"
+/** Bump when default visible columns change (Figma Client listing defaults). */
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v8-figma-defaults"
 
 /** Columns added after initial release — inject into saved layouts once. */
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
@@ -191,7 +202,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
     case "contractGroup":
       return `min-w-[150px]${nowrap}${center}`
     case "candidates":
-      return `w-[390px] min-w-[390px]${nowrap}${center}`
+      return `w-[300px] min-w-[300px]${nowrap}${center}`
     case "datePosted":
     case "createdDate":
       return `min-w-[140px]${nowrap}${center}`

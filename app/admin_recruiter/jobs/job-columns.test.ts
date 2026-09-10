@@ -17,10 +17,10 @@ describe("visibleJobColumnsForTab", () => {
     expect(cols.indexOf("contractGroup")).toBe(cols.indexOf("location") + 1);
   });
 
-  it("defaults MSP/Client on All after Location", () => {
+  it("defaults MSP/Client on All for Figma defaults", () => {
     const cols = visibleJobColumnsForTab(DEFAULT_JOB_COLUMNS, "all");
     expect(cols).toContain("contractGroup");
-    expect(cols.indexOf("contractGroup")).toBe(cols.indexOf("location") + 1);
+    expect(cols).toEqual(DEFAULT_JOB_COLUMNS);
   });
 
   it("defaults MSP/Client on Hot after Location when missing", () => {

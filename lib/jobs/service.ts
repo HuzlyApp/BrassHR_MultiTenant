@@ -1186,7 +1186,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key, name), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -1228,6 +1228,7 @@ export async function listInternalJobs(
       job_applications: [{ count: metrics.applicantCount }],
       new_application_count: metrics.newCount,
       in_process_application_count: metrics.inProcessCount,
+      in_process_redirect_tab: metrics.inProcessRedirectTab,
       analyzed_application_count: metrics.analyzedCount,
       strong_match_count: metrics.strongCount,
       ready_to_submit_count: metrics.readyCount,

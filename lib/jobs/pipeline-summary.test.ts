@@ -38,6 +38,7 @@ describe("tallyJobPipelineSummary", () => {
       closed: 1,
       show_submission: true,
       closed_redirect_tab: "rejected",
+      in_process_redirect_tab: "reviewing",
     });
 
     const stats = jobDetailsStatsFromPipelineSummary(summary);
@@ -106,5 +107,29 @@ describe("tallyJobPipelineSummary", () => {
 
     expect(summary.closed).toBe(3);
     expect(summary.closed_redirect_tab).toBe("rejected");
+  });
+
+  it("prefers the in-process status with the most candidates for redirect", () => {
+    const summary = tallyJobPipelineSummary(
+      [
+        {
+          status: "reviewing",
+          application_statuses: { system_key: "reviewing", name: "Screening Complete" },
+        },
+        {
+          status: "interviewing",
+          application_statuses: { system_key: "interviewing", name: "Interview Complete" },
+        },
+        {
+          status: "interviewing",
+          application_statuses: { system_key: "interviewing", name: "Interview Complete" },
+        },
+      ],
+      { showSubmission: false }
+    );
+
+    expect(summary.screening).toBe(1);
+    expect(summary.interview).toBe(2);
+    expect(summary.in_process_redirect_tab).toBe("interviewing");
   });
 });

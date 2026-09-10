@@ -12,10 +12,8 @@ import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import type { JobListRow } from "./render-job-list-cell";
 
 export type JobsExtendedFilterValues = {
-  /** Free-text search (title, location, MSP/client, profession). */
-  search: string;
-  /** Comma-separated skill tags (AND with search when both set). */
-  skills: string;
+  /** Comma-separated search tags (title, skills, experience, location, profession). */
+  searchTags: string;
   profession: string;
   status: string;
   /** Employment Type (shift_type / job type chips). */
@@ -36,8 +34,7 @@ export type JobsExtendedFilterValues = {
 };
 
 export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
-  search: "",
-  skills: "",
+  searchTags: "",
   profession: "",
   status: "",
   employmentType: "",
@@ -238,7 +235,7 @@ export function EditJobsFiltersModal({
           <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4">
             <div className="min-w-0 pr-3">
               <Dialog.Title className="truncate text-lg font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
-                All Filters
+                More filters
               </Dialog.Title>
               <Dialog.Description className="sr-only">
                 Choose filters to narrow the jobs list.
@@ -255,33 +252,17 @@ export function EditJobsFiltersModal({
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] sm:px-6 sm:py-6">
             <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 sm:gap-5">
               <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
-                <span className="text-sm font-medium text-[#475569]">Search job</span>
-                <input
-                  type="search"
-                  value={draft.search}
-                  onChange={(e) => setField("search", e.target.value)}
-                  placeholder="Job name, location, MSP/client, or profession"
-                  aria-label="Search job by name, location, MSP client, or profession"
-                  title="Search by job name, location, MSP/client name, or profession"
-                  className={`rounded-lg border border-[#CBD5E1] bg-white h-10 w-full min-w-0 px-3 text-sm font-normal leading-6 hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 ${
-                    draft.search ? "text-[#334155]" : "text-[#94A3B8]"
-                  }`}
-                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                />
-              </label>
-
-              <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
-                <span className="text-sm font-medium text-[#475569]">Skills</span>
+                <span className="text-sm font-medium text-[#475569]">Search</span>
                 <div className="rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5 hover:bg-zinc-50 focus-within:border-[color:var(--brand-primary)]">
                   <FilterChipInput
                     embedded
-                    values={parseSkillsFilterParam(draft.skills)}
-                    placeholder="Filter by Skills"
-                    aria-label="Filter by Skills"
-                    onChange={(nextSkills) =>
+                    values={parseSkillsFilterParam(draft.searchTags)}
+                    placeholder="Search by job title, skills, experience, location..."
+                    aria-label="Search by job title, skills, experience, location, and profession"
+                    onChange={(nextTags) =>
                       setField(
-                        "skills",
-                        nextSkills.map((skill) => skill.trim()).filter(Boolean).join(", ")
+                        "searchTags",
+                        nextTags.map((tag) => tag.trim()).filter(Boolean).join(", ")
                       )
                     }
                   />

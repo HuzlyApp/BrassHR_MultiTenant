@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildJobsSearchApplyPayload,
+  jobMatchesDashboardSearchTags,
   jobMatchesSkillsFilter,
   jobMatchesTextSearch,
   jobSkillsSearchHaystack,
@@ -79,5 +80,28 @@ describe("jobSkillsSearchHaystack", () => {
     expect(hay).toContain("system engineer");
     expect(hay).toContain("it");
     expect(hay).toContain("aws");
+  });
+});
+
+describe("jobMatchesDashboardSearchTags", () => {
+  const job = {
+    source_type: "Internal",
+    public_title: "Registered Nurse",
+    location: "Dallas, TX",
+    professions: { name: "Nursing" },
+    tags: ["Travel"],
+    qualifications: "2 years ICU experience required",
+    specialties: { name: "Critical Care" },
+  };
+
+  it("returns true when no tags", () => {
+    expect(jobMatchesDashboardSearchTags(job, [])).toBe(true);
+  });
+
+  it("matches title skills experience location and profession tags with AND", () => {
+    expect(jobMatchesDashboardSearchTags(job, ["Dallas"])).toBe(true);
+    expect(jobMatchesDashboardSearchTags(job, ["Nursing", "Travel"])).toBe(true);
+    expect(jobMatchesDashboardSearchTags(job, ["ICU experience"])).toBe(true);
+    expect(jobMatchesDashboardSearchTags(job, ["Dallas", "dentist"])).toBe(false);
   });
 });

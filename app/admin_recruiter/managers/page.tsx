@@ -320,6 +320,7 @@ export default function ManagersPage() {
         onOpenChange={setEditColumnsOpen}
         options={MANAGER_COLUMN_OPTIONS}
         value={listColumnOrder}
+        defaultValue={DEFAULT_MANAGER_COLUMNS}
         title="Edit Columns"
         description="Choose which columns appear in the managers list and drag to reorder them."
         onSave={(order) => {
