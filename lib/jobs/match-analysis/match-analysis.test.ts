@@ -181,6 +181,37 @@ describe("parseAndValidateMatchAnalysis", () => {
       expect(parsed.data.data_quality.resume_conflicts).toEqual(["Low concern"]);
     }
   });
+
+  it("fills documented strengths from confirmed requirements when Analyze omits them", () => {
+    const lean = {
+      recommended_overall_match_score: 50,
+      match_category: "WEAK_MATCH",
+      recommended_action: "KEEP_AS_POSSIBLE",
+      mandatory_requirements: [
+        {
+          requirement: "Extensive experience with Informatica IDMC",
+          status: "CONFIRMED",
+          evidence: "Implemented Informatica IDMC pipelines at Acme 2021-2024.",
+        },
+        {
+          requirement: "8+ years hands-on data engineering",
+          status: "PARTIAL",
+          evidence: "Resume shows 6 years of dated data-engineering work.",
+        },
+      ],
+      preferred_requirements: [],
+      screening_questions: ["Confirm Informatica IDMC product modules used."],
+      items_to_verify: ["Confirm Azure vs AWS data-stack experience"],
+      blocking_requirements: [],
+    };
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(lean));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.strengths).toEqual([
+        "Implemented Informatica IDMC pipelines at Acme 2021-2024.",
+      ]);
+    }
+  });
 });
 
 describe("analyze vs deep prompts", () => {
@@ -206,6 +237,8 @@ describe("analyze vs deep prompts", () => {
     expect(prompt).toContain("no more than 4 focused screening questions");
     expect(prompt).not.toContain("recruiter_decision_summary");
     expect(prompt).not.toContain("experience_calculation_notes");
+    expect(ANALYZE_SYSTEM_PROMPT).toContain("REQUIREMENT LISTS");
+    expect(ANALYZE_SYSTEM_PROMPT).toContain("Do not put job qualifications only under items_to_verify");
   });
 
   it("uses the deep schema only when analysisMode is deep", () => {

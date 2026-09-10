@@ -1,3 +1,4 @@
+import { htmlToPlainText } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   structuredJobRequirementsSchema,
   type StructuredJobRequirements,
@@ -56,23 +57,96 @@ function asStringList(value: unknown): string[] {
   return [];
 }
 
+function uniquePhrases(items: string[], max = 40): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function toPlainText(value: string | null | undefined): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  if (!/<\/?[a-z][\s\S]*>/i.test(raw)) return raw;
+  return htmlToPlainText(raw);
+}
+
+function normalizeHeading(line: string): string {
+  return line
+    .replace(/[’‘]/g, "'")
+    .replace(/[:.\s]+$/g, "")
+    .trim();
+}
+
+function classifyDescriptionHeading(
+  line: string
+): "mandatory" | "preferred" | "other" | null {
+  if (line.length > 80) return null;
+  const heading = normalizeHeading(line);
+  if (!heading) return null;
+
+  if (
+    /^(?:required\s+qualifications?|required\s+skills?|mandatory\s+(?:requirements?|qualifications?)|must[- ]?haves?|minimum\s+requirements?|qualifications)$/i.test(
+      heading
+    )
+  ) {
+    return "mandatory";
+  }
+  if (
+    /^(?:preferred\s+qualifications?|preferred\s+skills?|nice[- ]?to[- ]?have|desired\s+(?:qualifications?|skills?)|pluses?)$/i.test(
+      heading
+    )
+  ) {
+    return "preferred";
+  }
+  if (
+    /^(?:about the (?:role|opportunity|job)|job title|job summary|job description|full job description|key responsibilities|responsibilities|what you'll do|what you will do|benefits|work location(?: and schedule)?|employment (?:type|details)|compensation|how to apply)$/i.test(
+      heading
+    )
+  ) {
+    return "other";
+  }
+  return null;
+}
+
+function stripBulletPrefix(line: string): string {
+  return line.replace(/^(?:[-*•]|\d+[.)])\s+/, "").trim();
+}
+
+function splitLines(text: string): string[] {
+  return text.split(/\n+/).map(stripBulletPrefix).filter(Boolean);
+}
+
 function splitQualificationBullets(text: string | null | undefined): {
   mandatory: string[];
   preferred: string[];
 } {
-  const raw = (text ?? "").trim();
+  const raw = toPlainText(text);
   if (!raw) return { mandatory: [], preferred: [] };
 
-  const lines = raw
-    .split(/\n+/)
-    .map((line) => line.replace(/^[-*•\d.)\s]+/, "").trim())
-    .filter(Boolean);
-
+  const lines = splitLines(raw);
   const mandatory: string[] = [];
   const preferred: string[] = [];
   let mode: "mandatory" | "preferred" = "mandatory";
 
   for (const line of lines) {
+    const heading = classifyDescriptionHeading(line);
+    if (heading === "mandatory") {
+      mode = "mandatory";
+      continue;
+    }
+    if (heading === "preferred") {
+      mode = "preferred";
+      continue;
+    }
     if (/^(required|mandatory|must\s*have|minimum)\b/i.test(line) && line.length < 60) {
       mode = "mandatory";
       continue;
@@ -96,34 +170,71 @@ function splitQualificationBullets(text: string | null | undefined): {
   }
 
   return {
-    mandatory: mandatory.slice(0, 40),
-    preferred: preferred.slice(0, 40),
+    mandatory: uniquePhrases(mandatory),
+    preferred: uniquePhrases(preferred),
   };
 }
 
 /**
+ * Pull Required / Preferred sections out of a full job description.
+ * Ignores responsibilities and other sections so they are not treated as qualifications.
+ */
+export function extractQualificationSectionsFromDescription(
+  htmlOrText: string | null | undefined
+): { mandatory: string[]; preferred: string[] } {
+  const raw = toPlainText(htmlOrText);
+  if (!raw) return { mandatory: [], preferred: [] };
+
+  const mandatory: string[] = [];
+  const preferred: string[] = [];
+  let mode: "skip" | "mandatory" | "preferred" = "skip";
+
+  for (const line of splitLines(raw)) {
+    const heading = classifyDescriptionHeading(line);
+    if (heading === "mandatory") {
+      mode = "mandatory";
+      continue;
+    }
+    if (heading === "preferred") {
+      mode = "preferred";
+      continue;
+    }
+    if (heading === "other") {
+      mode = "skip";
+      continue;
+    }
+    if (mode === "mandatory") mandatory.push(line);
+    else if (mode === "preferred") preferred.push(line);
+  }
+
+  return {
+    mandatory: uniquePhrases(mandatory),
+    preferred: uniquePhrases(preferred),
+  };
+}
+
+function cachedHasRequirementLists(data: StructuredJobRequirements): boolean {
+  return (
+    data.mandatoryRequirements.length > 0 || data.preferredRequirements.length > 0
+  );
+}
+
+/**
  * Build structured requirement lists from a job requisition.
- * Prefer cached structured_requirements when present and valid.
+ * Prefer cached structured_requirements only when they already include
+ * required or preferred qualification lists. Location / years alone are not enough —
+ * those can be filled while the actual quals still live in the HTML description.
  */
 export function buildStructuredJobRequirements(
   job: JobRequisitionForRequirements
 ): StructuredJobRequirements {
   const cached = structuredJobRequirementsSchema.safeParse(job.structured_requirements);
-  if (cached.success) {
-    const data = cached.data;
-    const hasAny =
-      data.mandatoryRequirements.length > 0 ||
-      data.preferredRequirements.length > 0 ||
-      data.requiredLicenses.length > 0 ||
-      data.requiredCertifications.length > 0 ||
-      data.educationRequirements.length > 0 ||
-      Boolean(data.requiredYearsExperience) ||
-      Boolean(data.specialty) ||
-      Boolean(data.location);
-    if (hasAny) return data;
+  if (cached.success && cachedHasRequirementLists(cached.data)) {
+    return cached.data;
   }
 
   const quals = splitQualificationBullets(job.qualifications);
+  const fromDescription = extractQualificationSectionsFromDescription(job.public_description);
   const special = splitQualificationBullets(job.special_requirements);
   const credentials = asStringList(job.required_credentials);
 
@@ -140,11 +251,19 @@ export function buildStructuredJobRequirements(
       : null);
 
   return structuredJobRequirementsSchema.parse({
-    mandatoryRequirements: [...quals.mandatory, ...special.mandatory].slice(0, 40),
-    preferredRequirements: [...quals.preferred, ...special.preferred].slice(0, 40),
+    mandatoryRequirements: uniquePhrases([
+      ...quals.mandatory,
+      ...fromDescription.mandatory,
+      ...special.mandatory,
+    ]),
+    preferredRequirements: uniquePhrases([
+      ...quals.preferred,
+      ...fromDescription.preferred,
+      ...special.preferred,
+    ]),
     requiredLicenses: licenses.slice(0, 20),
     requiredCertifications: certs.slice(0, 20),
-    educationRequirements: [],
+    educationRequirements: cached.success ? cached.data.educationRequirements : [],
     requiredYearsExperience: years,
     specialty: specialty || null,
     location: job.location?.trim() || null,
@@ -163,17 +282,21 @@ export function buildFullJobDescriptionText(job: JobRequisitionForRequirements):
   if (job.facility_name?.trim() || job.facility?.trim()) {
     parts.push(`Facility: ${job.facility_name?.trim() || job.facility?.trim()}`);
   }
-  if (job.public_description?.trim()) {
-    parts.push("Description:", job.public_description.trim());
+  const description = toPlainText(job.public_description);
+  if (description) {
+    parts.push("Description:", description);
   }
-  if (job.responsibilities?.trim()) {
-    parts.push("Responsibilities:", job.responsibilities.trim());
+  const responsibilities = toPlainText(job.responsibilities);
+  if (responsibilities) {
+    parts.push("Responsibilities:", responsibilities);
   }
-  if (job.qualifications?.trim()) {
-    parts.push("Qualifications:", job.qualifications.trim());
+  const qualifications = toPlainText(job.qualifications);
+  if (qualifications) {
+    parts.push("Qualifications:", qualifications);
   }
-  if (job.special_requirements?.trim()) {
-    parts.push("Special requirements:", job.special_requirements.trim());
+  const special = toPlainText(job.special_requirements);
+  if (special) {
+    parts.push("Special requirements:", special);
   }
   const creds = asStringList(job.required_credentials);
   if (creds.length) {
