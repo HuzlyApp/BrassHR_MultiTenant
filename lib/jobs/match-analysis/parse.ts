@@ -90,6 +90,11 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
   const itemsToVerify = lean.items_to_verify.filter(Boolean);
   const knockout = lean.match_category === "NOT_CURRENTLY_SUBMITTABLE" || blocking.length > 0;
   const strengths = lean.strengths.map((item) => item.trim()).filter(Boolean).slice(0, 5);
+  const confirmedStrengths = [...lean.mandatory_requirements, ...lean.preferred_requirements]
+    .filter((item) => item.status === "CONFIRMED")
+    .map((item) => item.evidence.trim() || item.requirement.trim())
+    .filter(Boolean)
+    .slice(0, 5);
   const gaps = lean.gaps_and_risks.map((item) => item.trim()).filter(Boolean).slice(0, 5);
   const authenticity = lean.resume_authenticity.trim();
 
@@ -110,7 +115,7 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
     preferred_requirements: lean.preferred_requirements.map((item) =>
       expandLeanRequirement(item, "PREFERRED")
     ),
-    strengths,
+    strengths: strengths.length ? strengths : confirmedStrengths,
     gaps_and_risks: gaps,
     screening_questions: lean.screening_questions
       .map((question) => question.trim())

@@ -407,6 +407,12 @@ Caps:
 
 75+ only when most mandatories are CONFIRMED in work history.
 
+REQUIREMENT LISTS
+
+Always return one scored object in mandatory_requirements for every listed mandatory item, and one in preferred_requirements for every listed preferred item. Never return empty arrays when requirements were listed or can be extracted from the job description.
+
+If the listed mandatory/preferred sections are empty or say they were not listed separately, extract Required Qualifications and Preferred Qualifications from the full job description, then score each extracted item. Put those items in mandatory_requirements / preferred_requirements. Do not put job qualifications only under items_to_verify.
+
 TIMELINE CHECK
 
 If résumé claims product features before known availability (e.g. Sentinel pre-2019 GA; DCRs with KQL ~2022), flag under items_to_verify as chronological inconsistency—do not accuse fraud.
@@ -556,6 +562,13 @@ function bullets(items: string[] | undefined | null, emptyLabel = "(none provide
   return list.map((item) => `- ${item}`).join("\n");
 }
 
+function hasListedRequirements(structured: StructuredJobRequirements): boolean {
+  return (
+    structured.mandatoryRequirements.some((item) => item.trim()) ||
+    structured.preferredRequirements.some((item) => item.trim())
+  );
+}
+
 function resolveAnalysisMode(input: { analysisMode?: AnalysisMode }): AnalysisMode {
   return input.analysisMode === "deep" ? "deep" : "analyze";
 }
@@ -639,10 +652,20 @@ Specialty: ${input.specialty?.trim() || input.structured.specialty?.trim() || "(
 Location: ${input.location?.trim() || input.structured.location?.trim() || "(unknown)"}
 
 MANDATORY REQUIREMENTS
-${bullets(input.structured.mandatoryRequirements)}
+${bullets(
+    input.structured.mandatoryRequirements,
+    hasListedRequirements(input.structured)
+      ? "(none provided)"
+      : "(not listed separately — extract every Required Qualifications bullet from the full job description below into mandatory_requirements. Do not return an empty array.)"
+  )}
 
 PREFERRED REQUIREMENTS
-${bullets(input.structured.preferredRequirements)}
+${bullets(
+    input.structured.preferredRequirements,
+    hasListedRequirements(input.structured)
+      ? "(none provided)"
+      : "(not listed separately — extract every Preferred Qualifications bullet from the full job description below into preferred_requirements. Do not return an empty array.)"
+  )}
 
 REQUIRED LICENSES
 ${bullets(input.structured.requiredLicenses)}
@@ -656,7 +679,11 @@ ${bullets(input.structured.educationRequirements)}
 REQUIRED YEARS EXPERIENCE
 ${input.structured.requiredYearsExperience?.trim() || "(not specified)"}
 
-FULL JOB DESCRIPTION (for reference only; requirements above are authoritative)
+FULL JOB DESCRIPTION${
+    hasListedRequirements(input.structured)
+      ? " (for reference; listed requirements above are authoritative)"
+      : " (listed requirement sections above are empty — extract Required and Preferred qualifications from this description)"
+  }
 ${input.fullJobDescription.trim() || "(none)"}
 
 CANDIDATE INFORMATION

@@ -21,6 +21,13 @@ function bullets(items: string[] | undefined | null, emptyLabel = "(none provide
   return list.map((item) => `- ${item}`).join("\n");
 }
 
+function hasListedRequirements(structured: StructuredJobRequirements): boolean {
+  return (
+    structured.mandatoryRequirements.some((item) => item.trim()) ||
+    structured.preferredRequirements.some((item) => item.trim())
+  );
+}
+
 export function assembleMatchAnalysisVariables(
   input: MatchAnalysisVariableInput
 ): PromptTemplateVariables {
@@ -37,8 +44,18 @@ export function assembleMatchAnalysisVariables(
     specialty: input.specialty?.trim() || input.structured.specialty?.trim() || "(unknown)",
     location: input.location?.trim() || input.structured.location?.trim() || "(unknown)",
     recent_experience_months: String(months),
-    mandatory_requirements: bullets(input.structured.mandatoryRequirements),
-    preferred_requirements: bullets(input.structured.preferredRequirements),
+    mandatory_requirements: bullets(
+      input.structured.mandatoryRequirements,
+      hasListedRequirements(input.structured)
+        ? "(none provided)"
+        : "(not listed separately — extract every Required Qualifications bullet from the full job description into mandatory_requirements. Do not return an empty array.)"
+    ),
+    preferred_requirements: bullets(
+      input.structured.preferredRequirements,
+      hasListedRequirements(input.structured)
+        ? "(none provided)"
+        : "(not listed separately — extract every Preferred Qualifications bullet from the full job description into preferred_requirements. Do not return an empty array.)"
+    ),
     required_licenses: bullets(input.structured.requiredLicenses),
     required_certifications: bullets(input.structured.requiredCertifications),
     education_requirements: bullets(input.structured.educationRequirements),
