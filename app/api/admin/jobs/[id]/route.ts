@@ -57,6 +57,15 @@ const JOB_DETAILS_SELECT = [
   "onboarding_flows!workflow_id(id, name)",
 ].join(", ");
 
+type JobRequisitionRow = {
+  source_type?: string | null;
+  public_job_token?: string | null;
+  status?: string | null;
+  tags?: unknown;
+  assigned_recruiter_user_id?: string | null;
+  is_hot?: boolean | null;
+};
+
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
@@ -112,9 +121,10 @@ export async function GET(
     if (tenantError) throw tenantError;
     if (appsError) throw appsError;
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    const jobRow = job as unknown as JobRequisitionRow & Record<string, unknown>;
 
     const showSubmission =
-      String((job as { source_type?: string | null }).source_type ?? "")
+      String(jobRow.source_type ?? "")
         .trim()
         .toLowerCase() === "msp";
 
@@ -127,9 +137,9 @@ export async function GET(
       .trim()
       .toLowerCase();
     const publicToken =
-      typeof job.public_job_token === "string" ? job.public_job_token.trim() : "";
+      typeof jobRow.public_job_token === "string" ? jobRow.public_job_token.trim() : "";
     const publicJobPath =
-      isOpenJobRequisitionStatus(String(job.status ?? "")) && publicToken && tenantSlug
+      isOpenJobRequisitionStatus(String(jobRow.status ?? "")) && publicToken && tenantSlug
         ? buildPublicJobSharePath(tenantSlug, publicToken)
         : null;
 
@@ -143,13 +153,11 @@ export async function GET(
 
     return NextResponse.json({
       job: {
-        ...job,
-        status: normalizeJobRequisitionStatus(String(job.status ?? "")),
-        tags: normalizeJobTags((job as { tags?: unknown }).tags),
-        assigned_recruiter_user_id:
-          (job as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ??
-          null,
-        is_hot: Boolean((job as { is_hot?: boolean | null }).is_hot),
+        ...jobRow,
+        status: normalizeJobRequisitionStatus(String(jobRow.status ?? "")),
+        tags: normalizeJobTags(jobRow.tags),
+        assigned_recruiter_user_id: jobRow.assigned_recruiter_user_id ?? null,
+        is_hot: Boolean(jobRow.is_hot),
       },
       tenant: tenant
         ? {

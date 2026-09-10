@@ -67,7 +67,7 @@ export default function HiringAreaSettingsPanel() {
                 else next.add(code);
                 setArea({
                   ...area,
-                  mode: next.size ? "locations_plus_states" : "locations_only",
+                  mode: next.size ? "locations_plus_states" : "all_allowed_platform",
                   extraAllowedStates: Array.from(next),
                 });
               }}

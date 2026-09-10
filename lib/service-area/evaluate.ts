@@ -1,3 +1,7 @@
+import {
+  SERVICE_AREA_ENFORCE_HIRING_AREA,
+  SERVICE_AREA_ENFORCE_PLATFORM_HOLDS,
+} from "@/lib/service-area/config";
 import type { ServiceAreaMessageKey } from "@/lib/service-area/copy";
 import { locationMatchesPolicy, hiringLocationMatches } from "@/lib/service-area/match";
 import { normalizeRemoteStates, normalizeStateCode } from "@/lib/service-area/normalize";
@@ -17,6 +21,8 @@ export type EvaluateContext = {
   zipListsByPolicyId?: Record<string, Set<string>>;
   hiringArea?: TenantHiringArea | null;
   jobWorksite?: JobWorksite | null;
+  enforcePlatformHolds?: boolean;
+  enforceHiringArea?: boolean;
 };
 
 function messageForAction(
@@ -102,10 +108,17 @@ function evaluateSingleLocation(
   action: ServiceAreaAction,
   ctx: EvaluateContext
 ): ServiceAreaDecision {
-  const hold = matchesHold(location, ctx.policies, ctx.zipListsByPolicyId);
-  if (hold) {
-    return deny("platform_hold", action, "platform", hold.id);
+  const enforceHolds = ctx.enforcePlatformHolds ?? SERVICE_AREA_ENFORCE_PLATFORM_HOLDS;
+  const enforceHiringArea = ctx.enforceHiringArea ?? SERVICE_AREA_ENFORCE_HIRING_AREA;
+
+  if (enforceHolds) {
+    const hold = matchesHold(location, ctx.policies, ctx.zipListsByPolicyId);
+    if (hold) {
+      return deny("platform_hold", action, "platform", hold.id);
+    }
   }
+
+  if (!enforceHiringArea) return ok();
 
   const area = ctx.hiringArea;
   if (!area || area.mode === "all_allowed_platform") return ok();

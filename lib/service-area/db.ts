@@ -148,12 +148,8 @@ export async function loadTenantHiringArea(
   }
 
   const storedMode = areaRow?.mode as TenantHiringArea["mode"] | undefined;
-  const hasExplicitArea = Boolean(areaRow);
-  const mode: TenantHiringArea["mode"] = hasExplicitArea
-    ? storedMode ?? "locations_only"
-    : locations.length
-      ? "locations_only"
-      : "all_allowed_platform";
+  const mode: TenantHiringArea["mode"] =
+    storedMode ?? "all_allowed_platform";
 
   return {
     tenantId,
