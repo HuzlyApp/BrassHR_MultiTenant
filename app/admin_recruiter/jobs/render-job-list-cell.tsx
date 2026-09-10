@@ -5,7 +5,7 @@ import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
 import { JobListStatusDropdown } from "./JobListStatusDropdown"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
-import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board"
+import { buildPublicJobSharePath } from "@/lib/jobs/public-job-share"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { JobStatus, SourceType } from "@/lib/jobs/types"
@@ -152,6 +152,8 @@ export type JobListRow = {
   ready_to_submit_count?: number
   /** Applications with hired status. */
   hired_application_count?: number
+  /** User-facing industry key from industry_catalog. */
+  industry_key?: string | null
   created_by?: string | null
   createdBy?: { id: string; name: string; profilePhotoUrl: string | null } | null
 }
@@ -503,7 +505,7 @@ export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): st
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""
   if (!token || !slug) return null
-  return buildJobsBoardHref({ tenant: slug, job: token })
+  return buildPublicJobSharePath(slug, token)
 }
 
 export function renderJobListCell(

@@ -17,6 +17,7 @@ import {
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import AccountTenantHeader from "./AccountTenantHeader";
+import { activeUserFacingIndustries, industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import {
   AddressField,
   EMPLOYEE_COUNT_OPTIONS,
@@ -40,6 +41,7 @@ export default function BusinessInfoTab() {
   const [subdomain, setSubdomain] = useState("");
   const [website, setWebsite] = useState("");
   const [industry, setIndustry] = useState("");
+  const [hireForKeys, setHireForKeys] = useState<string[]>([]);
   const [companySize, setCompanySize] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -68,6 +70,8 @@ export default function BusinessInfoTab() {
     setSubdomain(organization.subdomain ?? "");
     setWebsite(organization.website ?? "");
     setIndustry(organization.industry ?? "");
+    const mapped = industryKeyFromLegacyLabel(organization.industry ?? "");
+    setHireForKeys((current) => (current.length ? current : mapped ? [mapped] : []));
     setCompanySize(organization.company_size ?? "");
     setCity(organization.city ?? "");
     setState(organization.state ?? "");
@@ -77,6 +81,18 @@ export default function BusinessInfoTab() {
     setZipCode(organization.postal_code ?? "");
     setEin(organization.ein ?? "");
   }, [organization]);
+
+  useEffect(() => {
+    if (!organization?.id) return;
+    void supabaseBrowser
+      .from("tenant_industry")
+      .select("industry_key, is_primary")
+      .eq("tenant_id", organization.id)
+      .then(({ data }) => {
+        if (!data?.length) return;
+        setHireForKeys(data.map((row) => String(row.industry_key)));
+      });
+  }, [organization?.id]);
 
   useEffect(() => {
     let active = true;
@@ -298,6 +314,7 @@ export default function BusinessInfoTab() {
           email: businessEmail,
           zipCode,
           ein,
+          industryKeys: hireForKeys,
         }),
       });
 
@@ -384,11 +401,27 @@ export default function BusinessInfoTab() {
               <SelectField
                 label="Industry"
                 value={industry}
-                onChange={(value) => updateField("industry", value, setIndustry)}
+                onChange={(value) => {
+                  const previous = industry;
+                  if (previous && previous !== value) {
+                    const confirmed = window.confirm(
+                      "Changing the primary industry updates default Job Industry for new jobs. Continue?"
+                    );
+                    if (!confirmed) return;
+                  }
+                  updateField("industry", value, setIndustry);
+                  const mapped = industryKeyFromLegacyLabel(value);
+                  if (mapped && !hireForKeys.includes(mapped)) {
+                    setHireForKeys((keys) => [...keys, mapped]);
+                  }
+                }}
                 required
                 error={submitAttempted ? fieldErrors.industry : null}
               >
                 <option value="">Select industry</option>
+                {industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry) ? (
+                  <option value={industry}>{industry}</option>
+                ) : null}
                 {INDUSTRY_OPTIONS.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -409,6 +442,35 @@ export default function BusinessInfoTab() {
                   </option>
                 ))}
               </SelectField>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-[#334155]">Industries you hire for</p>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Select every industry this organization staffs. New jobs default to your primary industry and can be overridden per job.
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {activeUserFacingIndustries().map((item) => {
+                  const checked = hireForKeys.includes(item.key);
+                  return (
+                    <label key={item.key} className="flex items-center gap-2 text-sm text-[#334155]">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          setHireForKeys((keys) => {
+                            if (event.target.checked) {
+                              return keys.includes(item.key) ? keys : [...keys, item.key];
+                            }
+                            return keys.filter((key) => key !== item.key);
+                          });
+                        }}
+                      />
+                      {item.label}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             <TextField label="Website" value={website} onChange={setWebsite} type="url" />

@@ -16,6 +16,8 @@ import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 import { JobValidationError } from "@/lib/jobs/types"
 import { startOrResumeJobApplication } from "@/lib/jobs/service"
+import { parseServiceAreaLocationFromFormData } from "@/lib/service-area/parse-location"
+import { jobValidationServiceAreaResponse } from "@/lib/service-area/http"
 import { isResumeUploadValidationError } from "@/lib/resume/validate-resume-upload"
 import { normalizeResumeWhitespace } from "@/lib/jobs/match-analysis/sanitize-resume"
 
@@ -130,6 +132,7 @@ export async function POST(req: Request) {
     typeof formData.get("tenantId") === "string" ? String(formData.get("tenantId")).trim() : ""
   const jobToken =
     typeof formData.get("jobToken") === "string" ? String(formData.get("jobToken")).trim() : ""
+  const workLocation = parseServiceAreaLocationFromFormData(formData)
 
   if (!file) {
     return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
@@ -284,8 +287,13 @@ export async function POST(req: Request) {
         jobToken,
         applicantAuthUserId: applicantId,
         workerId: workerCtx.workerId,
+        workLocation,
       })
     } catch (error) {
+      const serviceArea = error instanceof JobValidationError
+        ? jobValidationServiceAreaResponse(error, true)
+        : null
+      if (serviceArea) return serviceArea
       const validation =
         error instanceof JobValidationError ||
         (error instanceof Error && error.name === "JobValidationError");

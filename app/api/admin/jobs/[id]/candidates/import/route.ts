@@ -108,6 +108,17 @@ export async function POST(
     });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof CandidateImportError && error.status === 422) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          messageKey: "location_not_enabled",
+          field: "work_state",
+        },
+        { status: 422 }
+      );
+    }
     const status = error instanceof CandidateImportError ? error.status : 500;
     if (status >= 500) console.error("[jobs/candidates/import POST]", error);
     return NextResponse.json({ error: formatApiError(error, "Failed to import candidates") }, { status });

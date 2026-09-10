@@ -7,6 +7,7 @@ import { JobDetailPanel } from "@/app/jobs/JobDetailPanel";
 import { JobResultCard } from "@/app/jobs/JobResultCard";
 import { JobsBoardFilters } from "@/app/jobs/JobsBoardFilters";
 import { JobsBoardSortMenu } from "@/app/jobs/JobsBoardSortMenu";
+import { SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import { NO_OPEN_POSITIONS_MESSAGE } from "@/lib/jobs/public-application-routing";
 import {
   buildJobsBoardHref,
@@ -269,6 +270,8 @@ export default function JobsPortalClient() {
   const primaryHex = branding.primaryHex || "#0D9488";
   const emptyDetailsMessage = error
     ? "Jobs could not be loaded. Try again in a moment."
+    : boardState.location.trim()
+      ? SERVICE_AREA_COPY.empty_city_search
     : hasActiveFilters
       ? "No matching jobs. Clear filters or try a different search."
       : "There are no open positions to display yet.";
@@ -463,7 +466,11 @@ export default function JobsPortalClient() {
                   className="rounded-lg border border-dashed border-slate-200 bg-white px-6 py-14 text-center"
                 >
                   <p className="text-sm font-medium text-slate-800">
-                    {hasActiveFilters ? "No jobs matched your search." : NO_OPEN_POSITIONS_MESSAGE}
+                    {boardState.location.trim()
+                      ? SERVICE_AREA_COPY.empty_city_search
+                      : hasActiveFilters
+                        ? "No jobs matched your search."
+                        : NO_OPEN_POSITIONS_MESSAGE}
                   </p>
                   {hasActiveFilters ? (
                     <>

@@ -240,6 +240,46 @@ export const RECRUITING_RESOURCES: ResourceInventory[] = [
     securityClass: "deny-by-default",
     notes: "RLS on, no policies.",
   },
+  {
+    resource: "industry_catalog",
+    rls: "on",
+    policyCount: 2,
+    tenantSource: "tenants.id",
+    securityClass: "public-reference",
+    notes: "Authenticated SELECT. Writes restricted to god_admin.",
+  },
+  {
+    resource: "ai_prompt_template",
+    rls: "on",
+    policyCount: 2,
+    tenantSource: "direct.tenant_id",
+    securityClass: "tenant-config",
+    notes: "Staff can SELECT global + own tenant templates. Writes god_admin only.",
+  },
+  {
+    resource: "ai_prompt_version",
+    rls: "on",
+    policyCount: 2,
+    tenantSource: "direct.tenant_id",
+    securityClass: "tenant-config",
+    notes: "Published/retired bodies immutable via trigger. Writes god_admin only.",
+  },
+  {
+    resource: "tenant_ai_binding",
+    rls: "on",
+    policyCount: 2,
+    tenantSource: "direct.tenant_id",
+    securityClass: "tenant-config",
+    notes: "Staff SELECT own tenant. Writes god_admin only.",
+  },
+  {
+    resource: "ai_prompt_run",
+    rls: "on",
+    policyCount: 1,
+    tenantSource: "direct.tenant_id",
+    securityClass: "tenant-private",
+    notes: "Append-only. Staff SELECT own tenant. No authenticated INSERT/UPDATE/DELETE.",
+  },
 ];
 
 export const RLS_DISABLED_PUBLIC_TABLES = ["default_workflow_migration_report"] as const;
@@ -275,6 +315,16 @@ export const HIGH_RISK_SECURITY_DEFINER_FUNCTIONS = [
   {
     name: "is_god_admin_user",
     issue: "Reads public.users.god_admin, not user-editable JWT user_metadata. EXECUTE granted to anon.",
+  },
+  {
+    name: "publish_ai_prompt_version",
+    issue:
+      "SECURITY DEFINER. Checks is_god_admin_user() or service_role/postgres. REVOKE FROM PUBLIC.",
+  },
+  {
+    name: "bind_tenant_ai_industries",
+    issue:
+      "SECURITY DEFINER used for idempotent tenant industry binding. Called from staff APIs after validation.",
   },
   {
     name: "seed_default_tenant_onboarding",

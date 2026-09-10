@@ -628,10 +628,7 @@ export default function CandidatesPage() {
         const wanted = clientNameFilter.trim().toLowerCase();
         if ((row.applicationClientName ?? "").trim().toLowerCase() !== wanted) return false;
       }
-      if (advancedSearchContext.active) {
-        return candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter);
-      }
-      return true;
+      return candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter);
     });
   }, [
     candidates,

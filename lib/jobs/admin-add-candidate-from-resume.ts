@@ -36,6 +36,10 @@ export type AdminAddCandidateFromResumeInput = {
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
+  workCity?: string | null;
+  workState?: string | null;
+  workPostalCode?: string | null;
+  relocateToJobSite?: boolean;
 };
 
 export type AdminAddCandidateFromResumeResult = {
@@ -356,6 +360,16 @@ export async function adminAddCandidateFromResume(
     createdByStaffUserId: input.staffUserId ?? null,
     resumePath: uploaded.path,
     resumeFileName: uploaded.fileName,
+    workLocation: input.workCity && input.workState
+      ? {
+          country: "US",
+          city: input.workCity,
+          state: input.workState,
+          postalCode: input.workPostalCode ?? null,
+          locationType: "onsite",
+          relocateToJobSite: Boolean(input.relocateToJobSite),
+        }
+      : null,
   });
 
   const { data: profileRow } = await supabase

@@ -365,8 +365,15 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
     hoursPerWeek: row.hours_per_week == null ? null : Number(row.hours_per_week),
     publicTitle: String(row.public_title ?? ""),
     publicDescription: String(row.public_description ?? ""),
+    industryKey: row.industry_key ? String(row.industry_key) : null,
     location: String(row.location ?? ""),
     postalCode: row.postal_code ? String(row.postal_code) : null,
+    worksiteCity: row.worksite_city ? String(row.worksite_city) : null,
+    worksiteState: row.worksite_state ? String(row.worksite_state) : null,
+    worksitePostalCode: row.worksite_postal_code ? String(row.worksite_postal_code) : null,
+    remoteAllowedStates: Array.isArray(row.remote_allowed_states)
+      ? row.remote_allowed_states.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [],
     schedule: String(row.schedule ?? ""),
     qualifications: String(row.qualifications ?? ""),
     responsibilities: String(row.responsibilities ?? ""),
@@ -659,4 +666,5 @@ export type JobFormOptionsPayload = {
   sourceTypes: SourceType[];
   employerOfRecordOptions: JobFormOption[];
   canManageWorkflows: boolean;
+  primaryIndustryKey?: string | null;
 };

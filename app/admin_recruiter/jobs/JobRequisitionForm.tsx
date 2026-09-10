@@ -76,6 +76,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const brandStyle = primaryButtonStyle(brandVars);
 
+  const [persistedJobId, setPersistedJobId] = useState(jobId);
   const [step, setStep] = useState<JobFormStep>(jobId ? "requisition" : "setup");
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
   const [ui, setUi] = useState<JobFormUiState>(defaultJobFormUiState);
@@ -174,6 +175,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load options"));
   }, []);
+
+  useEffect(() => {
+    if (jobId) return;
+    const primary = options?.primaryIndustryKey;
+    if (!primary) return;
+    setJob((current) => (current.industryKey ? current : { ...current, industryKey: primary }));
+  }, [jobId, options?.primaryIndustryKey]);
 
   useEffect(() => {
     if (jobId) return;
@@ -495,7 +503,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         body: JSON.stringify({
           action,
           job: payloadJob,
-          jobId,
+          jobId: persistedJobId,
           screeningQuestions,
           confirmRoutingChange: forceRoutingChange || confirmRoutingChange,
           resetToAutomatic: assignmentMode === "automatic",
@@ -516,6 +524,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         }
         setFieldErrors(payload.fieldErrors ?? {});
         throw new Error(payload.error || "Failed to save job");
+      }
+      if (payload.job?.id) {
+        setPersistedJobId(String(payload.job.id));
+      }
+      if (payload.serviceAreaWarning) {
+        setFieldErrors({ location: payload.serviceAreaWarning });
+        setMessage(payload.serviceAreaWarning);
+        return;
       }
       clearJobRequisitionFormDraft();
       router.push("/admin_recruiter/jobs");

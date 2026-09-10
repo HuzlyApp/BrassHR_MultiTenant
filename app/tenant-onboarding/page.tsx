@@ -422,6 +422,7 @@ export default function TenantOnboardingPage() {
           email: businessInfo.email,
           zipCode: businessInfo.zipCode,
           ein: businessInfo.ein,
+          industryKeys: businessInfo.hireForIndustryKeys ?? [],
           businessInfoSkipped,
         }),
       });

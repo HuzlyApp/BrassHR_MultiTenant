@@ -18,6 +18,7 @@ import {
   validatePublishableJob,
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
+import { parseIndustryKey, InvalidIndustryKeyError, industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import {
   tallyApplicationMetrics,
   type JobListApplicationMetricRow,
@@ -41,6 +42,14 @@ import {
   normalizeJobRequisitionStatus,
 } from "@/lib/jobs/job-status";
 import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
+import { evaluateJobServiceArea, requireApplyWorkLocation } from "@/lib/service-area/jobs";
+import { locationFromFreeText } from "@/lib/service-area/normalize";
+import {
+  evaluateServiceAreaWithDb,
+  recordWorkLocationConfirmation,
+} from "@/lib/service-area/db";
+import { serviceAreaMessage } from "@/lib/service-area/copy";
+import type { ServiceAreaLocation } from "@/lib/service-area/types";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
@@ -120,6 +129,12 @@ function toJobRow(input: JobRequisitionInput) {
   const location = normalizedPrimary.location ?? (rawLocation ? rawLocation : null);
   const postalCode =
     clean(input.postalCode) ?? normalizedPrimary.zipCode ?? null;
+  const parsedWorksite = locationFromFreeText(
+    input.worksiteCity && input.worksiteState
+      ? `${input.worksiteCity}, ${input.worksiteState}`
+      : location,
+    input.worksitePostalCode ?? postalCode
+  );
   const additionalLocations = Array.isArray(input.additionalLocations)
     ? input.additionalLocations
         .map(
@@ -154,8 +169,27 @@ function toJobRow(input: JobRequisitionInput) {
     hours_per_week: input.hoursPerWeek ?? null,
     public_title: resolvedPublicTitle,
     public_description: publicDescription,
+    industry_key: (() => {
+      try {
+        return input.industryKey ? parseIndustryKey(input.industryKey) : null;
+      } catch (error) {
+        if (error instanceof InvalidIndustryKeyError) {
+          throw new JobValidationError("Select a valid job industry.", {
+            industryKey: "Select a valid job industry.",
+          });
+        }
+        throw error;
+      }
+    })(),
     location,
     postal_code: postalCode,
+    worksite_city: parsedWorksite.city || null,
+    worksite_state: parsedWorksite.state || null,
+    worksite_postal_code: parsedWorksite.postalCode || postalCode,
+    worksite_country: "US",
+    remote_allowed_states: Array.isArray(input.remoteAllowedStates)
+      ? input.remoteAllowedStates.map((item) => item.trim().toUpperCase()).filter(Boolean)
+      : [],
     schedule: jobLocationType,
     qualifications: clean(input.qualifications),
     responsibilities: clean(input.responsibilities),
@@ -552,12 +586,42 @@ export async function saveJobRequisition(
   );
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
 
+  const serviceArea = await evaluateJobServiceArea(supabase, tenantId, input, {
+    publish: options.publish,
+    actorUserId,
+    jobId: options.jobId,
+  });
+
   const baseRow = toJobRow(input);
   const tenantName =
     baseRow.placement_type === "Recruit_and_EOR" && baseRow.eor_type === "Tenant"
       ? await resolveTenantName(supabase, tenantId)
       : null;
   const jobRow = applyTenantEorRowFields(baseRow, tenantId, tenantName);
+  if (!jobRow.industry_key && !options.jobId) {
+    const { data: tenantIndustry } = await supabase
+      .from("tenants")
+      .select("primary_industry_key, industry")
+      .eq("id", tenantId)
+      .maybeSingle();
+    const rawPrimary =
+      typeof tenantIndustry?.primary_industry_key === "string" &&
+      tenantIndustry.primary_industry_key.trim()
+        ? tenantIndustry.primary_industry_key
+        : null;
+    let primary: ReturnType<typeof parseIndustryKey> = null;
+    try {
+      primary = rawPrimary ? parseIndustryKey(rawPrimary) : null;
+    } catch {
+      primary = null;
+    }
+    if (!primary) {
+      primary = industryKeyFromLegacyLabel(
+        typeof tenantIndustry?.industry === "string" ? tenantIndustry.industry : null
+      );
+    }
+    if (primary) jobRow.industry_key = primary;
+  }
 
   const now = new Date().toISOString();
   const publicJobToken = options.publish
@@ -574,6 +638,7 @@ export async function saveJobRequisition(
     closed_at: null,
     archived_at: null,
     updated_by: actorUserId,
+    service_area_status: serviceArea.status,
     ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
   };
 
@@ -690,6 +755,7 @@ export async function saveJobRequisition(
     job: data,
     workflow: match,
     screeningQuestions: screeningQuestions.map(jobScreeningQuestionToInput),
+    serviceAreaWarning: serviceArea.warning,
   };
 }
 
@@ -731,6 +797,21 @@ export async function transitionJobStatus(
     patch.closed_at = null;
     patch.archived_at = null;
   } else if (toStatus === "open") {
+    const { data: jobRow, error: jobRowError } = await supabase
+      .from("job_requisitions")
+      .select("*")
+      .eq("id", jobId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (jobRowError) throw jobRowError;
+    if (jobRow) {
+      await evaluateJobServiceArea(
+        supabase,
+        tenantId,
+        jobRowToInput(jobRow as Record<string, unknown>),
+        { publish: true, actorUserId, jobId }
+      );
+    }
     patch.published_at = existing.published_at
       ? String(existing.published_at)
       : now;
@@ -848,8 +929,15 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
     hoursPerWeek: row.hours_per_week == null ? null : Number(row.hours_per_week),
     publicTitle: row.public_title ? String(row.public_title) : null,
     publicDescription: row.public_description ? String(row.public_description) : null,
+    industryKey: row.industry_key ? String(row.industry_key) : null,
     location: row.location ? String(row.location) : null,
     postalCode: row.postal_code ? String(row.postal_code) : null,
+    worksiteCity: row.worksite_city ? String(row.worksite_city) : null,
+    worksiteState: row.worksite_state ? String(row.worksite_state) : null,
+    worksitePostalCode: row.worksite_postal_code ? String(row.worksite_postal_code) : null,
+    remoteAllowedStates: Array.isArray(row.remote_allowed_states)
+      ? row.remote_allowed_states.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [],
     schedule: row.schedule ? String(row.schedule) : null,
     qualifications: row.qualifications ? String(row.qualifications) : null,
     responsibilities: row.responsibilities ? String(row.responsibilities) : null,
@@ -1186,7 +1274,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, show_pay_by, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key, name), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, show_pay_by, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, industry_key, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key, name), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -1319,6 +1407,7 @@ type StartApplicationInput = {
   applicantAuthUserId: string;
   workerId?: string | null;
   email?: string | null;
+  workLocation?: ServiceAreaLocation | null;
 };
 
 export async function startOrResumeJobApplication(
@@ -1502,6 +1591,14 @@ export async function startOrResumeJobApplication(
       return { application: byWorker, resumed: true };
     }
   }
+
+  await requireApplyWorkLocation(supabase, {
+    tenantId: input.tenantId,
+    jobId: String(job.id),
+    applicantId: profileId,
+    createdBy: input.applicantAuthUserId,
+    location: input.workLocation ?? null,
+  });
 
   const { data: application, error: applicationError } = await supabase
     .from("job_applications")
@@ -1754,6 +1851,7 @@ export type CreateAdminCandidateInput = {
   createdByStaffUserId?: string | null;
   resumePath?: string | null;
   resumeFileName?: string | null;
+  workLocation?: ServiceAreaLocation | null;
 };
 
 /**
@@ -1793,6 +1891,39 @@ export async function createAdminJobApplication(
       "Only open jobs can accept candidates. Open the job first.",
       {},
       "JOB_NOT_PUBLISHED"
+    );
+  }
+
+  if (!input.workLocation) {
+    throw new JobValidationError(
+      "Where will they work this assignment?",
+      { work_state: "Work location is required." },
+      "incomplete_location"
+    );
+  }
+  const attachDecision = await evaluateServiceAreaWithDb(
+    supabase,
+    {
+      tenantId: input.tenantId,
+      jobId: input.jobRequisitionId,
+      action: "attach_candidate",
+      location: input.workLocation,
+    },
+    { createdBy: input.createdByStaffUserId }
+  );
+  await recordWorkLocationConfirmation(supabase, {
+    tenantId: input.tenantId,
+    jobId: input.jobRequisitionId,
+    source: "recruiter_upload",
+    location: input.workLocation,
+    decision: attachDecision,
+    createdBy: input.createdByStaffUserId,
+  });
+  if (!attachDecision.allowed) {
+    throw new JobValidationError(
+      serviceAreaMessage("attach_blocked"),
+      { work_state: serviceAreaMessage("location_not_enabled") },
+      attachDecision.reasonCode
     );
   }
 

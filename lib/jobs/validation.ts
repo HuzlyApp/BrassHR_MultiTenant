@@ -9,6 +9,7 @@ import {
   type WorkflowMatchKey,
 } from "@/lib/jobs/types";
 import { jobRequiresWorkflow } from "@/lib/jobs/placement";
+import { industryKeyValidationMessage } from "@/lib/ai-catalog/industry-catalog";
 
 const optionalText = z
   .union([z.string(), z.null(), z.undefined()])
@@ -54,7 +55,19 @@ export const jobRequisitionInputSchema = z.object({
   hoursPerWeek: optionalNumber,
   publicTitle: optionalText,
   publicDescription: optionalText,
+  industryKey: optionalText,
   location: optionalText,
+  postalCode: optionalText,
+  worksiteCity: optionalText,
+  worksiteState: optionalText,
+  worksitePostalCode: optionalText,
+  remoteAllowedStates: z
+    .union([z.array(z.string()), z.null(), z.undefined()])
+    .transform((value) =>
+      Array.isArray(value)
+        ? value.map((item) => item.trim().toUpperCase()).filter(Boolean)
+        : null
+    ),
   schedule: optionalText,
   qualifications: optionalText,
   responsibilities: optionalText,
@@ -113,10 +126,20 @@ export function validatePublishableJob(
   if (!input.publicDescription?.trim()) {
     errors.publicDescription = "Public job description is required.";
   }
-  if (!location) errors.location = "Location is required.";
+  const locationType = (input.jobLocationType ?? input.schedule ?? "").toLowerCase();
+  const isRemote = locationType === "remote";
+  if (isRemote) {
+    if (!input.remoteAllowedStates?.length) {
+      errors.remoteAllowedStates = "Select the states where this remote role can be worked.";
+    }
+  } else if (!location) {
+    errors.location = "Location is required.";
+  }
   if (!input.employmentType) errors.employmentType = "Employment type is required.";
   if (!input.shiftType?.trim()) errors.shiftType = "Employment Type is required.";
   if (!input.sourceType) errors.sourceType = "Source type is required.";
+  const industryError = industryKeyValidationMessage(input.industryKey);
+  if (industryError) errors.industryKey = industryError;
 
   if (!isMsp) {
     if (!input.professionId) errors.professionId = "Profession is required.";

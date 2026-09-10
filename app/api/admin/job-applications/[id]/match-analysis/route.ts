@@ -109,6 +109,16 @@ export async function POST(req: NextRequest, context: RouteContext) {
       },
     });
 
+    if (result.error === "PROMPT_NOT_CONFIGURED") {
+      return NextResponse.json(
+        {
+          error: "PROMPT_NOT_CONFIGURED",
+          message: "No published AI prompt is configured for this feature, variant, and industry.",
+        },
+        { status: 422 }
+      );
+    }
+
     const { data: requirements } = await supabase
       .from("job_application_match_requirements")
       .select(
@@ -143,7 +153,19 @@ export async function POST(req: NextRequest, context: RouteContext) {
             ? 504
             : code === "MISSING_CONFIG"
               ? 503
+              : code === "PROMPT_NOT_CONFIGURED"
+                ? 422
               : 502;
+
+    if (code === "PROMPT_NOT_CONFIGURED") {
+      return NextResponse.json(
+        {
+          error: "PROMPT_NOT_CONFIGURED",
+          message: "No published AI prompt is configured for this feature, variant, and industry.",
+        },
+        { status: 422 }
+      );
+    }
 
     return NextResponse.json({ error: MATCH_ANALYSIS_ERROR, code }, { status });
   }

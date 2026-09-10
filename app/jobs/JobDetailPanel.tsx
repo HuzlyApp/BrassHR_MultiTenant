@@ -13,8 +13,12 @@ import {
 } from "@/app/admin_recruiter/jobs/job-posting-typography";
 import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
+  absolutePublicJobShareUrl,
+  buildPublicJobSharePath,
+  shareOrCopyPublicJobUrl,
+} from "@/lib/jobs/public-job-share";
+import {
   benefitItems,
-  buildJobsBoardHref,
   descriptionHasSection,
   formatJobLocationLine,
   formatPostedDate,
@@ -83,15 +87,6 @@ function writeSavedJobTokens(tenantSlug: string, tokens: Set<string>) {
   }
 }
 
-function absoluteShareUrl(path: string): string {
-  if (typeof window === "undefined") return path;
-  try {
-    return new URL(path, window.location.origin).toString();
-  } catch {
-    return path;
-  }
-}
-
 function ApplyControl({
   href,
   className,
@@ -121,15 +116,15 @@ function JobDetailActions({
   jobToken,
   tenantSlug,
   applyHref,
-  boardHref,
-  legacyJobHref,
+  shareHref,
+  title,
   stacked,
 }: {
   jobToken: string;
   tenantSlug: string;
   applyHref: string | null;
-  boardHref: string;
-  legacyJobHref: string;
+  shareHref: string;
+  title: string;
   stacked?: boolean;
 }) {
   const [saved, setSaved] = useState(false);
@@ -154,26 +149,22 @@ function JobDetailActions({
   }, [jobToken, tenantSlug]);
 
   const handleShare = useCallback(async () => {
-    const shareUrl = absoluteShareUrl(boardHref);
+    const shareUrl = absolutePublicJobShareUrl(
+      shareHref,
+      typeof window !== "undefined" ? window.location.origin : null
+    );
     try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-        await navigator.share({
-          title: "Job opening",
-          url: shareUrl,
-        });
+      const result = await shareOrCopyPublicJobUrl({ url: shareUrl, title });
+      if (result === "copied") {
+        toast.success("Share link copied");
         return;
       }
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        toast.success("Link copied");
-        return;
-      }
+      if (result === "shared" || result === "aborted") return;
       toast.error("Sharing is not available on this device");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+    } catch {
       toast.error("Could not share this job");
     }
-  }, [boardHref]);
+  }, [shareHref, title]);
 
   const saveButton = (
     <button
@@ -212,7 +203,7 @@ function JobDetailActions({
 
   const viewButton = (
     <Link
-      href={legacyJobHref}
+      href={shareHref}
       target="_blank"
       rel="noopener noreferrer"
       className={VIEW_BUTTON_CLASS}
@@ -292,12 +283,7 @@ export function JobDetailPanel({
   const posted = formatPostedDate(job.published_at, job.updated_at);
   const applyHref = selectedJobApplyHref(tenantSlug, job);
   const jobToken = String(job.public_job_token ?? "").trim();
-  const boardHref = jobToken
-    ? buildJobsBoardHref({ tenant: tenantSlug, job: jobToken })
-    : "";
-  const legacyJobHref = jobToken
-    ? `/jobs/${encodeURIComponent(jobToken)}?tenant=${encodeURIComponent(tenantSlug.trim().toLowerCase())}`
-    : "";
+  const shareHref = jobToken ? buildPublicJobSharePath(tenantSlug, jobToken) ?? "" : "";
   const benefits = benefitItems(job.benefits);
   const descriptionHtml = formatPublicJobDescriptionHtml(
     job.public_description || "",
@@ -353,8 +339,8 @@ export function JobDetailPanel({
               jobToken={jobToken}
               tenantSlug={tenantSlug}
               applyHref={applyHref}
-              boardHref={boardHref}
-              legacyJobHref={legacyJobHref}
+              shareHref={shareHref}
+              title={title}
             />
           ) : null}
         </div>
@@ -419,8 +405,8 @@ export function JobDetailPanel({
               jobToken={jobToken}
               tenantSlug={tenantSlug}
               applyHref={applyHref}
-              boardHref={boardHref}
-              legacyJobHref={legacyJobHref}
+              shareHref={shareHref}
+              title={title}
               stacked
             />
           ) : (

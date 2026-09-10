@@ -3,7 +3,9 @@ import { NextResponse } from "next/server"
 import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo"
 import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope"
+import { getApplicationAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { queryInChunks } from "@/lib/supabase/chunked-in-query"
 import { narrowWorkerRowsByTenant } from "@/lib/workers/tenant-query"
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache"
 import { enforceRateLimit } from "@/lib/security/rate-limit"
@@ -239,6 +241,34 @@ export async function POST(req: Request) {
 
       const merged = mergeById(rpcRows, cityRows)
       const workerIds = Array.from(new Set(merged.map((r) => (r.id != null ? String(r.id) : "")).filter(Boolean)))
+      const tenantIdForApps = tenantScope.mode === "scoped" ? tenantScope.tenantId : null
+      const assigneeByWorker = new Map<string, string>()
+      if (tenantIdForApps && workerIds.length > 0) {
+        const { data: assigneeRows } = await queryInChunks(workerIds, async (chunk) => {
+          const result = await supabase
+            .from("worker")
+            .select("id, assigned_recruiter_user_id")
+            .eq("tenant_id", tenantIdForApps)
+            .in("id", chunk)
+          return {
+            data: (result.data ?? []) as Array<{ id?: string | null; assigned_recruiter_user_id?: string | null }>,
+            error: result.error,
+          }
+        })
+        for (const row of assigneeRows) {
+          const id = typeof row.id === "string" ? row.id.trim() : ""
+          const assigneeId =
+            typeof row.assigned_recruiter_user_id === "string" ? row.assigned_recruiter_user_id.trim() : ""
+          if (id && assigneeId) assigneeByWorker.set(id, assigneeId)
+        }
+        const missing = workerIds.filter((id) => !assigneeByWorker.has(id))
+        if (missing.length > 0) {
+          const fallback = await getApplicationAssigneeFallbackByWorker(supabase, tenantIdForApps, missing)
+          for (const [workerId, assigneeId] of fallback) {
+            if (assigneeId && !assigneeByWorker.has(workerId)) assigneeByWorker.set(workerId, assigneeId)
+          }
+        }
+      }
       const userIds = Array.from(
         new Set(merged.map((r) => (r.user_id != null ? String(r.user_id) : "")).filter(Boolean))
       )
@@ -278,12 +308,14 @@ export async function POST(req: Request) {
         const userId = row.user_id != null ? String(row.user_id) : ""
         const userContact = userId ? usersById.get(userId) : undefined
         const applicantContact = workerId ? applicantsById.get(workerId) : undefined
+        const assignedRecruiterUserId = workerId ? assigneeByWorker.get(workerId) ?? null : null
         return {
           ...row,
           user_email: userContact?.email ?? null,
           user_phone: userContact?.phone ?? null,
           applicant_email: applicantContact?.email ?? null,
           applicant_phone: applicantContact?.phone ?? null,
+          ...(assignedRecruiterUserId ? { assigned_recruiter_user_id: assignedRecruiterUserId } : {}),
         }
       })
       return narrowWorkerRowsByTenant(

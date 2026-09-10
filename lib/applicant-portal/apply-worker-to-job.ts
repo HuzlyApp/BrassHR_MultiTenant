@@ -5,12 +5,14 @@ import type { ApplicantWorkerRow } from "@/lib/applicant-portal";
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record";
 import { startOrResumeJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
+import type { ServiceAreaLocation } from "@/lib/service-area/types";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 
 export type ApplyWorkerToJobInput = {
   applicant: ApplicantWorkerRow;
   authUserId: string;
   jobToken: string;
+  workLocation?: ServiceAreaLocation | null;
 };
 
 export type ApplyWorkerToJobResult = {
@@ -147,6 +149,7 @@ export async function applyWorkerToJobWithResume(
     applicantAuthUserId: input.authUserId,
     workerId: input.applicant.id,
     email: input.applicant.email,
+    workLocation: input.workLocation ?? null,
   });
 
   const applicationId = String(result.application?.id ?? "").trim();
