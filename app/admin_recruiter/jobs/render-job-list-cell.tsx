@@ -122,6 +122,8 @@ export type JobListRow = {
   pay_rate_period?: string | null
   rate_unit?: string | null
   pay_rate?: number | null
+  /** "Range" | "Exact amount" | "Starting amount" — from job create. */
+  show_pay_by?: string | null
   location_type?: string | null
   schedule?: string | null
   shift_type?: string | null
@@ -329,17 +331,17 @@ export function jobPayRatePeriodLabel(job: JobListRow): string {
 }
 
 export function jobPayRateSortValue(job: JobListRow): number {
-  const suggested = toNumberOrNull(job.pay_rate)
-  if (suggested != null) return suggested
   const min = toNumberOrNull(job.pay_rate_min)
   const max = toNumberOrNull(job.pay_rate_max)
   if (min != null && max != null) return Math.min(min, max)
   if (min != null) return min
   if (max != null) return max
+  const suggested = toNumberOrNull(job.pay_rate)
+  if (suggested != null) return suggested
   return -1
 }
 
-/** Plain-text pay rate for export / aria (e.g. "$50 / hour"). */
+/** Plain-text pay rate for export / aria (e.g. "$50 / hour" or "$50 - $60 / hour"). */
 export function formatJobListPayRateText(job: JobListRow): string {
   const parts = formatJobListPayRateParts(job)
   if (!parts) return "—"
@@ -353,19 +355,23 @@ export function formatJobListPayRateParts(
   const min = toNumberOrNull(job.pay_rate_min)
   const max = toNumberOrNull(job.pay_rate_max)
   const period = jobPayRatePeriodLabel(job)
+  const showPayBy = String(job.show_pay_by ?? "").trim()
+  const format = (value: number) => `$${formatPayAmount(value)}`
+
+  const hasDistinctRange = min != null && max != null && min !== max
+  const isRangeMode =
+    showPayBy === "Range" ||
+    (hasDistinctRange &&
+      showPayBy !== "Exact amount" &&
+      showPayBy !== "Starting amount")
 
   let amount = ""
-  if (suggested != null) {
-    amount = `$${formatPayAmount(suggested)}`
-  } else if (min != null && max != null) {
-    amount =
-      min === max
-        ? `$${formatPayAmount(min)}`
-        : `$${formatPayAmount(min)} - $${formatPayAmount(max)}`
-  } else if (min != null) {
-    amount = `$${formatPayAmount(min)}`
-  } else if (max != null) {
-    amount = `$${formatPayAmount(max)}`
+  if (isRangeMode && hasDistinctRange) {
+    amount = `${format(min)} - ${format(max)}`
+  } else {
+    // Exact / Starting / incomplete range — single value (never prefer suggested over min/max).
+    const single = min ?? max ?? suggested
+    if (single != null) amount = format(single)
   }
 
   if (!amount) return null
@@ -653,7 +659,7 @@ export function renderJobListCell(
       )
     case "actions":
       return (
-        <div className="flex items-center justify-center gap-3 px-[14px] py-[10px]">
+        <div className="flex min-h-[36px] items-center justify-center gap-3 overflow-visible px-2 py-2.5">
           <JobPublishToggle
             checked={isPublishToggleChecked(job.status)}
             disabled={isPublishToggleDisabled(job)}

@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
-import {
-  FilterChipInput,
-  type FilterChipInputHandle,
-} from "@/app/admin_recruiter/components/FilterChipInput";
 import { jobMatchesDashboardSearchTags } from "@/lib/jobs/jobs-list-search";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
 import { JobsGridView, JOBS_GRID_INFINITE_PAGE_SIZE } from "./JobsGridView";
 import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
@@ -25,6 +23,7 @@ import {
 } from "./render-job-list-cell";
 
 const JOBS_ICONS = "/icons/jobs-icons";
+const JOBS_CREATE_PLUS_ICON_SRC = `${JOBS_ICONS}/create-plus.svg`;
 const KPI_TOGGLE_BUTTON_CLASS =
   "inline-flex items-center gap-1 bg-transparent px-1 py-1 font-[Inter,sans-serif] text-xs font-semibold leading-[18px] text-[color:var(--brand-primary)] transition hover:opacity-80";
 
@@ -53,19 +52,6 @@ const JOBS_VIEW_ALL_BUTTON_CLASS =
 
 const JOBS_CREATE_BUTTON_CLASS =
   "inline-flex h-8 w-full shrink-0 items-center justify-center gap-1 rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:w-auto";
-
-const PRIMARY_SEARCH_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
-
-const OUTLINE_SEARCH_BUTTON_CLASS =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50";
-
-const VIEW_ALL_LINK_CLASS =
-  "font-[Inter,sans-serif] text-sm font-semibold leading-5 text-[color:var(--brand-primary)] no-underline transition hover:opacity-80";
-
-function tagsKey(tags: string[]): string {
-  return tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean).join("|");
-}
 
 const STATUS_KPI_ICONS: Record<string, KpiIcon> = {
   new: { src: `${JOBS_ICONS}/kpi-bi-people.svg`, bg: "#DFFFD3", leafWidth: 30, leafHeight: 30 },
@@ -225,125 +211,6 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
   ];
 }
 
-function SearchGlyph() {
-  return (
-    <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`${JOBS_ICONS}/search.svg`}
-        alt=""
-        width={16.67}
-        height={16.67}
-        className="size-[16.67px] shrink-0"
-      />
-    </span>
-  );
-}
-
-function ResetSearchGlyph() {
-  return (
-    <span className="relative flex size-4 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/icons/candidates-icons/reset-search.svg"
-        alt=""
-        width={16}
-        height={16}
-        className="size-4 shrink-0"
-      />
-    </span>
-  );
-}
-
-/** Tag-based dashboard search (title, skills, experience, location, profession). No separate skills field. */
-function JobWorkspaceSearchBar({
-  draftTags,
-  appliedTags,
-  onDraftTagsChange,
-  onApplySearch,
-  onResetSearch,
-}: {
-  draftTags: string[];
-  appliedTags: string[];
-  onDraftTagsChange: (tags: string[]) => void;
-  onApplySearch: (tags: string[]) => void;
-  onResetSearch: () => void;
-}) {
-  const chipRef = useRef<FilterChipInputHandle>(null);
-  const [draftText, setDraftText] = useState("");
-  const searchDirty = tagsKey(draftTags) !== tagsKey(appliedTags);
-  const hasAppliedSearch = appliedTags.length > 0;
-  const hasDraftSearch = draftTags.length > 0 || Boolean(draftText.trim());
-
-  function runSearch() {
-    const tags = chipRef.current?.commitDraft() ?? draftTags;
-    onApplySearch(tags);
-  }
-
-  function handleReset() {
-    chipRef.current?.clearDraft();
-    setDraftText("");
-    onResetSearch();
-  }
-
-  return (
-    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-3.5">
-      <div className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 sm:px-3">
-        <SearchGlyph />
-        <FilterChipInput
-          ref={chipRef}
-          embedded
-          values={draftTags}
-          placeholder="Search by job title, skills, experience, location..."
-          aria-label="Search by job title, skills, experience, location, and profession"
-          onChange={onDraftTagsChange}
-          onDraftTextChange={setDraftText}
-          onEnterSubmit={(nextTags) => {
-            onDraftTagsChange(nextTags);
-            onApplySearch(nextTags);
-          }}
-        />
-      </div>
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <button
-          type="button"
-          onClick={runSearch}
-          disabled={!searchDirty && !hasDraftSearch}
-          className={`${PRIMARY_SEARCH_BUTTON_CLASS} flex-1 sm:flex-none`}
-        >
-          Search
-        </button>
-        <button
-          type="button"
-          onClick={handleReset}
-          disabled={!hasAppliedSearch && !hasDraftSearch}
-          className={`${OUTLINE_SEARCH_BUTTON_CLASS} flex-1 sm:flex-none`}
-        >
-          <ResetSearchGlyph />
-          Reset search
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function JobWorkspaceActions({ className = "" }: { className?: string }) {
-  return (
-    <div className={`flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3 ${className}`}>
-      <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
-        <span aria-hidden>+</span>
-        Create a job
-      </Link>
-      <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-        View All Jobs
-      </Link>
-      <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-        View Candidates
-      </Link>
-    </div>
-  );
-}
-
 export function JobsDashboard({
   jobs,
   loading,
@@ -371,7 +238,6 @@ export function JobsDashboard({
   onArchive,
   onUnarchive,
 }: JobsDashboardProps) {
-  const [draftSearchTags, setDraftSearchTags] = useState<string[]>([]);
   const [appliedSearchTags, setAppliedSearchTags] = useState<string[]>([]);
   const [kpiCardsExpanded, setKpiCardsExpanded] = useState(false);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
@@ -433,17 +299,6 @@ export function JobsDashboard({
   const hasStatusKpiCards = statusCards !== null && statusCards.length > 0;
   const showKpiToggle = hasStatusKpiCards;
 
-  function applySearch(tags: string[]) {
-    const normalized = tags.map((tag) => tag.trim()).filter(Boolean);
-    setDraftSearchTags(normalized);
-    setAppliedSearchTags(normalized);
-  }
-
-  function resetSearch() {
-    setDraftSearchTags([]);
-    setAppliedSearchTags([]);
-  }
-
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
       <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} shrink-0`} style={CANDIDATES_PAGE_TITLE_STYLE}>
@@ -495,24 +350,34 @@ export function JobsDashboard({
         ) : null}
       </div>
 
-      <section className="flex w-full min-w-0 flex-col gap-4">
-        <JobWorkspaceSearchBar
-          draftTags={draftSearchTags}
-          appliedTags={appliedSearchTags}
-          onDraftTagsChange={setDraftSearchTags}
-          onApplySearch={applySearch}
-          onResetSearch={resetSearch}
+      {/* Same white card shell as Jobs listing card view — infinite scroll, no pagination. */}
+      <section className="w-full min-w-0 overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
+        <JobsAdvancedSearchBar
+          tags={appliedSearchTags}
+          onApplySearch={setAppliedSearchTags}
+          onResetSearch={() => setAppliedSearchTags([])}
+          searching={loading}
         />
 
-        <JobWorkspaceActions className="w-full" />
-
-        <div className="flex w-full min-w-0 items-center justify-between gap-3">
-          <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
-            Job Workspace
-          </h2>
-          <Link href={JOBS_LISTING_HREF} className={VIEW_ALL_LINK_CLASS}>
-            View all
-          </Link>
+        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
+              <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+                <BrandedSvgIcon
+                  src={JOBS_CREATE_PLUS_ICON_SRC}
+                  className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
+                  color="#FFFFFF"
+                />
+              </span>
+              Create a job
+            </Link>
+            <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+              View All Jobs
+            </Link>
+            <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+              View Candidates
+            </Link>
+          </div>
         </div>
 
         {cardBulkSelectMode ? (
@@ -532,43 +397,47 @@ export function JobsDashboard({
           />
         ) : null}
 
-        <JobsCardBulkSelectHeader
-          bulkSelectEnabled={cardBulkSelectMode}
-          onBulkSelectEnabledChange={(enabled) => {
-            setCardBulkSelectMode(enabled);
-            if (!enabled) onClearSelection();
-          }}
-          selectAllChecked={allWorkspaceSelected}
-          selectAllIndeterminate={someWorkspaceSelected && !allWorkspaceSelected}
-          selectAllDisabled={workspaceJobs.length === 0}
-          onSelectAllChange={() => {
-            if (allWorkspaceSelected) {
-              onSelectAll([]);
-              return;
-            }
-            onSelectAll(workspaceJobs.map((job) => job.id));
-          }}
-        />
+        <div className="w-full">
+          <div className="px-[14px] pb-2 pt-4">
+            <JobsCardBulkSelectHeader
+              bulkSelectEnabled={cardBulkSelectMode}
+              onBulkSelectEnabledChange={(enabled) => {
+                setCardBulkSelectMode(enabled);
+                if (!enabled) onClearSelection();
+              }}
+              selectAllChecked={allWorkspaceSelected}
+              selectAllIndeterminate={someWorkspaceSelected && !allWorkspaceSelected}
+              selectAllDisabled={workspaceJobs.length === 0}
+              onSelectAllChange={() => {
+                if (allWorkspaceSelected) {
+                  onSelectAll([]);
+                  return;
+                }
+                onSelectAll(workspaceJobs.map((job) => job.id));
+              }}
+            />
+          </div>
 
-        <JobsGridView
-          jobs={workspaceJobs}
-          loading={loading}
-          emptyMessage={
-            appliedSearchTags.length > 0 ? "No jobs match your search." : "No jobs to show yet."
-          }
-          tenantSlug={tenantSlug}
-          hotJobIds={hotJobIds}
-          padded={false}
-          infiniteScrollPageSize={JOBS_GRID_INFINITE_PAGE_SIZE}
-          selectedIds={selectedIds}
-          selectionMode={cardBulkSelectMode}
-          onToggleSelect={cardBulkSelectMode ? onToggleSelect : undefined}
-          onAddCandidate={onAddCandidate}
-          onImportCandidates={onImportCandidates}
-          onDelete={onDelete}
-          onArchive={onArchive}
-          onUnarchive={onUnarchive}
-        />
+          <JobsGridView
+            jobs={workspaceJobs}
+            loading={loading}
+            emptyMessage={
+              appliedSearchTags.length > 0 ? "No jobs match your search." : "No jobs to show yet."
+            }
+            tenantSlug={tenantSlug}
+            hotJobIds={hotJobIds}
+            padded
+            infiniteScrollPageSize={JOBS_GRID_INFINITE_PAGE_SIZE}
+            selectedIds={selectedIds}
+            selectionMode={cardBulkSelectMode}
+            onToggleSelect={cardBulkSelectMode ? onToggleSelect : undefined}
+            onAddCandidate={onAddCandidate}
+            onImportCandidates={onImportCandidates}
+            onDelete={onDelete}
+            onArchive={onArchive}
+            onUnarchive={onUnarchive}
+          />
+        </div>
       </section>
     </div>
   );
