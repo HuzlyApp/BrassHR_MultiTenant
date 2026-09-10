@@ -122,6 +122,10 @@ export type CandidatesListShellProps = {
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
   onViewAllMultiJobApplicants?: () => void;
+  onAnalyzeAll?: () => void;
+  analyzeAllLabel?: string;
+  analyzeBusy?: boolean;
+  analyzeDisabled?: boolean;
   children: React.ReactNode;
 };
 
@@ -355,6 +359,10 @@ export function CandidatesListShell({
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
   onViewAllMultiJobApplicants,
+  onAnalyzeAll,
+  analyzeAllLabel = "Analyze all",
+  analyzeBusy = false,
+  analyzeDisabled = false,
   children,
 }: CandidatesListShellProps) {
   const isAllCandidatesLayout = layoutVariant === "all-candidates";
@@ -606,6 +614,10 @@ export function CandidatesListShell({
             onViewChange={onViewChange}
             highlightMultiJob={highlightMultiJob}
             onHighlightMultiJobChange={setHighlightMultiJob}
+            onAnalyzeAll={onAnalyzeAll}
+            analyzeAllLabel={analyzeAllLabel}
+            analyzeBusy={analyzeBusy}
+            analyzeDisabled={analyzeDisabled}
           />
         ) : (
           <>
@@ -683,6 +695,17 @@ export function CandidatesListShell({
                     <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
                   </button>
                 ) : null}
+                {onAnalyzeAll ? (
+                  <button
+                    type="button"
+                    onClick={onAnalyzeAll}
+                    disabled={analyzeBusy || analyzeDisabled}
+                    title="Analyze all unanalyzed candidates on this page"
+                    className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} shrink-0 disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+                  </button>
+                ) : null}
                 {toolbarAddCandidateButton ? (
                   <div className="shrink-0 [&_button]:w-full min-[450px]:[&_button]:w-auto">{toolbarAddCandidateButton}</div>
                 ) : null}
@@ -690,6 +713,17 @@ export function CandidatesListShell({
               </div>
 
               <div className="hidden shrink-0 items-center gap-2 lg:flex">
+                {onAnalyzeAll ? (
+                  <button
+                    type="button"
+                    onClick={onAnalyzeAll}
+                    disabled={analyzeBusy || analyzeDisabled}
+                    title="Analyze all unanalyzed candidates on this page"
+                    className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+                  </button>
+                ) : null}
                 {toolbarAddCandidateButton ? <div className="shrink-0">{toolbarAddCandidateButton}</div> : null}
                 <CandidatesViewToggle view={view} onViewChange={onViewChange} />
               </div>

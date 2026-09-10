@@ -324,7 +324,7 @@ export default function RecruiterTemplatesList() {
       ) : (
         <div className="-mx-1 overflow-x-auto rounded-xl border border-[#EAECF0] bg-white min-[700px]:mx-0">
           <table className="min-w-[640px] w-full divide-y divide-[#EAECF0] text-[12px] min-[700px]:min-w-[720px] min-[700px]:text-sm">
-            <thead className="bg-[#F9FAFB]">
+            <thead className="bg-[#F3F4F6]">
               <tr>
                 <th className="px-2.5 py-2 text-left text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
                   Name

@@ -650,7 +650,7 @@ export default function ImportCandidatesModal({
                     </div>
                   ) : (
                     <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-                      <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F3F4F6] text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                         <tr>
                           <th className="w-12 px-4 py-3">
                             <ListTableCheckbox

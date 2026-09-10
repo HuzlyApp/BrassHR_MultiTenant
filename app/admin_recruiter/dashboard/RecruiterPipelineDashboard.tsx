@@ -154,7 +154,7 @@ export default function RecruiterPipelineDashboard() {
           </Link>
 
           {[
-            { key: "new" as const, label: "New applicants", href: "/admin_recruiter/new", chip: "New", chipClass: "border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569]" },
+            { key: "new" as const, label: "New applicants", href: "/admin_recruiter/new", chip: "New", chipClass: "border border-[#CBD5E1] bg-[#F3F4F6] text-[#475569]" },
             { key: "pending" as const, label: "Pending applicants", href: "/admin_recruiter/pending", chip: "Pending", chipClass: "border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white" },
             { key: "for_approval" as const, label: "Pre approval", href: "/admin_recruiter/pre-approval", chip: "For Approval", chipClass: "border border-[#F97316] bg-[#F97316] text-white" },
             { key: "approved" as const, label: "Approved applicants", href: "/admin_recruiter/approved", chip: "Approved", chipClass: "border border-[#22C55E] bg-[#22C55E] text-white" },
@@ -201,12 +201,12 @@ export default function RecruiterPipelineDashboard() {
           ) : (
             <div className="overflow-auto">
               <table className="min-w-[760px] w-full border-collapse">
-                <thead className="bg-[#F8FAFC]">
+                <thead className="bg-[#F3F4F6]">
                   <tr className="border-b border-[#E5E7EB]">
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Name</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Job Role</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Created</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Location</th>
+                    <th className="bg-[#F3F4F6] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Name</th>
+                    <th className="bg-[#F3F4F6] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Job Role</th>
+                    <th className="bg-[#F3F4F6] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Created</th>
+                    <th className="bg-[#F3F4F6] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Location</th>
                   </tr>
                 </thead>
                 <tbody>
