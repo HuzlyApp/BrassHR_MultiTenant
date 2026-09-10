@@ -1,14 +1,15 @@
 import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import { isVisibleOnJobCandidatesAllTab } from "@/lib/jobs/application-status-tab";
 import { isStrongAiMatchScore } from "@/lib/jobs/match-analysis/display";
+import { inProcessApplicationRedirectTab } from "@/lib/jobs/pipeline-summary";
 
 export type JobListApplicationMetricRow = {
   job_requisition_id?: string | null;
   status?: string | null;
   status_id?: string | null;
   application_statuses?:
-    | { system_key?: string | null }
-    | { system_key?: string | null }[]
+    | { system_key?: string | null; name?: string | null }
+    | { system_key?: string | null; name?: string | null }[]
     | null;
   ai_match_status?: string | null;
   ai_match_score?: number | string | null;
@@ -24,6 +25,8 @@ export type JobListMetricCounts = {
   strongCount: number;
   readyCount: number;
   hiredCount: number;
+  /** Best `?tab=` for the In Process applicants chip (status with the most in-process apps). */
+  inProcessRedirectTab: string | null;
 };
 
 function emptyCounts(): JobListMetricCounts {
@@ -35,12 +38,26 @@ function emptyCounts(): JobListMetricCounts {
     strongCount: 0,
     readyCount: 0,
     hiredCount: 0,
+    inProcessRedirectTab: null,
   };
+}
+
+function bestRedirectTab(tabCounts: Map<string, number>): string | null {
+  let bestTab: string | null = null;
+  let bestCount = 0;
+  for (const [tab, count] of tabCounts) {
+    if (count > bestCount) {
+      bestTab = tab;
+      bestCount = count;
+    }
+  }
+  return bestTab;
 }
 
 function addApplicationToCounts(
   current: JobListMetricCounts,
-  row: JobListApplicationMetricRow
+  row: JobListApplicationMetricRow,
+  inProcessTabCounts: Map<string, number>
 ): void {
   if (!isVisibleOnJobCandidatesAllTab(row)) return;
 
@@ -54,6 +71,8 @@ function addApplicationToCounts(
     pipeline === "interviewing"
   ) {
     current.inProcessCount += 1;
+    const tab = inProcessApplicationRedirectTab(row);
+    inProcessTabCounts.set(tab, (inProcessTabCounts.get(tab) ?? 0) + 1);
   }
   if (pipeline === "hired") current.hiredCount += 1;
 
@@ -75,7 +94,9 @@ export function tallyApplicationMetrics(
   rows: JobListApplicationMetricRow[]
 ): JobListMetricCounts {
   const current = emptyCounts();
-  for (const row of rows) addApplicationToCounts(current, row);
+  const inProcessTabCounts = new Map<string, number>();
+  for (const row of rows) addApplicationToCounts(current, row, inProcessTabCounts);
+  current.inProcessRedirectTab = bestRedirectTab(inProcessTabCounts);
   return current;
 }
 
@@ -87,12 +108,20 @@ export function tallyJobListApplicationMetrics(
   rows: JobListApplicationMetricRow[]
 ): Map<string, JobListMetricCounts> {
   const metricsByJob = new Map<string, JobListMetricCounts>();
+  const inProcessTabCountsByJob = new Map<string, Map<string, number>>();
   for (const row of rows) {
     const id = String(row.job_requisition_id ?? "");
     if (!id) continue;
     const current = metricsByJob.get(id) ?? emptyCounts();
-    addApplicationToCounts(current, row);
+    const tabCounts = inProcessTabCountsByJob.get(id) ?? new Map<string, number>();
+    addApplicationToCounts(current, row, tabCounts);
     metricsByJob.set(id, current);
+    inProcessTabCountsByJob.set(id, tabCounts);
+  }
+  for (const [id, metrics] of metricsByJob) {
+    metrics.inProcessRedirectTab = bestRedirectTab(
+      inProcessTabCountsByJob.get(id) ?? new Map()
+    );
   }
   return metricsByJob;
 }

@@ -14,26 +14,49 @@ import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
 import { formatCityState } from "@/lib/location/city-state"
 
-const JOB_CANDIDATE_COUNTER_CLASS =
-  "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
-
 const JOB_CANDIDATE_ICONS = {
   all: "/fluent_people-28-regular.svg",
   new: "/fluent_person-add-24-regular.svg",
-  hired: "/fluent_person-star-24-regular.svg",
+  inProcess: "/fluent_people-28-regular.svg",
 } as const
+
+type JobCandidateMetricTone = "all" | "new" | "inProcess"
+
+const JOB_CANDIDATE_METRIC_TONES: Record<
+  JobCandidateMetricTone,
+  { wrap: string; iconFilter?: string }
+> = {
+  all: {
+    wrap: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
+    iconFilter:
+      "brightness(0) saturate(100%) invert(37%) sepia(98%) saturate(1456%) hue-rotate(204deg) brightness(95%) contrast(92%)",
+  },
+  new: {
+    wrap: "border-[#BBF7D0] bg-[#F0FDF4] text-[#16A34A]",
+    iconFilter:
+      "brightness(0) saturate(100%) invert(42%) sepia(79%) saturate(480%) hue-rotate(88deg) brightness(94%) contrast(92%)",
+  },
+  inProcess: {
+    wrap: "border-[#DDD6FE] bg-[#F5F3FF] text-[#7C3AED]",
+    iconFilter:
+      "brightness(0) saturate(100%) invert(32%) sepia(74%) saturate(2476%) hue-rotate(246deg) brightness(92%) contrast(93%)",
+  },
+}
 
 function JobCandidateMetric({
   iconSrc,
   label,
   count,
   href,
+  tone,
 }: {
   iconSrc: string
   label: string
   count: number
   href?: string
+  tone: JobCandidateMetricTone
 }) {
+  const toneClass = JOB_CANDIDATE_METRIC_TONES[tone]
   const body = (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -43,26 +66,26 @@ function JobCandidateMetric({
         width={12}
         height={12}
         className="h-[12px] w-[12px] shrink-0 object-contain"
+        style={toneClass.iconFilter ? { filter: toneClass.iconFilter } : undefined}
         aria-hidden
       />
-      <span className="text-xs font-normal text-[#475569]">{label}</span>
-      <span className={JOB_CANDIDATE_COUNTER_CLASS}>{count}</span>
+      <span className="whitespace-nowrap text-xs font-medium leading-4">
+        {label} {count}
+      </span>
     </>
   )
 
+  const className = `inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 transition hover:opacity-90 ${toneClass.wrap}`
+
   if (href) {
     return (
-      <Link
-        href={href}
-        className="flex cursor-pointer items-center gap-1.5 rounded-md transition hover:opacity-80"
-        aria-label={`${label} ${count}`}
-      >
+      <Link href={href} className={className} aria-label={`${label} ${count}`}>
         {body}
       </Link>
     )
   }
 
-  return <div className="flex items-center gap-1.5">{body}</div>
+  return <div className={className}>{body}</div>
 }
 
 export type JobListRow = {
@@ -99,6 +122,8 @@ export type JobListRow = {
   pay_rate_period?: string | null
   rate_unit?: string | null
   pay_rate?: number | null
+  /** "Range" | "Exact amount" | "Starting amount" — from job create. */
+  show_pay_by?: string | null
   location_type?: string | null
   schedule?: string | null
   shift_type?: string | null
@@ -117,6 +142,8 @@ export type JobListRow = {
   new_application_count?: number
   /** Screening / interview pipeline candidates. */
   in_process_application_count?: number
+  /** Best Job candidates `?tab=` for the In Process chip (status with most in-process apps). */
+  in_process_redirect_tab?: string | null
   /** Applications with completed AI match analysis. */
   analyzed_application_count?: number
   /** Applications whose AI match score is 90% or higher. */
@@ -155,6 +182,21 @@ export function jobContractGroup(job: JobListRow): string {
 function jobListSourceType(job: JobListRow): SourceType {
   const raw = String(job.source_type ?? "").trim().toLowerCase()
   return raw === "msp" ? "MSP" : "Internal"
+}
+
+/** Internal / MSP badge for job title column and card footers. */
+export function JobSourceTypeBadge({ job }: { job: JobListRow }) {
+  const label = jobListSourceType(job)
+  const isMsp = label === "MSP"
+  return (
+    <span
+      className={`inline-flex max-w-full shrink-0 items-center truncate rounded-md px-2 py-0.5 font-[Inter,sans-serif] text-[10px] font-semibold leading-[15px] ${
+        isMsp ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#DBEAFE] text-[#1D4ED8]"
+      }`}
+    >
+      {label}
+    </span>
+  )
 }
 
 export function isJobListMspRecruitAndRelease(job: JobListRow): boolean {
@@ -215,6 +257,11 @@ export function newApplicantCount(job: JobListRow): number {
 
 export function inProcessApplicantCount(job: JobListRow): number {
   return job.in_process_application_count ?? 0
+}
+
+export function inProcessCandidatesHref(job: JobListRow): string {
+  const tab = job.in_process_redirect_tab?.trim() || "in_process"
+  return `${jobCandidatesHref(job.id)}&tab=${encodeURIComponent(tab)}`
 }
 
 export function analyzedApplicantCount(job: JobListRow): number {
@@ -284,17 +331,17 @@ export function jobPayRatePeriodLabel(job: JobListRow): string {
 }
 
 export function jobPayRateSortValue(job: JobListRow): number {
-  const suggested = toNumberOrNull(job.pay_rate)
-  if (suggested != null) return suggested
   const min = toNumberOrNull(job.pay_rate_min)
   const max = toNumberOrNull(job.pay_rate_max)
   if (min != null && max != null) return Math.min(min, max)
   if (min != null) return min
   if (max != null) return max
+  const suggested = toNumberOrNull(job.pay_rate)
+  if (suggested != null) return suggested
   return -1
 }
 
-/** Plain-text pay rate for export / aria (e.g. "$50 / hour"). */
+/** Plain-text pay rate for export / aria (e.g. "$50 / hour" or "$50 - $60 / hour"). */
 export function formatJobListPayRateText(job: JobListRow): string {
   const parts = formatJobListPayRateParts(job)
   if (!parts) return "—"
@@ -308,19 +355,23 @@ export function formatJobListPayRateParts(
   const min = toNumberOrNull(job.pay_rate_min)
   const max = toNumberOrNull(job.pay_rate_max)
   const period = jobPayRatePeriodLabel(job)
+  const showPayBy = String(job.show_pay_by ?? "").trim()
+  const format = (value: number) => `$${formatPayAmount(value)}`
+
+  const hasDistinctRange = min != null && max != null && min !== max
+  const isRangeMode =
+    showPayBy === "Range" ||
+    (hasDistinctRange &&
+      showPayBy !== "Exact amount" &&
+      showPayBy !== "Starting amount")
 
   let amount = ""
-  if (suggested != null) {
-    amount = `$${formatPayAmount(suggested)}`
-  } else if (min != null && max != null) {
-    amount =
-      min === max
-        ? `$${formatPayAmount(min)}`
-        : `$${formatPayAmount(min)} - $${formatPayAmount(max)}`
-  } else if (min != null) {
-    amount = `$${formatPayAmount(min)}`
-  } else if (max != null) {
-    amount = `$${formatPayAmount(max)}`
+  if (isRangeMode && hasDistinctRange) {
+    amount = `${format(min)} - ${format(max)}`
+  } else {
+    // Exact / Starting / incomplete range — single value (never prefer suggested over min/max).
+    const single = min ?? max ?? suggested
+    if (single != null) amount = format(single)
   }
 
   if (!amount) return null
@@ -466,14 +517,15 @@ export function renderJobListCell(
   switch (col) {
     case "jobTitle":
       return (
-        <div className="min-w-0 w-full pr-2">
+        <div className="flex min-w-0 w-full items-center gap-2 pr-2">
           <Link
             href={`/admin_recruiter/jobs/${job.id}`}
-            className="block truncate font-semibold hover:underline"
+            className="min-w-0 flex-1 truncate font-semibold hover:underline"
             style={{ color: ctx.brandingSecondaryHex }}
           >
             {jobListDisplayTitle(job)}
           </Link>
+          <JobSourceTypeBadge job={job} />
         </div>
       )
     // case "jobId":
@@ -501,30 +553,27 @@ export function renderJobListCell(
         )
       }
       return (
-        <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
+        <div className="box-border flex h-[58px] w-full min-w-0 items-center justify-center gap-2 px-[14px]">
           <JobCandidateMetric
+            tone="all"
             iconSrc={JOB_CANDIDATE_ICONS.all}
             label="All"
             count={totalCandidates}
             href={jobCandidatesHref(job.id)}
           />
           <JobCandidateMetric
+            tone="new"
             iconSrc={JOB_CANDIDATE_ICONS.new}
             label="New"
             count={newApplicantCount(job)}
             href={`${jobCandidatesHref(job.id)}&tab=new`}
           />
           <JobCandidateMetric
-            iconSrc={JOB_CANDIDATE_ICONS.all}
-            label="In process"
+            tone="inProcess"
+            iconSrc={JOB_CANDIDATE_ICONS.inProcess}
+            label="In Process"
             count={inProcessApplicantCount(job)}
-            href={jobCandidatesHref(job.id)}
-          />
-          <JobCandidateMetric
-            iconSrc={JOB_CANDIDATE_ICONS.hired}
-            label="Hired"
-            count={hiredApplicantCount(job)}
-            href={jobHiredCandidatesHref(job.id)}
+            href={inProcessCandidatesHref(job)}
           />
         </div>
       )
@@ -610,7 +659,7 @@ export function renderJobListCell(
       )
     case "actions":
       return (
-        <div className="flex items-center justify-center gap-3 px-[14px] py-[10px]">
+        <div className="flex min-h-[36px] items-center justify-center gap-3 overflow-visible px-2 py-2.5">
           <JobPublishToggle
             checked={isPublishToggleChecked(job.status)}
             disabled={isPublishToggleDisabled(job)}

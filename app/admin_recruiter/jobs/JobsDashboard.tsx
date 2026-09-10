@@ -7,20 +7,23 @@ import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { jobMatchesDashboardSearchTags } from "@/lib/jobs/jobs-list-search";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
 import { JobsGridView, JOBS_GRID_INFINITE_PAGE_SIZE } from "./JobsGridView";
 import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsBulkSelectionSnackbar } from "./JobsBulkSelectionSnackbar";
 import {
   applicantCount,
   hiredApplicantCount,
-  jobListDisplayTitle,
   strongMatchCount,
   type JobListRow,
 } from "./render-job-list-cell";
 
 const JOBS_ICONS = "/icons/jobs-icons";
+const JOBS_CREATE_PLUS_ICON_SRC = `${JOBS_ICONS}/create-plus.svg`;
 const KPI_TOGGLE_BUTTON_CLASS =
   "inline-flex items-center gap-1 bg-transparent px-1 py-1 font-[Inter,sans-serif] text-xs font-semibold leading-[18px] text-[color:var(--brand-primary)] transition hover:opacity-80";
 
@@ -45,10 +48,10 @@ const APPLICATIONS_HREF = "/admin_recruiter/applications";
 const CANDIDATES_HREF = "/admin_recruiter/candidates";
 
 const JOBS_VIEW_ALL_BUTTON_CLASS =
-  "inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)] sm:w-auto";
+  "inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-primary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_30%,transparent)] sm:w-auto";
 
 const JOBS_CREATE_BUTTON_CLASS =
-  "inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:w-auto";
+  "inline-flex h-8 w-full shrink-0 items-center justify-center gap-1 rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:w-auto";
 
 const STATUS_KPI_ICONS: Record<string, KpiIcon> = {
   new: { src: `${JOBS_ICONS}/kpi-bi-people.svg`, bg: "#DFFFD3", leafWidth: 30, leafHeight: 30 },
@@ -208,56 +211,6 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
   ];
 }
 
-function JobWorkspaceSearch({
-  query,
-  onQueryChange,
-  className = "",
-}: {
-  query: string;
-  onQueryChange: (value: string) => void;
-  className?: string;
-}) {
-  return (
-    <label
-      className={`flex h-8 min-w-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 ${className}`}
-    >
-      <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={`${JOBS_ICONS}/search.svg`}
-          alt=""
-          width={16.67}
-          height={16.67}
-          className="size-[16.67px] shrink-0"
-          aria-hidden
-        />
-      </span>
-      <input
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="Search by title of job"
-        className="min-w-0 flex-1 bg-transparent font-[Inter,sans-serif] text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
-      />
-    </label>
-  );
-}
-
-function JobWorkspaceActions({ className = "" }: { className?: string }) {
-  return (
-    <div className={`flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 ${className}`}>
-      <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-        View All Jobs
-      </Link>
-      <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-        View Candidates
-      </Link>
-      <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
-        Create a job
-      </Link>
-    </div>
-  );
-}
-
 export function JobsDashboard({
   jobs,
   loading,
@@ -285,7 +238,7 @@ export function JobsDashboard({
   onArchive,
   onUnarchive,
 }: JobsDashboardProps) {
-  const [query, setQuery] = useState("");
+  const [appliedSearchTags, setAppliedSearchTags] = useState<string[]>([]);
   const [kpiCardsExpanded, setKpiCardsExpanded] = useState(false);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
   const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
@@ -325,13 +278,11 @@ export function JobsDashboard({
   }, []);
 
   const workspaceJobs = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return jobs.filter((job) => {
       if (normalizeJobRequisitionStatus(String(job.status ?? "")) === "archived") return false;
-      if (!q) return true;
-      return jobListDisplayTitle(job).toLowerCase().includes(q);
+      return jobMatchesDashboardSearchTags(job, appliedSearchTags);
     });
-  }, [jobs, query]);
+  }, [jobs, appliedSearchTags]);
 
   const workspaceSelectedCount = useMemo(() => {
     let count = 0;
@@ -350,16 +301,9 @@ export function JobsDashboard({
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
-      <div className="flex w-full min-w-0 flex-col gap-3 min-[450px]:flex-row min-[450px]:items-center min-[450px]:justify-between min-[450px]:gap-4">
-        <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} shrink-0`} style={CANDIDATES_PAGE_TITLE_STYLE}>
-          Jobs Dashboard
-        </h1>
-        <JobWorkspaceSearch
-          query={query}
-          onQueryChange={setQuery}
-          className="w-full min-[450px]:w-[274px] min-[450px]:shrink-0 lg:w-[320px] xl:w-[400px]"
-        />
-      </div>
+      <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} shrink-0`} style={CANDIDATES_PAGE_TITLE_STYLE}>
+        Jobs Dashboard
+      </h1>
 
       <div className="flex w-full min-w-0 flex-col gap-5">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -406,12 +350,34 @@ export function JobsDashboard({
         ) : null}
       </div>
 
-      <section className="flex w-full min-w-0 flex-col gap-5">
-        <div className="flex w-full min-w-0 flex-col gap-3 overflow-hidden sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <h2 className="shrink-0 font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">
-            Job Workspace
-          </h2>
-          <JobWorkspaceActions className="w-full sm:w-auto sm:justify-end sm:flex-nowrap" />
+      {/* Same white card shell as Jobs listing card view — infinite scroll, no pagination. */}
+      <section className="w-full min-w-0 overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
+        <JobsAdvancedSearchBar
+          tags={appliedSearchTags}
+          onApplySearch={setAppliedSearchTags}
+          onResetSearch={() => setAppliedSearchTags([])}
+          searching={loading}
+        />
+
+        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
+              <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+                <BrandedSvgIcon
+                  src={JOBS_CREATE_PLUS_ICON_SRC}
+                  className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
+                  color="#FFFFFF"
+                />
+              </span>
+              Create a job
+            </Link>
+            <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+              View All Jobs
+            </Link>
+            <Link href={APPLICATIONS_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+              View Candidates
+            </Link>
+          </div>
         </div>
 
         {cardBulkSelectMode ? (
@@ -431,41 +397,47 @@ export function JobsDashboard({
           />
         ) : null}
 
-        <JobsCardBulkSelectHeader
-          bulkSelectEnabled={cardBulkSelectMode}
-          onBulkSelectEnabledChange={(enabled) => {
-            setCardBulkSelectMode(enabled);
-            if (!enabled) onClearSelection();
-          }}
-          selectAllChecked={allWorkspaceSelected}
-          selectAllIndeterminate={someWorkspaceSelected && !allWorkspaceSelected}
-          selectAllDisabled={workspaceJobs.length === 0}
-          onSelectAllChange={() => {
-            if (allWorkspaceSelected) {
-              onSelectAll([]);
-              return;
-            }
-            onSelectAll(workspaceJobs.map((job) => job.id));
-          }}
-        />
+        <div className="w-full">
+          <div className="px-[14px] pb-2 pt-4">
+            <JobsCardBulkSelectHeader
+              bulkSelectEnabled={cardBulkSelectMode}
+              onBulkSelectEnabledChange={(enabled) => {
+                setCardBulkSelectMode(enabled);
+                if (!enabled) onClearSelection();
+              }}
+              selectAllChecked={allWorkspaceSelected}
+              selectAllIndeterminate={someWorkspaceSelected && !allWorkspaceSelected}
+              selectAllDisabled={workspaceJobs.length === 0}
+              onSelectAllChange={() => {
+                if (allWorkspaceSelected) {
+                  onSelectAll([]);
+                  return;
+                }
+                onSelectAll(workspaceJobs.map((job) => job.id));
+              }}
+            />
+          </div>
 
-        <JobsGridView
-          jobs={workspaceJobs}
-          loading={loading}
-          emptyMessage={query.trim() ? "No jobs match that title." : "No jobs to show yet."}
-          tenantSlug={tenantSlug}
-          hotJobIds={hotJobIds}
-          padded={false}
-          infiniteScrollPageSize={JOBS_GRID_INFINITE_PAGE_SIZE}
-          selectedIds={selectedIds}
-          selectionMode={cardBulkSelectMode}
-          onToggleSelect={cardBulkSelectMode ? onToggleSelect : undefined}
-          onAddCandidate={onAddCandidate}
-          onImportCandidates={onImportCandidates}
-          onDelete={onDelete}
-          onArchive={onArchive}
-          onUnarchive={onUnarchive}
-        />
+          <JobsGridView
+            jobs={workspaceJobs}
+            loading={loading}
+            emptyMessage={
+              appliedSearchTags.length > 0 ? "No jobs match your search." : "No jobs to show yet."
+            }
+            tenantSlug={tenantSlug}
+            hotJobIds={hotJobIds}
+            padded
+            infiniteScrollPageSize={JOBS_GRID_INFINITE_PAGE_SIZE}
+            selectedIds={selectedIds}
+            selectionMode={cardBulkSelectMode}
+            onToggleSelect={cardBulkSelectMode ? onToggleSelect : undefined}
+            onAddCandidate={onAddCandidate}
+            onImportCandidates={onImportCandidates}
+            onDelete={onDelete}
+            onArchive={onArchive}
+            onUnarchive={onUnarchive}
+          />
+        </div>
       </section>
     </div>
   );

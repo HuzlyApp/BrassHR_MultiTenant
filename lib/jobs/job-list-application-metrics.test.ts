@@ -61,4 +61,24 @@ describe("tallyJobListApplicationMetrics", () => {
       readyCount: 1,
     });
   });
+
+  it("picks the in-process status tab with the most candidates for redirect", () => {
+    const metrics = tallyApplicationMetrics([
+      {
+        status: "reviewing",
+        application_statuses: { system_key: "reviewing", name: "Screening Complete" },
+      },
+      {
+        status: "interviewing",
+        application_statuses: { system_key: "interviewing", name: "Interview Complete" },
+      },
+      {
+        status: "interviewing",
+        application_statuses: { system_key: "interviewing", name: "Interview Complete" },
+      },
+    ]);
+
+    expect(metrics.inProcessCount).toBe(3);
+    expect(metrics.inProcessRedirectTab).toBe("interviewing");
+  });
 });

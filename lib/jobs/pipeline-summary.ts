@@ -17,6 +17,11 @@ export type JobPipelineSummary = {
    * Closed spans rejected / undecided / archived (+ custom statuses that roll into closed).
    */
   closed_redirect_tab: string | null;
+  /**
+   * Best applications-list `?tab=` for the In Process card (system key or status name slug).
+   * In Process spans screening + interview (reviewing / shortlisted / interviewing + customs).
+   */
+  in_process_redirect_tab: string | null;
 };
 
 export type JobPipelineSummaryRow = {
@@ -39,6 +44,7 @@ const AT_MSP_SYSTEM_KEYS = new Set([
 ]);
 
 const CLOSED_PIPELINE_KEYS = new Set(["rejected", "undecided", "archived"]);
+const IN_PROCESS_PIPELINE_KEYS = new Set(["reviewing", "shortlisted", "interviewing"]);
 
 function applicationSystemKey(row: JobPipelineSummaryRow): string {
   const joined = Array.isArray(row.application_statuses)
@@ -82,10 +88,33 @@ export function closedApplicationRedirectTab(row: JobPipelineSummaryRow): string
   return "rejected";
 }
 
+/** Prefer real status catalog key/name so In Process redirects to the tab that has the row. */
+export function inProcessApplicationRedirectTab(row: JobPipelineSummaryRow): string {
+  const key = applicationSystemKey(row);
+  if (key) return key;
+
+  const name = applicationStatusName(row);
+  if (name) {
+    const slug = statusNameSlug(name);
+    if (slug) return slug;
+  }
+
+  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  if (IN_PROCESS_PIPELINE_KEYS.has(pipeline)) return pipeline;
+  return "reviewing";
+}
+
 export function isClosedPipelineApplication(row: JobPipelineSummaryRow): boolean {
   if (isAtMspPipelineApplication(row) || isOnboardingPipelineApplication(row)) return false;
   const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
   return CLOSED_PIPELINE_KEYS.has(pipeline);
+}
+
+/** Screening + interview stages that roll into the In Process card / list chip. */
+export function isInProcessPipelineApplication(row: JobPipelineSummaryRow): boolean {
+  if (isAtMspPipelineApplication(row) || isOnboardingPipelineApplication(row)) return false;
+  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  return IN_PROCESS_PIPELINE_KEYS.has(pipeline);
 }
 
 export function isAtMspPipelineApplication(row: JobPipelineSummaryRow): boolean {
@@ -123,7 +152,20 @@ export function emptyJobPipelineSummary(
     closed: 0,
     show_submission: showSubmission,
     closed_redirect_tab: null,
+    in_process_redirect_tab: null,
   };
+}
+
+function bestRedirectTab(tabCounts: Map<string, number>): string | null {
+  let bestTab: string | null = null;
+  let bestCount = 0;
+  for (const [tab, count] of tabCounts) {
+    if (count > bestCount) {
+      bestTab = tab;
+      bestCount = count;
+    }
+  }
+  return bestTab;
 }
 
 /**
@@ -137,6 +179,7 @@ export function tallyJobPipelineSummary(
 ): JobPipelineSummary {
   const summary = emptyJobPipelineSummary(options.showSubmission);
   const closedTabCounts = new Map<string, number>();
+  const inProcessTabCounts = new Map<string, number>();
 
   for (const row of rows) {
     if (!isVisibleOnJobCandidatesAllTab(row)) continue;
@@ -157,13 +200,19 @@ export function tallyJobPipelineSummary(
       case "new":
         summary.intake += 1;
         break;
-      case "reviewing":
+      case "reviewing": {
         summary.screening += 1;
+        const tab = inProcessApplicationRedirectTab(row);
+        inProcessTabCounts.set(tab, (inProcessTabCounts.get(tab) ?? 0) + 1);
         break;
+      }
       case "shortlisted":
-      case "interviewing":
+      case "interviewing": {
         summary.interview += 1;
+        const tab = inProcessApplicationRedirectTab(row);
+        inProcessTabCounts.set(tab, (inProcessTabCounts.get(tab) ?? 0) + 1);
         break;
+      }
       case "hired":
         summary.selected += 1;
         break;
@@ -175,21 +224,17 @@ export function tallyJobPipelineSummary(
         closedTabCounts.set(tab, (closedTabCounts.get(tab) ?? 0) + 1);
         break;
       }
-      default:
+      default: {
         summary.screening += 1;
+        const tab = inProcessApplicationRedirectTab(row);
+        inProcessTabCounts.set(tab, (inProcessTabCounts.get(tab) ?? 0) + 1);
         break;
+      }
     }
   }
 
-  let bestTab: string | null = null;
-  let bestCount = 0;
-  for (const [tab, count] of closedTabCounts) {
-    if (count > bestCount) {
-      bestTab = tab;
-      bestCount = count;
-    }
-  }
-  summary.closed_redirect_tab = bestTab;
+  summary.closed_redirect_tab = bestRedirectTab(closedTabCounts);
+  summary.in_process_redirect_tab = bestRedirectTab(inProcessTabCounts);
 
   return summary;
 }

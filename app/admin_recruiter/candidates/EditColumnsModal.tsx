@@ -7,6 +7,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import {
   CANDIDATE_COLUMN_OPTIONS,
+  DEFAULT_CANDIDATE_COLUMNS,
   type CandidateColumnId,
   columnLabel,
 } from "./column-config"
@@ -69,6 +70,11 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
 
   const unselectAll = useCallback(() => {
     setDraftOrder([])
+  }, [])
+
+  const resetToDefault = useCallback(() => {
+    setDraftOrder([...DEFAULT_CANDIDATE_COLUMNS])
+    setFieldSearch("")
   }, [])
 
   const removeFromOrder = useCallback((id: CandidateColumnId) => {
@@ -218,25 +224,34 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
             </section>
           </div>
 
-          <div className="flex shrink-0 gap-2 border-t border-zinc-200 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="h-12 flex-1 rounded-lg border border-zinc-300 px-4 text-sm font-medium text-gray-700 hover:bg-zinc-50 sm:h-auto sm:flex-none sm:px-5 sm:py-2"
-              >
-                Cancel
-              </button>
-            </Dialog.Close>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-zinc-200 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
             <button
               type="button"
-              onClick={() => {
-                onSave(draftOrder)
-                onOpenChange(false)
-              }}
-              className="h-12 flex-1 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:h-auto sm:flex-none sm:px-5 sm:py-2"
+              onClick={resetToDefault}
+              className="h-12 rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-medium text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] sm:h-auto sm:px-5 sm:py-2"
             >
-              Save
+              Reset to default
             </button>
+            <div className="flex gap-2 sm:gap-3">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="h-12 rounded-lg border border-zinc-300 px-4 text-sm font-medium text-gray-700 hover:bg-zinc-50 sm:h-auto sm:px-5 sm:py-2"
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => {
+                  onSave(draftOrder)
+                  onOpenChange(false)
+                }}
+                className="h-12 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:h-auto sm:px-5 sm:py-2"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

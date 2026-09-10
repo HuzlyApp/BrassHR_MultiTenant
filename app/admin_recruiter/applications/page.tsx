@@ -87,7 +87,7 @@ import {
   isApplicationRowArchived,
   matchesApplicationStatusTab,
 } from "@/lib/jobs/application-status-tab";
-import { isClosedPipelineApplication } from "@/lib/jobs/pipeline-summary";
+import { isClosedPipelineApplication, isInProcessPipelineApplication } from "@/lib/jobs/pipeline-summary";
 import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
@@ -430,6 +430,9 @@ function matchesTab(
   if (tab === "closed") {
     return isClosedPipelineApplication(row);
   }
+  if (tab === "in_process" || tab === "in-process") {
+    return isInProcessPipelineApplication(row);
+  }
   return matchesApplicationStatusTab(row, tab, options);
 }
 
@@ -441,6 +444,7 @@ function resolveApplicationTabParam(
   const raw = tabParam.trim();
   if (!raw || raw === "all") return "all";
   if (raw === "closed") return "closed";
+  if (raw === "in_process" || raw === "in-process") return "in_process";
 
   const byId = options.find((option) => option.id === raw);
   if (byId) return byId.id;
@@ -1301,6 +1305,42 @@ export default function JobApplicationsPage() {
     let bestId = "";
     let bestCount = 0;
     for (const [id, count] of closedCounts) {
+      if (count > bestCount) {
+        bestId = id;
+        bestCount = count;
+      }
+    }
+    if (!bestId) return;
+
+    setActiveTab(bestId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", bestId);
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [resolvedActiveTab, rows, statusOptions, searchParams, router, pathname]);
+
+  /** When ?tab=in_process, jump to the in-process status tab with the most candidates. */
+  useEffect(() => {
+    if (resolvedActiveTab !== "in_process") return;
+    if (!rows.length || !statusOptions.length) return;
+
+    const inProcessCounts = new Map<string, number>();
+    for (const row of rows) {
+      if (!isInProcessPipelineApplication(row)) continue;
+      const statusId =
+        rowStatusId(row) ||
+        statusOptions.find(
+          (option) =>
+            option.systemKey &&
+            option.systemKey === normalizeApplicationStatus(String(row.status ?? ""))
+        )?.id ||
+        "";
+      if (!statusId) continue;
+      inProcessCounts.set(statusId, (inProcessCounts.get(statusId) ?? 0) + 1);
+    }
+
+    let bestId = "";
+    let bestCount = 0;
+    for (const [id, count] of inProcessCounts) {
       if (count > bestCount) {
         bestId = id;
         bestCount = count;
@@ -2942,6 +2982,7 @@ export default function JobApplicationsPage() {
         onOpenChange={setEditColumnsOpen}
         options={APPLICATION_EDITABLE_COLUMNS}
         value={listColumnOrder.filter((id) => id !== "actions")}
+        defaultValue={DEFAULT_APPLICATION_COLUMNS.filter((id) => id !== "actions")}
         title="Edit Columns"
         description="Choose which columns appear in the candidates list and drag to reorder them."
         onSave={(order) => {

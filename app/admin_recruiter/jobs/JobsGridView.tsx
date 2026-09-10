@@ -15,7 +15,7 @@ import {
   analyzedApplicantCount,
   applicantCount,
   jobCandidatesHref,
-  jobDisplayId,
+  JobSourceTypeBadge,
   jobListDisplayTitle,
   jobLocation,
   publicJobPathFor,
@@ -70,6 +70,14 @@ function gridStatusLabel(job: JobListRow): string {
 function iconButtonClass(disabled?: boolean) {
   return `inline-flex size-[14px] items-center justify-center text-[#94A3B8] transition hover:opacity-80 ${
     disabled ? "cursor-not-allowed opacity-40 hover:opacity-40" : ""
+  }`;
+}
+
+function menuTriggerClass(open: boolean) {
+  return `inline-flex size-7 shrink-0 items-center justify-center rounded-md transition ${
+    open
+      ? "border border-[#94A3B8] bg-white shadow-sm"
+      : "border border-transparent hover:border-[#E5E7EB] hover:bg-[#F8FAFC]"
   }`;
 }
 
@@ -353,9 +361,7 @@ function JobGridCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-        <p className="min-w-0 truncate font-[Inter,sans-serif] text-[10px] font-light leading-[15px] text-[#374151]">
-          Job ID: <span className="font-semibold">{jobDisplayId(job)}</span>
-        </p>
+        <JobSourceTypeBadge job={job} />
         {!blockNavigation ? (
           <div className="flex shrink-0 items-center gap-2">
             {publicHref ? (
@@ -392,7 +398,7 @@ function JobGridCard({
             )}
             <button
               type="button"
-              className={iconButtonClass()}
+              className={menuTriggerClass(menuOpen)}
               aria-label={`More actions for ${title}`}
               title="More actions"
               aria-haspopup="menu"

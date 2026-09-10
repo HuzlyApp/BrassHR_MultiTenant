@@ -734,6 +734,7 @@ export default function WorkersPage() {
         onOpenChange={setEditColumnsOpen}
         options={WORKER_COLUMN_OPTIONS}
         value={listColumnOrder}
+        defaultValue={DEFAULT_WORKER_COLUMNS}
         title="Edit Columns"
         description="Choose which columns appear in the workers list and drag to reorder them."
         onSave={(order) => {
