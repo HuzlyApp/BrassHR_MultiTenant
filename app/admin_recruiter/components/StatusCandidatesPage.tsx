@@ -826,9 +826,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                 />
                 <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
                   <table className={CANDIDATE_LIST_TABLE_CLASS}>
-                    <thead className="bg-[#F8FAFC] text-black">
+                    <thead className="bg-[#F3F4F6] text-black">
                       <tr className="border-b border-[#E5E7EB]">
-                        <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
+                        <th className="w-12 border-r border-[#E5E7EB] bg-[#F3F4F6] px-3 py-3 text-center">
                           <ListTableCheckbox
                             size="md"
                             checked={selection.headerChecked}
@@ -841,7 +841,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
+                            className={`border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
                           </th>

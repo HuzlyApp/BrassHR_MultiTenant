@@ -2103,7 +2103,7 @@ export default function AdminRecruiterJobsPage() {
         ) : (
         <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">
-            <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-black">
+            <thead className="border-b border-[#E5E7EB] bg-[#F3F4F6] text-xs font-medium uppercase tracking-wide text-black">
               <tr>
                 <th className="w-12 shrink-0 whitespace-nowrap border-r border-[#E5E7EB] px-[14px] py-3">
                   <ListTableCheckbox
