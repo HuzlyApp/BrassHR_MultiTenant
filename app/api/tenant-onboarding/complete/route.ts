@@ -320,7 +320,7 @@ export async function POST(req: Request) {
       .eq("id", tenantId);
     await svc.from("tenant_hiring_areas").upsert({
       tenant_id: tenantId,
-      mode: "locations_only",
+      mode: "all_allowed_platform",
       extra_allowed_states: [],
     });
   } catch (areaError) {

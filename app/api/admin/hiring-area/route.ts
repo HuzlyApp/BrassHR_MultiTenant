@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest) {
   if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const mode = String(body.mode ?? "locations_only");
+  const mode = String(body.mode ?? "all_allowed_platform");
   if (!MODES.includes(mode as (typeof MODES)[number])) {
     return NextResponse.json({ error: "Invalid hiring area mode" }, { status: 400 });
   }

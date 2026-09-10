@@ -58,7 +58,13 @@ function evaluate(
 ) {
   return evaluateServiceArea(
     { action, location },
-    { policies: PHASE1, zipListsByPolicyId: zipLists, hiringArea }
+    {
+      policies: PHASE1,
+      zipListsByPolicyId: zipLists,
+      hiringArea,
+      enforcePlatformHolds: true,
+      enforceHiringArea: true,
+    }
   );
 }
 
@@ -100,6 +106,8 @@ describe("evaluateServiceArea Phase 1 holds", () => {
         policies: PHASE1,
         zipListsByPolicyId: zipLists,
         hiringArea: openPlatform,
+        enforcePlatformHolds: true,
+        enforceHiringArea: true,
         jobWorksite: {
           city: "Raleigh",
           state: "NC",
@@ -200,7 +208,7 @@ describe("evaluateServiceArea Phase 1 holds", () => {
         action: "apply",
         location: { city: "Charlotte", state: "NC", locationType: "onsite" },
       },
-      { policies: PHASE1, zipListsByPolicyId: zipLists, hiringArea }
+      { policies: PHASE1, zipListsByPolicyId: zipLists, hiringArea, enforcePlatformHolds: true, enforceHiringArea: true }
     );
     expect(decision.allowed).toBe(false);
     expect(decision.reasonCode).toBe("outside_hiring_area");
@@ -256,5 +264,23 @@ describe("evaluateServiceArea Phase 1 holds", () => {
   it("Connecticut city is hold", () => {
     const decision = evaluate({ city: "Hartford", state: "CT", locationType: "hybrid" });
     expect(decision.allowed).toBe(false);
+  });
+
+  it("production defaults allow Virginia and do not use facility hiring-area denies", () => {
+    const hiringArea: TenantHiringArea = {
+      tenantId: "t1",
+      mode: "locations_only",
+      extraAllowedStates: [],
+      locations: [{ city: "Fairbanks", state: "AK" }],
+    };
+    const decision = evaluateServiceArea(
+      {
+        action: "publish_job",
+        location: { city: "Richmond", state: "VA", locationType: "onsite" },
+      },
+      { policies: PHASE1, zipListsByPolicyId: zipLists, hiringArea }
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.reasonCode).toBe("ok");
   });
 });
