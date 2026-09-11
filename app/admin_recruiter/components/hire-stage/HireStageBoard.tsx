@@ -5,6 +5,7 @@ import CandidateWorkflowStepDrawer from "@/app/admin_recruiter/components/Candid
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
 import {
   invitationSuccessMessage,
+  type InterviewInvitationSummary,
   type ScheduleInterviewPayload,
 } from "@/lib/interviews/schedule-payload";
 import SuccessModal from "@/app/components/SuccessModal";
@@ -122,15 +123,19 @@ export function HireStageBoard({
     setScheduleSubmitting(true);
     setScheduleError(null);
     try {
-      const res = await fetch("/api/admin/interviews/schedule", {
+      const res = await fetch("/api/admin/applicant-appointments", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        invitation?: InterviewInvitationSummary;
+      };
       if (!res.ok) throw new Error(json.error || "Failed to schedule interview");
       setScheduleOpen(false);
-      setScheduleSuccess(invitationSuccessMessage(payload));
+      setScheduleSuccess(invitationSuccessMessage(json.invitation));
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Failed to schedule interview");
     } finally {
