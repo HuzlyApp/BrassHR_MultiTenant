@@ -28,12 +28,19 @@ import {
   resolvePublishedFlowForJobWorkflow,
 } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
+import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { normalizeApplicantEmail } from "@/lib/jobs/validation";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import {
   ACTIVE_CANDIDATE_PIPELINE_STATUSES,
   formatPipelineStatusLabel,
 } from "@/lib/workers/candidate-status-label";
+import { serviceAreaMessage } from "@/lib/service-area/copy";
+import {
+  evaluateServiceAreaWithDb,
+  recordWorkLocationConfirmation,
+  worksiteFromJobInput,
+} from "@/lib/service-area/db";
 
 type DbClient = SupabaseClient;
 
@@ -49,7 +56,8 @@ export class CandidateImportError extends Error {
       | "TOO_MANY"
       | "INVALID_ID"
       | "JOB_NOT_PUBLISHED"
-      | "JOB_UNAVAILABLE",
+      | "JOB_UNAVAILABLE"
+      | "LOCATION_NOT_ENABLED",
     public readonly status: number
   ) {
     super(message);
@@ -102,6 +110,12 @@ type JobImportRow = {
   years_of_experience: string | null;
   years_experience_required: number | null;
   location: string | null;
+  postal_code: string | null;
+  location_type: string | null;
+  worksite_city: string | null;
+  worksite_state: string | null;
+  worksite_postal_code: string | null;
+  remote_allowed_states: string[] | null;
   specialty: string | null;
   department: string | null;
   facility: string | null;
@@ -190,7 +204,7 @@ async function loadJobForImport(
   const { data, error } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, public_title, source_job_title, internal_requisition_number, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty, department, facility, facility_name, structured_requirements, status, workflow_id, professions(name), specialties(name)"
+      "id, tenant_id, public_title, source_job_title, internal_requisition_number, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, postal_code, location_type, worksite_city, worksite_state, worksite_postal_code, remote_allowed_states, specialty, department, facility, facility_name, structured_requirements, status, workflow_id, professions(name), specialties(name)"
     )
     .eq("tenant_id", tenantId)
     .eq("id", jobId)
@@ -991,11 +1005,45 @@ export async function importExistingCandidatesToWorkspace(
   }
 
   const jobRow = await loadJobForImport(supabase, input.tenantId, input.jobId);
-  if (asText(jobRow.status) !== "published") {
+  if (!isOpenJobRequisitionStatus(asText(jobRow.status))) {
     throw new CandidateImportError(
-      "Only published jobs can accept candidates. Publish the job first.",
+      "Only open jobs can accept candidates. Open the job first.",
       "JOB_NOT_PUBLISHED",
       400
+    );
+  }
+  const assignmentLocation = worksiteFromJobInput({
+    location: jobRow.location,
+    postalCode: jobRow.postal_code,
+    jobLocationType: jobRow.location_type,
+    remoteAllowedStates: jobRow.remote_allowed_states,
+    worksiteCity: jobRow.worksite_city,
+    worksiteState: jobRow.worksite_state,
+    worksitePostalCode: jobRow.worksite_postal_code,
+  });
+  const attachDecision = await evaluateServiceAreaWithDb(
+    supabase,
+    {
+      tenantId: input.tenantId,
+      jobId: input.jobId,
+      action: "attach_candidate",
+      location: assignmentLocation,
+    },
+    { createdBy: input.staffUserId }
+  );
+  await recordWorkLocationConfirmation(supabase, {
+    tenantId: input.tenantId,
+    jobId: input.jobId,
+    source: "recruiter_upload",
+    location: assignmentLocation,
+    decision: attachDecision,
+    createdBy: input.staffUserId,
+  });
+  if (!attachDecision.allowed) {
+    throw new CandidateImportError(
+      serviceAreaMessage("attach_blocked"),
+      "LOCATION_NOT_ENABLED",
+      422
     );
   }
   if (!jobRow.workflow_id) {

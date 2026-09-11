@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -23,6 +24,7 @@ import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
@@ -43,6 +45,8 @@ import {
   isVerifiedInfoCategory,
   qualificationDisplayStatus,
   recruiterActionLabel,
+  recruiterVerifiedNeedsNoteDecision,
+  requirementShowsAddNote,
   type QualificationDisplayStatus,
   type QualificationFilter,
   type QualificationOutcomeCounts,
@@ -53,8 +57,18 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
+import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
+import { MatchAnalyzeButton } from "../MatchAnalyzeButton";
 import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
+import {
+  RequirementNotesIndicator,
+  RequirementVerificationNotesPanel,
+  pendingVerificationNotePrefill,
+  recruiterVerifiedNotePrefill,
+} from "./RequirementVerificationNotes";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
+import type { VerificationNote } from "@/lib/jobs/match-analysis/verification-notes";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 
 const CARD =
   "rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
@@ -72,8 +86,6 @@ const OUTLINE_BTN =
   "inline-flex items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_OUTLINE_BTN =
   "inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-60";
-const HEADER_PRIMARY_BTN =
-  "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
   "flex min-h-[60px] w-full min-w-0 flex-1 basis-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 py-3 text-sm font-semibold leading-5 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_REEXTRACT_BTN =
@@ -491,14 +503,21 @@ export function AiAnalysisOverviewClient({
     loading,
     analyzing,
     data,
+    workerId,
     analysis,
     blocking,
     verifyItems,
     isAnalyzed,
     verifyingId,
     toggleVerified,
+    createVerificationNote,
+    updateVerificationNote,
+    deleteVerificationNote,
+    markNoteSentToCandidate,
+    savingVerificationNote,
+    busyVerificationNoteId,
     recommendedAnswers,
-    setRecommendedAnswers,
+    updateRecommendedAnswer,
     savingAnswers,
     decision,
     setDecision,
@@ -537,6 +556,11 @@ export function AiAnalysisOverviewClient({
   const [filter, setFilter] = useState<FilterId>("All");
   const [query, setQuery] = useState("");
   const [openReqId, setOpenReqId] = useState("");
+  const [noteCreateSignal, setNoteCreateSignal] = useState<{
+    id: string;
+    n: number;
+    prefill: "verified" | "pending";
+  } | null>(null);
   const [dataQualityOpen, setDataQualityOpen] = useState(true);
 
   /* ── Resume History Modal state ── */
@@ -550,6 +574,8 @@ export function AiAnalysisOverviewClient({
   const [removingFromJob, setRemovingFromJob] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [downloadingAssessment, setDownloadingAssessment] = useState(false);
+  const [commOpen, setCommOpen] = useState(false);
+  const [askCandidateNote, setAskCandidateNote] = useState<VerificationNote | null>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const loadResumeHistory = useCallback(async () => {
@@ -668,8 +694,8 @@ export function AiAnalysisOverviewClient({
     setRemoveConfirmOpen(true);
   }
 
-  async function handleRunAnalyze() {
-    const ok = await runAnalyze();
+  async function handleRunAnalyze(mode: AnalysisMode = "analyze") {
+    const ok = await runAnalyze(mode);
     if (!ok) return;
     setOpenReqId("");
     router.refresh();
@@ -747,10 +773,32 @@ export function AiAnalysisOverviewClient({
       sortAt: note.created_at,
       note,
     }));
-    return [...verified, ...notes].sort(
+    const verification = (data?.verificationNotes ?? []).map((note) => ({
+      kind: "verification" as const,
+      id: note.id,
+      sortAt: note.updatedAt || note.createdAt,
+      note,
+    }));
+    return [...verified, ...notes, ...verification].sort(
       (a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime()
     );
-  }, [data?.verifiedInformation, data?.notes]);
+  }, [data?.verifiedInformation, data?.notes, data?.verificationNotes]);
+
+  async function handleAskCandidate(note: VerificationNote) {
+    setAskCandidateNote(note);
+    await markNoteSentToCandidate(note);
+    setCommOpen(true);
+  }
+
+  function handleRecruiterVerifiedClick(row: QualificationRequirement) {
+    if (recruiterVerifiedNeedsNoteDecision(row)) {
+      setOpenReqId(row.id);
+      setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "verified" });
+      toast("Save a note first, then check Recruiter verified.");
+      return;
+    }
+    void toggleVerified(row);
+  }
 
   const latestResumeId =
     resumes.length > 1 ? resumes[resumes.length - 1]?.id ?? null : null;
@@ -915,18 +963,33 @@ export function AiAnalysisOverviewClient({
                 </div>
               </div>
               <div className="relative z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-2 min-[480px]:w-auto min-[480px]:justify-end min-[900px]:gap-3">
+                {workerId ? (
+                  <Link
+                    href={candidateApplicantProfileHref(workerId, {
+                      from: backHref.includes("/admin_recruiter/candidates")
+                        ? "candidates"
+                        : "applications",
+                      jobId: jobId || undefined,
+                    })}
+                    className={HEADER_OUTLINE_BTN}
+                  >
+                    View Profile
+                  </Link>
+                ) : (
+                  <button type="button" disabled className={HEADER_OUTLINE_BTN}>
+                    View Profile
+                  </button>
+                )}
                 <CandidateApplicationStatusControl
                   applicationId={applicationId}
                   buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
                 />
-                <button
-                  type="button"
-                  className={HEADER_PRIMARY_BTN}
-                  disabled={analyzing}
-                  onClick={() => void handleRunAnalyze()}
-                >
-                  {analyzing ? "Analyzing…" : isAnalyzed ? "Reanalyze" : "Analyze candidate"}
-                </button>
+                <MatchAnalyzeButton
+                  variant="primary"
+                  analyzing={analyzing}
+                  isAnalyzed={isAnalyzed}
+                  onAnalyze={(mode) => void handleRunAnalyze(mode)}
+                />
               </div>
             </div>
             {app?.ai_analysis_error ? (
@@ -1012,9 +1075,12 @@ export function AiAnalysisOverviewClient({
                           onClick={() => setOpenReqId(open ? "" : row.id)}
                         >
                           <td className="py-3.5 pr-3">
-                            <p className="cursor-pointer text-sm font-medium leading-5 text-[#101828]">
-                              {row.requirement_text}
-                            </p>
+                            <div className="flex flex-wrap items-start gap-2">
+                              <p className="cursor-pointer text-sm font-medium leading-5 text-[#101828]">
+                                {row.requirement_text}
+                              </p>
+                              <RequirementNotesIndicator requirement={row} />
+                            </div>
                           </td>
                           <td className="py-3.5 pr-3 text-center">
                             <span className={`${CHECKLIST_BADGE} ${typeBadgeClass(row.requirement_type)}`}>
@@ -1022,11 +1088,35 @@ export function AiAnalysisOverviewClient({
                             </span>
                           </td>
                           <td className="py-3.5 pr-3 text-center">
-                            <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
-                              {displayStatus}
-                            </span>
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
+                                {displayStatus}
+                              </span>
+                              {(row.verification_note_count ?? 0) > 0 ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#3730A3]">
+                                  Note saved
+                                </span>
+                              ) : null}
+                            </div>
                           </td>
-                          <td className="py-3.5 text-sm text-[#475467]">{actionLabel}</td>
+                          <td className="py-3.5 text-sm text-[#475467]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{actionLabel}</span>
+                              {requirementShowsAddNote(row, blocking) ? (
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setOpenReqId(row.id);
+                                    setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "pending" });
+                                  }}
+                                >
+                                  Add Note
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
                           <td className="py-3.5">
                             <button
                               type="button"
@@ -1049,7 +1139,7 @@ export function AiAnalysisOverviewClient({
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
                                   Candidate Evidence
                                 </p>
-                                <div className="mt-2 flex items-start justify-between gap-4">
+                                <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                   <div className="min-w-0 flex-1">
                                     {row.candidate_evidence ? (
                                       <blockquote className="border-l-[3px] border-[color:var(--brand-primary)] pl-3 text-sm italic leading-6 text-[#344054]">
@@ -1066,26 +1156,58 @@ export function AiAnalysisOverviewClient({
                                       </p>
                                     ) : null}
                                   </div>
-                                  <label
-                                    htmlFor={`recruiter-verified-${row.id}`}
-                                    className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap pt-0.5 text-sm font-medium text-[#344054]"
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    <ListTableCheckbox
-                                      id={`recruiter-verified-${row.id}`}
-                                      size="md"
-                                      className="cursor-pointer"
-                                      checked={row.recruiter_verified}
-                                      disabled={verifyingId === row.id}
-                                      onChange={() => void toggleVerified(row)}
-                                      aria-label={`Recruiter verified: ${row.requirement_text}`}
-                                    />
-                                    Recruiter verified
-                                    {verifyingId === row.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#98A2B3]" />
+                                  <div className="flex shrink-0 flex-col items-start gap-1 pt-0.5">
+                                    <label
+                                      htmlFor={`recruiter-verified-${row.id}`}
+                                      className="inline-flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm font-medium text-[#344054]"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      <ListTableCheckbox
+                                        id={`recruiter-verified-${row.id}`}
+                                        size="md"
+                                        checked={row.recruiter_verified}
+                                        disabled={verifyingId === row.id}
+                                        onChange={() => handleRecruiterVerifiedClick(row)}
+                                        aria-label={`Recruiter verified: ${row.requirement_text}`}
+                                      />
+                                      Recruiter verified
+                                      {verifyingId === row.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#98A2B3]" />
+                                      ) : null}
+                                    </label>
+                                    {recruiterVerifiedNeedsNoteDecision(row) ? (
+                                      <p className="max-w-[220px] text-[11px] leading-4 text-[#667085]">
+                                        Save a note first
+                                      </p>
                                     ) : null}
-                                  </label>
+                                  </div>
                                 </div>
+                                <RequirementVerificationNotesPanel
+                                  applicationId={applicationId}
+                                  requirement={row}
+                                  notes={(data?.verificationNotes ?? []).filter(
+                                    (note) => note.requirementId === row.id
+                                  )}
+                                  busyNoteId={busyVerificationNoteId}
+                                  saving={savingVerificationNote}
+                                  openCreateSignal={
+                                    noteCreateSignal?.id === row.id ? noteCreateSignal.n : 0
+                                  }
+                                  createPrefill={
+                                    noteCreateSignal?.id === row.id
+                                      ? noteCreateSignal.prefill === "verified"
+                                        ? recruiterVerifiedNotePrefill(row)
+                                        : pendingVerificationNotePrefill(row)
+                                      : undefined
+                                  }
+                                  onOpenCreateConsumed={() => setNoteCreateSignal(null)}
+                                  onCreate={(draft) => createVerificationNote(row.id, draft)}
+                                  onUpdate={(noteId, draft) =>
+                                    updateVerificationNote(row.id, noteId, draft)
+                                  }
+                                  onDelete={(noteId) => deleteVerificationNote(row.id, noteId)}
+                                  onAskCandidate={(note) => void handleAskCandidate(note)}
+                                />
                                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#667085]">
                                   <button
                                     type="button"
@@ -1224,14 +1346,24 @@ export function AiAnalysisOverviewClient({
                             <span className="font-medium text-[#475467]">Related:</span> {item.relatedRequirement}
                           </p>
                         ) : null}
-                        <input
-                          value={recommendedAnswers[item.key] ?? ""}
-                          onChange={(event) =>
-                            setRecommendedAnswers((current) => ({ ...current, [item.key]: event.target.value }))
-                          }
-                          placeholder="Record the candidate answer..."
-                          className={`${FIELD} mt-3`}
-                        />
+                        <label className="mt-3 block">
+                          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Notes
+                          </span>
+                          <textarea
+                            value={recommendedAnswers[item.key] ?? ""}
+                            onChange={(event) =>
+                              updateRecommendedAnswer(item.key, event.target.value)
+                            }
+                            onBlur={(event) => {
+                              if (event.target.value.trim() === (item.answer ?? "").trim()) return;
+                              void saveScreeningAnswers();
+                            }}
+                            rows={3}
+                            placeholder="Record the candidate answer or recruiter notes..."
+                            className={`${AREA} min-h-[5.5rem] resize-y`}
+                          />
+                        </label>
                       </div>
                     </div>
                   </article>
@@ -1249,7 +1381,7 @@ export function AiAnalysisOverviewClient({
                   disabled={savingAnswers}
                   onClick={() => void saveScreeningAnswers()}
                 >
-                  {savingAnswers ? "Saving…" : "Save screening answers"}
+                  {savingAnswers ? "Saving…" : "Save notes"}
                 </button>
               </div>
             ) : null}
@@ -1467,6 +1599,18 @@ export function AiAnalysisOverviewClient({
                 {noteFeedItems.map((entry) =>
                   entry.kind === "verified" ? (
                     <VerifiedInformationItem key={`verified-${entry.id}`} item={entry.item} />
+                  ) : entry.kind === "verification" ? (
+                    <li
+                      key={`verification-${entry.id}`}
+                      className="rounded-lg border border-[#E5E7EB] bg-[#FCFCFD] px-3 py-2.5 text-sm text-[#344054]"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-[#EEF2FF] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#3730A3]">
+                          Requirement note
+                        </span>
+                      </div>
+                      <p className="mt-1">{entry.note.noteBody}</p>
+                    </li>
                   ) : (
                     <li
                       key={`note-${entry.id}`}
@@ -1676,6 +1820,27 @@ export function AiAnalysisOverviewClient({
         }}
         onConfirm={() => void confirmRemoveFromJob()}
       />
+
+      {workerId ? (
+        <CandidateCommunicationDialog
+          open={commOpen}
+          onClose={() => {
+            setCommOpen(false);
+            setAskCandidateNote(null);
+          }}
+          workerId={workerId}
+          candidateName={candidateName}
+          email={info.email || null}
+          phone={info.phone || null}
+          initialChannel="email"
+          onSent={() => {
+            if (askCandidateNote) {
+              void markNoteSentToCandidate(askCandidateNote);
+            }
+            toast.success("Request sent to candidate");
+          }}
+        />
+      ) : null}
     </div>
   );
 }

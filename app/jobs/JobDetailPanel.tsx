@@ -13,8 +13,12 @@ import {
 } from "@/app/admin_recruiter/jobs/job-posting-typography";
 import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
+  absolutePublicJobShareUrl,
+  buildPublicJobSharePath,
+  shareOrCopyPublicJobUrl,
+} from "@/lib/jobs/public-job-share";
+import {
   benefitItems,
-  buildJobsBoardHref,
   descriptionHasSection,
   formatJobLocationLine,
   formatPostedDate,
@@ -28,7 +32,13 @@ import {
 } from "@/lib/jobs/public-jobs-board";
 
 const DESCRIPTION_STYLES = `
-  .public-jobs-board-description.job-description-html { max-width: 42rem; }
+  .public-jobs-board-description.job-description-html { max-width: none; width: 100%; }
+  .public-jobs-board-description.job-description-html p,
+  .public-jobs-board-description.job-description-html ul,
+  .public-jobs-board-description.job-description-html ol,
+  .public-jobs-board-description.job-description-html li {
+    max-width: none;
+  }
   ${JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".public-jobs-board-description")}
 `;
 
@@ -44,7 +54,10 @@ const applyClassName =
   "inline-flex h-9 min-w-[8.75rem] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none";
 
 const BRAND_ICON_COLOR = "var(--brand-primary)";
-const BRAND_ICON_CLASS = "h-5 w-5";
+const BRAND_ICON_CLASS = "h-4 w-4";
+const BOOKMARK_ICON_SRC = "/icons/jobs-board/bookmark.svg";
+const BOOKMARK_FILLED_ICON_SRC = "/icons/jobs-board/bookmark-filled.svg";
+const EXTERNAL_LINK_ICON_SRC = "/icons/jobs-board/external-link.svg";
 
 function savedJobsStorageKey(tenantSlug: string): string {
   return `${SAVED_JOBS_STORAGE_KEY}:${tenantSlug.trim().toLowerCase()}`;
@@ -71,15 +84,6 @@ function writeSavedJobTokens(tenantSlug: string, tokens: Set<string>) {
     window.localStorage.setItem(savedJobsStorageKey(tenantSlug), JSON.stringify([...tokens]));
   } catch {
     /* ignore quota */
-  }
-}
-
-function absoluteShareUrl(path: string): string {
-  if (typeof window === "undefined") return path;
-  try {
-    return new URL(path, window.location.origin).toString();
-  } catch {
-    return path;
   }
 }
 
@@ -112,15 +116,15 @@ function JobDetailActions({
   jobToken,
   tenantSlug,
   applyHref,
-  boardHref,
-  legacyJobHref,
+  shareHref,
+  title,
   stacked,
 }: {
   jobToken: string;
   tenantSlug: string;
   applyHref: string | null;
-  boardHref: string;
-  legacyJobHref: string;
+  shareHref: string;
+  title: string;
   stacked?: boolean;
 }) {
   const [saved, setSaved] = useState(false);
@@ -145,28 +149,24 @@ function JobDetailActions({
   }, [jobToken, tenantSlug]);
 
   const handleShare = useCallback(async () => {
-    const shareUrl = absoluteShareUrl(boardHref);
+    const shareUrl = absolutePublicJobShareUrl(
+      shareHref,
+      typeof window !== "undefined" ? window.location.origin : null
+    );
     try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-        await navigator.share({
-          title: "Job opening",
-          url: shareUrl,
-        });
+      const result = await shareOrCopyPublicJobUrl({ url: shareUrl, title });
+      if (result === "copied") {
+        toast.success("Share link copied");
         return;
       }
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        toast.success("Link copied");
-        return;
-      }
+      if (result === "shared" || result === "aborted") return;
       toast.error("Sharing is not available on this device");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+    } catch {
       toast.error("Could not share this job");
     }
-  }, [boardHref]);
+  }, [shareHref, title]);
 
-  const heartButton = (
+  const saveButton = (
     <button
       type="button"
       onClick={toggleSaved}
@@ -177,7 +177,7 @@ function JobDetailActions({
       data-testid="jobs-save-button"
     >
       <BrandedSvgIcon
-        src={saved ? "/icons/heart-icon-filled.svg" : "/icons/heart-icon.svg"}
+        src={saved ? BOOKMARK_FILLED_ICON_SRC : BOOKMARK_ICON_SRC}
         className={BRAND_ICON_CLASS}
         color={BRAND_ICON_COLOR}
       />
@@ -203,7 +203,7 @@ function JobDetailActions({
 
   const viewButton = (
     <Link
-      href={legacyJobHref}
+      href={shareHref}
       target="_blank"
       rel="noopener noreferrer"
       className={VIEW_BUTTON_CLASS}
@@ -212,7 +212,7 @@ function JobDetailActions({
       data-testid="jobs-view-button"
     >
       <BrandedSvgIcon
-        src="/icons/eye-icon.svg"
+        src={EXTERNAL_LINK_ICON_SRC}
         className={BRAND_ICON_CLASS}
         color={BRAND_ICON_COLOR}
       />
@@ -223,7 +223,7 @@ function JobDetailActions({
     return (
       <div className="flex w-full flex-col gap-3" data-testid="jobs-detail-actions">
         <div className="flex items-center justify-center gap-1.5">
-          {heartButton}
+          {saveButton}
           {shareButton}
           {viewButton}
         </div>
@@ -232,13 +232,13 @@ function JobDetailActions({
     );
   }
 
-  // Desktop Figma order: heart → share → Apply now → view
+  // Desktop Figma order: bookmark → share → Apply now → external link
   return (
     <div
       className="flex shrink-0 items-center justify-end gap-2"
       data-testid="jobs-detail-actions"
     >
-      {heartButton}
+      {saveButton}
       {shareButton}
       <ApplyControl href={applyHref} className={applyClassName} />
       {viewButton}
@@ -283,12 +283,7 @@ export function JobDetailPanel({
   const posted = formatPostedDate(job.published_at, job.updated_at);
   const applyHref = selectedJobApplyHref(tenantSlug, job);
   const jobToken = String(job.public_job_token ?? "").trim();
-  const boardHref = jobToken
-    ? buildJobsBoardHref({ tenant: tenantSlug, job: jobToken })
-    : "";
-  const legacyJobHref = jobToken
-    ? `/jobs/${encodeURIComponent(jobToken)}?tenant=${encodeURIComponent(tenantSlug.trim().toLowerCase())}`
-    : "";
+  const shareHref = jobToken ? buildPublicJobSharePath(tenantSlug, jobToken) ?? "" : "";
   const benefits = benefitItems(job.benefits);
   const descriptionHtml = formatPublicJobDescriptionHtml(
     job.public_description || "",
@@ -309,14 +304,14 @@ export function JobDetailPanel({
       aria-labelledby="jobs-detail-title"
     >
       <style>{DESCRIPTION_STYLES}</style>
-      <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 min-[1024px]:px-6">
+      <header className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 min-[1024px]:px-5">
         {onBack && stacked ? (
           <button
             ref={backButtonRef}
             type="button"
             onClick={onBack}
             data-testid="jobs-back-to-jobs"
-            className="mb-3 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
+            className="mb-3 inline-flex min-h-10 items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
           >
             ← Back to jobs
           </button>
@@ -326,7 +321,7 @@ export function JobDetailPanel({
             <p className={JOB_POSTING_COMPANY_CLASS}>{companyName}</p>
             <h2
               id="jobs-detail-title"
-              className="mt-1 text-[1.05rem] font-semibold leading-7 text-[#1D2739]"
+              className="mt-1 text-lg font-semibold leading-7 text-[#1D2739] sm:text-xl"
             >
               {title}
             </h2>
@@ -344,14 +339,14 @@ export function JobDetailPanel({
               jobToken={jobToken}
               tenantSlug={tenantSlug}
               applyHref={applyHref}
-              boardHref={boardHref}
-              legacyJobHref={legacyJobHref}
+              shareHref={shareHref}
+              title={title}
             />
           ) : null}
         </div>
       </header>
 
-      <div className="jobs-board-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 min-[1024px]:px-6">
+      <div className="jobs-board-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 min-[1024px]:px-5">
         <section aria-label="Job description">
           <JobDescriptionHtml
             html={descriptionHtml}
@@ -360,7 +355,7 @@ export function JobDetailPanel({
           />
         </section>
         {showResponsibilities ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Responsibilities</h3>
             <p className={`mt-2 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>
               {job.responsibilities}
@@ -368,7 +363,7 @@ export function JobDetailPanel({
           </section>
         ) : null}
         {showQualifications ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Qualifications</h3>
             <p className={`mt-2 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>
               {job.qualifications}
@@ -376,7 +371,7 @@ export function JobDetailPanel({
           </section>
         ) : null}
         {showBenefits ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Benefits</h3>
             <ul className={`mt-2 list-outside list-disc space-y-1 pl-5 ${JOB_POSTING_BODY_CLASS}`}>
               {benefits.map((benefit) => (
@@ -387,7 +382,7 @@ export function JobDetailPanel({
         ) : null}
         {(job.schedule || job.employment_type || workplace) &&
         !descriptionHasSection(descriptionHtml, "Employment details") ? (
-          <section className="mt-6 max-w-2xl">
+          <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Employment details</h3>
             <ul className={`mt-2 space-y-1 ${JOB_POSTING_BODY_CLASS}`}>
               {job.employment_type ? <li>Employment type: {job.employment_type}</li> : null}
@@ -410,8 +405,8 @@ export function JobDetailPanel({
               jobToken={jobToken}
               tenantSlug={tenantSlug}
               applyHref={applyHref}
-              boardHref={boardHref}
-              legacyJobHref={legacyJobHref}
+              shareHref={shareHref}
+              title={title}
               stacked
             />
           ) : (

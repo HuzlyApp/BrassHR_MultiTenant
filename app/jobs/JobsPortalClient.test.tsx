@@ -409,6 +409,16 @@ describe("JobsPortalClient", () => {
     expect(urls.every((url) => url.startsWith("/api/public/jobs?"))).toBe(true);
   });
 
+  it("points board share and view actions at the public job posting URL", async () => {
+    await renderBoard();
+    await screen.findByRole("heading", { name: "Travel RN" });
+    expect(screen.getByTestId("jobs-view-button")).toHaveAttribute(
+      "href",
+      "/jobs/rn-1?tenant=zipstaff"
+    );
+    expect(screen.getByTestId("jobs-share-button")).toHaveAttribute("aria-label", "Share job");
+  });
+
   it("uses stacked list layout classes at tablet/mobile widths", async () => {
     await renderBoard("tenant=zipstaff", false);
     await screen.findByTestId("job-card-rn-1");

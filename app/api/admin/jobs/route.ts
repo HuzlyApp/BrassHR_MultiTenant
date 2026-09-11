@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { JobValidationError } from "@/lib/jobs/types";
+import { JobValidationError, jobValidationHttpStatus, JOB_STATUSES, type JobStatus } from "@/lib/jobs/types";
 import { jobMutationSchema } from "@/lib/jobs/validation";
 import {
   closeExpiredPublishedJobs,
   bulkDeleteJobRequisitions,
   listInternalJobs,
+  openJobRequisition,
   parseBulkDeleteIds,
   publishExistingJob,
   saveJobRequisition,
   transitionJobStatus,
   unarchiveJobRequisition,
 } from "@/lib/jobs/service";
+import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { parseScreeningQuestionsFromBody } from "@/lib/jobs/screening-questions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { countUniqueActiveCandidateProfiles } from "@/lib/workers/count-unique-active-candidate-profiles";
+import { TenantWaitlistedError } from "@/lib/service-area/errors";
+import { isServiceAreaValidationCode } from "@/lib/service-area/http";
+import { serviceAreaMessage } from "@/lib/service-area/copy";
 
 export const runtime = "nodejs";
 
@@ -30,6 +36,30 @@ function formatApiError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+const STATUS_FILTER_VALUES = new Set([
+  "draft",
+  "open",
+  "published",
+  "paused",
+  "filled",
+  "closed",
+  "archived",
+]);
+
+function parseJobStatusFilter(value: string | null): JobStatus | undefined {
+  if (!value || !STATUS_FILTER_VALUES.has(value)) return undefined;
+  return normalizeJobRequisitionStatus(value);
+}
+
+function parseTargetJobStatus(raw: unknown): JobStatus | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().toLowerCase();
+  if (!(JOB_STATUSES as readonly string[]).includes(trimmed) && trimmed !== "published") {
+    return null;
+  }
+  return normalizeJobRequisitionStatus(trimmed);
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
@@ -42,25 +72,18 @@ export async function GET(req: NextRequest) {
 
     await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
 
-    const status = req.nextUrl.searchParams.get("status") || undefined;
-    const [jobs, tenantResult, workerCountResult] = await Promise.all([
+    const status = parseJobStatusFilter(req.nextUrl.searchParams.get("status"));
+    const [jobs, tenantResult, totalCandidateCount] = await Promise.all([
       listInternalJobs(supabase, tenantId, {
-        status:
-          status === "draft" ||
-          status === "published" ||
-          status === "closed" ||
-          status === "archived"
-            ? status
-            : undefined,
+        status,
         professionId: req.nextUrl.searchParams.get("professionId") || undefined,
         employmentType: req.nextUrl.searchParams.get("employmentType") || undefined,
         createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
       }),
       supabase.from("tenants").select("slug, subdomain").eq("id", tenantId).maybeSingle(),
-      supabase.from("worker").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+      countUniqueActiveCandidateProfiles(supabase, tenantId),
     ]);
     if (tenantResult.error) throw tenantResult.error;
-    if (workerCountResult.error) throw workerCountResult.error;
     const tenantSlug = String(tenantResult.data?.slug ?? tenantResult.data?.subdomain ?? "")
       .trim()
       .toLowerCase();
@@ -68,7 +91,7 @@ export async function GET(req: NextRequest) {
       jobs,
       tenantId,
       tenantSlug: tenantSlug || null,
-      totalCandidateCount: workerCountResult.count ?? 0,
+      totalCandidateCount,
     });
   } catch (error) {
     return NextResponse.json(
@@ -97,7 +120,11 @@ export async function POST(req: NextRequest) {
       (action === "unpublish" ||
         action === "close" ||
         action === "archive" ||
-        action === "unarchive") &&
+        action === "unarchive" ||
+        action === "pause" ||
+        action === "resume" ||
+        action === "fill" ||
+        action === "set_status") &&
       !jobId
     ) {
       return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
@@ -120,8 +147,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ job: result });
     }
 
-    if (action === "unpublish" || action === "close" || action === "archive") {
-      const status = action === "unpublish" ? "draft" : action === "close" ? "closed" : "archived";
+    if (action === "set_status") {
+      const target = parseTargetJobStatus(rawRecord.status);
+      if (!target) {
+        return NextResponse.json({ error: "Valid status is required" }, { status: 400 });
+      }
+      if (target === "open") {
+        const result = await openJobRequisition(supabase, tenantId, auth.userId, jobId);
+        return NextResponse.json({ job: result });
+      }
+      const result = await transitionJobStatus(supabase, tenantId, auth.userId, jobId, target);
+      return NextResponse.json({ job: result });
+    }
+
+    if (
+      action === "unpublish" ||
+      action === "close" ||
+      action === "archive" ||
+      action === "pause" ||
+      action === "resume" ||
+      action === "fill"
+    ) {
+      if (action === "resume") {
+        const result = await openJobRequisition(supabase, tenantId, auth.userId, jobId);
+        return NextResponse.json({ job: result });
+      }
+      const status: JobStatus =
+        action === "unpublish"
+          ? "draft"
+          : action === "close"
+            ? "closed"
+            : action === "archive"
+              ? "archived"
+              : action === "pause"
+                ? "paused"
+                : "filled";
       const result = await transitionJobStatus(supabase, tenantId, auth.userId, jobId, status);
       return NextResponse.json({ job: result });
     }
@@ -150,8 +210,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: jobId ? 200 : 201 });
   } catch (error) {
     if (error instanceof JobValidationError) {
+      const field = Object.keys(error.fieldErrors)[0] || "location";
+      const messageKey = isServiceAreaValidationCode(error.code)
+        ? error.code === "remote_unscoped" || error.code === "platform_hold" || error.code === "outside_hiring_area"
+          ? "location_not_enabled"
+          : "location_not_available"
+        : undefined;
       return NextResponse.json(
-        { error: error.message, code: error.code, fieldErrors: error.fieldErrors },
+        {
+          error: error.message,
+          code: error.code,
+          messageKey,
+          field,
+          fieldErrors: error.fieldErrors,
+        },
+        { status: jobValidationHttpStatus(error) }
+      );
+    }
+    if (error instanceof TenantWaitlistedError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          messageKey: "signup_waitlist",
+          field: "worksite_state",
+          fieldErrors: { location: serviceAreaMessage("signup_waitlist") },
+        },
         { status: 422 }
       );
     }

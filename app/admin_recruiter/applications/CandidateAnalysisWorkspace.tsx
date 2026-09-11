@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import {
   formatMatchCategory,
   formatMatchScore,
@@ -21,6 +22,7 @@ import {
   type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
 import { QualificationChecklist } from "./QualificationChecklist";
+import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
 
 type ScreeningQuestionView = {
   id: string;
@@ -225,21 +227,23 @@ export function CandidateAnalysisWorkspace({
   const status = app?.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";
 
-  async function runAnalyze() {
+  async function runAnalyze(mode: AnalysisMode = "analyze") {
     setAnalyzing(true);
     try {
       const res = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Match analysis failed");
       toast.success(
         json.status === "NEEDS_REVIEW"
           ? "Needs résumé text before analysis"
-          : "Match analysis complete"
+          : mode === "deep"
+            ? "Deeper match analysis complete"
+            : "Match analysis complete"
       );
       await load();
       onAnalyzed?.();
@@ -251,6 +255,10 @@ export function CandidateAnalysisWorkspace({
   }
 
   async function toggleVerified(req: QualificationRequirement) {
+    if (!req.recruiter_verified && !req.has_verification_decision) {
+      toast.error("Save a note first, then check Recruiter verified.");
+      return;
+    }
     setVerifyingId(req.id);
     try {
       const res = await fetch(
@@ -484,15 +492,12 @@ export function CandidateAnalysisWorkspace({
             <span className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1 text-xs font-medium text-[#334155]">
               {modelLabel}
             </span>
-            <button
-              type="button"
-              onClick={() => void runAnalyze()}
-              disabled={analyzing}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A] disabled:opacity-60"
-            >
-              {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isAnalyzed ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {analyzing ? "Analyzing…" : isAnalyzed ? "Reanalyze" : "Analyze candidate"}
-            </button>
+            <MatchAnalyzeButton
+              variant="outline"
+              analyzing={analyzing}
+              isAnalyzed={isAnalyzed}
+              onAnalyze={(mode) => void runAnalyze(mode)}
+            />
           </div>
         </div>
         {!isAnalyzed ? (
@@ -545,6 +550,7 @@ export function CandidateAnalysisWorkspace({
             )}
           </section>
           <QualificationChecklist
+            applicationId={applicationId}
             requirements={data?.requirements ?? []}
             blockingTexts={blocking}
             verifyingId={verifyingId}

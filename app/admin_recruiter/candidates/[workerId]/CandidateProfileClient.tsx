@@ -44,6 +44,10 @@ import {
   type ProfileActivityRangeId,
 } from "./candidate-profile-ui";
 import {
+  fetchStaffDetailJson,
+  candidateProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
+import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
   jobCandidatesHrefForJob,
@@ -496,13 +500,10 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/candidates/${encodeURIComponent(id)}/profile`, {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => ({}))) as CandidateProfilePayload & {
-        error?: string;
-      };
-      if (!response.ok) throw new Error(payload.error || "Failed to load candidate profile");
+      const { ok, payload } = await fetchStaffDetailJson<CandidateProfilePayload & { error?: string }>(
+        candidateProfileApiUrl(id)
+      );
+      if (!ok) throw new Error(payload.error || "Failed to load candidate profile");
       setProfile(payload);
       loadedWorkerIdRef.current = id;
     } catch (err) {

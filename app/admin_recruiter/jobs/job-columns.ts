@@ -22,10 +22,11 @@ export type JobColumnId =
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
-  { id: "contractGroup", label: "End client" },
-  { id: "candidates", label: "# Applicants" },
+  { id: "contractGroup", label: "MSP/Client" },
+  { id: "candidates", label: "Applicants" },
   { id: "datePosted", label: "Date Posted" },
-  { id: "assignee", label: "Created by" },
+  /** Shows Created By (job.createdBy) — not assigned recruiter. */
+  { id: "assignee", label: "Assignee" },
   { id: "jobStatus", label: "Job Status" },
   { id: "payRate", label: "Pay Rate" },
   { id: "commissionFee", label: "Commission Fee" },
@@ -38,39 +39,92 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "workflow", label: "Assigned Workflow" },
   { id: "createdDate", label: "Created Date" },
   { id: "applicationDeadline", label: "Application Deadline" },
-  { id: "actions", label: "Publish / Unpublish" },
+  { id: "actions", label: "Actions" },
 ]
 
 export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobTitle",
   "contractGroup",
-  "candidates",
-  "datePosted",
   "location",
   "placementType",
-  "jobType",
-  "assignee",
+  "candidates",
   "jobStatus",
   "payRate",
-  "commissionFee",
+  "datePosted",
   "actions",
 ]
 
+/** FSD: MSP/Client column id (job form Contract Group / Client → msp_name). */
+export const MSP_DEFAULT_END_CLIENT_COLUMN: JobColumnId = "contractGroup"
+
+export type JobListSourceTab =
+  | "all"
+  | "internal"
+  | "msp"
+  | "draft"
+  | "open"
+  | "closed"
+  | "hot"
+  | "archived"
+
+function ensureMspClientColumn(columns: JobColumnId[]): JobColumnId[] {
+  if (columns.includes("contractGroup")) return columns
+  const locationIdx = columns.indexOf("location")
+  if (locationIdx >= 0) {
+    columns.splice(locationIdx + 1, 0, "contractGroup")
+    return columns
+  }
+  const titleIdx = columns.indexOf("jobTitle")
+  if (titleIdx >= 0) {
+    columns.splice(titleIdx + 1, 0, "contractGroup")
+    return columns
+  }
+  columns.unshift("contractGroup")
+  return columns
+}
+
+/**
+ * - Internal tab hides MSP/Client
+ * - All / MSP / Hot / status tabs default MSP/Client after Location when missing
+ */
+export function visibleJobColumnsForTab(
+  savedOrder: JobColumnId[] | null | undefined,
+  tab: JobListSourceTab
+): JobColumnId[] {
+  const base =
+    savedOrder && savedOrder.length > 0 ? [...savedOrder] : [...DEFAULT_JOB_COLUMNS]
+
+  if (tab === "internal") {
+    return base.filter((id) => id !== "contractGroup")
+  }
+
+  return ensureMspClientColumn(base)
+}
+
 const STORAGE_KEY = "nexus-jobs-list-columns"
-const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v4-commission-fee"
+/** Bump when default visible columns change (Figma Client listing defaults). */
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v8-figma-defaults"
 
 /** Columns added after initial release — inject into saved layouts once. */
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
-  { id: "payRate", after: "jobStatus" },
-  { id: "commissionFee", after: "payRate" },
-  { id: "placementType", after: "location" },
-  { id: "jobType", after: "placementType" },
-  { id: "contractGroup", after: "jobTitle" },
+  // Default MSP/Client after Location for All / MSP / Hot layouts.
+  { id: "contractGroup", after: "location" },
 ]
 
 export function loadJobColumnOrder(): JobColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_JOB_COLUMNS]
   try {
+    const migrated = localStorage.getItem(COLUMN_MIGRATION_KEY) === "1"
+    if (!migrated) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_JOB_COLUMNS))
+        localStorage.setItem(COLUMN_MIGRATION_KEY, "1")
+      } catch {
+        /* ignore quota */
+      }
+      return [...DEFAULT_JOB_COLUMNS]
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return [...DEFAULT_JOB_COLUMNS]
     const parsed = JSON.parse(raw) as unknown
@@ -81,20 +135,11 @@ export function loadJobColumnOrder(): JobColumnId[] {
     )
     if (!cleaned.length) return [...DEFAULT_JOB_COLUMNS]
 
-    const migrated = localStorage.getItem(COLUMN_MIGRATION_KEY) === "1"
-    if (!migrated) {
-      for (const { id, after } of ENSURE_VISIBLE_COLUMNS) {
-        if (cleaned.includes(id)) continue
-        const afterIdx = after ? cleaned.indexOf(after) : -1
-        if (afterIdx >= 0) cleaned.splice(afterIdx + 1, 0, id)
-        else cleaned.push(id)
-      }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned))
-        localStorage.setItem(COLUMN_MIGRATION_KEY, "1")
-      } catch {
-        /* ignore quota */
-      }
+    for (const { id, after } of ENSURE_VISIBLE_COLUMNS) {
+      if (cleaned.includes(id)) continue
+      const afterIdx = after ? cleaned.indexOf(after) : -1
+      if (afterIdx >= 0) cleaned.splice(afterIdx + 1, 0, id)
+      else cleaned.push(id)
     }
 
     return cleaned
@@ -157,7 +202,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
     case "contractGroup":
       return `min-w-[150px]${nowrap}${center}`
     case "candidates":
-      return `w-[390px] min-w-[390px]${nowrap}${center}`
+      return `w-[300px] min-w-[300px]${nowrap}${center}`
     case "datePosted":
     case "createdDate":
       return `min-w-[140px]${nowrap}${center}`

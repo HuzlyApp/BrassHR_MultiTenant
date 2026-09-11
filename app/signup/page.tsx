@@ -68,6 +68,9 @@ type SignupForm = {
   zipCode: string;
   address1: string;
   address2: string;
+  hqState: string;
+  primaryCity: string;
+  primaryState: string;
 };
 
 type SignupStep = "details" | "password";
@@ -87,6 +90,9 @@ const initialForm: SignupForm = {
   zipCode: "",
   address1: "",
   address2: "",
+  hqState: "",
+  primaryCity: "",
+  primaryState: "",
 };
 
 function isValidEmail(email: string) {
@@ -304,7 +310,7 @@ export default function SignupPage() {
   useLayoutEffect(() => {
     const draft = readTenantSignupDraft();
     if (draft) {
-      setForm(draft.form);
+      setForm({ ...initialForm, ...draft.form });
       setStep(draft.step);
       setPassword(draft.password);
       setVerifyPassword(draft.verifyPassword);
@@ -642,12 +648,16 @@ export default function SignupPage() {
             zipCode: form.zipCode,
             address1: form.address1,
             address2: form.address2,
+            hqState: form.hqState || form.state,
+            primaryCity: form.primaryCity || form.city,
+            primaryState: form.primaryState || form.state,
             password,
           }),
         });
         const payload = (await res.json().catch(() => ({}))) as {
           error?: string;
           code?: string;
+          waitlisted?: boolean;
         };
         if (!res.ok) {
           setSubmitError(payload.error ?? "Could not create your account. Try again.");
@@ -692,6 +702,10 @@ export default function SignupPage() {
         setRedirecting(true);
         clearTenantSignupDraft();
         window.setTimeout(() => {
+          if (payload.waitlisted) {
+            window.location.assign("/signup/waitlist");
+            return;
+          }
           markAccountReadyModalPending(sessionStorage);
           window.location.assign("/your-trial");
         }, 80);
@@ -1051,6 +1065,48 @@ export default function SignupPage() {
                   onChange={(value) => update("zipCode", value.replace(/\D/g, "").slice(0, 5))}
                   placeholder="Code"
                   error={zipError}
+                />
+              </div>
+            </div>
+
+            <div className="signup-field-grid mt-[18px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[26px] sm:gap-x-[20px]">
+              <div className="min-w-0">
+                <SearchableSelectField
+                  label="Headquarters state"
+                  required
+                  compact
+                  loading={locationLoading}
+                  disabled={locationLoading}
+                  value={form.hqState || form.state}
+                  onChange={(value) => update("hqState", value)}
+                  placeholder="Search state"
+                  searchPlaceholder="Type to search states"
+                  options={stateOptions}
+                  emptyMessage="No states found. Try another search."
+                />
+              </div>
+              <div className="min-w-0">
+                <SearchableSelectField
+                  label="Primary work state"
+                  required
+                  compact
+                  loading={locationLoading}
+                  disabled={locationLoading}
+                  value={form.primaryState || form.state}
+                  onChange={(value) => setForm((prev) => ({ ...prev, primaryState: value, primaryCity: "" }))}
+                  placeholder="Search state"
+                  searchPlaceholder="Type to search states"
+                  options={stateOptions}
+                  emptyMessage="No states found. Try another search."
+                />
+              </div>
+              <div className="min-w-0 min-[600px]:col-span-2">
+                <TextField
+                  label="Primary work city"
+                  required
+                  value={form.primaryCity || form.city}
+                  onChange={(value) => update("primaryCity", value)}
+                  placeholder="City where workers will work"
                 />
               </div>
             </div>

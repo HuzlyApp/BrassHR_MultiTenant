@@ -4,6 +4,8 @@ import { JobApplicationGateError, resolveTenantApplicationEntry, validatePublish
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
+import { SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import ApplyWorkLocationClient from "@/app/apply/ApplyWorkLocationClient";
 
 function ApplicationUnavailable({ message }: { message: string }) {
   return (
@@ -47,10 +49,18 @@ export default async function ApplyPage({
 
   try {
     const validated = await validatePublishedJobForApplication(supabase, tenantSlug, token);
-    redirect(validated.screeningPath);
+    return (
+      <ApplyWorkLocationClient
+        tenantSlug={validated.tenantSlug}
+        jobToken={validated.jobToken}
+        jobTitle={validated.jobTitle}
+        jobCity={validated.jobLocation}
+        continueHref={validated.screeningPath}
+      />
+    );
   } catch (error) {
     if (error instanceof JobApplicationGateError) {
-      return <ApplicationUnavailable message={error.message} />;
+      return <ApplicationUnavailable message={SERVICE_AREA_COPY.opening_unavailable} />;
     }
     throw error;
   }

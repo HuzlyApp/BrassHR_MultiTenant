@@ -407,6 +407,12 @@ Caps:
 
 75+ only when most mandatories are CONFIRMED in work history.
 
+REQUIREMENT LISTS
+
+Always return one scored object in mandatory_requirements for every listed mandatory item, and one in preferred_requirements for every listed preferred item. Never return empty arrays when requirements were listed or can be extracted from the job description.
+
+If the listed mandatory/preferred sections are empty or say they were not listed separately, extract Required Qualifications and Preferred Qualifications from the full job description, then score each extracted item. Put those items in mandatory_requirements / preferred_requirements. Do not put job qualifications only under items_to_verify.
+
 TIMELINE CHECK
 
 If résumé claims product features before known availability (e.g. Sentinel pre-2019 GA; DCRs with KQL ~2022), flag under items_to_verify as chronological inconsistency—do not accuse fraud.
@@ -556,6 +562,13 @@ function bullets(items: string[] | undefined | null, emptyLabel = "(none provide
   return list.map((item) => `- ${item}`).join("\n");
 }
 
+function hasListedRequirements(structured: StructuredJobRequirements): boolean {
+  return (
+    structured.mandatoryRequirements.some((item) => item.trim()) ||
+    structured.preferredRequirements.some((item) => item.trim())
+  );
+}
+
 function resolveAnalysisMode(input: { analysisMode?: AnalysisMode }): AnalysisMode {
   return input.analysisMode === "deep" ? "deep" : "analyze";
 }
@@ -575,10 +588,11 @@ INSTRUCTIONS
 3. Recommend a single overall match score and match category.
 4. Recommend recruiter action.
 5. Generate no more than 4 focused screening questions.
-6. Do not infer qualifications that are not documented.
+6. Do not invent qualifications that are not documented.
 7. Quote or closely reference exact candidate evidence for every qualification.
 8. Keep evidence statements to one short sentence each.
-9. Return valid JSON only using the required response structure.
+9. Do not include experience calculation, recruiter summary, better-fit jobs, score rationale, data quality notes, strengths, or gaps/risks.
+10. Return valid JSON only using the required response structure.
 ${sizeLimit}
 
 Required JSON structure:
@@ -638,10 +652,20 @@ Specialty: ${input.specialty?.trim() || input.structured.specialty?.trim() || "(
 Location: ${input.location?.trim() || input.structured.location?.trim() || "(unknown)"}
 
 MANDATORY REQUIREMENTS
-${bullets(input.structured.mandatoryRequirements)}
+${bullets(
+    input.structured.mandatoryRequirements,
+    hasListedRequirements(input.structured)
+      ? "(none provided)"
+      : "(not listed separately — extract every Required Qualifications bullet from the full job description below into mandatory_requirements. Do not return an empty array.)"
+  )}
 
 PREFERRED REQUIREMENTS
-${bullets(input.structured.preferredRequirements)}
+${bullets(
+    input.structured.preferredRequirements,
+    hasListedRequirements(input.structured)
+      ? "(none provided)"
+      : "(not listed separately — extract every Preferred Qualifications bullet from the full job description below into preferred_requirements. Do not return an empty array.)"
+  )}
 
 REQUIRED LICENSES
 ${bullets(input.structured.requiredLicenses)}
@@ -655,7 +679,11 @@ ${bullets(input.structured.educationRequirements)}
 REQUIRED YEARS EXPERIENCE
 ${input.structured.requiredYearsExperience?.trim() || "(not specified)"}
 
-FULL JOB DESCRIPTION (for reference only; requirements above are authoritative)
+FULL JOB DESCRIPTION${
+    hasListedRequirements(input.structured)
+      ? " (for reference; listed requirements above are authoritative)"
+      : " (listed requirement sections above are empty — extract Required and Preferred qualifications from this description)"
+  }
 ${input.fullJobDescription.trim() || "(none)"}
 
 CANDIDATE INFORMATION
@@ -675,6 +703,7 @@ export function buildMatchAnalysisRepairPrompt(args: {
   validationErrors: string[];
   truncated?: boolean;
   analysisMode?: AnalysisMode;
+  responseSchema?: Record<string, unknown> | string | null;
 }): string {
   const lean = resolveAnalysisMode(args) === "analyze";
   const truncationNote = args.truncated
@@ -688,6 +717,14 @@ Your previous response was CUT OFF because it exceeded the output token limit. R
 Use one short sentence per candidate_evidence. Limit strengths to the top 5 items and gaps_and_risks to the top 8 items.
 `
     : "";
+  const schemaText =
+    args.responseSchema == null
+      ? lean
+        ? ANALYZE_RESPONSE_SCHEMA
+        : DEEP_ANALYSIS_RESPONSE_SCHEMA_TEXT
+      : typeof args.responseSchema === "string"
+        ? args.responseSchema
+        : JSON.stringify(args.responseSchema, null, 2);
   return `Your previous response was not valid against the required schema.
 ${truncationNote}
 Return corrected JSON only (no markdown, no commentary).
@@ -699,7 +736,7 @@ Invalid / previous JSON:
 ${args.badJson.slice(0, 120_000)}
 
 Required JSON structure:
-${lean ? ANALYZE_RESPONSE_SCHEMA : DEEP_ANALYSIS_RESPONSE_SCHEMA_TEXT}`;
+${schemaText}`;
 }
 
 export function truncateStrengthsAndGaps(
@@ -718,7 +755,7 @@ export function truncateStrengthsAndGaps(
   return {
     ...analysis,
     strengths: analysis.strengths.slice(0, 5),
-    gaps_and_risks: analysis.gaps_and_risks.slice(0, analysisMode === "analyze" ? 0 : 8),
+    gaps_and_risks: analysis.gaps_and_risks.slice(0, analysisMode === "analyze" ? 5 : 8),
     screening_questions: analysis.screening_questions.slice(0, questionLimit),
   };
 }

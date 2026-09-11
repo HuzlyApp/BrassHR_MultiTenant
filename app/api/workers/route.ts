@@ -1,11 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getApplicationStatusSummariesForWorkers } from "@/lib/jobs/application-statuses/attach-worker-application-status";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
 import {
   isApprovedPendingConversion,
@@ -19,10 +21,24 @@ import {
   getApplicationJobTitlesByWorker,
   joinApplicationJobTitles,
 } from "@/lib/workers/worker-application-job-titles";
+import {
+  candidatePhoneNameKey,
+  collapseWorkersToCandidateProfiles,
+  findIdentitySiblingWorkerIds,
+} from "@/lib/workers/candidate-identity";
 import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summary";
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
-import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
+import { statusOrFilter } from "@/lib/workers/workers-status-filter";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import { getApplicationAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
+import {
+  candidateListRequiresServerSearch,
+  parseCandidateListQueryParams,
+} from "@/lib/workers/candidate-list-params";
+import {
+  CandidateSearchUnavailableError,
+  resolveCandidateIdPage,
+} from "@/lib/workers/resolve-candidate-id-page";
 
 type SbErr = { message: string; code?: string };
 type ContactLookupRow = {
@@ -127,20 +143,22 @@ export async function GET(req: Request) {
     const tenantScope = await resolveStaffTenantScope(auth.authUser);
 
     const urlObj = new URL(req.url);
-    const status = parseStatus(
+    const listParams = parseCandidateListQueryParams(urlObj.searchParams);
+    const status = listParams.status ?? parseStatus(
       urlObj.searchParams.get("worker_status") ??
         urlObj.searchParams.get("status")
     );
-    const headOnly = urlObj.searchParams.get("head") === "1";
-    const includePhotoUrls = urlObj.searchParams.get("includePhotoUrls") === "1";
-    const conversionFilter = urlObj.searchParams.get("conversion")?.trim().toLowerCase() ?? "";
-    const { limit, offset } = parseWorkersListParams(urlObj.searchParams);
+    const headOnly = listParams.headOnly;
+    const includePhotoUrls = listParams.includePhotoUrls;
+    const conversionFilter = listParams.conversion;
+    const { limit, offset } = listParams;
     const needsConversionFilter =
       conversionFilter === "pending" ||
       status == null ||
       (status === "approved" && conversionFilter !== "all");
     const queryLimit = limit;
     const queryOffset = offset;
+    const requestStarted = Date.now();
 
     const url = getSupabaseUrl();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -208,41 +226,118 @@ export async function GET(req: Request) {
       let data: unknown[] | null = null;
       let error: SbErr | null = null;
       let count: number | null = null;
+      let usedServerPage = false;
 
-      outer: for (const baseCols of baseColsOptions) {
-        for (const a of attempts) {
-          const select = `${baseCols}, ${a.extra}`;
+      const tenantIdForRpc =
+        tenantScope.mode === "scoped" ? tenantScope.tenantId : null;
+      const requiresServerSearch = candidateListRequiresServerSearch({
+        ...listParams,
+        status,
+        excludeConverted: needsConversionFilter,
+      });
 
-          let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
-          q = applyWorkerTenantEq(q, tenantScope) as typeof q;
-          if (status) {
-            q = q.or(statusOrFilter(a.col, status)) as typeof q;
-          } else if (a.col === "status") {
-            // All candidates tab: active pipeline only (exclude converted workers).
-            const active = ACTIVE_CANDIDATE_PIPELINE_STATUSES.join(",");
-            q = q.or(`status.in.(${active}),status.is.null`) as typeof q;
+      // Prefer server-side ID page (filters/search/sort + conversion exclusion before LIMIT).
+      // Never fall back to an unfiltered page while search/filters are active.
+      if (tenantIdForRpc || requiresServerSearch) {
+        try {
+          const idPage = await resolveCandidateIdPage(supabase, tenantIdForRpc, {
+            ...listParams,
+            status,
+            excludeConverted: needsConversionFilter,
+          });
+          // resolveCandidateIdPage already returns unique candidate-profile IDs + total.
+          usedServerPage = true;
+          count = idPage.total;
+          if (headOnly) {
+            data = [];
+          } else if (idPage.ids.length === 0) {
+            data = [];
+          } else {
+            outerRpc: for (const baseCols of baseColsOptions) {
+              for (const a of attempts) {
+                const select = `${baseCols}, ${a.extra}`;
+                const res = await supabase
+                  .from("worker")
+                  .select(select)
+                  .in("id", idPage.ids);
+                data = (res.data as unknown[] | null) ?? null;
+                error = res.error
+                  ? { message: res.error.message, code: (res.error as { code?: string }).code }
+                  : null;
+                if (!error) {
+                  const byId = new Map(
+                    ((data as Record<string, unknown>[]) ?? []).map((row) => [
+                      String(row.id ?? ""),
+                      row,
+                    ])
+                  );
+                  data = idPage.ids
+                    .map((id) => byId.get(id))
+                    .filter((row): row is Record<string, unknown> => Boolean(row));
+                  break outerRpc;
+                }
+                if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outerRpc;
+              }
+            }
           }
-          q = q.order("created_at", { ascending: false }) as typeof q;
-          if (!headOnly) {
-            q = q.range(queryOffset, queryOffset + queryLimit - 1) as typeof q;
+        } catch (rpcErr) {
+          if (rpcErr instanceof CandidateSearchUnavailableError || requiresServerSearch) {
+            const message =
+              rpcErr instanceof Error
+                ? rpcErr.message
+                : "Candidate search is temporarily unavailable.";
+            return Response.json({ error: message }, { status: 503 });
           }
+          console.warn("[api/workers] server page resolve failed, using legacy path", rpcErr);
+          usedServerPage = false;
+        }
+      }
 
-          const res = await q;
-          data = (res.data as unknown[] | null) ?? null;
-          error = res.error
-            ? { message: res.error.message, code: (res.error as { code?: string }).code }
-            : null;
-          count = typeof res.count === "number" ? res.count : null;
+      if (!usedServerPage) {
+        if (requiresServerSearch) {
+          return Response.json(
+            {
+              error:
+                "Candidate search requires server-side indexing. Please refresh and try again.",
+            },
+            { status: 503 }
+          );
+        }
+        outer: for (const baseCols of baseColsOptions) {
+          for (const a of attempts) {
+            const select = `${baseCols}, ${a.extra}`;
 
-          if (!error) {
-            const hasResults = headOnly
-              ? (count ?? 0) > 0
-              : ((data as unknown[] | null)?.length ?? 0) > 0;
-            if (hasResults) break outer;
-            if (status && PIPELINE_TEXT_ONLY.has(status)) break outer;
-            continue;
+            let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
+            q = applyWorkerTenantEq(q, tenantScope) as typeof q;
+            if (status) {
+              q = q.or(statusOrFilter(a.col, status)) as typeof q;
+            } else if (a.col === "status") {
+              // All candidates tab: active pipeline only (exclude converted workers).
+              const active = ACTIVE_CANDIDATE_PIPELINE_STATUSES.join(",");
+              q = q.or(`status.in.(${active}),status.is.null`) as typeof q;
+            }
+            q = q.order("created_at", { ascending: listParams.sortDir === "asc" }) as typeof q;
+            if (!headOnly) {
+              q = q.range(queryOffset, queryOffset + queryLimit - 1) as typeof q;
+            }
+
+            const res = await q;
+            data = (res.data as unknown[] | null) ?? null;
+            error = res.error
+              ? { message: res.error.message, code: (res.error as { code?: string }).code }
+              : null;
+            count = typeof res.count === "number" ? res.count : null;
+
+            if (!error) {
+              const hasResults = headOnly
+                ? (count ?? 0) > 0
+                : ((data as unknown[] | null)?.length ?? 0) > 0;
+              if (hasResults) break outer;
+              if (status && PIPELINE_TEXT_ONLY.has(status)) break outer;
+              continue;
+            }
+            if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
           }
-          if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
         }
       }
 
@@ -253,7 +348,7 @@ export async function GET(req: Request) {
           return { ...r, status: s };
         });
 
-        const shouldFilterConversion = !headOnly && needsConversionFilter;
+        const shouldFilterConversion = !headOnly && needsConversionFilter && !usedServerPage;
 
         if (shouldFilterConversion && normalized.length > 0) {
           const candidateIds = normalized
@@ -299,10 +394,9 @@ export async function GET(req: Request) {
           }
         }
 
-        const filteredTotal = normalized.length;
         const paged = normalized;
-        const total = shouldFilterConversion ? (count ?? filteredTotal) : (count ?? paged.length);
-        const hasMore = !headOnly && queryOffset + (data?.length ?? 0) < (count ?? 0);
+        let total = count ?? paged.length;
+        let hasMore = !headOnly && queryOffset + paged.length < total;
 
         if (error) {
           const errMsg = error.message || "Supabase query failed";
@@ -436,26 +530,136 @@ export async function GET(req: Request) {
             const workerIds = workersOut
               .map((row) => (typeof row.id === "string" ? row.id : ""))
               .filter(Boolean);
+            let workerIdsForApps = workerIds;
+            try {
+              workerIdsForApps = await findIdentitySiblingWorkerIds(
+                supabase,
+                tenantIdForApps,
+                workersOut.map((row) => ({
+                  id: typeof row.id === "string" ? row.id : null,
+                  email: typeof row.email === "string" ? row.email : null,
+                  phone: typeof row.phone === "string" ? row.phone : null,
+                  first_name: typeof row.first_name === "string" ? row.first_name : null,
+                  last_name: typeof row.last_name === "string" ? row.last_name : null,
+                }))
+              );
+            } catch (siblingErr) {
+              console.warn("[api/workers] identity sibling expansion failed", siblingErr);
+            }
             const [summaries, appliedJobCounts, matchSummaries, jobTitlesByWorker, searchTextByWorker] =
               await Promise.all([
               getApplicationStatusSummariesForWorkers(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
-              getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIds),
+              getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIdsForApps),
               getWorkerJobMatchSummaries(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
               getApplicationJobTitlesByWorker(supabase, {
                 tenantId: tenantIdForApps,
-                workerIds,
+                workerIds: workerIdsForApps,
               }),
               getApplicationSearchTextByWorker(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds,
               }),
             ]);
+
+            // Roll up applied-job titles/counts across identity siblings (including off-page duplicates).
+            const titlesByPhoneName = new Map<string, Set<string>>();
+            const countsByPhoneName = new Map<string, number>();
+            const titlesByEmail = new Map<string, Set<string>>();
+            const countsByEmail = new Map<string, number>();
+            if (workerIdsForApps.length > 0) {
+              try {
+                const { data: siblingRows, error: siblingFetchErr } = await queryInChunks(
+                  workerIdsForApps,
+                  async (chunk) => {
+                    let query = supabase
+                      .from("worker")
+                      .select("id, email, phone, first_name, last_name")
+                      .in("id", chunk);
+                    if (tenantIdForApps) query = query.eq("tenant_id", tenantIdForApps);
+                    const result = await query;
+                    return {
+                      data: (result.data ?? []) as Array<{
+                        id?: string;
+                        email?: string | null;
+                        phone?: string | null;
+                        first_name?: string | null;
+                        last_name?: string | null;
+                      }>,
+                      error: result.error,
+                    };
+                  }
+                );
+                if (siblingFetchErr) throw siblingFetchErr;
+                for (const row of siblingRows) {
+                  const id = String(row.id ?? "").trim();
+                  if (!id) continue;
+                  const phoneKey = candidatePhoneNameKey(row);
+                  const emailNorm = normalizeTenantEmail(String(row.email ?? ""));
+                  const addTitles = (target: Map<string, Set<string>>, key: string) => {
+                    const titles = target.get(key) ?? new Set<string>();
+                    for (const title of jobTitlesByWorker.get(id) ?? []) {
+                      if (title.trim()) titles.add(title.trim());
+                    }
+                    target.set(key, titles);
+                  };
+                  const addCount = (target: Map<string, number>, key: string) => {
+                    target.set(key, (target.get(key) ?? 0) + (appliedJobCounts.get(id) ?? 0));
+                  };
+                  if (phoneKey) {
+                    addTitles(titlesByPhoneName, phoneKey);
+                    addCount(countsByPhoneName, phoneKey);
+                  }
+                  if (emailNorm) {
+                    addTitles(titlesByEmail, emailNorm);
+                    addCount(countsByEmail, emailNorm);
+                  }
+                }
+              } catch (rollupErr) {
+                console.warn("[api/workers] identity job-title rollup failed", rollupErr);
+              }
+            }
+            const workersMissingAssignee = workersOut
+              .map((row) => {
+                const id = typeof row.id === "string" ? row.id.trim() : "";
+                const assigneeId =
+                  typeof row.assigned_recruiter_user_id === "string"
+                    ? row.assigned_recruiter_user_id.trim()
+                    : "";
+                return !assigneeId && id ? id : "";
+              })
+              .filter(Boolean);
+            const applicationAssigneeFallback =
+              tenantIdForApps && workersMissingAssignee.length > 0
+                ? await getApplicationAssigneeFallbackByWorker(
+                    supabase,
+                    tenantIdForApps,
+                    workersMissingAssignee
+                  )
+                : new Map<string, string>();
+            const assigneeIds = [
+              ...new Set(
+                workersOut
+                  .map((row) => {
+                    const id = typeof row.id === "string" ? row.id.trim() : "";
+                    const direct =
+                      typeof row.assigned_recruiter_user_id === "string"
+                        ? row.assigned_recruiter_user_id.trim()
+                        : "";
+                    return direct || (id ? applicationAssigneeFallback.get(id) ?? "" : "");
+                  })
+                  .filter(Boolean)
+              ),
+            ];
+            const assigneesById =
+              tenantIdForApps && assigneeIds.length > 0
+                ? await loadStaffUsersByIds(supabase, tenantIdForApps, assigneeIds)
+                : new Map();
             const matchApplicationIds = [
               ...new Set(
                 [...matchSummaries.values()]
@@ -481,14 +685,55 @@ export async function GET(req: Request) {
             workersOut = workersOut.map((row) => {
               const id = typeof row.id === "string" ? row.id : "";
               const summary = id ? summaries.get(id) : undefined;
-              const appliedJobCount = id ? appliedJobCounts.get(id) ?? 1 : 1;
+              const identityFields = {
+                id,
+                email: typeof row.email === "string" ? row.email : null,
+                phone: typeof row.phone === "string" ? row.phone : null,
+                first_name: typeof row.first_name === "string" ? row.first_name : null,
+                last_name: typeof row.last_name === "string" ? row.last_name : null,
+              };
+              const phoneKey = candidatePhoneNameKey(identityFields);
+              const emailNorm = normalizeTenantEmail(String(row.email ?? ""));
+              const rolledTitleSet =
+                (phoneKey ? titlesByPhoneName.get(phoneKey) : undefined) ??
+                (emailNorm ? titlesByEmail.get(emailNorm) : undefined);
+              const rolledCount =
+                (phoneKey ? countsByPhoneName.get(phoneKey) : undefined) ??
+                (emailNorm ? countsByEmail.get(emailNorm) : undefined);
+              const appliedJobCount =
+                rolledCount && rolledCount > 0
+                  ? rolledCount
+                  : id
+                    ? appliedJobCounts.get(id) ?? 1
+                    : 1;
               const match = id ? matchSummaries.get(id) : undefined;
-              const jobTitles = id ? jobTitlesByWorker.get(id) : undefined;
+              const jobTitles =
+                rolledTitleSet && rolledTitleSet.size > 0
+                  ? [...rolledTitleSet]
+                  : id
+                    ? jobTitlesByWorker.get(id)
+                    : undefined;
               const applicationJobTitlesText = joinApplicationJobTitles(jobTitles);
               const applicationSearchText = id ? searchTextByWorker.get(id) : undefined;
+              const directAssigneeId =
+                typeof row.assigned_recruiter_user_id === "string"
+                  ? row.assigned_recruiter_user_id.trim()
+                  : "";
+              const assigneeId =
+                directAssigneeId || (id ? applicationAssigneeFallback.get(id) ?? "" : "");
+              const assignee = assigneeId ? assigneesById.get(assigneeId) : undefined;
               return {
                 ...row,
+                ...(assigneeId && !directAssigneeId
+                  ? { assigned_recruiter_user_id: assigneeId }
+                  : {}),
                 applied_job_count: appliedJobCount,
+                ...(assignee
+                  ? {
+                      assigned_recruiter_name: assignee.name,
+                      assigned_recruiter_photo_url: assignee.profilePhotoUrl,
+                    }
+                  : {}),
                 ...(summary
                   ? {
                       application_id: summary.applicationId,
@@ -497,6 +742,7 @@ export async function GET(req: Request) {
                       application_status_key: summary.systemKey,
                       application_status_ambiguous: summary.ambiguous,
                       application_job_title: summary.jobTitle,
+                      application_client_name: summary.clientName,
                     }
                   : {}),
                 ...(applicationJobTitlesText
@@ -516,6 +762,21 @@ export async function GET(req: Request) {
                   : {}),
               };
             });
+
+            const beforeCollapse = workersOut.length;
+            workersOut = collapseWorkersToCandidateProfiles(workersOut, {
+              jobTitlesByWorker,
+              appliedJobCounts,
+            });
+            // ID page already pages unique candidate profiles; keep collapse as a
+            // safety net and align total if any on-page duplicates remain.
+            const collapsedAway = beforeCollapse - workersOut.length;
+            if (collapsedAway > 0) {
+              total = Math.max(workersOut.length, total - collapsedAway);
+              hasMore = !headOnly && queryOffset + workersOut.length < total;
+            } else {
+              hasMore = !headOnly && queryOffset + workersOut.length < total;
+            }
           } catch (attachErr) {
             console.warn("[api/workers] failed to attach application statuses", attachErr);
           }
@@ -527,6 +788,8 @@ export async function GET(req: Request) {
           offset,
           hasMore,
           workers: workersOut,
+          timingMs: Date.now() - requestStarted,
+          serverPaged: usedServerPage,
         });
       }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CandidatesListShell } from "./CandidatesListShell";
 import { ListTableCheckbox } from "./ListTableCheckbox";
@@ -24,17 +24,20 @@ import {
   useCandidateProgressStatus,
 } from "../candidates/CandidateProgressStatusCell";
 import { CandidateGridCard } from "../candidates/CandidateGridCard";
+import { CandidatesCardBulkSelectHeader } from "../candidates/CandidatesCardBulkSelectHeader";
 import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
-import { buildCandidateKpis } from "../candidates/candidate-kpis";
+import { CandidatesListSkeleton } from "../candidates/CandidatesListSkeleton";
+import { useCandidateKpiMetrics } from "../candidates/useCandidateKpiMetrics";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
-import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
-import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
-import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
-  fetchAllWorkersFromApi,
-  resolveCandidatesListTotal,
+  fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
+import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
+import {
+  buildAssigneeFilterOptions,
+  candidateMatchesAssigneeFilter,
+} from "@/lib/candidates/assignee-filter";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "./CandidateBulkSelectionBar";
@@ -45,10 +48,15 @@ import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import {
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+} from "@/lib/admin/bulk-match-analysis";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
   formatCityStateFromParts,
-  locationsMatchCityState,
   uniqueCityStateOptions,
 } from "@/lib/location/city-state";
 import toast from "react-hot-toast";
@@ -82,9 +90,12 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
   assigned_recruiter_user_id?: string | null;
+  assigned_recruiter_name?: string | null;
+  assigned_recruiter_photo_url?: string | null;
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
+  application_client_name?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -131,7 +142,8 @@ function formatDateShort(iso: string | null) {
   });
 }
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = DEFAULT_CANDIDATES_PAGE_SIZE;
+const SEARCH_DEBOUNCE_MS = 300;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 
 function pickFirstNonEmpty(values: Array<string | null | undefined>): string {
@@ -206,6 +218,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
@@ -213,11 +226,24 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [statusFilter, setStatusFilter] = useState("");
   const [progressStatusFilter, setProgressStatusFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [view, setView] = useState<"card" | "list">("list");
+  const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const pipelineStatus = useMemo(() => {
+    try {
+      return new URL(fetchUrl, "http://localhost").searchParams.get("status")?.trim() || "";
+    } catch {
+      return "";
+    }
+  }, [fetchUrl]);
+  const { kpiCards, refresh: refreshKpis } = useCandidateKpiMetrics({
+    status: pipelineStatus || undefined,
+  });
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
@@ -229,20 +255,41 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   useEffect(() => {
     setListColumnOrder(loadColumnOrder());
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const loadCandidates = useCallback(async () => {
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     setLoading(true);
     try {
-      const baseUrl = fetchUrl.includes("includePhotoUrls=")
-        ? fetchUrl
-        : `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}includePhotoUrls=1`;
-
-      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(baseUrl);
+      const { workers: rows, total } = await fetchWorkersPageFromApi<WorkerProfile>(
+        fetchUrl,
+        {
+          page,
+          pageSize,
+          q: debouncedQuery || undefined,
+          jobRole: jobRoleFilter || undefined,
+          location: locationFilter || undefined,
+          appliedFrom: appliedDateFrom || undefined,
+          appliedTo: appliedDateTo || undefined,
+          matchScore: matchScoreFilter || undefined,
+          progressStatusId: progressStatusFilter || undefined,
+          assignee: assigneeFilter || undefined,
+          includePhotoUrls: true,
+        },
+        { signal: controller.signal }
+      );
       setTotalFromApi(total);
 
       const mapped: CandidateRow[] = rows.map((item) => {
@@ -256,6 +303,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         applicationJobTitle: item.application_job_title ?? null,
         applicationJobTitlesText: item.application_job_titles_text ?? null,
         applicationSearchText: item.application_search_text ?? null,
+        applicationClientName: item.application_client_name ?? null,
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -273,23 +321,39 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
         assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+        assignedRecruiterName: item.assigned_recruiter_name ?? null,
+        assignedRecruiterPhotoUrl: item.assigned_recruiter_photo_url ?? null,
         ...mapWorkerMatchFields(item),
         });
       });
 
       setCandidates(mapped);
-      setPage(1);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [fetchUrl, statusLabel]);
+  }, [
+    fetchUrl,
+    statusLabel,
+    page,
+    pageSize,
+    debouncedQuery,
+    jobRoleFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+    matchScoreFilter,
+    progressStatusFilter,
+    assigneeFilter,
+  ]);
 
   useEffect(() => {
     void loadCandidates();
+    return () => loadAbortRef.current?.abort();
   }, [loadCandidates]);
 
   const jobRoleOptions = useMemo(() => {
@@ -323,95 +387,41 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     [progressStatusOptions]
   );
 
-  const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
-
-  const filtered = useMemo(() => {
-    let out = candidates;
-    const q = query.trim();
-    if (q) {
-      out = out.filter((c) => matchesCandidateListSearch(c, q));
-    }
-    if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
-    if (statusFilter) out = out.filter((c) => c.status === statusFilter);
-    if (progressStatusFilter) {
-      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
-    }
-    if (matchScoreFilter) {
-      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
-    }
-    if (locationFilter) {
-      out = out.filter((c) =>
-        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
-      );
-    }
-    if (appliedDateFrom || appliedDateTo) {
-      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
-    }
-    return out;
-  }, [
-    candidates,
-    query,
-    jobRoleFilter,
-    statusFilter,
-    progressStatusFilter,
-    matchScoreFilter,
-    locationFilter,
-    appliedDateFrom,
-    appliedDateTo,
-  ]);
-
-  const hasActiveListFilters = useMemo(
+  const assigneeOptions = useMemo(
     () =>
-      Boolean(
-        query.trim() ||
-          jobRoleFilter ||
-          statusFilter ||
-          progressStatusFilter ||
-          matchScoreFilter ||
-          locationFilter ||
-          appliedDateFrom ||
-          appliedDateTo
+      buildAssigneeFilterOptions(
+        candidates.map((row) => ({
+          id: row.assignedRecruiterUserId,
+          name: row.assignedRecruiterName,
+        }))
       ),
-    [
-      query,
-      jobRoleFilter,
-      statusFilter,
-      progressStatusFilter,
-      matchScoreFilter,
-      locationFilter,
-      appliedDateFrom,
-      appliedDateTo,
-    ]
+    [candidates]
   );
 
-  const listDisplayTotal = useMemo(
-    () =>
-      resolveCandidatesListTotal({
-        totalFromApi,
-        visibleCount: filtered.length,
-        hasClientFilters: hasActiveListFilters,
-      }),
-    [totalFromApi, filtered.length, hasActiveListFilters]
-  );
+  const listDisplayTotal = totalFromApi ?? candidates.length;
 
   useEffect(() => {
     setPage(1);
   }, [
-    query,
+    debouncedQuery,
     jobRoleFilter,
     statusFilter,
     progressStatusFilter,
     matchScoreFilter,
     locationFilter,
+    assigneeFilter,
     appliedDateFrom,
     appliedDateTo,
     pageSize,
   ]);
 
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
+  const paginated = useMemo(
+    () =>
+      candidates.filter((row) =>
+        candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter)
+      ),
+    [candidates, assigneeFilter]
+  );
 
   const pageSelectableRows = useMemo(
     () =>
@@ -445,6 +455,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusFilter,
         matchScoreFilter,
         locationFilter,
+        assigneeFilter,
         appliedDateFrom,
         appliedDateTo,
       ].join("|"),
@@ -457,6 +468,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       progressStatusFilter,
       matchScoreFilter,
       locationFilter,
+      assigneeFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -473,10 +485,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   );
 
   const exportCandidates = useMemo(() => {
-    if (selection.selectedCount === 0) return filtered;
-    const selected = filtered.filter((row) => selection.selectedIds.has(row.id));
-    return selected.length > 0 ? selected : filtered;
-  }, [filtered, selection.selectedCount, selection.selectedIds]);
+    if (selection.selectedCount === 0) return candidates;
+    const selected = candidates.filter((row) => selection.selectedIds.has(row.id));
+    return selected.length > 0 ? selected : candidates;
+  }, [candidates, selection.selectedCount, selection.selectedIds]);
 
   const handleExportCandidatesCsv = useCallback(() => {
     if (exportCandidates.length === 0) {
@@ -577,7 +589,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     setClaimConfirmOpen(true);
   }
 
-  async function runMatchAnalyze(applicationId: string) {
+  async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
+    if (bulkAnalyzingIds.size > 0) return;
     const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
     setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
     try {
@@ -585,7 +598,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -608,7 +621,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
       } else {
-        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`);
+        toast.success(
+          `${candidate?.name || "Candidate"}: ${mode === "deep" ? "deeper match analysis" : "match analysis"} complete`
+        );
       }
     } catch (analyzeError) {
       toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
@@ -618,6 +633,80 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         next.delete(applicationId);
         return next;
       });
+    }
+  }
+
+  const { analyzeIds: pageAnalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        candidates.map((row) => ({
+          applicationId: row.matchApplicationId,
+          status: row.aiMatchStatus,
+        }))
+      ),
+    [candidates]
+  );
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
+
+  async function runBulkMatchAnalyze(ids: string[]) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error("All candidates on this page are already analyzed");
+      return;
+    }
+    if (bulkAnalyzeBusy || matchAnalyzingApplicationIds.size > 0) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setCandidates((current) =>
+      current.map((row) =>
+        row.matchApplicationId && uniqueIds.includes(row.matchApplicationId)
+          ? { ...row, aiMatchStatus: "ANALYZING" }
+          : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setCandidates((current) =>
+          current.map((row) => {
+            const applicationId = row.matchApplicationId?.trim() ?? "";
+            const item = applicationId ? byId.get(applicationId) : undefined;
+            if (!item?.result) return row;
+            const result = item.result;
+            return {
+              ...row,
+              aiMatchStatus: result.status ?? row.aiMatchStatus,
+              aiMatchScore: result.score ?? row.aiMatchScore,
+              aiMatchCategory: result.category ?? row.aiMatchCategory,
+              aiMatchDisplayCategory:
+                result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
+            };
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId &&
+          uniqueIds.includes(row.matchApplicationId) &&
+          row.aiMatchStatus === "ANALYZING"
+            ? { ...row, aiMatchStatus: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
     }
   }
 
@@ -661,7 +750,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       <CandidatesListShell
         query={query}
         onQueryChange={setQuery}
-        onRefresh={() => void loadCandidates()}
+        onRefresh={() => {
+          void loadCandidates();
+          refreshKpis();
+        }}
         jobRoleFilter={jobRoleFilter}
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
@@ -678,15 +770,28 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         progressStatusOptions={progressStatusFilterOptions}
         matchScoreFilter={matchScoreFilter}
         onMatchScoreFilterChange={setMatchScoreFilter}
+        assigneeFilter={assigneeFilter}
+        onAssigneeFilterChange={setAssigneeFilter}
+        assigneeOptions={assigneeOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
         hideAddCandidate
         hideClaimCandidates
         view={view}
-        onViewChange={setView}
+        onViewChange={(nextView) => {
+          setView(nextView);
+          if (nextView !== "card") {
+            setCardBulkSelectMode(false);
+            selection.clearSelection();
+          }
+        }}
         onEditColumns={() => setEditColumnsOpen(true)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
+        onAnalyzeAll={() => void runBulkMatchAnalyze(pageAnalyzeIds)}
+        analyzeAllLabel="Analyze all"
+        analyzeBusy={bulkAnalyzeBusy}
+        analyzeDisabled={pageAnalyzeIds.length === 0 || matchAnalyzingApplicationIds.size > 0}
         totalCount={listDisplayTotal}
         loading={loading}
         totalLabel={`${statusLabel} applicants`}
@@ -700,9 +805,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           const formatDate = formatDateShort;
 
           if (loading) {
-            return null;
+            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} />;
           }
-          if (filtered.length === 0) {
+          if (candidates.length === 0) {
             return <div className="py-24 text-center text-gray-600">{emptyMessage}</div>;
           }
 
@@ -730,9 +835,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                 />
                 <div className={CANDIDATE_LIST_TABLE_SCROLL_CLASS}>
                   <table className={CANDIDATE_LIST_TABLE_CLASS}>
-                    <thead className="bg-[#F8FAFC] text-black">
+                    <thead className="bg-[#F3F4F6] text-black">
                       <tr className="border-b border-[#E5E7EB]">
-                        <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
+                        <th className="w-12 border-r border-[#E5E7EB] bg-[#F3F4F6] px-3 py-3 text-center">
                           <ListTableCheckbox
                             size="md"
                             checked={selection.headerChecked}
@@ -745,7 +850,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
+                            className={`border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${candidateListColumnAlignmentClassName(colId)} ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
                           </th>
@@ -780,7 +885,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                             >
                               {renderListCell(colId, c, formatDate, {
                                 matchAnalyzingApplicationIds,
-                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                onAnalyzeMatch: (applicationId, mode) =>
+                                  void runMatchAnalyze(applicationId, mode),
                                 progressStatusOptions,
                                 progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
                                 progressStatusBusyWorkerId: statusBusyWorkerId,
@@ -803,15 +909,63 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
-              {paginated.map((c) => (
-                <CandidateGridCard
-                  key={c.id}
-                  candidate={c}
-                  formatDateTime={formatDateTime}
-                  statusBadgeRounded="sm"
+            <div className="w-full">
+              {cardBulkSelectMode ? (
+                <CandidateBulkSelectionBar
+                  selectedCount={selection.selectedCount}
+                  eligibleCount={selection.selectedEligibleCount}
+                  scopeLabel={selection.selectionScopeLabel}
+                  claimBusy={claimBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
+                  onClear={selection.clearSelection}
                 />
-              ))}
+              ) : null}
+              <CandidatesCardBulkSelectHeader
+                bulkSelectEnabled={cardBulkSelectMode}
+                onBulkSelectEnabledChange={(enabled) => {
+                  setCardBulkSelectMode(enabled);
+                  if (!enabled) selection.clearSelection();
+                }}
+                selectAllChecked={selection.headerChecked}
+                selectAllIndeterminate={selection.headerIndeterminate}
+                selectAllDisabled={pageSelectableRows.every((row) => !row.eligible)}
+                onSelectAllChange={selection.toggleAllEligibleOnPage}
+              />
+              <div className="grid grid-cols-1 gap-4 px-3 pb-5 pt-3 sm:px-5 md:grid-cols-2 xl:grid-cols-3">
+                {paginated.map((c) => {
+                  const eligibility = eligibilityById.get(c.id) ?? {
+                    eligible: true,
+                    reason: null,
+                  };
+                  return (
+                    <CandidateGridCard
+                      key={c.id}
+                      candidate={c}
+                      formatDateTime={formatDateTime}
+                      statusBadgeRounded="sm"
+                      selectionMode={cardBulkSelectMode}
+                      selected={selection.selectedIds.has(c.id)}
+                      selectionDisabled={!eligibility.eligible}
+                      selectionTitle={eligibility.reason ?? undefined}
+                      onToggleSelect={
+                        cardBulkSelectMode
+                          ? () => selection.toggleOne(c.id, eligibility.eligible)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             </div>
           );
         })()}

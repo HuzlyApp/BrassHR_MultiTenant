@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
@@ -9,6 +9,10 @@ import { ListPaginationControls, ListPaginationShowLabel } from "./ListPaginatio
 import { JobsViewToggle } from "@/app/admin_recruiter/jobs/JobsViewToggle";
 import { CandidatesKpiRow } from "@/app/admin_recruiter/candidates/CandidatesKpiRow";
 import type { CandidateKpiCard } from "@/app/admin_recruiter/candidates/candidate-kpis";
+import {
+  buildCandidateKpiCardsFromMetrics,
+  emptyCandidateKpiMetricsPayload,
+} from "@/lib/workers/candidate-kpi-metrics";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
 import {
   countActiveCandidatesFilters,
@@ -19,7 +23,12 @@ import {
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandidatesToolbar";
+import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { appRoleToConsoleRole } from "@/lib/admin/staff-directory-types";
+import { buildAssigneeFilterOptions } from "@/lib/candidates/assignee-filter";
+import { CANDIDATES_PAGE_SIZE_OPTIONS } from "@/lib/workers/candidate-list-params";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -60,8 +69,14 @@ export type CandidatesListShellProps = {
   stageOptions?: string[];
   matchScoreFilter?: string;
   onMatchScoreFilterChange?: (value: string) => void;
+  clientNameFilter?: string;
+  onClientNameFilterChange?: (value: string) => void;
+  assigneeFilter?: string;
+  onAssigneeFilterChange?: (value: string) => void;
   jobRoleOptions: string[];
   locationOptions: string[];
+  clientNameOptions?: string[];
+  assigneeOptions?: { value: string; label: string }[];
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
@@ -99,6 +114,7 @@ export type CandidatesListShellProps = {
   /** Figma All Candidates layout: split search, icon filters, Match Existing. */
   layoutVariant?: "default" | "all-candidates";
   skillsFilter?: string;
+  onSkillsFilterChange?: (value: string) => void;
   onApplySearch?: (next: { query: string; skillsFilter: string }) => void;
   onResetSearch?: () => void;
   onMatchExistingCandidate?: () => void;
@@ -106,6 +122,10 @@ export type CandidatesListShellProps = {
   onHighlightMultiJobChange?: (value: boolean) => void;
   multiJobApplicantCount?: number;
   onViewAllMultiJobApplicants?: () => void;
+  onAnalyzeAll?: () => void;
+  analyzeAllLabel?: string;
+  analyzeBusy?: boolean;
+  analyzeDisabled?: boolean;
   children: React.ReactNode;
 };
 
@@ -258,24 +278,11 @@ function HighlightMultiJobToggle({
       <span className="text-[10px] font-normal leading-[15px] text-[#374151] sm:text-xs">
         Highlight Multi-Job Applicants
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={onToggle}
-        className="relative h-6 w-10 shrink-0"
-      >
-        <span
-          className={`absolute left-1/2 top-1/2 h-5 w-[34px] -translate-x-1/2 -translate-y-1/2 rounded-[45px] transition-colors ${
-            on ? "bg-[color:var(--brand-secondary,#012352)]" : "bg-[#CBD5E1]"
-          }`}
-        />
-        <span
-          className={`absolute top-1 size-4 rounded-[20px] bg-white shadow-sm transition-[left] ${
-            on ? "left-5" : "left-1"
-          }`}
-        />
-      </button>
+      <JobPublishToggle
+        checked={on}
+        onChange={onToggle}
+        ariaLabel="Highlight Multi-Job Applicants"
+      />
     </div>
   );
 }
@@ -307,8 +314,14 @@ export function CandidatesListShell({
   stageOptions = [],
   matchScoreFilter: matchScoreFilterProp,
   onMatchScoreFilterChange,
+  clientNameFilter: clientNameFilterProp,
+  onClientNameFilterChange,
+  assigneeFilter: assigneeFilterProp,
+  onAssigneeFilterChange,
   jobRoleOptions,
   locationOptions,
+  clientNameOptions = [],
+  assigneeOptions: assigneeOptionsProp = [],
   view,
   onViewChange,
   onEditColumns,
@@ -338,6 +351,7 @@ export function CandidatesListShell({
   toolbarAddCandidateButton,
   layoutVariant = "default",
   skillsFilter = "",
+  onSkillsFilterChange,
   onApplySearch,
   onResetSearch,
   onMatchExistingCandidate,
@@ -345,9 +359,19 @@ export function CandidatesListShell({
   onHighlightMultiJobChange,
   multiJobApplicantCount = 0,
   onViewAllMultiJobApplicants,
+  onAnalyzeAll,
+  analyzeAllLabel = "Analyze all",
+  analyzeBusy = false,
+  analyzeDisabled = false,
   children,
 }: CandidatesListShellProps) {
   const isAllCandidatesLayout = layoutVariant === "all-candidates";
+  const resolvedKpiCards =
+    kpiCards && kpiCards.length > 0
+      ? kpiCards
+      : isAllCandidatesLayout
+        ? buildCandidateKpiCardsFromMetrics(emptyCandidateKpiMetricsPayload())
+        : null;
   const [scoreSort, setScoreSort] = useState("");
   const [internalJobFilter, setInternalJobFilter] = useState("");
   const jobFilter = jobFilterProp ?? internalJobFilter;
@@ -358,10 +382,58 @@ export function CandidatesListShell({
   const [internalMatchScoreFilter, setInternalMatchScoreFilter] = useState("");
   const matchScoreFilter = matchScoreFilterProp ?? internalMatchScoreFilter;
   const setMatchScoreFilter = onMatchScoreFilterChange ?? setInternalMatchScoreFilter;
+  const [internalClientNameFilter, setInternalClientNameFilter] = useState("");
+  const clientNameFilter = clientNameFilterProp ?? internalClientNameFilter;
+  const setClientNameFilter = onClientNameFilterChange ?? setInternalClientNameFilter;
+  const [internalAssigneeFilter, setInternalAssigneeFilter] = useState("");
+  const assigneeFilter = assigneeFilterProp ?? internalAssigneeFilter;
+  const setAssigneeFilter = onAssigneeFilterChange ?? setInternalAssigneeFilter;
+  const [teamAssigneeOptions, setTeamAssigneeOptions] = useState<{ value: string; label: string }[]>(
+    []
+  );
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
   const setHighlightMultiJob = onHighlightMultiJobChange ?? setHighlightMultiJobInternal;
+
+  useEffect(() => {
+    if (!filtersModalOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/team-members", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          members?: Array<{ id?: string; name?: string; role?: string }>;
+        };
+        if (!response.ok || cancelled) return;
+        const next = buildAssigneeFilterOptions(
+          (payload.members ?? [])
+            .filter((member) => appRoleToConsoleRole(member.role) != null)
+            .map((member) => ({ id: member.id, name: member.name }))
+        );
+        if (!cancelled) setTeamAssigneeOptions(next);
+      } catch {
+        if (!cancelled) setTeamAssigneeOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filtersModalOpen]);
+
+  const assigneeOptions = useMemo(
+    () =>
+      buildAssigneeFilterOptions(
+        [...assigneeOptionsProp, ...teamAssigneeOptions].map((row) => ({
+          id: row.value,
+          name: row.label,
+        }))
+      ),
+    [assigneeOptionsProp, teamAssigneeOptions]
+  );
 
   const filterValues = useMemo<CandidatesFilterValues>(
     () => ({
@@ -373,6 +445,9 @@ export function CandidatesListShell({
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
+      assigneeFilter,
+      skills: parseSkillsFilterParam(skillsFilter),
       appliedDateFrom,
       appliedDateTo,
     }),
@@ -385,6 +460,9 @@ export function CandidatesListShell({
       stageFilter,
       matchScoreFilter,
       locationFilter,
+      clientNameFilter,
+      assigneeFilter,
+      skillsFilter,
       appliedDateFrom,
       appliedDateTo,
     ]
@@ -398,10 +476,22 @@ export function CandidatesListShell({
         stageFilter,
         matchScoreFilter,
         locationFilter,
+        clientNameFilter,
+        assigneeFilter,
+        skillsFilter.trim(),
         appliedDateFrom,
         appliedDateTo,
       ].filter(Boolean).length
     : countActiveCandidatesFilters(filterValues);
+
+  function applySkillsFilter(skills: string[]) {
+    const next = skills.join(", ");
+    if (onSkillsFilterChange) {
+      onSkillsFilterChange(next);
+      return;
+    }
+    onApplySearch?.({ query, skillsFilter: next });
+  }
 
   function applyFilterValues(next: CandidatesFilterValues) {
     setScoreSort(next.scoreSort);
@@ -412,6 +502,9 @@ export function CandidatesListShell({
     setStageFilter(next.stageFilter);
     setMatchScoreFilter(next.matchScoreFilter);
     onLocationFilterChange(next.locationFilter);
+    setClientNameFilter(next.clientNameFilter);
+    setAssigneeFilter(next.assigneeFilter);
+    applySkillsFilter(next.skills);
     onAppliedDateFromChange(next.appliedDateFrom);
     onAppliedDateToChange(next.appliedDateTo);
   }
@@ -424,6 +517,9 @@ export function CandidatesListShell({
       setStageFilter("");
       setMatchScoreFilter("");
       onLocationFilterChange("");
+      setClientNameFilter("");
+      setAssigneeFilter("");
+      applySkillsFilter([]);
       onAppliedDateFromChange("");
       onAppliedDateToChange("");
       return;
@@ -483,9 +579,9 @@ export function CandidatesListShell({
         }
       />
 
-      {kpiCards && kpiCards.length > 0 ? (
+      {resolvedKpiCards ? (
         <div className="mt-4 sm:mt-5">
-          <CandidatesKpiRow cards={kpiCards} />
+          <CandidatesKpiRow cards={resolvedKpiCards} />
         </div>
       ) : null}
 
@@ -494,6 +590,7 @@ export function CandidatesListShell({
           <AllCandidatesToolbar
             query={query}
             skillsFilter={skillsFilter}
+            searching={loading}
             onApplySearch={(next) => {
               if (onApplySearch) {
                 onApplySearch(next);
@@ -517,6 +614,10 @@ export function CandidatesListShell({
             onViewChange={onViewChange}
             highlightMultiJob={highlightMultiJob}
             onHighlightMultiJobChange={setHighlightMultiJob}
+            onAnalyzeAll={onAnalyzeAll}
+            analyzeAllLabel={analyzeAllLabel}
+            analyzeBusy={analyzeBusy}
+            analyzeDisabled={analyzeDisabled}
           />
         ) : (
           <>
@@ -594,6 +695,17 @@ export function CandidatesListShell({
                     <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
                   </button>
                 ) : null}
+                {onAnalyzeAll ? (
+                  <button
+                    type="button"
+                    onClick={onAnalyzeAll}
+                    disabled={analyzeBusy || analyzeDisabled}
+                    title="Analyze all unanalyzed candidates on this page"
+                    className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} shrink-0 disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+                  </button>
+                ) : null}
                 {toolbarAddCandidateButton ? (
                   <div className="shrink-0 [&_button]:w-full min-[450px]:[&_button]:w-auto">{toolbarAddCandidateButton}</div>
                 ) : null}
@@ -601,6 +713,17 @@ export function CandidatesListShell({
               </div>
 
               <div className="hidden shrink-0 items-center gap-2 lg:flex">
+                {onAnalyzeAll ? (
+                  <button
+                    type="button"
+                    onClick={onAnalyzeAll}
+                    disabled={analyzeBusy || analyzeDisabled}
+                    title="Analyze all unanalyzed candidates on this page"
+                    className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+                  </button>
+                ) : null}
                 {toolbarAddCandidateButton ? <div className="shrink-0">{toolbarAddCandidateButton}</div> : null}
                 <CandidatesViewToggle view={view} onViewChange={onViewChange} />
               </div>
@@ -722,7 +845,7 @@ export function CandidatesListShell({
             <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-center xl:gap-3">
               <ListPaginationShowLabel
                 pageSize={pageSize}
-                options={[10, 20, 30]}
+                options={[...CANDIDATES_PAGE_SIZE_OPTIONS]}
                 onPageSizeChange={onPageSizeChange}
               />
               <ListPaginationControls
@@ -754,6 +877,8 @@ export function CandidatesListShell({
           statusOptions,
           progressStatusOptions,
           locationOptions,
+          clientNameOptions,
+          assigneeOptions,
           jobOptions,
           stageOptions,
         }}

@@ -53,6 +53,19 @@ export type QualificationDisplayStatus =
   | "Blocking"
   | "Unknown";
 
+export type QualificationRequirementLatestNote = {
+  id: string;
+  noteBody: string;
+  candidateQuestion: string | null;
+  dueDate: string | null;
+  verificationStatus: string;
+  candidateResponse: string | null;
+  createdByName: string;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type QualificationRequirement = {
   id: string;
   requirement_text: string;
@@ -66,6 +79,10 @@ export type QualificationRequirement = {
   confidence: number;
   recruiter_verified: boolean;
   recruiter_note: string | null;
+  verification_note_count?: number;
+  has_pending_verification_note?: boolean;
+  has_verification_decision?: boolean;
+  latest_verification_note?: QualificationRequirementLatestNote | null;
 };
 
 export function isRecruiterDecision(value: string | null | undefined): value is RecruiterDecision {
@@ -78,6 +95,90 @@ export function isVerifiedInfoCategory(value: string | null | undefined): value 
 
 export function aiScreeningQuestionKey(priority: number, question: string): string {
   return `${priority}:${question.trim().toLowerCase()}`;
+}
+
+export type AnalysisScreeningQuestion = {
+  priority: number;
+  question: string;
+  reason: string;
+  relatedRequirement: string;
+};
+
+export function normalizeAnalysisScreeningQuestions(raw: unknown): AnalysisScreeningQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item, index) => {
+      if (typeof item === "string") {
+        const question = item.trim();
+        if (!question) return null;
+        return { priority: index + 1, question, reason: "", relatedRequirement: "" };
+      }
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const question = String(record.question ?? "").trim();
+      if (!question) return null;
+      const priority = Number(record.priority);
+      return {
+        priority: Number.isFinite(priority) && priority >= 1 ? Math.trunc(priority) : index + 1,
+        question,
+        reason: String(record.reason ?? ""),
+        relatedRequirement: String(record.related_requirement ?? record.relatedRequirement ?? ""),
+      };
+    })
+    .filter((item): item is AnalysisScreeningQuestion => Boolean(item));
+}
+
+export function matchSavedAiScreeningAnswer<T extends { question_key: string; question_text?: string | null }>(
+  answersByKey: Map<string, T>,
+  key: string,
+  question: string
+): T | undefined {
+  const direct = answersByKey.get(key);
+  if (direct) return direct;
+  const needle = question.trim().toLowerCase();
+  if (!needle) return undefined;
+  for (const row of answersByKey.values()) {
+    if (String(row.question_text ?? "").trim().toLowerCase() === needle) return row;
+  }
+  return undefined;
+}
+
+export function resolveRecommendedScreeningAnswerUpsert(
+  item: { key?: string; question?: string; priority?: number; answer?: string },
+  analysisQuestions: AnalysisScreeningQuestion[]
+): {
+  key: string;
+  question: string;
+  reason: string | null;
+  related_requirement: string | null;
+  answer_text: string | null;
+} | null {
+  const trimmedKey = item.key?.trim() || "";
+  const typedQuestion = item.question?.trim() || "";
+  const byKey = analysisQuestions.find(
+    (question) => aiScreeningQuestionKey(question.priority, question.question) === trimmedKey
+  );
+  const byQuestion = analysisQuestions.find(
+    (question) => question.question.trim().toLowerCase() === typedQuestion.toLowerCase()
+  );
+  const related = byKey ?? byQuestion;
+  const question = typedQuestion || related?.question || "";
+  const answerText = String(item.answer ?? "").trim() || null;
+  if (!question) {
+    if (answerText) {
+      throw new Error("Could not resolve which screening question the note belongs to.");
+    }
+    return null;
+  }
+  return {
+    key: related
+      ? aiScreeningQuestionKey(related.priority, related.question)
+      : trimmedKey || aiScreeningQuestionKey(item.priority ?? 1, question),
+    question,
+    reason: related?.reason?.trim() || null,
+    related_requirement: related?.relatedRequirement?.trim() || null,
+    answer_text: answerText,
+  };
 }
 
 export function qualificationDisplayStatus(
@@ -264,9 +365,41 @@ export function filterQualificationRequirements(
 export function recruiterActionLabel(req: QualificationRequirement): string {
   if (req.recruiter_verified) return "None";
   const display = qualificationDisplayStatus(req);
-  if (display === "Needs Verification" || display === "Unknown") return "Ask candidate";
+  if (display === "Needs Verification" || display === "Unknown") {
+    if (req.has_pending_verification_note) return "Follow up";
+    if ((req.verification_note_count ?? 0) > 0) return "Review notes";
+    return "Ask candidate";
+  }
   if (display === "Not Met" || display === "Blocking") return "Verify or stop";
   return "None";
+}
+
+export function requirementNeedsVerificationNotes(
+  req: Pick<
+    QualificationRequirement,
+    "status" | "requirement_outcome" | "verification_required" | "recruiter_verified"
+  >,
+  blockingTexts: string[] = []
+): boolean {
+  const display = qualificationDisplayStatus(req, blockingTexts);
+  return display === "Needs Verification" || display === "Unknown";
+}
+
+/** Recruiter verified stays unchecked until a verification note is saved. */
+export function recruiterVerifiedNeedsNoteDecision(
+  req: Pick<QualificationRequirement, "recruiter_verified" | "has_verification_decision">
+): boolean {
+  return !req.recruiter_verified && !req.has_verification_decision;
+}
+
+/** Add Note must stay available whenever confirmation is still gated. */
+export function requirementShowsAddNote(
+  req: QualificationRequirement,
+  blockingTexts: string[] = []
+): boolean {
+  return (
+    requirementNeedsVerificationNotes(req, blockingTexts) || recruiterVerifiedNeedsNoteDecision(req)
+  );
 }
 
 export function formatRecruiterDecision(value: string | null | undefined): string {

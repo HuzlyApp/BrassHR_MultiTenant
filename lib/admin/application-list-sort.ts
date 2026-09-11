@@ -36,9 +36,9 @@ export type ApplicationListSortState = {
 
 const SORTABLE_COLUMN_SET = new Set<string>(APPLICATION_LIST_SORTABLE_COLUMNS);
 
-/** Default matches previous All candidates default (Match % high → low). */
+/** Default: most recently analyzed first (unanalyzed last). */
 export const EMPTY_APPLICATION_LIST_SORT: ApplicationListSortState = {
-  column: "matches",
+  column: "evaluation",
   direction: "desc",
 };
 
@@ -53,6 +53,7 @@ export type ApplicationListSortRow = {
   ai_match_status?: string | null;
   ai_match_score?: number | null;
   ai_match_category?: string | null;
+  ai_analyzed_at?: string | null;
   ai_requirement_counts?: {
     confirmed?: number | null;
     verify?: number | null;
@@ -80,6 +81,7 @@ export function applicationListHeaderAlign(
   if (
     columnId === "candidates" ||
     columnId === "contact" ||
+    columnId === "clientName" ||
     columnId === "location" ||
     columnId === "currentStage"
   ) {
@@ -94,6 +96,7 @@ export function defaultApplicationListSortDirection(
   return column === "matches" ||
     column === "dateApplied" ||
     column === "activity" ||
+    column === "evaluation" ||
     column === "conf" ||
     column === "verify" ||
     column === "notMet"
@@ -196,10 +199,8 @@ function progressStatusText(row: ApplicationListSortRow): string {
   );
 }
 
-function evaluationRank(row: ApplicationListSortRow): number {
-  if (row.ai_match_status === "ANALYZED") return 2;
-  if (row.ai_match_status) return 1;
-  return 0;
+function evaluationAnalyzedAt(row: ApplicationListSortRow): string {
+  return row.ai_analyzed_at?.trim() || "";
 }
 
 function requirementCount(
@@ -319,10 +320,9 @@ function compareColumn(
       return compareEmptyLast(!aWhen, !bWhen, compareDateValues(aWhen, bWhen), directionMultiplier);
     }
     case "evaluation": {
-      const aRank = evaluationRank(a);
-      const bRank = evaluationRank(b);
-      if (aRank !== bRank) return (aRank - bRank) * directionMultiplier;
-      return compareName(a, b);
+      const aWhen = evaluationAnalyzedAt(a);
+      const bWhen = evaluationAnalyzedAt(b);
+      return compareEmptyLast(!aWhen, !bWhen, compareDateValues(aWhen, bWhen), directionMultiplier);
     }
   }
 }

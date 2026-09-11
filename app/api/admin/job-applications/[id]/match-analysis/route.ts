@@ -9,16 +9,11 @@ import {
 } from "@/lib/jobs/match-analysis";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { loadMatchAnalysisWorkspace } from "@/lib/jobs/match-analysis/load-workspace";
-import { enforceRateLimit } from "@/lib/security/rate-limit";
+import { enforceMatchAnalysisRateLimits } from "@/lib/jobs/match-analysis/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-const USER_LIMIT = Number(process.env.RATE_LIMIT_MATCH_ANALYSIS_AI_PER_HOUR ?? 40);
-const TENANT_LIMIT = Number(
-  process.env.RATE_LIMIT_MATCH_ANALYSIS_AI_TENANT_PER_HOUR ?? 200
-);
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -74,33 +69,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Application id required" }, { status: 400 });
   }
 
-  const userLimited = await enforceRateLimit(req, {
-    namespace: "match-analysis-ai-user",
-    key: `${tenantId}:${auth.userId}`,
-    limit: USER_LIMIT,
-    windowMs: 60 * 60 * 1000,
-    failClosed: true,
-  });
-  if (userLimited) {
-    return NextResponse.json(
-      { error: MATCH_ANALYSIS_ERROR, code: "RATE_LIMIT" },
-      { status: 429, headers: userLimited.headers }
-    );
-  }
-
-  const tenantLimited = await enforceRateLimit(req, {
-    namespace: "match-analysis-ai-tenant",
-    key: tenantId,
-    limit: TENANT_LIMIT,
-    windowMs: 60 * 60 * 1000,
-    failClosed: true,
-  });
-  if (tenantLimited) {
-    return NextResponse.json(
-      { error: MATCH_ANALYSIS_ERROR, code: "RATE_LIMIT" },
-      { status: 429, headers: tenantLimited.headers }
-    );
-  }
+  const limited = await enforceMatchAnalysisRateLimits(req, tenantId, auth.userId);
+  if (limited) return limited;
 
   const body = await req.json().catch(() => ({}));
   const recruiterNotes =
@@ -109,6 +79,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     body?.verifiedRecruiterInfo && typeof body.verifiedRecruiterInfo === "object"
       ? (body.verifiedRecruiterInfo as Record<string, unknown>)
       : null;
+  const analysisMode = body?.analysisMode === "deep" ? "deep" : "analyze";
 
   try {
     const result = await runMatchAnalysisForApplication({
@@ -118,6 +89,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       recruiterNotes,
       verifiedRecruiterInfo,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
+      analysisMode,
     });
 
     void writeActivityLog({
@@ -133,8 +105,19 @@ export async function POST(req: NextRequest, context: RouteContext) {
         score: result.score,
         category: result.category,
         repaired: result.repaired,
+        analysisMode,
       },
     });
+
+    if (result.error === "PROMPT_NOT_CONFIGURED") {
+      return NextResponse.json(
+        {
+          error: "PROMPT_NOT_CONFIGURED",
+          message: "No published AI prompt is configured for this feature, variant, and industry.",
+        },
+        { status: 422 }
+      );
+    }
 
     const { data: requirements } = await supabase
       .from("job_application_match_requirements")
@@ -170,7 +153,19 @@ export async function POST(req: NextRequest, context: RouteContext) {
             ? 504
             : code === "MISSING_CONFIG"
               ? 503
+              : code === "PROMPT_NOT_CONFIGURED"
+                ? 422
               : 502;
+
+    if (code === "PROMPT_NOT_CONFIGURED") {
+      return NextResponse.json(
+        {
+          error: "PROMPT_NOT_CONFIGURED",
+          message: "No published AI prompt is configured for this feature, variant, and industry.",
+        },
+        { status: 422 }
+      );
+    }
 
     return NextResponse.json({ error: MATCH_ANALYSIS_ERROR, code }, { status });
   }

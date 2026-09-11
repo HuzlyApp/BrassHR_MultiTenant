@@ -29,9 +29,12 @@ export type CandidateRow = {
   appliedJobCount?: number
   assignedRecruiterUserId?: string | null
   assignedRecruiterName?: string | null
+  assignedRecruiterPhotoUrl?: string | null
   applicationJobTitle?: string | null
   applicationJobTitlesText?: string | null
   applicationSearchText?: string | null
+  /** MSP end client from latest application job; null/empty → show "—". */
+  applicationClientName?: string | null
   matchApplicationId?: string | null
   aiMatchStatus?: string | null
   aiMatchScore?: number | null

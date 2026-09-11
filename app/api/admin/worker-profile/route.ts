@@ -24,6 +24,10 @@ import { requireApiSession, requireStaffApiSession } from "@/lib/auth/api-sessio
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
+import {
+  getLatestWorkerResumeStoragePath,
+  syncWorkerPrimaryResumePath,
+} from "@/lib/onboarding/sync-worker-primary-resume-path"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url"
@@ -93,6 +97,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: idCheck.error }, { status: 400 })
     }
     const workerId = idCheck.value
+    const applicationIdRaw = req.nextUrl.searchParams.get("applicationId")?.trim() || ""
+    const applicationIdCheck = applicationIdRaw
+      ? parseRequiredUuid(applicationIdRaw, "applicationId")
+      : null
+    const applicationId =
+      applicationIdCheck && applicationIdCheck.ok ? applicationIdCheck.value : null
 
     const auth = await requireApiSession()
     if (auth instanceof NextResponse) return auth
@@ -167,9 +177,60 @@ export async function GET(req: NextRequest) {
         ? resumePathRaw.trim()
         : null
 
-    const resumePath = resumePathStored ? normalizeResumeStorageObjectPath(resumePathStored) : null
-    const resumePathCanonical =
-      resumePath && resumePath.length > 0 ? resumePath : null
+    let resumePathCanonical: string | null = null
+    let resumeSource: "application_worker_resumes" | "worker_requirements.resume_path" | "worker_resumes" | "none" =
+      "none"
+
+    try {
+      if (applicationId) {
+        const scopedPath = await getLatestWorkerResumeStoragePath(supabase, workerId, {
+          jobApplicationId: applicationId,
+        })
+        const scopedNormalized = scopedPath
+          ? normalizeResumeStorageObjectPath(scopedPath)
+          : null
+        if (scopedNormalized) {
+          resumePathCanonical = scopedNormalized
+          resumeSource = "application_worker_resumes"
+        }
+      }
+    } catch (scopedErr) {
+      console.warn("[admin/worker-profile] application resume fallback", scopedErr)
+    }
+
+    if (!resumePathCanonical) {
+      const fromRequirements = resumePathStored
+        ? normalizeResumeStorageObjectPath(resumePathStored)
+        : null
+      if (fromRequirements) {
+        resumePathCanonical = fromRequirements
+        resumeSource = "worker_requirements.resume_path"
+      }
+    }
+
+    if (!resumePathCanonical) {
+      try {
+        const fallbackPath = await getLatestWorkerResumeStoragePath(supabase, workerId)
+        const fallbackNormalized = fallbackPath
+          ? normalizeResumeStorageObjectPath(fallbackPath)
+          : null
+        if (fallbackNormalized) {
+          resumePathCanonical = fallbackNormalized
+          resumeSource = "worker_resumes"
+        }
+      } catch (fallbackErr) {
+        console.warn("[admin/worker-profile] worker_resumes fallback", fallbackErr)
+      }
+    }
+
+    if (
+      resumePathCanonical &&
+      resumeSource !== "worker_requirements.resume_path"
+    ) {
+      void syncWorkerPrimaryResumePath(supabase, workerId, userIdForLegacy).catch((err) => {
+        console.warn("[admin/worker-profile] sync primary resume path", err)
+      })
+    }
 
     let resumeUrl: string | null = null
     if (resumePathCanonical) {
@@ -358,6 +419,8 @@ export async function GET(req: NextRequest) {
       return fromDb ?? storageFallback
     }
 
+    const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
+
     const [
       refResult,
       workerRoleResult,
@@ -374,6 +437,11 @@ export async function GET(req: NextRequest) {
       driversLicenseBackUrl,
       agreementW2UrlResolved,
       agreementI9UrlResolved,
+      licenseRecordResult,
+      profileSkills,
+      mapped,
+      onboardingSubmissionResult,
+      profilePhotoUrl,
     ] = await Promise.all([
       supabase
         .from("worker_references")
@@ -384,7 +452,7 @@ export async function GET(req: NextRequest) {
       supabase.from("worker_category_roles").select("*").eq("worker_id", workerId),
       supabase
         .from("activity_logs")
-        .select("*")
+        .select("id, action, entity_type, entity_id, details, created_at")
         .eq("entity_id", workerId)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -414,6 +482,37 @@ export async function GET(req: NextRequest) {
       resolveDocUrl(docs?.drivers_license_back_url, null),
       resolveDocUrl(docs?.agreement_w2_url, storageAgreementW2Url),
       resolveDocUrl(docs?.agreement_i9_url, storageAgreementI9Url),
+      supabase
+        .from("worker_license_records")
+        .select(
+          "id, license_type, license_number, expires_at, file_url, storage_path, status, uploaded_at"
+        )
+        .eq("worker_id", workerId)
+        .order("uploaded_at", { ascending: false })
+        .limit(5),
+      loadWorkerProfileSkills(supabase, workerId),
+      mapAdminOnboardingProgress({
+        supabase,
+        workerId,
+        userId: userIdForLegacy,
+        applicantName,
+        workerDocuments: docs,
+        resumePathRaw: resumePathStored,
+        candidateBuckets,
+        storageHits: listHits,
+        firmaSigningStatus: null,
+        referencesCount: 0,
+        tenantId: tenantIdForWorker,
+      }),
+      tenantIdForWorker
+        ? loadOnboardingApplicationSubmission(supabase, workerId, tenantIdForWorker).catch(
+            (submissionErr) => {
+              console.warn("[admin/worker-profile] onboarding submission", submissionErr)
+              return null
+            }
+          )
+        : Promise.resolve(null),
+      resolveWorkerProfilePhotoUrl(supabase, w.profile_photo),
     ])
 
     const nursingLicenseUrl = nursingLicenseUrlResolved ?? storageNursingUrl
@@ -439,14 +538,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const { data: licenseRecordRows } = await supabase
-      .from("worker_license_records")
-      .select(
-        "id, license_type, license_number, expires_at, file_url, storage_path, status, uploaded_at"
-      )
-      .eq("worker_id", workerId)
-      .order("uploaded_at", { ascending: false })
-      .limit(5)
+    const { data: licenseRecordRows } = licenseRecordResult
 
     const licenseRecords = ((licenseRecordRows ?? []) as Record<string, unknown>[]).map((row) => {
       const licenseType = asTrimmedString(row.license_type) ?? ""
@@ -605,8 +697,6 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const profileSkills = await loadWorkerProfileSkills(supabase, workerId)
-
     let firmaSigning: FirmaSigningRow | null = null
     const { data: firmaRow, error: firmaErr } = firmaSigningResult
     if (firmaErr) {
@@ -615,19 +705,6 @@ export async function GET(req: NextRequest) {
       firmaSigning = (firmaRow as FirmaSigningRow | null) ?? null
     }
 
-    const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
-    const mapped = await mapAdminOnboardingProgress({
-      supabase,
-      workerId,
-      userId: userIdForLegacy,
-      applicantName,
-      workerDocuments: docs,
-      resumePathRaw: resumePathStored,
-      candidateBuckets,
-      storageHits: listHits,
-      firmaSigningStatus: firmaSigning?.firma_status ?? null,
-      referencesCount: references.length,
-    })
     skillAssessmentRows = mapped.skillAssessments.rows
     saCompleted = mapped.skillAssessments.completed
     saTotal = mapped.skillAssessments.total
@@ -638,18 +715,7 @@ export async function GET(req: NextRequest) {
       percent: mapped.completionPercent,
     }
 
-    let onboardingSubmission: Awaited<ReturnType<typeof loadOnboardingApplicationSubmission>> = null
-    if (tenantIdForWorker) {
-      try {
-        onboardingSubmission = await loadOnboardingApplicationSubmission(
-          supabase,
-          workerId,
-          tenantIdForWorker
-        )
-      } catch (submissionErr) {
-        console.warn("[admin/worker-profile] onboarding submission", submissionErr)
-      }
-    }
+    const onboardingSubmission = onboardingSubmissionResult
 
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
@@ -804,8 +870,6 @@ export async function GET(req: NextRequest) {
       request: req,
     })
 
-    const profilePhotoUrl = await resolveWorkerProfilePhotoUrl(supabase, w.profile_photo)
-
     return NextResponse.json({
       worker: {
         id: String(w.id),
@@ -902,7 +966,7 @@ export async function GET(req: NextRequest) {
       profile_license: primaryLicense,
       license_records: licenseRecords,
       education: {
-        source: resumePathCanonical ? "worker_requirements.resume_path" : "none",
+        source: resumeSource,
         resume_available: Boolean(resumePathCanonical),
         items: [] as Array<Record<string, unknown>>,
       },

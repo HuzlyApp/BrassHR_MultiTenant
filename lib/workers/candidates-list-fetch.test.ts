@@ -4,6 +4,10 @@ import {
   resolveCandidatesListTotal,
   withWorkersListFetchLimit,
 } from "@/lib/workers/candidates-list-fetch";
+import {
+  buildCandidatesListUrl,
+  DEFAULT_CANDIDATES_PAGE_SIZE,
+} from "@/lib/workers/candidate-list-params";
 
 describe("withWorkersListFetchLimit", () => {
   it("adds default limit when missing", () => {
@@ -36,5 +40,18 @@ describe("resolveCandidatesListTotal", () => {
         hasClientFilters: false,
       })
     ).toBe(500);
+  });
+});
+
+describe("DEFAULT_CANDIDATES_PAGE_SIZE", () => {
+  it("defaults to 15 for server-side paging", () => {
+    expect(DEFAULT_CANDIDATES_PAGE_SIZE).toBe(15);
+    expect(
+      buildCandidatesListUrl("/api/workers", {
+        limit: DEFAULT_CANDIDATES_PAGE_SIZE,
+        offset: 0,
+        includePhotoUrls: true,
+      })
+    ).toBe(`/api/workers?limit=${DEFAULT_CANDIDATES_PAGE_SIZE}&offset=0&includePhotoUrls=1`);
   });
 });

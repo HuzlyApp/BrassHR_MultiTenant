@@ -4,14 +4,16 @@ import { Mail, Phone } from "lucide-react"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
+import { prefetchWorkerProfile } from "@/lib/admin/staff-detail-fetch-cache"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 import { CandidateProgressStatusCell } from "./CandidateProgressStatusCell"
 import type { ApplicationStatusOption } from "../applications/ApplicationStatusUi"
 import { MatchScoreCell, RequirementOutcomeCountCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
-import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
+import { getCandidateJobTitleOptions, resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema"
 
 const LINK_CLASS =
   "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
@@ -23,7 +25,7 @@ export function renderListCell(
   options?: {
     highlightMultiJob?: boolean
     matchAnalyzingApplicationIds?: Set<string>
-    onAnalyzeMatch?: (applicationId: string) => void
+    onAnalyzeMatch?: (applicationId: string, mode?: AnalysisMode) => void
     progressStatusOptions?: ApplicationStatusOption[]
     progressStatusMenuWorkerId?: string | null
     progressStatusBusyWorkerId?: string | null
@@ -47,6 +49,8 @@ export function renderListCell(
                 href={candidateProfileHref(c.id)}
                 className={`block text-sm font-semibold leading-5 ${LINK_CLASS}`}
                 style={{ color: "var(--brand-secondary)" }}
+                onMouseEnter={() => prefetchWorkerProfile(c.id)}
+                onFocus={() => prefetchWorkerProfile(c.id)}
               >
                 {c.name}
               </Link>
@@ -60,9 +64,11 @@ export function renderListCell(
                 Applied to {appliedJobCount} jobs
               </span>
             ) : null}
-            <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]" title={jobTitle || undefined}>
-              {jobTitle || "—"}
-            </p>
+            {!highlightMultiJob ? (
+              <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]" title={jobTitle || undefined}>
+                {jobTitle || "—"}
+              </p>
+            ) : null}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />
@@ -106,6 +112,31 @@ export function renderListCell(
         </div>
       )
     }
+    case "clientName": {
+      const clientName = c.applicationClientName?.trim() ?? ""
+      return (
+        <span
+          className="mx-auto block max-w-[200px] truncate text-center text-sm text-[#374151]"
+          title={clientName || undefined}
+        >
+          {clientName || "—"}
+        </span>
+      )
+    }
+    case "assignee": {
+      const name = c.assignedRecruiterName?.trim() ?? ""
+      if (!name) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <CandidateListAvatar name={name} photoUrl={c.assignedRecruiterPhotoUrl} size="sm" />
+          <span className="max-w-[120px] truncate text-sm text-[#475569]" title={name}>
+            {name}
+          </span>
+        </div>
+      )
+    }
     case "status":
       return (
         <div className="flex w-full justify-center">
@@ -131,13 +162,25 @@ export function renderListCell(
     case "jobRole":
       return <span className="text-sm text-[#374151]">{c.role}</span>
     case "matchJob": {
-      const title = resolveCandidateMatchJobTitle(c)
-      return title ? (
-        <p className="whitespace-nowrap text-center text-xs leading-4 text-[#64748B]" title={title}>
-          {title}
-        </p>
-      ) : (
-        <span className="text-sm text-[#94A3B8]">—</span>
+      const titles = getCandidateJobTitleOptions(c)
+      if (titles.length === 0) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      if (titles.length === 1) {
+        return (
+          <p className="whitespace-normal text-left text-xs leading-4 text-[#64748B]" title={titles[0]}>
+            {titles[0]}
+          </p>
+        )
+      }
+      return (
+        <ol className="m-0 list-none space-y-0.5 p-0 text-left text-xs leading-4 text-[#64748B]">
+          {titles.map((title, index) => (
+            <li key={`${title}-${index}`} className="whitespace-normal" title={title}>
+              {index + 1}. {title}
+            </li>
+          ))}
+        </ol>
       )
     }
     case "jobMatch": {
@@ -152,7 +195,7 @@ export function renderListCell(
           category={c.aiMatchCategory}
           displayCategory={c.aiMatchDisplayCategory}
           analyzing={Boolean(applicationId && matchAnalyzingApplicationIds?.has(applicationId))}
-          onAnalyze={onAnalyzeMatch ? () => onAnalyzeMatch(applicationId) : undefined}
+          onAnalyze={onAnalyzeMatch ? (mode) => onAnalyzeMatch(applicationId, mode) : undefined}
         />
       )
     }

@@ -22,6 +22,7 @@ import {
   useCandidateProgressStatus,
 } from "./CandidateProgressStatusCell";
 import { CandidateGridCard } from "./CandidateGridCard";
+import { CandidatesCardBulkSelectHeader } from "./CandidatesCardBulkSelectHeader";
 import { CandidateListSortableHeader } from "./CandidateListSortableHeader";
 import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
@@ -31,35 +32,43 @@ import { BulkDeleteConfirmModal } from "../components/BulkDeleteConfirmModal";
 import { ListTableCheckbox } from "../components/ListTableCheckbox";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
-import { buildCandidateKpis } from "./candidate-kpis";
+import { CandidatesListSkeleton } from "./CandidatesListSkeleton";
+import { useCandidateKpiMetrics } from "./useCandidateKpiMetrics";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import UpdateResumeModal from "../applications/UpdateResumeModal";
+import { AssignRecruiterModal, type AssignableTeamMember } from "./AssignRecruiterModal";
 import AddCandidateModal from "../applications/AddCandidateModal";
 import ImportCandidatesModal from "../applications/ImportCandidatesModal";
+import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
+import {
+  invitationSuccessMessage,
+  type ScheduleInterviewPayload,
+} from "@/lib/interviews/schedule-payload";
+import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import SuccessModal from "@/app/components/SuccessModal";
+import ErrorModal from "@/app/components/ErrorModal";
 import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
-import { isWorkerClaimEligible } from "@/lib/candidates/claim";
-import { matchesCandidateListSearch } from "@/lib/admin/candidate-list-search";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
-import { skillsPresentInHaystack } from "@/lib/jobs/candidate-import-match";
 import {
-  candidateMatchesJobTitleFilter,
   getCandidateJobTitleOptions,
 } from "@/lib/admin/candidate-match-job-title";
+import {
+  describeBulkMatchAnalysisOutcome,
+  partitionMatchAnalysisTargets,
+  postBulkMatchAnalysis,
+} from "@/lib/admin/bulk-match-analysis";
 import {
   ACTIVE_CANDIDATE_PIPELINE_STATUSES,
   formatPipelineStatusLabel,
 } from "@/lib/workers/candidate-status-label";
-import { matchesCandidateAppliedDateRange } from "@/lib/admin/candidate-applied-date-filter";
-import { candidateMatchesMatchScoreFilter } from "@/lib/admin/candidate-match-score-filter";
 import {
   buildCandidateStageOptions,
-  candidateMatchesStageFilter,
 } from "@/lib/admin/candidate-list-stage";
 import {
   EMPTY_CANDIDATE_LIST_SORT,
   isCandidateListSortableColumn,
-  sortCandidateRows,
   toggleCandidateListSort,
   type CandidateListSortColumn,
   type CandidateListSortState,
@@ -73,19 +82,27 @@ import {
   parseListingRequirementCounts,
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { bulkArchiveApplications } from "@/lib/admin/bulk-archive-applications";
 import {
-  fetchAllWorkersFromApi,
-  resolveCandidatesListTotal,
+  fetchWorkersPageFromApi,
 } from "@/lib/workers/candidates-list-fetch";
+import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
+import {
+  buildAssigneeFilterOptions,
+  candidateMatchesAssigneeFilter,
+} from "@/lib/candidates/assignee-filter";
 import toast from "react-hot-toast";
 import {
   formatCityStateFromParts,
-  locationsMatchCityState,
   uniqueCityStateOptions,
 } from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
+
+function resolveCandidateApplicationId(row: CandidateRow): string {
+  return (row.matchApplicationId ?? row.progressStatusApplicationId ?? "").trim();
+}
 
 type WorkerProfile = {
   id: string;
@@ -110,6 +127,8 @@ type WorkerProfile = {
   profile_photo_url?: string | null;
   applied_job_count?: number | null;
   assigned_recruiter_user_id?: string | null;
+  assigned_recruiter_name?: string | null;
+  assigned_recruiter_photo_url?: string | null;
   application_id?: string | null;
   application_status_id?: string | null;
   application_status_name?: string | null;
@@ -118,6 +137,7 @@ type WorkerProfile = {
   application_job_title?: string | null;
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
+  application_client_name?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -159,7 +179,7 @@ function formatDateShort(iso: string | null) {
   });
 }
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = DEFAULT_CANDIDATES_PAGE_SIZE;
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
 
@@ -234,6 +254,7 @@ export default function CandidatesPage() {
   } = useCandidateProgressStatus(candidates, setCandidates);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
@@ -244,18 +265,39 @@ export default function CandidatesPage() {
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [clientNameFilter, setClientNameFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [listSort, setListSort] = useState<CandidateListSortState>(EMPTY_CANDIDATE_LIST_SORT);
   const [view, setView] = useState<"card" | "list">("list");
+  const [cardBulkSelectMode, setCardBulkSelectMode] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [facetOptions, setFacetOptions] = useState<{
+    jobRoles: string[];
+    locations: string[];
+    statuses: string[];
+    jobs: string[];
+    clientNames: string[];
+    stages: ReturnType<typeof buildCandidateStageOptions>;
+  }>({ jobRoles: [], locations: [], statuses: [], jobs: [], clientNames: [], stages: [] });
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const {
+    kpiCards,
+    refresh: refreshKpis,
+  } = useCandidateKpiMetrics();
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [advancedSearchParams, setAdvancedSearchParams] = useState<AdvancedSearchParams | null>(null);
   const [commTarget, setCommTarget] = useState<CandidateRow | null>(null);
   const [rowActionsMenu, setRowActionsMenu] = useState<{ rowId: string; anchor: HTMLElement } | null>(
     null
   );
+  const [assignRecruiterTarget, setAssignRecruiterTarget] = useState<CandidateRow | null>(null);
+  const [assignRecruiterMembers, setAssignRecruiterMembers] = useState<AssignableTeamMember[]>([]);
+  const [assignRecruiterMembersLoading, setAssignRecruiterMembersLoading] = useState(false);
+  const [assignRecruiterBusy, setAssignRecruiterBusy] = useState(false);
+  const [assignRecruiterError, setAssignRecruiterError] = useState<string | null>(null);
   // Highlight Multi-Job Applicants is disabled on the legacy /admin_recruiter/candidates screen.
   // const [highlightMultiJob, setHighlightMultiJob] = useState(false);
   // const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
@@ -274,8 +316,17 @@ export default function CandidatesPage() {
   const [matchAnalyzingApplicationIds, setMatchAnalyzingApplicationIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
+  const [updateResumeApplicationId, setUpdateResumeApplicationId] = useState<string | null>(null);
+  const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
+  const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
+  const [resumeErrorMessage, setResumeErrorMessage] = useState("");
+  const [interviewTarget, setInterviewTarget] = useState<CandidateRow | null>(null);
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewSubmitting, setInterviewSubmitting] = useState(false);
+  const [interviewError, setInterviewError] = useState<string | null>(null);
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
 
@@ -363,9 +414,51 @@ export default function CandidatesPage() {
     [addCandidateJobs]
   );
 
+  const mapWorkerToRow = useCallback((item: WorkerProfile): CandidateRow => {
+    const { email, phone } = resolveCandidateContact(item);
+    return {
+      id: item.id,
+      name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
+      firstName: item.first_name ?? "",
+      lastName: item.last_name ?? "",
+      role: item.job_role || "N/A",
+      applicationJobTitle: item.application_job_title ?? null,
+      applicationJobTitlesText: item.application_job_titles_text ?? null,
+      applicationSearchText: item.application_search_text ?? null,
+      applicationClientName: item.application_client_name ?? null,
+      email,
+      phone,
+      address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
+      city: item.city ?? "",
+      state: item.state ?? "",
+      zip: item.zip ?? "",
+      address1: item.address1 ?? "",
+      address2: item.address2 ?? "",
+      status: formatCandidateStatusLabel(item.status as string | undefined),
+      statusKey: item.status ?? null,
+      ...mapWorkerProgressStatusFields(item),
+      createdAt: item.created_at,
+      reference: item.id.slice(0, 7).toUpperCase(),
+      dateOfBirth: null,
+      profilePhotoUrl: item.profile_photo_url ?? null,
+      appliedJobCount: Number(item.applied_job_count ?? 1),
+      assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
+      assignedRecruiterName: item.assigned_recruiter_name ?? null,
+      assignedRecruiterPhotoUrl: item.assigned_recruiter_photo_url ?? null,
+      ...mapWorkerMatchFields(item),
+    };
+  }, []);
+
   const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     setLoading(true);
+    setListError(null);
+    // Clear stale rows while a new search/page loads.
+    setCandidates([]);
+    setTotalFromApi(null);
     try {
       if (activeSearch) {
         const res = await fetch("/api/search-workers", {
@@ -377,6 +470,7 @@ export default function CandidatesPage() {
             radius: activeSearch.radius,
             ...(activeSearch.place ? { place: activeSearch.place } : {}),
           }),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "Failed to fetch search results");
@@ -386,135 +480,132 @@ export default function CandidatesPage() {
           : Array.isArray(data?.workers)
             ? data.workers
             : [];
-        setTotalFromApi(rows.length);
-
-        const mapped: CandidateRow[] = rows.map((item) => {
-          const { email, phone } = resolveCandidateContact(item);
-          return ({
-          id: item.id,
-          name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
-          firstName: item.first_name ?? "",
-          lastName: item.last_name ?? "",
-          role: item.job_role || "N/A",
-          applicationJobTitle: item.application_job_title ?? null,
-          applicationJobTitlesText: item.application_job_titles_text ?? null,
-          applicationSearchText: item.application_search_text ?? null,
-          email,
-          phone,
-          address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
-          city: item.city ?? "",
-          state: item.state ?? "",
-          zip: item.zip ?? "",
-          address1: item.address1 ?? "",
-          address2: item.address2 ?? "",
-          status: formatCandidateStatusLabel(item.status as string | undefined),
-          statusKey: item.status ?? null,
-          ...mapWorkerProgressStatusFields(item),
-          createdAt: item.created_at,
-          reference: item.id.slice(0, 7).toUpperCase(),
-          dateOfBirth: null,
-          profilePhotoUrl: item.profile_photo_url ?? null,
-          appliedJobCount: Number(item.applied_job_count ?? 1),
-          assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
-          ...mapWorkerMatchFields(item),
-          });
-        });
-
+        const mapped = rows.map(mapWorkerToRow);
+        setTotalFromApi(mapped.length);
         setCandidates(mapped);
         clearSelectionRef.current();
-        setPage(1);
         return;
       }
 
-      const { workers: rows, total } = await fetchAllWorkersFromApi<WorkerProfile>(
-        "/api/workers?includePhotoUrls=1"
+      const skillTags = parseSkillsFilterParam(skillsFilter);
+      const { workers: rows, total } = await fetchWorkersPageFromApi<WorkerProfile>(
+        "/api/workers",
+        {
+          page,
+          pageSize,
+          q: query || undefined,
+          skills: skillTags.length ? skillTags.join(",") : undefined,
+          jobRole: jobRoleFilter || undefined,
+          location: locationFilter || undefined,
+          appliedFrom: appliedDateFrom || undefined,
+          appliedTo: appliedDateTo || undefined,
+          status: statusFilter
+            ? ACTIVE_CANDIDATE_PIPELINE_STATUSES.find(
+                (s) => formatPipelineStatusLabel(s) === statusFilter
+              ) || undefined
+            : undefined,
+          matchScore: matchScoreFilter || undefined,
+          progressStatusId: progressStatusFilter || undefined,
+          jobTitle: jobFilter || undefined,
+          stage: stageFilter || undefined,
+          assignee: assigneeFilter || undefined,
+          sort: listSort.column ?? "createdDate",
+          sortDir: listSort.column ? listSort.direction : "desc",
+          includePhotoUrls: true,
+        },
+        { signal: controller.signal }
       );
       setTotalFromApi(total);
 
-      const mapped: CandidateRow[] = rows.map((item) => {
-        const { email, phone } = resolveCandidateContact(item);
-        return ({
-        id: item.id,
-        name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
-        firstName: item.first_name ?? "",
-        lastName: item.last_name ?? "",
-        role: item.job_role || "N/A",
-        applicationJobTitle: item.application_job_title ?? null,
-        applicationJobTitlesText: item.application_job_titles_text ?? null,
-        applicationSearchText: item.application_search_text ?? null,
-        email,
-        phone,
-        address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
-        city: item.city ?? "",
-        state: item.state ?? "",
-        zip: item.zip ?? "",
-        address1: item.address1 ?? "",
-        address2: item.address2 ?? "",
-        status: formatCandidateStatusLabel(item.status as string | undefined),
-        statusKey: item.status ?? null,
-        ...mapWorkerProgressStatusFields(item),
-        createdAt: item.created_at,
-        reference: item.id.slice(0, 7).toUpperCase(),
-        dateOfBirth: null,
-        profilePhotoUrl: item.profile_photo_url ?? null,
-        appliedJobCount: Number(item.applied_job_count ?? 1),
-        assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
-        ...mapWorkerMatchFields(item),
-        });
-      });
-
+      const mapped = rows.map(mapWorkerToRow);
       setCandidates(mapped);
+      setFacetOptions((prev) => {
+        const jobRoles = new Set(prev.jobRoles);
+        const locations = new Set(prev.locations);
+        const statuses = new Set(
+          ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
+        );
+        const jobs = new Set(prev.jobs);
+        const clientNames = new Set(prev.clientNames);
+        for (const c of mapped) {
+          if (c.role && c.role !== "N/A") jobRoles.add(c.role);
+          const loc = formatCityStateFromParts(c.city, c.state);
+          if (loc) locations.add(loc);
+          if (c.status) statuses.add(c.status);
+          for (const title of getCandidateJobTitleOptions(c)) jobs.add(title);
+          const clientName = c.applicationClientName?.trim();
+          if (clientName) clientNames.add(clientName);
+        }
+        return {
+          jobRoles: Array.from(jobRoles).sort((a, b) => a.localeCompare(b)),
+          locations: uniqueCityStateOptions(Array.from(locations)),
+          statuses: Array.from(statuses).sort((a, b) => a.localeCompare(b)),
+          jobs: Array.from(jobs).sort((a, b) => a.localeCompare(b)),
+          clientNames: Array.from(clientNames).sort((a, b) => a.localeCompare(b)),
+          stages: buildCandidateStageOptions([...mapped]),
+        };
+      });
       clearSelectionRef.current();
-      setPage(1);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
+      setListError(err instanceof Error ? err.message : "Failed to search candidates");
       clearSelectionRef.current();
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [advancedSearchParams]);
+  }, [
+    advancedSearchParams,
+    mapWorkerToRow,
+    page,
+    pageSize,
+    query,
+    skillsFilter,
+    jobRoleFilter,
+    locationFilter,
+    appliedDateFrom,
+    appliedDateTo,
+    statusFilter,
+    matchScoreFilter,
+    progressStatusFilter,
+    jobFilter,
+    stageFilter,
+    assigneeFilter,
+    listSort,
+  ]);
 
   useEffect(() => {
     void loadCandidates();
+    return () => loadAbortRef.current?.abort();
   }, [loadCandidates]);
 
-  const jobRoleOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of candidates) {
-      if (c.role && c.role !== "N/A") s.add(c.role);
+  const jobRoleOptions = facetOptions.jobRoles;
+  const locationOptions = facetOptions.locations;
+  const statusOptions = facetOptions.statuses;
+  const jobOptions = facetOptions.jobs;
+  const stageOptions = facetOptions.stages;
+  const clientNameOptions = useMemo(() => {
+    const names = new Set(facetOptions.clientNames);
+    for (const job of addCandidateJobs) {
+      if (String(job.source_type ?? "").trim().toLowerCase() !== "msp") continue;
+      const clientName = String(job.msp_name ?? "").trim();
+      if (clientName) names.add(clientName);
     }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [facetOptions.clientNames, addCandidateJobs]);
 
-  const locationOptions = useMemo(() => {
-    return uniqueCityStateOptions(
-      candidates.map((c) => formatCityStateFromParts(c.city, c.state))
-    );
-  }, [candidates]);
-
-  const statusOptions = useMemo(() => {
-    const canonical = new Set(
-      ACTIVE_CANDIDATE_PIPELINE_STATUSES.map((status) => formatPipelineStatusLabel(status))
-    );
-    for (const c of candidates) {
-      if (c.status) canonical.add(c.status);
-    }
-    return Array.from(canonical).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
-
-  const jobOptions = useMemo(() => {
-    const titles = new Set<string>();
-    for (const c of candidates) {
-      for (const title of getCandidateJobTitleOptions(c)) {
-        titles.add(title);
-      }
-    }
-    return Array.from(titles).sort((a, b) => a.localeCompare(b));
-  }, [candidates]);
-
-  const stageOptions = useMemo(() => buildCandidateStageOptions(candidates), [candidates]);
+  const assigneeOptions = useMemo(
+    () =>
+      buildAssigneeFilterOptions(
+        candidates.map((row) => ({
+          id: row.assignedRecruiterUserId,
+          name: row.assignedRecruiterName,
+        }))
+      ),
+    [candidates]
+  );
 
   const progressStatusFilterOptions = useMemo(
     () =>
@@ -525,51 +616,38 @@ export default function CandidatesPage() {
     [progressStatusOptions]
   );
 
-  const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
+  const multiJobApplicantCount = useMemo(
+    () => countMultiJobApplicants(candidates, (candidate) => Number(candidate.appliedJobCount ?? 1)),
+    [candidates]
+  );
 
-  const filtered = useMemo(() => {
-    let out = candidates;
-    const q = query.trim();
-    if (q) {
-      out = out.filter((c) => matchesCandidateListSearch(c, q));
-    }
-    const skillTags = parseSkillsFilterParam(skillsFilter);
-    if (skillTags.length) {
-      out = out.filter((c) => {
-        const hay = [
-          c.role,
-          c.applicationJobTitle,
-          c.applicationJobTitlesText,
-          c.applicationSearchText,
-          c.name,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return skillsPresentInHaystack(hay, skillTags);
-      });
-    }
-    if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
-    if (statusFilter) out = out.filter((c) => c.status === statusFilter);
-    if (progressStatusFilter) {
-      out = out.filter((c) => c.progressStatusId === progressStatusFilter);
-    }
-    if (jobFilter) out = out.filter((c) => candidateMatchesJobTitleFilter(c, jobFilter));
-    if (stageFilter) out = out.filter((c) => candidateMatchesStageFilter(c, stageFilter));
-    if (matchScoreFilter) {
-      out = out.filter((c) => candidateMatchesMatchScoreFilter(c.aiMatchScore, matchScoreFilter));
-    }
-    if (locationFilter) {
-      out = out.filter((c) =>
-        locationsMatchCityState(formatCityStateFromParts(c.city, c.state), locationFilter)
-      );
-    }
-    if (appliedDateFrom || appliedDateTo) {
-      out = out.filter((c) => matchesCandidateAppliedDateRange(c.createdAt, appliedDateFrom, appliedDateTo));
-    }
-    return out;
+  const visibleCandidates = useMemo(() => {
+    return candidates.filter((row) => {
+      if (highlightMultiJob && Number(row.appliedJobCount ?? 1) <= 1) return false;
+      if (clientNameFilter.trim()) {
+        const wanted = clientNameFilter.trim().toLowerCase();
+        if ((row.applicationClientName ?? "").trim().toLowerCase() !== wanted) return false;
+      }
+      return candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter);
+    });
   }, [
     candidates,
+    highlightMultiJob,
+    clientNameFilter,
+    assigneeFilter,
+    advancedSearchContext.active,
+  ]);
+  const hasClientSideListFilter =
+    highlightMultiJob ||
+    Boolean(clientNameFilter.trim()) ||
+    (advancedSearchContext.active && Boolean(assigneeFilter.trim()));
+  const listDisplayTotal = hasClientSideListFilter
+    ? visibleCandidates.length
+    : (totalFromApi ?? candidates.length);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
     query,
     skillsFilter,
     jobRoleFilter,
@@ -578,76 +656,17 @@ export default function CandidatesPage() {
     jobFilter,
     stageFilter,
     matchScoreFilter,
+    clientNameFilter,
+    assigneeFilter,
     locationFilter,
     appliedDateFrom,
     appliedDateTo,
+    pageSize,
+    listSort,
+    highlightMultiJob,
   ]);
 
-  const multiJobApplicantCount = useMemo(
-    () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
-    [filtered]
-  );
-
-  const visibleCandidates = filtered;
-
-  const hasActiveListFilters = useMemo(
-    () =>
-      Boolean(
-        query.trim() ||
-          skillsFilter.trim() ||
-          jobRoleFilter ||
-          statusFilter ||
-          progressStatusFilter ||
-          jobFilter ||
-          stageFilter ||
-          matchScoreFilter ||
-          locationFilter ||
-          appliedDateFrom ||
-          appliedDateTo
-      ),
-    [
-      query,
-      skillsFilter,
-      jobRoleFilter,
-      statusFilter,
-      progressStatusFilter,
-      jobFilter,
-      stageFilter,
-      matchScoreFilter,
-      locationFilter,
-      appliedDateFrom,
-      appliedDateTo,
-    ]
-  );
-
-  const listDisplayTotal = useMemo(
-    () =>
-      resolveCandidatesListTotal({
-        totalFromApi: advancedSearchContext.active ? null : totalFromApi,
-        visibleCount: visibleCandidates.length,
-        hasClientFilters: hasActiveListFilters || advancedSearchContext.active,
-      }),
-    [
-      advancedSearchContext.active,
-      totalFromApi,
-      visibleCandidates.length,
-      hasActiveListFilters,
-    ]
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [query, jobRoleFilter, statusFilter, progressStatusFilter, jobFilter, stageFilter, matchScoreFilter, locationFilter, appliedDateFrom, appliedDateTo, pageSize, listSort]);
-
-  const sortedCandidates = useMemo(
-    () => sortCandidateRows(visibleCandidates, listSort),
-    [visibleCandidates, listSort]
-  );
-
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return sortedCandidates.slice(start, start + pageSize);
-  }, [sortedCandidates, page, pageSize]);
+  const paginated = visibleCandidates;
 
   const handleListSort = useCallback((column: CandidateListSortColumn) => {
     setListSort((current) => toggleCandidateListSort(current, column));
@@ -655,37 +674,28 @@ export default function CandidatesPage() {
 
   const pageSelectableRows = useMemo(
     () =>
-      paginated.map((candidate) => {
-        const eligibility = isWorkerClaimEligible({
-          assignedRecruiterUserId: candidate.assignedRecruiterUserId,
-          status: candidate.statusKey ?? candidate.status,
-          currentUserId: currentUserId ?? "",
-        });
-        return { id: candidate.id, eligible: eligibility.eligible, reason: eligibility.reason };
-      }),
-    [paginated, currentUserId]
+      paginated.map((candidate) => ({
+        id: candidate.id,
+        // Selection is for export / archive / delete / analyze — not claim-gated.
+        eligible: true,
+      })),
+    [paginated]
   );
-
-  const eligibilityById = useMemo(() => {
-    const map = new Map<string, { eligible: boolean; reason: string | null }>();
-    for (const row of pageSelectableRows) {
-      map.set(row.id, { eligible: row.eligible, reason: row.reason });
-    }
-    return map;
-  }, [pageSelectableRows]);
-
   const selectionClearKey = useMemo(
     () =>
       [
         page,
         pageSize,
         query,
+        skillsFilter,
         jobRoleFilter,
         statusFilter,
         progressStatusFilter,
         jobFilter,
         stageFilter,
         matchScoreFilter,
+        clientNameFilter,
+        assigneeFilter,
         locationFilter,
         appliedDateFrom,
         appliedDateTo,
@@ -695,12 +705,15 @@ export default function CandidatesPage() {
       page,
       pageSize,
       query,
+      skillsFilter,
       jobRoleFilter,
       statusFilter,
       progressStatusFilter,
       jobFilter,
       stageFilter,
       matchScoreFilter,
+      clientNameFilter,
+      assigneeFilter,
       locationFilter,
       appliedDateFrom,
       appliedDateTo,
@@ -724,6 +737,31 @@ export default function CandidatesPage() {
     const selected = visibleCandidates.filter((row) => selection.selectedIds.has(row.id));
     return selected.length > 0 ? selected : visibleCandidates;
   }, [visibleCandidates, selection.selectedCount, selection.selectedIds]);
+
+  const selectedMatchTargets = useMemo(
+    () =>
+      selectedCandidates.map((row) => ({
+        applicationId: row.matchApplicationId,
+        status: row.aiMatchStatus,
+      })),
+    [selectedCandidates]
+  );
+
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } = useMemo(
+    () => partitionMatchAnalysisTargets(selectedMatchTargets),
+    [selectedMatchTargets]
+  );
+
+  const { analyzeIds: pageAnalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        candidates.map((row) => ({
+          applicationId: row.matchApplicationId,
+          status: row.aiMatchStatus,
+        }))
+      ),
+    [candidates]
+  );
 
   const handleExportCandidatesCsv = useCallback(() => {
     if (exportCandidates.length === 0) {
@@ -787,7 +825,7 @@ export default function CandidatesPage() {
     setClaimConfirmOpen(true);
   }
 
-  async function runMatchAnalyze(applicationId: string) {
+  async function runMatchAnalyze(applicationId: string, mode: AnalysisMode = "analyze") {
     const candidate = candidates.find((row) => row.matchApplicationId === applicationId);
     setMatchAnalyzingApplicationIds((current) => new Set(current).add(applicationId));
     try {
@@ -795,7 +833,7 @@ export default function CandidatesPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ analysisMode: mode }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -818,9 +856,12 @@ export default function CandidatesPage() {
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
       } else {
-        toast.success(`${candidate?.name || "Candidate"}: match analysis complete`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
+        toast.success(
+          `${candidate?.name || "Candidate"}: ${mode === "deep" ? "deeper match analysis" : "match analysis"} complete`,
+          {
+            duration: ACTION_TOAST_DURATION_MS,
+          }
+        );
       }
     } catch (analyzeError) {
       toast.error(analyzeError instanceof Error ? analyzeError.message : "Match analysis failed");
@@ -830,6 +871,309 @@ export default function CandidatesPage() {
         next.delete(applicationId);
         return next;
       });
+    }
+  }
+
+  async function runBulkMatchAnalyze(
+    ids: string[],
+    label: "Analyze" | "Reanalyze",
+    options?: { emptyMessage?: string }
+  ) {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (!uniqueIds.length) {
+      toast.error(
+        options?.emptyMessage ??
+          (label === "Reanalyze"
+            ? "None of the selected candidates have been analyzed yet"
+            : "Selected candidates are already analyzed — use Reanalyze")
+      );
+      return;
+    }
+    if (bulkAnalyzingIds.size > 0 || matchAnalyzingApplicationIds.size > 0) return;
+
+    setBulkAnalyzingIds(new Set(uniqueIds));
+    setCandidates((current) =>
+      current.map((row) =>
+        row.matchApplicationId && uniqueIds.includes(row.matchApplicationId)
+          ? { ...row, aiMatchStatus: "ANALYZING" }
+          : row
+      )
+    );
+
+    try {
+      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
+        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+        setCandidates((current) =>
+          current.map((row) => {
+            const applicationId = row.matchApplicationId?.trim() ?? "";
+            const item = applicationId ? byId.get(applicationId) : undefined;
+            if (!item?.result) return row;
+            const result = item.result;
+            return {
+              ...row,
+              aiMatchStatus: result.status ?? row.aiMatchStatus,
+              aiMatchScore: result.score ?? row.aiMatchScore,
+              aiMatchCategory: result.category ?? row.aiMatchCategory,
+              aiMatchDisplayCategory:
+                result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+              aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
+            };
+          })
+        );
+      });
+      const outcome = describeBulkMatchAnalysisOutcome(summary);
+      if (outcome.ok) {
+        toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
+      } else {
+        toast.error(outcome.message);
+      }
+    } catch (analyzeError) {
+      setCandidates((current) =>
+        current.map((row) =>
+          row.matchApplicationId &&
+          uniqueIds.includes(row.matchApplicationId) &&
+          row.aiMatchStatus === "ANALYZING"
+            ? { ...row, aiMatchStatus: "FAILED" }
+            : row
+        )
+      );
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Bulk match analysis failed"
+      );
+    } finally {
+      setBulkAnalyzingIds(new Set());
+    }
+  }
+
+  const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
+
+  function beginUpdateResume(workerId: string) {
+    const row = candidates.find((item) => item.id === workerId);
+    if (!row) return;
+    const applicationId = resolveCandidateApplicationId(row);
+    if (!applicationId) {
+      setResumeErrorMessage(
+        "This candidate has no linked job application yet. Open a job application to update the resume."
+      );
+      setResumeErrorOpen(true);
+      return;
+    }
+    setUpdateResumeApplicationId(applicationId);
+  }
+
+  function handleResumeUpdated(
+    applicationId: string,
+    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+  ) {
+    const nextName =
+      [result.firstName, result.lastName].filter(Boolean).join(" ").trim() || "Candidate";
+    setCandidates((current) =>
+      current.map((row) => {
+        if (resolveCandidateApplicationId(row) !== applicationId) return row;
+        const renamed: CandidateRow = {
+          ...row,
+          firstName: result.firstName,
+          lastName: result.lastName,
+          name: nextName,
+        };
+        if (!result.resumeUploaded) return renamed;
+        return {
+          ...renamed,
+          aiMatchStatus: "ANALYZING",
+          aiMatchScore: null,
+          aiMatchCategory: null,
+          aiMatchDisplayCategory: null,
+          aiRequirementCounts: null,
+        };
+      })
+    );
+
+    if (result.resumeUploaded) {
+      toast.success(`${nextName}: resume updated successfully`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
+      setResumeSuccessOpen(true);
+      void (async () => {
+        try {
+          const matchResponse = await fetch(
+            `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }
+          );
+          const matchPayload = await matchResponse.json().catch(() => ({}));
+          if (!matchResponse.ok) return;
+          setCandidates((current) =>
+            current.map((row) =>
+              resolveCandidateApplicationId(row) === applicationId
+                ? {
+                    ...row,
+                    aiMatchStatus: matchPayload.status ?? row.aiMatchStatus,
+                    aiMatchScore: matchPayload.score ?? row.aiMatchScore,
+                    aiMatchCategory: matchPayload.category ?? row.aiMatchCategory,
+                    aiMatchDisplayCategory:
+                      matchPayload.analysis?.candidate_match?.display_category ??
+                      row.aiMatchDisplayCategory,
+                    aiRequirementCounts:
+                      requirementCountsFromAnalyzePayload(matchPayload) ?? row.aiRequirementCounts,
+                  }
+                : row
+            )
+          );
+        } catch {
+          // Keep analyzing state; user can re-run from the list.
+        }
+      })();
+    } else {
+      toast.success(`${nextName}: candidate details updated`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
+    }
+  }
+
+  function beginSetupInterview(workerId: string) {
+    const row = candidates.find((item) => item.id === workerId);
+    if (!row) return;
+    if (!resolveCandidateApplicationId(row)) {
+      toast.error("Candidate has no linked job application yet");
+      return;
+    }
+    setInterviewTarget(row);
+    setInterviewError(null);
+    setInterviewOpen(true);
+  }
+
+  async function handleScheduleInterview(payload: ScheduleInterviewPayload) {
+    if (!interviewTarget) return;
+    const applicationId = resolveCandidateApplicationId(interviewTarget);
+    if (!applicationId) {
+      toast.error("Candidate has no linked job application yet");
+      return;
+    }
+    setInterviewSubmitting(true);
+    setInterviewError(null);
+    try {
+      const response = await fetch("/api/admin/applicant-appointments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          applicationId,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        statusUpdated?: boolean;
+        invitation?: {
+          sentCount: number;
+          failedCount: number;
+          skippedCount: number;
+          invitationStatus: "sent" | "partial" | "failed" | "pending";
+        };
+      };
+      if (!response.ok) throw new Error(data.error || "Failed to schedule interview");
+      if (data.statusUpdated) {
+        setCandidates((current) =>
+          current.map((row) =>
+            row.id === interviewTarget.id
+              ? {
+                  ...row,
+                  status: "interviewing",
+                  statusKey: "interviewing",
+                  progressStatusKey: "interviewing",
+                }
+              : row
+          )
+        );
+      }
+      setInterviewOpen(false);
+      setInterviewError(null);
+      setInterviewTarget(null);
+      toast.success(
+        `${interviewTarget.name || "Candidate"}: ${invitationSuccessMessage(data.invitation)}`,
+        { duration: ACTION_TOAST_DURATION_MS }
+      );
+    } catch (scheduleError) {
+      const message =
+        scheduleError instanceof Error ? scheduleError.message : "Failed to schedule interview";
+      setInterviewError(message);
+      toast.error(message);
+    } finally {
+      setInterviewSubmitting(false);
+    }
+  }
+
+  async function openAssignRecruiter(row: CandidateRow) {
+    setAssignRecruiterTarget(row);
+    setAssignRecruiterError(null);
+    setAssignRecruiterMembersLoading(true);
+    try {
+      const response = await fetch("/api/admin/team-members", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        members?: AssignableTeamMember[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to load team members");
+      }
+      setAssignRecruiterMembers(payload.members ?? []);
+    } catch (err) {
+      setAssignRecruiterMembers([]);
+      setAssignRecruiterError(err instanceof Error ? err.message : "Failed to load team members");
+    } finally {
+      setAssignRecruiterMembersLoading(false);
+    }
+  }
+
+  async function confirmAssignRecruiter(assigneeUserId: string | null) {
+    if (!assignRecruiterTarget || assignRecruiterBusy) return;
+    setAssignRecruiterBusy(true);
+    setAssignRecruiterError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/workers/${encodeURIComponent(assignRecruiterTarget.id)}/assignment`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignedRecruiterUserId: assigneeUserId }),
+        }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        assignedRecruiterUserId?: string | null;
+        assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to assign recruiter");
+      }
+      const nextId = payload.assignedRecruiterUserId ?? null;
+      const nextName = payload.assignedRecruiter?.name?.trim() || null;
+      const nextPhoto = payload.assignedRecruiter?.profilePhotoUrl ?? null;
+      setCandidates((current) =>
+        current.map((row) =>
+          row.id === assignRecruiterTarget.id
+            ? {
+                ...row,
+                assignedRecruiterUserId: nextId,
+                assignedRecruiterName: nextName,
+                assignedRecruiterPhotoUrl: nextId ? nextPhoto : null,
+              }
+            : row
+        )
+      );
+      toast.success(nextName ? `Assigned to ${nextName}` : "Recruiter unassigned");
+      setAssignRecruiterTarget(null);
+    } catch (err) {
+      setAssignRecruiterError(err instanceof Error ? err.message : "Failed to assign recruiter");
+    } finally {
+      setAssignRecruiterBusy(false);
     }
   }
 
@@ -919,9 +1263,11 @@ export default function CandidatesPage() {
           if (advancedSearchContext.active) {
             applyAdvancedSearchParams(null);
             void loadCandidates(null);
+            refreshKpis();
             return;
           }
           void loadCandidates();
+          refreshKpis();
         }}
         refreshLabel={advancedSearchContext.active ? "Reset Search" : "Refresh"}
         jobRoleFilter={jobRoleFilter}
@@ -946,6 +1292,12 @@ export default function CandidatesPage() {
         stageOptions={stageOptions}
         matchScoreFilter={matchScoreFilter}
         onMatchScoreFilterChange={setMatchScoreFilter}
+        clientNameFilter={clientNameFilter}
+        onClientNameFilterChange={setClientNameFilter}
+        assigneeFilter={assigneeFilter}
+        onAssigneeFilterChange={setAssigneeFilter}
+        clientNameOptions={clientNameOptions}
+        assigneeOptions={assigneeOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
         kpiCards={kpiCards}
@@ -953,22 +1305,52 @@ export default function CandidatesPage() {
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
-          setQuery(nextQuery);
+          setQuery(nextQuery.trim());
           setSkillsFilter(nextSkills);
           setPage(1);
         }}
         onResetSearch={() => {
           setQuery("");
           setSkillsFilter("");
+          setJobRoleFilter("");
+          setLocationFilter("");
+          setAppliedDateFrom("");
+          setAppliedDateTo("");
+          setStatusFilter("");
+          setProgressStatusFilter("");
+          setJobFilter("");
+          setStageFilter("");
+          setMatchScoreFilter("");
+          setClientNameFilter("");
+          setAssigneeFilter("");
+          setListSort(EMPTY_CANDIDATE_LIST_SORT);
+          applyAdvancedSearchParams(null);
           setPage(1);
+          setListError(null);
+          setCandidates([]);
+          setTotalFromApi(null);
         }}
         onAddCandidate={() => setAddCandidateOpen(true)}
         onMatchExistingCandidate={() => {
           setMatchJobPickerValue("");
           setMatchJobPickerOpen(true);
         }}
+        onAnalyzeAll={() =>
+          void runBulkMatchAnalyze(pageAnalyzeIds, "Analyze", {
+            emptyMessage: "All candidates on this page are already analyzed",
+          })
+        }
+        analyzeAllLabel="Analyze all"
+        analyzeBusy={bulkAnalyzeBusy}
+        analyzeDisabled={pageAnalyzeIds.length === 0 || matchAnalyzingApplicationIds.size > 0}
         view={view}
-        onViewChange={setView}
+        onViewChange={(nextView) => {
+          setView(nextView);
+          if (nextView !== "card") {
+            setCardBulkSelectMode(false);
+            selection.clearSelection();
+          }
+        }}
         onEditColumns={() => setEditColumnsOpen(true)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={listDisplayTotal}
@@ -991,17 +1373,45 @@ export default function CandidatesPage() {
           const formatDate = formatDateShort;
 
           if (loading) {
-            return null;
+            return <CandidatesListSkeleton rows={Math.min(pageSize, 10)} view={view} label="Loading candidates" />;
+          }
+          if (listError) {
+            return (
+              <div className="py-12 text-center text-red-600" role="alert">
+                <div className="font-medium">Search failed</div>
+                <div className="mt-1 text-sm text-red-500">{listError}</div>
+                <button
+                  type="button"
+                  onClick={() => void loadCandidates()}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
+                >
+                  Try again
+                </button>
+              </div>
+            );
           }
           if (visibleCandidates.length === 0) {
             return (
               <div className="py-12 text-center text-gray-600">
-                <div>No candidates found.</div>
-                {advancedSearchContext.active ? (
+                <div>
+                  {highlightMultiJob
+                    ? "No multi-job applicants match these filters."
+                    : query.trim() || parseSkillsFilterParam(skillsFilter).length
+                      ? "No candidates match your search."
+                      : "No candidates found."}
+                </div>
+                {query.trim() ||
+                parseSkillsFilterParam(skillsFilter).length ||
+                advancedSearchContext.active ||
+                highlightMultiJob ? (
                   <button
                     type="button"
                     onClick={() => {
+                      setQuery("");
+                      setSkillsFilter("");
+                      setHighlightMultiJob(false);
                       applyAdvancedSearchParams(null);
+                      setPage(1);
                       void loadCandidates(null);
                     }}
                     className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
@@ -1024,11 +1434,16 @@ export default function CandidatesPage() {
                   claimBusy={claimBusy}
                   archiveBusy={archiveBusy}
                   deleteBusy={deleteBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
                   onArchive={() => void handleBulkArchiveSelected()}
                   onDelete={() => {
                     setDeleteError(null);
                     setDeleteConfirmOpen(true);
                   }}
+                  onAnalyze={() => void runBulkMatchAnalyze(selectedAnalyzeIds, "Analyze")}
+                  onReanalyze={() => void runBulkMatchAnalyze(selectedReanalyzeIds, "Reanalyze")}
+                  analyzeDisabled={selectedAnalyzeIds.length === 0}
+                  reanalyzeDisabled={selectedReanalyzeIds.length === 0}
                   onExportCsv={handleExportCandidatesCsv}
                   onExportXls={handleExportCandidatesXls}
                   exportDisabled={exportCandidates.length === 0}
@@ -1044,9 +1459,9 @@ export default function CandidatesPage() {
                             size="md"
                             checked={selection.headerChecked}
                             indeterminate={selection.headerIndeterminate}
-                            disabled={pageSelectableRows.every((row) => !row.eligible)}
+                            disabled={paginated.length === 0}
                             onChange={selection.toggleAllEligibleOnPage}
-                            aria-label="Select all eligible candidates on this page"
+                            aria-label="Select all candidates on this page"
                           />
                         </th>
                         {cols.map((colId) => (
@@ -1074,18 +1489,10 @@ export default function CandidatesPage() {
                     </thead>
                     <tbody>
                       {paginated.map((c) => {
-                        const eligibility = eligibilityById.get(c.id) ?? {
-                          eligible: true,
-                          reason: null,
-                        };
-                        const isMultiJobHighlighted =
-                          highlightMultiJob && Number(c.appliedJobCount ?? 1) > 1;
                         return (
                         <tr
                           key={c.id}
-                          className={`border-b border-[#E9EDF3] hover:bg-[#F9FBFB] ${
-                            isMultiJobHighlighted ? "bg-[#EFF6FF]" : ""
-                          }`}
+                          className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]"
                         >
                           <td
                             className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle"
@@ -1094,9 +1501,7 @@ export default function CandidatesPage() {
                             <ListTableCheckbox
                               size="md"
                               checked={selection.selectedIds.has(c.id)}
-                              disabled={!eligibility.eligible}
-                              title={eligibility.reason ?? undefined}
-                              onChange={() => selection.toggleOne(c.id, eligibility.eligible)}
+                              onChange={() => selection.toggleOne(c.id, true)}
                               aria-label={`Select ${c.name || "candidate"}`}
                             />
                           </td>
@@ -1108,7 +1513,8 @@ export default function CandidatesPage() {
                               {renderListCell(colId, c, formatDate, {
                                 highlightMultiJob,
                                 matchAnalyzingApplicationIds,
-                                onAnalyzeMatch: (applicationId) => void runMatchAnalyze(applicationId),
+                                onAnalyzeMatch: (applicationId, mode) =>
+                                  void runMatchAnalyze(applicationId, mode),
                                 progressStatusOptions,
                                 progressStatusMenuWorkerId: progressStatusMenu?.workerId ?? null,
                                 progressStatusBusyWorkerId: statusBusyWorkerId,
@@ -1162,15 +1568,62 @@ export default function CandidatesPage() {
           }
 
           return (
-            <div className="grid grid-cols-1 gap-4 px-4 py-5 sm:gap-5 sm:px-5 sm:py-6 md:grid-cols-2 xl:grid-cols-3">
-              {paginated.map((c) => (
-                <CandidateGridCard
-                  key={c.id}
-                  candidate={c}
-                  formatDateTime={formatDateTime}
-                  onMessage={setCommTarget}
+            <div className="w-full">
+              {cardBulkSelectMode ? (
+                <CandidateBulkSelectionBar
+                  selectedCount={selection.selectedCount}
+                  eligibleCount={selection.selectedEligibleCount}
+                  scopeLabel={selection.selectionScopeLabel}
+                  claimBusy={claimBusy}
+                  archiveBusy={archiveBusy}
+                  deleteBusy={deleteBusy}
+                  analyzeBusy={bulkAnalyzeBusy}
+                  onArchive={() => void handleBulkArchiveSelected()}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  onAnalyze={() => void runBulkMatchAnalyze(selectedAnalyzeIds, "Analyze")}
+                  onReanalyze={() => void runBulkMatchAnalyze(selectedReanalyzeIds, "Reanalyze")}
+                  analyzeDisabled={selectedAnalyzeIds.length === 0}
+                  reanalyzeDisabled={selectedReanalyzeIds.length === 0}
+                  onExportCsv={handleExportCandidatesCsv}
+                  onExportXls={handleExportCandidatesXls}
+                  exportDisabled={exportCandidates.length === 0}
+                  hideClaim
+                  onClear={selection.clearSelection}
                 />
-              ))}
+              ) : null}
+              <CandidatesCardBulkSelectHeader
+                bulkSelectEnabled={cardBulkSelectMode}
+                onBulkSelectEnabledChange={(enabled) => {
+                  setCardBulkSelectMode(enabled);
+                  if (!enabled) selection.clearSelection();
+                }}
+                selectAllChecked={selection.headerChecked}
+                selectAllIndeterminate={selection.headerIndeterminate}
+                selectAllDisabled={paginated.length === 0}
+                onSelectAllChange={selection.toggleAllEligibleOnPage}
+              />
+              <div className="grid grid-cols-1 gap-4 px-4 pb-5 pt-3 sm:gap-5 sm:px-5 sm:pb-6 md:grid-cols-2 xl:grid-cols-3">
+                {paginated.map((c) => {
+                  return (
+                    <CandidateGridCard
+                      key={c.id}
+                      candidate={c}
+                      formatDateTime={formatDateTime}
+                      onMessage={setCommTarget}
+                      selectionMode={cardBulkSelectMode}
+                      selected={selection.selectedIds.has(c.id)}
+                      onToggleSelect={
+                        cardBulkSelectMode
+                          ? () => selection.toggleOne(c.id, true)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
@@ -1230,14 +1683,33 @@ export default function CandidatesPage() {
       {rowActionsMenu ? (
         <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
+          analyzing={(() => {
+            const applicationId = candidates
+              .find((item) => item.id === rowActionsMenu.rowId)
+              ?.matchApplicationId?.trim();
+            return Boolean(applicationId && matchAnalyzingApplicationIds.has(applicationId));
+          })()}
+          isAnalyzed={
+            candidates.find((item) => item.id === rowActionsMenu.rowId)?.aiMatchStatus === "ANALYZED"
+          }
           hired={(() => {
             const status = candidates.find((item) => item.id === rowActionsMenu.rowId)?.status ?? "";
             const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
             return normalized === "hired" || normalized === "converted";
           })()}
+          resumeUploading={Boolean(updateResumeApplicationId)}
           onClose={() => setRowActionsMenu(null)}
-          onReanalyze={() => toast("Reanalyze is available from the candidate application.")}
-          onUpdateResume={() => toast("Update resume from the candidate profile.")}
+          onAnalyze={(mode) => {
+            const applicationId = candidates
+              .find((item) => item.id === rowActionsMenu.rowId)
+              ?.matchApplicationId?.trim();
+            if (!applicationId) {
+              toast("Open a job application to run match analysis for this candidate.");
+              return;
+            }
+            void runMatchAnalyze(applicationId, mode);
+          }}
+          onUpdateResume={() => beginUpdateResume(rowActionsMenu.rowId)}
           onArchive={() => toast("Archive is available from the candidate application.")}
           onUnarchive={() => toast("Unarchive is available from the candidate application.")}
           onMessage={() => {
@@ -1252,12 +1724,90 @@ export default function CandidatesPage() {
             }
             toast("No phone number on file for this candidate.");
           }}
-          onSetupInterview={() => toast("Set up interview from the candidate application.")}
+          onSetupInterview={() => beginSetupInterview(rowActionsMenu.rowId)}
+          onAssignRecruiter={() => {
+            const row = candidates.find((item) => item.id === rowActionsMenu.rowId);
+            if (row) void openAssignRecruiter(row);
+          }}
           onViewStatusHistory={() => toast("Status history is available from the candidate application.")}
           onDeleteCandidate={() => toast("Delete candidate from the candidate application.")}
           onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
         />
       ) : null}
+
+      {(() => {
+        const target = updateResumeApplicationId
+          ? candidates.find((row) => resolveCandidateApplicationId(row) === updateResumeApplicationId) ??
+            null
+          : null;
+        if (!updateResumeApplicationId) return null;
+        return (
+          <UpdateResumeModal
+            open
+            applicationId={updateResumeApplicationId}
+            candidateName={target?.name || ""}
+            initialFirstName={target?.firstName || ""}
+            initialLastName={target?.lastName || ""}
+            onClose={() => setUpdateResumeApplicationId(null)}
+            onUpdated={(result) => handleResumeUpdated(updateResumeApplicationId, result)}
+          />
+        );
+      })()}
+
+      {interviewTarget ? (
+        <ScheduleInterviewModal
+          open={interviewOpen}
+          applicants={[
+            {
+              id: interviewTarget.id,
+              name: interviewTarget.name || "Candidate",
+              status: normalizeApplicationStatus(
+                interviewTarget.progressStatusKey ||
+                  interviewTarget.statusKey ||
+                  interviewTarget.status ||
+                  ""
+              ),
+            },
+          ]}
+          submitting={interviewSubmitting}
+          error={interviewError}
+          onClose={() => {
+            setInterviewOpen(false);
+            setInterviewError(null);
+            setInterviewTarget(null);
+          }}
+          onSubmit={(payload) => void handleScheduleInterview(payload)}
+          fixedWorkerId={interviewTarget.id}
+          fixedApplicantName={interviewTarget.name || "Candidate"}
+          fixedApplicationId={resolveCandidateApplicationId(interviewTarget) || undefined}
+          fixedJobTitle={interviewTarget.applicationJobTitle || undefined}
+          defaultTitle={
+            interviewTarget.name
+              ? `Interview with ${interviewTarget.name}`
+              : undefined
+          }
+        />
+      ) : null}
+
+      <SuccessModal
+        open={resumeSuccessOpen}
+        onClose={() => setResumeSuccessOpen(false)}
+        title="Success!"
+        message="Resume updated successfully."
+        size="large"
+        actionLabel="Close"
+        onAction={() => setResumeSuccessOpen(false)}
+      />
+
+      <ErrorModal
+        open={resumeErrorOpen}
+        onClose={() => {
+          setResumeErrorOpen(false);
+          setResumeErrorMessage("");
+        }}
+        title="Upload failed"
+        message={resumeErrorMessage || "Failed to upload resume. Please try again."}
+      />
 
       {commTarget ? (
         <CandidateCommunicationDialog
@@ -1284,6 +1834,24 @@ export default function CandidatesPage() {
           setClaimError(null);
         }}
         onConfirm={() => void confirmClaimCandidates()}
+      />
+
+      <AssignRecruiterModal
+        open={Boolean(assignRecruiterTarget)}
+        candidateName={assignRecruiterTarget?.name || "Candidate"}
+        currentAssigneeId={assignRecruiterTarget?.assignedRecruiterUserId ?? null}
+        members={assignRecruiterMembers}
+        membersLoading={assignRecruiterMembersLoading}
+        busy={assignRecruiterBusy}
+        error={assignRecruiterError}
+        onOpenChange={(open) => {
+          if (assignRecruiterBusy) return;
+          if (!open) {
+            setAssignRecruiterTarget(null);
+            setAssignRecruiterError(null);
+          }
+        }}
+        onAssign={(assigneeUserId) => void confirmAssignRecruiter(assigneeUserId)}
       />
 
       <AddCandidateModal

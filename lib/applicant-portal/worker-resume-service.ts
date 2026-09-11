@@ -338,10 +338,16 @@ export async function listAppliedJobsForWorker(
   });
 }
 
+export type ListWorkerResumesOptions = {
+  /** Signed uploader photos are unused on the recruiter candidate profile. */
+  includeUploaderPhotos?: boolean;
+};
+
 export async function listWorkerResumesForApplicant(
   supabase: SupabaseClient,
   workerId: string,
-  tenantId: string
+  tenantId: string,
+  options?: ListWorkerResumesOptions
 ): Promise<WorkerResumeListItem[]> {
   const { data, error } = await supabase
     .from("worker_resumes")
@@ -354,7 +360,9 @@ export async function listWorkerResumesForApplicant(
   const rows = (data ?? []) as WorkerResumeRow[];
   let items = rows.map(serializeWorkerResume);
   items = await enrichResumeJobTitles(supabase, workerId, tenantId, items);
-  return enrichResumeUploaders(supabase, workerId, tenantId, items, rows);
+  return enrichResumeUploaders(supabase, workerId, tenantId, items, rows, {
+    includeUploaderPhotos: options?.includeUploaderPhotos !== false,
+  });
 }
 
 type WorkerApplicationForResume = {
@@ -431,7 +439,8 @@ async function enrichResumeUploaders(
   workerId: string,
   tenantId: string,
   items: WorkerResumeListItem[],
-  rows: WorkerResumeRow[]
+  rows: WorkerResumeRow[],
+  options?: { includeUploaderPhotos?: boolean }
 ): Promise<WorkerResumeListItem[]> {
   if (items.length === 0) return items;
 
@@ -456,10 +465,10 @@ async function enrichResumeUploaders(
       worker?.first_name as string | null | undefined,
       worker?.last_name as string | null | undefined
     ) || "You";
-  const workerPhotoUrl = await resolveWorkerProfilePhotoUrl(
-    supabase,
-    worker?.profile_photo
-  );
+  const workerPhotoUrl =
+    options?.includeUploaderPhotos === false
+      ? null
+      : await resolveWorkerProfilePhotoUrl(supabase, worker?.profile_photo);
 
   const uploaderIds = [
     ...new Set(
@@ -487,7 +496,9 @@ async function enrichResumeUploaders(
         staffNamesById.set(staff.id, name || "Recruiter");
         staffPhotosById.set(
           staff.id,
-          await resolveStaffProfilePhotoUrl(supabase, staff.profile_photo)
+          options?.includeUploaderPhotos === false
+            ? null
+            : await resolveStaffProfilePhotoUrl(supabase, staff.profile_photo)
         );
       })
     );

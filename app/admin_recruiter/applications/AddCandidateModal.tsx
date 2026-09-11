@@ -147,6 +147,9 @@ export default function AddCandidateModal({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [workCity, setWorkCity] = useState("");
+  const [workState, setWorkState] = useState("");
+  const [relocateToJobSite, setRelocateToJobSite] = useState(false);
   const [resumeTitle, setResumeTitle] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -421,6 +424,12 @@ export default function AddCandidateModal({
       else setPasteError(message);
       return;
     }
+    if (!workCity.trim() || !workState.trim()) {
+      const message = "Where will they work this assignment?";
+      if (uploadFromFile) setFileError(message);
+      else setPasteError(message);
+      return;
+    }
 
     setUploading(true);
     try {
@@ -436,6 +445,9 @@ export default function AddCandidateModal({
       if (lastName.trim()) form.set("lastName", lastName.trim());
       if (email.trim()) form.set("email", email.trim());
       if (phone.trim()) form.set("phone", phone.trim());
+      if (workCity.trim()) form.set("workCity", workCity.trim());
+      if (workState.trim()) form.set("workState", workState.trim());
+      form.set("relocateToJobSite", relocateToJobSite ? "true" : "false");
 
       const response = await fetch("/api/admin/add-candidate-from-resume", {
         method: "POST",
@@ -792,6 +804,41 @@ export default function AddCandidateModal({
                         autoComplete="tel"
                       />
                     </div>
+                    <div>
+                      <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-work-city">
+                        Work city
+                      </label>
+                      <input
+                        id="add-candidate-work-city"
+                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        placeholder="City"
+                        value={workCity}
+                        onChange={(event) => setWorkCity(event.target.value)}
+                        disabled={uploading}
+                      />
+                    </div>
+                    <div>
+                      <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-work-state">
+                        Work state
+                      </label>
+                      <input
+                        id="add-candidate-work-state"
+                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        placeholder="State"
+                        value={workState}
+                        onChange={(event) => setWorkState(event.target.value)}
+                        disabled={uploading}
+                      />
+                    </div>
+                    <label className="sm:col-span-2 flex items-center gap-2 text-sm text-[#334155]">
+                      <input
+                        type="checkbox"
+                        checked={relocateToJobSite}
+                        onChange={(event) => setRelocateToJobSite(event.target.checked)}
+                        disabled={uploading}
+                      />
+                      They will work on-site at the job location (relocate)
+                    </label>
                   </div>
                 </div>
               ) : null}

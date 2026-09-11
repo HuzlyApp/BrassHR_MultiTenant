@@ -8,7 +8,7 @@ import {
   BULK_SELECTION_SNACKBAR_ICON_BTN_CLASS,
   BULK_SELECTION_SNACKBAR_LABEL_CLASS,
 } from "@/app/admin_recruiter/components/bulk-selection-snackbar-styles";
-import { RotateCcw } from "lucide-react";
+import { RefreshCw, RotateCcw, Sparkles } from "lucide-react";
 
 const CANDIDATE_ARCHIVE_ICON_SRC = "/icons/jobs-icons/archived.svg";
 const CANDIDATE_DELETE_ICON_SRC = "/icons/delete-icon.svg";
@@ -38,14 +38,19 @@ type CandidateBulkSelectionBarProps = {
   claimBusy?: boolean;
   archiveBusy?: boolean;
   deleteBusy?: boolean;
+  analyzeBusy?: boolean;
   archiveLabel?: string;
   archiveDisabled?: boolean;
   deleteDisabled?: boolean;
   exportDisabled?: boolean;
+  analyzeDisabled?: boolean;
+  reanalyzeDisabled?: boolean;
   hideClaim?: boolean;
   onClaim?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
+  onAnalyze?: () => void;
+  onReanalyze?: () => void;
   onExportCsv?: () => void;
   onExportXls?: () => void;
   onClear: () => void;
@@ -58,14 +63,19 @@ export function CandidateBulkSelectionBar({
   claimBusy = false,
   archiveBusy = false,
   deleteBusy = false,
+  analyzeBusy = false,
   archiveLabel = "Archive",
   archiveDisabled = false,
   deleteDisabled = false,
   exportDisabled = false,
+  analyzeDisabled = false,
+  reanalyzeDisabled = false,
   hideClaim = false,
   onClaim,
   onArchive,
   onDelete,
+  onAnalyze,
+  onReanalyze,
   onExportCsv,
   onExportXls,
   onClear,
@@ -73,10 +83,10 @@ export function CandidateBulkSelectionBar({
   if (selectedCount <= 0) return null;
 
   const selectedLabel =
-    scopeLabel ??
+    scopeLabel ||
     (selectedCount === 1 ? "1 candidate selected" : `${selectedCount} candidates selected`);
   const claimLabel = eligibleCount === 1 ? "Claim Candidate" : "Claim Candidates";
-  const busy = claimBusy || archiveBusy || deleteBusy;
+  const busy = claimBusy || archiveBusy || deleteBusy || analyzeBusy;
   const showExport = Boolean(onExportCsv && onExportXls);
 
   return (
@@ -102,6 +112,30 @@ export function CandidateBulkSelectionBar({
             onExportXls={onExportXls!}
             disabled={busy || exportDisabled}
           />
+        ) : null}
+        {onAnalyze ? (
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={busy || analyzeDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+            title="Analyze selected candidates that have not been analyzed yet"
+          >
+            <Sparkles className="size-4 shrink-0" aria-hidden />
+            {analyzeBusy ? "Analyzing…" : "Analyze"}
+          </button>
+        ) : null}
+        {onReanalyze ? (
+          <button
+            type="button"
+            onClick={onReanalyze}
+            disabled={busy || reanalyzeDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+            title="Reanalyze selected candidates that already have a match score"
+          >
+            <RefreshCw className="size-4 shrink-0" aria-hidden />
+            Reanalyze
+          </button>
         ) : null}
         {onArchive ? (
           <button

@@ -6,13 +6,17 @@ import Link from "next/link";
 import { Archive, Loader2, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
-import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
-import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
+import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
+import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache";
+import {
+  jobStatusDisplayLabel,
+  normalizeJobRequisitionStatus,
+} from "@/lib/jobs/job-status";
 import {
   analyzedApplicantCount,
   applicantCount,
   jobCandidatesHref,
-  jobDisplayId,
+  JobSourceTypeBadge,
   jobListDisplayTitle,
   jobLocation,
   publicJobPathFor,
@@ -35,6 +39,12 @@ type JobsGridViewProps = {
   hotJobIds?: Set<string>;
   selectedIds?: Set<string>;
   onToggleSelect?: (jobId: string) => void;
+  /**
+   * When true, card click selects/deselects and navigation/action controls are disabled.
+   * When false (default), `onToggleSelect` still allows click-to-select on empty areas
+   * while links and menus remain interactive (listing grid behavior).
+   */
+  selectionMode?: boolean;
   padded?: boolean;
   /**
    * When set, render this many cards first and load the next batch on scroll
@@ -55,17 +65,20 @@ const MENU_ITEM_CLASS =
 const MENU_ICON_CLASS = "h-4 w-4 shrink-0 text-[#94A3B8]";
 
 function gridStatusLabel(job: JobListRow): string {
-  const status = normalizeJobRequisitionStatus(String(job.status ?? ""));
-  if (status === "published" && isJobRequisitionOpen(job)) return "Open";
-  if (status === "draft") return "Draft";
-  if (status === "closed") return "Closed";
-  if (status === "archived") return "Archived";
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return jobStatusDisplayLabel(job.status);
 }
 
 function iconButtonClass(disabled?: boolean) {
   return `inline-flex size-[14px] items-center justify-center text-[#94A3B8] transition hover:opacity-80 ${
     disabled ? "cursor-not-allowed opacity-40 hover:opacity-40" : ""
+  }`;
+}
+
+function menuTriggerClass(open: boolean) {
+  return `inline-flex size-7 shrink-0 items-center justify-center rounded-md transition ${
+    open
+      ? "border border-[#94A3B8] bg-white shadow-sm"
+      : "border border-transparent hover:border-[#E5E7EB] hover:bg-[#F8FAFC]"
   }`;
 }
 
@@ -222,6 +235,7 @@ function JobGridCard({
   isHot,
   isSelected,
   menuOpen,
+  selectionMode = false,
   onOpenMenu,
   onToggleSelect,
 }: {
@@ -230,6 +244,7 @@ function JobGridCard({
   isHot: boolean;
   isSelected: boolean;
   menuOpen: boolean;
+  selectionMode?: boolean;
   onOpenMenu: (job: JobListRow, anchor: HTMLElement) => void;
   onToggleSelect?: (jobId: string) => void;
 }) {
@@ -238,6 +253,8 @@ function JobGridCard({
   const publicHref = publicJobPathFor(job, tenantSlug);
   const candidateCount = applicantCount(job);
   const candidatesHref = jobCandidatesHref(job.id);
+  const canSelect = Boolean(onToggleSelect);
+  const blockNavigation = selectionMode && canSelect;
   const metrics = [
     {
       label: "CAND",
@@ -258,32 +275,42 @@ function JobGridCard({
           : "border border-[#E5E7EB] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_45%,#E5E7EB)]"
       }`}
       onClick={(event) => {
-        if (!onToggleSelect) return;
-        const target = event.target as HTMLElement;
-        if (target.closest("a, button")) return;
-        onToggleSelect(job.id);
+        if (!canSelect) return;
+        if (!selectionMode) {
+          const target = event.target as HTMLElement;
+          if (target.closest("a, button")) return;
+        }
+        onToggleSelect?.(job.id);
       }}
       onKeyDown={(event) => {
-        if (!onToggleSelect) return;
+        if (!canSelect) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onToggleSelect(job.id);
+          onToggleSelect?.(job.id);
         }
       }}
-      role={onToggleSelect ? "button" : undefined}
-      tabIndex={onToggleSelect ? 0 : undefined}
-      aria-pressed={onToggleSelect ? isSelected : undefined}
-      aria-label={onToggleSelect ? `${isSelected ? "Deselect" : "Select"} ${title}` : undefined}
+      role={canSelect ? "button" : undefined}
+      tabIndex={canSelect ? 0 : undefined}
+      aria-pressed={canSelect ? isSelected : undefined}
+      aria-label={canSelect ? `${isSelected ? "Deselect" : "Select"} ${title}` : undefined}
     >
       <div className="flex items-start px-3 pb-1.5 pt-3">
         <div className="flex min-h-[31px] w-full items-start justify-between gap-1">
           <div className="min-w-0 flex-1">
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}`}
-              className="block truncate font-[Inter,sans-serif] text-xs font-semibold leading-4 text-black hover:underline"
-            >
-              {title}
-            </Link>
+            {blockNavigation ? (
+              <p className="truncate font-[Inter,sans-serif] text-xs font-semibold leading-4 text-black">
+                {title}
+              </p>
+            ) : (
+              <Link
+                href={`/admin_recruiter/jobs/${job.id}`}
+                className="block truncate font-[Inter,sans-serif] text-xs font-semibold leading-4 text-black hover:underline"
+                onMouseEnter={() => prefetchJobDetails(job.id)}
+                onFocus={() => prefetchJobDetails(job.id)}
+              >
+                {title}
+              </Link>
+            )}
             <p className="truncate font-[Inter,sans-serif] text-[10px] font-light leading-[15px] text-[#6B7280]">
               {location}
             </p>
@@ -315,7 +342,7 @@ function JobGridCard({
               </p>
             </>
           );
-          if ("href" in metric && metric.href) {
+          if (!blockNavigation && "href" in metric && metric.href) {
             return (
               <Link
                 key={metric.label}
@@ -337,65 +364,65 @@ function JobGridCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-        <p className="min-w-0 truncate font-[Inter,sans-serif] text-[10px] font-light leading-[15px] text-[#374151]">
-          Job ID: <span className="font-semibold">{jobDisplayId(job)}</span>
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          {publicHref ? (
-            <Link
-              href={publicHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={iconButtonClass()}
-              aria-label={`Open public page for ${title}`}
-              title="Public view"
+        <JobSourceTypeBadge job={job} />
+        {!blockNavigation ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {publicHref ? (
+              <Link
+                href={publicHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={iconButtonClass()}
+                aria-label={`Open public page for ${title}`}
+                title="Public view"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={JOB_OPEN_ICON_SRC}
+                  alt=""
+                  width={14}
+                  height={14}
+                  className="size-[14px] shrink-0"
+                  aria-hidden
+                />
+              </Link>
+            ) : (
+              <span className={iconButtonClass(true)} title="Publish this job to view the public page">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={JOB_OPEN_ICON_SRC}
+                  alt=""
+                  width={14}
+                  height={14}
+                  className="size-[14px] shrink-0"
+                  aria-hidden
+                />
+              </span>
+            )}
+            <button
+              type="button"
+              className={menuTriggerClass(menuOpen)}
+              aria-label={`More actions for ${title}`}
+              title="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenMenu(job, event.currentTarget);
+              }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={JOB_OPEN_ICON_SRC}
+                src={JOB_DOTS_ICON_SRC}
                 alt=""
                 width={14}
                 height={14}
-                className="size-[14px] shrink-0"
+                className="size-[14px] shrink-0 rotate-90"
                 aria-hidden
               />
-            </Link>
-          ) : (
-            <span className={iconButtonClass(true)} title="Publish this job to view the public page">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={JOB_OPEN_ICON_SRC}
-                alt=""
-                width={14}
-                height={14}
-                className="size-[14px] shrink-0"
-                aria-hidden
-              />
-            </span>
-          )}
-          <button
-            type="button"
-            className={iconButtonClass()}
-            aria-label={`More actions for ${title}`}
-            title="More actions"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenMenu(job, event.currentTarget);
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={JOB_DOTS_ICON_SRC}
-              alt=""
-              width={14}
-              height={14}
-              className="size-[14px] shrink-0 rotate-90"
-              aria-hidden
-            />
-          </button>
-        </div>
+            </button>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -409,6 +436,7 @@ export function JobsGridView({
   hotJobIds,
   selectedIds,
   onToggleSelect,
+  selectionMode = false,
   padded = true,
   infiniteScrollPageSize,
   onAddCandidate,
@@ -418,6 +446,10 @@ export function JobsGridView({
   onUnarchive,
 }: JobsGridViewProps) {
   const [openMenu, setOpenMenu] = useState<{ job: JobListRow; anchor: HTMLElement } | null>(null);
+
+  useEffect(() => {
+    if (selectionMode) setOpenMenu(null);
+  }, [selectionMode]);
   const pageSize =
     typeof infiniteScrollPageSize === "number" && infiniteScrollPageSize > 0
       ? Math.floor(infiniteScrollPageSize)
@@ -474,7 +506,15 @@ export function JobsGridView({
   }, [hasMore, isLoadingMore, loadNextPage, visibleCount]);
 
   if (loading) {
-    return <p className="px-4 py-12 text-center text-sm text-[#64748B]">Loading jobs…</p>;
+    return (
+      <CandidatesListSkeleton
+        view="card"
+        rows={8}
+        label="Loading jobs"
+        cardGridClassName="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        cardClassName="min-h-[200px] animate-pulse rounded-xl border border-[#E5E7EB] bg-gradient-to-br from-[#F8FAFC] to-[#EEF2F7]"
+      />
+    );
   }
 
   if (jobs.length === 0) {
@@ -491,9 +531,10 @@ export function JobsGridView({
             key={job.id}
             job={job}
             tenantSlug={tenantSlug}
-            isHot={hotJobIds?.has(job.id) ?? false}
+            isHot={Boolean(job.is_hot) || (hotJobIds?.has(job.id) ?? false)}
             isSelected={selectedIds?.has(job.id) ?? false}
             menuOpen={openMenu?.job.id === job.id}
+            selectionMode={selectionMode}
             onToggleSelect={onToggleSelect}
             onOpenMenu={(nextJob, anchor) => {
               setOpenMenu((current) =>

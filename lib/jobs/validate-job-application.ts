@@ -6,11 +6,13 @@ import {
   formatDateOnlyUtc,
   isJobRequisitionOpen,
   normalizeJobToken,
+  publicJobDisplayTitle,
   type ApplicationEntryRoute,
   type OpenJobSummary,
   resolveApplicationEntryRoute,
 } from "@/lib/jobs/public-application-routing";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
+import { PUBLIC_ACCEPTING_JOB_STATUS_QUERY } from "@/lib/jobs/types";
 
 type DbClient = SupabaseClient;
 
@@ -31,12 +33,14 @@ export type ValidatedJobApplicationTarget = {
   jobToken: string;
   workflowId: string;
   workflowName: string;
+  jobTitle: string;
+  jobLocation: string;
   resumeUploadPath: string;
   screeningPath: string;
 };
 
 const JOB_APPLICATION_SELECT =
-  "id, tenant_id, public_job_token, status, workflow_id, application_deadline, onboarding_flows!workflow_id!inner(id, name, status, tenant_id)";
+  "id, tenant_id, public_job_token, status, workflow_id, application_deadline, public_title, source_job_title, source_type, location, location_type, onboarding_flows!workflow_id!inner(id, name, status, tenant_id)";
 
 export async function listOpenPublishedJobSummaries(
   supabase: DbClient,
@@ -47,7 +51,7 @@ export async function listOpenPublishedJobSummaries(
     .from("job_requisitions")
     .select("public_job_token, application_deadline")
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .not("workflow_id", "is", null)
     .or(`application_deadline.is.null,application_deadline.gte.${formatDateOnlyUtc(now)}`)
     .order("published_at", { ascending: false });
@@ -102,7 +106,7 @@ export async function validatePublishedJobForApplication(
     .select(JOB_APPLICATION_SELECT)
     .eq("tenant_id", tenant.id)
     .eq("public_job_token", jobToken)
-    .eq("status", "published")
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .maybeSingle();
 
   if (error) throw error;
@@ -152,6 +156,8 @@ export async function validatePublishedJobForApplication(
     jobToken,
     workflowId: String(job.workflow_id),
     workflowName: String(flow.name ?? job.workflow_id),
+    jobTitle: publicJobDisplayTitle(job),
+    jobLocation: String(job.location ?? "").trim(),
     resumeUploadPath: buildAddResumePath(tenant.slug, jobToken),
     screeningPath: `/application/job-screening?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(jobToken)}`,
   };

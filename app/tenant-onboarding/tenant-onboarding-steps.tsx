@@ -25,6 +25,7 @@ import {
   type TenantBrandingThemeMode,
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
+import { activeUserFacingIndustries, industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import {
   addressVerificationMessage,
   normalizeBusinessZipInput,
@@ -679,12 +680,13 @@ export function BusinessStep({
   const handleBusinessFieldChange = (patch: Partial<BusinessInfoForm>) => {
     onBusinessInfoChange(patch);
     if (!submitAttempted) return;
+    const { hireForIndustryKeys: _hireFor, ...rest } = patch;
     const nextInput = {
       ...formInput,
-      ...patch,
+      ...rest,
     };
     const keysToCheck = new Set<BusinessInfoFieldKey>(
-      Object.keys(patch) as Array<keyof BusinessInfoForm>
+      Object.keys(rest) as BusinessInfoFieldKey[]
     );
     if (patch.state !== undefined) {
       keysToCheck.add("city");
@@ -777,7 +779,12 @@ export function BusinessStep({
             label="Industry"
             required
             value={businessInfo.industry}
-            onChange={(value) => handleBusinessFieldChange({ industry: value })}
+            onChange={(value) => {
+              const mapped = industryKeyFromLegacyLabel(value);
+              const hireFor = [...(businessInfo.hireForIndustryKeys ?? [])];
+              if (mapped && !hireFor.includes(mapped)) hireFor.push(mapped);
+              handleBusinessFieldChange({ industry: value, hireForIndustryKeys: hireFor });
+            }}
             placeholder="Select industry"
             options={INDUSTRY_OPTIONS}
             error={showFieldError("industry")}
@@ -791,6 +798,36 @@ export function BusinessStep({
             options={COMPANY_SIZE_OPTIONS}
             error={showFieldError("companySize")}
           />
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-[#334155]">Industries you hire for</p>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Select every industry this organization staffs. New jobs default to your primary industry.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 min-[600px]:grid-cols-2">
+            {activeUserFacingIndustries().map((item) => {
+              const checked = (businessInfo.hireForIndustryKeys ?? []).includes(item.key);
+              return (
+                <label key={item.key} className="flex items-center gap-2 text-sm text-[#334155]">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => {
+                      const current = businessInfo.hireForIndustryKeys ?? [];
+                      const next = event.target.checked
+                        ? current.includes(item.key)
+                          ? current
+                          : [...current, item.key]
+                        : current.filter((key) => key !== item.key);
+                      handleBusinessFieldChange({ hireForIndustryKeys: next });
+                    }}
+                  />
+                  {item.label}
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">

@@ -6,12 +6,15 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
+import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 import type { JobListRow } from "./render-job-list-cell";
 
 export type JobsExtendedFilterValues = {
-  /** Job title search (also used as the main listing search). */
-  search: string;
+  /** Comma-separated search tags (title, skills, experience, location, profession). */
+  searchTags: string;
   profession: string;
   status: string;
   /** Employment Type (shift_type / job type chips). */
@@ -29,10 +32,12 @@ export type JobsExtendedFilterValues = {
   payRate: string;
   /** Date posted preset id (see JOB_DATE_POSTED_FILTER_OPTIONS). */
   datePosted: string;
+  /** User-facing industry key. */
+  industry: string;
 };
 
 export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
-  search: "",
+  searchTags: "",
   profession: "",
   status: "",
   employmentType: "",
@@ -45,9 +50,10 @@ export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
   workflow: "",
   payRate: "",
   datePosted: "",
+  industry: "",
 };
 
-/** Fixed pay-rate bands shown in More Filters (min inclusive, max exclusive; last band open-ended). */
+/** Fixed pay-rate bands shown in All Filters (min inclusive, max exclusive; last band open-ended). */
 export const JOB_PAY_RATE_FILTER_OPTIONS = [
   { id: "under_25", label: "Under $25", min: 0, max: 25 },
   { id: "25_40", label: "$25 – $40", min: 25, max: 40 },
@@ -233,10 +239,10 @@ export function EditJobsFiltersModal({
           <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4">
             <div className="min-w-0 pr-3">
               <Dialog.Title className="truncate text-lg font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
-                Edit Filters
+                More filters
               </Dialog.Title>
               <Dialog.Description className="sr-only">
-                Choose additional filters to narrow the jobs list.
+                Choose filters to narrow the jobs list.
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -250,19 +256,34 @@ export function EditJobsFiltersModal({
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] sm:px-6 sm:py-6">
             <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 sm:gap-5">
               <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
-                <span className="text-sm font-medium text-[#475569]">Search job</span>
-                <input
-                  type="search"
-                  value={draft.search}
-                  onChange={(e) => setField("search", e.target.value)}
-                  placeholder="Search by job title"
-                  aria-label="Search job"
-                  className={`rounded-lg border border-[#CBD5E1] bg-white h-10 w-full min-w-0 px-3 text-sm font-normal leading-6 hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 ${
-                    draft.search ? "text-[#334155]" : "text-[#94A3B8]"
-                  }`}
-                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                />
+                <span className="text-sm font-medium text-[#475569]">Search</span>
+                <div className="rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5 hover:bg-zinc-50 focus-within:border-[color:var(--brand-primary)]">
+                  <FilterChipInput
+                    embedded
+                    values={parseSkillsFilterParam(draft.searchTags)}
+                    placeholder="Search by job title, skills, experience, location..."
+                    aria-label="Search by job title, skills, experience, location, and profession"
+                    onChange={(nextTags) =>
+                      setField(
+                        "searchTags",
+                        nextTags.map((tag) => tag.trim()).filter(Boolean).join(", ")
+                      )
+                    }
+                  />
+                </div>
               </label>
+
+              <ModalFilterField
+                label="Job Industry"
+                value={draft.industry}
+                onChange={(v) => setField("industry", v)}
+              >
+                {activeUserFacingIndustries().map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </ModalFilterField>
 
               <ModalFilterField
                 label="Profession"
@@ -282,7 +303,9 @@ export function EditJobsFiltersModal({
                 onChange={(v) => setField("status", v)}
               >
                 <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                <option value="open">Open</option>
+                <option value="paused">Paused</option>
+                <option value="filled">Filled</option>
                 <option value="closed">Closed</option>
                 <option value="archived">Archived</option>
               </ModalFilterField>
@@ -336,7 +359,7 @@ export function EditJobsFiltersModal({
               </ModalFilterField>
 
               <ModalFilterField
-                label="End client"
+                label="MSP/Client"
                 value={draft.contractGroup}
                 onChange={(v) => setField("contractGroup", v)}
               >

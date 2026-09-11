@@ -181,24 +181,24 @@ function AssignedCandidateList({ workers }: { workers: FacilityAssignedWorker[] 
       <div className="hidden overflow-hidden rounded-md border border-[#E5E7EB] md:block">
         <div className="overflow-auto">
         <table className="min-w-[760px] w-full border-collapse">
-          <thead className="bg-[#F8FAFC]">
+          <thead className="bg-[#F3F4F6]">
             <tr className="border-b border-[#E5E7EB]">
-              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6">
+              <th className="border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6">
                 Name
               </th>
-              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+              <th className="border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
                 Job Role
               </th>
-              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+              <th className="border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
                 Status
               </th>
-              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+              <th className="border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
                 Location
               </th>
-              <th className="min-w-[140px] whitespace-nowrap border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+              <th className="min-w-[140px] whitespace-nowrap border-r border-[#E5E7EB] bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
                 Assigned
               </th>
-              <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black last:pr-6">
+              <th className="bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black last:pr-6">
                 Action
               </th>
             </tr>

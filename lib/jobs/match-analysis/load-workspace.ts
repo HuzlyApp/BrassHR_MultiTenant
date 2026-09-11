@@ -3,8 +3,17 @@ import { loadWorkerNotesForWorkerId } from "@/lib/worker-notes";
 import { loadApplicationScreeningContext } from "@/lib/jobs/screening-questions";
 import { pickResumeForApplication } from "./pick-resume-for-application";
 import { getMatchAnalysisModelName } from "./service";
+import {
+  loadVerificationNoteAuditForApplication,
+  loadVerificationNotesForApplication,
+} from "./verification-notes-service";
+import { summarizeRequirementNotes } from "./verification-notes";
 import { loadAnalysisHistory } from "./versions";
-import { aiScreeningQuestionKey } from "./workspace";
+import {
+  aiScreeningQuestionKey,
+  matchSavedAiScreeningAnswer,
+  normalizeAnalysisScreeningQuestions,
+} from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
 
 function displayName(first: string | null | undefined, last: string | null | undefined, email?: string | null) {
@@ -36,6 +45,8 @@ export async function loadMatchAnalysisWorkspace(
     verifiedResult,
     aiAnswersResult,
     history,
+    verificationNotes,
+    verificationNoteAudit,
   ] = await Promise.all([
     supabase
       .from("job_application_match_requirements")
@@ -72,7 +83,13 @@ export async function loadMatchAnalysisWorkspace(
       .eq("tenant_id", tenantId)
       .eq("application_id", applicationId),
     loadAnalysisHistory(supabase, tenantId, applicationId, false).catch(() => []),
+    loadVerificationNotesForApplication(supabase, tenantId, applicationId).catch(() => []),
+    loadVerificationNoteAuditForApplication(supabase, tenantId, applicationId, {
+      limit: 100,
+    }).catch(() => []),
   ]);
+
+  const verificationNoteSummaries = summarizeRequirementNotes(verificationNotes);
 
   const userIds = [
     application.created_by_staff_user_id,
@@ -104,18 +121,22 @@ export async function loadMatchAnalysisWorkspace(
       }).catch(() => [])
     : [];
 
+  if (aiAnswersResult.error) throw aiAnswersResult.error;
+
   const aiAnswersByKey = new Map(
     (aiAnswersResult.data ?? []).map((row) => [String(row.question_key), row])
   );
-  const recommendedQuestions = (analysis?.screening_questions ?? []).map((question) => {
+  const recommendedQuestions = normalizeAnalysisScreeningQuestions(
+    analysis?.screening_questions
+  ).map((question) => {
     const key = aiScreeningQuestionKey(question.priority, question.question);
-    const saved = aiAnswersByKey.get(key);
+    const saved = matchSavedAiScreeningAnswer(aiAnswersByKey, key, question.question);
     return {
       key,
       priority: question.priority,
       question: question.question,
       reason: question.reason,
-      relatedRequirement: question.related_requirement,
+      relatedRequirement: question.relatedRequirement,
       answer: saved?.answer_text ?? "",
     };
   });
@@ -142,7 +163,16 @@ export async function loadMatchAnalysisWorkspace(
       ...application,
       ai_analysis_model: application.ai_analysis_model || getMatchAnalysisModelName(),
     },
-    requirements: requirementsResult.data ?? [],
+    requirements: (requirementsResult.data ?? []).map((row) => {
+      const summary = verificationNoteSummaries.get(String(row.id));
+      return {
+        ...row,
+        verification_note_count: summary?.noteCount ?? 0,
+        has_pending_verification_note: summary?.hasPending ?? false,
+        has_verification_decision: summary?.hasDecision ?? false,
+        latest_verification_note: summary?.latestNote ?? null,
+      };
+    }),
     screeningQuestions: screening.questions,
     screeningAssessment: screening.assessment,
     recommendedQuestions,
@@ -154,6 +184,8 @@ export async function loadMatchAnalysisWorkspace(
       verifiedAt: String(row.verified_at),
       verifiedByName: row.verified_by ? usersById.get(String(row.verified_by))?.name ?? "Recruiter" : "Recruiter",
     })),
+    verificationNotes,
+    verificationNoteAudit,
     notes,
     analysisHistory: history,
     extractedResume,

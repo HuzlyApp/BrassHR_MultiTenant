@@ -28,7 +28,7 @@ import {
 
 function columnHeaderClass(colId: AttendanceColumnId): string {
   const base =
-    "bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black";
+    "bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black";
   if (colId === "clockInLocation" || colId === "clockOutLocation" || colId === "breakTime") {
     return `${base} min-w-[200px]`;
   }
@@ -302,7 +302,7 @@ function AttendancePageContent() {
             <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
               <div className="overflow-auto">
                 <table className="w-full min-w-full border-collapse">
-                  <thead className="bg-[#F8FAFC]">
+                  <thead className="bg-[#F3F4F6]">
                     <tr className="border-b border-[#E5E7EB]">
                       {listColumnOrder.map((colId) => (
                         <th key={colId} className={columnHeaderClass(colId)}>
@@ -310,7 +310,7 @@ function AttendancePageContent() {
                         </th>
                       ))}
                       {showClaimColumn ? (
-                        <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                        <th className="bg-[#F3F4F6] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
                           Action
                         </th>
                       ) : null}

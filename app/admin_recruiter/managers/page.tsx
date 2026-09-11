@@ -275,12 +275,12 @@ export default function ManagersPage() {
                 <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
                   <div className="overflow-auto">
                     <table className="min-w-[760px] w-full border-collapse">
-                      <thead className="bg-[#F8FAFC]">
+                      <thead className="bg-[#F3F4F6]">
                         <tr className="border-b border-[#E5E7EB]">
                           {cols.map((colId) => (
                             <th
                               key={colId}
-                              className={`bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 last:pr-6 ${
+                              className={`bg-[#F3F4F6] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 last:pr-6 ${
                                 colId === "name" ? "text-left" : "text-center"
                               } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
                             >
@@ -320,6 +320,7 @@ export default function ManagersPage() {
         onOpenChange={setEditColumnsOpen}
         options={MANAGER_COLUMN_OPTIONS}
         value={listColumnOrder}
+        defaultValue={DEFAULT_MANAGER_COLUMNS}
         title="Edit Columns"
         description="Choose which columns appear in the managers list and drag to reorder them."
         onSave={(order) => {

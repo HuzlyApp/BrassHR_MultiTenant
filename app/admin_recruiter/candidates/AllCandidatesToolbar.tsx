@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { JobsViewToggle } from "@/app/admin_recruiter/jobs/JobsViewToggle";
+import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
+import { buildCandidatesSearchApplyPayload } from "@/lib/workers/candidates-search-ui";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 
@@ -66,6 +68,19 @@ function MatchExistingIcon() {
   return <ListingGlyph src={`${CANDIDATES_ICONS}/match-existing.svg`} outer={16} leafWidth={12.17} leafHeight={14.16} />;
 }
 
+function AnalyzeSparklesIcon() {
+  return (
+    <span className="relative flex size-4 shrink-0 items-center justify-center" aria-hidden>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+        <path
+          d="M12 3l1.2 4.2L17.5 8.5 13.2 9.8 12 14l-1.2-4.2L6.5 8.5l4.3-1.3L12 3zM18.5 13.5l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3zM6.2 14.5l.55 1.8 1.8.55-1.8.55-.55 1.8-.55-1.8-1.8-.55 1.8-.55.55-1.8z"
+          fill="currentColor"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function skillsKey(skills: string[]): string {
   return skills.map((skill) => skill.trim().toLowerCase()).filter(Boolean).join("|");
 }
@@ -84,6 +99,12 @@ export type AllCandidatesToolbarProps = {
   onViewChange: (view: "card" | "list") => void;
   highlightMultiJob: boolean;
   onHighlightMultiJobChange: (value: boolean) => void;
+  /** Disable Search while a request is in flight (prevents duplicate submissions). */
+  searching?: boolean;
+  onAnalyzeAll?: () => void;
+  analyzeAllLabel?: string;
+  analyzeBusy?: boolean;
+  analyzeDisabled?: boolean;
 };
 
 function HighlightMultiJobToggle({
@@ -95,25 +116,11 @@ function HighlightMultiJobToggle({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={onToggle}
-        className="relative h-6 w-10 shrink-0"
-        aria-label="Highlight Multi-Job Applicants"
-      >
-        <span
-          className={`absolute left-1/2 top-1/2 h-5 w-[34px] -translate-x-1/2 -translate-y-1/2 rounded-[45px] transition-colors ${
-            on ? "bg-[color:var(--brand-secondary,#012352)]" : "bg-[#CBD5E1]"
-          }`}
-        />
-        <span
-          className={`absolute top-1 size-4 rounded-[20px] bg-white shadow-sm transition-[left] ${
-            on ? "left-5" : "left-1"
-          }`}
-        />
-      </button>
+      <JobPublishToggle
+        checked={on}
+        onChange={onToggle}
+        ariaLabel="Highlight Multi-Job Applicants"
+      />
       <span className="text-xs font-normal leading-4 text-[#374151]">Highlight Multi-Job Applicants</span>
     </div>
   );
@@ -133,6 +140,11 @@ export function AllCandidatesToolbar({
   onViewChange,
   highlightMultiJob,
   onHighlightMultiJobChange,
+  searching = false,
+  onAnalyzeAll,
+  analyzeAllLabel = "Analyze all",
+  analyzeBusy = false,
+  analyzeDisabled = false,
 }: AllCandidatesToolbarProps) {
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftSkillTags, setDraftSkillTags] = useState(() => parseSkillsFilterParam(skillsFilter));
@@ -151,14 +163,13 @@ export function AllCandidatesToolbar({
   const hasAppliedSearch = Boolean(query.trim() || appliedSkillTags.length);
   const hasDraftSearch = Boolean(draftQuery.trim() || draftSkillTags.length);
 
-  function submitSearch() {
-    onApplySearch({
-      query: draftQuery.trim(),
-      skillsFilter: draftSkillTags.join(", "),
-    });
+  function submitSearch(skillTags = draftSkillTags) {
+    if (searching) return;
+    onApplySearch(buildCandidatesSearchApplyPayload({ query: draftQuery, skillTags }));
   }
 
   function resetSearch() {
+    if (searching) return;
     setDraftQuery("");
     setDraftSkillTags([]);
     onResetSearch();
@@ -183,7 +194,9 @@ export function AllCandidatesToolbar({
                 }}
                 placeholder="Search applicant or resume"
                 aria-label="Search applicant or resume"
-                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#374151] outline-none placeholder:text-[#374151]/40 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
+                title="Search by name, email, phone, job title, or resume text"
+                disabled={searching}
+                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#374151] outline-none placeholder:text-[#374151]/40 disabled:opacity-60 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
               />
             </label>
             <div className="flex min-h-9 min-w-0 flex-1 items-center px-3 py-1.5 sm:px-4">
@@ -193,6 +206,10 @@ export function AllCandidatesToolbar({
                 placeholder="Filter by Skills"
                 aria-label="Filter by Skills"
                 onChange={setDraftSkillTags}
+                onEnterSubmit={(nextSkills) => {
+                  setDraftSkillTags(nextSkills);
+                  submitSearch(nextSkills);
+                }}
               />
             </div>
           </div>
@@ -200,16 +217,17 @@ export function AllCandidatesToolbar({
           <div className="flex shrink-0 items-center gap-2 sm:gap-3.5">
             <button
               type="button"
-              onClick={submitSearch}
-              disabled={!searchDirty && !hasDraftSearch}
+              onClick={() => submitSearch()}
+              disabled={searching || (!searchDirty && !hasDraftSearch)}
+              title="Search uses AND when both applicant/resume text and skills are set"
               className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none disabled:cursor-not-allowed disabled:opacity-50`}
             >
-              Search
+              {searching ? "Searching…" : "Search"}
             </button>
             <button
               type="button"
               onClick={resetSearch}
-              disabled={!hasAppliedSearch && !hasDraftSearch}
+              disabled={searching || (!hasAppliedSearch && !hasDraftSearch)}
               className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} flex-1 sm:flex-none disabled:cursor-not-allowed disabled:opacity-50`}
             >
               <ResetSearchIcon />
@@ -217,6 +235,10 @@ export function AllCandidatesToolbar({
             </button>
           </div>
         </div>
+        <p className="text-[11px] leading-4 text-[#64748B]">
+          Applicant/resume and skills can be used alone or together. When both are set, results must match
+          both (AND).
+        </p>
       </div>
 
       <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -247,6 +269,18 @@ export function AllCandidatesToolbar({
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3.5">
+          {onAnalyzeAll ? (
+            <button
+              type="button"
+              onClick={onAnalyzeAll}
+              disabled={analyzeBusy || analyzeDisabled}
+              title="Analyze all unanalyzed candidates on this page"
+              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <AnalyzeSparklesIcon />
+              {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+            </button>
+          ) : null}
           {onAddCandidate ? (
             <button type="button" onClick={onAddCandidate} className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto`}>
               <UserAddIcon />

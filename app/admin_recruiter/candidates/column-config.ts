@@ -1,6 +1,7 @@
 export type CandidateColumnId =
   | "name"
   | "contact"
+  | "clientName"
   | "status"
   | "progressStatus"
   | "reference"
@@ -12,6 +13,7 @@ export type CandidateColumnId =
   | "notMet"
   | "currentStage"
   | "evaluation"
+  | "assignee"
   | "createdDate"
   | "location"
   | "city"
@@ -42,17 +44,19 @@ export type CandidateColumnId =
 export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[] = [
   { id: "name", label: "Candidate" },
   { id: "contact", label: "Contact" },
+  { id: "clientName", label: "Client name" },
   { id: "status", label: "Status" },
   { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
   { id: "jobRole", label: "Job Role" },
-  { id: "matchJob", label: "Job title" },
+  { id: "matchJob", label: "Applied jobs" },
   { id: "jobMatch", label: "Match Score" },
   { id: "conf", label: "Conf." },
   { id: "verify", label: "Verify" },
   { id: "notMet", label: "Not Met" },
   { id: "currentStage", label: "Current Stage" },
   { id: "evaluation", label: "Evaluation" },
+  { id: "assignee", label: "Assignee" },
   { id: "createdDate", label: "Applied date" },
   { id: "location", label: "Location" },
   { id: "city", label: "City" },
@@ -84,13 +88,15 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
 export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
   "contact",
+  "clientName",
+  "matchJob",
   "progressStatus",
   "jobMatch",
   "currentStage",
   "createdDate",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns-v5"
+const STORAGE_KEY = "nexus-candidates-list-columns-v7"
 
 /** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
@@ -104,7 +110,9 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
   }
 
   insertAfter("name", "contact")
-  insertAfter("contact", "progressStatus")
+  insertAfter("contact", "clientName")
+  insertAfter("clientName", "matchJob")
+  insertAfter("matchJob", "progressStatus")
   insertAfter("progressStatus", "jobMatch")
   insertAfter("jobMatch", "currentStage")
   insertAfter("currentStage", "createdDate")
@@ -144,6 +152,7 @@ export function columnLabel(id: CandidateColumnId): string {
 export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "name") return "min-w-[220px]"
   if (colId === "contact") return "min-w-[200px]"
+  if (colId === "clientName") return "min-w-[140px] whitespace-nowrap"
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"
@@ -153,7 +162,8 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   }
   if (colId === "currentStage") return "min-w-[170px]"
   if (colId === "evaluation") return "min-w-[110px] whitespace-nowrap"
-  if (colId === "matchJob") return "min-w-[200px] whitespace-nowrap"
+  if (colId === "assignee") return "min-w-[160px] whitespace-nowrap"
+  if (colId === "matchJob") return "min-w-[220px]"
   if (colId === "location") return "min-w-[220px] whitespace-nowrap"
   return ""
 }

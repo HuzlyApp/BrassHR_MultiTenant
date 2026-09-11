@@ -90,6 +90,8 @@ type Props<TId extends string> = {
   options: ColumnOption<TId>[]
   /** Current saved column order (visible columns only). */
   value: TId[]
+  /** Default visible columns used by "Reset to default". */
+  defaultValue?: TId[]
   onSave: (order: TId[]) => void
   title?: string
   description?: string
@@ -100,6 +102,7 @@ export function ColumnsEditorModal<TId extends string>({
   onOpenChange,
   options,
   value,
+  defaultValue,
   onSave,
   title = "Edit Columns",
   description = "Choose which columns appear in the list and drag to reorder them.",
@@ -111,6 +114,11 @@ export function ColumnsEditorModal<TId extends string>({
   const [dragId, setDragId] = useState<TId | null>(null)
 
   const selectedSet = useMemo(() => new Set(draftOrder), [draftOrder])
+  const defaultOrder = useMemo(() => {
+    if (!defaultValue?.length) return null
+    const allowed = new Set(options.map((option) => option.id))
+    return defaultValue.filter((id) => allowed.has(id))
+  }, [defaultValue, options])
 
   const labelFor = useCallback(
     (id: TId) => options.find((c) => c.id === id)?.label ?? id,
@@ -135,6 +143,12 @@ export function ColumnsEditorModal<TId extends string>({
   const unselectAll = useCallback(() => {
     setDraftOrder([])
   }, [])
+
+  const resetToDefault = useCallback(() => {
+    if (!defaultOrder?.length) return
+    setDraftOrder([...defaultOrder])
+    setFieldSearch("")
+  }, [defaultOrder])
 
   const removeFromOrder = useCallback((id: TId) => {
     setDraftOrder((prev) => prev.filter((x) => x !== id))
@@ -297,25 +311,38 @@ export function ColumnsEditorModal<TId extends string>({
             </section>
           </div>
 
-          <div className="flex shrink-0 items-center justify-end gap-2 px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
-            <Dialog.Close asChild>
+          <div className="flex shrink-0 items-center justify-between gap-2 px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+            {defaultOrder?.length ? (
               <button
                 type="button"
+                onClick={resetToDefault}
                 className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-semibold leading-5 text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
               >
-                Cancel
+                Reset to default
               </button>
-            </Dialog.Close>
-            <button
-              type="button"
-              onClick={() => {
-                onSave(draftOrder)
-                onOpenChange(false)
-              }}
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] px-4 text-sm font-semibold leading-5 text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
-            >
-              Save
-            </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-semibold leading-5 text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => {
+                  onSave(draftOrder)
+                  onOpenChange(false)
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] px-4 text-sm font-semibold leading-5 text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

@@ -64,6 +64,11 @@ import { ResumeHistoryModal, type ResumeHistoryItem } from "./ResumeHistoryModal
 import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import { workTypeLabel, type CandidateProfileApplication } from "@/lib/admin/candidate-profile-view";
 import {
+  candidateProfileApiUrl,
+  fetchStaffDetailJson,
+  jobDetailsApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
+import {
   applicationReviewHref,
   formatProfileApplicationDate,
   workTypeBadgeClass,
@@ -314,7 +319,9 @@ export default function JobCandidateReviewClient() {
   const resumeUrl = profile?.requirements?.resume_url?.trim() || null;
   const hasResume = Boolean(resumePath || resumeUrl);
   const resumePreviewUrl = workerId
-    ? `/api/admin/worker-resume-preview?workerId=${encodeURIComponent(workerId)}&v=${resumePreviewKey}`
+    ? `/api/admin/worker-resume-preview?workerId=${encodeURIComponent(workerId)}${
+        selected?.id ? `&applicationId=${encodeURIComponent(selected.id)}` : ""
+      }&v=${resumePreviewKey}`
     : null;
   const resumeDownloadUrl = resumeUrl
     ? `${resumeUrl}${resumeUrl.includes("?") ? "&" : "?"}v=${resumePreviewKey}`
@@ -406,12 +413,12 @@ export default function JobCandidateReviewClient() {
         return;
       }
       try {
-        const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, {
-          cache: "no-store",
-        });
-        const payload = await response.json();
+        const { ok, payload } = await fetchStaffDetailJson<{
+          publicJobPath?: string;
+          error?: string;
+        }>(jobDetailsApiUrl(jobId));
         if (cancelled) return;
-        if (!response.ok) {
+        if (!ok) {
           setPublicJobPath(null);
           return;
         }
@@ -484,8 +491,11 @@ export default function JobCandidateReviewClient() {
       }
       setProfileLoading(true);
       try {
+        const applicationQuery = selected?.id
+          ? `&applicationId=${encodeURIComponent(selected.id)}`
+          : "";
         const response = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}`,
+          `/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}${applicationQuery}`,
           { cache: "no-store" }
         );
         const payload = (await response.json()) as WorkerProfilePayload & { error?: string };
@@ -502,7 +512,7 @@ export default function JobCandidateReviewClient() {
     return () => {
       cancelled = true;
     };
-  }, [workerId]);
+  }, [workerId, selected?.id]);
 
   useEffect(() => {
     if (!workerId) {
@@ -514,16 +524,12 @@ export default function JobCandidateReviewClient() {
     setWorkerApplicationsLoading(true);
     void (async () => {
       try {
-        const response = await fetch(
-          `/api/admin/candidates/${encodeURIComponent(workerId)}/profile`,
-          { cache: "no-store" }
-        );
-        const payload = (await response.json().catch(() => ({}))) as {
+        const { ok, payload } = await fetchStaffDetailJson<{
           applications?: CandidateProfileApplication[];
           error?: string;
-        };
+        }>(candidateProfileApiUrl(workerId));
         if (cancelled) return;
-        if (!response.ok) throw new Error(payload.error || "Failed to load applications");
+        if (!ok) throw new Error(payload.error || "Failed to load applications");
         setWorkerApplications(payload.applications ?? []);
       } catch {
         if (!cancelled) setWorkerApplications([]);
@@ -542,14 +548,17 @@ export default function JobCandidateReviewClient() {
   }, [workerId, resumeUrl, resumePreviewKey]);
 
   const reloadWorkerProfile = useCallback(async (targetWorkerId: string) => {
+    const applicationQuery = selected?.id
+      ? `&applicationId=${encodeURIComponent(selected.id)}`
+      : "";
     const response = await fetch(
-      `/api/admin/worker-profile?workerId=${encodeURIComponent(targetWorkerId)}`,
+      `/api/admin/worker-profile?workerId=${encodeURIComponent(targetWorkerId)}${applicationQuery}`,
       { cache: "no-store" }
     );
     const payload = (await response.json()) as WorkerProfilePayload & { error?: string };
     if (!response.ok) throw new Error(payload.error || "Failed to refresh profile");
     setProfile(payload);
-  }, []);
+  }, [selected?.id]);
 
   function beginReuploadResume() {
     if (!selected?.id) return;

@@ -1,5 +1,21 @@
-export const JOB_STATUSES = ["draft", "published", "closed", "archived"] as const;
+export const JOB_STATUSES = [
+  "draft",
+  "open",
+  "paused",
+  "filled",
+  "closed",
+  "archived",
+] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
+
+/** Statuses that appear on the public jobs board and accept applications. */
+export const PUBLIC_ACCEPTING_JOB_STATUSES = ["open"] as const;
+
+/**
+ * Dual-read values for public/open queries during rollout
+ * (legacy rows may still say "published" until backfilled).
+ */
+export const PUBLIC_ACCEPTING_JOB_STATUS_QUERY = ["open", "published"] as const;
 
 export const EMPLOYMENT_TYPES = ["W2", "1099", "Contract"] as const;
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
@@ -45,9 +61,16 @@ export type JobRequisitionInput = {
   hoursPerWeek?: number | null;
   publicTitle?: string | null;
   publicDescription?: string | null;
+  /** User-facing industry key from industry_catalog. */
+  industryKey?: string | null;
   location?: string | null;
   /** ZIP from location search when available; not shown in the form UI. */
   postalCode?: string | null;
+  worksiteCity?: string | null;
+  worksiteState?: string | null;
+  worksitePostalCode?: string | null;
+  /** Required when work location type is Remote. No United States shortcut. */
+  remoteAllowedStates?: string[] | null;
   schedule?: string | null;
   qualifications?: string | null;
   responsibilities?: string | null;
@@ -105,9 +128,22 @@ export type JobWorkflowAssignmentOptions = {
   overrideWorkflowId?: string | null;
 };
 
-/** Job form fields plus admin Add-candidate fields (`name`, `email`). */
+/** Job form fields plus admin Add-candidate and job-patch fields. */
 export type FieldErrors = Partial<
-  Record<keyof JobRequisitionInput | "workflowId" | "name" | "email", string>
+  Record<
+    | keyof JobRequisitionInput
+    | "workflowId"
+    | "name"
+    | "email"
+    | "status"
+    | "assignee"
+    | "tags"
+    | "is_hot"
+    | "remoteAllowedStates"
+    | "worksite_state"
+    | "work_state",
+    string
+  >
 >;
 
 export class JobValidationError extends Error {
@@ -120,4 +156,9 @@ export class JobValidationError extends Error {
     this.fieldErrors = fieldErrors;
     this.code = code;
   }
+}
+
+/** Invalid industry keys are HTTP 400; other job validation stays 422. */
+export function jobValidationHttpStatus(error: JobValidationError): number {
+  return error.fieldErrors.industryKey ? 400 : 422;
 }

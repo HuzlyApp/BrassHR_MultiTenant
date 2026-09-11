@@ -84,5 +84,20 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
+  try {
+    const additionalKeys = Array.isArray(body.industryKeys)
+      ? body.industryKeys.map((value) => String(value))
+      : [];
+    const { syncTenantIndustryFromLabels } = await import("@/lib/ai-catalog/sync-tenant-industry");
+    await syncTenantIndustryFromLabels(svc, {
+      tenantId,
+      primaryLabel: input.industry,
+      additionalKeys,
+    });
+  } catch (bindError) {
+    const message = bindError instanceof Error ? bindError.message : "Could not save hire-for industries.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
   return NextResponse.json({ ok: true });
 }

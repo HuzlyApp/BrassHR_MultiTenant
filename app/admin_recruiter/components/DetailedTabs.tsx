@@ -7,6 +7,7 @@ import {
   CANDIDATE_PIPELINE_REFRESH_EVENT,
   type CandidatePipelineRefreshDetail,
 } from "@/lib/admin/candidate-pipeline-events";
+import { fetchStaffDetailJson, workerProfileApiUrl } from "@/lib/admin/staff-detail-fetch-cache";
 import {
   buildCandidatePipelineSteps,
   type CandidatePipelineChecklistPayload,
@@ -122,9 +123,7 @@ export default function DetailedTabs({
     const skipChecklistFetch = hasLiveChecklistRef.current;
 
     void Promise.all([
-      fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`, {
-        cache: "no-store",
-      }),
+      fetchStaffDetailJson<CandidatePipelineProfilePayload>(workerProfileApiUrl(applicantId)),
       skipChecklistFetch
         ? Promise.resolve(null)
         : fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`, {
@@ -136,10 +135,8 @@ export default function DetailedTabs({
             cache: "no-store",
           }),
     ])
-      .then(async ([profileRes, checklistRes, phaseRes]) => {
-        const profile = profileRes.ok
-          ? ((await profileRes.json()) as CandidatePipelineProfilePayload)
-          : {};
+      .then(async ([profileResult, checklistRes, phaseRes]) => {
+        const profile = profileResult.ok ? profileResult.payload : {};
         const checklist = checklistRes?.ok
           ? ((await checklistRes.json()) as CandidatePipelineChecklistPayload)
           : {};

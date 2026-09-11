@@ -41,13 +41,16 @@ function isActiveStatus(status: string): boolean {
   return !isHiredStatus(status) && !isRejectedStatus(status);
 }
 
-/** Candidate has a completed AI match analysis (same rule as list Match Score cell). */
+/**
+ * Candidate has a completed AI match analysis.
+ * Aligns with list Match Score cells and server KPI RPC: ANALYZED status only
+ * (score-alone / pending / failed / partial do not count).
+ */
 export function isAnalyzedCandidate(row: {
   aiMatchStatus?: string | null;
   aiMatchScore?: number | null;
 }): boolean {
-  if (String(row.aiMatchStatus ?? "").toUpperCase() === "ANALYZED") return true;
-  return row.aiMatchScore != null && Number.isFinite(Number(row.aiMatchScore));
+  return String(row.aiMatchStatus ?? "").toUpperCase() === "ANALYZED";
 }
 
 function createdAtTime(createdAt: string | null): number | null {

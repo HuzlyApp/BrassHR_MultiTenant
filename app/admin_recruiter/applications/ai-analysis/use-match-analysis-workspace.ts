@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
   type QualificationRequirement,
   type RecruiterDecision,
   type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
+import type { VerificationNote, VerificationNoteDraft } from "@/lib/jobs/match-analysis/verification-notes";
+import { summarizeRequirementNotes } from "@/lib/jobs/match-analysis/verification-notes";
 
 export type ScreeningQuestionView = {
   id: string;
@@ -55,6 +58,15 @@ export type MatchAnalysisWorkspacePayload = {
     verifiedByName: string;
   }>;
   notes?: Array<{ id: string; body: string; created_at: string; author_name: string }>;
+  verificationNotes?: VerificationNote[];
+  verificationNoteAudit?: Array<{
+    id: string;
+    noteId: string;
+    requirementId: string;
+    action: string;
+    actorName: string;
+    createdAt: string;
+  }>;
   analysisHistory?: Array<{
     id: string;
     version: number;
@@ -136,9 +148,20 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [workerId, setWorkerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileSummary | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [savingVerificationNote, setSavingVerificationNote] = useState(false);
+  const [busyVerificationNoteId, setBusyVerificationNoteId] = useState<string | null>(null);
   const [jobAnswers, setJobAnswers] = useState<Record<string, string>>({});
   const [recommendedAnswers, setRecommendedAnswers] = useState<Record<string, string>>({});
   const [savingAnswers, setSavingAnswers] = useState(false);
+  const recommendedAnswersRef = useRef(recommendedAnswers);
+  recommendedAnswersRef.current = recommendedAnswers;
+  const jobAnswersRef = useRef(jobAnswers);
+  jobAnswersRef.current = jobAnswers;
+
+  function updateRecommendedAnswer(key: string, value: string) {
+    recommendedAnswersRef.current = { ...recommendedAnswersRef.current, [key]: value };
+    setRecommendedAnswers(recommendedAnswersRef.current);
+  }
   const [decision, setDecision] = useState<RecruiterDecision | "">("");
   const [decisionNote, setDecisionNote] = useState("");
   const [savingDecision, setSavingDecision] = useState(false);
@@ -162,18 +185,29 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [resumes, setResumes] = useState<UploadedResumeItem[]>([]);
   const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
 
-  const applyWorkspacePayload = useCallback((payload: MatchAnalysisWorkspacePayload) => {
+  const applyWorkspacePayload = useCallback((
+    payload: MatchAnalysisWorkspacePayload,
+    opts?: { preserveLocalAnswers?: boolean }
+  ) => {
     setData(payload);
     setWorkerId(payload.application.worker_id ? String(payload.application.worker_id) : null);
     setDecision((payload.application.recruiter_decision as RecruiterDecision) || "");
     setDecisionNote(payload.application.recruiter_decision_note || "");
     setAssignedId(payload.assignedRecruiter?.id || "");
     const rec: Record<string, string> = {};
-    for (const item of payload.recommendedQuestions ?? []) rec[item.key] = item.answer || "";
+    for (const item of payload.recommendedQuestions ?? []) {
+      rec[item.key] =
+        item.answer ||
+        (opts?.preserveLocalAnswers ? recommendedAnswersRef.current[item.key] ?? "" : "");
+    }
     setRecommendedAnswers(rec);
     const jobs: Record<string, string> = {};
     for (const item of payload.screeningQuestions ?? []) {
-      jobs[item.id] = item.answered ? String(item.answer ?? "") : "";
+      jobs[item.id] = item.answered
+        ? String(item.answer ?? "")
+        : opts?.preserveLocalAnswers
+          ? jobAnswersRef.current[item.id] ?? ""
+          : "";
     }
     setJobAnswers(jobs);
     setExtractedDraft(payload.extractedResume?.text || "");
@@ -197,8 +231,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     setResumes(rows);
   }, [applicationId]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { preserveLocalAnswers?: boolean; silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const res = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
@@ -206,11 +240,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Failed to load match analysis");
-      applyWorkspacePayload(json as MatchAnalysisWorkspacePayload);
+      applyWorkspacePayload(json as MatchAnalysisWorkspacePayload, {
+        preserveLocalAnswers: opts?.preserveLocalAnswers,
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load match analysis");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [applicationId, applyWorkspacePayload]);
 
@@ -277,7 +313,7 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const status = data?.application.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";
 
-  async function runAnalyze(): Promise<boolean> {
+  async function runAnalyze(mode: AnalysisMode = "analyze"): Promise<boolean> {
     setAnalyzing(true);
     try {
       const res = await fetch(
@@ -287,7 +323,7 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           cache: "no-store",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ analysisMode: mode }),
         }
       );
       const json = await res.json().catch(() => ({}));
@@ -295,7 +331,9 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       toast.success(
         json.status === "NEEDS_REVIEW"
           ? "Needs résumé text before analysis"
-          : "Match analysis complete"
+          : mode === "deep"
+            ? "Deeper match analysis complete"
+            : "Match analysis complete"
       );
       await Promise.all([load(), loadResumes()]);
       return true;
@@ -307,7 +345,41 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
+  function applyVerificationNotesToRequirements(
+    requirements: QualificationRequirement[],
+    notes: VerificationNote[]
+  ): QualificationRequirement[] {
+    const summaries = summarizeRequirementNotes(notes);
+    return requirements.map((item) => {
+      const summary = summaries.get(item.id);
+      return {
+        ...item,
+        verification_note_count: summary?.noteCount ?? 0,
+        has_pending_verification_note: summary?.hasPending ?? false,
+        has_verification_decision: summary?.hasDecision ?? false,
+        latest_verification_note: summary?.latestNote
+          ? {
+              id: summary.latestNote.id,
+              noteBody: summary.latestNote.noteBody,
+              candidateQuestion: summary.latestNote.candidateQuestion,
+              dueDate: summary.latestNote.dueDate,
+              verificationStatus: summary.latestNote.verificationStatus,
+              candidateResponse: summary.latestNote.candidateResponse,
+              createdByName: summary.latestNote.createdByName,
+              updatedByName: summary.latestNote.updatedByName,
+              createdAt: summary.latestNote.createdAt,
+              updatedAt: summary.latestNote.updatedAt,
+            }
+          : null,
+      };
+    });
+  }
+
   async function toggleVerified(req: QualificationRequirement) {
+    if (!req.recruiter_verified && !req.has_verification_decision) {
+      toast.error("Save a note first, then check Recruiter verified.");
+      return;
+    }
     setVerifyingId(req.id);
     try {
       const res = await fetch(
@@ -343,29 +415,194 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
+  function notesUrl(requirementId: string, noteId?: string) {
+    const base = `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis/requirements/${encodeURIComponent(requirementId)}/notes`;
+    return noteId ? `${base}/${encodeURIComponent(noteId)}` : base;
+  }
+
+  async function createVerificationNote(
+    requirementId: string,
+    draft: VerificationNoteDraft
+  ): Promise<boolean> {
+    setSavingVerificationNote(true);
+    try {
+      const res = await fetch(notesUrl(requirementId), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteBody: draft.noteBody,
+          verificationStatus: draft.verificationStatus,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to save verification note");
+      const note = json.note as VerificationNote;
+      setData((current) => {
+        if (!current) return current;
+        const verificationNotes = [
+          note,
+          ...(current.verificationNotes ?? []).filter(
+            (item) => item.requirementId !== requirementId
+          ),
+        ];
+        return {
+          ...current,
+          verificationNotes,
+          requirements: applyVerificationNotesToRequirements(
+            current.requirements,
+            verificationNotes
+          ),
+        };
+      });
+      toast.success("Verification note saved");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save verification note");
+      return false;
+    } finally {
+      setSavingVerificationNote(false);
+    }
+  }
+
+  async function updateVerificationNote(
+    requirementId: string,
+    noteId: string,
+    draft: VerificationNoteDraft
+  ): Promise<boolean> {
+    setBusyVerificationNoteId(noteId);
+    setSavingVerificationNote(true);
+    try {
+      const res = await fetch(notesUrl(requirementId, noteId), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteBody: draft.noteBody,
+          verificationStatus: draft.verificationStatus,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to update verification note");
+      const note = json.note as VerificationNote;
+      setData((current) => {
+        if (!current) return current;
+        const verificationNotes = (current.verificationNotes ?? []).map((item) =>
+          item.id === noteId ? note : item
+        );
+        return {
+          ...current,
+          verificationNotes,
+          requirements: applyVerificationNotesToRequirements(
+            current.requirements,
+            verificationNotes
+          ),
+        };
+      });
+      toast.success("Verification note updated");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update verification note");
+      return false;
+    } finally {
+      setBusyVerificationNoteId(null);
+      setSavingVerificationNote(false);
+    }
+  }
+
+  async function deleteVerificationNote(requirementId: string, noteId: string): Promise<boolean> {
+    if (!window.confirm("Delete this note?")) {
+      return false;
+    }
+    setBusyVerificationNoteId(noteId);
+    setSavingVerificationNote(true);
+    try {
+      const res = await fetch(notesUrl(requirementId, noteId), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to delete verification note");
+      setData((current) => {
+        if (!current) return current;
+        const verificationNotes = (current.verificationNotes ?? []).filter(
+          (item) => item.id !== noteId
+        );
+        return {
+          ...current,
+          verificationNotes,
+          requirements: applyVerificationNotesToRequirements(
+            current.requirements,
+            verificationNotes
+          ),
+        };
+      });
+      toast.success("Verification note deleted");
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete verification note");
+      return false;
+    } finally {
+      setBusyVerificationNoteId(null);
+      setSavingVerificationNote(false);
+    }
+  }
+
+  async function markNoteSentToCandidate(note: VerificationNote): Promise<boolean> {
+    return updateVerificationNote(note.requirementId, note.id, {
+      noteBody: note.noteBody,
+      verificationStatus: "sent_to_candidate",
+    });
+  }
+
   async function saveScreeningAnswers() {
     setSavingAnswers(true);
     try {
+      const currentRecommended = recommendedAnswersRef.current;
+      const currentJob = jobAnswersRef.current;
       const res = await fetch(`/api/admin/job-applications/${applicationId}/screening-answers`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jobAnswers: Object.entries(jobAnswers).map(([questionId, answer]) => ({ questionId, answer })),
+          jobAnswers: Object.entries(currentJob)
+            .filter(([, answer]) => String(answer ?? "").trim() !== "")
+            .map(([questionId, answer]) => ({ questionId, answer })),
           recommendedAnswers: (data?.recommendedQuestions ?? []).map((item) => ({
             key: item.key,
             question: item.question,
             priority: item.priority,
-            answer: recommendedAnswers[item.key] ?? "",
+            answer: currentRecommended[item.key] ?? "",
           })),
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Failed to save screening answers");
-      toast.success("Screening answers saved");
-      await load();
+      if (!res.ok) throw new Error(json.error || "Failed to save screening notes");
+      const saved = Array.isArray(json.recommendedAnswers)
+        ? (json.recommendedAnswers as Array<{ key: string; answer: string }>)
+        : [];
+      if (saved.length) {
+        setRecommendedAnswers((current) => {
+          const next = { ...current };
+          for (const item of saved) next[item.key] = item.answer ?? next[item.key] ?? "";
+          return next;
+        });
+        setData((current) => {
+          if (!current) return current;
+          const byKey = new Map(saved.map((item) => [item.key, item.answer ?? ""]));
+          return {
+            ...current,
+            recommendedQuestions: (current.recommendedQuestions ?? []).map((item) => ({
+              ...item,
+              answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
+            })),
+          };
+        });
+      }
+      toast.success("Screening notes saved");
+      await load({ preserveLocalAnswers: true, silent: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save screening answers");
+      toast.error(error instanceof Error ? error.message : "Failed to save screening notes");
     } finally {
       setSavingAnswers(false);
     }
@@ -548,10 +785,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     status,
     isAnalyzed,
     verifyingId,
+    savingVerificationNote,
+    busyVerificationNoteId,
     jobAnswers,
     setJobAnswers,
     recommendedAnswers,
     setRecommendedAnswers,
+    updateRecommendedAnswer,
     savingAnswers,
     decision,
     setDecision,
@@ -580,6 +820,10 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     load,
     runAnalyze,
     toggleVerified,
+    createVerificationNote,
+    updateVerificationNote,
+    deleteVerificationNote,
+    markNoteSentToCandidate,
     saveScreeningAnswers,
     recordDecision,
     addVerified,

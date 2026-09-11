@@ -28,6 +28,7 @@ import BrandingRightPanelLogo, {
 } from "@/app/components/BrandingRightPanelLogo"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
+import { readStoredApplyLocation } from "@/lib/service-area/apply-location-client"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import {
   findResumeUploadStep,
@@ -456,6 +457,12 @@ export default function Step1Upload() {
             ""
           if (activeJobToken) {
             fd.append("jobToken", activeJobToken)
+            const storedLocation = tenantSlug
+              ? readStoredApplyLocation(tenantSlug, activeJobToken)
+              : null
+            if (storedLocation) {
+              fd.append("workLocation", JSON.stringify(storedLocation))
+            }
             try {
               localStorage.setItem("applicationJobToken", activeJobToken)
             } catch {

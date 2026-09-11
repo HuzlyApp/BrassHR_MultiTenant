@@ -69,6 +69,7 @@ export type ReviewEditFieldId =
   | "payRate"
   | "jobDuration"
   | "startDate"
+  | "applicationDeadline"
   | "expectedHours"
   | "credentials"
   | "specialRequirements"
@@ -152,6 +153,25 @@ function cloneDraft(job: JobRequisitionInput, ui: JobFormUiState): DraftState {
       selectedBenefits: [...ui.selectedBenefits],
       customBenefits: [...ui.customBenefits],
     },
+  };
+}
+
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Application deadline picker: today through the next 6 months. */
+function applicationDeadlineBounds() {
+  const minDate = new Date();
+  minDate.setHours(0, 0, 0, 0);
+  const maxDate = new Date(minDate);
+  maxDate.setMonth(maxDate.getMonth() + 6);
+  return {
+    min: toDateInputValue(minDate),
+    max: toDateInputValue(maxDate),
   };
 }
 
@@ -876,6 +896,40 @@ export function JobReviewEditModal({
                 />
               </div>
             ) : null}
+
+            {field === "applicationDeadline"
+              ? (() => {
+                  const deadlineBounds = applicationDeadlineBounds();
+                  return (
+                    <div>
+                      <label
+                        className={JOB_FORM_LABEL_CLASS}
+                        htmlFor="review-edit-application-deadline"
+                      >
+                        Application Deadline
+                      </label>
+                      <input
+                        id="review-edit-application-deadline"
+                        type="date"
+                        min={deadlineBounds.min}
+                        max={deadlineBounds.max}
+                        className={JOB_FORM_INPUT_CLASS}
+                        value={draft.job.applicationDeadline ?? ""}
+                        onChange={(event) => {
+                          const next = event.target.value || null;
+                          if (
+                            next &&
+                            (next < deadlineBounds.min || next > deadlineBounds.max)
+                          ) {
+                            return;
+                          }
+                          patchJob("applicationDeadline", next);
+                        }}
+                      />
+                    </div>
+                  );
+                })()
+              : null}
 
             {field === "expectedHours" ? (
               <div className="space-y-4">

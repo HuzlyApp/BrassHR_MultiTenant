@@ -7,6 +7,8 @@ export type WorkerApplicationStatusSummary = {
   statusName: string | null;
   systemKey: string | null;
   jobTitle: string | null;
+  /** MSP end client (msp_name); null for non-MSP or empty. */
+  clientName: string | null;
   ambiguous: boolean;
 };
 
@@ -22,14 +24,33 @@ type AppRow = {
     | { id: string; name: string; system_key: string | null }[]
     | null;
   job_requisitions:
-    | { public_title: string | null }
-    | { public_title: string | null }[]
+    | {
+        public_title: string | null;
+        source_type?: string | null;
+        msp_name?: string | null;
+      }
+    | {
+        public_title: string | null;
+        source_type?: string | null;
+        msp_name?: string | null;
+      }[]
     | null;
 };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function clientNameFromJob(job: {
+  source_type?: string | null;
+  msp_name?: string | null;
+} | null): string | null {
+  if (!job) return null;
+  const source = String(job.source_type ?? "").trim().toLowerCase();
+  if (source !== "msp") return null;
+  const name = job.msp_name?.trim() || "";
+  return name || null;
 }
 
 function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSummary {
@@ -41,6 +62,7 @@ function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSumm
     statusName: status?.name ?? null,
     systemKey: status?.system_key ?? row.status,
     jobTitle: job?.public_title ?? null,
+    clientName: clientNameFromJob(job),
     ambiguous,
   };
 }
@@ -61,7 +83,7 @@ export async function getApplicationStatusSummariesForWorkers(
     let query = supabase
       .from("job_applications")
       .select(
-        "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title)"
+        "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name)"
       )
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")')

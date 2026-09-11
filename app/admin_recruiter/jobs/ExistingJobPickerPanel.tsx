@@ -233,8 +233,10 @@ export function ExistingJobPickerPanel({
               aria-label="Filter by status"
             >
               <option value="">Active</option>
-              <option value="published">Open</option>
               <option value="draft">Draft</option>
+              <option value="open">Open</option>
+              <option value="paused">Paused</option>
+              <option value="filled">Filled</option>
               <option value="closed">Closed</option>
               <option value="archived">Archived</option>
             </select>

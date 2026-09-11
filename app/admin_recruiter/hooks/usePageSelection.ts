@@ -97,16 +97,16 @@ export function usePageSelection(options: {
   const selectedEligibleCount = selectedEligibleIds.length;
 
   const selectionScopeLabel = useMemo(() => {
-    if (selectedEligibleCount === 0) return "";
-    if (allEligibleSelected) {
-      return `All ${selectedEligibleCount} candidate${
-        selectedEligibleCount === 1 ? "" : "s"
-      } on this page selected`;
+    if (selectedCount === 0) return "";
+    const pageIds = options.pageRows.map((row) => row.id);
+    const selectedOnPage = pageIds.filter((id) => selectedIds.has(id)).length;
+    const allOnPageSelected =
+      pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+    if (allOnPageSelected) {
+      return `All ${selectedOnPage} candidate${selectedOnPage === 1 ? "" : "s"} on this page selected`;
     }
-    return `${selectedEligibleCount} candidate${
-      selectedEligibleCount === 1 ? "" : "s"
-    } selected on this page`;
-  }, [allEligibleSelected, selectedEligibleCount]);
+    return `${selectedCount} candidate${selectedCount === 1 ? "" : "s"} selected on this page`;
+  }, [options.pageRows, selectedCount, selectedIds]);
 
   return {
     selectedIds,

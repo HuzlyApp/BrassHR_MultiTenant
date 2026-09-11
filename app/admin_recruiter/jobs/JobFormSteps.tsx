@@ -23,6 +23,7 @@ import {
   ensureTintedSidebarIconMarkup,
   getTintedSidebarIconMarkup,
 } from "@/lib/sidebar/sidebar-icon-markup";
+import { US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { isMspRecruitAndEor, isMspRecruitAndRelease, MSP_PLACEMENT_SUMMARIES, PLACEMENT_TYPE_LABELS } from "@/lib/jobs/placement";
 import {
@@ -85,6 +86,7 @@ import {
   type CommissionFeeType,
 } from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
+import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 
 function BrandedCheckbox({
   checked,
@@ -268,6 +270,49 @@ function AcceptableMatchRateField({
   );
 }
 
+function RemoteAllowedStatesField({
+  value,
+  error,
+  onChange,
+}: {
+  value: string[];
+  error?: string;
+  onChange: (next: string[]) => void;
+}) {
+  const selected = new Set(value);
+  return (
+    <div className="min-[700px]:col-span-2">
+      <p className={JOB_FORM_LABEL_CLASS}>Remote work allowed in</p>
+      <p className="mb-2 text-xs text-[#64748B]">Select every state where this role can be worked. There is no United States shortcut.</p>
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => {
+          const checked = selected.has(code);
+          return (
+            <button
+              key={code}
+              type="button"
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                checked
+                  ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[#1D2739]"
+                  : "border-[#CBD5E1] bg-white text-[#64748B]"
+              }`}
+              onClick={() => {
+                const next = new Set(selected);
+                if (checked) next.delete(code);
+                else next.add(code);
+                onChange(Array.from(next));
+              }}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+      <FieldError error={error} />
+    </div>
+  );
+}
+
 function WorkLocationTypeField({
   id,
   value,
@@ -364,6 +409,26 @@ export function JobFormStepRequisition({
         </div>
 
         <div className="grid gap-4 min-[700px]:grid-cols-2">
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-industry">
+              Job Industry
+            </label>
+            <select
+              id="job-industry"
+              className={JOB_FORM_SELECT_CLASS}
+              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              value={job.industryKey ?? ""}
+              onChange={(event) => onJobChange("industryKey", event.target.value || null)}
+            >
+              <option value="">Select industry</option>
+              {activeUserFacingIndustries().map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <FieldError error={fieldErrors.industryKey} />
+          </div>
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="profession">
               Profession
@@ -537,6 +602,13 @@ export function JobFormStepRequisition({
             </select>
           </div>
         </div>
+        {ui.jobLocationType.toLowerCase().includes("remote") ? (
+          <RemoteAllowedStatesField
+            value={job.remoteAllowedStates ?? []}
+            error={fieldErrors.remoteAllowedStates}
+            onChange={(next) => onJobChange("remoteAllowedStates", next)}
+          />
+        ) : null}
 
         <div className="grid gap-4 min-[700px]:grid-cols-2">
           <div>
@@ -793,6 +865,27 @@ export function JobFormStepMspDetails({
       </div>
 
       <div>
+        <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-job-industry">
+          Job Industry
+        </label>
+        <select
+          id="msp-job-industry"
+          className={JOB_FORM_SELECT_CLASS}
+          style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+          value={job.industryKey ?? ""}
+          onChange={(event) => onJobChange("industryKey", event.target.value || null)}
+        >
+          <option value="">Select industry</option>
+          {activeUserFacingIndustries().map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+        <FieldError error={fieldErrors.industryKey} />
+      </div>
+
+      <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-id">
           Internal Reference / Source Job ID
         </label>
@@ -958,6 +1051,13 @@ export function JobFormStepMspDetails({
           value={ui.jobLocationType}
           onChange={(next) => onUiChange({ jobLocationType: next })}
         />
+        {ui.jobLocationType.toLowerCase().includes("remote") ? (
+          <RemoteAllowedStatesField
+            value={job.remoteAllowedStates ?? []}
+            error={fieldErrors.remoteAllowedStates}
+            onChange={(next) => onJobChange("remoteAllowedStates", next)}
+          />
+        ) : null}
       </div>
 
       <AcceptableMatchRateField
@@ -2200,6 +2300,14 @@ export function JobFormStepReview({
           label="Job Type"
           value={job.shiftType ?? ""}
           onEdit={() => onEditField("jobType")}
+        />
+      ) : null}
+      {job.sourceType !== "MSP" ? (
+        <ReviewRow
+          label="Application Deadline"
+          value={formatReviewDate(job.applicationDeadline)}
+          addLabel="application deadline"
+          onEdit={() => onEditField("applicationDeadline")}
         />
       ) : null}
       {/* EOR hidden on review — removed from create job flow

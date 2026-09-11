@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appRoleToConsoleRole } from "@/lib/admin/staff-directory-types";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
+import { syncAssigneeFromApplication } from "@/lib/candidates/sync-recruiter-assignment";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -30,21 +32,44 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       .eq("id", assigned)
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    const role = String(member?.role ?? "").toLowerCase();
-    if (!member || !["admin", "recruiter", "owner"].includes(role)) {
-      return NextResponse.json({ error: "Assigned user is not a recruiter for this tenant." }, { status: 400 });
+    // Invited recruiters are stored as `client` in DB; console maps that to recruiter.
+    if (!member || appRoleToConsoleRole(member.role) == null) {
+      return NextResponse.json(
+        { error: "Assigned user must be an admin or recruiter for this tenant." },
+        { status: 400 }
+      );
     }
   }
 
-  const { data, error } = await supabase
-    .from("job_applications")
-    .update({ assigned_recruiter_user_id: assigned, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .select("id, assigned_recruiter_user_id")
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  const syncResult = await syncAssigneeFromApplication(supabase, {
+    tenantId,
+    applicationId: id,
+    assignedRecruiterUserId: assigned,
+  });
+  if (syncResult.error === "Application not found") {
+    return NextResponse.json({ error: syncResult.error }, { status: 404 });
+  }
+  if (syncResult.error) {
+    return NextResponse.json({ error: syncResult.error }, { status: 500 });
+  }
+
+  let assignedRecruiter: { id: string; name: string } | null = null;
+  if (syncResult.assignedRecruiterUserId) {
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, first_name, last_name, email")
+      .eq("id", syncResult.assignedRecruiterUserId)
+      .maybeSingle();
+    if (user) {
+      assignedRecruiter = {
+        id: String(user.id),
+        name:
+          `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() ||
+          String(user.email ?? "").trim() ||
+          "Team member",
+      };
+    }
+  }
 
   void writeActivityLog({
     actorUserId: auth.devBypass ? null : auth.userId,
@@ -53,8 +78,16 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     entityId: id,
     tenantId,
     request: req,
-    metadata: { assignedRecruiterUserId: assigned },
+    metadata: {
+      assignedRecruiterUserId: assigned,
+      workerId: syncResult.workerId,
+      syncedWorker: Boolean(syncResult.workerId),
+    },
   });
 
-  return NextResponse.json({ ok: true, assignedRecruiterUserId: data.assigned_recruiter_user_id });
+  return NextResponse.json({
+    ok: true,
+    assignedRecruiterUserId: syncResult.assignedRecruiterUserId,
+    assignedRecruiter,
+  });
 }

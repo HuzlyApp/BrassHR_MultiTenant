@@ -7,6 +7,8 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "./candidates-typography";
 import { MatchScoreRangeFilter } from "./MatchScoreRangeFilter";
+import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
+import { UNASSIGNED_ASSIGNEE_FILTER } from "@/lib/candidates/assignee-filter";
 
 export type CandidatesFilterValues = {
   scoreSort: string;
@@ -17,6 +19,9 @@ export type CandidatesFilterValues = {
   stageFilter: string;
   matchScoreFilter: string;
   locationFilter: string;
+  clientNameFilter: string;
+  assigneeFilter: string;
+  skills: string[];
   appliedDateFrom: string;
   appliedDateTo: string;
 };
@@ -30,16 +35,48 @@ export const EMPTY_CANDIDATES_FILTERS: CandidatesFilterValues = {
   stageFilter: "",
   matchScoreFilter: "",
   locationFilter: "",
+  clientNameFilter: "",
+  assigneeFilter: "",
+  skills: [],
   appliedDateFrom: "",
   appliedDateTo: "",
 };
 
 export function hasActiveCandidatesFilters(value: CandidatesFilterValues): boolean {
-  return Object.values(value).some(Boolean);
+  return (
+    Boolean(value.scoreSort) ||
+    Boolean(value.jobRoleFilter) ||
+    Boolean(value.statusFilter) ||
+    Boolean(value.progressStatusFilter) ||
+    Boolean(value.jobFilter) ||
+    Boolean(value.stageFilter) ||
+    Boolean(value.matchScoreFilter) ||
+    Boolean(value.locationFilter) ||
+    Boolean(value.clientNameFilter) ||
+    Boolean(value.assigneeFilter) ||
+    value.skills.length > 0 ||
+    Boolean(value.appliedDateFrom) ||
+    Boolean(value.appliedDateTo)
+  );
 }
 
 export function countActiveCandidatesFilters(value: CandidatesFilterValues): number {
-  return Object.values(value).filter(Boolean).length;
+  return (
+    [
+      value.scoreSort,
+      value.jobRoleFilter,
+      value.statusFilter,
+      value.progressStatusFilter,
+      value.jobFilter,
+      value.stageFilter,
+      value.matchScoreFilter,
+      value.locationFilter,
+      value.clientNameFilter,
+      value.assigneeFilter,
+      value.appliedDateFrom,
+      value.appliedDateTo,
+    ].filter(Boolean).length + (value.skills.length > 0 ? 1 : 0)
+  );
 }
 
 type FilterOptions = {
@@ -47,6 +84,8 @@ type FilterOptions = {
   statusOptions: string[];
   progressStatusOptions?: { value: string; label: string }[];
   locationOptions: string[];
+  clientNameOptions?: string[];
+  assigneeOptions?: { value: string; label: string }[];
   jobOptions?: string[];
   stageOptions?: string[];
 };
@@ -151,7 +190,7 @@ export function EditCandidatesFiltersModal({
                 Filters
               </Dialog.Title>
               <Dialog.Description className="sr-only">
-                Filter the candidates list by score, work type, status, location, and date.
+                Filter the candidates list by status, skills, location, client name, assignee, and date.
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -260,6 +299,43 @@ export function EditCandidatesFiltersModal({
                   </option>
                 ))}
               </ModalFilterField>
+
+              <ModalFilterField
+                label="Client name"
+                value={draft.clientNameFilter}
+                onChange={(v) => setField("clientNameFilter", v)}
+                placeholder="All Client Names"
+              >
+                {(options.clientNameOptions ?? []).map((clientName) => (
+                  <option key={clientName} value={clientName}>
+                    {clientName}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <ModalFilterField
+                label="Assignee"
+                value={draft.assigneeFilter}
+                onChange={(v) => setField("assigneeFilter", v)}
+                placeholder="All Assignees"
+              >
+                <option value={UNASSIGNED_ASSIGNEE_FILTER}>Unassigned</option>
+                {(options.assigneeOptions ?? []).map((assignee) => (
+                  <option key={assignee.value} value={assignee.value}>
+                    {assignee.label}
+                  </option>
+                ))}
+              </ModalFilterField>
+
+              <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
+                <span className="text-sm font-medium text-[#475569]">Skills</span>
+                <FilterChipInput
+                  values={draft.skills}
+                  placeholder="Type a skill, then Enter or comma"
+                  aria-label="Skills"
+                  onChange={(skills) => setField("skills", skills)}
+                />
+              </label>
 
               <div className="min-[520px]:col-span-2">
                 <span className="text-sm font-medium text-[#475569]">Applied Date</span>

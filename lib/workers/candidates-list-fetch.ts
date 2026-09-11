@@ -1,4 +1,9 @@
-/** Max rows the workers list API returns in one request (see parseWorkersListParams). */
+import {
+  buildCandidatesListUrl,
+  DEFAULT_CANDIDATES_PAGE_SIZE,
+} from "@/lib/workers/candidate-list-params";
+
+/** @deprecated Prefer DEFAULT_CANDIDATES_PAGE_SIZE (15). Kept for export/bulk helpers. */
 export const CANDIDATES_LIST_FETCH_LIMIT = 500;
 
 export function withWorkersListFetchLimit(
@@ -23,10 +28,94 @@ export type FetchAllWorkersResult<T> = {
   total: number;
 };
 
-/** Page through `/api/workers` until all rows are loaded (or maxRows reached). */
+export type FetchWorkersPageResult<T> = {
+  workers: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  timingMs?: number;
+};
+
+export type CandidatesListQuery = {
+  q?: string;
+  /** Comma-separated skill phrases (AND filter, separate from q). */
+  skills?: string;
+  jobRole?: string;
+  location?: string;
+  appliedFrom?: string;
+  appliedTo?: string;
+  status?: string;
+  matchScore?: string;
+  progressStatusId?: string;
+  jobTitle?: string;
+  stage?: string;
+  assignee?: string;
+  sort?: string;
+  sortDir?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+  includePhotoUrls?: boolean;
+};
+
+/** Fetch a single page of candidates (server-side filters/sort/pagination). */
+export async function fetchWorkersPageFromApi<T = Record<string, unknown>>(
+  baseUrl: string,
+  query: CandidatesListQuery = {},
+  options?: { signal?: AbortSignal }
+): Promise<FetchWorkersPageResult<T>> {
+  const pageSize = query.pageSize ?? DEFAULT_CANDIDATES_PAGE_SIZE;
+  const page = Math.max(1, query.page ?? 1);
+  const offset = (page - 1) * pageSize;
+  const pageUrl = buildCandidatesListUrl(baseUrl, {
+    limit: pageSize,
+    offset,
+    q: query.q,
+    skills: query.skills,
+    jobRole: query.jobRole,
+    location: query.location,
+    appliedFrom: query.appliedFrom,
+    appliedTo: query.appliedTo,
+    status: query.status,
+    matchScore: query.matchScore,
+    progressStatusId: query.progressStatusId,
+    jobTitle: query.jobTitle,
+    stage: query.stage,
+    assignee: query.assignee,
+    sort: query.sort,
+    sortDir: query.sortDir,
+    includePhotoUrls: query.includePhotoUrls ?? true,
+  });
+
+  const res = await fetch(pageUrl, { cache: "no-store", signal: options?.signal });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data?.error === "string" ? data.error : "Failed to fetch workers");
+  }
+
+  const workers: T[] = Array.isArray(data?.workers)
+    ? data.workers
+    : Array.isArray(data)
+      ? data
+      : [];
+  const total = typeof data?.total === "number" ? data.total : workers.length;
+  const limit = typeof data?.limit === "number" ? data.limit : pageSize;
+  const resolvedOffset = typeof data?.offset === "number" ? data.offset : offset;
+
+  return {
+    workers,
+    total,
+    limit,
+    offset: resolvedOffset,
+    hasMore: Boolean(data?.hasMore) || resolvedOffset + workers.length < total,
+    timingMs: typeof data?.timingMs === "number" ? data.timingMs : undefined,
+  };
+}
+
+/** Page through `/api/workers` until all rows are loaded (export/bulk only). */
 export async function fetchAllWorkersFromApi<T = Record<string, unknown>>(
   baseUrl: string,
-  options?: { maxRows?: number }
+  options?: { maxRows?: number; signal?: AbortSignal }
 ): Promise<FetchAllWorkersResult<T>> {
   const maxRows = options?.maxRows ?? 20_000;
   const pageSize = CANDIDATES_LIST_FETCH_LIMIT;
@@ -40,7 +129,7 @@ export async function fetchAllWorkersFromApi<T = Record<string, unknown>>(
       appendQueryParam(baseUrl, "offset", String(offset)),
       requestLimit
     );
-    const res = await fetch(pageUrl, { cache: "no-store" });
+    const res = await fetch(pageUrl, { cache: "no-store", signal: options?.signal });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(typeof data?.error === "string" ? data.error : "Failed to fetch workers");

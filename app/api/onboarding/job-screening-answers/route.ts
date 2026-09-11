@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { JobValidationError } from "@/lib/jobs/types";
 import { startOrResumeJobApplication } from "@/lib/jobs/service";
+import { parseServiceAreaLocation, parseServiceAreaLocationFromSearchParams } from "@/lib/service-area/parse-location";
+import { jobValidationServiceAreaResponse } from "@/lib/service-area/http";
 import {
   loadApplicationScreeningContext,
   loadJobScreeningQuestions,
@@ -21,6 +24,7 @@ type Body = {
   tenantSlug?: string;
   jobToken?: string;
   answers?: ApplicationScreeningAnswerInput[];
+  workLocation?: unknown;
 };
 
 export async function GET(req: NextRequest) {
@@ -67,6 +71,7 @@ export async function GET(req: NextRequest) {
       jobToken,
       applicantAuthUserId: applicantId,
       workerId: ctx.workerId,
+      workLocation: parseServiceAreaLocationFromSearchParams(req.nextUrl.searchParams),
     });
 
     const questions = await loadJobScreeningQuestions(supabase, tenant.id, String(job.id), {
@@ -87,6 +92,12 @@ export async function GET(req: NextRequest) {
       assessment: context.assessment,
     });
   } catch (error) {
+    if (error instanceof JobValidationError) {
+      return (
+        jobValidationServiceAreaResponse(error, true) ??
+        NextResponse.json({ error: error.message, code: error.code }, { status: 422 })
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to load screening questions" },
       { status: 500 }
@@ -140,6 +151,7 @@ export async function POST(req: NextRequest) {
       jobToken,
       applicantAuthUserId: applicantId,
       workerId: ctx.workerId,
+      workLocation: parseServiceAreaLocation(body.workLocation),
     });
 
     const saved = await upsertApplicationScreeningAnswers(supabase, {
@@ -189,6 +201,12 @@ export async function POST(req: NextRequest) {
       assessment: context.assessment,
     });
   } catch (error) {
+    if (error instanceof JobValidationError) {
+      return (
+        jobValidationServiceAreaResponse(error, true) ??
+        NextResponse.json({ error: error.message, code: error.code }, { status: 422 })
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to save screening answers" },
       { status: 500 }

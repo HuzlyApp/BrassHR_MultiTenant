@@ -3,41 +3,61 @@ import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
+import { JobListStatusDropdown } from "./JobListStatusDropdown"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
-import { buildJobsBoardHref } from "@/lib/jobs/public-jobs-board"
+import { buildPublicJobSharePath } from "@/lib/jobs/public-job-share"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
-import type { SourceType } from "@/lib/jobs/types"
+import type { JobStatus, SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
-import { JobPublicViewLink } from "./JobPublicViewLink"
+import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
 import { formatCityState } from "@/lib/location/city-state"
 
-const JOB_CANDIDATE_COUNTER_CLASS =
-  "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
-
 const JOB_CANDIDATE_ICONS = {
   all: "/fluent_people-28-regular.svg",
   new: "/fluent_person-add-24-regular.svg",
-  hired: "/fluent_person-star-24-regular.svg",
+  inProcess: "/fluent_people-28-regular.svg",
 } as const
 
-/** Figma jobs list star — 14×14 */
-const JOB_STAR_ICON_SIZE = 14
-const JOB_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg"
+type JobCandidateMetricTone = "all" | "new" | "inProcess"
+
+const JOB_CANDIDATE_METRIC_TONES: Record<
+  JobCandidateMetricTone,
+  { wrap: string; iconFilter?: string }
+> = {
+  all: {
+    wrap: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
+    iconFilter:
+      "brightness(0) saturate(100%) invert(37%) sepia(98%) saturate(1456%) hue-rotate(204deg) brightness(95%) contrast(92%)",
+  },
+  new: {
+    wrap: "border-[#BBF7D0] bg-[#F0FDF4] text-[#16A34A]",
+    iconFilter:
+      "brightness(0) saturate(100%) invert(42%) sepia(79%) saturate(480%) hue-rotate(88deg) brightness(94%) contrast(92%)",
+  },
+  inProcess: {
+    wrap: "border-[#DDD6FE] bg-[#F5F3FF] text-[#7C3AED]",
+    iconFilter:
+      "brightness(0) saturate(100%) invert(32%) sepia(74%) saturate(2476%) hue-rotate(246deg) brightness(92%) contrast(93%)",
+  },
+}
 
 function JobCandidateMetric({
   iconSrc,
   label,
   count,
   href,
+  tone,
 }: {
   iconSrc: string
   label: string
   count: number
   href?: string
+  tone: JobCandidateMetricTone
 }) {
+  const toneClass = JOB_CANDIDATE_METRIC_TONES[tone]
   const body = (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -47,26 +67,26 @@ function JobCandidateMetric({
         width={12}
         height={12}
         className="h-[12px] w-[12px] shrink-0 object-contain"
+        style={toneClass.iconFilter ? { filter: toneClass.iconFilter } : undefined}
         aria-hidden
       />
-      <span className="text-xs font-normal text-[#475569]">{label}</span>
-      <span className={JOB_CANDIDATE_COUNTER_CLASS}>{count}</span>
+      <span className="whitespace-nowrap text-xs font-medium leading-4">
+        {label} {count}
+      </span>
     </>
   )
 
+  const className = `inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 transition hover:opacity-90 ${toneClass.wrap}`
+
   if (href) {
     return (
-      <Link
-        href={href}
-        className="flex cursor-pointer items-center gap-1.5 rounded-md transition hover:opacity-80"
-        aria-label={`${label} ${count}`}
-      >
+      <Link href={href} className={className} aria-label={`${label} ${count}`}>
         {body}
       </Link>
     )
   }
 
-  return <div className="flex items-center gap-1.5">{body}</div>
+  return <div className={className}>{body}</div>
 }
 
 export type JobListRow = {
@@ -85,7 +105,13 @@ export type JobListRow = {
   /** MSP end client (Contract Group / Client on job form → msp_name). */
   msp_name?: string | null
   msp_client?: string | null
-  status: "draft" | "published" | "closed" | "archived"
+  status: "draft" | "open" | "paused" | "filled" | "closed" | "archived" | "published"
+  /** FSD Hot tab — persisted on job_requisitions.is_hot. */
+  is_hot?: boolean | null
+  /** FSD job tags (⋮ Tags). */
+  tags?: string[] | null
+  /** FSD assigned recruiter (⋮ Assign recruiter). */
+  assigned_recruiter_user_id?: string | null
   created_at: string
   published_at: string | null
   location: string | null
@@ -97,9 +123,17 @@ export type JobListRow = {
   pay_rate_period?: string | null
   rate_unit?: string | null
   pay_rate?: number | null
+  /** "Range" | "Exact amount" | "Starting amount" — from job create. */
+  show_pay_by?: string | null
   location_type?: string | null
   schedule?: string | null
   shift_type?: string | null
+  /** Text fields used by jobs listing skills search (AND with title query). */
+  qualifications?: string | null
+  public_description?: string | null
+  responsibilities?: string | null
+  special_requirements?: string | null
+  required_credentials?: string | string[] | null
   professions: { name?: string } | { name?: string }[] | null
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
@@ -107,6 +141,10 @@ export type JobListRow = {
   /** Candidate count — from listInternalJobs, same set as the Job candidates All tab. */
   /** Candidates with status new/submitted — from listInternalJobs. */
   new_application_count?: number
+  /** Screening / interview pipeline candidates. */
+  in_process_application_count?: number
+  /** Best Job candidates `?tab=` for the In Process chip (status with most in-process apps). */
+  in_process_redirect_tab?: string | null
   /** Applications with completed AI match analysis. */
   analyzed_application_count?: number
   /** Applications whose AI match score is 90% or higher. */
@@ -115,6 +153,8 @@ export type JobListRow = {
   ready_to_submit_count?: number
   /** Applications with hired status. */
   hired_application_count?: number
+  /** User-facing industry key from industry_catalog. */
+  industry_key?: string | null
   created_by?: string | null
   createdBy?: { id: string; name: string; profilePhotoUrl: string | null } | null
 }
@@ -135,7 +175,7 @@ export function jobShiftType(job: JobListRow): string {
   return job.shift_type?.trim() || ""
 }
 
-/** End client for MSP jobs (msp_name — not MSP Name / msp_client). */
+/** MSP/Client for MSP jobs (msp_name — not MSP Name / msp_client). */
 export function jobContractGroup(job: JobListRow): string {
   const source = String(job.source_type ?? "").trim().toLowerCase()
   if (source !== "msp") return ""
@@ -145,6 +185,21 @@ export function jobContractGroup(job: JobListRow): string {
 function jobListSourceType(job: JobListRow): SourceType {
   const raw = String(job.source_type ?? "").trim().toLowerCase()
   return raw === "msp" ? "MSP" : "Internal"
+}
+
+/** Internal / MSP badge for job title column and card footers. */
+export function JobSourceTypeBadge({ job }: { job: JobListRow }) {
+  const label = jobListSourceType(job)
+  const isMsp = label === "MSP"
+  return (
+    <span
+      className={`inline-flex max-w-full shrink-0 items-center truncate rounded-md px-2 py-0.5 font-[Inter,sans-serif] text-[10px] font-semibold leading-[15px] ${
+        isMsp ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#DBEAFE] text-[#1D4ED8]"
+      }`}
+    >
+      {label}
+    </span>
+  )
 }
 
 export function isJobListMspRecruitAndRelease(job: JobListRow): boolean {
@@ -201,6 +256,15 @@ export function applicantCount(job: JobListRow): number {
 
 export function newApplicantCount(job: JobListRow): number {
   return job.new_application_count ?? 0
+}
+
+export function inProcessApplicantCount(job: JobListRow): number {
+  return job.in_process_application_count ?? 0
+}
+
+export function inProcessCandidatesHref(job: JobListRow): string {
+  const tab = job.in_process_redirect_tab?.trim() || "in_process"
+  return `${jobCandidatesHref(job.id)}&tab=${encodeURIComponent(tab)}`
 }
 
 export function analyzedApplicantCount(job: JobListRow): number {
@@ -270,17 +334,17 @@ export function jobPayRatePeriodLabel(job: JobListRow): string {
 }
 
 export function jobPayRateSortValue(job: JobListRow): number {
-  const suggested = toNumberOrNull(job.pay_rate)
-  if (suggested != null) return suggested
   const min = toNumberOrNull(job.pay_rate_min)
   const max = toNumberOrNull(job.pay_rate_max)
   if (min != null && max != null) return Math.min(min, max)
   if (min != null) return min
   if (max != null) return max
+  const suggested = toNumberOrNull(job.pay_rate)
+  if (suggested != null) return suggested
   return -1
 }
 
-/** Plain-text pay rate for export / aria (e.g. "$50 / hour"). */
+/** Plain-text pay rate for export / aria (e.g. "$50 / hour" or "$50 - $60 / hour"). */
 export function formatJobListPayRateText(job: JobListRow): string {
   const parts = formatJobListPayRateParts(job)
   if (!parts) return "—"
@@ -294,19 +358,23 @@ export function formatJobListPayRateParts(
   const min = toNumberOrNull(job.pay_rate_min)
   const max = toNumberOrNull(job.pay_rate_max)
   const period = jobPayRatePeriodLabel(job)
+  const showPayBy = String(job.show_pay_by ?? "").trim()
+  const format = (value: number) => `$${formatPayAmount(value)}`
+
+  const hasDistinctRange = min != null && max != null && min !== max
+  const isRangeMode =
+    showPayBy === "Range" ||
+    (hasDistinctRange &&
+      showPayBy !== "Exact amount" &&
+      showPayBy !== "Starting amount")
 
   let amount = ""
-  if (suggested != null) {
-    amount = `$${formatPayAmount(suggested)}`
-  } else if (min != null && max != null) {
-    amount =
-      min === max
-        ? `$${formatPayAmount(min)}`
-        : `$${formatPayAmount(min)} - $${formatPayAmount(max)}`
-  } else if (min != null) {
-    amount = `$${formatPayAmount(min)}`
-  } else if (max != null) {
-    amount = `$${formatPayAmount(max)}`
+  if (isRangeMode && hasDistinctRange) {
+    amount = `${format(min)} - ${format(max)}`
+  } else {
+    // Exact / Starting / incomplete range — single value (never prefer suggested over min/max).
+    const single = min ?? max ?? suggested
+    if (single != null) amount = format(single)
   }
 
   if (!amount) return null
@@ -314,17 +382,21 @@ export function formatJobListPayRateParts(
 }
 
 export function jobStatusSortLabel(status: JobListRow["status"]): string {
-  switch (status) {
-    case "published":
-      return "Published"
+  switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
+    case "open":
+      return "Open"
+    case "paused":
+      return "Paused"
+    case "filled":
+      return "Filled"
     case "draft":
-      return "Unpublished"
+      return "Draft"
     case "closed":
       return "Closed"
     case "archived":
       return "Archived"
     default:
-      return status
+      return String(status ?? "")
   }
 }
 
@@ -371,23 +443,8 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
   }
 }
 
-function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
-  switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
-    case "published":
-      return { label: "Published", dotClass: "bg-[#3B82F6]" }
-    case "draft":
-      return { label: "Unpublished", dotClass: "bg-[#94A3B8]" }
-    case "closed":
-      return { label: "Closed", dotClass: "bg-[#EF4444]" }
-    case "archived":
-      return { label: "Archived", dotClass: "bg-[#EF4444]" }
-    default:
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
-  }
-}
-
 function isPublishToggleChecked(status: JobListRow["status"]): boolean {
-  return normalizeJobRequisitionStatus(String(status ?? "")) === "published"
+  return normalizeJobRequisitionStatus(String(status ?? "")) === "open"
 }
 
 function isPublishToggleDisabled(job: JobListRow): boolean {
@@ -435,20 +492,21 @@ function formatDateShort(iso: string | null): string {
 export type JobListCellContext = {
   brandingSecondaryHex: string
   tenantSlug: string | null
-  starredIds: Set<string>
-  onToggleStar: (jobId: string) => void
+  onToggleHot: (jobId: string) => void
+  hotBusyIds?: Set<string>
   openActionsJobId: string | null
   onOpenActionsMenu: (job: JobListRow, anchor: HTMLElement) => void
   publishBusyIds: Set<string>
   onPublishToggle: (job: JobListRow) => void
+  onStatusChange: (job: JobListRow, nextStatus: JobStatus) => void
 }
 
 export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
-  if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "published") return null
+  if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "open") return null
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""
   if (!token || !slug) return null
-  return buildJobsBoardHref({ tenant: slug, job: token })
+  return buildPublicJobSharePath(slug, token)
 }
 
 export function renderJobListCell(
@@ -456,66 +514,23 @@ export function renderJobListCell(
   job: JobListRow,
   ctx: JobListCellContext
 ): ReactNode {
-  const isStarred = ctx.starredIds.has(job.id)
   const posted = formatPostedDate(job.published_at || job.created_at)
-  const statusDisplay = displayJobStatus(job.status)
   const totalCandidates = applicantCount(job)
 
   switch (col) {
     case "jobTitle":
       return (
-        <div className="flex w-full min-w-0 items-center gap-2 pr-2">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              ctx.onToggleStar(job.id);
-            }}
-            className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center"
-            aria-label={isStarred ? "Unstar job" : "Star job"}
-            aria-pressed={isStarred}
+        <div className="flex min-w-0 w-full items-center gap-2 pr-2">
+          <Link
+            href={`/admin_recruiter/jobs/${job.id}`}
+            className="min-w-0 flex-1 truncate font-semibold hover:underline"
+            style={{ color: ctx.brandingSecondaryHex }}
+            onMouseEnter={() => prefetchJobDetails(job.id)}
+            onFocus={() => prefetchJobDetails(job.id)}
           >
-            {isStarred ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={JOB_STAR_FILLED_SRC}
-                alt=""
-                width={JOB_STAR_ICON_SIZE}
-                height={JOB_STAR_ICON_SIZE}
-                className="h-[14px] w-[14px]"
-                aria-hidden
-              />
-            ) : (
-              <span
-                aria-hidden
-                className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
-                style={{
-                  maskImage: `url(${JOB_STAR_FILLED_SRC})`,
-                  WebkitMaskImage: `url(${JOB_STAR_FILLED_SRC})`,
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                }}
-              />
-            )}
-          </button>
-          <div className="min-w-0 flex-1">
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}`}
-              className="block truncate font-semibold hover:underline"
-              style={{ color: ctx.brandingSecondaryHex }}
-            >
-              {jobListDisplayTitle(job)}
-            </Link>
-          </div>
-          <JobPublicViewLink
-            href={publicJobPathFor(job, ctx.tenantSlug)}
-            className="ml-auto shrink-0"
-          />
+            {jobListDisplayTitle(job)}
+          </Link>
+          <JobSourceTypeBadge job={job} />
         </div>
       )
     // case "jobId":
@@ -543,24 +558,27 @@ export function renderJobListCell(
         )
       }
       return (
-        <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
+        <div className="box-border flex h-[58px] w-full min-w-0 items-center justify-center gap-2 px-[14px]">
           <JobCandidateMetric
+            tone="all"
             iconSrc={JOB_CANDIDATE_ICONS.all}
             label="All"
             count={totalCandidates}
             href={jobCandidatesHref(job.id)}
           />
           <JobCandidateMetric
+            tone="new"
             iconSrc={JOB_CANDIDATE_ICONS.new}
             label="New"
             count={newApplicantCount(job)}
             href={`${jobCandidatesHref(job.id)}&tab=new`}
           />
           <JobCandidateMetric
-            iconSrc={JOB_CANDIDATE_ICONS.hired}
-            label="Hired"
-            count={hiredApplicantCount(job)}
-            href={jobHiredCandidatesHref(job.id)}
+            tone="inProcess"
+            iconSrc={JOB_CANDIDATE_ICONS.inProcess}
+            label="In Process"
+            count={inProcessApplicantCount(job)}
+            href={inProcessCandidatesHref(job)}
           />
         </div>
       )
@@ -586,14 +604,11 @@ export function renderJobListCell(
     }
     case "jobStatus":
       return (
-        <div className="flex justify-center">
-          <div
-            className={`inline-flex h-8 w-fit items-center justify-center gap-2 whitespace-nowrap px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
-          >
-            <span className={`h-2 w-2 shrink-0 rounded-full ${statusDisplay.dotClass}`} />
-            {statusDisplay.label}
-          </div>
-        </div>
+        <JobListStatusDropdown
+          status={String(job.status ?? "")}
+          busy={ctx.publishBusyIds.has(job.id)}
+          onSelect={(nextStatus) => ctx.onStatusChange(job, nextStatus)}
+        />
       )
     case "payRate": {
       const pay = formatJobListPayRateParts(job)
@@ -649,7 +664,7 @@ export function renderJobListCell(
       )
     case "actions":
       return (
-        <div className="flex items-center justify-center gap-3 px-[14px] py-[10px]">
+        <div className="flex min-h-[36px] items-center justify-center gap-3 overflow-visible px-2 py-2.5">
           <JobPublishToggle
             checked={isPublishToggleChecked(job.status)}
             disabled={isPublishToggleDisabled(job)}
@@ -663,7 +678,11 @@ export function renderJobListCell(
               event.stopPropagation()
               ctx.onOpenActionsMenu(job, event.currentTarget)
             }}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-[#334155] transition hover:bg-[#E2E8F0]"
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#334155] transition ${
+              ctx.openActionsJobId === job.id
+                ? "bg-[#F1F5F9]"
+                : "bg-transparent hover:bg-[#F1F5F9]"
+            }`}
             aria-label="Job actions"
             aria-haspopup="menu"
             aria-expanded={ctx.openActionsJobId === job.id}

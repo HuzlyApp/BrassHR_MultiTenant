@@ -16,7 +16,23 @@ vi.mock("@/lib/jobs/service", () => ({
   attachWorkflowInstanceToApplication: vi.fn(async () => ({ id: "app-1" })),
 }));
 
+vi.mock("@/lib/service-area/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/service-area/db")>();
+  return {
+    ...actual,
+    evaluateServiceAreaWithDb: vi.fn(async () => ({
+      allowed: true,
+      reasonCode: "ok",
+      messageKey: "location_not_available",
+      layer: null,
+      matchedPolicyId: null,
+    })),
+    recordWorkLocationConfirmation: vi.fn(async () => undefined),
+  };
+});
+
 import { CandidateImportError, importExistingCandidatesToWorkspace } from "./candidate-import";
+import { evaluateServiceAreaWithDb } from "@/lib/service-area/db";
 
 type ApplicationRow = {
   worker_id: string;
@@ -152,6 +168,10 @@ const JOB = {
   internal_requisition_number: "REQ-100",
   status: "published",
   workflow_id: "flow-1",
+  location: "Raleigh, NC",
+  worksite_city: "Raleigh",
+  worksite_state: "NC",
+  location_type: "On-site",
   professions: { name: "Nursing" },
   specialties: { name: "ICU" },
 };
@@ -162,6 +182,13 @@ const OTHER_ID = "33333333-3333-4333-8333-333333333333";
 describe("importExistingCandidatesToWorkspace", () => {
   beforeEach(() => {
     writeActivityLog.mockClear();
+    vi.mocked(evaluateServiceAreaWithDb).mockResolvedValue({
+      allowed: true,
+      reasonCode: "ok",
+      messageKey: "location_not_available",
+      layer: null,
+      matchedPolicyId: null,
+    });
   });
 
   it("rejects non-uuid candidate ids", async () => {
@@ -242,5 +269,36 @@ describe("importExistingCandidatesToWorkspace", () => {
         candidateIds: [WORKER_ID],
       })
     ).rejects.toBeInstanceOf(CandidateImportError);
+  });
+
+  it("does not attach when the job worksite is not enabled", async () => {
+    vi.mocked(evaluateServiceAreaWithDb).mockResolvedValue({
+      allowed: false,
+      reasonCode: "platform_hold",
+      messageKey: "location_not_enabled",
+      layer: "platform",
+      matchedPolicyId: "p-ca",
+    });
+    const inserted: Array<Record<string, unknown>> = [];
+    const supabase = createFakeSupabase({
+      job: { ...JOB, location: "Los Angeles, CA", worksite_city: "Los Angeles", worksite_state: "CA" },
+      workers: [{ id: WORKER_ID, first_name: "Jordan", last_name: "Lee", email: "jordan@clinic.org" }],
+      applications: [],
+      profiles: [{ id: "profile-1", worker_id: WORKER_ID }],
+      inserted,
+    });
+
+    await expect(
+      importExistingCandidatesToWorkspace(supabase as never, {
+        tenantId: "tenant-1",
+        jobId: JOB.id,
+        staffUserId: "recruiter-1",
+        candidateIds: [WORKER_ID],
+      })
+    ).rejects.toMatchObject({
+      code: "LOCATION_NOT_ENABLED",
+      status: 422,
+    });
+    expect(inserted).toHaveLength(0);
   });
 });

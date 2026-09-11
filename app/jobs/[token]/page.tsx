@@ -1,11 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { headers } from "next/headers";
+import { PublicJobShareControls } from "@/app/jobs/PublicJobShareControls";
 import { formatStoredJobDescriptionHtml, JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import {
+  absolutePublicJobShareUrl,
+  buildPublicJobPostingJsonLd,
+  buildPublicJobSharePath,
+  publicJobShareDescription,
+} from "@/lib/jobs/public-job-share";
 import { getPublishedJobByToken } from "@/lib/jobs/service";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
+import { resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadTenantBrandingBySlug } from "@/lib/tenant/load-tenant-branding-server";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -19,6 +29,11 @@ import {
   JOB_POSTING_PAGE_TITLE_CLASS,
   JOB_POSTING_SECTION_HEADING_CLASS,
 } from "@/app/admin_recruiter/jobs/job-posting-typography";
+
+type PublicJobPageProps = {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ tenant?: string }>;
+};
 
 function relationName(value: unknown): string {
   const row = Array.isArray(value) ? value[0] : value;
@@ -37,25 +52,76 @@ function benefitItems(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function jsonLdScript(value: Record<string, unknown>): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+const loadPublishedPublicJob = cache(async (token: string, tenantQuery?: string) => {
+  const supabase = createServiceRoleClient();
+  if (!supabase) return null;
+  const requestHeaders = await headers();
+  const hostTenant = resolveRequestTenantHost(requestHeaders).subdomainLabel;
+  const tenant = await resolvePublicTenant(supabase, tenantQuery ?? hostTenant);
+  if (!tenant) return null;
+  const job = await getPublishedJobByToken(supabase, tenant.id, token);
+  if (!job) return null;
+  const branding = await loadTenantBrandingBySlug(tenant.slug);
+  const origin = resolveAppOrigin({ headers: requestHeaders });
+  const sharePath = buildPublicJobSharePath(tenant.slug, String(job.public_job_token ?? token));
+  const shareUrl = sharePath ? absolutePublicJobShareUrl(sharePath, origin) : "";
+  return { tenant, job, branding, shareUrl };
+});
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: PublicJobPageProps): Promise<Metadata> {
+  const [{ token }, query] = await Promise.all([params, searchParams]);
+  const loaded = await loadPublishedPublicJob(token, query.tenant);
+  if (!loaded) return { title: "Job" };
+
+  const { tenant, job, branding, shareUrl } = loaded;
+  const title = publicJobDisplayTitle(job);
+  const description =
+    publicJobShareDescription(String(job.public_description ?? "")) ||
+    `${title} at ${tenant.name}`;
+  const pageTitle = `${title} | ${tenant.name}`;
+  const logo = branding.logoUrl?.trim();
+  const images = logo && /^https?:\/\//i.test(logo) ? [{ url: logo }] : undefined;
+
+  return {
+    title: pageTitle,
+    description,
+    alternates: shareUrl ? { canonical: shareUrl } : undefined,
+    openGraph: {
+      type: "website",
+      title: pageTitle,
+      description,
+      url: shareUrl || undefined,
+      siteName: tenant.name,
+      images,
+    },
+    twitter: {
+      card: images ? "summary_large_image" : "summary",
+      title: pageTitle,
+      description,
+      images: images?.map((image) => image.url),
+    },
+  };
+}
+
 export default async function PublicJobDetailPage({
   params,
   searchParams,
-}: {
-  params: Promise<{ token: string }>;
-  searchParams: Promise<{ tenant?: string }>;
-}) {
-  const supabase = createServiceRoleClient();
-  if (!supabase) notFound();
-  const [{ token }, query, requestHeaders] = await Promise.all([params, searchParams, headers()]);
-  const hostTenant = resolveRequestTenantHost(requestHeaders).subdomainLabel;
-  const tenant = await resolvePublicTenant(supabase, query.tenant ?? hostTenant);
-  if (!tenant) notFound();
-  const job = await getPublishedJobByToken(supabase, tenant.id, token);
-  if (!job) notFound();
+}: PublicJobPageProps) {
+  const [{ token }, query] = await Promise.all([params, searchParams]);
+  const loaded = await loadPublishedPublicJob(token, query.tenant);
+  if (!loaded) notFound();
 
-  const branding = await loadTenantBrandingBySlug(tenant.slug);
+  const { tenant, job, branding, shareUrl } = loaded;
   const brandVars = brandingToCssVars(branding);
   const secondaryColor = branding.secondaryHex || "#012352";
+  const title = publicJobDisplayTitle(job);
 
   const applyUrl = `/apply?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(String(job.public_job_token))}`;
   const canApply = Boolean(job.workflow_id);
@@ -72,9 +138,27 @@ export default async function PublicJobDetailPage({
     String(job.public_description ?? ""),
     separateBenefits.length > 0
   );
+  const jsonLd = buildPublicJobPostingJsonLd({
+    url: shareUrl,
+    title,
+    descriptionHtml,
+    companyName: tenant.name,
+    companyLogoUrl: branding.logoUrl,
+    location: job.location ? String(job.location) : null,
+    locationType: job.location_type ? String(job.location_type) : null,
+    employmentType,
+    datePosted: job.published_at ? String(job.published_at) : null,
+    validThrough: job.application_deadline ? String(job.application_deadline) : null,
+    payRateMin: typeof job.pay_rate_min === "number" ? job.pay_rate_min : null,
+    payRateMax: typeof job.pay_rate_max === "number" ? job.pay_rate_max : null,
+    payRate: typeof job.pay_rate === "number" ? job.pay_rate : null,
+    payRatePeriod: job.pay_rate_period ? String(job.pay_rate_period) : null,
+    currency: job.currency ? String(job.currency) : null,
+  });
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900" style={brandVars}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
           <Link
@@ -107,7 +191,7 @@ export default async function PublicJobDetailPage({
             {tenant.name}
           </p>
           <h1 className={`mt-2 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
-            {publicJobDisplayTitle(job)}
+            {title}
           </h1>
           <p className={`mt-3 ${JOB_POSTING_METADATA_CLASS}`}>{job.location}</p>
           {facts.length ? (
@@ -186,6 +270,11 @@ export default async function PublicJobDetailPage({
               Apply by {new Date(`${job.application_deadline}T00:00:00`).toLocaleDateString()}
             </p>
           ) : null}
+          <PublicJobShareControls
+            shareUrl={shareUrl}
+            title={title}
+            companyName={tenant.name}
+          />
         </aside>
       </div>
     </main>

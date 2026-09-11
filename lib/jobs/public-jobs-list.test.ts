@@ -3,11 +3,16 @@ import { listPublicJobs } from "@/lib/jobs/service";
 
 function createListClient() {
   const eqCalls: Array<[string, unknown]> = [];
+  const inCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
   Object.assign(builder, {
     select: vi.fn(() => builder),
     eq: vi.fn((column: string, value: unknown) => {
       eqCalls.push([column, value]);
+      return builder;
+    }),
+    in: vi.fn((column: string, value: unknown) => {
+      inCalls.push([column, value]);
       return builder;
     }),
     or: vi.fn(() => builder),
@@ -19,18 +24,19 @@ function createListClient() {
   });
   return {
     eqCalls,
+    inCalls,
     builder,
     client: { from: vi.fn(() => builder) },
   };
 }
 
 describe("listPublicJobs", () => {
-  it("only lists published jobs for the requested tenant", async () => {
-    const { client, eqCalls, builder } = createListClient();
+  it("only lists open jobs for the requested tenant", async () => {
+    const { client, eqCalls, inCalls, builder } = createListClient();
     await listPublicJobs(client as never, "tenant-zipstaff", { query: "RN" });
     expect(client.from).toHaveBeenCalledWith("job_requisitions");
     expect(eqCalls).toContainEqual(["tenant_id", "tenant-zipstaff"]);
-    expect(eqCalls).toContainEqual(["status", "published"]);
+    expect(inCalls).toContainEqual(["status", ["open", "published"]]);
     expect(String((builder.select as ReturnType<typeof vi.fn>).mock.calls[0]?.[0])).toContain(
       "public_description"
     );

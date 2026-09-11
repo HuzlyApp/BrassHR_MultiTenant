@@ -1,0 +1,71 @@
+# BrassHR MultiTenant — Supabase CLI configuration
+# Docs: https://supabase.com/docs/guides/cli/config
+#
+# Environment mapping (remote projects):
+#   Development: mgucromvpnxntwyssltd (BrassHR_South) — localhost + Preview
+#   Production:  avhdoifnsnoeavqxnwwm (BrassHR) — Vercel Production only
+#
+# Never store database passwords, service-role keys, or access tokens in this file.
+
+project_id = "brasshr-multitenant"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3000/**",
+]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+[analytics]
+enabled = false

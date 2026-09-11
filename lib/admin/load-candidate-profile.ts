@@ -20,6 +20,7 @@ import { listWorkerJobApplications } from "@/lib/applicant-portal/list-worker-jo
 import { listWorkerResumesForApplicant } from "@/lib/applicant-portal/worker-resume-service";
 import { listWorkerDocumentsForApplicant } from "@/lib/applicant-portal/worker-document-service";
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
+import { createPerfTimer, logPerf } from "@/lib/perf";
 
 function asText(value: unknown): string {
   if (value == null) return "";
@@ -48,11 +49,69 @@ function humanizeAction(action: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const PROFESSIONAL_SUMMARY_SELECT =
+  "extracted_text, parsing_status, parse_status, uploaded_at";
+
+async function loadProfessionalSummaryText(
+  supabase: SupabaseClient,
+  workerId: string,
+  tenantId: string
+): Promise<string> {
+  const completed = await supabase
+    .from("worker_resumes")
+    .select(PROFESSIONAL_SUMMARY_SELECT)
+    .eq("worker_id", workerId)
+    .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
+    .or("parse_status.eq.completed,parsing_status.eq.completed")
+    .not("extracted_text", "is", null)
+    .order("uploaded_at", { ascending: false })
+    .limit(1);
+
+  if (completed.error) {
+    console.warn("[candidate-profile] professional_summary", completed.error);
+  }
+
+  const completedText = pickProfessionalSummaryText(
+    (completed.data ?? []) as Array<{
+      extracted_text?: string | null;
+      parsing_status?: string | null;
+      parse_status?: string | null;
+      uploaded_at?: string | null;
+    }>
+  );
+  if (completedText) return completedText;
+
+  const latest = await supabase
+    .from("worker_resumes")
+    .select(PROFESSIONAL_SUMMARY_SELECT)
+    .eq("worker_id", workerId)
+    .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
+    .not("extracted_text", "is", null)
+    .order("uploaded_at", { ascending: false })
+    .limit(1);
+
+  if (latest.error) {
+    console.warn("[candidate-profile] professional_summary_latest", latest.error);
+  }
+
+  return pickProfessionalSummaryText(
+    (latest.data ?? []) as Array<{
+      extracted_text?: string | null;
+      parsing_status?: string | null;
+      parse_status?: string | null;
+      uploaded_at?: string | null;
+    }>
+  );
+}
+
 export async function loadCandidateProfile(
   supabase: SupabaseClient,
   input: { workerId: string; tenantId: string }
 ): Promise<CandidateProfilePayload | null> {
-  const { data: worker, error } = await supabase
+  const timer = createPerfTimer();
+  const workerPromise = supabase
     .from("worker")
     .select(
       "id, first_name, last_name, email, phone, address1, address2, city, state, zip, job_role, status, profile_photo, tenant_id"
@@ -60,26 +119,20 @@ export async function loadCandidateProfile(
     .eq("id", input.workerId)
     .maybeSingle();
 
-  if (error) throw error;
-  if (!worker?.id) return null;
-
-  const workerTenantId = asText(worker.tenant_id);
-  if (workerTenantId && workerTenantId !== input.tenantId) return null;
-
-  const [applications, photoUrl, activityResult, resumeList, documentList, summaryResult] =
-    await Promise.all([
+  const relatedPromise = Promise.all([
     listWorkerJobApplications(supabase, {
       workerId: input.workerId,
       tenantId: input.tenantId,
     }),
-    resolveWorkerProfilePhotoUrl(supabase, worker.profile_photo),
     supabase
       .from("activity_logs")
       .select("id, action, entity_type, details, created_at")
       .eq("entity_id", input.workerId)
       .order("created_at", { ascending: false })
       .limit(500),
-    listWorkerResumesForApplicant(supabase, input.workerId, input.tenantId).catch((error) => {
+    listWorkerResumesForApplicant(supabase, input.workerId, input.tenantId, {
+      includeUploaderPhotos: false,
+    }).catch((error) => {
       console.warn("[candidate-profile] worker_resumes", error);
       return [];
     }),
@@ -87,32 +140,28 @@ export async function loadCandidateProfile(
       console.warn("[candidate-profile] worker_documents", error);
       return [];
     }),
-    supabase
-      .from("worker_resumes")
-      .select("extracted_text, parsed_data, parsing_status, parse_status, uploaded_at")
-      .eq("worker_id", input.workerId)
-      .eq("tenant_id", input.tenantId)
-      .is("deleted_at", null)
-      .order("uploaded_at", { ascending: false })
-      .limit(8),
+    loadProfessionalSummaryText(supabase, input.workerId, input.tenantId),
   ]);
+
+  const { data: worker, error } = await workerPromise;
+  if (error) throw error;
+  if (!worker?.id) return null;
+
+  const workerTenantId = asText(worker.tenant_id);
+  if (workerTenantId && workerTenantId !== input.tenantId) return null;
+
+  const [related, photo] = await Promise.all([
+    relatedPromise,
+    resolveWorkerProfilePhotoUrl(supabase, worker.profile_photo),
+  ]);
+
+  const [applications, activityResult, resumeList, documentList, professionalSummary] = related;
+  const photoUrl = photo;
 
   const activityRows = activityResult.error ? [] : (activityResult.data ?? []);
   if (activityResult.error) {
     console.warn("[candidate-profile] activity_logs", activityResult.error);
   }
-  if (summaryResult.error) {
-    console.warn("[candidate-profile] professional_summary", summaryResult.error);
-  }
-  const professionalSummary = pickProfessionalSummaryText(
-    (summaryResult.error ? [] : summaryResult.data ?? []) as Array<{
-      extracted_text?: string | null;
-      parsed_data?: unknown;
-      parsing_status?: string | null;
-      parse_status?: string | null;
-      uploaded_at?: string | null;
-    }>
-  );
 
   const firstName = asText(worker.first_name);
   const lastName = asText(worker.last_name);
@@ -184,7 +233,7 @@ export async function loadCandidateProfile(
 
   activity.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
-  return {
+  const payload = {
     candidate: {
       id: String(worker.id),
       name,
@@ -226,4 +275,16 @@ export async function loadCandidateProfile(
     documents,
     activity: activity.slice(0, 500),
   };
+
+  logPerf("candidate.profile.load", {
+    totalMs: timer.elapsedMs(),
+    workerId: input.workerId,
+    tenantId: input.tenantId,
+    applications: applications.length,
+    resumes: resumes.length,
+    documents: documents.length,
+    activity: activity.length,
+  });
+
+  return payload;
 }
