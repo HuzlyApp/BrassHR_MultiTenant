@@ -10,6 +10,8 @@ import {
 } from "@/lib/jobs/types";
 import { jobRequiresWorkflow } from "@/lib/jobs/placement";
 import { industryKeyValidationMessage } from "@/lib/ai-catalog/industry-catalog";
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
+import { locationFromFreeText } from "@/lib/service-area/normalize";
 
 const optionalText = z
   .union([z.string(), z.null(), z.undefined()])
@@ -126,14 +128,25 @@ export function validatePublishableJob(
   if (!input.publicDescription?.trim()) {
     errors.publicDescription = "Public job description is required.";
   }
-  const locationType = (input.jobLocationType ?? input.schedule ?? "").toLowerCase();
-  const isRemote = locationType === "remote";
+  const isRemote = isRemoteJobLocationType(input.jobLocationType ?? input.schedule);
   if (isRemote) {
     if (!input.remoteAllowedStates?.length) {
-      errors.remoteAllowedStates = "Select the states where this remote role can be worked.";
+      errors.remoteAllowedStates =
+        "Select the states where this remote role can be worked. There is no United States-wide option.";
     }
-  } else if (!location) {
-    errors.location = "Location is required.";
+  } else {
+    const parsed = locationFromFreeText(
+      input.worksiteCity && input.worksiteState
+        ? `${input.worksiteCity}, ${input.worksiteState}`
+        : location,
+      input.worksitePostalCode ?? input.postalCode
+    );
+    const hasWorksite =
+      Boolean(input.worksiteCity?.trim() && input.worksiteState?.trim()) ||
+      Boolean(parsed.city && parsed.state);
+    if (!hasWorksite) {
+      errors.location = "Every job needs a worksite city and state.";
+    }
   }
   if (!input.employmentType) errors.employmentType = "Employment type is required.";
   if (!input.shiftType?.trim()) errors.shiftType = "Employment Type is required.";

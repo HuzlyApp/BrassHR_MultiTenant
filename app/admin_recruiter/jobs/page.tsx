@@ -77,6 +77,7 @@ import {
 import { JobTagsModal } from "./JobTagsModal";
 import { statusActionForTarget } from "./job-details-helpers";
 import type { JobStatus } from "@/lib/jobs/types";
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -977,7 +978,7 @@ export default function AdminRecruiterJobsPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        const message = typeof payload.error === "string" ? payload.error : "Failed to update job";
+        const message = readServiceAreaApiMessage(payload, "Failed to update job");
         const code = typeof payload.code === "string" ? payload.code : undefined;
         setActionErrorModal(
           resolveJobActionErrorModal({

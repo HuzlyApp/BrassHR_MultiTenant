@@ -43,6 +43,7 @@ import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
+import ServiceAreaLocationHint from "./ServiceAreaLocationHint";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMMISSION_FEE_TYPES,
@@ -473,6 +474,12 @@ export function JobFormStepRequisition({
             onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
             placeholder="Search city, area, or address"
             error={fieldErrors.location}
+          />
+          <ServiceAreaLocationHint
+            locationText={job.location}
+            postalCode={job.postalCode}
+            locationType={ui.jobLocationType || job.jobLocationType}
+            remoteAllowedStates={job.remoteAllowedStates}
           />
 
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
@@ -913,6 +920,12 @@ export function JobFormStepMspDetails({
           onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
           placeholder="Search city, area, or address"
           error={fieldErrors.location}
+        />
+        <ServiceAreaLocationHint
+          locationText={facilityValue}
+          postalCode={job.postalCode}
+          locationType={ui.jobLocationType || job.jobLocationType}
+          remoteAllowedStates={job.remoteAllowedStates}
         />
       </div>
 

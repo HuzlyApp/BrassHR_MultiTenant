@@ -2,13 +2,13 @@
 
 export const SERVICE_AREA_COPY = {
   location_not_available:
-    "This opening isn’t available for work in the location you selected. Update work location or browse other openings.",
-  location_not_enabled: "This work location isn’t enabled for your account yet.",
+    "This opening isn’t available for the location you selected.",
+  location_not_enabled: "This work location isn’t available yet.",
   signup_waitlist:
-    "Thanks — BrassHR isn’t available for this business location yet. We’ll email you when it is. You can update the primary location if this was a mistake.",
+    "BrassHR isn’t available for this business location yet. You can update the primary location if this was a mistake.",
   opening_unavailable: "This opening is no longer available.",
   empty_city_search: "No openings in that city right now. Try another location.",
-  attach_blocked: "We can’t add this person to this opening for the selected work location.",
+  attach_blocked: "This work location isn’t available yet.",
 } as const;
 
 export type ServiceAreaMessageKey = keyof typeof SERVICE_AREA_COPY;
@@ -18,4 +18,36 @@ export function serviceAreaMessage(key: string | null | undefined): string {
     return SERVICE_AREA_COPY[key as ServiceAreaMessageKey];
   }
   return SERVICE_AREA_COPY.location_not_available;
+}
+
+/** Read staff/public API envelopes without leaking hold names. */
+export function readServiceAreaApiMessage(
+  payload: unknown,
+  fallback = SERVICE_AREA_COPY.location_not_enabled
+): string {
+  if (!payload || typeof payload !== "object") return fallback;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.messageKey === "string") {
+    return serviceAreaMessage(record.messageKey);
+  }
+  const error = record.error;
+  if (error && typeof error === "object") {
+    const nested = error as Record<string, unknown>;
+    if (typeof nested.messageKey === "string") {
+      return serviceAreaMessage(nested.messageKey);
+    }
+    if (typeof nested.message === "string" && nested.message.trim()) {
+      return nested.message;
+    }
+  }
+  if (typeof error === "string" && error.trim()) return error;
+  const fieldErrors = record.fieldErrors;
+  if (fieldErrors && typeof fieldErrors === "object") {
+    const fields = fieldErrors as Record<string, unknown>;
+    for (const key of ["location", "work_state", "worksite_state", "remoteAllowedStates"]) {
+      const value = fields[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  }
+  return fallback;
 }
