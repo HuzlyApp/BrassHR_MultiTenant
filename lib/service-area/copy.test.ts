@@ -27,5 +27,6 @@ describe("service area public copy", () => {
     expect(readServiceAreaApiMessage({ error: "This work location isn’t available yet." })).toBe(
       "This work location isn’t available yet."
     );
+    expect(readServiceAreaApiMessage({}, "Failed to add candidate")).toBe("Failed to add candidate");
   });
 });
