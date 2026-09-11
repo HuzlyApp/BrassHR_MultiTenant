@@ -37,7 +37,7 @@ export type HireStageGroup = {
   summaryLabel: string;
 };
 
-const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; patterns: RegExp }> = [
+const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; patterns: RegExp[] }> = [
   {
     stage: "Intake",
     patterns: [/intake/, /resume/, /basic.?profile/, /profile/, /application.?receiv/, /welcome/],
@@ -89,7 +89,7 @@ const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; pat
   },
 ];
 
-const POST_HIRE_RULES: Array<{ stage: (typeof POST_HIRE_FIGMA_STAGES)[number]; patterns: RegExp }> = [
+const POST_HIRE_RULES: Array<{ stage: (typeof POST_HIRE_FIGMA_STAGES)[number]; patterns: RegExp[] }> = [
   { stage: "Kickoff", patterns: [/kickoff/, /welcome/, /intro/, /start/] },
   {
     stage: "Paperwork",
