@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { locationFromFreeText } from "@/lib/service-area/normalize";
 import { normalizeServiceAreaLocationType } from "@/lib/service-area/location-type";
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
@@ -10,6 +10,7 @@ type Props = {
   postalCode?: string | null;
   locationType?: string | null;
   remoteAllowedStates?: string[] | null;
+  onBlockedChange?: (blocked: boolean, message: string | null) => void;
 };
 
 export default function ServiceAreaLocationHint({
@@ -17,6 +18,7 @@ export default function ServiceAreaLocationHint({
   postalCode,
   locationType,
   remoteAllowedStates,
+  onBlockedChange,
 }: Props) {
   const parsed = locationFromFreeText(locationText, postalCode);
   const type = normalizeServiceAreaLocationType(locationType) ?? "onsite";
@@ -41,6 +43,11 @@ export default function ServiceAreaLocationHint({
   }, [parsed.city, parsed.postalCode, parsed.state, remoteAllowedStates, type]);
 
   const preview = useServiceAreaPreview(location, "publish_job");
+
+  useEffect(() => {
+    onBlockedChange?.(Boolean(preview.message), preview.message);
+  }, [onBlockedChange, preview.message]);
+
   if (!preview.message) return null;
 
   return (
