@@ -72,7 +72,6 @@ import {
   employmentTypeFromLabel,
   employmentTypeLabel,
   REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP,
-  specialtySelectPlaceholder,
   formatPaySummary,
   formatCommissionFeeTypeLabel,
   formatCommissionPercentValue,
@@ -81,13 +80,13 @@ import {
   formatExpectedHoursValue,
   formatPayRatePeriodLabel,
   type JobFormOption,
-  type JobFormSpecialtyOption,
   type JobFormStep,
   type JobFormUiState,
   type CommissionFeeType,
 } from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
 import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
+import { matchProfessionIdByName, professionInputValue } from "@/lib/jobs/profession-text";
 
 function BrandedCheckbox({
   checked,
@@ -355,7 +354,6 @@ export function JobFormStepRequisition({
   ui,
   fieldErrors,
   professions,
-  specialties,
   employmentTypes,
   onJobChange,
   onUiChange,
@@ -365,7 +363,6 @@ export function JobFormStepRequisition({
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   professions: JobFormOption[];
-  specialties: JobFormSpecialtyOption[];
   employmentTypes: EmploymentType[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
@@ -437,45 +434,21 @@ export function JobFormStepRequisition({
               Profession
               <JobFormRequiredMark />
             </label>
-            <select
+            <input
               id="profession"
-              className={JOB_FORM_SELECT_CLASS}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.professionId ?? ""}
+              className={JOB_FORM_INPUT_CLASS}
+              value={professionInputValue(job, professions)}
               onChange={(event) => {
-                onJobChange("professionId", event.target.value || null);
-                onJobChange("specialtyId", null);
+                const next = event.target.value;
+                const nextId = matchProfessionIdByName(professions, next);
+                onJobChange("profession", next);
+                onJobChange("professionId", nextId);
+                if ((job.professionId || null) !== nextId) {
+                  onJobChange("specialtyId", null);
+                }
               }}
-            >
-              <option value="">Select Profession</option>
-              {professions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+            />
             <FieldError error={fieldErrors.professionId} />
-          </div>
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="specialty">
-              Specialty
-            </label>
-            <select
-              id="specialty"
-              className={JOB_FORM_SELECT_CLASS}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.specialtyId ?? ""}
-              disabled={!job.professionId}
-              onChange={(event) => onJobChange("specialtyId", event.target.value || null)}
-            >
-              <option value="">{specialtySelectPlaceholder(job.professionId, specialties.length)}</option>
-              {specialties.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <FieldError error={fieldErrors.specialtyId} />
           </div>
         </div>
 
@@ -2177,14 +2150,12 @@ export function JobFormStepReview({
   job,
   ui,
   professionName,
-  specialtyName,
   onEditField,
   brandVars,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   professionName: string;
-  specialtyName: string;
   onEditField: (field: ReviewEditFieldId) => void;
   brandVars?: CSSProperties;
 }) {
@@ -2252,14 +2223,6 @@ export function JobFormStepReview({
       ) : null}
       {job.sourceType !== "MSP" ? (
         <ReviewRow label="Profession" value={professionName} readOnly />
-      ) : null}
-      {job.sourceType !== "MSP" ? (
-        <ReviewRow
-          label="Specialty"
-          value={specialtyName}
-          addLabel="specialty"
-          onEdit={() => onEditField("specialty")}
-        />
       ) : null}
       {job.sourceType !== "MSP" ? (
         <>
