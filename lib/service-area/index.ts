@@ -1,4 +1,4 @@
-export { SERVICE_AREA_COPY, serviceAreaMessage } from "@/lib/service-area/copy";
+export { SERVICE_AREA_COPY, serviceAreaMessage, readServiceAreaApiMessage } from "@/lib/service-area/copy";
 export { parseServiceAreaLocation, parseServiceAreaLocationFromFormData, parseServiceAreaLocationFromSearchParams } from "@/lib/service-area/parse-location";
 export {
   serviceAreaDeniedResponse,

@@ -21,6 +21,7 @@ import {
   type ImportExperienceBucket,
   type ImportSearchTab,
 } from "@/lib/jobs/candidate-import-match";
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 type ImportSearchResponse = {
@@ -317,7 +318,7 @@ export default function ImportCandidatesModal({
         | { message?: string; error?: string }
         | null;
       if (!response.ok) {
-        throw new Error(json?.error || "Failed to import candidates");
+        throw new Error(readServiceAreaApiMessage(json, "Failed to import candidates"));
       }
       toast.success(json?.message || "Candidates successfully added.");
       setSelectedIds([]);
