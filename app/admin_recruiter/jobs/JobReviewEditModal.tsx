@@ -19,7 +19,6 @@ import {
   JOB_FORM_DURATION_OPTIONS,
   JOB_FORM_HOURS_SHOW_BY,
   JOB_FORM_INPUT_CLASS,
-  JOB_FORM_JOB_TYPES,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_ACCEPTABLE_MATCH_RATES,
@@ -553,41 +552,12 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "jobType" ? (
-              isMsp ? (
-                <div>
-                  <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-job-type">
-                    Employment Type
-                  </label>
-                  <select
-                    id="review-edit-job-type"
-                    className={`${JOB_FORM_SELECT_CLASS} ${
-                      draft.job.shiftType ? "text-[#334155]" : "text-[#94A3B8]"
-                    }`}
-                    style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                    value={draft.job.shiftType ?? ""}
-                    onChange={(event) => patchJob("shiftType", event.target.value)}
-                  >
-                    <option value="">Select Employment Type</option>
-                    {JOB_FORM_JOB_TYPES.map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                    {draft.job.shiftType &&
-                    !JOB_FORM_JOB_TYPES.includes(
-                      draft.job.shiftType as (typeof JOB_FORM_JOB_TYPES)[number]
-                    ) ? (
-                      <option value={draft.job.shiftType}>{draft.job.shiftType}</option>
-                    ) : null}
-                  </select>
-                </div>
-              ) : (
-                <JobTypeChipSelect
-                  value={draft.job.shiftType ?? ""}
-                  onChange={(next) => patchJob("shiftType", next)}
-                  labelClassName="sr-only"
-                />
-              )
+              <JobTypeChipSelect
+                label={isMsp ? "Job Type" : "Employment Type"}
+                value={draft.job.shiftType ?? ""}
+                onChange={(next) => patchJob("shiftType", next)}
+                labelClassName="sr-only"
+              />
             ) : null}
 
             {field === "employerOnRecord" ? (
