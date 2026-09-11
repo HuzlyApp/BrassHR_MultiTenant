@@ -1,3 +1,4 @@
+import { isNewYorkCityPlace, isNycHoldPolicy } from "@/lib/service-area/nyc";
 import { normalizeCityKey, normalizePostalCode, normalizeStateCode } from "@/lib/service-area/normalize";
 import type { ServiceAreaLocation, ServiceAreaPolicy } from "@/lib/service-area/types";
 
@@ -48,9 +49,17 @@ export function locationMatchesPolicy(
   }
 
   if (policy.matchType === "city_state" || policy.matchType === "custom") {
-    if (postal && zips.has(postal)) return true;
+    if (postal && zips.has(postal)) {
+      if (isNycHoldPolicy(policy)) {
+        return !state || state === "NY";
+      }
+      return true;
+    }
     if (!state) return false;
     if (states.length && !states.includes(state)) return false;
+    if (isNycHoldPolicy(policy) && isNewYorkCityPlace(city, { state })) {
+      return true;
+    }
     if (!city) return false;
     return cities.includes(city);
   }
@@ -74,5 +83,5 @@ export function hiringLocationMatches(
   const allowedCity = normalizeCityKey(allowed.city);
   if (locCity && allowedCity) return locCity === allowedCity;
 
-  return Boolean(locCity || allowedCity);
+  return false;
 }

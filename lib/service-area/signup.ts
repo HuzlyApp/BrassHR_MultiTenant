@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateServiceAreaWithDb, insertServiceAreaWaitlist } from "@/lib/service-area/db";
+import { isPhase1RestrictedState } from "@/lib/service-area/known-cities";
 import { ACCOUNT_ACCESS_ACTIVE, ACCOUNT_ACCESS_WAITLIST } from "@/lib/service-area/types";
 import { normalizeStateCode } from "@/lib/service-area/normalize";
 
@@ -25,21 +26,7 @@ export async function evaluateSignupPrimaryLocation(
   });
 
   const hqState = normalizeStateCode(input.hqState);
-  const hqHold = hqState
-    ? await evaluateServiceAreaWithDb(
-        supabase,
-        {
-          action: "signup",
-          location: {
-            country: "US",
-            city: "Headquarters",
-            state: hqState,
-            locationType: "onsite",
-          },
-        },
-        { skipAudit: true }
-      )
-    : { allowed: true };
+  const hqInHold = Boolean(hqState) && isPhase1RestrictedState(hqState) && decision.allowed;
 
   if (!decision.allowed && input.email) {
     await insertServiceAreaWaitlist(supabase, {
@@ -52,7 +39,7 @@ export async function evaluateSignupPrimaryLocation(
 
   return {
     decision,
-    hqInHold: Boolean(hqState) && !hqHold.allowed && decision.allowed,
+    hqInHold,
     accountAccess: decision.allowed ? ACCOUNT_ACCESS_ACTIVE : ACCOUNT_ACCESS_WAITLIST,
   };
 }

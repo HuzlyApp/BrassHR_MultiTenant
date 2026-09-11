@@ -6,6 +6,7 @@ export type OwnerOnboardingStatus = {
   signupCompleted: boolean;
   tenantOnboardingCompleted: boolean;
   godAdmin: boolean;
+  waitlistPending?: boolean;
 };
 
 export type UsersOnboardingRow = {
@@ -13,6 +14,7 @@ export type UsersOnboardingRow = {
   tenant_onboarding_completed_at: string | null;
   onboarding_completed?: boolean | null;
   god_admin?: boolean | null;
+  signup_waitlist_pending?: boolean | null;
 };
 
 function readMetadataFlag(user: User, key: string): boolean {
@@ -36,6 +38,7 @@ export function parseOwnerOnboardingRow(
       (user ? readMetadataFlag(user, "tenant_onboarding_completed") : false) ||
       row?.onboarding_completed === true,
     godAdmin,
+    waitlistPending: Boolean(row?.signup_waitlist_pending) && !godAdmin,
   };
 }
 
@@ -46,7 +49,7 @@ export async function fetchOwnerOnboardingStatus(
   const godAdminFromAuth = isGodAdminUser(user);
   const { data, error } = await supabase
     .from("users")
-    .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin")
+    .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin, signup_waitlist_pending")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -82,6 +85,9 @@ export function resolvePostAuthRedirect(
     if (safeNext?.startsWith("/godadmin")) return safeNext;
     return safeNext ?? "/godadmin/tenants";
   }
+  if (status.waitlistPending) {
+    return "/signup/waitlist";
+  }
   if (!status.tenantOnboardingCompleted) {
     if (safeNext?.startsWith("/tenant-onboarding")) return safeNext;
     return "/your-trial?account-ready=true";
@@ -91,12 +97,14 @@ export function resolvePostAuthRedirect(
 
 export function shouldBlockTenantOnboardingAccess(status: OwnerOnboardingStatus): boolean {
   if (status.godAdmin) return true;
+  if (status.waitlistPending) return true;
   if (status.tenantOnboardingCompleted) return true;
   return false;
 }
 
 export function shouldBlockAdminDashboardAccess(status: OwnerOnboardingStatus): boolean {
   if (status.godAdmin) return false;
+  if (status.waitlistPending) return true;
   if (!status.tenantOnboardingCompleted) return true;
   return false;
 }

@@ -523,7 +523,7 @@ export function WorkerJobsTab() {
             state: workState,
             postalCode: workPostal,
             locationType: relocate === "remote" ? ("remote" as const) : ("onsite" as const),
-            relocateToJobSite: relocate === "relocate" || relocate === "onsite",
+            relocateToJobSite: relocate === "relocate",
           }
         : null,
     [applyJob, workCity, workState, workPostal, relocate]

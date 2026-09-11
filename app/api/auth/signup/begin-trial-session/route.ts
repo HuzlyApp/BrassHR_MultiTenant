@@ -36,6 +36,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Signup is not complete." }, { status: 400 });
   }
 
+  if (status.waitlistPending) {
+    const { SERVICE_AREA_COPY } = await import("@/lib/service-area/copy");
+    return NextResponse.json(
+      {
+        error: SERVICE_AREA_COPY.signup_waitlist,
+        messageKey: "signup_waitlist",
+        waitlisted: true,
+      },
+      { status: 403 }
+    );
+  }
+
   if (status.tenantOnboardingCompleted) {
     console.info("[signup/begin-trial-session] onboarding_already_complete", { userId: user.id });
     return NextResponse.json({ ok: true, skipped: true, reason: "ONBOARDING_COMPLETE" });

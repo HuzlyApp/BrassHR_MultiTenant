@@ -318,6 +318,14 @@ export async function POST(req: Request) {
         hq_in_hold: result.hqInHold,
       })
       .eq("id", tenantId);
+    if (userId) {
+      await svc
+        .from("users")
+        .update({
+          signup_waitlist_pending: result.accountAccess === "waitlist_pending",
+        })
+        .eq("id", userId);
+    }
     await svc.from("tenant_hiring_areas").upsert({
       tenant_id: tenantId,
       mode: "all_allowed_platform",
@@ -328,6 +336,21 @@ export async function POST(req: Request) {
       "[tenant-onboarding] service area",
       areaError instanceof Error ? areaError.message : areaError
     );
+    const { ACCOUNT_ACCESS_WAITLIST } = await import("@/lib/service-area/types");
+    try {
+      await svc
+        .from("tenants")
+        .update({ account_access: ACCOUNT_ACCESS_WAITLIST })
+        .eq("id", tenantId);
+      if (userId) {
+        await svc.from("users").update({ signup_waitlist_pending: true }).eq("id", userId);
+      }
+    } catch (lockError) {
+      console.error(
+        "[tenant-onboarding] service area fail-closed",
+        lockError instanceof Error ? lockError.message : lockError
+      );
+    }
   }
 
   try {
