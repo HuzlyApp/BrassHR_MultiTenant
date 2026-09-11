@@ -47,7 +47,8 @@ export default function GodAdminServiceAreaPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Service area</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Platform holds and signup waitlist. Opening a state is a deactivate, not a deploy.
+          Platform holds (Phase 1) and signup waitlist. Opening a state is a deactivate, not a deploy.
+          Do not list restricted locations on career pages.
         </p>
       </div>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -19,6 +20,9 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
+import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
+import { US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
 
 type ResumeTab = "files" | "paste";
 
@@ -199,6 +203,9 @@ export default function AddCandidateModal({
     setDragActive(false);
     setSelectedJobId("");
     setJobError(null);
+    setWorkCity("");
+    setWorkState("");
+    setRelocateToJobSite(false);
     resetParse();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetParse]);
@@ -455,9 +462,7 @@ export default function AddCandidateModal({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string" ? payload.error : "Failed to add candidate"
-        );
+        throw new Error(readServiceAreaApiMessage(payload, "Failed to add candidate"));
       }
 
       const candidateName =
@@ -488,12 +493,31 @@ export default function AddCandidateModal({
     parseState !== "parsing" &&
     hasResumeSource &&
     (parseState === "parsed" || parseState === "failed" || hasIdentity);
+  const workLocation = useMemo(
+    () =>
+      workCity.trim() && workState.trim()
+        ? {
+            city: workCity.trim(),
+            state: workState.trim(),
+            locationType: "onsite" as const,
+            relocateToJobSite,
+          }
+        : null,
+    [relocateToJobSite, workCity, workState]
+  );
+  const workLocationPreview = useServiceAreaPreview(workLocation, "attach_candidate", {
+    jobId: effectiveJobId || null,
+    enabled: Boolean(effectiveJobId && workLocation),
+  });
   const canUpload =
     !uploading &&
     parseState !== "parsing" &&
     hasResumeSource &&
     hasIdentity &&
-    Boolean(effectiveJobId);
+    Boolean(effectiveJobId) &&
+    Boolean(workLocation) &&
+    !workLocationPreview.loading &&
+    workLocationPreview.allowed;
 
   if (!open && !successOpen && !errorOpen && !uploading && !importOpen) return null;
 
@@ -804,6 +828,14 @@ export default function AddCandidateModal({
                         autoComplete="tel"
                       />
                     </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-sm font-medium text-[#0F172A]">
+                        Where will they work this assignment?
+                      </p>
+                      <p className="mt-1 text-xs text-[#64748B]">
+                        Confirm the job site — not the address on the resume.
+                      </p>
+                    </div>
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-work-city">
                         Work city
@@ -821,14 +853,21 @@ export default function AddCandidateModal({
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-work-state">
                         Work state
                       </label>
-                      <input
+                      <select
                         id="add-candidate-work-state"
-                        className={`${FIELD_INPUT_CLASS} h-10`}
-                        placeholder="State"
+                        className={FIELD_SELECT_CLASS}
+                        style={SELECT_CHEVRON}
                         value={workState}
                         onChange={(event) => setWorkState(event.target.value)}
                         disabled={uploading}
-                      />
+                      >
+                        <option value="">Select state</option>
+                        {Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => (
+                          <option key={code} value={code}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <label className="sm:col-span-2 flex items-center gap-2 text-sm text-[#334155]">
                       <input
@@ -837,8 +876,13 @@ export default function AddCandidateModal({
                         onChange={(event) => setRelocateToJobSite(event.target.checked)}
                         disabled={uploading}
                       />
-                      They will work on-site at the job location (relocate)
+                      They will relocate to the job site
                     </label>
+                    {workLocationPreview.message ? (
+                      <p className="sm:col-span-2 text-sm text-[#B91C1C]" role="alert">
+                        {workLocationPreview.message}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -862,7 +906,11 @@ export default function AddCandidateModal({
                     ? undefined
                     : parseState === "parsing"
                       ? "Please wait for the resume to finish parsing"
-                      : "Upload a resume and fill in name and email"
+                      : workLocationPreview.message
+                        ? SERVICE_AREA_COPY.location_not_enabled
+                        : !workCity.trim() || !workState.trim()
+                          ? "Where will they work this assignment?"
+                          : "Upload a resume and fill in name and email"
                 }
                 className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ backgroundColor: primaryColor, borderColor: primaryColor }}

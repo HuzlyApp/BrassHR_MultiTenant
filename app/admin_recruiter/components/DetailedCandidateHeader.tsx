@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Link2, Loader2, Mail } from "lucide-react";
+import { ClipboardList, Link2, Loader2, Mail } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
 import { CandidateApplicationStatusControl } from "./CandidateApplicationStatusControl";
 import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
-import { candidateAiAnalysisHref } from "@/app/admin_recruiter/candidates/candidate-links";
+import {
+  candidateAiAnalysisHref,
+  candidateHireJourneyHref,
+} from "@/app/admin_recruiter/candidates/candidate-links";
 
 const CANDIDATE_DETAIL_ICON = "/icons/candidate-detail-icon.svg";
 
@@ -63,6 +66,9 @@ export default function DetailedCandidateHeader({
       : workerId?.trim()
         ? candidateAiAnalysisHref(workerId.trim())
         : null;
+  const hireJourneyHref = workerId?.trim()
+    ? candidateHireJourneyHref(workerId.trim())
+    : null;
 
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 py-1 backdrop-blur-sm">
@@ -90,6 +96,23 @@ export default function DetailedCandidateHeader({
         </div>
 
         <div className="flex w-full shrink-0 items-stretch gap-1.5 min-[700px]:w-auto min-[700px]:items-center min-[700px]:justify-end min-[700px]:gap-2">
+          {hireJourneyHref && !loading ? (
+            <Link
+              href={hireJourneyHref}
+              className={`${actionBtnBase} border-[color:var(--brand-primary)] text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]`}
+              aria-label={
+                displayName !== "Applicant" && displayName !== "Loading..."
+                  ? `View hire journey for ${displayName}`
+                  : "View hire journey"
+              }
+              title="View hire journey"
+            >
+              <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="hidden min-[480px]:inline min-[700px]:hidden">Hire journey</span>
+              <span className="hidden min-[700px]:inline">View Hire Journey</span>
+              <span className="min-[480px]:hidden">Journey</span>
+            </Link>
+          ) : null}
           {canEditApplicationStatus ? (
             <CandidateApplicationStatusControl
               workerId={workerId!.trim()}

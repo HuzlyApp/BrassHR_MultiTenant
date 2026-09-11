@@ -247,7 +247,9 @@ export async function generateMatchAnalysisWithGrok(
   }
 
   const truncated = truncateStrengthsAndGaps(parsed.data, resumeLen, analysisMode);
-  const analysis = rescoreMatchAnalysis(truncated);
+  const analysis = rescoreMatchAnalysis(truncated, {
+    preserveModelScore: resolved.resolvedVerticalKey === "technology",
+  });
 
   return {
     analysis,

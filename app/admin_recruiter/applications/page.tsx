@@ -63,6 +63,7 @@ import {
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
+import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -2231,6 +2232,7 @@ export default function JobApplicationsPage() {
                 jobId={jobId || undefined}
                 from="applications"
               />
+              <CandidatePreHireIconLink workerId={workerId} candidateName={name} />
             </div>
           </div>
         );
