@@ -40,6 +40,7 @@ export const jobRequisitionInputSchema = z.object({
     .union([z.string(), z.null(), z.undefined()])
     .transform((value) => value?.trim() || null)
     .pipe(z.union([z.uuid(), z.null()])),
+  profession: optionalText,
   specialtyId: optionalText.pipe(z.uuid().nullable()),
   employmentType: z.enum(EMPLOYMENT_TYPES),
   employerOfRecord: optionalText,
@@ -155,7 +156,9 @@ export function validatePublishableJob(
   if (industryError) errors.industryKey = industryError;
 
   if (!isMsp) {
-    if (!input.professionId) errors.professionId = "Profession is required.";
+    if (!input.professionId && !input.profession?.trim()) {
+      errors.professionId = "Profession is required.";
+    }
     if (requiresWorkflow && !workflowId) {
       errors.workflowId = "A matching published workflow is required.";
     }

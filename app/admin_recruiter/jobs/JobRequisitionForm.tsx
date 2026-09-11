@@ -61,6 +61,7 @@ const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
   placementType: null,
   professionId: "",
+  profession: "",
   specialtyId: null,
   employmentType: "" as JobRequisitionInput["employmentType"],
   internalRequisitionNumber: "",
@@ -280,8 +281,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [step]);
 
   const professionLabel = useMemo(
-    () => options?.professions.find((item) => item.id === job.professionId)?.name ?? "",
-    [job.professionId, options?.professions]
+    () =>
+      job.profession?.trim() ||
+      options?.professions.find((item) => item.id === job.professionId)?.name ||
+      "",
+    [job.profession, job.professionId, options?.professions]
   );
 
   const specialtyLabel = useMemo(
@@ -380,11 +384,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     options?.workflows,
   ]);
 
-  const specialties = useMemo(
-    () => options?.specialties.filter((item) => item.profession_id === job.professionId) ?? [],
-    [job.professionId, options?.specialties]
-  );
-
   function updateJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     if (
       originalStatus === "published" &&
@@ -435,7 +434,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (!current.publicTitle?.trim()) {
         errors.publicTitle = "Job Title is required.";
       }
-      if (!current.professionId) {
+      if (!current.profession?.trim() && !current.professionId) {
         errors.professionId = "Profession is required.";
       }
       if (!current.employmentType) {
@@ -838,7 +837,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   ui={ui}
                   fieldErrors={fieldErrors}
                   professions={options?.professions ?? []}
-                  specialties={specialties}
                   employmentTypes={options?.employmentTypes ?? ["W2", "1099"]}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
@@ -942,7 +940,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 job={buildPayloadJob()}
                 ui={ui}
                 professionName={professionLabel}
-                specialtyName={specialtyLabel}
                 onEditField={setReviewEditField}
                 brandVars={brandVars}
               />
@@ -1010,7 +1007,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         brandStyle={brandStyle}
         brandVars={brandVars}
         professions={options?.professions ?? []}
-        specialties={options?.specialties ?? []}
         employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
         sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
         employerOfRecordOptions={options?.employerOfRecordOptions ?? []}
