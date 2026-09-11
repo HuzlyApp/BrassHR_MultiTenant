@@ -12,12 +12,14 @@ describe("service area public copy", () => {
     expect(blob).not.toMatch(/we don’t hire|we don't hire|we don’t operate|we don't operate/);
   });
 
-  it("uses the ops location-not-available phrasing", () => {
+  it("uses the required location-not-available phrasing", () => {
     expect(SERVICE_AREA_COPY.location_not_available).toBe(
-      "This opening isn’t available for the location you selected."
+      "This work location isn’t available yet."
     );
     expect(SERVICE_AREA_COPY.location_not_enabled).toBe("This work location isn’t available yet.");
-    expect(SERVICE_AREA_COPY.signup_waitlist).toMatch(/isn’t available for this business location yet/i);
+    expect(SERVICE_AREA_COPY.signup_waitlist).toBe(
+      "BrassHR isn’t available for this business location yet."
+    );
   });
 
   it("maps API envelopes to copy without naming holds", () => {

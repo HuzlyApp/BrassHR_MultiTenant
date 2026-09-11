@@ -8,16 +8,21 @@ vi.mock("@/lib/service-area/db", async (importOriginal) => {
     ...actual,
     evaluateServiceAreaWithDb: vi.fn(),
     assertTenantCanOperate: vi.fn(),
+    loadJobWorksite: vi.fn(),
+    recordWorkLocationConfirmation: vi.fn(),
   };
 });
 
-import { evaluateServiceAreaWithDb } from "@/lib/service-area/db";
+import { evaluateServiceAreaWithDb, loadJobWorksite, recordWorkLocationConfirmation } from "@/lib/service-area/db";
 import {
   evaluateJobServiceArea,
   jobInputToServiceAreaLocation,
+  requireApplyWorkLocation,
 } from "@/lib/service-area/jobs";
 
 const evaluateMock = vi.mocked(evaluateServiceAreaWithDb);
+const loadJobWorksiteMock = vi.mocked(loadJobWorksite);
+const recordConfirmationMock = vi.mocked(recordWorkLocationConfirmation);
 
 const holdDecision = {
   allowed: false as const,
@@ -72,17 +77,14 @@ describe("evaluateJobServiceArea", () => {
     evaluateMock.mockReset();
   });
 
-  it("rejects draft create for a platform-hold worksite", async () => {
+  it("warns on draft create for a platform-hold worksite without throwing", async () => {
     evaluateMock.mockResolvedValue(holdDecision);
-    await expect(
-      evaluateJobServiceArea({} as never, "tenant-1", job(), {
-        publish: false,
-        actorUserId: "user-1",
-      })
-    ).rejects.toMatchObject({
-      code: "platform_hold",
-      fieldErrors: { location: SERVICE_AREA_COPY.location_not_enabled },
+    const result = await evaluateJobServiceArea({} as never, "tenant-1", job(), {
+      publish: false,
+      actorUserId: "user-1",
     });
+    expect(result.status).toBe("blocked");
+    expect(result.warning).toBe(SERVICE_AREA_COPY.location_not_enabled);
   });
 
   it("rejects publish for a platform-hold worksite", async () => {
@@ -116,5 +118,67 @@ describe("evaluateJobServiceArea", () => {
     );
     expect(result.status).toBe("blocked");
     expect(result.warning).toBe(SERVICE_AREA_COPY.location_not_enabled);
+  });
+});
+
+describe("requireApplyWorkLocation", () => {
+  beforeEach(() => {
+    evaluateMock.mockReset();
+    loadJobWorksiteMock.mockReset();
+    recordConfirmationMock.mockReset();
+    evaluateMock.mockResolvedValue(okDecision);
+    recordConfirmationMock.mockResolvedValue(undefined);
+  });
+
+  it("requires a current work-location payload", async () => {
+    await expect(
+      requireApplyWorkLocation({} as never, {
+        tenantId: "t1",
+        jobId: "j1",
+        location: null,
+      })
+    ).rejects.toMatchObject({ code: "incomplete_location" });
+  });
+
+  it("evaluates an onsite job worksite even if the applicant typed an allowed city", async () => {
+    loadJobWorksiteMock.mockResolvedValue({
+      city: "Los Angeles",
+      state: "CA",
+      postalCode: "90012",
+      locationType: "onsite",
+      remoteAllowedStates: [],
+      isPublished: true,
+    });
+    evaluateMock.mockResolvedValue(holdDecision);
+    await expect(
+      requireApplyWorkLocation({} as never, {
+        tenantId: "t1",
+        jobId: "j1",
+        location: { city: "Dallas", state: "TX", locationType: "onsite", relocateToJobSite: false },
+      })
+    ).rejects.toMatchObject({ code: "platform_hold" });
+    expect(evaluateMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        location: expect.objectContaining({ city: "Los Angeles", state: "CA" }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it("does not use an old confirmation when location is omitted", async () => {
+    const supabase = {
+      from: vi.fn(() => {
+        throw new Error("confirmation shortcut must not run");
+      }),
+    };
+    await expect(
+      requireApplyWorkLocation(supabase as never, {
+        tenantId: "t1",
+        jobId: "j1",
+        applicantId: "a1",
+        location: null,
+      })
+    ).rejects.toMatchObject({ code: "incomplete_location" });
   });
 });

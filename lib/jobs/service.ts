@@ -45,10 +45,12 @@ import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 import { evaluateJobServiceArea, requireApplyWorkLocation } from "@/lib/service-area/jobs";
 import { locationFromFreeText } from "@/lib/service-area/normalize";
 import {
+  assertTenantCanOperate,
   evaluateServiceAreaWithDb,
   recordWorkLocationConfirmation,
 } from "@/lib/service-area/db";
 import { serviceAreaMessage } from "@/lib/service-area/copy";
+import { isOpenJobServiceAreaHoldError } from "@/lib/service-area/errors";
 import type { ServiceAreaLocation } from "@/lib/service-area/types";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
@@ -66,6 +68,14 @@ import {
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 
 type DbClient = SupabaseClient;
+
+function throwJobWriteError(error: unknown): never {
+  if (isOpenJobServiceAreaHoldError(error)) {
+    const message = serviceAreaMessage("location_not_enabled");
+    throw new JobValidationError(message, { location: message }, "platform_hold");
+  }
+  throw error;
+}
 
 export { resolveWorkflowMatch };
 
@@ -677,7 +687,7 @@ export async function saveJobRequisition(
         error = retry.error;
       }
     }
-    if (error) throw error;
+    if (error) throwJobWriteError(error);
     const savedJobId = String(data.id);
     const screeningQuestions =
       options.screeningQuestions !== undefined
@@ -735,7 +745,7 @@ export async function saveJobRequisition(
       error = retry.error;
     }
   }
-  if (error) throw error;
+  if (error) throwJobWriteError(error);
   const savedJobId = String(data.id);
   const screeningQuestions =
     options.screeningQuestions !== undefined
@@ -837,7 +847,7 @@ export async function transitionJobStatus(
     .eq("tenant_id", tenantId)
     .select("id, status, published_at, closed_at, archived_at")
     .single();
-  if (error) throw error;
+  if (error) throwJobWriteError(error);
   return data;
 }
 
@@ -1173,6 +1183,8 @@ export async function duplicateJobRequisition(
     .maybeSingle();
   if (error) throw error;
   if (!source) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  await assertTenantCanOperate(supabase, tenantId);
 
   const sourceRow = source as Record<string, unknown>;
   // Identity / lifecycle fields must not be copied — job_number & idempotency_key are unique.
@@ -1568,6 +1580,13 @@ export async function startOrResumeJobApplication(
     .maybeSingle();
   if (existingError) throw existingError;
   if (existingApplication) {
+    await requireApplyWorkLocation(supabase, {
+      tenantId: input.tenantId,
+      jobId: String(job.id),
+      applicantId: profileId,
+      createdBy: input.applicantAuthUserId,
+      location: input.workLocation ?? null,
+    });
     return { application: existingApplication, resumed: true };
   }
 
@@ -1583,6 +1602,13 @@ export async function startOrResumeJobApplication(
       .maybeSingle();
     if (byWorkerError) throw byWorkerError;
     if (byWorker) {
+      await requireApplyWorkLocation(supabase, {
+        tenantId: input.tenantId,
+        jobId: String(job.id),
+        applicantId: profileId,
+        createdBy: input.applicantAuthUserId,
+        location: input.workLocation ?? null,
+      });
       return { application: byWorker, resumed: true };
     }
   }
@@ -1889,6 +1915,8 @@ export async function createAdminJobApplication(
       "JOB_NOT_PUBLISHED"
     );
   }
+
+  await assertTenantCanOperate(supabase, input.tenantId);
 
   if (!input.workLocation) {
     throw new JobValidationError(

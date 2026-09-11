@@ -1,11 +1,9 @@
 /** Public copy bank (BRASSHR-FS-GEO-001 §6.6). Legal can change text without logic changes. */
 
 export const SERVICE_AREA_COPY = {
-  location_not_available:
-    "This opening isn’t available for the location you selected.",
+  location_not_available: "This work location isn’t available yet.",
   location_not_enabled: "This work location isn’t available yet.",
-  signup_waitlist:
-    "BrassHR isn’t available for this business location yet. You can update the primary location if this was a mistake.",
+  signup_waitlist: "BrassHR isn’t available for this business location yet.",
   opening_unavailable: "This opening is no longer available.",
   empty_city_search: "No openings in that city right now. Try another location.",
   attach_blocked: "This work location isn’t available yet.",
