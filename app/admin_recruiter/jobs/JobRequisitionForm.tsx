@@ -476,7 +476,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
 
-    if (serviceAreaBlocked) {
+    if (action === "publish" && serviceAreaBlocked) {
       const blockedMessage = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
       setFieldErrors({ location: blockedMessage });
       setMessage(blockedMessage);
@@ -484,6 +484,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (payloadJob.sourceType === "MSP") setStep("msp-details");
       else setStep("requisition");
       return;
+    }
+    if (action === "save_draft" && serviceAreaBlocked) {
+      setMessage(
+        serviceAreaBlockMessage ||
+          `${SERVICE_AREA_COPY.location_not_enabled} You can save this draft, but it cannot be published yet.`
+      );
     }
 
     if (action === "publish") {
@@ -664,9 +670,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ...validateRequisitionStep(job),
         ...validateWorkflowAssignment(),
       };
-      if (serviceAreaBlocked) {
-        errors.location = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
-      }
       if (Object.keys(errors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
@@ -679,9 +682,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ...validateRequisitionStep(buildPayloadJob()),
         ...validateWorkflowAssignment(),
       };
-      if (serviceAreaBlocked) {
-        errors.location = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
-      }
       if (Object.keys(errors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;

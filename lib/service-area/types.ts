@@ -21,6 +21,7 @@ export const SERVICE_AREA_REASON_CODES = [
   "outside_hiring_area",
   "remote_unscoped",
   "incomplete_location",
+  "unknown_location",
 ] as const;
 
 export type ServiceAreaReasonCode = (typeof SERVICE_AREA_REASON_CODES)[number];
@@ -77,7 +78,13 @@ export type ServiceAreaDecision = {
 
 export type PublicServiceAreaDecision = {
   allowed: boolean;
-  reasonCode: "ok" | "location_not_available" | "incomplete_location" | "remote_unscoped" | "opening_unavailable";
+  reasonCode:
+    | "ok"
+    | "location_not_available"
+    | "incomplete_location"
+    | "unknown_location"
+    | "remote_unscoped"
+    | "opening_unavailable";
   messageKey: ServiceAreaMessageKey;
 };
 

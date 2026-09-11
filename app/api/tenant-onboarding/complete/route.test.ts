@@ -70,12 +70,16 @@ vi.mock("@/lib/supabase/service-role", () => ({
               }),
             };
           },
+          update: () => ({
+            eq: async () => ({ error: null }),
+          }),
         };
       }
       if (table === "users") {
         return {
           select: () => ({
             eq: () => ({
+              maybeSingle: async () => ({ data: null, error: null }),
               ilike: () => ({
                 neq: () => ({
                   limit: () => ({
@@ -89,7 +93,13 @@ vi.mock("@/lib/supabase/service-role", () => ({
             }),
           }),
           upsert: async () => ({ error: null }),
+          update: () => ({
+            eq: async () => ({ error: null }),
+          }),
         };
+      }
+      if (table === "tenant_hiring_areas") {
+        return { upsert: async () => ({ error: null }) };
       }
       if (table === "user_roles") {
         return { upsert: async () => ({ error: null }) };

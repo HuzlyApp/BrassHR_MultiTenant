@@ -6,6 +6,9 @@ export {
   tenantWaitlistedResponse,
   isServiceAreaValidationCode,
 } from "@/lib/service-area/http";
+export { isNewYorkCityPlace, NYC_CITY_ALIASES } from "@/lib/service-area/nyc";
+export { isUnverifiableWorkCity, isPhase1RestrictedState } from "@/lib/service-area/known-cities";
+export { evaluateJobServiceArea, requireApplyWorkLocation, assertJobServiceAreaForLiveStatus } from "@/lib/service-area/jobs";
 export {
   evaluateServiceArea,
   toPublicServiceAreaDecision,
