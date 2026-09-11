@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { ChevronDown, ChevronUp, Shield } from "lucide-react";
 
@@ -18,6 +18,8 @@ type PostTask = {
 type PostStageDef = {
   id: string;
   name: string;
+  /** Large centered stage illustration (Hire-icons) */
+  heroIconSrc: string;
   completedSummary: string;
   activeSummary: string;
   upcomingSummary: string;
@@ -48,6 +50,7 @@ const ICONS = {
   calendarDate: "/icons/Hire-icons/pre-hire-icons/calendar-date.svg",
   /** 24×24 Overall Onboarding Progress header */
   clipboardTaskList: "/icons/Hire-icons/pre-hire-icons/clipboard-task-list.svg",
+  stageCheckOutlineGreen: "/icons/Hire-icons/pre-hire-icons/stage-check-outline-green.svg",
 } as const;
 
 const SUBMITTED = "Submitted on 07/20/2026";
@@ -68,6 +71,7 @@ const POST_HIRE_DEFS: PostStageDef[] = [
   {
     id: "payroll-tax",
     name: "Payroll & Tax",
+    heroIconSrc: "/icons/Hire-icons/ic8.png",
     completedSummary: "6 Completed",
     activeSummary: "3 Completed • 3 In Progress",
     upcomingSummary: "Upcoming",
@@ -93,6 +97,7 @@ const POST_HIRE_DEFS: PostStageDef[] = [
   {
     id: "access-systems",
     name: "Access & Systems",
+    heroIconSrc: "/icons/Hire-icons/ic2.png",
     completedSummary: "3 Completed",
     activeSummary: "1 Completed • 1 In Progress",
     upcomingSummary: "Upcoming",
@@ -119,6 +124,7 @@ const POST_HIRE_DEFS: PostStageDef[] = [
   {
     id: "training-policy",
     name: "Training & Policy",
+    heroIconSrc: "/icons/Hire-icons/ic3.png",
     completedSummary: "7 Completed",
     activeSummary: "2 Completed • 1 In Progress",
     upcomingSummary: "Upcoming",
@@ -171,6 +177,7 @@ const POST_HIRE_DEFS: PostStageDef[] = [
   {
     id: "welcome-complete",
     name: "Welcome & Complete",
+    heroIconSrc: "/icons/Hire-icons/ic12.png",
     completedSummary: "5 Completed",
     activeSummary: "1 Completed • 1 In Progress",
     upcomingSummary: "Upcoming",
@@ -441,7 +448,9 @@ function PostTaskCard({ task }: { task: PostTask }) {
       className={`flex items-center gap-3 rounded-xl border px-3 py-3 ${
         locked
           ? "border-[#E5E7EB] bg-[#F9FAFB] opacity-70"
-          : "border-[#E8ECF0] bg-white"
+          : done
+            ? "border-[#BBF7D0] bg-white"
+            : "border-[#E8ECF0] bg-white"
       }`}
     >
       <span
@@ -487,7 +496,7 @@ function PostTaskCard({ task }: { task: PostTask }) {
       </div>
 
       {done ? (
-        <Icon src={ICONS.stageCheckOutline} width={22} height={22} className="shrink-0" />
+        <Icon src={ICONS.stageCheckOutlineGreen} width={22} height={22} className="shrink-0" />
       ) : null}
       {inProgress ? (
         <Icon src={ICONS.taskIncomplete} width={24} height={24} className="shrink-0" />
@@ -499,74 +508,60 @@ function PostTaskCard({ task }: { task: PostTask }) {
   );
 }
 
-function LockedStageBody({
-  stage,
-  showTasks,
-}: {
-  stage: ResolvedPostStage;
-  showTasks: boolean;
-}) {
-  if (showTasks) {
+function StageHeroIcon({ src, muted }: { src: string; muted?: boolean }) {
+  return (
+    <div className="flex justify-center px-4 pt-6 pb-2">
+      <div className="relative h-[110px] w-[110px]">
+        <Image
+          src={src}
+          alt=""
+          fill
+          className={`object-contain ${muted ? "opacity-70 grayscale" : ""}`}
+          sizes="110px"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StageCollapsedInfo({ stage }: { stage: ResolvedPostStage }) {
+  const isWelcomeLocked = stage.locked && stage.id === "welcome-complete";
+
+  if (stage.completed) {
     return (
-      <div className="flex flex-col gap-2.5 px-3 pb-3">
-        {stage.completedTasks.map((task) => (
-          <div
-            key={task.id}
-            className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 opacity-60"
-          >
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E5E7EB]">
-              <Image src={task.iconSrc} alt="" width={22} height={22} className="object-contain grayscale" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p
-                className="truncate"
-                style={{
-                  color: "#9CA3AF",
-                  fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  lineHeight: "20px",
-                }}
-              >
-                {task.title}
-              </p>
-              <p className="mt-0.5 text-xs text-[#9CA3AF]">Locked</p>
-            </div>
-            <Icon src={ICONS.stageLocked} width={24} height={24} className="shrink-0 opacity-60" />
-          </div>
-        ))}
+      <p className="mt-1 px-4 pb-4 text-center text-sm font-semibold" style={{ color: "#12AA00" }}>
+        {stage.completedTasks.length} Tasks Completed
+      </p>
+    );
+  }
+
+  if (stage.locked) {
+    return (
+      <div className="px-4 pb-5 text-center">
+        {isWelcomeLocked ? (
+          <>
+            <p className="text-base font-semibold text-[#374151]">Locked</p>
+            <p className="mt-1 text-sm text-[#6B7280]">{stage.unlockHint}</p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-[#374151]">{stage.unlockHint}</p>
+            {stage.estimated ? (
+              <p className="mt-2 text-xs text-[#6B7280]">Estimated: {stage.estimated}</p>
+            ) : null}
+          </>
+        )}
+        <p className="mt-3 text-sm font-semibold" style={{ color: "var(--brand-secondary)" }}>
+          {stage.completedTasks.length} Tasks Total
+        </p>
       </div>
     );
   }
 
-  const isFullyLocked = stage.locked && stage.id === "welcome-complete";
-
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6]">
-        {isFullyLocked ? (
-          <Icon src={ICONS.stageLocked} width={32} height={32} />
-        ) : (
-          <Icon src={ICONS.pendingClock} width={28} height={28} />
-        )}
-      </div>
-      {isFullyLocked ? (
-        <>
-          <p className="text-base font-semibold text-[#374151]">Locked</p>
-          <p className="mt-1 max-w-[200px] text-sm text-[#6B7280]">{stage.unlockHint}</p>
-        </>
-      ) : (
-        <>
-          <p className="max-w-[220px] text-sm font-medium text-[#374151]">{stage.unlockHint}</p>
-          {stage.estimated ? (
-            <p className="mt-2 text-xs text-[#6B7280]">Estimated: {stage.estimated}</p>
-          ) : null}
-        </>
-      )}
-      <p className="mt-3 text-sm font-semibold" style={{ color: "var(--brand-secondary)" }}>
-        {stage.completedTasks.length} Tasks Total
-      </p>
-    </div>
+    <p className="px-4 pb-4 text-center text-sm font-medium text-[#6B7280]">
+      {stage.completedTasks.length} Tasks Total
+    </p>
   );
 }
 
@@ -579,13 +574,24 @@ function PostStageColumn({
   index: number;
   onToggleComplete: (index: number) => void;
 }) {
-  const [viewTasks, setViewTasks] = useState(false);
   const { locked, completed, current, tasks } = stage;
+  /** Current stage opens tasks by default; others stay collapsed behind View Tasks. */
+  const [viewTasks, setViewTasks] = useState(current);
+
+  useEffect(() => {
+    if (current) setViewTasks(true);
+  }, [current]);
 
   return (
     <section
-      className={`flex min-h-[420px] flex-col overflow-hidden rounded-2xl border border-[#E8ECF0] ${
-        locked ? "bg-[#F8FAFC]" : current ? "bg-[#FBF7F2]" : "bg-[#FAFBFC]"
+      className={`flex min-h-[420px] flex-col overflow-hidden rounded-2xl border ${
+        locked
+          ? "border-[#E8ECF0] bg-[#F8FAFC]"
+          : completed
+            ? "border-transparent bg-white"
+            : current
+              ? "border-[#E8ECF0] bg-[#FBF7F2]"
+              : "border-[#E8ECF0] bg-[#FAFBFC]"
       }`}
     >
       <header className="flex items-start gap-3 border-b border-[#E8ECF0]/60 px-3 py-3.5 sm:px-4">
@@ -640,13 +646,48 @@ function PostStageColumn({
       </header>
 
       <div className="flex flex-1 flex-col">
-        {locked ? (
-          <LockedStageBody stage={stage} showTasks={viewTasks} />
-        ) : (
+        {viewTasks ? (
           <div className="flex flex-col gap-2.5 px-3 py-3">
-            {tasks.map((task) => (
-              <PostTaskCard key={task.id} task={task} />
-            ))}
+            {/* Keep centered hero above expanded tasks (Figma completed column) */}
+            {!current ? (
+              <StageHeroIcon src={stage.heroIconSrc} muted={locked} />
+            ) : null}
+            {(locked ? stage.completedTasks : tasks).map((task) =>
+              locked ? (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 opacity-60"
+                >
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E5E7EB]">
+                    <Image
+                      src={task.iconSrc}
+                      alt=""
+                      width={22}
+                      height={22}
+                      className="object-contain grayscale"
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate"
+                      style={{
+                        color: "#9CA3AF",
+                        fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        lineHeight: "20px",
+                      }}
+                    >
+                      {task.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#9CA3AF]">Locked</p>
+                  </div>
+                  <Icon src={ICONS.stageLocked} width={24} height={24} className="shrink-0 opacity-60" />
+                </div>
+              ) : (
+                <PostTaskCard key={task.id} task={task} />
+              ),
+            )}
             {current && stage.remainingHint ? (
               <div
                 className="mt-1 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium"
@@ -661,19 +702,23 @@ function PostStageColumn({
               </div>
             ) : null}
           </div>
+        ) : (
+          <div className="flex flex-1 flex-col items-stretch justify-center">
+            <StageHeroIcon src={stage.heroIconSrc} muted={locked} />
+            <StageCollapsedInfo stage={stage} />
+          </div>
         )}
       </div>
 
-      {locked ? (
-        <button
-          type="button"
-          onClick={() => setViewTasks((v) => !v)}
-          className="mt-auto flex items-center justify-center gap-1 border-t border-[#E8ECF0] bg-white/70 px-3 py-3 text-sm font-semibold text-[#64748B] transition hover:bg-white"
-        >
-          View Tasks
-          {viewTasks ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={() => setViewTasks((v) => !v)}
+        className="mt-auto flex items-center justify-center gap-1 border-t border-[#E8ECF0] bg-white/80 px-3 py-3 text-sm font-semibold text-[#64748B] transition hover:bg-white"
+        aria-expanded={viewTasks}
+      >
+        View Tasks
+        {viewTasks ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
     </section>
   );
 }

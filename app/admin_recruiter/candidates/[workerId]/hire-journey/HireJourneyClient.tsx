@@ -40,6 +40,8 @@ type ResolvedStage = StageDef & {
 /** Figma assets from public/icons/Hire-icons/pre-hire-icons */
 const PRE_HIRE_ICONS = {
   stageCheckFilled: "/icons/Hire-icons/pre-hire-icons/stage-check-filled.svg",
+  /** Completed task check — matches number circle green */
+  stageCheckFilledGreen: "/icons/Hire-icons/pre-hire-icons/stage-check-filled-green.svg",
   stageCheckOutline: "/icons/Hire-icons/pre-hire-icons/stage-check-outline.svg",
   /** Completed stage right-side check — matches number circle green */
   stageCheckOutlineGreen: "/icons/Hire-icons/pre-hire-icons/stage-check-outline-green.svg",
@@ -369,11 +371,15 @@ function StageProgressStepper({
 }
 
 function TaskRow({ task }: { task: StaticTask }) {
+  const done = Boolean(task.done);
+
   return (
     <div
       className="mx-4 mb-3 flex items-center gap-3 rounded-xl border bg-white px-3 py-3 last:mb-4 sm:mx-5 sm:px-4"
       style={{
-        borderColor: "color-mix(in srgb, var(--brand-primary) 40%, #E8ECF0)",
+        borderColor: done
+          ? "#BBF7D0"
+          : "color-mix(in srgb, var(--brand-primary) 40%, #E8ECF0)",
       }}
     >
       <span
@@ -415,8 +421,8 @@ function TaskRow({ task }: { task: StaticTask }) {
           Schedule Interview
         </button>
       ) : null}
-      {task.done ? (
-        <PreHireIcon src={PRE_HIRE_ICONS.stageCheckFilled} width={20} height={20} />
+      {done ? (
+        <PreHireIcon src={PRE_HIRE_ICONS.stageCheckFilledGreen} width={20} height={20} />
       ) : (
         <PreHireIcon src={PRE_HIRE_ICONS.taskIncomplete} width={24} height={24} />
       )}
@@ -468,7 +474,9 @@ function StageAccordion({
             className={`overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
               current
                 ? "border-[color:var(--brand-primary)] ring-1 ring-[color:var(--brand-primary)]/30"
-                : "border-[#E8ECF0] bg-white"
+                : completed
+                  ? "border-transparent bg-white"
+                  : "border-[#E8ECF0] bg-white"
             } ${locked ? "opacity-80" : ""}`}
             style={
               current
