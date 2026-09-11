@@ -25,6 +25,7 @@ import {
 } from "@/lib/resume/validate-resume-upload";
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 
 export type WorkerAppliedJobOption = {
   applicationId: string;
@@ -198,9 +199,10 @@ async function uploadResumeBuffer(
   supabase: SupabaseClient,
   folder: string,
   file: File,
-  buffer: Buffer
+  buffer: Buffer,
+  storedFileName: string
 ): Promise<string> {
-  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`;
+  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(storedFileName)}`;
   const { error } = await supabase.storage.from(WORKER_RESUMES_BUCKET).upload(objectPath, buffer, {
     contentType: file.type || "application/octet-stream",
     upsert: false,
@@ -249,9 +251,14 @@ async function storeResumeFromFile(
   if (contentError) throw new ResumeUploadValidationError(contentError);
 
   const fileType = resolveResumeFileType(file);
+  const storedFileName = buildWorkerResumeFileName({
+    firstName: applicant.first_name,
+    lastName: applicant.last_name,
+    originalFileName: file.name,
+  });
   const baseFolder = userId.trim() || applicant.id;
   const folder = resumeUploadFolder(baseFolder, mode === "update");
-  const objectPath = await uploadResumeBuffer(supabase, folder, file, buffer);
+  const objectPath = await uploadResumeBuffer(supabase, folder, file, buffer, storedFileName);
   const textLength = text.trim().length;
 
   const persistedId = await persistWorkerResumeRecord(
@@ -259,7 +266,7 @@ async function storeResumeFromFile(
     applicant.id,
     {
       fileUrl: objectPath,
-      originalFileName: file.name,
+      originalFileName: storedFileName,
       parsedData: { text },
       parsingStatus: "pending",
       textLength,
@@ -506,10 +513,16 @@ async function enrichResumeUploaders(
 
   return items.map((item) => {
     const uploaderId = uploaderByResumeId.get(item.id) ?? null;
+    const originalFileName = buildWorkerResumeFileName({
+      firstName: worker?.first_name as string | null | undefined,
+      lastName: worker?.last_name as string | null | undefined,
+      originalFileName: item.originalFileName,
+    });
 
     if (uploaderId && workerUserId && uploaderId === workerUserId) {
       return {
         ...item,
+        originalFileName,
         uploadedByName: workerDisplayName,
         uploadedByPhotoUrl: workerPhotoUrl,
         uploadedByRoleLabel: "Worker",
@@ -519,6 +532,7 @@ async function enrichResumeUploaders(
     if (uploaderId) {
       return {
         ...item,
+        originalFileName,
         uploadedByName: staffNamesById.get(uploaderId) || "Recruiter",
         uploadedByPhotoUrl: staffPhotosById.get(uploaderId) ?? null,
         uploadedByRoleLabel: "Admin",
@@ -527,6 +541,7 @@ async function enrichResumeUploaders(
 
     return {
       ...item,
+      originalFileName,
       uploadedByName: workerDisplayName,
       uploadedByPhotoUrl: workerPhotoUrl,
       uploadedByRoleLabel: "Worker",
@@ -570,7 +585,7 @@ export async function getWorkerResumeFileUrl(
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("worker_resumes")
-    .select("file_url, storage_path")
+    .select("file_url, storage_path, original_file_name, file_name")
     .eq("id", resumeId)
     .eq("worker_id", workerId)
     .is("deleted_at", null)
@@ -583,8 +598,24 @@ export async function getWorkerResumeFileUrl(
     null;
   if (!stored) return null;
 
+  const { data: worker } = await supabase
+    .from("worker")
+    .select("first_name, last_name")
+    .eq("id", workerId)
+    .maybeSingle();
+
+  const downloadFileName = buildWorkerResumeFileName({
+    firstName: worker?.first_name as string | null | undefined,
+    lastName: worker?.last_name as string | null | undefined,
+    originalFileName:
+      (data?.original_file_name as string | null) ||
+      (data?.file_name as string | null) ||
+      stored,
+  });
+
   return resolveStorageAccessibleUrl(supabase, stored, {
     defaultBucket: WORKER_RESUMES_BUCKET,
     extraBuckets: [WORKER_RESUMES_BUCKET],
+    downloadFileName,
   });
 }
