@@ -609,7 +609,7 @@ function PostStageColumn({
             locked
               ? undefined
               : completed
-                ? { backgroundColor: "var(--brand-primary)" }
+                ? { backgroundColor: "#12AA00" }
                 : current
                   ? { backgroundColor: "var(--brand-secondary)" }
                   : undefined

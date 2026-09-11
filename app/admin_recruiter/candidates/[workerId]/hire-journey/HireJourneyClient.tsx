@@ -41,6 +41,8 @@ type ResolvedStage = StageDef & {
 const PRE_HIRE_ICONS = {
   stageCheckFilled: "/icons/Hire-icons/pre-hire-icons/stage-check-filled.svg",
   stageCheckOutline: "/icons/Hire-icons/pre-hire-icons/stage-check-outline.svg",
+  /** Completed stage right-side check — matches number circle green */
+  stageCheckOutlineGreen: "/icons/Hire-icons/pre-hire-icons/stage-check-outline-green.svg",
   stageCollapseMinus: "/icons/Hire-icons/pre-hire-icons/stage-collapse-minus.svg",
   doubleCheck: "/icons/Hire-icons/pre-hire-icons/double-check.svg",
   stepperCurrent: "/icons/Hire-icons/pre-hire-icons/stepper-current.svg",
@@ -466,9 +468,7 @@ function StageAccordion({
             className={`overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
               current
                 ? "border-[color:var(--brand-primary)] ring-1 ring-[color:var(--brand-primary)]/30"
-                : completed
-                  ? "border-[#BBF7D0] bg-[#F0FDF4]"
-                  : "border-[#E8ECF0] bg-white"
+                : "border-[#E8ECF0] bg-white"
             } ${locked ? "opacity-80" : ""}`}
             style={
               current
@@ -558,7 +558,7 @@ function StageAccordion({
                   <>
                     {completed ? (
                       <PreHireIcon
-                        src={PRE_HIRE_ICONS.stageCheckOutline}
+                        src={PRE_HIRE_ICONS.stageCheckOutlineGreen}
                         width={22}
                         height={22}
                         className="shrink-0"
@@ -578,7 +578,7 @@ function StageAccordion({
                   <>
                     {completed ? (
                       <PreHireIcon
-                        src={PRE_HIRE_ICONS.stageCheckOutline}
+                        src={PRE_HIRE_ICONS.stageCheckOutlineGreen}
                         width={22}
                         height={22}
                         className="shrink-0"
