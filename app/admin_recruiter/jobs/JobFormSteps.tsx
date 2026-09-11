@@ -359,6 +359,7 @@ export function JobFormStepRequisition({
   employmentTypes,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -368,6 +369,7 @@ export function JobFormStepRequisition({
   employmentTypes: EmploymentType[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const requisitionEmploymentTypes = employmentTypes.filter(
     (type) => type === "W2" || type === "1099"
@@ -518,6 +520,7 @@ export function JobFormStepRequisition({
             postalCode={job.postalCode}
             locationType={ui.jobLocationType || job.jobLocationType}
             remoteAllowedStates={job.remoteAllowedStates}
+            onBlockedChange={onServiceAreaBlockedChange}
           />
 
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
@@ -796,12 +799,14 @@ export function JobFormStepMspDetails({
   fieldErrors,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const facilityValue = job.facility?.trim() || job.location?.trim() || "";
   const isMspEor = isMspRecruitAndEor(job);
@@ -963,6 +968,7 @@ export function JobFormStepMspDetails({
           postalCode={job.postalCode}
           locationType={ui.jobLocationType || job.jobLocationType}
           remoteAllowedStates={job.remoteAllowedStates}
+          onBlockedChange={onServiceAreaBlockedChange}
         />
       </div>
 

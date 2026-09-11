@@ -14,7 +14,7 @@ type DbClient = SupabaseClient;
 
 export function jobInputToServiceAreaLocation(input: JobRequisitionInput): ServiceAreaLocation {
   return worksiteFromJobInput({
-    location: input.location,
+    location: input.location || input.facility,
     postalCode: input.postalCode,
     jobLocationType: input.jobLocationType ?? input.schedule,
     remoteAllowedStates: input.remoteAllowedStates,
@@ -88,7 +88,9 @@ export async function evaluateJobServiceArea(
     matchedPolicyId: null,
   };
 
-  if (options.publish && !decision.allowed) {
+  const holdDenied =
+    decision.reasonCode === "platform_hold" || decision.reasonCode === "outside_hiring_area";
+  if (!decision.allowed && (options.publish || holdDenied)) {
     throw decisionToJobError(decision);
   }
 

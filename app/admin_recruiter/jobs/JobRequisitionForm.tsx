@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -17,7 +17,7 @@ import {
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
-import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
+import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -107,7 +107,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [serviceAreaBlocked, setServiceAreaBlocked] = useState(false);
+  const [serviceAreaBlockMessage, setServiceAreaBlockMessage] = useState<string | null>(null);
   const skipJobLoadRef = useRef(false);
+
+  const onServiceAreaBlockedChange = useCallback((blocked: boolean, message: string | null) => {
+    setServiceAreaBlocked(blocked);
+    setServiceAreaBlockMessage(message);
+  }, []);
 
   const returnTo = jobId
     ? `/admin_recruiter/jobs/${encodeURIComponent(jobId)}/edit`
@@ -470,6 +477,16 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
 
+    if (serviceAreaBlocked) {
+      const blockedMessage = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
+      setFieldErrors({ location: blockedMessage });
+      setMessage(blockedMessage);
+      setSaving(false);
+      if (payloadJob.sourceType === "MSP") setStep("msp-details");
+      else setStep("requisition");
+      return;
+    }
+
     if (action === "publish") {
       const stepErrors = {
         ...validateRequisitionStep(payloadJob),
@@ -648,6 +665,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ...validateRequisitionStep(job),
         ...validateWorkflowAssignment(),
       };
+      if (serviceAreaBlocked) {
+        errors.location = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
+      }
       if (Object.keys(errors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
@@ -660,6 +680,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ...validateRequisitionStep(buildPayloadJob()),
         ...validateWorkflowAssignment(),
       };
+      if (serviceAreaBlocked) {
+        errors.location = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
+      }
       if (Object.keys(errors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
@@ -819,6 +842,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   employmentTypes={options?.employmentTypes ?? ["W2", "1099"]}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
@@ -857,6 +881,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   fieldErrors={fieldErrors}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
