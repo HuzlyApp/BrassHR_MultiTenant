@@ -4,7 +4,8 @@ import { requireApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
+import { buildWorkerResumeFileName, contentDispositionInline } from "@/lib/resume/worker-resume-file-name";
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path";
 import {
   getLatestWorkerResumeStoragePath,
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     const { data: worker, error: workerErr } = await supabase
       .from("worker")
-      .select("id, user_id")
+      .select("id, user_id, first_name, last_name")
       .eq("id", workerId)
       .maybeSingle();
     if (workerErr) throw workerErr;
@@ -115,10 +116,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unable to load resume file" }, { status: 404 });
     }
 
-    const fileName = fileNameFromPath(resumePath);
+    const storedName = fileNameFromPath(resumePath);
+    const fileName = buildWorkerResumeFileName({
+      firstName: worker.first_name as string | null | undefined,
+      lastName: worker.last_name as string | null | undefined,
+      originalFileName: storedName,
+    });
     const arrayBuffer = await blob.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const fileType = resolveResumeFileType({ name: fileName, type: blob.type });
+    const fileType = resolveResumeFileType({ name: storedName, type: blob.type });
 
     if (fileType === "docx") {
       try {
@@ -153,7 +159,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Content-Disposition": `inline; filename="${fileName}"`,
+        "Content-Disposition": contentDispositionInline(fileName),
         "Cache-Control": "private, max-age=120",
         "X-Frame-Options": "SAMEORIGIN",
         "X-Content-Type-Options": "nosniff",

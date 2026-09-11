@@ -20,6 +20,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
 import { US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
@@ -109,8 +110,12 @@ function ResumeTabBar({
 }
 
 function buildResumeTitle(firstName: string, lastName: string): string {
-  const title = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
-  return title ? `${title} Resume` : "";
+  if (!firstName.trim() && !lastName.trim()) return "";
+  return buildWorkerResumeFileName({
+    firstName,
+    lastName,
+    originalFileName: "resume.pdf",
+  }).replace(/\.pdf$/i, "");
 }
 
 function ParseStatusBadge({ state }: { state: ParseState }) {
