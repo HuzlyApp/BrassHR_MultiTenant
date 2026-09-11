@@ -22,6 +22,7 @@ import {
   validateResumeUploadFile,
 } from "@/lib/resume/validate-resume-upload";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
@@ -340,11 +341,17 @@ export async function adminAddCandidateFromResume(
       ? await resumeTextToPdfBuffer(extractedText)
       : resumeBytes;
 
+  const namedFile = buildWorkerResumeFileName({
+    firstName: resolvedFirstName,
+    lastName: resolvedLastName,
+    originalFileName: resumeFileName,
+  });
+
   const uploaded = await uploadResumeBytes(
     supabase,
     input.tenantId,
     uploadBytes,
-    resumeFileName,
+    namedFile,
     resumeContentType
   );
 
