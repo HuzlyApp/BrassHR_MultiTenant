@@ -50,7 +50,6 @@ import {
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_CLUSTER_CLASS,
-  JOB_FORM_JOB_TYPES,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_ACCEPTABLE_MATCH_RATES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
@@ -1039,32 +1038,14 @@ export function JobFormStepMspDetails({
         </div>
       </div>
 
+      <JobTypeChipSelect
+        label="Job Type"
+        value={job.shiftType ?? ""}
+        onChange={(next) => onJobChange("shiftType", next)}
+        error={fieldErrors.shiftType}
+      />
+
       <div className="grid gap-4 min-[700px]:grid-cols-2">
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-employment-type">
-            Job Type
-            <JobFormRequiredMark />
-          </label>
-          <select
-            id="msp-employment-type"
-            className={`${JOB_FORM_SELECT_CLASS} ${job.shiftType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={job.shiftType ?? ""}
-            onChange={(event) => onJobChange("shiftType", event.target.value)}
-          >
-            <option value="">Select Employment Type</option>
-            {JOB_FORM_JOB_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-            {job.shiftType &&
-            !JOB_FORM_JOB_TYPES.includes(job.shiftType as (typeof JOB_FORM_JOB_TYPES)[number]) ? (
-              <option value={job.shiftType}>{job.shiftType}</option>
-            ) : null}
-          </select>
-          <FieldError error={fieldErrors.shiftType} />
-        </div>
         <WorkLocationTypeField
           id="msp-work-location-type"
           value={ui.jobLocationType}
