@@ -23,7 +23,7 @@ export function serviceAreaMessage(key: string | null | undefined): string {
 /** Read staff/public API envelopes without leaking hold names. */
 export function readServiceAreaApiMessage(
   payload: unknown,
-  fallback = SERVICE_AREA_COPY.location_not_enabled
+  fallback: string = SERVICE_AREA_COPY.location_not_enabled
 ): string {
   if (!payload || typeof payload !== "object") return fallback;
   const record = payload as Record<string, unknown>;
