@@ -38,6 +38,7 @@ import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
+import ServiceAreaLocationHint from "./ServiceAreaLocationHint";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMMISSION_FEE_TYPES,
@@ -49,7 +50,6 @@ import {
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_CLUSTER_CLASS,
-  JOB_FORM_JOB_TYPES,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_ACCEPTABLE_MATCH_RATES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
@@ -71,7 +71,6 @@ import {
   employmentTypeFromLabel,
   employmentTypeLabel,
   REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP,
-  specialtySelectPlaceholder,
   formatPaySummary,
   formatCommissionFeeTypeLabel,
   formatCommissionPercentValue,
@@ -80,13 +79,13 @@ import {
   formatExpectedHoursValue,
   formatPayRatePeriodLabel,
   type JobFormOption,
-  type JobFormSpecialtyOption,
   type JobFormStep,
   type JobFormUiState,
   type CommissionFeeType,
 } from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
 import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
+import { matchProfessionIdByName, professionInputValue } from "@/lib/jobs/profession-text";
 
 function BrandedCheckbox({
   checked,
@@ -354,19 +353,19 @@ export function JobFormStepRequisition({
   ui,
   fieldErrors,
   professions,
-  specialties,
   employmentTypes,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   professions: JobFormOption[];
-  specialties: JobFormSpecialtyOption[];
   employmentTypes: EmploymentType[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const requisitionEmploymentTypes = employmentTypes.filter(
     (type) => type === "W2" || type === "1099"
@@ -434,45 +433,21 @@ export function JobFormStepRequisition({
               Profession
               <JobFormRequiredMark />
             </label>
-            <select
+            <input
               id="profession"
-              className={JOB_FORM_SELECT_CLASS}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.professionId ?? ""}
+              className={JOB_FORM_INPUT_CLASS}
+              value={professionInputValue(job, professions)}
               onChange={(event) => {
-                onJobChange("professionId", event.target.value || null);
-                onJobChange("specialtyId", null);
+                const next = event.target.value;
+                const nextId = matchProfessionIdByName(professions, next);
+                onJobChange("profession", next);
+                onJobChange("professionId", nextId);
+                if ((job.professionId || null) !== nextId) {
+                  onJobChange("specialtyId", null);
+                }
               }}
-            >
-              <option value="">Select Profession</option>
-              {professions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+            />
             <FieldError error={fieldErrors.professionId} />
-          </div>
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="specialty">
-              Specialty
-            </label>
-            <select
-              id="specialty"
-              className={JOB_FORM_SELECT_CLASS}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.specialtyId ?? ""}
-              disabled={!job.professionId}
-              onChange={(event) => onJobChange("specialtyId", event.target.value || null)}
-            >
-              <option value="">{specialtySelectPlaceholder(job.professionId, specialties.length)}</option>
-              {specialties.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <FieldError error={fieldErrors.specialtyId} />
           </div>
         </div>
 
@@ -511,6 +486,13 @@ export function JobFormStepRequisition({
             onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
             placeholder="Search city, area, or address"
             error={fieldErrors.location}
+          />
+          <ServiceAreaLocationHint
+            locationText={job.location}
+            postalCode={job.postalCode}
+            locationType={ui.jobLocationType || job.jobLocationType}
+            remoteAllowedStates={job.remoteAllowedStates}
+            onBlockedChange={onServiceAreaBlockedChange}
           />
 
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
@@ -789,12 +771,14 @@ export function JobFormStepMspDetails({
   fieldErrors,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const facilityValue = job.facility?.trim() || job.location?.trim() || "";
   const isMspEor = isMspRecruitAndEor(job);
@@ -951,6 +935,13 @@ export function JobFormStepMspDetails({
           placeholder="Search city, area, or address"
           error={fieldErrors.location}
         />
+        <ServiceAreaLocationHint
+          locationText={facilityValue}
+          postalCode={job.postalCode}
+          locationType={ui.jobLocationType || job.jobLocationType}
+          remoteAllowedStates={job.remoteAllowedStates}
+          onBlockedChange={onServiceAreaBlockedChange}
+        />
       </div>
 
       <div>
@@ -1020,32 +1011,14 @@ export function JobFormStepMspDetails({
         </div>
       </div>
 
+      <JobTypeChipSelect
+        label="Job Type"
+        value={job.shiftType ?? ""}
+        onChange={(next) => onJobChange("shiftType", next)}
+        error={fieldErrors.shiftType}
+      />
+
       <div className="grid gap-4 min-[700px]:grid-cols-2">
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-employment-type">
-            Job Type
-            <JobFormRequiredMark />
-          </label>
-          <select
-            id="msp-employment-type"
-            className={`${JOB_FORM_SELECT_CLASS} ${job.shiftType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={job.shiftType ?? ""}
-            onChange={(event) => onJobChange("shiftType", event.target.value)}
-          >
-            <option value="">Select Employment Type</option>
-            {JOB_FORM_JOB_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-            {job.shiftType &&
-            !JOB_FORM_JOB_TYPES.includes(job.shiftType as (typeof JOB_FORM_JOB_TYPES)[number]) ? (
-              <option value={job.shiftType}>{job.shiftType}</option>
-            ) : null}
-          </select>
-          <FieldError error={fieldErrors.shiftType} />
-        </div>
         <WorkLocationTypeField
           id="msp-work-location-type"
           value={ui.jobLocationType}
@@ -2158,14 +2131,12 @@ export function JobFormStepReview({
   job,
   ui,
   professionName,
-  specialtyName,
   onEditField,
   brandVars,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   professionName: string;
-  specialtyName: string;
   onEditField: (field: ReviewEditFieldId) => void;
   brandVars?: CSSProperties;
 }) {
@@ -2233,14 +2204,6 @@ export function JobFormStepReview({
       ) : null}
       {job.sourceType !== "MSP" ? (
         <ReviewRow label="Profession" value={professionName} readOnly />
-      ) : null}
-      {job.sourceType !== "MSP" ? (
-        <ReviewRow
-          label="Specialty"
-          value={specialtyName}
-          addLabel="specialty"
-          onEdit={() => onEditField("specialty")}
-        />
       ) : null}
       {job.sourceType !== "MSP" ? (
         <>

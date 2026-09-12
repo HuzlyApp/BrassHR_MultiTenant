@@ -57,6 +57,16 @@ const storageUploadMock = vi.hoisted(() => vi.fn(async () => ({ error: null })))
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: { first_name: "Jane", last_name: "Doe" },
+            error: null,
+          }),
+        }),
+      }),
+    }),
     storage: {
       from: () => ({
         upload: storageUploadMock,

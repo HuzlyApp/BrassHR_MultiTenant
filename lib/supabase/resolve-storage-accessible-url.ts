@@ -43,16 +43,21 @@ export type ResolveStorageAccessibleUrlOptions = {
   defaultBucket?: string;
   expiresIn?: number;
   extraBuckets?: string[];
+  downloadFileName?: string | null;
 };
 
 async function trySignedUrl(
   supabase: SupabaseClient,
   bucket: string,
   path: string,
-  expiresIn: number
+  expiresIn: number,
+  downloadFileName?: string | null
 ): Promise<string | null> {
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
-  if (!error && data?.signedUrl) return data.signedUrl;
+  const download = downloadFileName?.trim();
+  const signed = download
+    ? await supabase.storage.from(bucket).createSignedUrl(path, expiresIn, { download })
+    : await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (!signed.error && signed.data?.signedUrl) return signed.data.signedUrl;
   return null;
 }
 
@@ -73,6 +78,7 @@ export async function resolveStorageAccessibleUrl(
   if (ref.kind === "external") return ref.url;
 
   const expiresIn = options?.expiresIn ?? 3600;
+  const downloadFileName = options?.downloadFileName?.trim() || null;
   const buckets = Array.from(
     new Set(
       [
@@ -85,13 +91,15 @@ export async function resolveStorageAccessibleUrl(
     )
   );
 
-  const direct = await trySignedUrl(supabase, ref.bucket, ref.path, expiresIn);
+  const direct = await trySignedUrl(supabase, ref.bucket, ref.path, expiresIn, downloadFileName);
   if (direct) return direct;
 
   const otherBuckets = buckets.filter((bucket) => bucket !== ref.bucket);
   if (otherBuckets.length > 0) {
     const results = await Promise.all(
-      otherBuckets.map((bucket) => trySignedUrl(supabase, bucket, ref.path, expiresIn))
+      otherBuckets.map((bucket) =>
+        trySignedUrl(supabase, bucket, ref.path, expiresIn, downloadFileName)
+      )
     );
     const hit = results.find(Boolean);
     if (hit) return hit;

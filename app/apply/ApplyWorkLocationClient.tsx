@@ -39,7 +39,7 @@ export default function ApplyWorkLocationClient({
             state,
             postalCode,
             locationType: relocate === "remote" ? ("remote" as const) : ("onsite" as const),
-            relocateToJobSite: relocate === "relocate" || relocate === "onsite",
+            relocateToJobSite: relocate === "relocate",
           }
         : null,
     [city, state, postalCode, relocate]
@@ -83,7 +83,7 @@ export default function ApplyWorkLocationClient({
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Apply</p>
         <h1 className="mt-2 text-xl font-semibold text-slate-900">{jobTitle}</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Confirm where you will work this opening. Home address is not used for this check.
+          Confirm where you will work this job. Home address, school, and travel city are not used.
         </p>
 
         <label className="mt-6 block text-sm font-medium text-slate-700" htmlFor="work-city">

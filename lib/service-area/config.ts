@@ -1,3 +1,3 @@
-/** Geographic denies are off until hiring-area defaults and platform holds are re-enabled. */
-export const SERVICE_AREA_ENFORCE_PLATFORM_HOLDS = false;
+/** Phase 1 platform holds: CA, IL, CT, and NYC. Tenant hiring-area matching stays off. */
+export const SERVICE_AREA_ENFORCE_PLATFORM_HOLDS = true;
 export const SERVICE_AREA_ENFORCE_HIRING_AREA = false;

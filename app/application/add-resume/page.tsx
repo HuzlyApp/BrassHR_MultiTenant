@@ -29,6 +29,7 @@ import BrandingRightPanelLogo, {
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { readStoredApplyLocation } from "@/lib/service-area/apply-location-client"
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import {
   findResumeUploadStep,
@@ -488,7 +489,7 @@ export default function Step1Upload() {
         )
         if (!uploadRes.ok) {
           const data = await uploadRes.json().catch(() => ({}))
-          throw new Error(data?.error || "Failed to upload resume")
+          throw new Error(readServiceAreaApiMessage(data, "Failed to upload resume"))
         }
         setUploadPhase("Saving upload details...")
         const uploadJson = (await uploadRes.json()) as {

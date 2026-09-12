@@ -114,6 +114,18 @@ describe("resolvePostAuthRedirect owner signup", () => {
     ).toBe("/your-trial?account-ready=true");
   });
 
+  it("routes waitlisted owners to the waitlist, not a live trial", async () => {
+    const { resolvePostAuthRedirect } = await import("@/lib/auth/owner-onboarding-status");
+    expect(
+      resolvePostAuthRedirect({
+        signupCompleted: true,
+        tenantOnboardingCompleted: false,
+        godAdmin: false,
+        waitlistPending: true,
+      })
+    ).toBe("/signup/waitlist");
+  });
+
   it("still honors explicit tenant-onboarding next path", async () => {
     const { resolvePostAuthRedirect } = await import("@/lib/auth/owner-onboarding-status");
     expect(

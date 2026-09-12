@@ -88,7 +88,7 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     expect(decision.allowed).toBe(false);
     expect(decision.reasonCode).toBe("platform_hold");
     expect(decision.layer).toBe("platform");
-    expect(decision.messageKey).toBe("location_not_available");
+    expect(decision.messageKey).toBe("location_not_enabled");
   });
 
   it("AT-4: relocate true evaluates the job worksite, not home", () => {
@@ -215,7 +215,7 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     expect(toPublicServiceAreaDecision(decision)).toEqual({
       allowed: false,
       reasonCode: "location_not_available",
-      messageKey: "location_not_available",
+      messageKey: "location_not_enabled",
     });
   });
 
@@ -282,5 +282,133 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     );
     expect(decision.allowed).toBe(true);
     expect(decision.reasonCode).toBe("ok");
+  });
+
+  it("production defaults hold CA / IL / CT / NYC work locations", () => {
+    const losAngeles = evaluateServiceArea(
+      { action: "publish_job", location: { city: "Los Angeles", state: "CA", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    const chicago = evaluateServiceArea(
+      { action: "attach_candidate", location: { city: "Chicago", state: "IL", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    const hartford = evaluateServiceArea(
+      { action: "signup", location: { city: "Hartford", state: "CT", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    const brooklyn = evaluateServiceArea(
+      { action: "apply", location: { city: "Brooklyn", state: "NY", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    expect(losAngeles.allowed).toBe(false);
+    expect(losAngeles.reasonCode).toBe("platform_hold");
+    expect(chicago.allowed).toBe(false);
+    expect(hartford.allowed).toBe(false);
+    expect(hartford.messageKey).toBe("signup_waitlist");
+    expect(brooklyn.allowed).toBe(false);
+  });
+
+  it("holds NYC neighborhoods without ZIP codes", () => {
+    for (const city of [
+      "Astoria",
+      "Flushing",
+      "Jamaica",
+      "Long Island City",
+      "LIC",
+      "Williamsburg",
+      "Harlem",
+      "Manhattan",
+      "Queens",
+      "Bronx",
+      "Staten Island",
+      "New York City",
+      "NYC",
+    ]) {
+      const decision = evaluate({ city, state: "NY", locationType: "onsite" });
+      expect(decision.allowed, city).toBe(false);
+      expect(decision.reasonCode, city).toBe("platform_hold");
+    }
+  });
+
+  it("blocks unknown city/state values such as asdf, TX", () => {
+    const decision = evaluate({ city: "asdf", state: "TX", locationType: "onsite" });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasonCode).toBe("unknown_location");
+  });
+
+  it("blocks unclassified New York cities that are not NYC or known upstate", () => {
+    const decision = evaluate({ city: "NotARealHamlet", state: "NY", locationType: "onsite" });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasonCode).toBe("unknown_location");
+  });
+
+  it("allows other major allowed-state cities", () => {
+    for (const row of [
+      { city: "Dallas", state: "TX" },
+      { city: "Raleigh", state: "NC" },
+      { city: "Seattle", state: "WA" },
+      { city: "Miami", state: "FL" },
+      { city: "Denver", state: "CO" },
+    ]) {
+      const decision = evaluate({ ...row, locationType: "onsite" });
+      expect(decision.allowed, `${row.city}, ${row.state}`).toBe(true);
+    }
+  });
+
+  it("blocks missing city or state", () => {
+    expect(evaluate({ city: "", state: "TX", locationType: "onsite" }).reasonCode).toBe(
+      "incomplete_location"
+    );
+    expect(evaluate({ city: "Dallas", state: "", locationType: "onsite" }).reasonCode).toBe(
+      "incomplete_location"
+    );
+  });
+
+  it("blocks remote US-wide publish", () => {
+    const empty = evaluate({ locationType: "remote", remoteAllowedStates: [] }, "publish_job");
+    const usToken = evaluate({ locationType: "remote", remoteAllowedStates: ["US"] }, "publish_job");
+    expect(empty.reasonCode).toBe("remote_unscoped");
+    expect(usToken.reasonCode).toBe("remote_unscoped");
+  });
+
+  it("blocks remote lists that include restricted states", () => {
+    expect(
+      evaluate({ locationType: "remote", remoteAllowedStates: ["CA"] }, "publish_job").reasonCode
+    ).toBe("platform_hold");
+    expect(
+      evaluate({ locationType: "remote", remoteAllowedStates: ["TX", "IL"] }, "publish_job")
+        .reasonCode
+    ).toBe("platform_hold");
+  });
+
+  it("does not treat relocate as applying unless the flag is true", () => {
+    const denied = evaluateServiceArea(
+      {
+        action: "apply",
+        location: {
+          city: "Los Angeles",
+          state: "CA",
+          locationType: "onsite",
+          relocateToJobSite: false,
+        },
+      },
+      {
+        policies: PHASE1,
+        zipListsByPolicyId: zipLists,
+        hiringArea: openPlatform,
+        enforcePlatformHolds: true,
+        jobWorksite: {
+          city: "Raleigh",
+          state: "NC",
+          postalCode: "27601",
+          locationType: "onsite",
+          remoteAllowedStates: [],
+          isPublished: true,
+        },
+      }
+    );
+    expect(denied.allowed).toBe(false);
+    expect(denied.reasonCode).toBe("platform_hold");
   });
 });

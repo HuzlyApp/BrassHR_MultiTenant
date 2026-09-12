@@ -212,6 +212,39 @@ describe("parseAndValidateMatchAnalysis", () => {
       ]);
     }
   });
+
+  it("maps Technology prompt output fields onto the Analyze schema", () => {
+    const tech = {
+      match_score: 54,
+      recommendation: "Hold",
+      hard_knockout: false,
+      strengths: ["Sentinel listed on 2022-2024 SOC analyst role."],
+      weaknesses: ["GKE appears only as a skills-list cousin of Kubernetes."],
+      resume_authenticity: "Low concern",
+      items_to_verify: ["Confirm Kubernetes vs GKE production ownership"],
+      recruiter_questions: ["Which clusters did you run on GKE, and in which years?"],
+      potential_score_after_verification: 71,
+      mandatory_requirements: [
+        {
+          requirement: "Kubernetes",
+          status: "PARTIAL",
+          evidence: "Skills list includes Kubernetes; no dated cluster ownership bullet.",
+        },
+      ],
+      preferred_requirements: [],
+    };
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(tech));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(54);
+      expect(parsed.data.candidate_match.match_category).toBe("WEAK_MATCH");
+      expect(parsed.data.candidate_match.recommended_action).toBe("KEEP_AS_POSSIBLE");
+      expect(parsed.data.candidate_match.display_category).toBe("Hold");
+      expect(parsed.data.candidate_match.recruiter_decision_summary).toContain("71");
+      expect(parsed.data.gaps_and_risks[0]).toContain("GKE");
+      expect(parsed.data.screening_questions[0]?.question).toContain("GKE");
+    }
+  });
 });
 
 describe("analyze vs deep prompts", () => {
@@ -484,5 +517,36 @@ describe("rescoreMatchAnalysis", () => {
     });
     const rescored = rescoreMatchAnalysis(analysis);
     expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThanOrEqual(75);
+  });
+
+  it("keeps the model score for Technology pack instead of parking at 45", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 54,
+        match_category: "WEAK_MATCH",
+        display_category: "Hold",
+        recommended_action: "KEEP_AS_POSSIBLE",
+      },
+      mandatory_requirements: [
+        req({
+          requirement: "Kubernetes",
+          status: "PARTIAL",
+          requirement_outcome: "VERIFY",
+          candidate_evidence: "Skills list only",
+        }),
+        req({
+          requirement: "Informatica IDMC",
+          status: "NOT_FOUND",
+          requirement_outcome: "VERIFY",
+          candidate_evidence: "Not listed",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBe(54);
+    expect(rescored.candidate_match.display_category).toBe("Hold");
+    expect(rescored.candidate_match.match_category).toBe("WEAK_MATCH");
+    expect(rescored.candidate_match.recommended_action).toBe("KEEP_AS_POSSIBLE");
   });
 });

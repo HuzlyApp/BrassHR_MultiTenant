@@ -37,6 +37,7 @@ import {
 } from "@/lib/workers/candidate-status-label";
 import { serviceAreaMessage } from "@/lib/service-area/copy";
 import {
+  assertTenantCanOperate,
   evaluateServiceAreaWithDb,
   recordWorkLocationConfirmation,
   worksiteFromJobInput,
@@ -1012,6 +1013,7 @@ export async function importExistingCandidatesToWorkspace(
       400
     );
   }
+  await assertTenantCanOperate(supabase, input.tenantId);
   const assignmentLocation = worksiteFromJobInput({
     location: jobRow.location,
     postalCode: jobRow.postal_code,
