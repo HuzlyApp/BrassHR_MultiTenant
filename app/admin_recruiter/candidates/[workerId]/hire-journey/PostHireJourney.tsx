@@ -13,6 +13,7 @@ type PostTask = {
   done?: boolean;
   locked?: boolean;
   iconSrc: string;
+  iconTone?: "figma" | "navy";
 };
 
 type PostStageDef = {
@@ -35,6 +36,8 @@ type ResolvedPostStage = PostStageDef & {
   completed: boolean;
   locked: boolean;
   current: boolean;
+  /** First locked stage after the current one — Figma “Available after…” card. */
+  isNextUnlock: boolean;
   summary: string;
   tasks: PostTask[];
 };
@@ -67,37 +70,161 @@ export const POST_HIRE_STEPPER = [
 /** Figma mid-journey: Payroll done → Access current. */
 export const POST_HIRE_INITIAL_COMPLETED = [true, false, false, false];
 
+const PAYROLL_ICONS = {
+  w4StateTax: "/icons/Hire-icons/Post-hire/Payroll/w4-state-tax.svg",
+  directDeposit: "/icons/Hire-icons/Post-hire/Payroll/direct-deposit.svg",
+  createPayrollProfile: "/icons/Hire-icons/Post-hire/Payroll/create-payroll-profile.svg",
+  benefits: "/icons/Hire-icons/Post-hire/Payroll/benefits.svg",
+  k401: "/icons/Hire-icons/Post-hire/Payroll/401k.svg",
+  i9Everify: "/icons/Hire-icons/Post-hire/Payroll/i9-everify.svg",
+} as const;
+
+const ACCESS_ICONS = {
+  systemDoorAccess: "/icons/Hire-icons/Post-hire/Access-and-system/system-door-access.svg",
+  badgeAndEquipment: "/icons/Hire-icons/Post-hire/Access-and-system/badge-and-equipment.svg",
+  firstSchedule: "/icons/Hire-icons/Post-hire/Access-and-system/first-schedule.svg",
+} as const;
+
+const TRAINING_ICONS = {
+  handbook: "/icons/Hire-icons/Post-hire/training-policy/handbook.svg",
+  welcomePacket: "/icons/Hire-icons/Post-hire/training-policy/welcome-packet.svg",
+  safetyTraining: "/icons/Hire-icons/Post-hire/training-policy/safety-training.svg",
+  complianceTraining: "/icons/Hire-icons/Post-hire/training-policy/compliance-training.svg",
+  trainingModules: "/icons/Hire-icons/Post-hire/training-policy/training-modules.svg",
+  orientationVideo: "/icons/Hire-icons/Post-hire/training-policy/orientation-video.svg",
+  certUpload: "/icons/Hire-icons/Post-hire/training-policy/cert-upload.svg",
+} as const;
+
+const WELCOME_ICONS = {
+  sendMessage: "/icons/Hire-icons/Post-hire/Welcome-icons/send-message.svg",
+  managerWelcomeCall: "/icons/Hire-icons/Post-hire/Welcome-icons/manager-welcome-call.svg",
+  finalOnboardingCall: "/icons/Hire-icons/Post-hire/Welcome-icons/final-onboarding-call.svg",
+  buddyMentorAssignment: "/icons/Hire-icons/Post-hire/Welcome-icons/buddy-mentor-assignment.svg",
+  onboardingComplete: "/icons/Hire-icons/Post-hire/Welcome-icons/onboarding-complete.svg",
+} as const;
+
+const HERO_ICONS = {
+  payrollTax: "/icons/Hire-icons/ic1.png",
+  accessSystems: "/icons/Hire-icons/ic2.png",
+  trainingPolicy: "/icons/Hire-icons/ic3.png",
+  welcomeComplete: "/icons/Hire-icons/ic4.png",
+} as const;
+
 const POST_HIRE_DEFS: PostStageDef[] = [
   {
     id: "payroll-tax",
     name: "Payroll & Tax",
-    heroIconSrc: "/icons/Hire-icons/ic8.png",
+    heroIconSrc: HERO_ICONS.payrollTax,
     completedSummary: "6 Completed",
     activeSummary: "3 Completed • 3 In Progress",
     upcomingSummary: "Upcoming",
     unlockHint: "Available after completing prior steps",
     estimated: "30-40 mins",
     completedTasks: [
-      { id: "w4", title: "W-4 / State Tax", statusLabel: SUBMITTED, done: true, iconSrc: "/icons/Hire-icons/ic3.png" },
-      { id: "deposit", title: "Direct Deposit", statusLabel: SUBMITTED, done: true, iconSrc: "/icons/Hire-icons/ic8.png" },
-      { id: "payroll-profile", title: "Create Payroll Profile", statusLabel: SUBMITTED, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "benefits", title: "Benefits", statusLabel: SUBMITTED, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "401k", title: "401k", statusLabel: SUBMITTED, done: true, iconSrc: "/icons/Hire-icons/ic11.png" },
-      { id: "i9", title: "I-9 section 2 / eVerify", statusLabel: SUBMITTED, done: true, iconSrc: "/icons/Hire-icons/ic10.png" },
+      {
+        id: "w4",
+        title: "W-4 / State Tax",
+        statusLabel: SUBMITTED,
+        done: true,
+        iconSrc: PAYROLL_ICONS.w4StateTax,
+        iconTone: "figma",
+      },
+      {
+        id: "deposit",
+        title: "Direct Deposit",
+        statusLabel: SUBMITTED,
+        done: true,
+        iconSrc: PAYROLL_ICONS.directDeposit,
+        iconTone: "figma",
+      },
+      {
+        id: "payroll-profile",
+        title: "Create Payroll Profile",
+        statusLabel: SUBMITTED,
+        done: true,
+        iconSrc: PAYROLL_ICONS.createPayrollProfile,
+        iconTone: "figma",
+      },
+      {
+        id: "benefits",
+        title: "Benefits",
+        statusLabel: SUBMITTED,
+        done: true,
+        iconSrc: PAYROLL_ICONS.benefits,
+        iconTone: "figma",
+      },
+      {
+        id: "401k",
+        title: "401k",
+        statusLabel: SUBMITTED,
+        done: true,
+        iconSrc: PAYROLL_ICONS.k401,
+        iconTone: "figma",
+      },
+      {
+        id: "i9",
+        title: "I-9 section 2 / eVerify",
+        statusLabel: SUBMITTED,
+        done: true,
+        iconSrc: PAYROLL_ICONS.i9Everify,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "w4", title: "W-4 / State Tax", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic3.png" },
-      { id: "deposit", title: "Direct Deposit", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic8.png" },
-      { id: "payroll-profile", title: "Create Payroll Profile", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "benefits", title: "Benefits", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "401k", title: "401k", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic11.png" },
-      { id: "i9", title: "I-9 section 2 / eVerify", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic10.png" },
+      {
+        id: "w4",
+        title: "W-4 / State Tax",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: PAYROLL_ICONS.w4StateTax,
+        iconTone: "figma",
+      },
+      {
+        id: "deposit",
+        title: "Direct Deposit",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: PAYROLL_ICONS.directDeposit,
+        iconTone: "figma",
+      },
+      {
+        id: "payroll-profile",
+        title: "Create Payroll Profile",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: PAYROLL_ICONS.createPayrollProfile,
+        iconTone: "figma",
+      },
+      {
+        id: "benefits",
+        title: "Benefits",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: PAYROLL_ICONS.benefits,
+        iconTone: "figma",
+      },
+      {
+        id: "401k",
+        title: "401k",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: PAYROLL_ICONS.k401,
+        iconTone: "figma",
+      },
+      {
+        id: "i9",
+        title: "I-9 section 2 / eVerify",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: PAYROLL_ICONS.i9Everify,
+        iconTone: "figma",
+      },
     ],
   },
   {
     id: "access-systems",
     name: "Access & Systems",
-    heroIconSrc: "/icons/Hire-icons/ic2.png",
+    heroIconSrc: HERO_ICONS.accessSystems,
     completedSummary: "3 Completed",
     activeSummary: "1 Completed • 1 In Progress",
     upcomingSummary: "Upcoming",
@@ -105,26 +232,62 @@ const POST_HIRE_DEFS: PostStageDef[] = [
     estimated: "25-35 mins",
     remainingHint: "1 required task remaining",
     completedTasks: [
-      { id: "door", title: "System / Door Access", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic2.png" },
-      { id: "badge", title: "Badge and Equipment", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic4.png" },
-      { id: "schedule", title: "First Schedule", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic9.png" },
+      {
+        id: "door",
+        title: "System / Door Access",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: ACCESS_ICONS.systemDoorAccess,
+        iconTone: "figma",
+      },
+      {
+        id: "badge",
+        title: "Badge and Equipment",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: ACCESS_ICONS.badgeAndEquipment,
+        iconTone: "figma",
+      },
+      {
+        id: "schedule",
+        title: "First Schedule",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: ACCESS_ICONS.firstSchedule,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "door", title: "System / Door Access", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic2.png" },
-      { id: "badge", title: "Badge and Equipment", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic4.png" },
+      {
+        id: "door",
+        title: "System / Door Access",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: ACCESS_ICONS.systemDoorAccess,
+        iconTone: "figma",
+      },
+      {
+        id: "badge",
+        title: "Badge and Equipment",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: ACCESS_ICONS.badgeAndEquipment,
+        iconTone: "figma",
+      },
       {
         id: "schedule",
         title: "First Schedule",
         statusLabel: "Locked until access setup",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic9.png",
+        iconSrc: ACCESS_ICONS.firstSchedule,
+        iconTone: "figma",
       },
     ],
   },
   {
     id: "training-policy",
     name: "Training & Policy",
-    heroIconSrc: "/icons/Hire-icons/ic3.png",
+    heroIconSrc: HERO_ICONS.trainingPolicy,
     completedSummary: "7 Completed",
     activeSummary: "2 Completed • 1 In Progress",
     upcomingSummary: "Upcoming",
@@ -132,52 +295,126 @@ const POST_HIRE_DEFS: PostStageDef[] = [
     estimated: "40-50 mins",
     remainingHint: "1 required task remaining",
     completedTasks: [
-      { id: "handbook", title: "Handbook", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic3.png" },
-      { id: "welcome-packet", title: "Welcome Packet", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "safety", title: "Safety Training", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic10.png" },
-      { id: "compliance", title: "Compliance Training", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic12.png" },
-      { id: "modules", title: "Training Modules", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic6.png" },
-      { id: "orientation", title: "Orientation Video", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "cert", title: "Cert Upload", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
+      {
+        id: "handbook",
+        title: "Handbook",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.handbook,
+        iconTone: "figma",
+      },
+      {
+        id: "welcome-packet",
+        title: "Welcome Packet",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.welcomePacket,
+        iconTone: "figma",
+      },
+      {
+        id: "safety",
+        title: "Safety Training",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.safetyTraining,
+        iconTone: "figma",
+      },
+      {
+        id: "compliance",
+        title: "Compliance Training",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.complianceTraining,
+        iconTone: "figma",
+      },
+      {
+        id: "modules",
+        title: "Training Modules",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.trainingModules,
+        iconTone: "figma",
+      },
+      {
+        id: "orientation",
+        title: "Orientation Video",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.orientationVideo,
+        iconTone: "figma",
+      },
+      {
+        id: "cert",
+        title: "Cert Upload",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.certUpload,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "handbook", title: "Handbook", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic3.png" },
-      { id: "welcome-packet", title: "Welcome Packet", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "safety", title: "Safety Training", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic10.png" },
+      {
+        id: "handbook",
+        title: "Handbook",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.handbook,
+        iconTone: "figma",
+      },
+      {
+        id: "welcome-packet",
+        title: "Welcome Packet",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: TRAINING_ICONS.welcomePacket,
+        iconTone: "figma",
+      },
+      {
+        id: "safety",
+        title: "Safety Training",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: TRAINING_ICONS.safetyTraining,
+        iconTone: "figma",
+      },
       {
         id: "compliance",
         title: "Compliance Training",
         statusLabel: "Locked until training starts",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic12.png",
+        iconSrc: TRAINING_ICONS.complianceTraining,
+        iconTone: "figma",
       },
       {
         id: "modules",
         title: "Training Modules",
         statusLabel: "Locked until training starts",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic6.png",
+        iconSrc: TRAINING_ICONS.trainingModules,
+        iconTone: "figma",
       },
       {
         id: "orientation",
         title: "Orientation Video",
         statusLabel: "Locked until training starts",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic7.png",
+        iconSrc: TRAINING_ICONS.orientationVideo,
+        iconTone: "figma",
       },
       {
         id: "cert",
         title: "Cert Upload",
         statusLabel: "Locked until training starts",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic5.png",
+        iconSrc: TRAINING_ICONS.certUpload,
+        iconTone: "figma",
       },
     ],
   },
   {
     id: "welcome-complete",
     name: "Welcome & Complete",
-    heroIconSrc: "/icons/Hire-icons/ic12.png",
+    heroIconSrc: HERO_ICONS.welcomeComplete,
     completedSummary: "5 Completed",
     activeSummary: "1 Completed • 1 In Progress",
     upcomingSummary: "Upcoming",
@@ -185,35 +422,87 @@ const POST_HIRE_DEFS: PostStageDef[] = [
     estimated: "20-30 mins",
     remainingHint: "1 required task remaining",
     completedTasks: [
-      { id: "message", title: "Send Message", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "mgr-call", title: "Manager Welcome Call", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "final-call", title: "Final Onboarding Call", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic11.png" },
-      { id: "buddy", title: "Buddy / Mentor Assignment", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic4.png" },
-      { id: "complete", title: "Onboarding Complete", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic12.png" },
+      {
+        id: "message",
+        title: "Send Message",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: WELCOME_ICONS.sendMessage,
+        iconTone: "figma",
+      },
+      {
+        id: "mgr-call",
+        title: "Manager Welcome Call",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: WELCOME_ICONS.managerWelcomeCall,
+        iconTone: "figma",
+      },
+      {
+        id: "final-call",
+        title: "Final Onboarding Call",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: WELCOME_ICONS.finalOnboardingCall,
+        iconTone: "figma",
+      },
+      {
+        id: "buddy",
+        title: "Buddy / Mentor Assignment",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: WELCOME_ICONS.buddyMentorAssignment,
+        iconTone: "figma",
+      },
+      {
+        id: "complete",
+        title: "Onboarding Complete",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: WELCOME_ICONS.onboardingComplete,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "message", title: "Send Message", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "mgr-call", title: "Manager Welcome Call", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic1.png" },
+      {
+        id: "message",
+        title: "Send Message",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: WELCOME_ICONS.sendMessage,
+        iconTone: "figma",
+      },
+      {
+        id: "mgr-call",
+        title: "Manager Welcome Call",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: WELCOME_ICONS.managerWelcomeCall,
+        iconTone: "figma",
+      },
       {
         id: "final-call",
         title: "Final Onboarding Call",
         statusLabel: "Locked until welcome call",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic11.png",
+        iconSrc: WELCOME_ICONS.finalOnboardingCall,
+        iconTone: "figma",
       },
       {
         id: "buddy",
         title: "Buddy / Mentor Assignment",
         statusLabel: "Locked until welcome call",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic4.png",
+        iconSrc: WELCOME_ICONS.buddyMentorAssignment,
+        iconTone: "figma",
       },
       {
         id: "complete",
         title: "Onboarding Complete",
         statusLabel: "Locked until welcome call",
         locked: true,
-        iconSrc: "/icons/Hire-icons/ic12.png",
+        iconSrc: WELCOME_ICONS.onboardingComplete,
+        iconTone: "figma",
       },
     ],
   },
@@ -267,6 +556,7 @@ function resolveStages(defs: PostStageDef[], completedFlags: boolean[]): Resolve
     const locked = prevIncomplete;
     const completed = !locked && completedFlags[index];
     const current = !locked && !completed && index === firstIncomplete;
+    const isNextUnlock = locked && firstIncomplete >= 0 && index === firstIncomplete + 1;
     const status: StageUiStatus = locked ? "locked" : completed ? "completed" : "current";
 
     return {
@@ -275,6 +565,7 @@ function resolveStages(defs: PostStageDef[], completedFlags: boolean[]): Resolve
       completed,
       locked,
       current,
+      isNextUnlock,
       summary: locked
         ? def.upcomingSummary
         : completed
@@ -448,27 +739,36 @@ function PostTaskCard({ task }: { task: PostTask }) {
       className={`flex items-center gap-3 rounded-xl border px-3 py-3 ${
         locked
           ? "border-[#E5E7EB] bg-[#F9FAFB] opacity-70"
-          : done
-            ? "border-[#E8ECF0] bg-white"
-            : "border-[#E8ECF0] bg-white"
+          : "border-[#E8ECF0] bg-white"
       }`}
     >
       <span
-        className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-        style={{
-          backgroundColor: locked
-            ? "#E5E7EB"
-            : inProgress
-              ? "var(--brand-secondary)"
-              : "color-mix(in srgb, var(--brand-primary) 18%, white)",
-        }}
+        className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border-2"
+        style={
+          locked
+            ? { backgroundColor: "#E5E7EB", borderColor: "#E5E7EB" }
+            : done
+              ? {
+                  backgroundColor: "color-mix(in srgb, var(--brand-primary) 8%, white)",
+                  borderColor: "color-mix(in srgb, var(--brand-primary) 70%, white)",
+                }
+              : {
+                  backgroundColor: "var(--brand-secondary)",
+                  borderColor: "var(--brand-secondary)",
+                }
+        }
       >
-        <Image
+        <Icon
           src={task.iconSrc}
-          alt=""
-          width={22}
-          height={22}
-          className={`object-contain ${locked ? "opacity-50 grayscale" : ""}`}
+          width={20}
+          height={20}
+          className={
+            locked
+              ? "opacity-50 grayscale"
+              : inProgress
+                ? "brightness-0 invert"
+                : undefined
+          }
         />
       </span>
 
@@ -508,16 +808,39 @@ function PostTaskCard({ task }: { task: PostTask }) {
   );
 }
 
-function StageHeroIcon({ src, muted }: { src: string; muted?: boolean }) {
+function StageHeroIcon({
+  src,
+  muted,
+  /** Extra breathing room above/below when task steps are visible. */
+  withTasks,
+  /** Extra space under the icon before a locked/summary card (Figma). */
+  spaceBelow,
+}: {
+  src: string;
+  muted?: boolean;
+  withTasks?: boolean;
+  spaceBelow?: boolean;
+}) {
+  // Base 110px → +50% = 165px
+  const sizePx = 165;
+
   return (
-    <div className="flex justify-center px-4 pt-6 pb-2">
-      <div className="relative h-[110px] w-[110px]">
+    <div
+      className={`flex justify-center px-4 ${
+        spaceBelow
+          ? "pt-[26.4px] pb-6"
+          : withTasks
+            ? "pt-[26.4px] pb-[8.8px]"
+            : "pt-6 pb-2"
+      }`}
+    >
+      <div className="relative" style={{ height: sizePx, width: sizePx }}>
         <Image
           src={src}
           alt=""
           fill
           className={`object-contain ${muted ? "opacity-70 grayscale" : ""}`}
-          sizes="110px"
+          sizes={`${sizePx}px`}
         />
       </div>
     </div>
@@ -525,8 +848,6 @@ function StageHeroIcon({ src, muted }: { src: string; muted?: boolean }) {
 }
 
 function StageCollapsedInfo({ stage }: { stage: ResolvedPostStage }) {
-  const isWelcomeLocked = stage.locked && stage.id === "welcome-complete";
-
   if (stage.completed) {
     return (
       <p className="mt-1 px-4 pb-4 text-center text-sm font-semibold" style={{ color: "#12AA00" }}>
@@ -537,18 +858,26 @@ function StageCollapsedInfo({ stage }: { stage: ResolvedPostStage }) {
 
   if (stage.locked) {
     return (
-      <div className="px-4 pb-5 text-center">
-        {isWelcomeLocked ? (
+      <div className="mx-3 mb-5 rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-5 text-center sm:mx-4">
+        <div className="mb-3 flex justify-center">
+          <Icon
+            src={stage.isNextUnlock ? ICONS.pendingClock : ICONS.stageLocked}
+            width={stage.isNextUnlock ? 28 : 32}
+            height={stage.isNextUnlock ? 28 : 32}
+            className="opacity-70"
+          />
+        </div>
+        {stage.isNextUnlock ? (
           <>
-            <p className="text-base font-semibold text-[#374151]">Locked</p>
-            <p className="mt-1 text-sm text-[#6B7280]">{stage.unlockHint}</p>
-          </>
-        ) : (
-          <>
-            <p className="text-sm font-medium text-[#374151]">{stage.unlockHint}</p>
+            <p className="text-sm font-medium leading-snug text-[#374151]">{stage.unlockHint}</p>
             {stage.estimated ? (
               <p className="mt-2 text-xs text-[#6B7280]">Estimated: {stage.estimated}</p>
             ) : null}
+          </>
+        ) : (
+          <>
+            <p className="text-base font-semibold text-[#374151]">Locked</p>
+            <p className="mt-1 text-sm text-[#6B7280]">{stage.unlockHint}</p>
           </>
         )}
         <p className="mt-3 text-sm font-semibold" style={{ color: "var(--brand-secondary)" }}>
@@ -655,48 +984,18 @@ function PostStageColumn({
       </header>
 
       <div className="flex flex-1 flex-col">
-        {viewTasks ? (
-          <div className="flex flex-col gap-2.5 px-3 py-3">
-            {/* Keep centered hero above expanded tasks (Figma completed column) */}
-            {!current ? (
-              <StageHeroIcon src={stage.heroIconSrc} muted={locked} />
-            ) : null}
-            {(locked ? stage.completedTasks : tasks).map((task) =>
-              locked ? (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 opacity-60"
-                >
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E5E7EB]">
-                    <Image
-                      src={task.iconSrc}
-                      alt=""
-                      width={22}
-                      height={22}
-                      className="object-contain grayscale"
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="truncate"
-                      style={{
-                        color: "#9CA3AF",
-                        fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-                        fontSize: 16.1,
-                        fontWeight: 600,
-                        lineHeight: "22px",
-                      }}
-                    >
-                      {task.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[#9CA3AF]">Locked</p>
-                  </div>
-                  <Icon src={ICONS.stageLocked} width={24} height={24} className="shrink-0 opacity-60" />
-                </div>
-              ) : (
-                <PostTaskCard key={task.id} task={task} />
-              ),
-            )}
+        {/* Locked stages: Figma shows summary card only — never individual locked steps */}
+        {locked ? (
+          <div className="flex flex-1 flex-col items-stretch justify-start">
+            <StageHeroIcon src={stage.heroIconSrc} muted spaceBelow />
+            <StageCollapsedInfo stage={stage} />
+          </div>
+        ) : viewTasks ? (
+          <div className="flex flex-col gap-[11px] px-3 py-[13.2px]">
+            <StageHeroIcon src={stage.heroIconSrc} withTasks />
+            {tasks.map((task) => (
+              <PostTaskCard key={task.id} task={task} />
+            ))}
             {current && stage.remainingHint ? (
               <div
                 className="mt-1 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium"
@@ -712,22 +1011,24 @@ function PostStageColumn({
             ) : null}
           </div>
         ) : (
-          <div className="flex flex-1 flex-col items-stretch justify-center">
-            <StageHeroIcon src={stage.heroIconSrc} muted={locked} />
+          <div className="flex flex-1 flex-col items-stretch justify-start">
+            <StageHeroIcon src={stage.heroIconSrc} spaceBelow />
             <StageCollapsedInfo stage={stage} />
           </div>
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setViewTasks((v) => !v)}
-        className="mt-auto flex items-center justify-center gap-1 border-t border-[#E8ECF0] bg-white/80 px-3 py-3 text-sm font-semibold text-[#64748B] transition hover:bg-white"
-        aria-expanded={viewTasks}
-      >
-        View Tasks
-        {viewTasks ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
+      {!locked ? (
+        <button
+          type="button"
+          onClick={() => setViewTasks((v) => !v)}
+          className="mt-auto flex items-center justify-center gap-1 border-t border-[#E8ECF0] bg-white/80 px-3 py-3 text-sm font-semibold text-[#64748B] transition hover:bg-white"
+          aria-expanded={viewTasks}
+        >
+          View Tasks
+          {viewTasks ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+      ) : null}
     </section>
   );
 }
