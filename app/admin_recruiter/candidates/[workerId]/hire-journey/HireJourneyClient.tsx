@@ -16,6 +16,8 @@ type StaticTask = {
   done?: boolean;
   showSchedule?: boolean;
   iconSrc: string;
+  /** Figma cream icon tile (Intake steps); default navy square */
+  iconTone?: "figma" | "navy";
 };
 
 type StageDef = {
@@ -57,6 +59,15 @@ const PRE_HIRE_ICONS = {
   pendingClock: "/icons/Hire-icons/pre-hire-icons/pending-clock.svg",
   /** 32×32 locked stage status (right side) */
   stageLocked: "/icons/Hire-icons/pre-hire-icons/stage-locked.svg",
+} as const;
+
+/** Shared title style for Pre-hire stage names and inner step titles */
+const PRE_HIRE_TITLE_STYLE = {
+  color: "#000000",
+  fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
+  fontSize: 21.12,
+  fontWeight: 600,
+  lineHeight: "30px",
 } as const;
 
 function PreHireIcon({
@@ -133,6 +144,49 @@ const PRE_HIRE_STEPPER = [
 /** Figma Stage-1 start: only Intake completed → later steps lock until toggled complete. */
 const PRE_HIRE_INITIAL_COMPLETED = [true, false, false, false, false, false, false];
 
+const INTAKE_ICONS = {
+  collectExtraFiles: "/icons/Hire-icons/pre-hire-icons/intake-icons/collect-extra-files.svg",
+  collectReferences: "/icons/Hire-icons/pre-hire-icons/intake-icons/collect-references.svg",
+  extraForm: "/icons/Hire-icons/pre-hire-icons/intake-icons/extra-form.svg",
+} as const;
+
+const SCREENING_ICONS = {
+  recruiterScreening: "/icons/Hire-icons/pre-hire-icons/screening-icons/recruiter-screening.svg",
+  skillAssessment: "/icons/Hire-icons/pre-hire-icons/screening-icons/skill-qualification-assessment.svg",
+  referenceVerification: "/icons/Hire-icons/pre-hire-icons/screening-icons/reference-verification.svg",
+} as const;
+
+const INTERVIEW_ICONS = {
+  interviewQualification: "/icons/Hire-icons/pre-hire-icons/Interview-icons/interview-qualification.svg",
+  internalSelect: "/icons/Hire-icons/pre-hire-icons/Interview-icons/internal-select.svg",
+} as const;
+
+const SUBMISSION_ICONS = {
+  sentToClientMsp: "/icons/Hire-icons/pre-hire-icons/submission-icons/sent-to-client-msp.svg",
+  releasedToClient: "/icons/Hire-icons/pre-hire-icons/submission-icons/released-to-client.svg",
+} as const;
+
+const COMPLIANCE_ICONS = {
+  backgroundCheck: "/icons/Hire-icons/pre-hire-icons/Compliance-icons/background-check.svg",
+  drugTest: "/icons/Hire-icons/pre-hire-icons/Compliance-icons/drug-test.svg",
+  oigExclusion: "/icons/Hire-icons/pre-hire-icons/Compliance-icons/oig-exclusion.svg",
+  licenseCheck: "/icons/Hire-icons/pre-hire-icons/Compliance-icons/license-check.svg",
+  ssnId: "/icons/Hire-icons/pre-hire-icons/Compliance-icons/ssn-id.svg",
+  adverseAction: "/icons/Hire-icons/pre-hire-icons/Compliance-icons/adverse-action.svg",
+} as const;
+
+const OFFER_ICONS = {
+  offerLetterSent: "/icons/Hire-icons/pre-hire-icons/Offer-and-agreement-icons/offer-letter-sent.svg",
+  agreementSigned: "/icons/Hire-icons/pre-hire-icons/Offer-and-agreement-icons/agreement-signed.svg",
+  compensationConfirmed: "/icons/Hire-icons/pre-hire-icons/Offer-and-agreement-icons/compensation-confirmed.svg",
+  startDateAgreed: "/icons/Hire-icons/pre-hire-icons/Offer-and-agreement-icons/start-date-agreed.svg",
+} as const;
+
+const APPROVAL_ICONS = {
+  managerApproval: "/icons/Hire-icons/pre-hire-icons/Approval-icons/manager-approval.svg",
+  finalApproval: "/icons/Hire-icons/pre-hire-icons/Approval-icons/final-approval.svg",
+} as const;
+
 const PRE_HIRE_DEFS: StageDef[] = [
   {
     id: "intake",
@@ -141,14 +195,56 @@ const PRE_HIRE_DEFS: StageDef[] = [
     completedSummary: "3 Completed",
     activeSummary: "2 Completed • 1 In Progress",
     completedTasks: [
-      { id: "files", title: "Collect Extra Files", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "refs", title: "Collect References", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "form", title: "Extra form", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic3.png" },
+      {
+        id: "files",
+        title: "Collect Extra Files",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTAKE_ICONS.collectExtraFiles,
+        iconTone: "figma",
+      },
+      {
+        id: "refs",
+        title: "Collect References",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTAKE_ICONS.collectReferences,
+        iconTone: "figma",
+      },
+      {
+        id: "form",
+        title: "Extra form",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTAKE_ICONS.extraForm,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "files", title: "Collect Extra Files", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "refs", title: "Collect References", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "form", title: "Extra form", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic3.png" },
+      {
+        id: "files",
+        title: "Collect Extra Files",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTAKE_ICONS.collectExtraFiles,
+        iconTone: "figma",
+      },
+      {
+        id: "refs",
+        title: "Collect References",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTAKE_ICONS.collectReferences,
+        iconTone: "figma",
+      },
+      {
+        id: "form",
+        title: "Extra form",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: INTAKE_ICONS.extraForm,
+        iconTone: "figma",
+      },
     ],
   },
   {
@@ -158,14 +254,56 @@ const PRE_HIRE_DEFS: StageDef[] = [
     completedSummary: "3 Completed",
     activeSummary: "2 Completed • 1 In Progress",
     completedTasks: [
-      { id: "screening-complete", title: "Screening Complete", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic6.png" },
-      { id: "skill-test", title: "Skill Test", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "verify-refs", title: "Verify References", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
+      {
+        id: "recruiter-screening",
+        title: "Recruiter Screening",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SCREENING_ICONS.recruiterScreening,
+        iconTone: "figma",
+      },
+      {
+        id: "skill-assessment",
+        title: "Skill / Qualification Assessment",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SCREENING_ICONS.skillAssessment,
+        iconTone: "figma",
+      },
+      {
+        id: "reference-verification",
+        title: "Reference Verification",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SCREENING_ICONS.referenceVerification,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "files", title: "Collect Extra Files", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "refs", title: "Collect References", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "form", title: "Extra form", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic3.png" },
+      {
+        id: "recruiter-screening",
+        title: "Recruiter Screening",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SCREENING_ICONS.recruiterScreening,
+        iconTone: "figma",
+      },
+      {
+        id: "skill-assessment",
+        title: "Skill / Qualification Assessment",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SCREENING_ICONS.skillAssessment,
+        iconTone: "figma",
+      },
+      {
+        id: "reference-verification",
+        title: "Reference Verification",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: SCREENING_ICONS.referenceVerification,
+        iconTone: "figma",
+      },
     ],
   },
   {
@@ -173,21 +311,43 @@ const PRE_HIRE_DEFS: StageDef[] = [
     name: "Interview",
     iconSrc: "/icons/Hire-icons/ic7.png",
     completedSummary: "2 Completed",
-    activeSummary: "2 In Progress • Current Step",
+    activeSummary: "1 Completed • 1 In Progress",
     completedTasks: [
-      { id: "interview-task", title: "Interview", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic7.png" },
-      { id: "hire-intent", title: "We Want to Hire", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
+      {
+        id: "interview-qualification",
+        title: "Interview/Qualification",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTERVIEW_ICONS.interviewQualification,
+        iconTone: "figma",
+      },
+      {
+        id: "internal-select",
+        title: "Internal Select",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTERVIEW_ICONS.internalSelect,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
       {
-        id: "interview-task",
-        title: "Interview",
+        id: "interview-qualification",
+        title: "Interview/Qualification",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: INTERVIEW_ICONS.interviewQualification,
+        iconTone: "figma",
+      },
+      {
+        id: "internal-select",
+        title: "Internal Select",
         statusLabel: IN_PROGRESS,
         done: false,
         showSchedule: true,
-        iconSrc: "/icons/Hire-icons/ic7.png",
+        iconSrc: INTERVIEW_ICONS.internalSelect,
+        iconTone: "figma",
       },
-      { id: "hire-intent", title: "We want to hire", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic1.png" },
     ],
   },
   {
@@ -195,14 +355,42 @@ const PRE_HIRE_DEFS: StageDef[] = [
     name: "Submission",
     iconSrc: "/icons/Hire-icons/ic8.png",
     completedSummary: "2 Completed",
-    activeSummary: "2 In Progress",
+    activeSummary: "1 Completed • 1 In Progress",
     completedTasks: [
-      { id: "sent-msp", title: "Sent to client / MSP", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic8.png" },
-      { id: "released", title: "Released to Client", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic4.png" },
+      {
+        id: "sent-msp",
+        title: "Sent to client / MSP",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SUBMISSION_ICONS.sentToClientMsp,
+        iconTone: "figma",
+      },
+      {
+        id: "released",
+        title: "Released to Client",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SUBMISSION_ICONS.releasedToClient,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "sent-msp", title: "Sent to client / MSP", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic8.png" },
-      { id: "released", title: "Released to Client", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic4.png" },
+      {
+        id: "sent-msp",
+        title: "Sent to client / MSP",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: SUBMISSION_ICONS.sentToClientMsp,
+        iconTone: "figma",
+      },
+      {
+        id: "released",
+        title: "Released to Client",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: SUBMISSION_ICONS.releasedToClient,
+        iconTone: "figma",
+      },
     ],
   },
   {
@@ -210,18 +398,106 @@ const PRE_HIRE_DEFS: StageDef[] = [
     name: "Compliance",
     iconSrc: "/icons/Hire-icons/ic9.png",
     completedSummary: "6 Completed",
-    activeSummary: "2 In Progress",
+    activeSummary: "4 Completed • 2 In Progress",
     completedTasks: [
-      { id: "bg", title: "Background Check", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic9.png" },
-      { id: "drug", title: "Drug Test", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic2.png" },
-      { id: "oig", title: "OIG / Exclusion", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic10.png" },
-      { id: "license", title: "License Check", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "immunization", title: "Immunization Records", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic5.png" },
-      { id: "compliance-form", title: "Compliance Form", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic3.png" },
+      {
+        id: "bg",
+        title: "Background Check",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.backgroundCheck,
+        iconTone: "figma",
+      },
+      {
+        id: "drug",
+        title: "Drug Test",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.drugTest,
+        iconTone: "figma",
+      },
+      {
+        id: "oig",
+        title: "OIG / Exclusion",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.oigExclusion,
+        iconTone: "figma",
+      },
+      {
+        id: "license",
+        title: "License Check",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.licenseCheck,
+        iconTone: "figma",
+      },
+      {
+        id: "ssn-id",
+        title: "SSN / ID",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.ssnId,
+        iconTone: "figma",
+      },
+      {
+        id: "adverse-action",
+        title: "Adverse Action (auto if BG fails)",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.adverseAction,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "bg", title: "Background Check", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic9.png" },
-      { id: "drug", title: "Drug Test", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic2.png" },
+      {
+        id: "bg",
+        title: "Background Check",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.backgroundCheck,
+        iconTone: "figma",
+      },
+      {
+        id: "drug",
+        title: "Drug Test",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.drugTest,
+        iconTone: "figma",
+      },
+      {
+        id: "oig",
+        title: "OIG / Exclusion",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.oigExclusion,
+        iconTone: "figma",
+      },
+      {
+        id: "license",
+        title: "License Check",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: COMPLIANCE_ICONS.licenseCheck,
+        iconTone: "figma",
+      },
+      {
+        id: "ssn-id",
+        title: "SSN / ID",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: COMPLIANCE_ICONS.ssnId,
+        iconTone: "figma",
+      },
+      {
+        id: "adverse-action",
+        title: "Adverse Action (auto if BG fails)",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: COMPLIANCE_ICONS.adverseAction,
+        iconTone: "figma",
+      },
     ],
   },
   {
@@ -229,16 +505,74 @@ const PRE_HIRE_DEFS: StageDef[] = [
     name: "Offer & Agreement",
     iconSrc: "/icons/Hire-icons/ic11.png",
     completedSummary: "4 Completed",
-    activeSummary: "2 In Progress",
+    activeSummary: "2 Completed • 2 In Progress",
     completedTasks: [
-      { id: "offer-letter", title: "Offer Letter Sent", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic11.png" },
-      { id: "agreement", title: "Agreement Signed", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
-      { id: "comp-confirmed", title: "Compensation Confirmed", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic8.png" },
-      { id: "start-date", title: "Start Date Agreed", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic4.png" },
+      {
+        id: "offer-letter",
+        title: "Offer Letter Sent",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: OFFER_ICONS.offerLetterSent,
+        iconTone: "figma",
+      },
+      {
+        id: "agreement",
+        title: "Agreement Signed",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: OFFER_ICONS.agreementSigned,
+        iconTone: "figma",
+      },
+      {
+        id: "comp-confirmed",
+        title: "Compensation Confirmed",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: OFFER_ICONS.compensationConfirmed,
+        iconTone: "figma",
+      },
+      {
+        id: "start-date",
+        title: "Start Date Agreed",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: OFFER_ICONS.startDateAgreed,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "offer-letter", title: "Offer Letter Sent", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic11.png" },
-      { id: "agreement", title: "Agreement Signed", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic1.png" },
+      {
+        id: "offer-letter",
+        title: "Offer Letter Sent",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: OFFER_ICONS.offerLetterSent,
+        iconTone: "figma",
+      },
+      {
+        id: "agreement",
+        title: "Agreement Signed",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: OFFER_ICONS.agreementSigned,
+        iconTone: "figma",
+      },
+      {
+        id: "comp-confirmed",
+        title: "Compensation Confirmed",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: OFFER_ICONS.compensationConfirmed,
+        iconTone: "figma",
+      },
+      {
+        id: "start-date",
+        title: "Start Date Agreed",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: OFFER_ICONS.startDateAgreed,
+        iconTone: "figma",
+      },
     ],
   },
   {
@@ -246,14 +580,42 @@ const PRE_HIRE_DEFS: StageDef[] = [
     name: "Approvals",
     iconSrc: "/icons/Hire-icons/ic12.png",
     completedSummary: "2 Completed",
-    activeSummary: "2 In Progress",
+    activeSummary: "1 Completed • 1 In Progress",
     completedTasks: [
-      { id: "mgr-approval", title: "Manager Approval", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic12.png" },
-      { id: "final-approval", title: "Final Approval", statusLabel: DONE, done: true, iconSrc: "/icons/Hire-icons/ic1.png" },
+      {
+        id: "mgr-approval",
+        title: "Manager Approval",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: APPROVAL_ICONS.managerApproval,
+        iconTone: "figma",
+      },
+      {
+        id: "final-approval",
+        title: "Final Approval",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: APPROVAL_ICONS.finalApproval,
+        iconTone: "figma",
+      },
     ],
     activeTasks: [
-      { id: "mgr-approval", title: "Manager Approval", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic12.png" },
-      { id: "final-approval", title: "Final Approval", statusLabel: IN_PROGRESS, done: false, iconSrc: "/icons/Hire-icons/ic1.png" },
+      {
+        id: "mgr-approval",
+        title: "Manager Approval",
+        statusLabel: DONE,
+        done: true,
+        iconSrc: APPROVAL_ICONS.managerApproval,
+        iconTone: "figma",
+      },
+      {
+        id: "final-approval",
+        title: "Final Approval",
+        statusLabel: IN_PROGRESS,
+        done: false,
+        iconSrc: APPROVAL_ICONS.finalApproval,
+        iconTone: "figma",
+      },
     ],
   },
 ];
@@ -372,21 +734,45 @@ function StageProgressStepper({
 
 function TaskRow({ task }: { task: StaticTask }) {
   const done = Boolean(task.done);
+  const figmaIcon = task.iconTone === "figma";
 
   return (
     <div
       className="mx-4 mb-3 flex items-center gap-3 rounded-xl border bg-white px-3 py-3 last:mb-4 sm:mx-5 sm:px-4"
       style={{
         borderColor: done
-          ? "#BBF7D0"
+          ? "#E8ECF0"
           : "color-mix(in srgb, var(--brand-primary) 40%, #E8ECF0)",
       }}
     >
       <span
-        className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-        style={{ backgroundColor: "var(--brand-secondary)" }}
+        className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden ${
+          figmaIcon ? "h-10 w-10 rounded-[10px] border-2" : "h-11 w-11 rounded-xl"
+        }`}
+        style={
+          figmaIcon
+            ? done
+              ? {
+                  backgroundColor: "color-mix(in srgb, var(--brand-primary) 8%, white)",
+                  borderColor: "color-mix(in srgb, var(--brand-primary) 70%, white)",
+                }
+              : {
+                  backgroundColor: "var(--brand-secondary)",
+                  borderColor: "var(--brand-secondary)",
+                }
+            : { backgroundColor: "var(--brand-secondary)" }
+        }
       >
-        <Image src={task.iconSrc} alt="" width={28} height={28} className="object-contain" />
+        {figmaIcon ? (
+          <PreHireIcon
+            src={task.iconSrc}
+            width={20}
+            height={20}
+            className={done ? undefined : "brightness-0 invert"}
+          />
+        ) : (
+          <Image src={task.iconSrc} alt="" width={28} height={28} className="object-contain" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <p
@@ -394,9 +780,9 @@ function TaskRow({ task }: { task: StaticTask }) {
           style={{
             color: "#000000",
             fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-            fontSize: 14,
+            fontSize: 16.1,
             fontWeight: 600,
-            lineHeight: "20px",
+            lineHeight: "22px",
           }}
         >
           {task.title}
@@ -526,15 +912,12 @@ function StageAccordion({
                 className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4"
                 aria-expanded={open}
               >
-                <div className="relative h-[58px] w-[58px] shrink-0">
-                  <Image src={stage.iconSrc} alt="" fill className="object-contain" sizes="58px" />
+                <div className="relative h-[70px] w-[70px] shrink-0">
+                  <Image src={stage.iconSrc} alt="" fill className="object-contain" sizes="70px" />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h3
-                    className="text-base font-semibold sm:text-lg"
-                    style={{ color: "var(--brand-secondary)" }}
-                  >
+                  <h3 className="font-semibold" style={PRE_HIRE_TITLE_STYLE}>
                     {stage.name}
                   </h3>
                   <p
@@ -607,7 +990,14 @@ function StageAccordion({
             </div>
 
             {open && tasks.length ? (
-              <div className="border-t border-[#F1F5F9] pt-3">
+              <div
+                className="pt-3"
+                style={{
+                  borderTop: current
+                    ? "1px solid color-mix(in srgb, var(--brand-primary) 55%, white)"
+                    : "1px solid #F1F5F9",
+                }}
+              >
                 {tasks.map((task) => (
                   <TaskRow key={task.id} task={task} />
                 ))}
