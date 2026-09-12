@@ -449,7 +449,7 @@ function PostTaskCard({ task }: { task: PostTask }) {
         locked
           ? "border-[#E5E7EB] bg-[#F9FAFB] opacity-70"
           : done
-            ? "border-[#BBF7D0] bg-white"
+            ? "border-[#E8ECF0] bg-white"
             : "border-[#E8ECF0] bg-white"
       }`}
     >
@@ -478,9 +478,9 @@ function PostTaskCard({ task }: { task: PostTask }) {
           style={{
             color: locked ? "#9CA3AF" : "#000000",
             fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-            fontSize: 14,
+            fontSize: 16.1,
             fontWeight: 600,
-            lineHeight: "20px",
+            lineHeight: "22px",
           }}
         >
           {task.title}
@@ -626,7 +626,16 @@ function PostStageColumn({
         </button>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold sm:text-base" style={{ color: "var(--brand-secondary)" }}>
+          <h3
+            className="font-semibold"
+            style={{
+              color: "#000000",
+              fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
+              fontSize: 21.12,
+              fontWeight: 600,
+              lineHeight: "30px",
+            }}
+          >
             {stage.name}
           </h3>
           <p className="mt-0.5 inline-flex items-center gap-1.5 text-xs font-medium sm:text-sm">
@@ -673,9 +682,9 @@ function PostStageColumn({
                       style={{
                         color: "#9CA3AF",
                         fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-                        fontSize: 14,
+                        fontSize: 16.1,
                         fontWeight: 600,
-                        lineHeight: "20px",
+                        lineHeight: "22px",
                       }}
                     >
                       {task.title}
