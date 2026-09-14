@@ -1,10 +1,12 @@
 import { sanitizeResumeEmail, type NormalizedParsedResume } from "@/lib/resumeParseQuality"
 
 const EMAIL_RE =
-  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g
+  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/
 
 const PHONE_RE =
-  /(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g
+  /(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/
+
+const URL_RE = /https?:\/\/\S+/i
 
 const ZIP_RE = /\b\d{5}(?:-\d{4})?\b/
 
@@ -17,13 +19,44 @@ const US_STATE_CODES = new Set([
   "OK","OR","PA","RI","SC","SD","TN","TX","UT","VA","VT","WA","WI","WV","WY",
 ])
 
+/** All-caps tokens Grok/PDF extractors confuse with US city/state (SAP modules, etc.). */
+const SOFTWARE_MODULE_LOCATION_CODES = new Set([
+  "MM", "SD", "FI", "CO", "PP", "QM", "PM", "WM", "PS", "CS", "LE", "TR",
+  "AA", "GL", "AP", "AR", "BW", "BI", "BO", "HR", "IM", "EWM", "TM",
+])
+
 const JOB_TITLE_HINTS =
-  /\b(CNA|RN|LPN|LVN|Caregiver|Medical Assistant|Nurse|Nursing Assistant|Home Health Aide|HHA)\b/i
+  /\b(CNA|RN|LPN|LVN|Caregiver|Medical Assistant|Nurse|Nursing Assistant|Home Health Aide|HHA|Consultant|Engineer|Developer|Analyst|Manager|Architect|Specialist)\b/i
 
 const CONTACT_LINE_HINT =
   /(@|\(\d{3}\)|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b|\b(?:street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|lane|ln\.?|blvd|boulevard|suite|apt|city|state|zip)\b)/i
 
+const NAME_PREFIXES = new Set(["dr", "mr", "mrs", "ms", "miss", "prof", "sir"])
+
+const TITLE_WORDS = new Set([
+  "sr", "senior", "jr", "junior", "lead", "principal", "staff", "chief",
+  "consultant", "consultants", "engineer", "engineering", "developer", "analyst",
+  "manager", "architect", "specialist", "administrator", "director", "officer",
+  "intern", "associate", "coordinator", "technician", "designer", "programmer",
+  "scientist", "executive", "president", "vp", "svp", "avp", "head",
+  "sap", "abap", "fiori", "hana", "ecc", "btp", "fico",
+  "full", "stack", "frontend", "backend", "software", "data",
+  "registered", "nurse", "nursing", "assistant", "aide", "caregiver",
+  "cna", "rn", "lpn", "lvn", "hha", "cma", "medical",
+  "ii", "iii", "iv",
+])
+
+const SECTION_HEADER_RE =
+  /^(professional\s+summary|summary|objective|profile|experience|education|skills|certifications?|work\s+history|employment)\b/i
+
+const GENERIC_FILE_STEM_RE =
+  /^(resume|cv|curriculumvitae|document|untitled|scan|file|attachment)$/i
+
 const DEFAULT_GROK_CHAR_BUDGET = 3500
+
+export type ResumeFieldExtractOptions = {
+  fileName?: string | null
+}
 
 function firstMatch(re: RegExp, text: string): string {
   const m = text.match(re)
@@ -32,6 +65,169 @@ function firstMatch(re: RegExp, text: string): string {
 
 function lines(text: string): string[] {
   return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+}
+
+function looksLikeTitleToken(token: string): boolean {
+  const t = token.toLowerCase().replace(/[.,/()]/g, "")
+  return Boolean(t) && TITLE_WORDS.has(t)
+}
+
+function titleCaseNameToken(token: string): string {
+  if (token.length === 1) return token.toUpperCase()
+  if (/^[A-Z]{2,4}$/.test(token)) return token
+  return token.slice(0, 1).toUpperCase() + token.slice(1).toLowerCase()
+}
+
+function replaceEvery(re: RegExp, value: string, replacement: string): string {
+  const flags = `${re.flags.replace("g", "")}g`
+  return value.replace(new RegExp(re.source, flags), replacement)
+}
+
+/** Remove emails, phones, URLs, and pipe separators from a person-name field. */
+export function stripContactFromPersonName(value: string): string {
+  return replaceEvery(PHONE_RE, replaceEvery(URL_RE, replaceEvery(EMAIL_RE, value, " "), " "), " ")
+    .replace(/\|/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+export function parseNameAndTitle(line: string): {
+  first_name: string
+  last_name: string
+  job_role: string
+} {
+  const cleaned = stripContactFromPersonName(line)
+  const tokens = cleaned.split(/\s+/).filter(Boolean)
+  while (tokens.length && NAME_PREFIXES.has(tokens[0]!.toLowerCase().replace(/\./g, ""))) {
+    tokens.shift()
+  }
+  if (!tokens.length || SECTION_HEADER_RE.test(tokens.join(" "))) {
+    return { first_name: "", last_name: "", job_role: "" }
+  }
+
+  const first_name = tokens.shift() ?? ""
+  const lastTokens: string[] = []
+  const titleTokens: string[] = []
+  let inTitle = false
+  for (const token of tokens) {
+    if (!inTitle && looksLikeTitleToken(token)) inTitle = true
+    if (inTitle) titleTokens.push(token)
+    else lastTokens.push(token)
+  }
+  return {
+    first_name,
+    last_name: lastTokens.join(" "),
+    job_role: titleTokens.join(" "),
+  }
+}
+
+function lastNameFromLinkedIn(text: string, firstName: string): string {
+  const first = firstName.trim().toLowerCase()
+  if (!first) return ""
+  const match = text.match(/linkedin\.com\/in\/([A-Za-z0-9._-]+)/i)
+  if (!match?.[1]) return ""
+  const parts = match[1].split(/[-_.]+/).filter(Boolean)
+  while (parts.length && /\d/.test(parts[parts.length - 1]!)) {
+    parts.pop()
+  }
+  const remaining = parts.filter(
+    (part) => part.toLowerCase() !== first && !part.toLowerCase().includes(first),
+  )
+  if (remaining.length === 0 || remaining.length > 3) return ""
+  return remaining.map(titleCaseNameToken).join(" ")
+}
+
+function lastNameFromFileName(fileName: string, firstName: string): string {
+  const base = fileName.replace(/^.*[\\/]/, "").replace(/\.[^.]+$/, "")
+  const tokens = base.split(/[_\s-]+/).filter(Boolean)
+  while (tokens.length && GENERIC_FILE_STEM_RE.test(tokens[0]!.replace(/[^A-Za-z]/g, "").toLowerCase())) {
+    tokens.shift()
+  }
+  if (!tokens.length) return ""
+  const parsed = parseNameAndTitle(tokens.join(" "))
+  const last = parsed.last_name.trim()
+  if (!last) return ""
+  if (last.toLowerCase() === firstName.trim().toLowerCase()) return ""
+  return last
+}
+
+/**
+ * Split a jammed header (name + title + email|phone|url on one line) and restore
+ * camelCase spaces when the extractor dropped them.
+ */
+export function repairExtractedResumeText(text: string): string {
+  const trimmed = text.replace(/\u0000/g, "").trim()
+  if (!trimmed) return ""
+
+  const newlineAt = trimmed.search(/\r?\n/)
+  const first = newlineAt === -1 ? trimmed : trimmed.slice(0, newlineAt)
+  const rest = newlineAt === -1 ? "" : trimmed.slice(newlineAt)
+  const headerLooksJammed =
+    EMAIL_RE.test(first) || URL_RE.test(first) || first.includes("|")
+
+  let repairedFirst = first
+  if (headerLooksJammed) {
+    repairedFirst = first
+      .replace(/\s*\|\s*/g, "\n")
+      .replace(/([A-Za-z])\s+([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, "$1\n$2")
+      .replace(/\s*(https?:\/\/\S+)/gi, "\n$1")
+  }
+
+  let out = `${repairedFirst}${rest}`
+  out = maybeRestoreMissingSpaces(out)
+  return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim()
+}
+
+function maybeRestoreMissingSpaces(text: string): string {
+  const letters = (text.match(/[A-Za-z]/g) ?? []).length
+  const spaces = (text.match(/ /g) ?? []).length
+  if (letters < 80) return text
+  if (spaces / letters > 0.06) return text
+  return text
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+}
+
+function dropSoftwareModuleLocation<T extends Pick<NormalizedParsedResume, "city" | "state" | "zip">>(
+  fields: T,
+): T {
+  const city = fields.city.trim()
+  if (city.length <= 3 && SOFTWARE_MODULE_LOCATION_CODES.has(city.toUpperCase())) {
+    return {
+      ...fields,
+      city: "",
+      state: fields.zip.trim() ? fields.state : "",
+    }
+  }
+  return fields
+}
+
+/** Clean polluted Grok/pre-extract identity fields (title/contact in last name, SAP MM/SD as city). */
+export function sanitizeParsedIdentityFields(
+  parsed: NormalizedParsedResume,
+  resumeText = "",
+  opts?: ResumeFieldExtractOptions,
+): NormalizedParsedResume {
+  const header = parseNameAndTitle(
+    `${stripContactFromPersonName(parsed.first_name)} ${stripContactFromPersonName(parsed.last_name)}`.trim(),
+  )
+  let first_name = header.first_name || stripContactFromPersonName(parsed.first_name)
+  let last_name = header.last_name
+  let job_role = parsed.job_role.trim() || header.job_role
+
+  if (!last_name) {
+    last_name =
+      lastNameFromLinkedIn(resumeText, first_name) ||
+      lastNameFromFileName(opts?.fileName ?? "", first_name)
+  }
+
+  return dropSoftwareModuleLocation({
+    ...parsed,
+    first_name,
+    last_name,
+    job_role,
+    email: sanitizeResumeEmail(parsed.email),
+  })
 }
 
 function pickRelevantLines(allLines: string[], maxLines: number): string[] {
@@ -48,8 +244,11 @@ function pickRelevantLines(allLines: string[], maxLines: number): string[] {
 }
 
 /** Regex pre-extraction for obvious contact fields before Grok. */
-export function preExtractResumeFields(text: string): Partial<NormalizedParsedResume> {
-  const trimmed = text.trim()
+export function preExtractResumeFields(
+  text: string,
+  opts?: ResumeFieldExtractOptions,
+): Partial<NormalizedParsedResume> {
+  const trimmed = repairExtractedResumeText(text)
   if (!trimmed) return {}
 
   const email = sanitizeResumeEmail(firstMatch(EMAIL_RE, trimmed))
@@ -60,6 +259,7 @@ export function preExtractResumeFields(text: string): Partial<NormalizedParsedRe
   let city = ""
   let state = ""
   for (const line of allLines.slice(0, 8)) {
+    if (EMAIL_RE.test(line) || URL_RE.test(line)) continue
     const cityStateMatch = line.match(CITY_STATE_RE)
     if (cityStateMatch && US_STATE_CODES.has(cityStateMatch[2] ?? "")) {
       city = cityStateMatch[1] ?? ""
@@ -68,20 +268,25 @@ export function preExtractResumeFields(text: string): Partial<NormalizedParsedRe
     }
   }
 
-  const nameLine = allLines[0] ?? ""
-  const nameParts = nameLine.split(/\s+/).filter(Boolean)
-  const first_name = nameParts[0] ?? ""
-  const last_name = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ""
-
-  let job_role = ""
-  for (const line of allLines.slice(0, 12)) {
-    if (JOB_TITLE_HINTS.test(line)) {
-      job_role = line.slice(0, 120)
-      break
+  const nameLine = allLines.find((line) => !SECTION_HEADER_RE.test(line)) ?? ""
+  const fromHeader = parseNameAndTitle(nameLine)
+  let job_role = fromHeader.job_role
+  if (!job_role) {
+    for (const line of allLines.slice(0, 12)) {
+      if (JOB_TITLE_HINTS.test(line) && !EMAIL_RE.test(line)) {
+        job_role = parseNameAndTitle(line).job_role || line.slice(0, 120)
+        break
+      }
     }
   }
 
-  return {
+  const first_name = fromHeader.first_name
+  const last_name =
+    fromHeader.last_name ||
+    lastNameFromLinkedIn(trimmed, first_name) ||
+    lastNameFromFileName(opts?.fileName ?? "", first_name)
+
+  return dropSoftwareModuleLocation({
     first_name,
     last_name,
     email,
@@ -90,7 +295,9 @@ export function preExtractResumeFields(text: string): Partial<NormalizedParsedRe
     state,
     zip,
     job_role,
-  }
+    address1: "",
+    address2: "",
+  })
 }
 
 /**
@@ -101,7 +308,7 @@ export function buildGrokResumeSnippet(
   text: string,
   charBudget = DEFAULT_GROK_CHAR_BUDGET,
 ): string {
-  const trimmed = text.trim()
+  const trimmed = repairExtractedResumeText(text)
   if (!trimmed) return ""
   if (trimmed.length <= charBudget) return trimmed
 
@@ -115,5 +322,5 @@ export function buildGrokResumeSnippet(
 }
 
 export function grokSnippetIsReduced(fullText: string, snippet: string): boolean {
-  return fullText.trim().length > snippet.length
+  return repairExtractedResumeText(fullText).length > snippet.length
 }

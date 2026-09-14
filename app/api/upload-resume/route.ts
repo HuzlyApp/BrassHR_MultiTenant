@@ -20,7 +20,12 @@ import { parseServiceAreaLocationFromFormData } from "@/lib/service-area/parse-l
 import { jobValidationServiceAreaResponse } from "@/lib/service-area/http"
 import { isResumeUploadValidationError } from "@/lib/resume/validate-resume-upload"
 import { normalizeResumeWhitespace } from "@/lib/jobs/match-analysis/sanitize-resume"
+import { repairExtractedResumeText } from "@/lib/resume/normalize-resume-text"
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name"
+
+function finalizeExtractedResumeText(text: string): string {
+  return repairExtractedResumeText(normalizeResumeWhitespace(text))
+}
 
 export const runtime = "nodejs"
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
@@ -86,7 +91,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
 
   if (mime === "application/pdf" || lower.endsWith(".pdf")) {
     const pdf = await pdfParse(buffer)
-    return normalizeResumeWhitespace(pdf.text || "")
+    return finalizeExtractedResumeText(pdf.text || "")
   }
 
   if (
@@ -95,7 +100,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
     lower.endsWith(".docx")
   ) {
     const result = await mammoth.extractRawText({ buffer })
-    return normalizeResumeWhitespace(result.value || "")
+    return finalizeExtractedResumeText(result.value || "")
   }
 
   if (mime === "application/msword" || lower.endsWith(".doc")) {
