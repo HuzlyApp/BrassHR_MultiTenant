@@ -1,3 +1,7 @@
+export function normalizeProfessionName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function professionCodeFromName(name: string): string {
   const slug = name
     .trim()
@@ -12,9 +16,9 @@ export function matchProfessionIdByName(
   professions: Array<{ id: string; name: string }>,
   name: string
 ): string | null {
-  const needle = name.trim().toLowerCase();
+  const needle = normalizeProfessionName(name);
   if (!needle) return null;
-  return professions.find((item) => item.name.trim().toLowerCase() === needle)?.id ?? null;
+  return professions.find((item) => normalizeProfessionName(item.name) === needle)?.id ?? null;
 }
 
 export function professionInputValue(

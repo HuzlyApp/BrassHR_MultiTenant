@@ -56,6 +56,7 @@ import {
   writeJobRequisitionFormDraft,
 } from "@/lib/jobs/job-requisition-form-draft";
 import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
+import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
@@ -375,6 +376,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     overrideWorkflowId,
     job.sourceType,
     job.placementType,
+    job.profession,
     job.professionId,
     job.specialtyId,
     job.employmentType,
@@ -382,7 +384,20 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     job.jobLocationType,
     job.yearsOfExperience,
     options?.workflows,
+    options?.professions,
   ]);
+
+  useEffect(() => {
+    const name = job.profession?.trim();
+    if (!name || !options?.professions?.length) return;
+    const nextId = matchProfessionIdByName(options.professions, name);
+    if ((job.professionId || null) === (nextId || null)) return;
+    setJob((current) => ({
+      ...current,
+      professionId: nextId ?? "",
+      specialtyId: (current.professionId || null) === (nextId || null) ? current.specialtyId : null,
+    }));
+  }, [job.profession, job.professionId, options?.professions]);
 
   function updateJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     if (
