@@ -202,6 +202,26 @@ export function formatCityState(raw: string | null | undefined): string {
   return parseCityStateLocation(raw).display;
 }
 
+/** Map a resume parse preview onto the add-candidate work city/state fields. */
+export function workLocationFromResumePreview(
+  preview:
+    | {
+        city?: string | null;
+        state?: string | null;
+        location?: string | null;
+      }
+    | null
+    | undefined
+): { city: string; state: string } {
+  if (!preview) return { city: "", state: "" };
+  const combined = [preview.city, preview.state]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+  const parsed = parseCityStateLocation(combined || preview.location);
+  return { city: parsed.city, state: parsed.stateCode };
+}
+
 export function cityStateMatchKey(raw: string | null | undefined): string {
   return parseCityStateLocation(raw).key;
 }

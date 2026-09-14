@@ -27,6 +27,8 @@ export type AdminResumeParsePreview = {
   email: string;
   phone: string;
   jobRole: string;
+  city: string;
+  state: string;
   location: string;
 };
 
@@ -63,13 +65,17 @@ export async function POST(req: NextRequest) {
       resumeTitle: resumeTitle || null,
     });
 
+    const city = parsed.city.trim();
+    const state = parsed.state.trim();
     const preview: AdminResumeParsePreview = {
       firstName: parsed.first_name,
       lastName: parsed.last_name,
       email: parsed.email,
       phone: parsed.phone,
       jobRole: parsed.job_role,
-      location: [parsed.city, parsed.state].map((part) => part.trim()).filter(Boolean).join(", "),
+      city,
+      state,
+      location: [city, state].filter(Boolean).join(", "),
     };
 
     return NextResponse.json({
