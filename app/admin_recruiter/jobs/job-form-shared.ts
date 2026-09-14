@@ -8,6 +8,7 @@ import {
   placementTypeFromApiRow,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
+import { embeddedRelationName } from "@/lib/jobs/profession-text";
 
 export type JobFormStep =
   | "setup"
@@ -208,16 +209,6 @@ export function employmentTypeFromLabel(label: string): EmploymentType {
 export const REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP =
   "Employment type is set in Job Details and determines which onboarding workflow is assigned to applicants for this job. To change it, go back to the Job Details step.";
 
-/** Placeholder label for the specialty dropdown on job create/edit. */
-export function specialtySelectPlaceholder(
-  professionId: string | null | undefined,
-  specialtyCount: number
-): string {
-  if (!professionId?.trim()) return "Select Specialty";
-  if (specialtyCount === 0) return "Not found";
-  return "Select Specialty";
-}
-
 export function defaultJobFormUiState(): JobFormUiState {
   return {
     numberOfPositions: 1,
@@ -346,6 +337,7 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
       row.eor_type === "Tenant" || row.eor_type === "MSP" ? row.eor_type : null,
     mspClient: String(row.msp_client ?? ""),
     professionId: String(row.profession_id ?? ""),
+    profession: embeddedRelationName(row.professions) || null,
     specialtyId: row.specialty_id ? String(row.specialty_id) : null,
     employmentType,
     employerOfRecord: String(row.employer_of_record ?? ""),
@@ -507,6 +499,7 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
       : job.sourceType === "MSP" && isMspRecruitAndRelease(job)
         ? job.professionId || null
         : job.professionId,
+    profession: isMspRecruitAndEor(job) ? null : job.profession,
     specialtyId: job.sourceType === "Internal" ? job.specialtyId : null,
     compensationType: isMspRecruitAndRelease(job)
       ? ui.payRatePeriod || compensationType || null

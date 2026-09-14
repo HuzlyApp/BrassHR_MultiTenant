@@ -138,7 +138,7 @@ describe("loadAdminJobApplicationResumeHistory", () => {
 
     expect(result?.jobTitle).toBe("Certified Nursing Assistant (CNA)");
     expect(result?.resumes).toHaveLength(2);
-    expect(result?.resumes[0]?.fileName).toBe("2025 Resume.pdf");
+    expect(result?.resumes[0]?.fileName).toBe("Shawnda_Watkins_resume.pdf");
     expect(result?.resumes[0]?.fileIconType).toBe("pdf");
     expect(result?.resumes[0]?.uploadedByName).toBe("Shawnda Watkins");
     expect(result?.resumes[0]?.uploadedByType).toBe("worker");

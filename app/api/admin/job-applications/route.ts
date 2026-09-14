@@ -10,6 +10,7 @@ import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { isUuid } from "@/lib/validation/uuid";
 import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName, splitFullName } from "@/lib/resume/worker-resume-file-name";
 import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
 import { getWorkerAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
@@ -25,10 +26,6 @@ const ALLOWED_RESUME_MIME = new Set([
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
-
-function sanitizeFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
-}
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof JobValidationError) return error.message;
@@ -389,7 +386,12 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const safeName = sanitizeFileName(resumeFile.name || "resume.pdf");
+      const { firstName, lastName } = splitFullName(name);
+      const safeName = buildWorkerResumeFileName({
+        firstName,
+        lastName,
+        originalFileName: resumeFile.name || "resume.pdf",
+      });
       resumePath = `admin-candidates/${tenantId}/${randomUUID()}/${safeName}`;
       resumeFileName = safeName;
       const bytes = Buffer.from(await resumeFile.arrayBuffer());
