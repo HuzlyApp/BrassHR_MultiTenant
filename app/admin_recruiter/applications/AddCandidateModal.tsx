@@ -23,6 +23,7 @@ import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
+import { workLocationFromResumePreview } from "@/lib/location/city-state";
 import { US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
 
 type ResumeTab = "files" | "paste";
@@ -159,6 +160,7 @@ export default function AddCandidateModal({
   const [workCity, setWorkCity] = useState("");
   const [workState, setWorkState] = useState("");
   const [relocateToJobSite, setRelocateToJobSite] = useState(false);
+  const [locationFieldsKey, setLocationFieldsKey] = useState(0);
   const [resumeTitle, setResumeTitle] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -196,24 +198,29 @@ export default function AddCandidateModal({
     setLastName("");
     setEmail("");
     setPhone("");
+    setWorkCity("");
+    setWorkState("");
+    setRelocateToJobSite(false);
+    setLocationFieldsKey((key) => key + 1);
   }, []);
 
-  const resetForm = useCallback(() => {
-    setActiveTab("files");
+  const resetCandidateEntry = useCallback(() => {
     setResumeFile(null);
     setResumeTitle("");
     setResumeText("");
     setFileError(null);
     setPasteError(null);
     setDragActive(false);
-    setSelectedJobId("");
-    setJobError(null);
-    setWorkCity("");
-    setWorkState("");
-    setRelocateToJobSite(false);
     resetParse();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetParse]);
+
+  const resetForm = useCallback(() => {
+    setActiveTab("files");
+    setSelectedJobId("");
+    setJobError(null);
+    resetCandidateEntry();
+  }, [resetCandidateEntry]);
 
   const runParse = useCallback(
     async (source: { file?: File | null; text?: string; title?: string }) => {
@@ -226,6 +233,10 @@ export default function AddCandidateModal({
       setLastName("");
       setEmail("");
       setPhone("");
+      setWorkCity("");
+      setWorkState("");
+      setRelocateToJobSite(false);
+      setLocationFieldsKey((key) => key + 1);
 
       try {
         const form = new FormData();
@@ -257,6 +268,11 @@ export default function AddCandidateModal({
           setLastName(preview.lastName ?? "");
           setEmail(preview.email ?? "");
           setPhone(preview.phone ?? "");
+          const parsedLocation = workLocationFromResumePreview(preview);
+          setWorkCity(parsedLocation.city);
+          setWorkState(parsedLocation.state);
+          setRelocateToJobSite(false);
+          setLocationFieldsKey((key) => key + 1);
           const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
           if (autoTitle) setResumeTitle(autoTitle);
           const extracted = payload.extractedText?.trim();
@@ -473,6 +489,7 @@ export default function AddCandidateModal({
       const candidateName =
         typeof payload.candidateName === "string" ? payload.candidateName.trim() : "";
       setSuccessCandidateName(candidateName);
+      resetCandidateEntry();
       setSuccessOpen(true);
     } catch (uploadError) {
       setErrorMessage(
@@ -484,10 +501,16 @@ export default function AddCandidateModal({
     }
   }
 
-  function handleSuccessClose() {
+  function handleSuccessDismiss() {
     setSuccessOpen(false);
     resetForm();
     onClose();
+    onSuccess?.();
+  }
+
+  function handleAddAnother() {
+    setSuccessOpen(false);
+    resetCandidateEntry();
     onSuccess?.();
   }
 
@@ -838,7 +861,7 @@ export default function AddCandidateModal({
                         Where will they work this assignment?
                       </p>
                       <p className="mt-1 text-xs text-[#64748B]">
-                        Confirm the job site — not the address on the resume.
+                        Filled from the résumé when we can. Change it if they will work somewhere else.
                       </p>
                     </div>
                     <div>
@@ -847,11 +870,15 @@ export default function AddCandidateModal({
                       </label>
                       <input
                         id="add-candidate-work-city"
+                        key={`add-candidate-work-city-${locationFieldsKey}`}
                         className={`${FIELD_INPUT_CLASS} h-10`}
                         placeholder="City"
                         value={workCity}
                         onChange={(event) => setWorkCity(event.target.value)}
                         disabled={uploading}
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
                       />
                     </div>
                     <div>
@@ -860,11 +887,13 @@ export default function AddCandidateModal({
                       </label>
                       <select
                         id="add-candidate-work-state"
+                        key={`add-candidate-work-state-${locationFieldsKey}`}
                         className={FIELD_SELECT_CLASS}
                         style={SELECT_CHEVRON}
                         value={workState}
                         onChange={(event) => setWorkState(event.target.value)}
                         disabled={uploading}
+                        autoComplete="off"
                       >
                         <option value="">Select state</option>
                         {Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => (
@@ -949,7 +978,7 @@ export default function AddCandidateModal({
 
       <SuccessModal
         open={successOpen}
-        onClose={handleSuccessClose}
+        onClose={handleSuccessDismiss}
         title="Success!"
         message={
           successCandidateName
@@ -957,8 +986,8 @@ export default function AddCandidateModal({
             : "Candidate was added successfully."
         }
         size="large"
-        actionLabel="Close"
-        onAction={handleSuccessClose}
+        actionLabel="Add another"
+        onAction={handleAddAnother}
       />
 
       <ErrorModal
