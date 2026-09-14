@@ -8,6 +8,7 @@ import {
   placementTypeFromApiRow,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
+import { embeddedRelationName } from "@/lib/jobs/profession-text";
 
 export type JobFormStep =
   | "setup"
@@ -128,6 +129,56 @@ export const JOB_FORM_JOB_TYPES = [
 
 export type JobFormJobType = (typeof JOB_FORM_JOB_TYPES)[number];
 
+/** Parse comma-separated employment-type chips; legacy single values stay one item. */
+export function parseJobFormJobTypes(value: string | null | undefined): string[] {
+  if (!value?.trim()) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const part of value.split(",")) {
+    const next = part.trim();
+    if (!next || seen.has(next)) continue;
+    seen.add(next);
+    result.push(next);
+  }
+  return result;
+}
+
+export function serializeJobFormJobTypes(values: readonly string[]): string {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const next = value.trim();
+    if (!next || seen.has(next)) continue;
+    seen.add(next);
+    unique.push(next);
+  }
+  const known = JOB_FORM_JOB_TYPES.filter((type) => seen.has(type));
+  const extras = unique.filter(
+    (item) => !JOB_FORM_JOB_TYPES.includes(item as JobFormJobType)
+  );
+  return [...known, ...extras].join(", ");
+}
+
+export function toggleJobFormJobType(
+  current: string | null | undefined,
+  option: string
+): string {
+  const selected = parseJobFormJobTypes(current);
+  const next = selected.includes(option)
+    ? selected.filter((value) => value !== option)
+    : [...selected, option];
+  return serializeJobFormJobTypes(next);
+}
+
+export function jobFormJobTypesInclude(
+  value: string | null | undefined,
+  option: string
+): boolean {
+  const needle = option.trim();
+  if (!needle) return false;
+  return parseJobFormJobTypes(value).includes(needle);
+}
+
 /** Select options for Number of Positions (Figma MSP Job Source Details). */
 export const JOB_FORM_NUMBER_OF_POSITION_OPTIONS = Array.from({ length: 20 }, (_, index) => index + 1);
 
@@ -207,16 +258,6 @@ export function employmentTypeFromLabel(label: string): EmploymentType {
 /** Review step: employment type is locked because it drives workflow routing. */
 export const REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP =
   "Employment type is set in Job Details and determines which onboarding workflow is assigned to applicants for this job. To change it, go back to the Job Details step.";
-
-/** Placeholder label for the specialty dropdown on job create/edit. */
-export function specialtySelectPlaceholder(
-  professionId: string | null | undefined,
-  specialtyCount: number
-): string {
-  if (!professionId?.trim()) return "Select Specialty";
-  if (specialtyCount === 0) return "Not found";
-  return "Select Specialty";
-}
 
 export function defaultJobFormUiState(): JobFormUiState {
   return {
@@ -346,6 +387,7 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
       row.eor_type === "Tenant" || row.eor_type === "MSP" ? row.eor_type : null,
     mspClient: String(row.msp_client ?? ""),
     professionId: String(row.profession_id ?? ""),
+    profession: embeddedRelationName(row.professions) || null,
     specialtyId: row.specialty_id ? String(row.specialty_id) : null,
     employmentType,
     employerOfRecord: String(row.employer_of_record ?? ""),
@@ -507,6 +549,7 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
       : job.sourceType === "MSP" && isMspRecruitAndRelease(job)
         ? job.professionId || null
         : job.professionId,
+    profession: isMspRecruitAndEor(job) ? null : job.profession,
     specialtyId: job.sourceType === "Internal" ? job.specialtyId : null,
     compensationType: isMspRecruitAndRelease(job)
       ? ui.payRatePeriod || compensationType || null

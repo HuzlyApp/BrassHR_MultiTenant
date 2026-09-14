@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applicationStatusLabel } from "@/lib/jobs/application-status";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 
 export type WorkerJobApplicationResume = {
   id: string;
@@ -97,7 +98,7 @@ export async function listWorkerJobApplications(
   supabase: SupabaseClient,
   input: { workerId: string; tenantId: string }
 ): Promise<WorkerJobApplicationListItem[]> {
-  const [applicationResult, resumeResult] = await Promise.all([
+  const [applicationResult, resumeResult, workerResult] = await Promise.all([
     supabase
       .from("job_applications")
       .select(
@@ -127,6 +128,12 @@ export async function listWorkerJobApplications(
       .eq("tenant_id", input.tenantId)
       .is("deleted_at", null)
       .order("uploaded_at", { ascending: false }),
+    supabase
+      .from("worker")
+      .select("first_name, last_name")
+      .eq("id", input.workerId)
+      .eq("tenant_id", input.tenantId)
+      .maybeSingle(),
   ]);
 
   if (applicationResult.error) throw applicationResult.error;
@@ -134,6 +141,8 @@ export async function listWorkerJobApplications(
   const rows = (applicationResult.data ?? []) as unknown as ApplicationRow[];
   const applicationIds = rows.map((row) => String(row.id)).filter(Boolean);
   const resumeRows = resumeResult.error ? [] : resumeResult.data;
+  const workerFirstName = String(workerResult.data?.first_name ?? "").trim();
+  const workerLastName = String(workerResult.data?.last_name ?? "").trim();
 
   const noteByApplication = new Map<string, string>();
   if (applicationIds.length > 0) {
@@ -158,10 +167,14 @@ export async function listWorkerJobApplications(
   for (const resume of (resumeRows ?? []) as unknown as ResumeRow[]) {
     const item: WorkerJobApplicationResume = {
       id: String(resume.id),
-      fileName:
-        String(resume.original_file_name ?? "").trim() ||
-        String(resume.file_name ?? "").trim() ||
-        "Resume.pdf",
+      fileName: buildWorkerResumeFileName({
+        firstName: workerFirstName,
+        lastName: workerLastName,
+        originalFileName:
+          String(resume.original_file_name ?? "").trim() ||
+          String(resume.file_name ?? "").trim() ||
+          "Resume.pdf",
+      }),
       fileSizeLabel: formatFileSize(resume.file_size_bytes),
       fileType: resume.file_type ?? null,
     };

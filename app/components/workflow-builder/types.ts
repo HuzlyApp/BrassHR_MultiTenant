@@ -26,6 +26,7 @@ export type StepDefinition = {
   id: string;
   label: string;
   icon: React.ReactNode;
+  iconKey?: string;
   // color: StepColorKey;
   description?: string;
   keywords?: string[];

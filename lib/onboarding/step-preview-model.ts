@@ -40,7 +40,7 @@ export const STEP_PREVIEW_SAMPLE = {
   facility: "Example Facility",
   compensation: "$45 / hour",
   startDate: "September 8, 2026",
-  resumeFileName: "Jane_Doe_Resume.pdf",
+  resumeFileName: "Jane_Doe_resume.pdf",
 } as const;
 
 export type StepPreviewKind =
@@ -218,6 +218,9 @@ export function resolveStepPreviewKind(
   }
   if (NOTIFICATION_LIBRARY_IDS.has(libraryId)) return "notification";
   if (libraryId === "custom-step" || libraryId === "custom-form") return "custom_question";
+  if (libraryId === "collect-extra-files") return "document_upload";
+  if (libraryId === "collect-references") return "references";
+  if (libraryId === "internal-select") return "custom_question";
   if (step.step_type === "profile_information") return "profile_form";
   if (step.step_type === "custom_question") {
     return isApplicantWaitingGateStep(step) ? "waiting_gate" : "custom_question";
