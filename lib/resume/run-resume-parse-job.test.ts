@@ -18,6 +18,11 @@ function createSupabaseMock(initialRow: Record<string, unknown>) {
           return { error: null }
         },
       }),
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: row, error: null }),
+        }),
+      }),
     }),
     row,
   }
@@ -48,7 +53,11 @@ describe("runResumeParseJob", () => {
       grokSnippetReduced: true,
     })
 
-    const supabase = createSupabaseMock({ id: "resume-1", parsing_status: "processing" })
+    const supabase = createSupabaseMock({
+      id: "resume-1",
+      parsing_status: "processing",
+      original_file_name: "Resume (8).pdf",
+    })
     const result = await runResumeParseJob({
       supabase: supabase as never,
       resumeId: "resume-1",
@@ -59,6 +68,8 @@ describe("runResumeParseJob", () => {
     expect(result.parsedJson?.email).toBe("alex@example.com")
     expect(supabase.row.parsed_json).toMatchObject({ email: "alex@example.com" })
     expect(supabase.row.parsing_status).toBe("completed")
+    expect(supabase.row.original_file_name).toBe("Alex_Lee_resume.pdf")
+    expect(supabase.row.file_name).toBe("Alex_Lee_resume.pdf")
   })
 
   it("does not block upload when quality gate fails — marks failed with parse_error", async () => {

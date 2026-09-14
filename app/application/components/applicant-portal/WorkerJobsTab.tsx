@@ -391,8 +391,8 @@ function ApplyConfirmModal({
 
         <div className="space-y-3 px-4 py-5 sm:px-5">
           <p className="text-sm text-[#64748B]">
-            Confirm where you will work this opening. Home address is not used for this check. Your
-            latest uploaded resume from Documents will be attached automatically.
+            Confirm where you will work this job. Home address, school, and travel city are not used.
+            Your latest uploaded resume from Documents will be attached automatically.
           </p>
           <label className="block text-sm font-medium text-[#0F172A]" htmlFor="worker-work-city">
             Work city

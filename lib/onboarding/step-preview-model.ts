@@ -40,7 +40,7 @@ export const STEP_PREVIEW_SAMPLE = {
   facility: "Example Facility",
   compensation: "$45 / hour",
   startDate: "September 8, 2026",
-  resumeFileName: "Jane_Doe_Resume.pdf",
+  resumeFileName: "Jane_Doe_resume.pdf",
 } as const;
 
 export type StepPreviewKind =

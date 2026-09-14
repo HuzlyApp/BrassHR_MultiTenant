@@ -128,6 +128,56 @@ export const JOB_FORM_JOB_TYPES = [
 
 export type JobFormJobType = (typeof JOB_FORM_JOB_TYPES)[number];
 
+/** Parse comma-separated employment-type chips; legacy single values stay one item. */
+export function parseJobFormJobTypes(value: string | null | undefined): string[] {
+  if (!value?.trim()) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const part of value.split(",")) {
+    const next = part.trim();
+    if (!next || seen.has(next)) continue;
+    seen.add(next);
+    result.push(next);
+  }
+  return result;
+}
+
+export function serializeJobFormJobTypes(values: readonly string[]): string {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const next = value.trim();
+    if (!next || seen.has(next)) continue;
+    seen.add(next);
+    unique.push(next);
+  }
+  const known = JOB_FORM_JOB_TYPES.filter((type) => seen.has(type));
+  const extras = unique.filter(
+    (item) => !JOB_FORM_JOB_TYPES.includes(item as JobFormJobType)
+  );
+  return [...known, ...extras].join(", ");
+}
+
+export function toggleJobFormJobType(
+  current: string | null | undefined,
+  option: string
+): string {
+  const selected = parseJobFormJobTypes(current);
+  const next = selected.includes(option)
+    ? selected.filter((value) => value !== option)
+    : [...selected, option];
+  return serializeJobFormJobTypes(next);
+}
+
+export function jobFormJobTypesInclude(
+  value: string | null | undefined,
+  option: string
+): boolean {
+  const needle = option.trim();
+  if (!needle) return false;
+  return parseJobFormJobTypes(value).includes(needle);
+}
+
 /** Select options for Number of Positions (Figma MSP Job Source Details). */
 export const JOB_FORM_NUMBER_OF_POSITION_OPTIONS = Array.from({ length: 20 }, (_, index) => index + 1);
 

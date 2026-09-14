@@ -38,6 +38,7 @@ import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
+import ServiceAreaLocationHint from "./ServiceAreaLocationHint";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMMISSION_FEE_TYPES,
@@ -49,7 +50,6 @@ import {
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_CLUSTER_CLASS,
-  JOB_FORM_JOB_TYPES,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_ACCEPTABLE_MATCH_RATES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
@@ -358,6 +358,7 @@ export function JobFormStepRequisition({
   employmentTypes,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -367,6 +368,7 @@ export function JobFormStepRequisition({
   employmentTypes: EmploymentType[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const requisitionEmploymentTypes = employmentTypes.filter(
     (type) => type === "W2" || type === "1099"
@@ -511,6 +513,13 @@ export function JobFormStepRequisition({
             onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
             placeholder="Search city, area, or address"
             error={fieldErrors.location}
+          />
+          <ServiceAreaLocationHint
+            locationText={job.location}
+            postalCode={job.postalCode}
+            locationType={ui.jobLocationType || job.jobLocationType}
+            remoteAllowedStates={job.remoteAllowedStates}
+            onBlockedChange={onServiceAreaBlockedChange}
           />
 
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
@@ -789,12 +798,14 @@ export function JobFormStepMspDetails({
   fieldErrors,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const facilityValue = job.facility?.trim() || job.location?.trim() || "";
   const isMspEor = isMspRecruitAndEor(job);
@@ -951,6 +962,13 @@ export function JobFormStepMspDetails({
           placeholder="Search city, area, or address"
           error={fieldErrors.location}
         />
+        <ServiceAreaLocationHint
+          locationText={facilityValue}
+          postalCode={job.postalCode}
+          locationType={ui.jobLocationType || job.jobLocationType}
+          remoteAllowedStates={job.remoteAllowedStates}
+          onBlockedChange={onServiceAreaBlockedChange}
+        />
       </div>
 
       <div>
@@ -1020,32 +1038,14 @@ export function JobFormStepMspDetails({
         </div>
       </div>
 
+      <JobTypeChipSelect
+        label="Job Type"
+        value={job.shiftType ?? ""}
+        onChange={(next) => onJobChange("shiftType", next)}
+        error={fieldErrors.shiftType}
+      />
+
       <div className="grid gap-4 min-[700px]:grid-cols-2">
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-employment-type">
-            Job Type
-            <JobFormRequiredMark />
-          </label>
-          <select
-            id="msp-employment-type"
-            className={`${JOB_FORM_SELECT_CLASS} ${job.shiftType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={job.shiftType ?? ""}
-            onChange={(event) => onJobChange("shiftType", event.target.value)}
-          >
-            <option value="">Select Employment Type</option>
-            {JOB_FORM_JOB_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-            {job.shiftType &&
-            !JOB_FORM_JOB_TYPES.includes(job.shiftType as (typeof JOB_FORM_JOB_TYPES)[number]) ? (
-              <option value={job.shiftType}>{job.shiftType}</option>
-            ) : null}
-          </select>
-          <FieldError error={fieldErrors.shiftType} />
-        </div>
         <WorkLocationTypeField
           id="msp-work-location-type"
           value={ui.jobLocationType}
