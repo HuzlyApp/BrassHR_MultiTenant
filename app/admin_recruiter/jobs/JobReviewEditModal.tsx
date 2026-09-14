@@ -16,7 +16,7 @@ import {
   JOB_FORM_COMMISSION_FEE_TYPES,
   JOB_FORM_COMPENSATION_TYPES,
   JOB_FORM_CURRENCIES,
-  JOB_FORM_DURATION_OPTIONS,
+  JOB_FORM_DURATION_PLACEHOLDER,
   JOB_FORM_HOURS_SHOW_BY,
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
@@ -806,20 +806,15 @@ export function JobReviewEditModal({
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-duration">
                   Job Duration
                 </label>
-                <select
+                <input
                   id="review-edit-duration"
-                  className={JOB_FORM_SELECT_CLASS}
-                  style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                  type="text"
+                  className={JOB_FORM_INPUT_CLASS}
                   value={draft.job.duration ?? ""}
                   onChange={(event) => patchJob("duration", event.target.value || null)}
-                >
-                  <option value="">Please select duration</option>
-                  {JOB_FORM_DURATION_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={JOB_FORM_DURATION_PLACEHOLDER}
+                  autoComplete="off"
+                />
               </div>
             ) : null}
 

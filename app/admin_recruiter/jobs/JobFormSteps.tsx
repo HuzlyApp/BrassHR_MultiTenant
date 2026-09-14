@@ -43,7 +43,7 @@ import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMMISSION_FEE_TYPES,
   JOB_FORM_COMPENSATION_TYPES,
-  JOB_FORM_DURATION_OPTIONS,
+  JOB_FORM_DURATION_PLACEHOLDER,
   JOB_FORM_FIELDS_CLASS,
   JOB_FORM_HOURS_SHOW_BY,
   JOB_FORM_ICON_BUTTON_CLASS,
@@ -1318,26 +1318,15 @@ export function JobFormStepCompensation({
               <label className={JOB_FORM_LABEL_CLASS} htmlFor="rnr-job-duration">
                 Duration
               </label>
-              <select
+              <input
                 id="rnr-job-duration"
-                className={JOB_FORM_SELECT_CLASS}
-                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                type="text"
+                className={JOB_FORM_INPUT_CLASS}
                 value={job.duration ?? ""}
                 onChange={(event) => onJobChange("duration", event.target.value || null)}
-              >
-                <option value="">Please select duration</option>
-                {JOB_FORM_DURATION_OPTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-                {job.duration &&
-                !JOB_FORM_DURATION_OPTIONS.includes(
-                  job.duration as (typeof JOB_FORM_DURATION_OPTIONS)[number]
-                ) ? (
-                  <option value={job.duration}>{job.duration}</option>
-                ) : null}
-              </select>
+                placeholder={JOB_FORM_DURATION_PLACEHOLDER}
+                autoComplete="off"
+              />
             </div>
 
             <div>
@@ -1690,26 +1679,15 @@ export function JobFormStepCompensation({
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-duration">
               Duration
             </label>
-            <select
+            <input
               id="job-duration"
-              className={JOB_FORM_SELECT_CLASS}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              type="text"
+              className={JOB_FORM_INPUT_CLASS}
               value={job.duration ?? ""}
               onChange={(event) => onJobChange("duration", event.target.value || null)}
-            >
-              <option value="">Please select duration</option>
-              {JOB_FORM_DURATION_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-              {job.duration &&
-              !JOB_FORM_DURATION_OPTIONS.includes(
-                job.duration as (typeof JOB_FORM_DURATION_OPTIONS)[number]
-              ) ? (
-                <option value={job.duration}>{job.duration}</option>
-              ) : null}
-            </select>
+              placeholder={JOB_FORM_DURATION_PLACEHOLDER}
+              autoComplete="off"
+            />
           </div>
 
           <div>

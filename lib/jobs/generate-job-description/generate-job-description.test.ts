@@ -100,7 +100,7 @@ describe("buildJobRequisitionJson", () => {
       sourceJobDetails: "Travel Assignment",
       mspClient: "Novant",
       facility: "Texas City, Texas",
-      duration: "8 weeks",
+      duration: "6 months",
       specialRequirements: "BLS required",
     });
     const json = buildJobRequisitionJson(parsed);
@@ -109,7 +109,7 @@ describe("buildJobRequisitionJson", () => {
     expect(json.sourceJobDetails).toBe("Travel Assignment");
     expect(json.mspClient).toBe("Novant");
     expect(json.facility).toBe("Texas City, Texas");
-    expect(json.duration).toBe("8 weeks");
+    expect(json.duration).toBe("6 months");
     expect(json.specialRequirements).toBe("BLS required");
   });
 
