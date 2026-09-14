@@ -59,6 +59,64 @@ export function isExplicitInability(evidence: string): boolean {
   );
 }
 
+/** Logistics / screening items. Score only on explicit inability; otherwise verify. */
+export function isScreeningRequirement(text: string): boolean {
+  return /\b(on-?site|onsite|remote|hybrid|relocat|commute|work authorization|legally authorized|sponsorship|citizen|green card|visa|on-?call|shift|travel|w-?2|c2c|1099|compensation|availability|start date)\b/i.test(
+    text
+  );
+}
+
+function screeningConflictNeedsVerify(item: RequirementItem): boolean {
+  return (
+    isScreeningRequirement(item.requirement) &&
+    !isExplicitInability(item.candidate_evidence?.trim() ?? "")
+  );
+}
+
+const PARKED_SCORES = new Set([45, 50, 55, 59]);
+
+function isParkedScore(score: number): boolean {
+  return PARKED_SCORES.has(score);
+}
+
+function confirmedMajority(mandatory: RequirementItem[]): boolean {
+  const scored = mandatory.filter((r) => r.status !== "NOT_APPLICABLE");
+  if (!scored.length) return false;
+  const confirmed = scored.filter(
+    (r) => r.status === "CONFIRMED" && r.requirement_outcome === "MET"
+  );
+  return confirmed.length * 2 >= scored.length;
+}
+
+function rawKnockoutsAreScreeningOnly(items: RequirementItem[]): boolean {
+  const knock = items.filter(
+    (r) =>
+      r.status === "CONFLICTING" ||
+      r.requirement_outcome === "CONFLICT" ||
+      r.requirement_outcome === "NOT_MET"
+  );
+  if (!knock.length) return true;
+  return knock.every((r) => screeningConflictNeedsVerify(r));
+}
+
+function weightedOverall(
+  mandatoryScore: number,
+  specialtyScore: number,
+  clinicalScore: number,
+  licensesScore: number,
+  workSettingScore: number,
+  preferredScore: number
+): number {
+  return clamp(
+    mandatoryScore * WEIGHTS.mandatory +
+      specialtyScore * WEIGHTS.specialty +
+      clinicalScore * WEIGHTS.clinical +
+      licensesScore * WEIGHTS.licenses +
+      workSettingScore * WEIGHTS.workSetting +
+      preferredScore * WEIGHTS.preferred
+  );
+}
+
 /**
  * Fairness: missing / NOT_FOUND / NOT_MET without clear evidence → VERIFY.
  * Absence ≠ absence of capability.
@@ -69,6 +127,14 @@ export function applyFairnessOutcomes(items: RequirementItem[]): RequirementItem
       return { ...item, requirement_outcome: "NOT_APPLICABLE" as RequirementOutcome };
     }
     if (item.status === "CONFLICTING") {
+      if (screeningConflictNeedsVerify(item)) {
+        return {
+          ...item,
+          status: "PARTIAL" as RequirementStatus,
+          requirement_outcome: "VERIFY" as RequirementOutcome,
+          verification_required: true,
+        };
+      }
       return {
         ...item,
         requirement_outcome: "CONFLICT" as RequirementOutcome,
@@ -116,6 +182,36 @@ function categoryFromScore(score: number): MatchCategory {
   if (score >= 60) return "POSSIBLE_MATCH";
   if (score >= 40) return "WEAK_MATCH";
   return "NOT_A_MATCH";
+}
+
+function technologyDisplayCategory(score: number, knockout: boolean): string {
+  if (knockout) return "Do Not Submit";
+  if (score >= STRONG_MATCH_MIN_SCORE) return "Strong Submit";
+  if (score >= 75) return "Submit";
+  if (score >= 60) return "Submit After Verification";
+  if (score >= 40) return "Hold";
+  return "Hold";
+}
+
+const TECHNOLOGY_DISPLAY_LABELS = new Set([
+  "Strong Submit",
+  "Submit",
+  "Submit After Verification",
+  "Hold",
+  "Do Not Submit",
+]);
+
+function technologyDisplayLabel(
+  incoming: string | null | undefined,
+  score: number,
+  knockout: boolean
+): string {
+  if (knockout) return "Do Not Submit";
+  const trimmed = incoming?.trim() ?? "";
+  if (trimmed === "Do Not Submit" || !TECHNOLOGY_DISPLAY_LABELS.has(trimmed)) {
+    return technologyDisplayCategory(score, false);
+  }
+  return trimmed;
 }
 
 function actionFromCategory(category: MatchCategory): RecommendedAction {
@@ -182,10 +278,11 @@ function looksLikeWorkSetting(text: string): boolean {
 }
 
 function applyMandatoryGapCaps(score: number, mandatory: RequirementItem[]): number {
-  const notFound = mandatory.filter(
-    (r) => r.status === "NOT_FOUND" && r.requirement_outcome !== "NOT_APPLICABLE"
+  const scored = mandatory.filter(
+    (r) => r.requirement_outcome !== "NOT_APPLICABLE" && !screeningConflictNeedsVerify(r)
   );
-  const blocked = mandatory.filter(
+  const notFound = scored.filter((r) => r.status === "NOT_FOUND");
+  const blocked = scored.filter(
     (r) => r.requirement_outcome === "NOT_MET" || r.requirement_outcome === "CONFLICT"
   );
   let capped = score;
@@ -209,10 +306,14 @@ function confidenceFromRequirements(
 }
 
 /**
- * Deterministic rescoring. Do not trust model scores as final.
+ * Deterministic rescoring. Do not trust model scores as final, except for the
+ * Technology pack which computes differentiated scores in the prompt itself.
  * Missing résumé evidence is VERIFY (score pressure), not a 0% knockout.
  */
-export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisResponse {
+export function rescoreMatchAnalysis(
+  raw: MatchAnalysisResponse,
+  options?: { preserveModelScore?: boolean }
+): MatchAnalysisResponse {
   const mandatory = applyFairnessOutcomes(
     raw.mandatory_requirements.map((r) => ({ ...r, requirement_type: "MANDATORY" as const }))
   );
@@ -223,7 +324,9 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
   const hardKnockouts = mandatory.filter(
     (r) =>
       r.requirement_outcome === "NOT_MET" ||
-      (r.status === "CONFLICTING" && r.requirement_outcome === "CONFLICT")
+      (r.status === "CONFLICTING" &&
+        r.requirement_outcome === "CONFLICT" &&
+        !screeningConflictNeedsVerify(r))
   );
 
   const completeness = raw.data_quality.resume_completeness;
@@ -247,16 +350,87 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
   const specialtyScore = avgStatusScore(specialtyItems) ?? mandatoryScore;
   const workSettingScore = avgStatusScore(workSettingItems) ?? mandatoryScore;
   const clinicalScore = avgStatusScore(otherMandatory) ?? mandatoryScore;
+  const subscores = {
+    mandatory_requirements_score: clamp(mandatoryScore),
+    specialty_experience_score: clamp(specialtyScore),
+    clinical_skills_score: clamp(clinicalScore),
+    licenses_certifications_score: clamp(licensesScore),
+    work_setting_equipment_score: clamp(workSettingScore),
+    preferred_qualifications_score: clamp(preferredScore),
+  };
 
-  let overall = clamp(
-    mandatoryScore * WEIGHTS.mandatory +
-      specialtyScore * WEIGHTS.specialty +
-      clinicalScore * WEIGHTS.clinical +
-      licensesScore * WEIGHTS.licenses +
-      workSettingScore * WEIGHTS.workSetting +
-      preferredScore * WEIGHTS.preferred
+  if (options?.preserveModelScore) {
+    const modelOverall = clamp(raw.candidate_match.recommended_overall_match_score);
+    const modelHardKnockout =
+      raw.candidate_match.mandatory_requirement_override === true ||
+      raw.candidate_match.match_category === "NOT_CURRENTLY_SUBMITTABLE" ||
+      raw.candidate_match.recommended_action === "STOP_FOR_THIS_JOB" ||
+      raw.submission_readiness.readiness_status === "NOT_CURRENTLY_SUBMITTABLE";
+    const screeningOnlyModelStop = rawKnockoutsAreScreeningOnly(raw.mandatory_requirements);
+    const knockout =
+      hardKnockouts.length > 0 || (modelHardKnockout && !screeningOnlyModelStop);
+    let overall = modelOverall;
+    if (!knockout && isParkedScore(modelOverall) && confirmedMajority(mandatory)) {
+      overall = applyMandatoryGapCaps(
+        weightedOverall(
+          mandatoryScore,
+          specialtyScore,
+          clinicalScore,
+          licensesScore,
+          workSettingScore,
+          preferredScore
+        ),
+        mandatory
+      );
+    }
+    const category: MatchCategory = knockout
+      ? "NOT_CURRENTLY_SUBMITTABLE"
+      : categoryFromScore(overall);
+    const readiness = readinessFromAnalysis(category, mandatory, raw);
+    const display = technologyDisplayLabel(raw.candidate_match.display_category, overall, knockout);
+    return {
+      ...raw,
+      mandatory_requirements: mandatory,
+      preferred_requirements: preferred,
+      candidate_match: {
+        ...raw.candidate_match,
+        recommended_overall_match_score: overall,
+        match_category: category,
+        display_category: display,
+        confidence_score: confidenceFromRequirements(
+          mandatory,
+          preferred,
+          raw.candidate_match.confidence_score
+        ),
+        mandatory_requirement_override: knockout,
+        recommended_action: knockout ? "STOP_FOR_THIS_JOB" : actionFromCategory(category),
+      },
+      subscores,
+      submission_readiness: {
+        ...raw.submission_readiness,
+        ...readiness,
+        blocking_requirements: knockout
+          ? mandatory.filter((r) => r.requirement_outcome === "NOT_MET").map((r) => r.requirement)
+          : raw.submission_readiness.blocking_requirements.filter((name) => {
+              const item = mandatory.find((r) => r.requirement === name);
+              if (!item) return true;
+              return item.requirement_outcome === "NOT_MET" || item.requirement_outcome === "CONFLICT";
+            }),
+      },
+    };
+  }
+
+  const overall = applyMandatoryGapCaps(
+    weightedOverall(
+      mandatoryScore,
+      specialtyScore,
+      clinicalScore,
+      licensesScore,
+      workSettingScore,
+      preferredScore
+    ),
+    mandatory
   );
-  overall = applyMandatoryGapCaps(overall, mandatory);
 
   if (completeness === "LOW" && mandatory.length > 0) {
     const category: MatchCategory = "NEEDS_MORE_INFORMATION";
@@ -281,14 +455,7 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
           raw.candidate_match.recruiter_decision_summary ||
           "Résumé completeness is too low for a reliable assessment.",
       },
-      subscores: {
-        mandatory_requirements_score: clamp(mandatoryScore),
-        specialty_experience_score: clamp(specialtyScore),
-        clinical_skills_score: clamp(clinicalScore),
-        licenses_certifications_score: clamp(licensesScore),
-        work_setting_equipment_score: clamp(workSettingScore),
-        preferred_qualifications_score: clamp(preferredScore),
-      },
+      subscores,
       submission_readiness: {
         ...raw.submission_readiness,
         ...readiness,
@@ -330,14 +497,7 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
       mandatory_requirement_override: hardKnockouts.length > 0,
       recommended_action: action,
     },
-    subscores: {
-      mandatory_requirements_score: clamp(mandatoryScore),
-      specialty_experience_score: clamp(specialtyScore),
-      clinical_skills_score: clamp(clinicalScore),
-      licenses_certifications_score: clamp(licensesScore),
-      work_setting_equipment_score: clamp(workSettingScore),
-      preferred_qualifications_score: clamp(preferredScore),
-    },
+    subscores,
     submission_readiness: {
       ...raw.submission_readiness,
       ...readiness,

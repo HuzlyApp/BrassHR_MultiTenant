@@ -7,6 +7,7 @@ import {
   normalizeLocationForStorage,
   parseCityStateLocation,
   uniqueCityStateOptions,
+  workLocationFromResumePreview,
 } from "@/lib/location/city-state";
 
 describe("parseCityStateLocation", () => {
@@ -120,5 +121,27 @@ describe("parseCityStateLocation", () => {
   it("formats structured candidate city/state consistently", () => {
     expect(formatCityStateFromParts("Blue Bell", "Pennsylvania")).toBe("Blue Bell, PA");
     expect(formatCityStateFromParts("Blue Bell", "PA")).toBe("Blue Bell, PA");
+  });
+
+  it("maps a resume parse preview onto work city/state without keeping leftover values", () => {
+    expect(
+      workLocationFromResumePreview({
+        city: "Holly Springs",
+        state: "NC",
+        location: "Holly Springs, NC",
+      })
+    ).toEqual({ city: "Holly Springs", state: "NC" });
+    expect(
+      workLocationFromResumePreview({
+        city: "",
+        state: "",
+        location: "Holly Springs, North Carolina",
+      })
+    ).toEqual({ city: "Holly Springs", state: "NC" });
+    expect(workLocationFromResumePreview({ city: "", state: "", location: "" })).toEqual({
+      city: "",
+      state: "",
+    });
+    expect(workLocationFromResumePreview(null)).toEqual({ city: "", state: "" });
   });
 });

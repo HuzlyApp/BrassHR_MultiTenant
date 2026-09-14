@@ -22,6 +22,7 @@ import {
   validateResumeUploadFile,
 } from "@/lib/resume/validate-resume-upload";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
@@ -172,18 +173,25 @@ export function resolveAdminCandidateIdentity(
   };
 }
 
-async function parseExtractedResumeText(extractedText: string): Promise<{
+async function parseExtractedResumeText(
+  extractedText: string,
+  fileName?: string | null,
+): Promise<{
   parsed: NormalizedParsedResume;
   qualityOk: boolean;
   qualityMessage: string | null;
 }> {
   const contentError = validateExtractedResumeText(extractedText);
-  const fallback = normalizeParsedResume(preExtractResumeFields(extractedText));
+  const fallback = normalizeParsedResume(
+    preExtractResumeFields(extractedText, { fileName }),
+  );
 
   let parsed = fallback;
   if (!contentError) {
     try {
-      parsed = normalizeParsedResume(await grokParseResumeCached(extractedText));
+      parsed = normalizeParsedResume(
+        await grokParseResumeCached(extractedText, { fileName }),
+      );
     } catch (parseError) {
       console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
       parsed = fallback;
@@ -272,7 +280,10 @@ export async function prepareResumeCandidate(input: {
     throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
   }
 
-  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(extractedText);
+  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(
+    extractedText,
+    resumeFileName,
+  );
 
   return {
     extractedText,
@@ -340,11 +351,17 @@ export async function adminAddCandidateFromResume(
       ? await resumeTextToPdfBuffer(extractedText)
       : resumeBytes;
 
+  const namedFile = buildWorkerResumeFileName({
+    firstName: resolvedFirstName,
+    lastName: resolvedLastName,
+    originalFileName: resumeFileName,
+  });
+
   const uploaded = await uploadResumeBytes(
     supabase,
     input.tenantId,
     uploadBytes,
-    resumeFileName,
+    namedFile,
     resumeContentType
   );
 

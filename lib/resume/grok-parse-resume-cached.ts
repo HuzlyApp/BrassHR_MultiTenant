@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getOrSetCache } from "@/lib/cache";
 import { grokParseResume } from "@/lib/resume/grok-parse-resume";
+import type { ResumeFieldExtractOptions } from "@/lib/resume/normalize-resume-text";
 import type { NormalizedParsedResume } from "@/lib/resumeParseQuality";
 
 /** Long enough for a recruiter to review the parse preview and submit the candidate. */
@@ -16,10 +17,13 @@ function resumeTextKey(text: string): string {
  * Grok resume parse memoized on the resume text, so previewing a resume and then creating
  * the candidate from it costs a single AI call.
  */
-export async function grokParseResumeCached(text: string): Promise<NormalizedParsedResume> {
+export async function grokParseResumeCached(
+  text: string,
+  opts?: ResumeFieldExtractOptions,
+): Promise<NormalizedParsedResume> {
   return getOrSetCache(
     `resume:grok-parse:${resumeTextKey(text)}`,
-    async () => (await grokParseResume(text)).normalized,
+    async () => (await grokParseResume(text, opts)).normalized,
     RESUME_PARSE_CACHE_TTL_SECONDS
   );
 }

@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Mail, Phone } from "lucide-react"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
+import { CandidatePreHireIconLink } from "./CandidatePreHireIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import { prefetchWorkerProfile } from "@/lib/admin/staff-detail-fetch-cache"
 import type { CandidateColumnId } from "./column-config"
@@ -72,6 +73,7 @@ export function renderListCell(
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />
+            <CandidatePreHireIconLink workerId={c.id} candidateName={c.name} />
           </div>
         </div>
       )
@@ -228,7 +230,7 @@ export function renderListCell(
       if (!statusKey && !c.progressStatusApplicationId) {
         return <span className="text-sm text-[#94A3B8]">—</span>
       }
-      const stage = applicationCurrentStageMeta(statusKey || "new")
+      const stage = applicationCurrentStageMeta(statusKey || "new", c.progressStatusName)
       const note = stage.subtitle
       return (
         <div className="min-w-0 text-left">

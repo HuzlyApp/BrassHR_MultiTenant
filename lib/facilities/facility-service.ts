@@ -444,7 +444,8 @@ export async function createFacility(
   input: FacilityFormInput,
   options?: { assignToWorkerAuthId?: string; staffUserId?: string | null }
 ): Promise<CreateFacilityResult | DuplicateFacilityResult> {
-  const { evaluateServiceAreaWithDb } = await import("@/lib/service-area/db");
+  const { assertTenantCanOperate, evaluateServiceAreaWithDb } = await import("@/lib/service-area/db");
+  await assertTenantCanOperate(supabase, tenantId);
   const { serviceAreaMessage } = await import("@/lib/service-area/copy");
   const { ServiceAreaDeniedError } = await import("@/lib/service-area/errors");
   const { fieldForDecision } = await import("@/lib/service-area/evaluate");

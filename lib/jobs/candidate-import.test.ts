@@ -28,6 +28,7 @@ vi.mock("@/lib/service-area/db", async (importOriginal) => {
       matchedPolicyId: null,
     })),
     recordWorkLocationConfirmation: vi.fn(async () => undefined),
+    assertTenantCanOperate: vi.fn(async () => undefined),
   };
 });
 

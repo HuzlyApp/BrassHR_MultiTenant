@@ -60,6 +60,7 @@ import {
 } from "@/lib/jobs/pipeline-summary";
 import type { JobStatus } from "@/lib/jobs/types";
 import { JOB_STATUSES } from "@/lib/jobs/types";
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import {
   fetchStaffDetailJson,
   invalidateStaffDetailCache,
@@ -283,9 +284,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string" ? payload.error : "Failed to update job status"
-        );
+        throw new Error(readServiceAreaApiMessage(payload, "Failed to update job status"));
       }
       toast.success(`Status updated to ${jobDetailsStatusLabel(nextStatus)}`);
       invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);

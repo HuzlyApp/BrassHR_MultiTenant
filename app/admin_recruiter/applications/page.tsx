@@ -63,6 +63,7 @@ import {
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
+import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -408,6 +409,10 @@ function rowStatusName(row: ApplicationRow, options: ApplicationStatusOption[]):
     options.find((option) => option.id === rowStatusId(row))?.name ||
     applicationStatusLabel(row.status)
   );
+}
+
+function rowCurrentStage(row: ApplicationRow, options: ApplicationStatusOption[]) {
+  return applicationCurrentStageMeta(row.status, rowStatusName(row, options));
 }
 
 function rowStatusDotColor(row: ApplicationRow, options: ApplicationStatusOption[]): string | null {
@@ -1177,12 +1182,12 @@ export default function JobApplicationsPage() {
   const listingStageOptions = useMemo(() => {
     const labels = new Set<string>();
     for (const row of rows) {
-      labels.add(applicationCurrentStageMeta(row.status).label);
+      labels.add(rowCurrentStage(row, statusOptions).label);
     }
     return Array.from(labels)
       .sort((a, b) => a.localeCompare(b))
       .map((label) => ({ value: label, label }));
-  }, [rows]);
+  }, [rows, statusOptions]);
 
   const workflowOptions = useMemo(() => {
     const labels = new Set<string>();
@@ -1429,7 +1434,7 @@ export default function JobApplicationsPage() {
     }
     if (listingStageFilter) {
       next = next.filter(
-        (row) => applicationCurrentStageMeta(row.status).label === listingStageFilter
+        (row) => rowCurrentStage(row, statusOptions).label === listingStageFilter
       );
     }
     if (evaluationFilter === "analyzed") {
@@ -2231,6 +2236,7 @@ export default function JobApplicationsPage() {
                 jobId={jobId || undefined}
                 from="applications"
               />
+              <CandidatePreHireIconLink workerId={workerId} candidateName={name} />
             </div>
           </div>
         );
@@ -2300,7 +2306,7 @@ export default function JobApplicationsPage() {
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "currentStage": {
-        const stage = applicationCurrentStageMeta(row.status);
+        const stage = rowCurrentStage(row, statusOptions);
         const note = row.statusNote?.trim() || stage.subtitle;
         return (
           <div className="min-w-0 text-left">

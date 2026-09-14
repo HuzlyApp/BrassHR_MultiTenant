@@ -20,6 +20,12 @@ import { parseServiceAreaLocationFromFormData } from "@/lib/service-area/parse-l
 import { jobValidationServiceAreaResponse } from "@/lib/service-area/http"
 import { isResumeUploadValidationError } from "@/lib/resume/validate-resume-upload"
 import { normalizeResumeWhitespace } from "@/lib/jobs/match-analysis/sanitize-resume"
+import { repairExtractedResumeText } from "@/lib/resume/normalize-resume-text"
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name"
+
+function finalizeExtractedResumeText(text: string): string {
+  return repairExtractedResumeText(normalizeResumeWhitespace(text))
+}
 
 export const runtime = "nodejs"
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
@@ -85,7 +91,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
 
   if (mime === "application/pdf" || lower.endsWith(".pdf")) {
     const pdf = await pdfParse(buffer)
-    return normalizeResumeWhitespace(pdf.text || "")
+    return finalizeExtractedResumeText(pdf.text || "")
   }
 
   if (
@@ -94,7 +100,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
     lower.endsWith(".docx")
   ) {
     const result = await mammoth.extractRawText({ buffer })
-    return normalizeResumeWhitespace(result.value || "")
+    return finalizeExtractedResumeText(result.value || "")
   }
 
   if (mime === "application/msword" || lower.endsWith(".doc")) {
@@ -331,7 +337,17 @@ export async function POST(req: Request) {
   }
 
   const folder = applicantId
-  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`
+  const { data: workerNames } = await supabase
+    .from("worker")
+    .select("first_name, last_name")
+    .eq("id", workerCtx.workerId)
+    .maybeSingle()
+  const storedFileName = buildWorkerResumeFileName({
+    firstName: workerNames?.first_name as string | null | undefined,
+    lastName: workerNames?.last_name as string | null | undefined,
+    originalFileName: file.name,
+  })
+  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(storedFileName)}`
 
   const storageTimer = createTimer()
   let uploadError: { message?: string } | null = null
@@ -408,7 +424,7 @@ export async function POST(req: Request) {
     resumeId = await withTimeout(
       persistWorkerResumeRecord(supabase, applicantId, {
         fileUrl: objectPath,
-        originalFileName: file.name,
+        originalFileName: storedFileName,
         parsedData: { text },
         parsingStatus: "processing",
         textLength,
@@ -539,7 +555,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     resumeId: capturedResumeId,
-    fileName: file.name,
+    fileName: storedFileName,
     storagePath: objectPath,
     parseStatus: "processing",
     bucket: WORKER_RESUMES_BUCKET,

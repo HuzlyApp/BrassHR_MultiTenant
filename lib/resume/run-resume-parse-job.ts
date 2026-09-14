@@ -8,6 +8,7 @@ import { grokParseResume } from "@/lib/resume/grok-parse-resume"
 import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name"
 
 export type ResumeParseJobResult = {
   parsingStatus: "completed" | "failed"
@@ -52,9 +53,20 @@ export async function runResumeParseJob(params: {
     textLength: text.length,
   })
 
+  const { data: existingResume } = await supabase
+    .from("worker_resumes")
+    .select("original_file_name, file_name")
+    .eq("id", resumeId)
+    .maybeSingle()
+  const originalFileName =
+    (typeof existingResume?.original_file_name === "string"
+      ? existingResume.original_file_name
+      : null) ||
+    (typeof existingResume?.file_name === "string" ? existingResume.file_name : null)
+
   let aiParseMs = 0
   try {
-    const grok = await grokParseResume(safeText)
+    const grok = await grokParseResume(safeText, { fileName: originalFileName })
     aiParseMs = grok.aiParseMs
 
     const qualityTimer = createTimer()
@@ -73,6 +85,18 @@ export async function runResumeParseJob(params: {
       ),
     )
     const completedAt = new Date().toISOString()
+    const parsedFirst =
+      typeof parsedJson.first_name === "string" ? parsedJson.first_name : ""
+    const parsedLast = typeof parsedJson.last_name === "string" ? parsedJson.last_name : ""
+    const namedFile = buildWorkerResumeFileName({
+      firstName: parsedFirst,
+      lastName: parsedLast,
+      originalFileName,
+    })
+    const renamePatch =
+      parsedFirst.trim() || parsedLast.trim()
+        ? { original_file_name: namedFile, file_name: namedFile }
+        : {}
 
     if (quality.ok) {
       await supabase
@@ -87,6 +111,7 @@ export async function runResumeParseJob(params: {
           parse_completed_at: completedAt,
           parsed_at: completedAt,
           ai_parse_ms: aiParseMs,
+          ...renamePatch,
         })
         .eq("id", resumeId)
 

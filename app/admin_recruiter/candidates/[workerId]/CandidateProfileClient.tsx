@@ -569,7 +569,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
         { header: "Company", value: (row) => row.companyName },
         { header: "Work Type", value: (row) => row.workType },
         { header: "Application Date", value: (row) => formatProfileApplicationDate(row.appliedAt).absolute },
-        { header: "Current Stage", value: (row) => applicationCurrentStageMeta(row.status).label },
+        { header: "Current Stage", value: (row) => applicationCurrentStageMeta(row.status, row.statusName).label },
         { header: "Status", value: (row) => row.statusName },
         { header: "Resume", value: (row) => row.resume?.fileName || "" },
       ],
@@ -840,7 +840,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                   <tbody>
                     {filteredApplications.map((row) => {
                       const applied = formatProfileApplicationDate(row.appliedAt);
-                      const stage = applicationCurrentStageMeta(row.status);
+                      const stage = applicationCurrentStageMeta(row.status, row.statusName);
                       const note = row.statusNote?.trim() || stage.subtitle;
                       return (
                         <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">

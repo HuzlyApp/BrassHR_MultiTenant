@@ -1,13 +1,18 @@
 "use client";
 
 import { Check, Plus } from "lucide-react";
-import { JOB_FORM_JOB_TYPES } from "./job-form-shared";
+import {
+  JOB_FORM_JOB_TYPES,
+  parseJobFormJobTypes,
+  toggleJobFormJobType,
+} from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
 
 type JobTypeChipSelectProps = {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  label?: string;
   labelClassName?: string;
 };
 
@@ -20,24 +25,25 @@ export function JobTypeChipSelect({
   value,
   onChange,
   error,
+  label = "Employment Type",
   labelClassName = "mb-1.5 block cursor-pointer text-sm font-normal text-[#64748B]",
 }: JobTypeChipSelectProps) {
-  const selected = value.trim();
+  const selected = new Set(parseJobFormJobTypes(value));
 
   return (
     <div>
       <span className={labelClassName}>
-        Employment Type
+        {label}
         <JobFormRequiredMark />
       </span>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
         {JOB_FORM_JOB_TYPES.map((option) => {
-          const isSelected = selected === option;
+          const isSelected = selected.has(option);
           return (
             <button
               key={option}
               type="button"
-              onClick={() => onChange(option)}
+              onClick={() => onChange(toggleJobFormJobType(value, option))}
               className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
                 isSelected
                   ? "border border-[color:var(--brand-secondary)] bg-white text-[#1D2739] shadow-sm"

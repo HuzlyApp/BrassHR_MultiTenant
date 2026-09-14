@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -17,6 +17,7 @@ import {
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
+import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -55,11 +56,13 @@ import {
   writeJobRequisitionFormDraft,
 } from "@/lib/jobs/job-requisition-form-draft";
 import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
+import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
   placementType: null,
   professionId: "",
+  profession: "",
   specialtyId: null,
   employmentType: "" as JobRequisitionInput["employmentType"],
   internalRequisitionNumber: "",
@@ -106,7 +109,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [serviceAreaBlocked, setServiceAreaBlocked] = useState(false);
+  const [serviceAreaBlockMessage, setServiceAreaBlockMessage] = useState<string | null>(null);
   const skipJobLoadRef = useRef(false);
+
+  const onServiceAreaBlockedChange = useCallback((blocked: boolean, message: string | null) => {
+    setServiceAreaBlocked(blocked);
+    setServiceAreaBlockMessage(message);
+  }, []);
 
   const returnTo = jobId
     ? `/admin_recruiter/jobs/${encodeURIComponent(jobId)}/edit`
@@ -272,8 +282,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [step]);
 
   const professionLabel = useMemo(
-    () => options?.professions.find((item) => item.id === job.professionId)?.name ?? "",
-    [job.professionId, options?.professions]
+    () =>
+      job.profession?.trim() ||
+      options?.professions.find((item) => item.id === job.professionId)?.name ||
+      "",
+    [job.profession, job.professionId, options?.professions]
   );
 
   const specialtyLabel = useMemo(
@@ -363,6 +376,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     overrideWorkflowId,
     job.sourceType,
     job.placementType,
+    job.profession,
     job.professionId,
     job.specialtyId,
     job.employmentType,
@@ -370,12 +384,20 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     job.jobLocationType,
     job.yearsOfExperience,
     options?.workflows,
+    options?.professions,
   ]);
 
-  const specialties = useMemo(
-    () => options?.specialties.filter((item) => item.profession_id === job.professionId) ?? [],
-    [job.professionId, options?.specialties]
-  );
+  useEffect(() => {
+    const name = job.profession?.trim();
+    if (!name || !options?.professions?.length) return;
+    const nextId = matchProfessionIdByName(options.professions, name);
+    if ((job.professionId || null) === (nextId || null)) return;
+    setJob((current) => ({
+      ...current,
+      professionId: nextId ?? "",
+      specialtyId: (current.professionId || null) === (nextId || null) ? current.specialtyId : null,
+    }));
+  }, [job.profession, job.professionId, options?.professions]);
 
   function updateJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     if (
@@ -384,7 +406,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     ) {
       setConfirmRoutingChange(false);
     }
-    setJob((current) => ({ ...current, [key]: value }));
+    setJob((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "location" || key === "postalCode") {
+        next.worksiteCity = null;
+        next.worksiteState = null;
+        next.worksitePostalCode = null;
+      }
+      return next;
+    });
     setFieldErrors((current) => {
       const next = { ...current };
       delete next[key];
@@ -427,7 +457,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (!current.publicTitle?.trim()) {
         errors.publicTitle = "Job Title is required.";
       }
-      if (!current.professionId) {
+      if (!current.profession?.trim() && !current.professionId) {
         errors.professionId = "Profession is required.";
       }
       if (!current.employmentType) {
@@ -468,6 +498,22 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     setMessage("");
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
+
+    if (action === "publish" && serviceAreaBlocked) {
+      const blockedMessage = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
+      setFieldErrors({ location: blockedMessage });
+      setMessage(blockedMessage);
+      setSaving(false);
+      if (payloadJob.sourceType === "MSP") setStep("msp-details");
+      else setStep("requisition");
+      return;
+    }
+    if (action === "save_draft" && serviceAreaBlocked) {
+      setMessage(
+        serviceAreaBlockMessage ||
+          `${SERVICE_AREA_COPY.location_not_enabled} You can save this draft, but it cannot be published yet.`
+      );
+    }
 
     if (action === "publish") {
       const stepErrors = {
@@ -523,7 +569,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           }
         }
         setFieldErrors(payload.fieldErrors ?? {});
-        throw new Error(payload.error || "Failed to save job");
+        throw new Error(readServiceAreaApiMessage(payload, "Failed to save job"));
       }
       if (payload.job?.id) {
         setPersistedJobId(String(payload.job.id));
@@ -814,10 +860,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   ui={ui}
                   fieldErrors={fieldErrors}
                   professions={options?.professions ?? []}
-                  specialties={specialties}
                   employmentTypes={options?.employmentTypes ?? ["W2", "1099"]}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
@@ -856,6 +902,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   fieldErrors={fieldErrors}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
@@ -916,7 +963,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 job={buildPayloadJob()}
                 ui={ui}
                 professionName={professionLabel}
-                specialtyName={specialtyLabel}
                 onEditField={setReviewEditField}
                 brandVars={brandVars}
               />
@@ -984,7 +1030,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         brandStyle={brandStyle}
         brandVars={brandVars}
         professions={options?.professions ?? []}
-        specialties={options?.specialties ?? []}
         employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
         sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
         employerOfRecordOptions={options?.employerOfRecordOptions ?? []}

@@ -390,9 +390,9 @@ export function worksiteFromJobInput(input: {
     normalizeServiceAreaLocationType(input.jobLocationType) ?? "onsite";
   return {
     country: "US",
-    city: input.worksiteCity?.trim() || parsed.city,
-    state: input.worksiteState?.trim() || parsed.state,
-    postalCode: input.worksitePostalCode?.trim() || parsed.postalCode,
+    city: parsed.city || input.worksiteCity?.trim() || "",
+    state: parsed.state || input.worksiteState?.trim() || "",
+    postalCode: parsed.postalCode || input.worksitePostalCode?.trim() || "",
     locationType,
     remoteAllowedStates: normalizeRemoteStates(input.remoteAllowedStates),
   };

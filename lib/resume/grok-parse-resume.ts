@@ -4,7 +4,13 @@ import {
   normalizeParsedResume,
   type NormalizedParsedResume,
 } from "@/lib/resumeParseQuality"
-import { buildGrokResumeSnippet, preExtractResumeFields } from "@/lib/resume/normalize-resume-text"
+import {
+  buildGrokResumeSnippet,
+  grokSnippetIsReduced,
+  preExtractResumeFields,
+  sanitizeParsedIdentityFields,
+  type ResumeFieldExtractOptions,
+} from "@/lib/resume/normalize-resume-text"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 
 export const GROK_RESUME_MODEL = "grok-4-fast"
@@ -70,9 +76,10 @@ Schema:
 }
 
 Rules:
-- Split full name into first_name and last_name when not already known.
+- first_name and last_name are the person's name only. Never put a job title, email, phone, LinkedIn URL, or pipe-separated contact line in last_name.
+- "Sr SAP Consultant", "Senior Engineer", and similar phrases are job_role, not last_name. A last initial such as "K" is a valid last_name.
 - Extract ZIP / postal code into zip when present.
-- City and state are enough for location. Extract "City, ST" from the header even when there is no street address.
+- City and state are geographic locations from the header. Never use software/ERP module codes (MM, SD, FI, CO, PP, QM) as city or state.
 - job_role is the current or most recent title (any industry, not only healthcare).
 - Repair obvious OCR/PDF typos in emails (gmail.cor → gmail.com, .con → .com on well-known providers).
 - If a field is already known below, only change it when the snippet clearly contradicts it; otherwise return the known value or fill missing fields.
@@ -91,10 +98,13 @@ export type GrokParseResumeResult = {
 }
 
 /** Parse resume text with regex pre-extraction + reduced Grok payload. */
-export async function grokParseResume(fullText: string): Promise<GrokParseResumeResult> {
-  const preExtracted = preExtractResumeFields(fullText)
+export async function grokParseResume(
+  fullText: string,
+  opts?: ResumeFieldExtractOptions,
+): Promise<GrokParseResumeResult> {
+  const preExtracted = preExtractResumeFields(fullText, opts)
   const grokSnippet = buildGrokResumeSnippet(fullText)
-  const grokSnippetReduced = fullText.trim().length > grokSnippet.length
+  const grokSnippetReduced = grokSnippetIsReduced(fullText, grokSnippet)
 
   logResumeTiming("process-resume", "grok-request", {
     fullTextLength: fullText.length,
@@ -117,7 +127,11 @@ export async function grokParseResume(fullText: string): Promise<GrokParseResume
   const result = completion.choices?.[0]?.message?.content || ""
   const extracted = extractJsonObjectFromModelText(result)
   const fromGrok = normalizeParsedResume(extracted ?? {})
-  const normalized = normalizeParsedResume(mergeParsedFields(preExtracted, fromGrok))
+  const normalized = sanitizeParsedIdentityFields(
+    normalizeParsedResume(mergeParsedFields(preExtracted, fromGrok)),
+    fullText,
+    opts,
+  )
 
   logResumeTiming("process-resume", "grok-response", { aiParseMs })
 

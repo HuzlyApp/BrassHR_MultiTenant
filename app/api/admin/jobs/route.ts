@@ -212,9 +212,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof JobValidationError) {
       const field = Object.keys(error.fieldErrors)[0] || "location";
       const messageKey = isServiceAreaValidationCode(error.code)
-        ? error.code === "remote_unscoped" || error.code === "platform_hold" || error.code === "outside_hiring_area"
-          ? "location_not_enabled"
-          : "location_not_available"
+        ? "location_not_enabled"
         : undefined;
       return NextResponse.json(
         {

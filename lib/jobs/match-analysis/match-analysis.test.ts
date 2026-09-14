@@ -212,6 +212,39 @@ describe("parseAndValidateMatchAnalysis", () => {
       ]);
     }
   });
+
+  it("maps Technology prompt output fields onto the Analyze schema", () => {
+    const tech = {
+      match_score: 54,
+      recommendation: "Hold",
+      hard_knockout: false,
+      strengths: ["Sentinel listed on 2022-2024 SOC analyst role."],
+      weaknesses: ["GKE appears only as a skills-list cousin of Kubernetes."],
+      resume_authenticity: "Low concern",
+      items_to_verify: ["Confirm Kubernetes vs GKE production ownership"],
+      recruiter_questions: ["Which clusters did you run on GKE, and in which years?"],
+      potential_score_after_verification: 71,
+      mandatory_requirements: [
+        {
+          requirement: "Kubernetes",
+          status: "PARTIAL",
+          evidence: "Skills list includes Kubernetes; no dated cluster ownership bullet.",
+        },
+      ],
+      preferred_requirements: [],
+    };
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(tech));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(54);
+      expect(parsed.data.candidate_match.match_category).toBe("WEAK_MATCH");
+      expect(parsed.data.candidate_match.recommended_action).toBe("KEEP_AS_POSSIBLE");
+      expect(parsed.data.candidate_match.display_category).toBe("Hold");
+      expect(parsed.data.candidate_match.recruiter_decision_summary).toContain("71");
+      expect(parsed.data.gaps_and_risks[0]).toContain("GKE");
+      expect(parsed.data.screening_questions[0]?.question).toContain("GKE");
+    }
+  });
 });
 
 describe("analyze vs deep prompts", () => {
@@ -320,6 +353,19 @@ describe("applyFairnessOutcomes", () => {
       }),
     ]);
     expect(result.requirement_outcome).toBe("CONFLICT");
+  });
+
+  it("maps location mismatch without inability to VERIFY instead of a conflict knockout", () => {
+    const [result] = applyFairnessOutcomes([
+      req({
+        requirement: "Ability to work on-site in Richardson, TX",
+        status: "CONFLICTING",
+        requirement_outcome: "CONFLICT",
+        candidate_evidence: "JD states McLean, VA on-site; candidate currently works in Richardson, TX.",
+      }),
+    ]);
+    expect(result.status).toBe("PARTIAL");
+    expect(result.requirement_outcome).toBe("VERIFY");
   });
 });
 
@@ -484,5 +530,155 @@ describe("rescoreMatchAnalysis", () => {
     });
     const rescored = rescoreMatchAnalysis(analysis);
     expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThanOrEqual(75);
+  });
+
+  it("keeps the model score for Technology pack instead of parking at 45", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 54,
+        match_category: "WEAK_MATCH",
+        display_category: "Hold",
+        recommended_action: "KEEP_AS_POSSIBLE",
+      },
+      mandatory_requirements: [
+        req({
+          requirement: "Kubernetes",
+          status: "PARTIAL",
+          requirement_outcome: "VERIFY",
+          candidate_evidence: "Skills list only",
+        }),
+        req({
+          requirement: "Informatica IDMC",
+          status: "NOT_FOUND",
+          requirement_outcome: "VERIFY",
+          candidate_evidence: "Not listed",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBe(54);
+    expect(rescored.candidate_match.display_category).toBe("Hold");
+    expect(rescored.candidate_match.match_category).toBe("WEAK_MATCH");
+    expect(rescored.candidate_match.recommended_action).toBe("KEEP_AS_POSSIBLE");
+  });
+
+  it("does not cap a strong Java match at 45 for a location mismatch without inability", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 82,
+        match_category: "GOOD_MATCH",
+        display_category: "Submit",
+        recommended_action: "CALL_AND_VERIFY",
+        mandatory_requirement_override: false,
+      },
+      submission_readiness: {
+        ...baseAnalysis().submission_readiness,
+        ready_to_submit: false,
+        readiness_status: "VERIFY_BEFORE_SUBMISSION",
+        blocking_requirements: [],
+      },
+      mandatory_requirements: [
+        req({ requirement: "Java / J2EE", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Spring Boot", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Microservices", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "REST APIs", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "SQL", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "AWS", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "CI/CD", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Agile", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({
+          requirement: "Ability to work on-site in Richardson, TX",
+          status: "CONFLICTING",
+          requirement_outcome: "CONFLICT",
+          candidate_evidence:
+            "JD states McLean, VA on-site; candidate currently works in Richardson, TX.",
+        }),
+        req({
+          requirement: "GenAI experience",
+          status: "NOT_FOUND",
+          requirement_outcome: "VERIFY",
+          candidate_evidence: "Not listed on résumé",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBe(82);
+    expect(rescored.candidate_match.match_category).not.toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.recommended_action).not.toBe("STOP_FOR_THIS_JOB");
+    expect(rescored.mandatory_requirements.find((r) => /on-site/i.test(r.requirement))?.requirement_outcome).toBe(
+      "VERIFY"
+    );
+  });
+
+  it("unparks a Technology 45 when most mandatories are confirmed and the only conflict is onsite location", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 45,
+        match_category: "NOT_CURRENTLY_SUBMITTABLE",
+        display_category: "Do Not Submit",
+        recommended_action: "STOP_FOR_THIS_JOB",
+        mandatory_requirement_override: true,
+      },
+      submission_readiness: {
+        ...baseAnalysis().submission_readiness,
+        ready_to_submit: false,
+        readiness_status: "NOT_CURRENTLY_SUBMITTABLE",
+        blocking_requirements: ["Ability to work on-site in Richardson, TX"],
+      },
+      mandatory_requirements: [
+        req({ requirement: "Java / J2EE", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Spring Boot", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Microservices", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "REST APIs", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "SQL", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({
+          requirement: "Ability to work on-site in Richardson, TX",
+          status: "CONFLICTING",
+          requirement_outcome: "CONFLICT",
+          candidate_evidence:
+            "JD states McLean, VA on-site; candidate currently works in Richardson, TX.",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThan(45);
+    expect(rescored.candidate_match.match_category).not.toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.recommended_action).not.toBe("STOP_FOR_THIS_JOB");
+    expect(rescored.candidate_match.display_category).not.toBe("Do Not Submit");
+  });
+
+  it("keeps Technology hard knockouts instead of fairness-rescoring them to VERIFY", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 54,
+        match_category: "NOT_CURRENTLY_SUBMITTABLE",
+        display_category: "Do Not Submit",
+        mandatory_requirement_override: true,
+        recommended_action: "STOP_FOR_THIS_JOB",
+      },
+      submission_readiness: {
+        ...baseAnalysis().submission_readiness,
+        ready_to_submit: false,
+        readiness_status: "NOT_CURRENTLY_SUBMITTABLE",
+        blocking_requirements: ["AWS Solutions Architect Professional"],
+      },
+      mandatory_requirements: [
+        req({
+          requirement: "AWS Solutions Architect Professional",
+          status: "NOT_FOUND",
+          requirement_outcome: "NOT_MET",
+          candidate_evidence: "Not listed on resume",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBe(54);
+    expect(rescored.candidate_match.match_category).toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.mandatory_requirement_override).toBe(true);
+    expect(rescored.candidate_match.recommended_action).toBe("STOP_FOR_THIS_JOB");
   });
 });

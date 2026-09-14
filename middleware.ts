@@ -390,9 +390,12 @@ export async function middleware(request: NextRequest) {
 
     if (
       isYourTrialPath &&
-      !onboardingStatus.signupCompleted &&
-      !onboardingStatus.tenantOnboardingCompleted
+      (onboardingStatus.waitlistPending ||
+        (!onboardingStatus.signupCompleted && !onboardingStatus.tenantOnboardingCompleted))
     ) {
+      if (onboardingStatus.waitlistPending) {
+        return NextResponse.redirect(new URL("/signup/waitlist", request.url));
+      }
       return NextResponse.redirect(new URL("/signup", request.url));
     }
 
@@ -594,6 +597,7 @@ export const config = {
     "/admin",
     "/admin/:path*",
     "/signup",
+    "/signup/:path*",
     "/your-trial",
     "/tenant-onboarding",
     "/tenant-onboarding/:path*",
