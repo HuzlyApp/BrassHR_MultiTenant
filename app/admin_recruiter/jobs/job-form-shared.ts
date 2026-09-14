@@ -29,13 +29,8 @@ export const JOB_FORM_MSP_JOB_DETAIL_OPTIONS = [
   "Permanent Placement",
 ] as const;
 
-export const JOB_FORM_DURATION_OPTIONS = [
-  "4 weeks",
-  "8 weeks",
-  "13 weeks",
-  "26 weeks",
-  "52 weeks",
-] as const;
+/** Contract duration is free text (most assignments are 6–12 months). */
+export const JOB_FORM_DURATION_PLACEHOLDER = "e.g. 6 months";
 
 export const JOB_FORM_COMMISSION_FEE_TYPES = [
   { value: "percentage", label: "Percentage" },
