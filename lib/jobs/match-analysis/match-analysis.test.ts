@@ -354,6 +354,19 @@ describe("applyFairnessOutcomes", () => {
     ]);
     expect(result.requirement_outcome).toBe("CONFLICT");
   });
+
+  it("maps location mismatch without inability to VERIFY instead of a conflict knockout", () => {
+    const [result] = applyFairnessOutcomes([
+      req({
+        requirement: "Ability to work on-site in Richardson, TX",
+        status: "CONFLICTING",
+        requirement_outcome: "CONFLICT",
+        candidate_evidence: "JD states McLean, VA on-site; candidate currently works in Richardson, TX.",
+      }),
+    ]);
+    expect(result.status).toBe("PARTIAL");
+    expect(result.requirement_outcome).toBe("VERIFY");
+  });
 });
 
 describe("rescoreMatchAnalysis", () => {
@@ -548,6 +561,93 @@ describe("rescoreMatchAnalysis", () => {
     expect(rescored.candidate_match.display_category).toBe("Hold");
     expect(rescored.candidate_match.match_category).toBe("WEAK_MATCH");
     expect(rescored.candidate_match.recommended_action).toBe("KEEP_AS_POSSIBLE");
+  });
+
+  it("does not cap a strong Java match at 45 for a location mismatch without inability", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 82,
+        match_category: "GOOD_MATCH",
+        display_category: "Submit",
+        recommended_action: "CALL_AND_VERIFY",
+        mandatory_requirement_override: false,
+      },
+      submission_readiness: {
+        ...baseAnalysis().submission_readiness,
+        ready_to_submit: false,
+        readiness_status: "VERIFY_BEFORE_SUBMISSION",
+        blocking_requirements: [],
+      },
+      mandatory_requirements: [
+        req({ requirement: "Java / J2EE", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Spring Boot", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Microservices", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "REST APIs", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "SQL", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "AWS", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "CI/CD", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Agile", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({
+          requirement: "Ability to work on-site in Richardson, TX",
+          status: "CONFLICTING",
+          requirement_outcome: "CONFLICT",
+          candidate_evidence:
+            "JD states McLean, VA on-site; candidate currently works in Richardson, TX.",
+        }),
+        req({
+          requirement: "GenAI experience",
+          status: "NOT_FOUND",
+          requirement_outcome: "VERIFY",
+          candidate_evidence: "Not listed on résumé",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBe(82);
+    expect(rescored.candidate_match.match_category).not.toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.recommended_action).not.toBe("STOP_FOR_THIS_JOB");
+    expect(rescored.mandatory_requirements.find((r) => /on-site/i.test(r.requirement))?.requirement_outcome).toBe(
+      "VERIFY"
+    );
+  });
+
+  it("unparks a Technology 45 when most mandatories are confirmed and the only conflict is onsite location", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 45,
+        match_category: "NOT_CURRENTLY_SUBMITTABLE",
+        display_category: "Do Not Submit",
+        recommended_action: "STOP_FOR_THIS_JOB",
+        mandatory_requirement_override: true,
+      },
+      submission_readiness: {
+        ...baseAnalysis().submission_readiness,
+        ready_to_submit: false,
+        readiness_status: "NOT_CURRENTLY_SUBMITTABLE",
+        blocking_requirements: ["Ability to work on-site in Richardson, TX"],
+      },
+      mandatory_requirements: [
+        req({ requirement: "Java / J2EE", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Spring Boot", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "Microservices", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "REST APIs", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({ requirement: "SQL", status: "CONFIRMED", requirement_outcome: "MET" }),
+        req({
+          requirement: "Ability to work on-site in Richardson, TX",
+          status: "CONFLICTING",
+          requirement_outcome: "CONFLICT",
+          candidate_evidence:
+            "JD states McLean, VA on-site; candidate currently works in Richardson, TX.",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThan(45);
+    expect(rescored.candidate_match.match_category).not.toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.recommended_action).not.toBe("STOP_FOR_THIS_JOB");
+    expect(rescored.candidate_match.display_category).not.toBe("Do Not Submit");
   });
 
   it("keeps Technology hard knockouts instead of fairness-rescoring them to VERIFY", () => {

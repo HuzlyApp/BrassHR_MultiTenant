@@ -59,6 +59,64 @@ export function isExplicitInability(evidence: string): boolean {
   );
 }
 
+/** Logistics / screening items. Score only on explicit inability; otherwise verify. */
+export function isScreeningRequirement(text: string): boolean {
+  return /\b(on-?site|onsite|remote|hybrid|relocat|commute|work authorization|legally authorized|sponsorship|citizen|green card|visa|on-?call|shift|travel|w-?2|c2c|1099|compensation|availability|start date)\b/i.test(
+    text
+  );
+}
+
+function screeningConflictNeedsVerify(item: RequirementItem): boolean {
+  return (
+    isScreeningRequirement(item.requirement) &&
+    !isExplicitInability(item.candidate_evidence?.trim() ?? "")
+  );
+}
+
+const PARKED_SCORES = new Set([45, 50, 55, 59]);
+
+function isParkedScore(score: number): boolean {
+  return PARKED_SCORES.has(score);
+}
+
+function confirmedMajority(mandatory: RequirementItem[]): boolean {
+  const scored = mandatory.filter((r) => r.status !== "NOT_APPLICABLE");
+  if (!scored.length) return false;
+  const confirmed = scored.filter(
+    (r) => r.status === "CONFIRMED" && r.requirement_outcome === "MET"
+  );
+  return confirmed.length * 2 >= scored.length;
+}
+
+function rawKnockoutsAreScreeningOnly(items: RequirementItem[]): boolean {
+  const knock = items.filter(
+    (r) =>
+      r.status === "CONFLICTING" ||
+      r.requirement_outcome === "CONFLICT" ||
+      r.requirement_outcome === "NOT_MET"
+  );
+  if (!knock.length) return true;
+  return knock.every((r) => screeningConflictNeedsVerify(r));
+}
+
+function weightedOverall(
+  mandatoryScore: number,
+  specialtyScore: number,
+  clinicalScore: number,
+  licensesScore: number,
+  workSettingScore: number,
+  preferredScore: number
+): number {
+  return clamp(
+    mandatoryScore * WEIGHTS.mandatory +
+      specialtyScore * WEIGHTS.specialty +
+      clinicalScore * WEIGHTS.clinical +
+      licensesScore * WEIGHTS.licenses +
+      workSettingScore * WEIGHTS.workSetting +
+      preferredScore * WEIGHTS.preferred
+  );
+}
+
 /**
  * Fairness: missing / NOT_FOUND / NOT_MET without clear evidence → VERIFY.
  * Absence ≠ absence of capability.
@@ -69,6 +127,14 @@ export function applyFairnessOutcomes(items: RequirementItem[]): RequirementItem
       return { ...item, requirement_outcome: "NOT_APPLICABLE" as RequirementOutcome };
     }
     if (item.status === "CONFLICTING") {
+      if (screeningConflictNeedsVerify(item)) {
+        return {
+          ...item,
+          status: "PARTIAL" as RequirementStatus,
+          requirement_outcome: "VERIFY" as RequirementOutcome,
+          verification_required: true,
+        };
+      }
       return {
         ...item,
         requirement_outcome: "CONFLICT" as RequirementOutcome,
@@ -140,9 +206,12 @@ function technologyDisplayLabel(
   score: number,
   knockout: boolean
 ): string {
+  if (knockout) return "Do Not Submit";
   const trimmed = incoming?.trim() ?? "";
-  if (TECHNOLOGY_DISPLAY_LABELS.has(trimmed)) return trimmed;
-  return technologyDisplayCategory(score, knockout);
+  if (trimmed === "Do Not Submit" || !TECHNOLOGY_DISPLAY_LABELS.has(trimmed)) {
+    return technologyDisplayCategory(score, false);
+  }
+  return trimmed;
 }
 
 function actionFromCategory(category: MatchCategory): RecommendedAction {
@@ -209,10 +278,11 @@ function looksLikeWorkSetting(text: string): boolean {
 }
 
 function applyMandatoryGapCaps(score: number, mandatory: RequirementItem[]): number {
-  const notFound = mandatory.filter(
-    (r) => r.status === "NOT_FOUND" && r.requirement_outcome !== "NOT_APPLICABLE"
+  const scored = mandatory.filter(
+    (r) => r.requirement_outcome !== "NOT_APPLICABLE" && !screeningConflictNeedsVerify(r)
   );
-  const blocked = mandatory.filter(
+  const notFound = scored.filter((r) => r.status === "NOT_FOUND");
+  const blocked = scored.filter(
     (r) => r.requirement_outcome === "NOT_MET" || r.requirement_outcome === "CONFLICT"
   );
   let capped = score;
@@ -254,7 +324,9 @@ export function rescoreMatchAnalysis(
   const hardKnockouts = mandatory.filter(
     (r) =>
       r.requirement_outcome === "NOT_MET" ||
-      (r.status === "CONFLICTING" && r.requirement_outcome === "CONFLICT")
+      (r.status === "CONFLICTING" &&
+        r.requirement_outcome === "CONFLICT" &&
+        !screeningConflictNeedsVerify(r))
   );
 
   const completeness = raw.data_quality.resume_completeness;
@@ -288,13 +360,29 @@ export function rescoreMatchAnalysis(
   };
 
   if (options?.preserveModelScore) {
-    const overall = clamp(raw.candidate_match.recommended_overall_match_score);
+    const modelOverall = clamp(raw.candidate_match.recommended_overall_match_score);
     const modelHardKnockout =
       raw.candidate_match.mandatory_requirement_override === true ||
       raw.candidate_match.match_category === "NOT_CURRENTLY_SUBMITTABLE" ||
       raw.candidate_match.recommended_action === "STOP_FOR_THIS_JOB" ||
       raw.submission_readiness.readiness_status === "NOT_CURRENTLY_SUBMITTABLE";
-    const knockout = modelHardKnockout || hardKnockouts.length > 0;
+    const screeningOnlyModelStop = rawKnockoutsAreScreeningOnly(raw.mandatory_requirements);
+    const knockout =
+      hardKnockouts.length > 0 || (modelHardKnockout && !screeningOnlyModelStop);
+    let overall = modelOverall;
+    if (!knockout && isParkedScore(modelOverall) && confirmedMajority(mandatory)) {
+      overall = applyMandatoryGapCaps(
+        weightedOverall(
+          mandatoryScore,
+          specialtyScore,
+          clinicalScore,
+          licensesScore,
+          workSettingScore,
+          preferredScore
+        ),
+        mandatory
+      );
+    }
     const category: MatchCategory = knockout
       ? "NOT_CURRENTLY_SUBMITTABLE"
       : categoryFromScore(overall);
@@ -323,20 +411,26 @@ export function rescoreMatchAnalysis(
         ...readiness,
         blocking_requirements: knockout
           ? mandatory.filter((r) => r.requirement_outcome === "NOT_MET").map((r) => r.requirement)
-          : raw.submission_readiness.blocking_requirements,
+          : raw.submission_readiness.blocking_requirements.filter((name) => {
+              const item = mandatory.find((r) => r.requirement === name);
+              if (!item) return true;
+              return item.requirement_outcome === "NOT_MET" || item.requirement_outcome === "CONFLICT";
+            }),
       },
     };
   }
 
-  let overall = clamp(
-    mandatoryScore * WEIGHTS.mandatory +
-      specialtyScore * WEIGHTS.specialty +
-      clinicalScore * WEIGHTS.clinical +
-      licensesScore * WEIGHTS.licenses +
-      workSettingScore * WEIGHTS.workSetting +
-      preferredScore * WEIGHTS.preferred
+  const overall = applyMandatoryGapCaps(
+    weightedOverall(
+      mandatoryScore,
+      specialtyScore,
+      clinicalScore,
+      licensesScore,
+      workSettingScore,
+      preferredScore
+    ),
+    mandatory
   );
-  overall = applyMandatoryGapCaps(overall, mandatory);
 
   if (completeness === "LOW" && mandatory.length > 0) {
     const category: MatchCategory = "NEEDS_MORE_INFORMATION";
