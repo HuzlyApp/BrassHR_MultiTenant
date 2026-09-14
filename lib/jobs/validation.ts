@@ -135,15 +135,8 @@ export function validatePublishableJob(
         "Select the states where this remote role can be worked. There is no United States-wide option.";
     }
   } else {
-    const parsed = locationFromFreeText(
-      input.worksiteCity && input.worksiteState
-        ? `${input.worksiteCity}, ${input.worksiteState}`
-        : location,
-      input.worksitePostalCode ?? input.postalCode
-    );
-    const hasWorksite =
-      Boolean(input.worksiteCity?.trim() && input.worksiteState?.trim()) ||
-      Boolean(parsed.city && parsed.state);
+    const parsed = locationFromFreeText(location, input.postalCode);
+    const hasWorksite = Boolean(parsed.city && parsed.state);
     if (!hasWorksite) {
       errors.location = "Every job needs a worksite city and state.";
     }

@@ -219,7 +219,15 @@ export function JobReviewEditModal({
   const commissionEstimate = formatCommissionEstimateFromPayRate(draft.job, draft.ui);
 
   function patchJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
-    setDraft((current) => ({ ...current, job: { ...current.job, [key]: value } }));
+    setDraft((current) => {
+      const job = { ...current.job, [key]: value };
+      if (key === "location" || key === "postalCode" || key === "facility") {
+        job.worksiteCity = null;
+        job.worksiteState = null;
+        job.worksitePostalCode = null;
+      }
+      return { ...current, job };
+    });
   }
 
   function patchUi(patch: Partial<JobFormUiState>) {
