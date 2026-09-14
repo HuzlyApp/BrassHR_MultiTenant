@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { repairExtractedResumeText } from "@/lib/resume/normalize-resume-text";
 import { normalizeResumeWhitespace, sanitizeResumeForMatchAnalysis } from "./sanitize-resume";
+
+function finalizeExtractedResumeText(text: string): string {
+  return repairExtractedResumeText(normalizeResumeWhitespace(text));
+}
 
 export type ResumeTextResult = {
   text: string;
@@ -18,11 +23,11 @@ async function extractTextFromBuffer(
   const lower = fileName.toLowerCase();
   if (lower.endsWith(".pdf")) {
     const pdf = await pdfParse(buffer);
-    return normalizeResumeWhitespace(pdf.text || "");
+    return finalizeExtractedResumeText(pdf.text || "");
   }
   if (lower.endsWith(".docx")) {
     const result = await mammoth.extractRawText({ buffer });
-    return normalizeResumeWhitespace(result.value || "");
+    return finalizeExtractedResumeText(result.value || "");
   }
   if (lower.endsWith(".doc")) {
     throw new Error(
@@ -30,18 +35,18 @@ async function extractTextFromBuffer(
     );
   }
   if (lower.endsWith(".txt") || lower.endsWith(".md")) {
-    return normalizeResumeWhitespace(buffer.toString("utf8"));
+    return finalizeExtractedResumeText(buffer.toString("utf8"));
   }
   // Try PDF then DOCX as fallbacks when extension is missing
   try {
     const pdf = await pdfParse(buffer);
-    if (pdf.text?.trim()) return normalizeResumeWhitespace(pdf.text);
+    if (pdf.text?.trim()) return finalizeExtractedResumeText(pdf.text);
   } catch {
     /* ignore */
   }
   try {
     const result = await mammoth.extractRawText({ buffer });
-    if (result.value?.trim()) return normalizeResumeWhitespace(result.value);
+    if (result.value?.trim()) return finalizeExtractedResumeText(result.value);
   } catch {
     /* ignore */
   }

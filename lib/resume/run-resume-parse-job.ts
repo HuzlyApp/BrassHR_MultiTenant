@@ -53,9 +53,20 @@ export async function runResumeParseJob(params: {
     textLength: text.length,
   })
 
+  const { data: existingResume } = await supabase
+    .from("worker_resumes")
+    .select("original_file_name, file_name")
+    .eq("id", resumeId)
+    .maybeSingle()
+  const originalFileName =
+    (typeof existingResume?.original_file_name === "string"
+      ? existingResume.original_file_name
+      : null) ||
+    (typeof existingResume?.file_name === "string" ? existingResume.file_name : null)
+
   let aiParseMs = 0
   try {
-    const grok = await grokParseResume(safeText)
+    const grok = await grokParseResume(safeText, { fileName: originalFileName })
     aiParseMs = grok.aiParseMs
 
     const qualityTimer = createTimer()
@@ -74,22 +85,13 @@ export async function runResumeParseJob(params: {
       ),
     )
     const completedAt = new Date().toISOString()
-    const { data: existingResume } = await supabase
-      .from("worker_resumes")
-      .select("original_file_name, file_name")
-      .eq("id", resumeId)
-      .maybeSingle()
     const parsedFirst =
       typeof parsedJson.first_name === "string" ? parsedJson.first_name : ""
     const parsedLast = typeof parsedJson.last_name === "string" ? parsedJson.last_name : ""
     const namedFile = buildWorkerResumeFileName({
       firstName: parsedFirst,
       lastName: parsedLast,
-      originalFileName:
-        (typeof existingResume?.original_file_name === "string"
-          ? existingResume.original_file_name
-          : null) ||
-        (typeof existingResume?.file_name === "string" ? existingResume.file_name : null),
+      originalFileName,
     })
     const renamePatch =
       parsedFirst.trim() || parsedLast.trim()
