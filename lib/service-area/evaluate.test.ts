@@ -337,6 +337,12 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     expect(decision.reasonCode).toBe("unknown_location");
   });
 
+  it("blocks unlisted plausible cities such as NotARealCity, TX", () => {
+    const decision = evaluate({ city: "NotARealCity", state: "TX", locationType: "onsite" });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasonCode).toBe("unknown_location");
+  });
+
   it("blocks unclassified New York cities that are not NYC or known upstate", () => {
     const decision = evaluate({ city: "NotARealHamlet", state: "NY", locationType: "onsite" });
     expect(decision.allowed).toBe(false);

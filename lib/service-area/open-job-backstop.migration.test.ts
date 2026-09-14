@@ -17,4 +17,17 @@ describe("open job service-area database backstop", () => {
   it("raises the required user-facing message", () => {
     expect(sql).toContain(SERVICE_AREA_COPY.location_not_enabled);
   });
+
+  it("covers NYC neighborhood aliases used by the application evaluator", () => {
+    expect(sql).toContain("'chelsea'");
+    expect(sql).toContain("'soho'");
+    expect(sql).toContain("'tribeca'");
+    expect(sql).toContain("'hells kitchen'");
+  });
+
+  it("normalizes Remote, Hybrid and checks remote_allowed_states", () => {
+    expect(sql).toContain("remote,-hybrid");
+    expect(sql).toMatch(/v_type IN \('hybrid', 'remote,-hybrid', 'remote-hybrid'\)/);
+    expect(sql).toContain("NEW.remote_allowed_states");
+  });
 });

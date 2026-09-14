@@ -141,12 +141,7 @@ function toJobRow(input: JobRequisitionInput) {
   const location = normalizedPrimary.location ?? (rawLocation ? rawLocation : null);
   const postalCode =
     clean(input.postalCode) ?? normalizedPrimary.zipCode ?? null;
-  const parsedWorksite = locationFromFreeText(
-    input.worksiteCity && input.worksiteState
-      ? `${input.worksiteCity}, ${input.worksiteState}`
-      : location,
-    input.worksitePostalCode ?? postalCode
-  );
+  const parsedWorksite = locationFromFreeText(location, postalCode);
   const additionalLocations = Array.isArray(input.additionalLocations)
     ? input.additionalLocations
         .map(

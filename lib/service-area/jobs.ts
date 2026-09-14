@@ -20,9 +20,6 @@ export function jobInputToServiceAreaLocation(input: JobRequisitionInput): Servi
     postalCode: input.postalCode,
     jobLocationType: input.jobLocationType ?? input.schedule,
     remoteAllowedStates: input.remoteAllowedStates,
-    worksiteCity: input.worksiteCity,
-    worksiteState: input.worksiteState,
-    worksitePostalCode: input.worksitePostalCode,
   });
 }
 
@@ -65,7 +62,9 @@ export async function evaluateJobServiceArea(
   input: JobRequisitionInput,
   options: { publish: boolean; actorUserId: string; jobId?: string }
 ): Promise<{ decision: ServiceAreaDecision; warning: string | null; status: "ok" | "blocked" }> {
-  await assertTenantCanOperate(supabase, tenantId);
+  if (options.publish) {
+    await assertTenantCanOperate(supabase, tenantId);
+  }
 
   const locations: ServiceAreaLocation[] = [jobInputToServiceAreaLocation(input)];
   if (!isRemoteJobLocationType(input.jobLocationType ?? input.schedule)) {
@@ -82,6 +81,7 @@ export async function evaluateJobServiceArea(
     }
   }
 
+  let platformHold: ServiceAreaDecision | null = null;
   let firstDeny: ServiceAreaDecision | null = null;
   let lastOk: ServiceAreaDecision | null = null;
   for (const location of locations) {
@@ -96,13 +96,17 @@ export async function evaluateJobServiceArea(
       { createdBy: options.actorUserId }
     );
     if (!decision.allowed) {
-      firstDeny = decision;
-      break;
+      if (!firstDeny) firstDeny = decision;
+      if (decision.reasonCode === "platform_hold") {
+        platformHold = decision;
+        break;
+      }
+      continue;
     }
     lastOk = decision;
   }
 
-  const decision = firstDeny ?? lastOk ?? {
+  const decision = platformHold ?? firstDeny ?? lastOk ?? {
     allowed: true,
     reasonCode: "ok" as const,
     messageKey: "location_not_enabled" as const,

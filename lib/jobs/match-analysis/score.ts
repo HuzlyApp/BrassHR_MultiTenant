@@ -289,7 +289,12 @@ export function rescoreMatchAnalysis(
 
   if (options?.preserveModelScore) {
     const overall = clamp(raw.candidate_match.recommended_overall_match_score);
-    const knockout = hardKnockouts.length > 0;
+    const modelHardKnockout =
+      raw.candidate_match.mandatory_requirement_override === true ||
+      raw.candidate_match.match_category === "NOT_CURRENTLY_SUBMITTABLE" ||
+      raw.candidate_match.recommended_action === "STOP_FOR_THIS_JOB" ||
+      raw.submission_readiness.readiness_status === "NOT_CURRENTLY_SUBMITTABLE";
+    const knockout = modelHardKnockout || hardKnockouts.length > 0;
     const category: MatchCategory = knockout
       ? "NOT_CURRENTLY_SUBMITTABLE"
       : categoryFromScore(overall);
