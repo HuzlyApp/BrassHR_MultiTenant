@@ -173,18 +173,25 @@ export function resolveAdminCandidateIdentity(
   };
 }
 
-async function parseExtractedResumeText(extractedText: string): Promise<{
+async function parseExtractedResumeText(
+  extractedText: string,
+  fileName?: string | null,
+): Promise<{
   parsed: NormalizedParsedResume;
   qualityOk: boolean;
   qualityMessage: string | null;
 }> {
   const contentError = validateExtractedResumeText(extractedText);
-  const fallback = normalizeParsedResume(preExtractResumeFields(extractedText));
+  const fallback = normalizeParsedResume(
+    preExtractResumeFields(extractedText, { fileName }),
+  );
 
   let parsed = fallback;
   if (!contentError) {
     try {
-      parsed = normalizeParsedResume(await grokParseResumeCached(extractedText));
+      parsed = normalizeParsedResume(
+        await grokParseResumeCached(extractedText, { fileName }),
+      );
     } catch (parseError) {
       console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
       parsed = fallback;
@@ -273,7 +280,10 @@ export async function prepareResumeCandidate(input: {
     throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
   }
 
-  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(extractedText);
+  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(
+    extractedText,
+    resumeFileName,
+  );
 
   return {
     extractedText,

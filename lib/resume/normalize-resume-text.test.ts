@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest"
+import { normalizeParsedResume } from "@/lib/resumeParseQuality"
 import {
   buildGrokResumeSnippet,
   grokSnippetIsReduced,
+  parseNameAndTitle,
   preExtractResumeFields,
+  repairExtractedResumeText,
+  sanitizeParsedIdentityFields,
 } from "@/lib/resume/normalize-resume-text"
+
+const GOUTHAM_HEADER = `
+Goutham Sr SAP Consultant kgouthamk81@gmail.com| 9752078020 | https://www.linkedin.com/in/kgoutham-k-391b78435/
+
+Professional Summary
+
+Served as a Senior SAP Consultant delivering SAP ECC and S/4HANA application enhancements
+across MM, SD, FI/CO, ABAP, BW, and SAP Ariba in a healthcare enterprise environment.
+`.trim()
 
 describe("preExtractResumeFields", () => {
   it("captures email and phone from resume text", () => {
@@ -35,6 +48,86 @@ Senior Full Stack .Net Developer
     expect(fields.email).toBe("korrapatipragathi2709@gmail.com")
     expect(fields.city).toBe("Syracuse")
     expect(fields.state).toBe("NY")
+  })
+
+  it("does not treat a jammed header title and contact line as the last name", () => {
+    const fields = preExtractResumeFields(GOUTHAM_HEADER, {
+      fileName: "Goutham_K_SAP_Consultant.docx",
+    })
+
+    expect(fields.first_name).toBe("Goutham")
+    expect(fields.last_name).toBe("K")
+    expect(fields.email).toBe("kgouthamk81@gmail.com")
+    expect(fields.phone).toMatch(/9752078020/)
+    expect(fields.job_role).toMatch(/SAP Consultant/i)
+    expect(fields.last_name).not.toMatch(/gmail|linkedin|Consultant/i)
+    expect(fields.city).not.toBe("MM")
+    expect(fields.state).not.toBe("SD")
+  })
+})
+
+describe("repairExtractedResumeText", () => {
+  it("splits name, email, phone, and LinkedIn onto separate lines", () => {
+    const repaired = repairExtractedResumeText(
+      "Goutham Sr SAP Consultant kgouthamk81@gmail.com| 9752078020 | https://www.linkedin.com/in/kgoutham-k-391b78435/",
+    )
+    expect(repaired).toContain("Goutham Sr SAP Consultant")
+    expect(repaired).toContain("kgouthamk81@gmail.com")
+    expect(repaired.split("\n").length).toBeGreaterThan(2)
+    expect(repaired.split("\n")[0]).not.toMatch(/gmail|linkedin/i)
+  })
+
+  it("restores camelCase spaces when PDF extraction dropped them", () => {
+    const mashed =
+      "GouthamKSeniorSAPConsultantProfessionalSummaryHighlyskilledandresultsdrivenSAPConsultantwithovertenyearsofexperienceinimplementingconfiguringandoptimizingSAPmodulesincludingS4HANAECC".repeat(
+        1,
+      ) + " kgouthamk81@gmail.com"
+    const repaired = repairExtractedResumeText(mashed)
+    expect(repaired).toMatch(/Goutham K/)
+    expect(repaired).toMatch(/Professional Summary/)
+  })
+})
+
+describe("parseNameAndTitle", () => {
+  it("keeps a normal two-part name", () => {
+    expect(parseNameAndTitle("Jane Doe")).toEqual({
+      first_name: "Jane",
+      last_name: "Doe",
+      job_role: "",
+    })
+  })
+
+  it("moves Sr SAP Consultant out of the last name", () => {
+    expect(parseNameAndTitle("Goutham Sr SAP Consultant")).toEqual({
+      first_name: "Goutham",
+      last_name: "",
+      job_role: "Sr SAP Consultant",
+    })
+  })
+})
+
+describe("sanitizeParsedIdentityFields", () => {
+  it("strips contact details Grok stuffed into last_name and drops SAP module cities", () => {
+    const cleaned = sanitizeParsedIdentityFields(
+      normalizeParsedResume({
+        first_name: "Goutham",
+        last_name:
+          "Sr SAP Consultant kgouthamk81@gmail.com| 9752078020 | https://www.linkedin.com/in/kgoutham-k-391b78435/",
+        email: "kgouthamk81@gmail.com",
+        phone: "9752078020",
+        city: "MM",
+        state: "SD",
+        job_role: "Sr SAP Consultant",
+      }),
+      GOUTHAM_HEADER,
+      { fileName: "Goutham_K_SAP_Consultant.docx" },
+    )
+
+    expect(cleaned.first_name).toBe("Goutham")
+    expect(cleaned.last_name).toBe("K")
+    expect(cleaned.job_role).toMatch(/SAP Consultant/i)
+    expect(cleaned.city).toBe("")
+    expect(cleaned.state).toBe("")
   })
 })
 

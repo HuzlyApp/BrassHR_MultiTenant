@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import pdfParse from "pdf-parse";
-import mammoth from "mammoth";
+import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import type { ApplicantWorkerRow } from "@/lib/applicant-portal";
 import { resolveStaffProfilePhotoUrl } from "@/lib/account/staff-profile-photo";
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
@@ -172,27 +171,7 @@ async function assertJobApplicationForWorker(
 }
 
 async function extractResumeText(buffer: Buffer, file: Pick<File, "name" | "type">): Promise<string> {
-  const lower = file.name.toLowerCase();
-  const mime = (file.type || "").toLowerCase();
-
-  if (mime === "application/pdf" || lower.endsWith(".pdf")) {
-    const pdf = await pdfParse(buffer);
-    return pdf.text;
-  }
-
-  if (
-    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    lower.endsWith(".docx")
-  ) {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  }
-
-  if (mime === "application/msword" || lower.endsWith(".doc")) {
-    throw new Error("Legacy .doc files are not supported. Please save your resume as .docx or PDF.");
-  }
-
-  throw new Error("Only PDF, DOC, and DOCX resumes are supported");
+  return extractResumeTextFromUpload(buffer, file.name);
 }
 
 async function uploadResumeBuffer(
