@@ -14,13 +14,10 @@ type DbClient = SupabaseClient;
 
 export function jobInputToServiceAreaLocation(input: JobRequisitionInput): ServiceAreaLocation {
   return worksiteFromJobInput({
-    location: input.location,
+    location: input.location || input.facility,
     postalCode: input.postalCode,
     jobLocationType: input.jobLocationType ?? input.schedule,
     remoteAllowedStates: input.remoteAllowedStates,
-    worksiteCity: input.worksiteCity,
-    worksiteState: input.worksiteState,
-    worksitePostalCode: input.worksitePostalCode,
   });
 }
 
@@ -60,6 +57,7 @@ export async function evaluateJobServiceArea(
     }
   }
 
+  let platformHold: ServiceAreaDecision | null = null;
   let firstDeny: ServiceAreaDecision | null = null;
   let lastOk: ServiceAreaDecision | null = null;
   for (const location of locations) {
@@ -74,13 +72,17 @@ export async function evaluateJobServiceArea(
       { createdBy: options.actorUserId }
     );
     if (!decision.allowed) {
-      firstDeny = decision;
-      break;
+      if (!firstDeny) firstDeny = decision;
+      if (decision.reasonCode === "platform_hold") {
+        platformHold = decision;
+        break;
+      }
+      continue;
     }
     lastOk = decision;
   }
 
-  const decision = firstDeny ?? lastOk ?? {
+  const decision = platformHold ?? firstDeny ?? lastOk ?? {
     allowed: true,
     reasonCode: "ok" as const,
     messageKey: "location_not_available" as const,
@@ -88,7 +90,9 @@ export async function evaluateJobServiceArea(
     matchedPolicyId: null,
   };
 
-  if (options.publish && !decision.allowed) {
+  const holdDenied =
+    decision.reasonCode === "platform_hold" || decision.reasonCode === "outside_hiring_area";
+  if (!decision.allowed && (options.publish || holdDenied)) {
     throw decisionToJobError(decision);
   }
 

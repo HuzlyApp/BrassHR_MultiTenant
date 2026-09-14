@@ -125,6 +125,37 @@ describe("job requisition validation", () => {
     expect(errors.commissionFixedAmount).toBeDefined();
   });
 
+  it("requires a worksite city and state to publish onsite jobs", () => {
+    const errors = validatePublishableJob(
+      { ...validJob, location: "Dallas", shiftType: "Full-time" },
+      validJob.professionId
+    );
+    expect(errors.location).toBe("Every job needs a worksite city and state.");
+  });
+
+  it("allows remote publish with an explicit state list and no city", () => {
+    const errors = validatePublishableJob(
+      {
+        ...validJob,
+        location: "",
+        jobLocationType: "Remote",
+        remoteAllowedStates: ["TX", "NC"],
+        shiftType: "Full-time",
+      },
+      validJob.professionId
+    );
+    expect(errors.location).toBeUndefined();
+    expect(errors.remoteAllowedStates).toBeUndefined();
+  });
+
+  it("rejects remote publish without a state list", () => {
+    const errors = validatePublishableJob(
+      { ...validJob, location: "", jobLocationType: "Remote", remoteAllowedStates: [], shiftType: "Full-time" },
+      validJob.professionId
+    );
+    expect(errors.remoteAllowedStates).toMatch(/states where this remote role can be worked/i);
+  });
+
   it("does not require MSP name, contract group, or source job ID", () => {
     const errors = validatePublishableJob(
       {
