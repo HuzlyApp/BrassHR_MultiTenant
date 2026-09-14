@@ -3,6 +3,7 @@ import {
   SERVICE_AREA_ENFORCE_PLATFORM_HOLDS,
 } from "@/lib/service-area/config";
 import type { ServiceAreaMessageKey } from "@/lib/service-area/copy";
+import { isUnverifiableWorkCity } from "@/lib/service-area/known-cities";
 import { locationMatchesPolicy, hiringLocationMatches } from "@/lib/service-area/match";
 import { normalizeRemoteStates, normalizeStateCode } from "@/lib/service-area/normalize";
 import type {
@@ -29,9 +30,8 @@ function messageForAction(
   action: ServiceAreaAction,
   reason: ServiceAreaReasonCode
 ): ServiceAreaMessageKey {
-  if (reason === "ok") return "location_not_available";
+  if (reason === "ok") return "location_not_enabled";
   if (action === "signup" || action === "activate_tenant") return "signup_waitlist";
-  if (action === "apply") return "location_not_available";
   return "location_not_enabled";
 }
 
@@ -39,7 +39,7 @@ function ok(): ServiceAreaDecision {
   return {
     allowed: true,
     reasonCode: "ok",
-    messageKey: "location_not_available",
+    messageKey: "location_not_enabled",
     layer: null,
     matchedPolicyId: null,
   };
@@ -64,7 +64,7 @@ function resolvedLocation(
   input: ServiceAreaLocation,
   jobWorksite?: JobWorksite | null
 ): ServiceAreaLocation {
-  if (input.relocateToJobSite && jobWorksite) {
+  if (input.relocateToJobSite && jobWorksite && jobWorksite.locationType !== "remote") {
     return {
       country: "US",
       city: jobWorksite.city,
@@ -116,6 +116,10 @@ function evaluateSingleLocation(
     if (hold) {
       return deny("platform_hold", action, "platform", hold.id);
     }
+  }
+
+  if (isUnverifiableWorkCity(location)) {
+    return deny("unknown_location", action, null, null);
   }
 
   if (!enforceHiringArea) return ok();
@@ -223,24 +227,24 @@ export function toPublicServiceAreaDecision(
   if (decision.allowed) {
     return { allowed: true, reasonCode: "ok", messageKey: decision.messageKey };
   }
-  if (decision.reasonCode === "incomplete_location") {
+  if (decision.reasonCode === "incomplete_location" || decision.reasonCode === "unknown_location") {
     return {
       allowed: false,
-      reasonCode: "incomplete_location",
-      messageKey: decision.messageKey,
+      reasonCode: decision.reasonCode,
+      messageKey: "location_not_enabled",
     };
   }
   if (decision.reasonCode === "remote_unscoped") {
     return {
       allowed: false,
       reasonCode: "remote_unscoped",
-      messageKey: decision.messageKey,
+      messageKey: "location_not_enabled",
     };
   }
   return {
     allowed: false,
     reasonCode: "location_not_available",
-    messageKey: "location_not_available",
+    messageKey: "location_not_enabled",
   };
 }
 

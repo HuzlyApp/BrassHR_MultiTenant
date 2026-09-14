@@ -119,6 +119,7 @@ export const analyzeMatchResponseSchema = z.object({
   recommended_overall_match_score: clampedScore.default(0),
   match_category: z.enum(MATCH_CATEGORIES),
   recommended_action: z.enum(RECOMMENDED_ACTIONS),
+  display_category: z.string().max(200).default(""),
   mandatory_requirements: z.array(analyzeRequirementItemSchema).max(60).default([]),
   preferred_requirements: z.array(analyzeRequirementItemSchema).max(60).default([]),
   strengths: z.array(z.string().max(1000)).max(5).default([]),
@@ -127,6 +128,8 @@ export const analyzeMatchResponseSchema = z.object({
   screening_questions: z.array(z.string().max(1000)).max(4).default([]),
   items_to_verify: z.array(z.string().max(1000)).max(30).default([]),
   blocking_requirements: z.array(z.string().max(1000)).max(30).default([]),
+  hard_knockout: z.boolean().optional().default(false),
+  potential_score_after_verification: clampedScore.nullable().optional(),
 });
 
 export type AnalyzeMatchResponse = z.infer<typeof analyzeMatchResponseSchema>;

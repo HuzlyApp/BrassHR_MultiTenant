@@ -38,3 +38,9 @@ export class TenantWaitlistedError extends Error {
     this.name = "TenantWaitlistedError";
   }
 }
+
+export function isOpenJobServiceAreaHoldError(error: unknown): boolean {
+  const record = error && typeof error === "object" ? (error as { message?: unknown; code?: unknown }) : null;
+  const message = String(record?.message ?? "");
+  return /this work location isn[’']t available yet/i.test(message);
+}

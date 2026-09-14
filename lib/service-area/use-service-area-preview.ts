@@ -87,7 +87,7 @@ export function useServiceAreaPreview(
     };
   }, [key, options?.enabled, options?.publicClient, action, location]);
 
-  const allowed = decision?.allowed !== false;
+  const allowed = decision?.allowed === true;
   const message = decision && !decision.allowed ? serviceAreaMessage(decision.messageKey) : null;
 
   return { decision, loading, allowed, message };

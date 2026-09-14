@@ -66,6 +66,7 @@ import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
 import { jobMatchesDashboardSearchTags } from "@/lib/jobs/jobs-list-search";
+import { jobFormJobTypesInclude, parseJobFormJobTypes } from "./job-form-shared";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
@@ -77,6 +78,7 @@ import {
 import { JobTagsModal } from "./JobTagsModal";
 import { statusActionForTarget } from "./job-details-helpers";
 import type { JobStatus } from "@/lib/jobs/types";
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -977,7 +979,7 @@ export default function AdminRecruiterJobsPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        const message = typeof payload.error === "string" ? payload.error : "Failed to update job";
+        const message = readServiceAreaApiMessage(payload, "Failed to update job");
         const code = typeof payload.code === "string" ? payload.code : undefined;
         setActionErrorModal(
           resolveJobActionErrorModal({
@@ -1103,7 +1105,9 @@ export default function AdminRecruiterJobsPage() {
 
       if (statusFilter && jobListStatus(job) !== statusFilter) return false;
 
-      if (placementTypeFilter && jobShiftType(job) !== placementTypeFilter) return false;
+      if (placementTypeFilter && !jobFormJobTypesInclude(jobShiftType(job), placementTypeFilter)) {
+        return false;
+      }
 
       if (locationFilter && !locationsMatchCityState(jobLocation(job), locationFilter)) return false;
 
@@ -1496,8 +1500,9 @@ export default function AdminRecruiterJobsPage() {
   const placementTypeOptions = useMemo(() => {
     const values = new Set<string>();
     for (const job of jobs) {
-      const placementType = jobShiftType(job);
-      if (placementType) values.add(placementType);
+      for (const type of parseJobFormJobTypes(jobShiftType(job))) {
+        values.add(type);
+      }
     }
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [jobs]);

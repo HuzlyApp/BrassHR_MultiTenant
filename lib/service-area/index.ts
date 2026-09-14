@@ -1,4 +1,4 @@
-export { SERVICE_AREA_COPY, serviceAreaMessage } from "@/lib/service-area/copy";
+export { SERVICE_AREA_COPY, serviceAreaMessage, readServiceAreaApiMessage } from "@/lib/service-area/copy";
 export { parseServiceAreaLocation, parseServiceAreaLocationFromFormData, parseServiceAreaLocationFromSearchParams } from "@/lib/service-area/parse-location";
 export {
   serviceAreaDeniedResponse,
@@ -6,6 +6,9 @@ export {
   tenantWaitlistedResponse,
   isServiceAreaValidationCode,
 } from "@/lib/service-area/http";
+export { isNewYorkCityPlace, NYC_CITY_ALIASES } from "@/lib/service-area/nyc";
+export { isUnverifiableWorkCity, isPhase1RestrictedState } from "@/lib/service-area/known-cities";
+export { evaluateJobServiceArea, requireApplyWorkLocation, assertJobServiceAreaForLiveStatus } from "@/lib/service-area/jobs";
 export {
   evaluateServiceArea,
   toPublicServiceAreaDecision,
