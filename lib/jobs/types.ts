@@ -43,6 +43,8 @@ export type JobRequisitionInput = {
   eorType?: EorType | null;
   mspClient?: string | null;
   professionId?: string | null;
+  /** Free-text profession entered on the job form. Resolved to professionId on save. */
+  profession?: string | null;
   specialtyId?: string | null;
   employmentType: EmploymentType;
   employerOfRecord?: string | null;

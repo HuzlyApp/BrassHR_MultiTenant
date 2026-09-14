@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { Minus, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { isMspRecruitAndRelease } from "@/lib/jobs/placement";
 import { JobDescriptionEditor } from "./JobDescriptionEditor";
@@ -35,19 +35,17 @@ import {
   JOB_FORM_TEXTAREA_CLASS,
   JOB_FORM_YEARS_OF_EXPERIENCE,
   formatCommissionEstimateFromPayRate,
-  specialtySelectPlaceholder,
   type JobFormOption,
-  type JobFormSpecialtyOption,
   type JobFormUiState,
   type CommissionFeeType,
 } from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
+import { matchProfessionIdByName, professionInputValue } from "@/lib/jobs/profession-text";
 
 export type ReviewEditFieldId =
   | "jobId"
   | "jobTitle"
   | "profession"
-  | "specialty"
   | "jobLocation"
   | "additionalLocation"
   | "jobLocationType"
@@ -93,7 +91,6 @@ type Props = {
   /** CSS vars for portal (Radix mounts outside tenant branding wrapper). */
   brandVars?: CSSProperties;
   professions: JobFormOption[];
-  specialties: JobFormSpecialtyOption[];
   employmentTypes: EmploymentType[];
   sourceTypes: SourceType[];
   employerOfRecordOptions: JobFormOption[];
@@ -183,7 +180,6 @@ export function JobReviewEditModal({
   brandStyle,
   brandVars,
   professions,
-  specialties,
   employmentTypes,
   sourceTypes,
   employerOfRecordOptions,
@@ -199,11 +195,6 @@ export function JobReviewEditModal({
       setCustomBenefitName("");
     }
   }, [open, field, job, ui]);
-
-  const filteredSpecialties = useMemo(
-    () => specialties.filter((item) => item.profession_id === draft.job.professionId),
-    [draft.job.professionId, specialties]
-  );
 
   const employmentLabels = employmentTypes.map((type) => employmentTypeLabel(type));
   const isMsp = draft.job.sourceType === "MSP";
@@ -308,51 +299,23 @@ export function JobReviewEditModal({
             {field === "profession" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-profession">
-                  Which category best describes this job?
+                  Profession
                   <JobFormRequiredMark />
                 </label>
-                <select
+                <input
                   id="review-edit-profession"
-                  className={JOB_FORM_SELECT_CLASS}
-                  style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                  value={draft.job.professionId || ""}
+                  className={JOB_FORM_INPUT_CLASS}
+                  value={professionInputValue(draft.job, professions)}
                   onChange={(event) => {
-                    patchJob("professionId", event.target.value);
-                    patchJob("specialtyId", null);
+                    const next = event.target.value;
+                    const nextId = matchProfessionIdByName(professions, next);
+                    patchJob("profession", next);
+                    patchJob("professionId", nextId);
+                    if ((draft.job.professionId || null) !== nextId) {
+                      patchJob("specialtyId", null);
+                    }
                   }}
-                >
-                  <option value="">Select Profession</option>
-                  {professions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-
-            {field === "specialty" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-specialty">
-                  Specialty
-                </label>
-                <select
-                  id="review-edit-specialty"
-                  className={JOB_FORM_SELECT_CLASS}
-                  style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                  value={draft.job.specialtyId || ""}
-                  onChange={(event) => patchJob("specialtyId", event.target.value || null)}
-                  disabled={!draft.job.professionId}
-                >
-                  <option value="">
-                    {specialtySelectPlaceholder(draft.job.professionId, filteredSpecialties.length)}
-                  </option>
-                  {filteredSpecialties.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             ) : null}
 

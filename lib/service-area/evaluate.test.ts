@@ -283,4 +283,29 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     expect(decision.allowed).toBe(true);
     expect(decision.reasonCode).toBe("ok");
   });
+
+  it("production defaults hold CA / IL / CT / NYC work locations", () => {
+    const losAngeles = evaluateServiceArea(
+      { action: "publish_job", location: { city: "Los Angeles", state: "CA", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    const chicago = evaluateServiceArea(
+      { action: "attach_candidate", location: { city: "Chicago", state: "IL", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    const hartford = evaluateServiceArea(
+      { action: "signup", location: { city: "Hartford", state: "CT", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    const brooklyn = evaluateServiceArea(
+      { action: "apply", location: { city: "Brooklyn", state: "NY", locationType: "onsite" } },
+      { policies: PHASE1, zipListsByPolicyId: zipLists }
+    );
+    expect(losAngeles.allowed).toBe(false);
+    expect(losAngeles.reasonCode).toBe("platform_hold");
+    expect(chicago.allowed).toBe(false);
+    expect(hartford.allowed).toBe(false);
+    expect(hartford.messageKey).toBe("signup_waitlist");
+    expect(brooklyn.allowed).toBe(false);
+  });
 });

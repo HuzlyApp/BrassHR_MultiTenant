@@ -6,6 +6,7 @@ import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-prof
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { isReuploadedResumePath } from "@/lib/resume/resume-reupload-path";
 import { countResumeUploadsForRole } from "@/lib/resume/resume-upload-limit";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 
 export type AdminJobApplicationResumeHistoryItem = {
   id: string;
@@ -278,10 +279,14 @@ export async function loadAdminJobApplicationResumeHistory(
     let uploadedByType: AdminJobApplicationResumeHistoryItem["uploadedByType"] = "unknown";
     let uploadedByName = "Unknown";
     let uploadedByPhotoUrl: string | null = null;
-    const fileName =
-      row.original_file_name?.trim() ||
-      row.file_name?.trim() ||
-      "Resume.pdf";
+    const fileName = buildWorkerResumeFileName({
+      firstName: worker?.first_name as string | null | undefined,
+      lastName: worker?.last_name as string | null | undefined,
+      originalFileName:
+        row.original_file_name?.trim() ||
+        row.file_name?.trim() ||
+        "Resume.pdf",
+    });
 
     if (uploaderId && workerUserId && uploaderId === workerUserId) {
       uploadedByType = "worker";

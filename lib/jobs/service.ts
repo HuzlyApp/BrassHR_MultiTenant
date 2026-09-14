@@ -64,6 +64,8 @@ import {
   type JobRequisitionPatchInput,
 } from "@/lib/jobs/job-requisition-patch";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
+import { embeddedRelationName } from "@/lib/jobs/profession-text";
+import { resolveProfessionIdForSave } from "@/lib/jobs/resolve-profession";
 
 type DbClient = SupabaseClient;
 
@@ -544,6 +546,8 @@ export async function saveJobRequisition(
     screeningQuestions?: JobScreeningQuestionInput[];
   } & JobWorkflowAssignmentOptions
 ) {
+  input.professionId = await resolveProfessionIdForSave(supabase, tenantId, input);
+
   if (options.jobId) {
     const { data: existingJob, error: existingJobError } = await supabase
       .from("job_requisitions")
@@ -910,6 +914,7 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
       row.eor_type === "Tenant" || row.eor_type === "MSP" ? row.eor_type : null,
     mspClient: row.msp_client ? String(row.msp_client) : null,
     professionId: String(row.profession_id ?? ""),
+    profession: embeddedRelationName(row.professions) || null,
     specialtyId: row.specialty_id ? String(row.specialty_id) : null,
     employmentType: (row.employment_type as EmploymentType) || "W2",
     employerOfRecord: row.employer_of_record ? String(row.employer_of_record) : null,

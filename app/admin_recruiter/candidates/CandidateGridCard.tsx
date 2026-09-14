@@ -10,6 +10,7 @@ import type { CandidateRow } from "./types";
 
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink";
+import { CandidatePreHireIconLink } from "./CandidatePreHireIconLink";
 import { candidateApplicantProfileHref, candidateMailHref } from "./candidate-links";
 import { prefetchCandidateProfile } from "@/lib/admin/staff-detail-fetch-cache";
 
@@ -127,6 +128,11 @@ export function CandidateGridCard({
                 workerId={c.id}
                 candidateName={c.name}
                 from="candidates"
+                className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+              />
+              <CandidatePreHireIconLink
+                workerId={c.id}
+                candidateName={c.name}
                 className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
               />
             </div>
