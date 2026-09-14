@@ -17,6 +17,7 @@ import {
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -523,7 +524,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           }
         }
         setFieldErrors(payload.fieldErrors ?? {});
-        throw new Error(payload.error || "Failed to save job");
+        throw new Error(readServiceAreaApiMessage(payload, "Failed to save job"));
       }
       if (payload.job?.id) {
         setPersistedJobId(String(payload.job.id));

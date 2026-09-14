@@ -118,6 +118,33 @@ function categoryFromScore(score: number): MatchCategory {
   return "NOT_A_MATCH";
 }
 
+function technologyDisplayCategory(score: number, knockout: boolean): string {
+  if (knockout) return "Do Not Submit";
+  if (score >= STRONG_MATCH_MIN_SCORE) return "Strong Submit";
+  if (score >= 75) return "Submit";
+  if (score >= 60) return "Submit After Verification";
+  if (score >= 40) return "Hold";
+  return "Hold";
+}
+
+const TECHNOLOGY_DISPLAY_LABELS = new Set([
+  "Strong Submit",
+  "Submit",
+  "Submit After Verification",
+  "Hold",
+  "Do Not Submit",
+]);
+
+function technologyDisplayLabel(
+  incoming: string | null | undefined,
+  score: number,
+  knockout: boolean
+): string {
+  const trimmed = incoming?.trim() ?? "";
+  if (TECHNOLOGY_DISPLAY_LABELS.has(trimmed)) return trimmed;
+  return technologyDisplayCategory(score, knockout);
+}
+
 function actionFromCategory(category: MatchCategory): RecommendedAction {
   switch (category) {
     case "STRONG_MATCH":
@@ -209,10 +236,14 @@ function confidenceFromRequirements(
 }
 
 /**
- * Deterministic rescoring. Do not trust model scores as final.
+ * Deterministic rescoring. Do not trust model scores as final, except for the
+ * Technology pack which computes differentiated scores in the prompt itself.
  * Missing résumé evidence is VERIFY (score pressure), not a 0% knockout.
  */
-export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisResponse {
+export function rescoreMatchAnalysis(
+  raw: MatchAnalysisResponse,
+  options?: { preserveModelScore?: boolean }
+): MatchAnalysisResponse {
   const mandatory = applyFairnessOutcomes(
     raw.mandatory_requirements.map((r) => ({ ...r, requirement_type: "MANDATORY" as const }))
   );
@@ -247,6 +278,50 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
   const specialtyScore = avgStatusScore(specialtyItems) ?? mandatoryScore;
   const workSettingScore = avgStatusScore(workSettingItems) ?? mandatoryScore;
   const clinicalScore = avgStatusScore(otherMandatory) ?? mandatoryScore;
+  const subscores = {
+    mandatory_requirements_score: clamp(mandatoryScore),
+    specialty_experience_score: clamp(specialtyScore),
+    clinical_skills_score: clamp(clinicalScore),
+    licenses_certifications_score: clamp(licensesScore),
+    work_setting_equipment_score: clamp(workSettingScore),
+    preferred_qualifications_score: clamp(preferredScore),
+  };
+
+  if (options?.preserveModelScore) {
+    const overall = clamp(raw.candidate_match.recommended_overall_match_score);
+    const knockout = hardKnockouts.length > 0;
+    const category: MatchCategory = knockout
+      ? "NOT_CURRENTLY_SUBMITTABLE"
+      : categoryFromScore(overall);
+    const readiness = readinessFromAnalysis(category, mandatory, raw);
+    const display = technologyDisplayLabel(raw.candidate_match.display_category, overall, knockout);
+    return {
+      ...raw,
+      mandatory_requirements: mandatory,
+      preferred_requirements: preferred,
+      candidate_match: {
+        ...raw.candidate_match,
+        recommended_overall_match_score: overall,
+        match_category: category,
+        display_category: display,
+        confidence_score: confidenceFromRequirements(
+          mandatory,
+          preferred,
+          raw.candidate_match.confidence_score
+        ),
+        mandatory_requirement_override: knockout,
+        recommended_action: knockout ? "STOP_FOR_THIS_JOB" : actionFromCategory(category),
+      },
+      subscores,
+      submission_readiness: {
+        ...raw.submission_readiness,
+        ...readiness,
+        blocking_requirements: knockout
+          ? mandatory.filter((r) => r.requirement_outcome === "NOT_MET").map((r) => r.requirement)
+          : raw.submission_readiness.blocking_requirements,
+      },
+    };
+  }
 
   let overall = clamp(
     mandatoryScore * WEIGHTS.mandatory +
@@ -281,14 +356,7 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
           raw.candidate_match.recruiter_decision_summary ||
           "Résumé completeness is too low for a reliable assessment.",
       },
-      subscores: {
-        mandatory_requirements_score: clamp(mandatoryScore),
-        specialty_experience_score: clamp(specialtyScore),
-        clinical_skills_score: clamp(clinicalScore),
-        licenses_certifications_score: clamp(licensesScore),
-        work_setting_equipment_score: clamp(workSettingScore),
-        preferred_qualifications_score: clamp(preferredScore),
-      },
+      subscores,
       submission_readiness: {
         ...raw.submission_readiness,
         ...readiness,
@@ -330,14 +398,7 @@ export function rescoreMatchAnalysis(raw: MatchAnalysisResponse): MatchAnalysisR
       mandatory_requirement_override: hardKnockouts.length > 0,
       recommended_action: action,
     },
-    subscores: {
-      mandatory_requirements_score: clamp(mandatoryScore),
-      specialty_experience_score: clamp(specialtyScore),
-      clinical_skills_score: clamp(clinicalScore),
-      licenses_certifications_score: clamp(licensesScore),
-      work_setting_equipment_score: clamp(workSettingScore),
-      preferred_qualifications_score: clamp(preferredScore),
-    },
+    subscores,
     submission_readiness: {
       ...raw.submission_readiness,
       ...readiness,

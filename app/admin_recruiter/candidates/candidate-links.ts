@@ -35,3 +35,26 @@ export function candidateFinalApprovalHref(workerId: string) {
 export function candidateAiAnalysisHref(workerId: string) {
   return `/admin_recruiter/candidates/ai-analysis/${encodeURIComponent(workerId)}`;
 }
+
+/** Figma hire journey board (Pre-Hire + Post-Hire tabs). */
+export function candidateHireJourneyHref(
+  workerId: string,
+  opts?: { tab?: "pre_hire" | "post_hire" }
+) {
+  const params = new URLSearchParams();
+  if (opts?.tab === "post_hire") params.set("tab", "post_hire");
+  const query = params.toString();
+  return `/admin_recruiter/candidates/${encodeURIComponent(workerId)}/hire-journey${
+    query ? `?${query}` : ""
+  }`;
+}
+
+/** @deprecated Prefer candidateHireJourneyHref for the Figma hire board. */
+export function candidatePreHireHref(workerId: string) {
+  return candidateHireJourneyHref(workerId, { tab: "pre_hire" });
+}
+
+/** @deprecated Prefer candidateHireJourneyHref for the Figma hire board. */
+export function candidatePostHireHref(workerId: string) {
+  return candidateHireJourneyHref(workerId, { tab: "post_hire" });
+}

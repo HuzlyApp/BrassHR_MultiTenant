@@ -88,7 +88,10 @@ function expandLeanRequirement(
 export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnalysisResponse {
   const blocking = lean.blocking_requirements.filter(Boolean);
   const itemsToVerify = lean.items_to_verify.filter(Boolean);
-  const knockout = lean.match_category === "NOT_CURRENTLY_SUBMITTABLE" || blocking.length > 0;
+  const knockout =
+    lean.hard_knockout === true ||
+    lean.match_category === "NOT_CURRENTLY_SUBMITTABLE" ||
+    blocking.length > 0;
   const strengths = lean.strengths.map((item) => item.trim()).filter(Boolean).slice(0, 5);
   const confirmedStrengths = [...lean.mandatory_requirements, ...lean.preferred_requirements]
     .filter((item) => item.status === "CONFIRMED")
@@ -97,17 +100,25 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
     .slice(0, 5);
   const gaps = lean.gaps_and_risks.map((item) => item.trim()).filter(Boolean).slice(0, 5);
   const authenticity = lean.resume_authenticity.trim();
+  const potential =
+    lean.potential_score_after_verification != null &&
+    lean.potential_score_after_verification !== lean.recommended_overall_match_score
+      ? `Potential score after verification: ${lean.potential_score_after_verification}.`
+      : "";
+  const summary = [authenticity ? `Resume authenticity: ${authenticity}` : "", potential]
+    .filter(Boolean)
+    .join(" ");
 
   return matchAnalysisResponseSchema.parse({
     analysis_version: "1.0",
     candidate_match: {
       recommended_overall_match_score: lean.recommended_overall_match_score,
       match_category: lean.match_category,
-      display_category: MATCH_CATEGORY_LABELS[lean.match_category],
+      display_category: lean.display_category.trim() || MATCH_CATEGORY_LABELS[lean.match_category],
       confidence_score: 0,
       mandatory_requirement_override: knockout,
       recommended_action: lean.recommended_action,
-      recruiter_decision_summary: authenticity ? `Resume authenticity: ${authenticity}` : "",
+      recruiter_decision_summary: summary,
     },
     mandatory_requirements: lean.mandatory_requirements.map((item) =>
       expandLeanRequirement(item, "MANDATORY")
@@ -151,14 +162,74 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
 }
 
 function looksLikeLeanAnalyzeOutput(obj: Record<string, unknown>): boolean {
-  const hasTopLevelCategory = typeof obj.match_category === "string";
   const hasNestedCandidateMatch =
     obj.candidate_match != null && typeof obj.candidate_match === "object";
-  return hasTopLevelCategory && !hasNestedCandidateMatch;
+  if (hasNestedCandidateMatch) return false;
+  return (
+    typeof obj.match_category === "string" ||
+    typeof obj.match_score === "number" ||
+    typeof obj.recommendation === "string" ||
+    typeof obj.recommended_overall_match_score === "number"
+  );
+}
+
+function mapRecommendationLabel(value: unknown): {
+  category?: string;
+  action?: string;
+  display?: string;
+} {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+  if (raw === "strong submit") {
+    return { category: "STRONG_MATCH", action: "PRIORITIZE_AND_CALL", display: "Strong Submit" };
+  }
+  if (raw === "submit") {
+    return { category: "GOOD_MATCH", action: "CALL_AND_VERIFY", display: "Submit" };
+  }
+  if (raw === "submit after verification") {
+    return { category: "POSSIBLE_MATCH", action: "CALL_AND_VERIFY", display: "Submit After Verification" };
+  }
+  if (raw === "hold") {
+    return { category: "WEAK_MATCH", action: "KEEP_AS_POSSIBLE", display: "Hold" };
+  }
+  if (raw === "do not submit") {
+    return {
+      category: "NOT_CURRENTLY_SUBMITTABLE",
+      action: "STOP_FOR_THIS_JOB",
+      display: "Do Not Submit",
+    };
+  }
+  return {};
 }
 
 function coerceLeanAnalyzeShape(obj: Record<string, unknown>): Record<string, unknown> {
   const next = { ...obj };
+
+  if (typeof next.recommended_overall_match_score !== "number" && typeof next.match_score === "number") {
+    next.recommended_overall_match_score = next.match_score;
+  }
+
+  const mapped = mapRecommendationLabel(next.recommendation ?? next.display_category);
+  if (!next.match_category && mapped.category) next.match_category = mapped.category;
+  if (!next.recommended_action && mapped.action) next.recommended_action = mapped.action;
+  if (typeof next.display_category !== "string" || !String(next.display_category).trim()) {
+    next.display_category = mapped.display ?? "";
+  }
+
+  if (next.hard_knockout === true) {
+    next.match_category = "NOT_CURRENTLY_SUBMITTABLE";
+    next.recommended_action = "STOP_FOR_THIS_JOB";
+    if (!String(next.display_category ?? "").trim()) next.display_category = "Do Not Submit";
+  }
+
+  if (!Array.isArray(next.gaps_and_risks) && Array.isArray(next.weaknesses)) {
+    next.gaps_and_risks = next.weaknesses;
+  }
+  if (!Array.isArray(next.screening_questions) && Array.isArray(next.recruiter_questions)) {
+    next.screening_questions = next.recruiter_questions;
+  }
 
   const mapRequirements = (value: unknown) => {
     if (!Array.isArray(value)) return value;
