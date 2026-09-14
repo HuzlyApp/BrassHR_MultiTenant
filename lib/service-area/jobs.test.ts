@@ -13,16 +13,18 @@ vi.mock("@/lib/service-area/db", async (importOriginal) => {
   };
 });
 
-import { evaluateServiceAreaWithDb, loadJobWorksite, recordWorkLocationConfirmation } from "@/lib/service-area/db";
+import { evaluateServiceAreaWithDb, loadJobWorksite, recordWorkLocationConfirmation, assertTenantCanOperate } from "@/lib/service-area/db";
 import {
   evaluateJobServiceArea,
   jobInputToServiceAreaLocation,
   requireApplyWorkLocation,
 } from "@/lib/service-area/jobs";
+import { TenantWaitlistedError } from "@/lib/service-area/errors";
 
 const evaluateMock = vi.mocked(evaluateServiceAreaWithDb);
 const loadJobWorksiteMock = vi.mocked(loadJobWorksite);
 const recordConfirmationMock = vi.mocked(recordWorkLocationConfirmation);
+const assertOperateMock = vi.mocked(assertTenantCanOperate);
 
 const holdDecision = {
   allowed: false as const,
@@ -70,11 +72,25 @@ describe("jobInputToServiceAreaLocation", () => {
     expect(location.city).toBe("Chicago");
     expect(location.state).toBe("IL");
   });
+
+  it("uses the edited location text over stale structured worksite fields", () => {
+    const location = jobInputToServiceAreaLocation(
+      job({
+        location: "Los Angeles, CA",
+        worksiteCity: "Austin",
+        worksiteState: "TX",
+      })
+    );
+    expect(location.city).toBe("Los Angeles");
+    expect(location.state).toBe("CA");
+  });
 });
 
 describe("evaluateJobServiceArea", () => {
   beforeEach(() => {
     evaluateMock.mockReset();
+    assertOperateMock.mockReset();
+    assertOperateMock.mockResolvedValue(undefined);
   });
 
   it("warns on draft create for a platform-hold worksite without throwing", async () => {
@@ -118,6 +134,46 @@ describe("evaluateJobServiceArea", () => {
     );
     expect(result.status).toBe("blocked");
     expect(result.warning).toBe(SERVICE_AREA_COPY.location_not_enabled);
+  });
+
+  it("does not call the tenant-operability gate for draft saves", async () => {
+    assertOperateMock.mockRejectedValue(new TenantWaitlistedError());
+    evaluateMock.mockResolvedValue(okDecision);
+    const result = await evaluateJobServiceArea({} as never, "tenant-1", job(), {
+      publish: false,
+      actorUserId: "user-1",
+    });
+    expect(assertOperateMock).not.toHaveBeenCalled();
+    expect(result.status).toBe("ok");
+  });
+
+  it("still blocks waitlisted tenants from publishing", async () => {
+    assertOperateMock.mockRejectedValue(new TenantWaitlistedError());
+    await expect(
+      evaluateJobServiceArea({} as never, "tenant-1", job(), {
+        publish: true,
+        actorUserId: "user-1",
+      })
+    ).rejects.toBeInstanceOf(TenantWaitlistedError);
+    expect(evaluateMock).not.toHaveBeenCalled();
+  });
+
+  it("prioritizes a later additional-location platform hold over an incomplete primary", async () => {
+    evaluateMock
+      .mockResolvedValueOnce(incompleteDecision)
+      .mockResolvedValueOnce(holdDecision);
+    const result = await evaluateJobServiceArea(
+      {} as never,
+      "tenant-1",
+      job({
+        location: "California",
+        additionalLocations: ["Los Angeles, CA"],
+      }),
+      { publish: false, actorUserId: "user-1" }
+    );
+    expect(evaluateMock).toHaveBeenCalledTimes(2);
+    expect(result.decision.reasonCode).toBe("platform_hold");
+    expect(result.status).toBe("blocked");
   });
 });
 

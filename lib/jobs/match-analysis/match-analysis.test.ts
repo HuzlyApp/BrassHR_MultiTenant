@@ -549,4 +549,36 @@ describe("rescoreMatchAnalysis", () => {
     expect(rescored.candidate_match.match_category).toBe("WEAK_MATCH");
     expect(rescored.candidate_match.recommended_action).toBe("KEEP_AS_POSSIBLE");
   });
+
+  it("keeps Technology hard knockouts instead of fairness-rescoring them to VERIFY", () => {
+    const analysis = baseAnalysis({
+      candidate_match: {
+        ...baseAnalysis().candidate_match,
+        recommended_overall_match_score: 54,
+        match_category: "NOT_CURRENTLY_SUBMITTABLE",
+        display_category: "Do Not Submit",
+        mandatory_requirement_override: true,
+        recommended_action: "STOP_FOR_THIS_JOB",
+      },
+      submission_readiness: {
+        ...baseAnalysis().submission_readiness,
+        ready_to_submit: false,
+        readiness_status: "NOT_CURRENTLY_SUBMITTABLE",
+        blocking_requirements: ["AWS Solutions Architect Professional"],
+      },
+      mandatory_requirements: [
+        req({
+          requirement: "AWS Solutions Architect Professional",
+          status: "NOT_FOUND",
+          requirement_outcome: "NOT_MET",
+          candidate_evidence: "Not listed on resume",
+        }),
+      ],
+    });
+    const rescored = rescoreMatchAnalysis(analysis, { preserveModelScore: true });
+    expect(rescored.candidate_match.recommended_overall_match_score).toBe(54);
+    expect(rescored.candidate_match.match_category).toBe("NOT_CURRENTLY_SUBMITTABLE");
+    expect(rescored.candidate_match.mandatory_requirement_override).toBe(true);
+    expect(rescored.candidate_match.recommended_action).toBe("STOP_FOR_THIS_JOB");
+  });
 });

@@ -20,6 +20,7 @@ describe("profession text helpers", () => {
     ];
     expect(matchProfessionIdByName(professions, "registered nurse")).toBe("rn");
     expect(matchProfessionIdByName(professions, "  IT Specialist ")).toBe("it");
+    expect(matchProfessionIdByName(professions, "Registered  Nurse")).toBe("rn");
     expect(matchProfessionIdByName(professions, "Nursing")).toBeNull();
     expect(matchProfessionIdByName(professions, "")).toBeNull();
   });
