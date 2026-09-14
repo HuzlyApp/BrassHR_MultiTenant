@@ -39,7 +39,7 @@ export default function ApplyWorkLocationClient({
             state,
             postalCode,
             locationType: relocate === "remote" ? ("remote" as const) : ("onsite" as const),
-            relocateToJobSite: relocate === "relocate",
+            relocateToJobSite: relocate === "relocate" || relocate === "onsite",
           }
         : null,
     [city, state, postalCode, relocate]
