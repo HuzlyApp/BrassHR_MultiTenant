@@ -228,7 +228,7 @@ export function renderListCell(
       if (!statusKey && !c.progressStatusApplicationId) {
         return <span className="text-sm text-[#94A3B8]">—</span>
       }
-      const stage = applicationCurrentStageMeta(statusKey || "new")
+      const stage = applicationCurrentStageMeta(statusKey || "new", c.progressStatusName)
       const note = stage.subtitle
       return (
         <div className="min-w-0 text-left">

@@ -113,8 +113,9 @@ function progressStatusText(row: CandidateRow): string {
 
 function currentStageText(row: CandidateRow): string {
   const key = row.progressStatusKey?.trim();
-  if (!key) return "";
-  return applicationCurrentStageMeta(key).label;
+  const name = row.progressStatusName?.trim();
+  if (!key && !row.progressStatusApplicationId && !name) return "";
+  return applicationCurrentStageMeta(key || "new", name).label;
 }
 
 function evaluationRank(row: CandidateRow): number {
