@@ -75,7 +75,7 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
     value: (row) => {
       const key = row.progressStatusKey?.trim();
       if (!key && !row.progressStatusApplicationId) return "—";
-      return applicationCurrentStageMeta(key || "new").label;
+      return applicationCurrentStageMeta(key || "new", row.progressStatusName).label;
     },
   },
   evaluation: {

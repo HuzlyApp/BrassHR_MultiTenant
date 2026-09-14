@@ -76,6 +76,14 @@ describe("candidate profile view", () => {
     ).toBe("In Progress");
   });
 
+  it("uses the tenant hired status name instead of a generic Hired label", () => {
+    expect(
+      resolveOverallApplicationStatus([
+        app({ id: "a1", status: "hired", statusName: "Candidate selected" }),
+      ])
+    ).toBe("Candidate selected");
+  });
+
   it("marks converted workers as inactive applicants", () => {
     expect(isActiveApplicant("converted", [app({ id: "a1", status: "reviewing" })])).toBe(false);
     expect(isActiveApplicant("new", [app({ id: "a1", status: "reviewing" })])).toBe(true);

@@ -77,7 +77,7 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
     },
     {
       header: "Current Stage",
-      value: (row) => applicationCurrentStageMeta(row.status).label,
+      value: (row) => applicationCurrentStageMeta(row.status, row.statusName).label,
     },
     {
       header: "Application Date",
