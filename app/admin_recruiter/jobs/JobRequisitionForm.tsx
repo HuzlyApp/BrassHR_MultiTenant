@@ -392,7 +392,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     ) {
       setConfirmRoutingChange(false);
     }
-    setJob((current) => ({ ...current, [key]: value }));
+    setJob((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "location" || key === "postalCode") {
+        next.worksiteCity = null;
+        next.worksiteState = null;
+        next.worksitePostalCode = null;
+      }
+      return next;
+    });
     setFieldErrors((current) => {
       const next = { ...current };
       delete next[key];
