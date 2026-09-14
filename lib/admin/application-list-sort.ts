@@ -290,8 +290,8 @@ function compareColumn(
       return compareEmptyLast(!aWhen, !bWhen, compareDateValues(aWhen, bWhen), directionMultiplier);
     }
     case "currentStage": {
-      const aStage = applicationCurrentStageMeta(a.status).label;
-      const bStage = applicationCurrentStageMeta(b.status).label;
+      const aStage = applicationCurrentStageMeta(a.status, a.statusName).label;
+      const bStage = applicationCurrentStageMeta(b.status, b.statusName).label;
       return compareEmptyLast(!aStage, !bStage, compareTextValues(aStage, bStage), directionMultiplier);
     }
     case "assignee": {

@@ -36,12 +36,28 @@ describe("candidateCurrentStageLabel", () => {
       "Interviewing"
     );
   });
+
+  it("uses the tenant status name instead of Hired for the hired system key", () => {
+    expect(
+      candidateCurrentStageLabel(
+        row({
+          id: "1",
+          progressStatusKey: "hired",
+          progressStatusName: "Candidate selected",
+        })
+      )
+    ).toBe("Candidate selected");
+    expect(candidateCurrentStageLabel(row({ id: "2", statusKey: "hired" }))).toBe(
+      "Selected by Client"
+    );
+  });
 });
 
 describe("candidateMatchesStageFilter", () => {
   it("matches by stage label", () => {
     const candidate = row({ id: "1", statusKey: "hired" });
-    expect(candidateMatchesStageFilter(candidate, "Hired")).toBe(true);
+    expect(candidateMatchesStageFilter(candidate, "Selected by Client")).toBe(true);
+    expect(candidateMatchesStageFilter(candidate, "Hired")).toBe(false);
     expect(candidateMatchesStageFilter(candidate, "Reviewing")).toBe(false);
   });
 });
@@ -53,6 +69,6 @@ describe("buildCandidateStageOptions", () => {
       row({ id: "2", statusKey: "new" }),
       row({ id: "3", statusKey: "new" }),
     ]);
-    expect(options).toEqual(["Hired", "Reviewing"]);
+    expect(options).toEqual(["Reviewing", "Selected by Client"]);
   });
 });

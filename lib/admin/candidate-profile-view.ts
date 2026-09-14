@@ -227,7 +227,10 @@ export function resolveOverallApplicationStatus(
 ): string {
   if (applications.length === 0) return "—";
   const keys = applications.map((row) => normalizeApplicationStatus(row.status));
-  if (keys.every((status) => status === "hired")) return "Hired";
+  if (keys.every((status) => status === "hired")) {
+    const names = applications.map((row) => row.statusName.trim()).filter(Boolean);
+    return names[0] || applicationCurrentStageMeta("hired").label;
+  }
   if (keys.every((status) => status === "rejected" || status === "archived")) {
     return "Closed";
   }
