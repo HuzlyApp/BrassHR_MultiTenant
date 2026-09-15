@@ -227,7 +227,7 @@ export function CandidateAnalysisWorkspace({
 
   const blocking = analysis?.submission_readiness?.blocking_requirements ?? [];
   const verifyItems = analysis?.submission_readiness?.items_to_verify_before_submission ?? [];
-  const modelLabel = data?.modelName || data?.application.ai_analysis_model || "Gemini";
+  const modelLabel = data?.modelName || data?.application.ai_analysis_model || "Grok";
   const app = data?.application;
   const status = app?.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";

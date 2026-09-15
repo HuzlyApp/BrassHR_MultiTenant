@@ -83,7 +83,7 @@ export async function runMatchAnalysisForApplication(args: {
   analyzedByUserId?: string | null;
   /** Lean Analyze (default) or Deeper Analysis prompt/schema. */
   analysisMode?: AnalysisMode;
-  /** Gemini (default) or Grok. */
+  /** Grok (default) or Gemini. */
   analysisProvider?: AnalysisProvider;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {

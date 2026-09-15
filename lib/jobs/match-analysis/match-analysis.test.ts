@@ -489,15 +489,15 @@ describe("rescoreMatchAnalysis", () => {
 });
 
 describe("parseAnalysisProvider", () => {
-  it("defaults to gemini", () => {
-    expect(parseAnalysisProvider(undefined)).toBe("gemini");
-    expect(parseAnalysisProvider(null)).toBe("gemini");
-    expect(parseAnalysisProvider("")).toBe("gemini");
-    expect(parseAnalysisProvider("unknown")).toBe("gemini");
-    expect(parseAnalysisProvider("gemini")).toBe("gemini");
+  it("defaults to grok", () => {
+    expect(parseAnalysisProvider(undefined)).toBe("grok");
+    expect(parseAnalysisProvider(null)).toBe("grok");
+    expect(parseAnalysisProvider("")).toBe("grok");
+    expect(parseAnalysisProvider("unknown")).toBe("grok");
+    expect(parseAnalysisProvider("grok")).toBe("grok");
   });
 
-  it("accepts grok", () => {
-    expect(parseAnalysisProvider("grok")).toBe("grok");
+  it("accepts gemini", () => {
+    expect(parseAnalysisProvider("gemini")).toBe("gemini");
   });
 });
