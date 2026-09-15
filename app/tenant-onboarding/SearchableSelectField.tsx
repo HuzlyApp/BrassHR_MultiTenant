@@ -10,6 +10,8 @@ import {
   type CSSProperties,
 } from "react"
 import { createPortal } from "react-dom"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 const inputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -66,6 +68,11 @@ export default function SearchableSelectField({
   emptyMessage = "No cities found",
   compact = false,
 }: SearchableSelectFieldProps) {
+  const branding = useTenantBranding()
+  const brandVars = useMemo(
+    () => brandingToCssVars(branding) as CSSProperties,
+    [branding.primaryHex, branding.secondaryHex, branding.accentHex]
+  )
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [mounted, setMounted] = useState(false)
@@ -124,6 +131,7 @@ export default function SearchableSelectField({
         maxHeight: MENU_MAX_HEIGHT,
         zIndex: 200,
         visibility: "visible",
+        ...brandVars,
       })
     }
 
@@ -137,7 +145,7 @@ export default function SearchableSelectField({
       window.removeEventListener("resize", updatePosition)
       window.removeEventListener("scroll", updatePosition, true)
     }
-  }, [open, filteredOptions.length, query])
+  }, [open, filteredOptions.length, query, brandVars])
 
   useEffect(() => {
     if (!open) return
@@ -188,7 +196,7 @@ export default function SearchableSelectField({
                 placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
                 autoFocus
                 style={inputTypographyStyle}
-                className={`h-[44px] w-full rounded-[6px] border border-[#cbd5e1] bg-white py-2 pl-9 pr-3 text-[#0f172a] outline-none placeholder:text-[#94a3b8] ${inputFocusClass}`}
+                className={`h-[44px] w-full rounded-[6px] border bg-white py-2 pl-9 pr-3 text-[#0f172a] outline-none placeholder:text-[#94a3b8] ${activeBorderClass} ${inputFocusClass}`}
               />
             </div>
             <div className="max-h-[220px] overflow-y-auto py-1">
