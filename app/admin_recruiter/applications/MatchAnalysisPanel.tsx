@@ -14,6 +14,10 @@ import {
 } from "@/lib/jobs/match-analysis/display";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
+import {
+  MatchAnalysisModelSelect,
+  useMatchAnalysisProvider,
+} from "./MatchAnalysisModelSelect";
 
 type RequirementRow = {
   id: string;
@@ -80,6 +84,7 @@ export function MatchAnalysisPanel({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const [data, setData] = useState<MatchPayload | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
@@ -110,7 +115,7 @@ export function MatchAnalysisPanel({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysisMode: mode }),
+        body: JSON.stringify({ analysisMode: mode, analysisProvider }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Match analysis failed");
@@ -206,12 +211,19 @@ export function MatchAnalysisPanel({
             <p className="mt-0.5 text-xs text-[#B91C1C]">{app.ai_analysis_error}</p>
           ) : null}
         </div>
-        <MatchAnalyzeButton
-          variant="outline"
-          analyzing={analyzing}
-          isAnalyzed={isAnalyzed}
-          onAnalyze={(mode) => void runAnalyze(mode)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <MatchAnalysisModelSelect
+            value={analysisProvider}
+            onChange={setAnalysisProvider}
+            disabled={analyzing}
+          />
+          <MatchAnalyzeButton
+            variant="outline"
+            analyzing={analyzing}
+            isAnalyzed={isAnalyzed}
+            onAnalyze={(mode) => void runAnalyze(mode)}
+          />
+        </div>
       </div>
 
       <div className="space-y-4 px-4 py-4">

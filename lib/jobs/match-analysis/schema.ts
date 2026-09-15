@@ -68,8 +68,21 @@ export const PIPELINE_PROGRESS_STEPS = [
 ] as const;
 
 export const ANALYSIS_MODES = ["analyze", "deep"] as const;
+export const ANALYSIS_PROVIDERS = ["gemini", "grok"] as const;
+export const DEFAULT_ANALYSIS_PROVIDER = "gemini" as const;
 
 export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
+export type AnalysisProvider = (typeof ANALYSIS_PROVIDERS)[number];
+
+export const ANALYSIS_PROVIDER_LABELS: Record<AnalysisProvider, string> = {
+  gemini: "Gemini",
+  grok: "Grok",
+};
+
+export function parseAnalysisProvider(value: unknown): AnalysisProvider {
+  return value === "grok" ? "grok" : DEFAULT_ANALYSIS_PROVIDER;
+}
+
 export type MatchCategory = (typeof MATCH_CATEGORIES)[number];
 export type RecommendedAction = (typeof RECOMMENDED_ACTIONS)[number];
 export type ReadinessStatus = (typeof READINESS_STATUSES)[number];

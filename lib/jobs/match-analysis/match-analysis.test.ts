@@ -10,6 +10,7 @@ import {
   systemPromptForMode,
 } from "./prompts";
 import type { MatchAnalysisResponse, RequirementItem } from "./schema";
+import { parseAnalysisProvider } from "./schema";
 
 function baseAnalysis(
   overrides: Partial<MatchAnalysisResponse> = {}
@@ -680,5 +681,19 @@ describe("rescoreMatchAnalysis", () => {
     expect(rescored.candidate_match.match_category).toBe("NOT_CURRENTLY_SUBMITTABLE");
     expect(rescored.candidate_match.mandatory_requirement_override).toBe(true);
     expect(rescored.candidate_match.recommended_action).toBe("STOP_FOR_THIS_JOB");
+  });
+});
+
+describe("parseAnalysisProvider", () => {
+  it("defaults to gemini", () => {
+    expect(parseAnalysisProvider(undefined)).toBe("gemini");
+    expect(parseAnalysisProvider(null)).toBe("gemini");
+    expect(parseAnalysisProvider("")).toBe("gemini");
+    expect(parseAnalysisProvider("unknown")).toBe("gemini");
+    expect(parseAnalysisProvider("gemini")).toBe("gemini");
+  });
+
+  it("accepts grok", () => {
+    expect(parseAnalysisProvider("grok")).toBe("grok");
   });
 });
