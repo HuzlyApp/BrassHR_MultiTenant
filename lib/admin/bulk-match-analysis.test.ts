@@ -80,7 +80,11 @@ describe("postBulkMatchAnalysis", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       method: "POST",
-      body: JSON.stringify({ jobApplicationIds: ["a1", "a2"], analysisMode: "analyze" }),
+      body: JSON.stringify({
+        jobApplicationIds: ["a1", "a2"],
+        analysisMode: "analyze",
+        analysisProvider: "gemini",
+      }),
     });
     expect(summary).toEqual({
       analyzed: 1,
@@ -92,5 +96,25 @@ describe("postBulkMatchAnalysis", () => {
       ],
     });
     expect(chunks).toHaveLength(1);
+  });
+
+  it("posts the selected analysis provider", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        results: [{ jobApplicationId: "a1", result: { status: "ANALYZED" } }],
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await postBulkMatchAnalysis(["a1"], undefined, { analysisProvider: "grok" });
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      body: JSON.stringify({
+        jobApplicationIds: ["a1"],
+        analysisMode: "analyze",
+        analysisProvider: "grok",
+      }),
+    });
   });
 });

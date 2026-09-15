@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ANALYSIS_PROVIDER_LABELS,
   DEFAULT_ANALYSIS_PROVIDER,
@@ -73,5 +73,49 @@ export function MatchAnalysisModelSelect({
         <option value="grok">{ANALYSIS_PROVIDER_LABELS.grok}</option>
       </select>
     </label>
+  );
+}
+
+export function AnalyzeAllButtonGroup({
+  onAnalyzeAll,
+  analyzeAllLabel = "Analyze all",
+  analyzeBusy = false,
+  analyzeDisabled = false,
+  analysisProvider,
+  onAnalysisProviderChange,
+  buttonClassName,
+  title = "Analyze all unanalyzed candidates",
+  icon,
+}: {
+  onAnalyzeAll: () => void;
+  analyzeAllLabel?: string;
+  analyzeBusy?: boolean;
+  analyzeDisabled?: boolean;
+  analysisProvider: AnalysisProvider;
+  onAnalysisProviderChange: (provider: AnalysisProvider) => void;
+  buttonClassName: string;
+  title?: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+      <MatchAnalysisModelSelect
+        variant="primary"
+        value={analysisProvider}
+        onChange={onAnalysisProviderChange}
+        disabled={analyzeBusy}
+        className="w-full justify-between sm:w-auto"
+      />
+      <button
+        type="button"
+        onClick={onAnalyzeAll}
+        disabled={analyzeBusy || analyzeDisabled}
+        title={title}
+        className={buttonClassName}
+      >
+        {icon}
+        {analyzeBusy ? "Analyzing…" : analyzeAllLabel}
+      </button>
+    </div>
   );
 }

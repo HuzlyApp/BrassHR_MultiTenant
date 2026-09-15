@@ -17,7 +17,7 @@ import {
 } from "./schema";
 
 const DEFAULT_GROK_MODEL = "grok-4-fast";
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const TEMPERATURE = 0;
 const BASE_MAX_TOKENS = 16_000;
@@ -268,9 +268,31 @@ async function callGemini(args: {
     });
 
     if (!response.ok) {
+      let detail = `Gemini HTTP ${response.status}`;
+      try {
+        const errBody: unknown = await response.json();
+        const message =
+          errBody &&
+          typeof errBody === "object" &&
+          "error" in errBody &&
+          errBody.error &&
+          typeof errBody.error === "object" &&
+          "message" in errBody.error &&
+          typeof errBody.error.message === "string"
+            ? errBody.error.message
+            : null;
+        if (message) detail = message.slice(0, 500);
+      } catch {
+        /* keep status-only detail */
+      }
+      console.error("[match-analysis] gemini request failed", {
+        model,
+        status: response.status,
+        detail,
+      });
       throw mapApiError({
         status: response.status,
-        message: `Gemini HTTP ${response.status}`,
+        message: detail,
       });
     }
 

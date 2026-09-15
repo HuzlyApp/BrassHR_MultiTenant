@@ -49,6 +49,7 @@ import {
   requirementCountsFromAnalyzePayload,
 } from "@/lib/jobs/match-analysis/workspace";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 import {
   describeBulkMatchAnalysisOutcome,
   partitionMatchAnalysisTargets,
@@ -207,6 +208,7 @@ function mapWorkerMatchFields(item: WorkerProfile) {
 
 export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: StatusCandidatesPageProps) {
   const router = useRouter();
+  const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const {
     statusOptions: progressStatusOptions,
@@ -598,7 +600,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysisMode: mode }),
+        body: JSON.stringify({ analysisMode: mode, analysisProvider }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -666,26 +668,30 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     );
 
     try {
-      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
-        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
-        setCandidates((current) =>
-          current.map((row) => {
-            const applicationId = row.matchApplicationId?.trim() ?? "";
-            const item = applicationId ? byId.get(applicationId) : undefined;
-            if (!item?.result) return row;
-            const result = item.result;
-            return {
-              ...row,
-              aiMatchStatus: result.status ?? row.aiMatchStatus,
-              aiMatchScore: result.score ?? row.aiMatchScore,
-              aiMatchCategory: result.category ?? row.aiMatchCategory,
-              aiMatchDisplayCategory:
-                result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
-              aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
-            };
-          })
-        );
-      });
+      const summary = await postBulkMatchAnalysis(
+        uniqueIds,
+        (chunk) => {
+          const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+          setCandidates((current) =>
+            current.map((row) => {
+              const applicationId = row.matchApplicationId?.trim() ?? "";
+              const item = applicationId ? byId.get(applicationId) : undefined;
+              if (!item?.result) return row;
+              const result = item.result;
+              return {
+                ...row,
+                aiMatchStatus: result.status ?? row.aiMatchStatus,
+                aiMatchScore: result.score ?? row.aiMatchScore,
+                aiMatchCategory: result.category ?? row.aiMatchCategory,
+                aiMatchDisplayCategory:
+                  result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
+              };
+            })
+          );
+        },
+        { analysisProvider }
+      );
       const outcome = describeBulkMatchAnalysisOutcome(summary);
       if (outcome.ok) {
         toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
@@ -792,6 +798,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         analyzeAllLabel="Analyze all"
         analyzeBusy={bulkAnalyzeBusy}
         analyzeDisabled={pageAnalyzeIds.length === 0 || matchAnalyzingApplicationIds.size > 0}
+        analysisProvider={analysisProvider}
+        onAnalysisProviderChange={setAnalysisProvider}
         totalCount={listDisplayTotal}
         loading={loading}
         totalLabel={`${statusLabel} applicants`}
