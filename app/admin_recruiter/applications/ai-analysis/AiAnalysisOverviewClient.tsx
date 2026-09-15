@@ -59,6 +59,10 @@ import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import { MatchAnalyzeButton } from "../MatchAnalyzeButton";
+import {
+  MatchAnalysisModelSelect,
+  useMatchAnalysisProvider,
+} from "../MatchAnalysisModelSelect";
 import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
 import {
   RequirementNotesIndicator,
@@ -498,6 +502,7 @@ export function AiAnalysisOverviewClient({
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
   const [workspaceReloadToken, setWorkspaceReloadToken] = useState(0);
+  const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const workspace = useMatchAnalysisWorkspace(applicationId, workspaceReloadToken);
   const {
     loading,
@@ -695,7 +700,7 @@ export function AiAnalysisOverviewClient({
   }
 
   async function handleRunAnalyze(mode: AnalysisMode = "analyze") {
-    const ok = await runAnalyze(mode);
+    const ok = await runAnalyze(mode, analysisProvider);
     if (!ok) return;
     setOpenReqId("");
     router.refresh();
@@ -983,6 +988,12 @@ export function AiAnalysisOverviewClient({
                 <CandidateApplicationStatusControl
                   applicationId={applicationId}
                   buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
+                />
+                <MatchAnalysisModelSelect
+                  variant="primary"
+                  value={analysisProvider}
+                  onChange={setAnalysisProvider}
+                  disabled={analyzing}
                 />
                 <MatchAnalyzeButton
                   variant="primary"

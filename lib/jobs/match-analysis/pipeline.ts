@@ -8,7 +8,7 @@ import {
   type JobRequisitionForRequirements,
 } from "./build-job-requirements";
 import {
-  generateMatchAnalysisWithGrok,
+  generateMatchAnalysis,
   MatchAnalysisGenerationError,
 } from "./service";
 import { resolvePromptVersion } from "@/lib/ai-catalog/resolve-prompt";
@@ -26,9 +26,11 @@ import { snapshotCurrentAnalysisVersion } from "./versions";
 import type {
   AiMatchPipelineStatus,
   AnalysisMode,
+  AnalysisProvider,
   MatchAnalysisResponse,
   PipelineProgressStep,
 } from "./schema";
+import { ANALYSIS_PROVIDER_LABELS, parseAnalysisProvider } from "./schema";
 import { listingRequirementOutcomeCounts } from "./workspace";
 
 export type MatchAnalysisProgressEvent = {
@@ -81,6 +83,8 @@ export async function runMatchAnalysisForApplication(args: {
   analyzedByUserId?: string | null;
   /** Lean Analyze (default) or Deeper Analysis prompt/schema. */
   analysisMode?: AnalysisMode;
+  /** Gemini (default) or Grok. */
+  analysisProvider?: AnalysisProvider;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {
   const {
@@ -93,6 +97,8 @@ export async function runMatchAnalysisForApplication(args: {
     onProgress,
   } = args;
   const analysisMode: AnalysisMode = args.analysisMode === "deep" ? "deep" : "analyze";
+  const analysisProvider = parseAnalysisProvider(args.analysisProvider);
+  const providerLabel = ANALYSIS_PROVIDER_LABELS[analysisProvider];
 
   const emit = (step: PipelineProgressStep, message: string, status?: AiMatchPipelineStatus) => {
     onProgress?.({ step, message, status });
@@ -260,7 +266,9 @@ export async function runMatchAnalysisForApplication(args: {
 
     emit(
       "analyzing",
-      analysisMode === "deep" ? "Running deeper Grok match analysis" : "Running Grok match analysis",
+      analysisMode === "deep"
+        ? `Running deeper ${providerLabel} match analysis`
+        : `Running ${providerLabel} match analysis`,
       "ANALYZING"
     );
     await setProgress(supabase, tenantId, jobApplicationId, "analyzing");
@@ -374,7 +382,7 @@ export async function runMatchAnalysisForApplication(args: {
       throw error;
     }
 
-    const modelResult = await generateMatchAnalysisWithGrok(
+    const modelResult = await generateMatchAnalysis(
       {
         jobId: meta.jobId,
         jobTitle: meta.jobTitle,
@@ -388,7 +396,8 @@ export async function runMatchAnalysisForApplication(args: {
         recruiterNotes: notes || null,
         analysisMode,
       },
-      resolved
+      resolved,
+      analysisProvider
     );
 
     emit("validating", "Validating and rescoring", "ANALYZING");
@@ -547,6 +556,7 @@ export async function runMatchAnalysisBulk(args: {
   jobApplicationIds: string[];
   analyzedByUserId?: string | null;
   analysisMode?: AnalysisMode;
+  analysisProvider?: AnalysisProvider;
   onProgress?: (applicationId: string, event: MatchAnalysisProgressEvent) => void;
 }): Promise<
   Array<{ jobApplicationId: string; result: RunMatchAnalysisResult | { status: "FAILED"; error: string } }>
@@ -564,6 +574,7 @@ export async function runMatchAnalysisBulk(args: {
         jobApplicationId: id,
         analyzedByUserId: args.analyzedByUserId,
         analysisMode: args.analysisMode,
+        analysisProvider: args.analysisProvider,
         onProgress: (event) => args.onProgress?.(id, event),
       });
       results.push({ jobApplicationId: id, result });

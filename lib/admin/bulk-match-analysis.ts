@@ -59,13 +59,15 @@ export function describeBulkMatchAnalysisOutcome(input: {
 
 export async function postBulkMatchAnalysis(
   jobApplicationIds: string[],
-  onChunk?: (results: BulkMatchAnalysisItem[]) => void
+  onChunk?: (results: BulkMatchAnalysisItem[]) => void,
+  options?: { analysisProvider?: "gemini" | "grok" }
 ): Promise<{ analyzed: number; needsReview: number; failed: number; results: BulkMatchAnalysisItem[] }> {
   const uniqueIds = [...new Set(jobApplicationIds.map((id) => id.trim()).filter(Boolean))];
   const results: BulkMatchAnalysisItem[] = [];
   let analyzed = 0;
   let needsReview = 0;
   let failed = 0;
+  const analysisProvider = options?.analysisProvider === "grok" ? "grok" : "gemini";
 
   for (let offset = 0; offset < uniqueIds.length; offset += MATCH_ANALYSIS_BULK_CHUNK) {
     const chunk = uniqueIds.slice(offset, offset + MATCH_ANALYSIS_BULK_CHUNK);
@@ -73,7 +75,11 @@ export async function postBulkMatchAnalysis(
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobApplicationIds: chunk, analysisMode: "analyze" }),
+      body: JSON.stringify({
+        jobApplicationIds: chunk,
+        analysisMode: "analyze",
+        analysisProvider,
+      }),
     });
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
