@@ -23,6 +23,10 @@ import {
 } from "@/lib/jobs/match-analysis/workspace";
 import { QualificationChecklist } from "./QualificationChecklist";
 import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
+import {
+  MatchAnalysisModelSelect,
+  useMatchAnalysisProvider,
+} from "./MatchAnalysisModelSelect";
 
 type ScreeningQuestionView = {
   id: string;
@@ -124,6 +128,7 @@ export function CandidateAnalysisWorkspace({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [jobAnswers, setJobAnswers] = useState<Record<string, string>>({});
@@ -222,7 +227,7 @@ export function CandidateAnalysisWorkspace({
 
   const blocking = analysis?.submission_readiness?.blocking_requirements ?? [];
   const verifyItems = analysis?.submission_readiness?.items_to_verify_before_submission ?? [];
-  const modelLabel = data?.modelName || data?.application.ai_analysis_model || "Grok";
+  const modelLabel = data?.modelName || data?.application.ai_analysis_model || "Gemini";
   const app = data?.application;
   const status = app?.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";
@@ -234,7 +239,7 @@ export function CandidateAnalysisWorkspace({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysisMode: mode }),
+        body: JSON.stringify({ analysisMode: mode, analysisProvider }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Match analysis failed");
@@ -489,9 +494,11 @@ export function CandidateAnalysisWorkspace({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1 text-xs font-medium text-[#334155]">
-              {modelLabel}
-            </span>
+            <MatchAnalysisModelSelect
+              value={analysisProvider}
+              onChange={setAnalysisProvider}
+              disabled={analyzing}
+            />
             <MatchAnalyzeButton
               variant="outline"
               analyzing={analyzing}

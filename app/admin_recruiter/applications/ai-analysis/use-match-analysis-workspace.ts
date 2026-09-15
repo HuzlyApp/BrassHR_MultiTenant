@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import type { AnalysisMode, AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
   type QualificationRequirement,
@@ -313,7 +314,10 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const status = data?.application.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";
 
-  async function runAnalyze(mode: AnalysisMode = "analyze"): Promise<boolean> {
+  async function runAnalyze(
+    mode: AnalysisMode = "analyze",
+    provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
+  ): Promise<boolean> {
     setAnalyzing(true);
     try {
       const res = await fetch(
@@ -323,7 +327,7 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           cache: "no-store",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ analysisMode: mode }),
+          body: JSON.stringify({ analysisMode: mode, analysisProvider: provider }),
         }
       );
       const json = await res.json().catch(() => ({}));

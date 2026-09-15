@@ -4,6 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import {
   MATCH_ANALYSIS_ERROR,
   MatchAnalysisGenerationError,
+  parseAnalysisProvider,
   runMatchAnalysisBulk,
 } from "@/lib/jobs/match-analysis";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
@@ -19,6 +20,7 @@ const MAX_BULK = 25;
 const bodySchema = z.object({
   jobApplicationIds: z.array(z.string().uuid()).min(1).max(MAX_BULK),
   analysisMode: z.enum(["analyze", "deep"]).optional(),
+  analysisProvider: z.enum(["gemini", "grok"]).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
   }
 
   const analysisMode = parsed.data.analysisMode === "deep" ? "deep" : "analyze";
+  const analysisProvider = parseAnalysisProvider(parsed.data.analysisProvider);
 
   const { data: owned, error: ownedError } = await supabase
     .from("job_applications")
@@ -79,6 +82,7 @@ export async function POST(req: NextRequest) {
       jobApplicationIds: parsed.data.jobApplicationIds,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
       analysisMode,
+      analysisProvider,
     });
 
     void writeActivityLog({
@@ -90,6 +94,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         count: results.length,
         analysisMode,
+        analysisProvider,
         analyzed: results.filter((r) => "status" in r.result && r.result.status === "ANALYZED")
           .length,
         failed: results.filter((r) => "status" in r.result && r.result.status === "FAILED")
