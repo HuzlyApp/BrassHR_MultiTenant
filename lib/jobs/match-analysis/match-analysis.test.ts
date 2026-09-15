@@ -10,6 +10,7 @@ import {
   systemPromptForMode,
 } from "./prompts";
 import type { MatchAnalysisResponse, RequirementItem } from "./schema";
+import { parseAnalysisProvider } from "./schema";
 
 function baseAnalysis(
   overrides: Partial<MatchAnalysisResponse> = {}
@@ -484,5 +485,19 @@ describe("rescoreMatchAnalysis", () => {
     });
     const rescored = rescoreMatchAnalysis(analysis);
     expect(rescored.candidate_match.recommended_overall_match_score).toBeGreaterThanOrEqual(75);
+  });
+});
+
+describe("parseAnalysisProvider", () => {
+  it("defaults to gemini", () => {
+    expect(parseAnalysisProvider(undefined)).toBe("gemini");
+    expect(parseAnalysisProvider(null)).toBe("gemini");
+    expect(parseAnalysisProvider("")).toBe("gemini");
+    expect(parseAnalysisProvider("unknown")).toBe("gemini");
+    expect(parseAnalysisProvider("gemini")).toBe("gemini");
+  });
+
+  it("accepts grok", () => {
+    expect(parseAnalysisProvider("grok")).toBe("grok");
   });
 });

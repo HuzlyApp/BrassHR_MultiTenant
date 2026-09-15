@@ -8,6 +8,10 @@ export {
   MATCH_CATEGORY_LABELS,
   RECOMMENDED_ACTION_LABELS,
   MATCH_ANALYSIS_ERROR,
+  ANALYSIS_PROVIDERS,
+  ANALYSIS_PROVIDER_LABELS,
+  DEFAULT_ANALYSIS_PROVIDER,
+  parseAnalysisProvider,
   matchAnalysisResponseSchema,
   analyzeMatchResponseSchema,
   requirementItemSchema,
@@ -19,6 +23,7 @@ export {
   type MatchCategory,
   type RecommendedAction,
   type AnalysisMode,
+  type AnalysisProvider,
   type AiMatchPipelineStatus,
   type PipelineProgressStep,
 } from "./schema";
@@ -44,10 +49,12 @@ export {
 } from "./build-job-requirements";
 export { resolveResumeTextForMatch } from "./extract-resume-text";
 export {
+  generateMatchAnalysis,
   generateMatchAnalysisWithGrok,
   getMatchAnalysisModelName,
   MatchAnalysisGenerationError,
   __setGrokClientForTests,
+  __setGeminiFetchForTests,
 } from "./service";
 export {
   runMatchAnalysisForApplication,
