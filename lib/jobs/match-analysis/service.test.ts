@@ -69,8 +69,8 @@ afterEach(() => {
 
 describe("getMatchAnalysisModelName", () => {
   it("defaults to Gemini", () => {
-    expect(getMatchAnalysisModelName()).toBe("gemini-2.5-flash-lite");
-    expect(getMatchAnalysisModelName("gemini")).toBe("gemini-2.5-flash-lite");
+    expect(getMatchAnalysisModelName()).toBe("gemini-3.5-flash-lite");
+    expect(getMatchAnalysisModelName("gemini")).toBe("gemini-3.5-flash-lite");
   });
 
   it("returns the Grok model when Grok is selected", () => {
@@ -85,7 +85,7 @@ describe("generateMatchAnalysis", () => {
 
   it("calls Gemini by default", async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
-      expect(String(url)).toContain("/models/gemini-2.5-flash-lite:generateContent");
+      expect(String(url)).toContain("/models/gemini-3.5-flash-lite:generateContent");
       return {
         ok: true,
         json: async () => ({
@@ -98,14 +98,14 @@ describe("generateMatchAnalysis", () => {
     const result = await generateMatchAnalysis(input, resolved);
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(result.model).toBe("gemini-2.5-flash-lite");
+    expect(result.model).toBe("gemini-3.5-flash-lite");
     expect(result.analysis.mandatory_requirements).toHaveLength(1);
     expect(result.repaired).toBe(false);
   });
 
   it("ignores a Grok catalog model when Gemini is selected", async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
-      expect(String(url)).toContain("/models/gemini-2.5-flash-lite:generateContent");
+      expect(String(url)).toContain("/models/gemini-3.5-flash-lite:generateContent");
       return {
         ok: true,
         json: async () => ({
@@ -121,7 +121,7 @@ describe("generateMatchAnalysis", () => {
       "gemini"
     );
 
-    expect(result.model).toBe("gemini-2.5-flash-lite");
+    expect(result.model).toBe("gemini-3.5-flash-lite");
   });
 
   it("calls Grok when Grok is selected", async () => {

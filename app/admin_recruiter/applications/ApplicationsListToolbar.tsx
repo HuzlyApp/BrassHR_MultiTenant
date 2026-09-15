@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
+import { AnalyzeAllButtonGroup } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
+import type { AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import { buildCandidatesSearchApplyPayload } from "@/lib/workers/candidates-search-ui";
 
@@ -120,6 +122,8 @@ export type ApplicationsListToolbarProps = {
   analyzeAllLabel?: string;
   analyzeBusy?: boolean;
   analyzeDisabled?: boolean;
+  analysisProvider?: AnalysisProvider;
+  onAnalysisProviderChange?: (provider: AnalysisProvider) => void;
 };
 
 /**
@@ -143,6 +147,8 @@ export function ApplicationsListToolbar({
   analyzeAllLabel = "Analyze all",
   analyzeBusy = false,
   analyzeDisabled = false,
+  analysisProvider,
+  onAnalysisProviderChange,
 }: ApplicationsListToolbarProps) {
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftSkillTags, setDraftSkillTags] = useState(() => [...skillsFilter]);
@@ -270,7 +276,19 @@ export function ApplicationsListToolbar({
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3.5">
-          {onAnalyzeAll ? (
+          {onAnalyzeAll && analysisProvider && onAnalysisProviderChange ? (
+            <AnalyzeAllButtonGroup
+              onAnalyzeAll={onAnalyzeAll}
+              analyzeAllLabel={analyzeAllLabel}
+              analyzeBusy={analyzeBusy}
+              analyzeDisabled={analyzeDisabled}
+              analysisProvider={analysisProvider}
+              onAnalysisProviderChange={onAnalysisProviderChange}
+              buttonClassName={`${OUTLINE_TOOLBAR_BUTTON_CLASS} w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50`}
+              title="Analyze all unanalyzed candidates for this job"
+              icon={<AnalyzeSparklesIcon />}
+            />
+          ) : onAnalyzeAll ? (
             <button
               type="button"
               onClick={onAnalyzeAll}

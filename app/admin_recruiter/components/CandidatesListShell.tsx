@@ -23,6 +23,8 @@ import {
 import { CANDIDATE_LIST_SEARCH_PLACEHOLDER } from "@/lib/admin/candidate-list-search";
 import { MatchScoreRangeFilter } from "@/app/admin_recruiter/candidates/MatchScoreRangeFilter";
 import { AllCandidatesToolbar } from "@/app/admin_recruiter/candidates/AllCandidatesToolbar";
+import { AnalyzeAllButtonGroup } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
+import type { AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
@@ -126,6 +128,8 @@ export type CandidatesListShellProps = {
   analyzeAllLabel?: string;
   analyzeBusy?: boolean;
   analyzeDisabled?: boolean;
+  analysisProvider?: AnalysisProvider;
+  onAnalysisProviderChange?: (provider: AnalysisProvider) => void;
   children: React.ReactNode;
 };
 
@@ -363,6 +367,8 @@ export function CandidatesListShell({
   analyzeAllLabel = "Analyze all",
   analyzeBusy = false,
   analyzeDisabled = false,
+  analysisProvider,
+  onAnalysisProviderChange,
   children,
 }: CandidatesListShellProps) {
   const isAllCandidatesLayout = layoutVariant === "all-candidates";
@@ -618,6 +624,8 @@ export function CandidatesListShell({
             analyzeAllLabel={analyzeAllLabel}
             analyzeBusy={analyzeBusy}
             analyzeDisabled={analyzeDisabled}
+            analysisProvider={analysisProvider}
+            onAnalysisProviderChange={onAnalysisProviderChange}
           />
         ) : (
           <>
@@ -695,7 +703,18 @@ export function CandidatesListShell({
                     <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
                   </button>
                 ) : null}
-                {onAnalyzeAll ? (
+                {onAnalyzeAll && analysisProvider && onAnalysisProviderChange ? (
+                  <AnalyzeAllButtonGroup
+                    onAnalyzeAll={onAnalyzeAll}
+                    analyzeAllLabel={analyzeAllLabel}
+                    analyzeBusy={analyzeBusy}
+                    analyzeDisabled={analyzeDisabled}
+                    analysisProvider={analysisProvider}
+                    onAnalysisProviderChange={onAnalysisProviderChange}
+                    buttonClassName={`${OUTLINE_TOOLBAR_BUTTON_CLASS} shrink-0 disabled:cursor-not-allowed disabled:opacity-50`}
+                    title="Analyze all unanalyzed candidates on this page"
+                  />
+                ) : onAnalyzeAll ? (
                   <button
                     type="button"
                     onClick={onAnalyzeAll}
@@ -713,7 +732,18 @@ export function CandidatesListShell({
               </div>
 
               <div className="hidden shrink-0 items-center gap-2 lg:flex">
-                {onAnalyzeAll ? (
+                {onAnalyzeAll && analysisProvider && onAnalysisProviderChange ? (
+                  <AnalyzeAllButtonGroup
+                    onAnalyzeAll={onAnalyzeAll}
+                    analyzeAllLabel={analyzeAllLabel}
+                    analyzeBusy={analyzeBusy}
+                    analyzeDisabled={analyzeDisabled}
+                    analysisProvider={analysisProvider}
+                    onAnalysisProviderChange={onAnalysisProviderChange}
+                    buttonClassName={`${OUTLINE_TOOLBAR_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-50`}
+                    title="Analyze all unanalyzed candidates on this page"
+                  />
+                ) : onAnalyzeAll ? (
                   <button
                     type="button"
                     onClick={onAnalyzeAll}
