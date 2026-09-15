@@ -69,8 +69,8 @@ export function MatchAnalysisModelSelect({
         className={`${heightClass} appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat py-0 pl-2.5 pr-8 text-xs font-semibold text-[#0F172A] outline-none transition hover:bg-[#F8FAFC] focus:border-[color:var(--brand-primary)] disabled:opacity-60`}
         style={{ backgroundImage: SELECT_CHEVRON }}
       >
-        <option value="gemini">{ANALYSIS_PROVIDER_LABELS.gemini}</option>
         <option value="grok">{ANALYSIS_PROVIDER_LABELS.grok}</option>
+        <option value="gemini">{ANALYSIS_PROVIDER_LABELS.gemini}</option>
       </select>
     </label>
   );

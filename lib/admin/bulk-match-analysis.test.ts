@@ -83,7 +83,7 @@ describe("postBulkMatchAnalysis", () => {
       body: JSON.stringify({
         jobApplicationIds: ["a1", "a2"],
         analysisMode: "analyze",
-        analysisProvider: "gemini",
+        analysisProvider: "grok",
       }),
     });
     expect(summary).toEqual({
@@ -107,13 +107,13 @@ describe("postBulkMatchAnalysis", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await postBulkMatchAnalysis(["a1"], undefined, { analysisProvider: "grok" });
+    await postBulkMatchAnalysis(["a1"], undefined, { analysisProvider: "gemini" });
 
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       body: JSON.stringify({
         jobApplicationIds: ["a1"],
         analysisMode: "analyze",
-        analysisProvider: "grok",
+        analysisProvider: "gemini",
       }),
     });
   });
