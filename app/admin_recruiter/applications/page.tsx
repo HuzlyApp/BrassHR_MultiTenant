@@ -3233,6 +3233,7 @@ export default function JobApplicationsPage() {
         onClose={() => setAddCandidateOpen(false)}
         jobId={jobId}
         jobTitle={jobTitle}
+        jobLocation={jobLocation !== "—" ? jobLocation : null}
         onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
       />
 

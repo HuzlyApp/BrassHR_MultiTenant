@@ -1,7 +1,17 @@
 "use client"
 
 import { ChevronDown, Search } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
+import { createPortal } from "react-dom"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 const inputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -22,6 +32,9 @@ const activeBorderClass =
 
 const inputErrorClass =
   "border-[#DC2626] focus:border-[#DC2626] focus:ring-[#DC2626]/20"
+
+const MENU_MAX_HEIGHT = 280
+const MENU_GAP = 8
 
 type SearchableSelectFieldProps = {
   label: string
@@ -55,9 +68,21 @@ export default function SearchableSelectField({
   emptyMessage = "No cities found",
   compact = false,
 }: SearchableSelectFieldProps) {
+  const branding = useTenantBranding()
+  const brandVars = useMemo(
+    () => brandingToCssVars(branding) as CSSProperties,
+    [branding.primaryHex, branding.secondaryHex, branding.accentHex]
+  )
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const [mounted, setMounted] = useState(false)
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({
+    position: "fixed",
+    visibility: "hidden",
+  })
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -66,20 +91,84 @@ export default function SearchableSelectField({
   }, [options, query])
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!open) setQuery("")
+  }, [open])
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current
+      if (!trigger) return
+
+      const rect = trigger.getBoundingClientRect()
+      const menuHeight = Math.min(
+        MENU_MAX_HEIGHT,
+        menuRef.current?.offsetHeight || MENU_MAX_HEIGHT
+      )
+      const spaceBelow = window.innerHeight - rect.bottom - MENU_GAP
+      const spaceAbove = rect.top - MENU_GAP
+      const openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow
+
+      const top = openUpward
+        ? Math.max(MENU_GAP, rect.top - menuHeight - MENU_GAP)
+        : Math.min(rect.bottom + MENU_GAP, window.innerHeight - menuHeight - MENU_GAP)
+      const width = rect.width
+      const left = Math.max(
+        MENU_GAP,
+        Math.min(rect.left, window.innerWidth - width - MENU_GAP)
+      )
+
+      setMenuStyle({
+        position: "fixed",
+        top,
+        left,
+        width,
+        maxHeight: MENU_MAX_HEIGHT,
+        zIndex: 200,
+        visibility: "visible",
+        ...brandVars,
+      })
+    }
+
+    updatePosition()
+    // Re-measure after menu content paints so flip/height are accurate.
+    const raf = window.requestAnimationFrame(updatePosition)
+    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", updatePosition, true)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", updatePosition, true)
+    }
+  }, [open, filteredOptions.length, query, brandVars])
+
+  useEffect(() => {
     if (!open) return
     const onDocClick = (event: MouseEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (wrapperRef.current?.contains(target)) return
+      if (menuRef.current?.contains(target)) return
+      setOpen(false)
+      onBlur?.()
+    }
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         setOpen(false)
         onBlur?.()
       }
     }
     document.addEventListener("mousedown", onDocClick)
-    return () => document.removeEventListener("mousedown", onDocClick)
+    document.addEventListener("keydown", onEscape)
+    return () => {
+      document.removeEventListener("mousedown", onDocClick)
+      document.removeEventListener("keydown", onEscape)
+    }
   }, [open, onBlur])
-
-  useEffect(() => {
-    if (!open) setQuery("")
-  }, [open])
 
   const displayPlaceholder = loading ? "Loading…" : placeholder
   const isDisabled = disabled || loading
@@ -90,42 +179,14 @@ export default function SearchableSelectField({
     ? "flex h-[48px] w-full cursor-pointer items-center justify-between rounded-[6px] border bg-white px-[12px] pr-10 text-left text-[14px] leading-[22px] outline-none transition min-[1440px]:h-[56px] min-[1440px]:rounded-[8px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
     : "flex h-[56px] w-full cursor-pointer items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
 
-  return (
-    <div ref={wrapperRef}>
-      <label className={labelClass}>
-        {label}
-        {required ? <span className="ml-1 text-[#DC2626]">*</span> : null}
-      </label>
-      <div className="relative">
-        <button
-          type="button"
-          disabled={isDisabled}
-          onClick={() => {
-            if (isDisabled) return
-            setOpen((prev) => !prev)
-          }}
-          onBlur={() => {
-            if (!open) onBlur?.()
-          }}
-          style={compact ? { fontFamily: inputTypographyStyle.fontFamily, fontWeight: inputTypographyStyle.fontWeight, letterSpacing: inputTypographyStyle.letterSpacing } : inputTypographyStyle}
-          className={`${triggerClass} disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
-            error
-              ? inputErrorClass
-              : open
-                ? `${activeBorderClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
-                : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
-          } ${compact ? "" : inputTextClass}`}
-        >
-          <span className="truncate">{value || displayPlaceholder}</span>
-          <ChevronDown
-            className={`pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748b] transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-
-        {open && !isDisabled ? (
-          <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-lg">
+  const menu =
+    open && !isDisabled && mounted
+      ? createPortal(
+          <div
+            ref={menuRef}
+            style={menuStyle}
+            className="overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-lg"
+          >
             <div className="relative border-b border-[#e2e8f0] p-2">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <input
@@ -135,7 +196,7 @@ export default function SearchableSelectField({
                 placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
                 autoFocus
                 style={inputTypographyStyle}
-                className={`h-[44px] w-full rounded-[6px] border bg-white py-2 pl-9 pr-3 text-[#0f172a] outline-none placeholder:text-[#94a3b8] border-[#cbd5e1] ${inputFocusClass}`}
+                className={`h-[44px] w-full rounded-[6px] border bg-white py-2 pl-9 pr-3 text-[#0f172a] outline-none placeholder:text-[#94a3b8] ${activeBorderClass} ${inputFocusClass}`}
               />
             </div>
             <div className="max-h-[220px] overflow-y-auto py-1">
@@ -161,14 +222,60 @@ export default function SearchableSelectField({
                 <p className="px-[14px] py-3 text-[14px] text-[#64748b]">{emptyMessage}</p>
               )}
             </div>
-          </div>
-        ) : null}
+          </div>,
+          document.body
+        )
+      : null
+
+  return (
+    <div ref={wrapperRef}>
+      <label className={labelClass}>
+        {label}
+        {required ? <span className="ml-1 text-[#DC2626]">*</span> : null}
+      </label>
+      <div className="relative">
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={isDisabled}
+          onClick={() => {
+            if (isDisabled) return
+            setOpen((prev) => !prev)
+          }}
+          onBlur={() => {
+            if (!open) onBlur?.()
+          }}
+          style={
+            compact
+              ? {
+                  fontFamily: inputTypographyStyle.fontFamily,
+                  fontWeight: inputTypographyStyle.fontWeight,
+                  letterSpacing: inputTypographyStyle.letterSpacing,
+                }
+              : inputTypographyStyle
+          }
+          className={`${triggerClass} disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+            error
+              ? inputErrorClass
+              : open
+                ? `${activeBorderClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
+                : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
+          } ${compact ? "" : inputTextClass}`}
+        >
+          <span className="truncate">{value || displayPlaceholder}</span>
+          <ChevronDown
+            className={`pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748b] transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
       </div>
       {error ? (
         <p className="to-field-error mt-[6px] text-[12px] font-normal leading-[16px] text-[#DC2626]">
           {error}
         </p>
       ) : null}
+      {menu}
     </div>
   )
 }

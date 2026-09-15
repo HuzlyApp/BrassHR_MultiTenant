@@ -36,6 +36,47 @@ jane.doe@example.com
     expect(fields.zip).toBe("78701")
   })
 
+  it("extracts City, ST and City, StateName from header lines", () => {
+    expect(
+      preExtractResumeFields(`
+Goutham K
+Senior SAP Consultant
+Raleigh, NC
+kgouthamk81@gmail.com
+9752078020
+`.trim()).city
+    ).toBe("Raleigh")
+    expect(
+      preExtractResumeFields(`
+Goutham K
+Senior SAP Consultant
+Raleigh, NC
+kgouthamk81@gmail.com
+9752078020
+`.trim()).state
+    ).toBe("NC")
+
+    const fullNameState = preExtractResumeFields(`
+Goutham K
+Los Angeles, California
+kgouthamk81@gmail.com
+`.trim())
+    expect(fullNameState.city).toBe("Los Angeles")
+    expect(fullNameState.state).toBe("CA")
+  })
+
+  it("extracts location when city and state are on consecutive PDF lines", () => {
+    const fields = preExtractResumeFields(`
+Goutham K
+Sr SAP Consultant
+Los Angeles
+California
+kgouthamk81@gmail.com
+`.trim())
+    expect(fields.city).toBe("Los Angeles")
+    expect(fields.state).toBe("CA")
+  })
+
   it("repairs gmail.cor OCR typos in extracted emails", () => {
     const fields = preExtractResumeFields(`
 Pragathi Korrapati
