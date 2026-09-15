@@ -402,6 +402,20 @@ export const FIGMA_PRE_HIRE_GROUPS: FigmaLibraryGroupDef[] = [
     ],
   },
   {
+    id: "submission",
+    label: "Submission",
+    steps: [
+      {
+        id: "release-to-client",
+        label: "Release to Client",
+        description:
+          "Mark recruitment complete and hand the candidate off to the client for final hiring.",
+        iconKey: "release-to-client",
+        defaultPhase: "transition",
+      },
+    ],
+  },
+  {
     id: "screening-compliance",
     label: "Compliance",
     steps: [
@@ -479,6 +493,26 @@ export const FIGMA_PRE_HIRE_GROUPS: FigmaLibraryGroupDef[] = [
         label: "I-9 section 1",
         description: "Complete I-9 Section 1 for the candidate.",
         iconKey: "i9-section-1",
+        defaultPhase: "pre_hire",
+      },
+    ],
+  },
+  {
+    id: "approval-decision",
+    label: "Approvals",
+    steps: [
+      {
+        id: "manager-facility-approval",
+        label: "Manager / Facility Approval",
+        description: "Request manager or facility approval.",
+        iconKey: "manager-facility-approval",
+        defaultPhase: "pre_hire",
+      },
+      {
+        id: "hr-final-approval",
+        label: "HR Final Approval",
+        description: "Request final HR approval before hire.",
+        iconKey: "hr-final-approval",
         defaultPhase: "pre_hire",
       },
     ],
