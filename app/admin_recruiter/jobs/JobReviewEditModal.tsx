@@ -5,10 +5,15 @@ import { Minus, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { isMspRecruitAndRelease } from "@/lib/jobs/placement";
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
 import { JobDescriptionEditor } from "./JobDescriptionEditor";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
+import {
+  RemoteAllowedStatesField,
+  showsRemoteAllowedStatesField,
+} from "./RemoteAllowedStatesField";
 import {
   employmentTypeFromLabel,
   employmentTypeLabel,
@@ -51,6 +56,7 @@ export type ReviewEditFieldId =
   | "jobLocation"
   | "additionalLocation"
   | "jobLocationType"
+  | "remoteAllowedStates"
   | "acceptableMatchRate"
   | "numberOfPositions"
   | "yearsOfExperience"
@@ -229,6 +235,9 @@ export function JobReviewEditModal({
 
   const isLocationField =
     field === "jobLocation" || field === "facilityLocation" || field === "additionalLocation";
+  const isRemoteStatesField =
+    field === "remoteAllowedStates" ||
+    (field === "jobLocationType" && showsRemoteAllowedStatesField(draft.ui.jobLocationType));
 
   const benefitOptions = [
     ...JOB_FORM_BENEFIT_OPTIONS,
@@ -245,6 +254,8 @@ export function JobReviewEditModal({
           className={`fixed left-1/2 top-1/2 z-[201] flex ${
             field === "compensation" && isMspRnr
               ? "w-[min(720px,calc(100vw-24px))]"
+              : isRemoteStatesField
+                ? "w-[min(720px,calc(100vw-24px))]"
               : "w-[min(560px,calc(100vw-24px))]"
           } -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none [&_input]:border-[#CBD5E1] [&_input]:outline-none [&_input]:focus:border-[color:var(--brand-primary)] [&_input]:focus:ring-2 [&_input]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_select]:border-[#CBD5E1] [&_select]:outline-none [&_select]:focus:border-[color:var(--brand-primary)] [&_select]:focus:ring-2 [&_select]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_textarea]:border-[#CBD5E1] [&_textarea]:outline-none [&_textarea]:focus:border-[color:var(--brand-primary)] [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] ${
             isLocationField
@@ -451,31 +462,54 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "jobLocationType" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-location-type">
-                  Placement Type
-                </label>
-                <select
-                  id="review-edit-location-type"
-                  className={JOB_FORM_SELECT_CLASS}
-                  style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                  value={draft.ui.jobLocationType ?? ""}
-                  onChange={(event) => patchUi({ jobLocationType: event.target.value })}
-                >
-                  <option value="">Select Placement Type</option>
-                  {JOB_FORM_LOCATION_TYPES.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                  {draft.ui.jobLocationType &&
-                  !JOB_FORM_LOCATION_TYPES.includes(
-                    draft.ui.jobLocationType as (typeof JOB_FORM_LOCATION_TYPES)[number]
-                  ) ? (
-                    <option value={draft.ui.jobLocationType}>{draft.ui.jobLocationType}</option>
-                  ) : null}
-                </select>
+              <div className="space-y-4">
+                <div>
+                  <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-location-type">
+                    Placement Type
+                  </label>
+                  <select
+                    id="review-edit-location-type"
+                    className={JOB_FORM_SELECT_CLASS}
+                    style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                    value={draft.ui.jobLocationType ?? ""}
+                    onChange={(event) => {
+                      const nextType = event.target.value;
+                      patchUi({ jobLocationType: nextType });
+                      if (!showsRemoteAllowedStatesField(nextType)) {
+                        patchJob("remoteAllowedStates", []);
+                      }
+                    }}
+                  >
+                    <option value="">Select Placement Type</option>
+                    {JOB_FORM_LOCATION_TYPES.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                    {draft.ui.jobLocationType &&
+                    !JOB_FORM_LOCATION_TYPES.includes(
+                      draft.ui.jobLocationType as (typeof JOB_FORM_LOCATION_TYPES)[number]
+                    ) ? (
+                      <option value={draft.ui.jobLocationType}>{draft.ui.jobLocationType}</option>
+                    ) : null}
+                  </select>
+                </div>
+                {showsRemoteAllowedStatesField(draft.ui.jobLocationType) ? (
+                  <RemoteAllowedStatesField
+                    value={draft.job.remoteAllowedStates ?? []}
+                    required={isRemoteJobLocationType(draft.ui.jobLocationType)}
+                    onChange={(next) => patchJob("remoteAllowedStates", next)}
+                  />
+                ) : null}
               </div>
+            ) : null}
+
+            {field === "remoteAllowedStates" ? (
+              <RemoteAllowedStatesField
+                value={draft.job.remoteAllowedStates ?? []}
+                required={isRemoteJobLocationType(draft.ui.jobLocationType)}
+                onChange={(next) => patchJob("remoteAllowedStates", next)}
+              />
             ) : null}
 
             {field === "numberOfPositions" ? (

@@ -23,9 +23,14 @@ import {
   ensureTintedSidebarIconMarkup,
   getTintedSidebarIconMarkup,
 } from "@/lib/sidebar/sidebar-icon-markup";
-import { US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { isMspRecruitAndEor, isMspRecruitAndRelease, MSP_PLACEMENT_SUMMARIES, PLACEMENT_TYPE_LABELS } from "@/lib/jobs/placement";
+import {
+  formatRemoteAllowedStatesLabel,
+  RemoteAllowedStatesField,
+  showsRemoteAllowedStatesField,
+} from "./RemoteAllowedStatesField";
 import {
   JobDescriptionHtml,
   jobDescriptionPlainText,
@@ -266,49 +271,6 @@ function AcceptableMatchRateField({
           </option>
         ))}
       </select>
-    </div>
-  );
-}
-
-function RemoteAllowedStatesField({
-  value,
-  error,
-  onChange,
-}: {
-  value: string[];
-  error?: string;
-  onChange: (next: string[]) => void;
-}) {
-  const selected = new Set(value);
-  return (
-    <div className="min-[700px]:col-span-2">
-      <p className={JOB_FORM_LABEL_CLASS}>Remote work allowed in</p>
-      <p className="mb-2 text-xs text-[#64748B]">Select every state where this role can be worked. There is no United States shortcut.</p>
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => {
-          const checked = selected.has(code);
-          return (
-            <button
-              key={code}
-              type="button"
-              className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                checked
-                  ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[#1D2739]"
-                  : "border-[#CBD5E1] bg-white text-[#64748B]"
-              }`}
-              onClick={() => {
-                const next = new Set(selected);
-                if (checked) next.delete(code);
-                else next.add(code);
-                onChange(Array.from(next));
-              }}
-            >
-              {name}
-            </button>
-          );
-        })}
-      </div>
-      <FieldError error={error} />
     </div>
   );
 }
@@ -602,10 +564,11 @@ export function JobFormStepRequisition({
             </select>
           </div>
         </div>
-        {ui.jobLocationType.toLowerCase().includes("remote") ? (
+        {showsRemoteAllowedStatesField(ui.jobLocationType) ? (
           <RemoteAllowedStatesField
             value={job.remoteAllowedStates ?? []}
             error={fieldErrors.remoteAllowedStates}
+            required={isRemoteJobLocationType(ui.jobLocationType)}
             onChange={(next) => onJobChange("remoteAllowedStates", next)}
           />
         ) : null}
@@ -1051,10 +1014,11 @@ export function JobFormStepMspDetails({
           value={ui.jobLocationType}
           onChange={(next) => onUiChange({ jobLocationType: next })}
         />
-        {ui.jobLocationType.toLowerCase().includes("remote") ? (
+        {showsRemoteAllowedStatesField(ui.jobLocationType) ? (
           <RemoteAllowedStatesField
             value={job.remoteAllowedStates ?? []}
             error={fieldErrors.remoteAllowedStates}
+            required={isRemoteJobLocationType(ui.jobLocationType)}
             onChange={(next) => onJobChange("remoteAllowedStates", next)}
           />
         ) : null}
@@ -2089,6 +2053,7 @@ function ReviewRow({
   readOnly = false,
   valueAsChip = false,
   lockedNotice,
+  error,
 }: {
   label: string;
   value: string;
@@ -2101,6 +2066,7 @@ function ReviewRow({
   valueAsChip?: boolean;
   /** “Cannot be edited” hint with tooltip on the trailing column. */
   lockedNotice?: { tooltip: string };
+  error?: string;
 }) {
   const empty = isReviewValueEmpty(value);
   const editable = Boolean(onEdit) && !readOnly;
@@ -2134,6 +2100,7 @@ function ReviewRow({
         ) : (
           <div className="whitespace-pre-line">{value}</div>
         )}
+        {error ? <p className="mt-1 text-xs text-rose-600">{error}</p> : null}
       </div>
       {editable ? (
         <button
@@ -2161,6 +2128,7 @@ export function JobFormStepReview({
   specialtyName,
   onEditField,
   brandVars,
+  fieldErrors = {},
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -2168,6 +2136,7 @@ export function JobFormStepReview({
   specialtyName: string;
   onEditField: (field: ReviewEditFieldId) => void;
   brandVars?: CSSProperties;
+  fieldErrors?: Record<string, string>;
 }) {
   const [descriptionViewOpen, setDescriptionViewOpen] = useState(false);
   const descriptionHtml = job.publicDescription?.trim() || "";
@@ -2210,6 +2179,8 @@ export function JobFormStepReview({
   const commissionEstimate = formatCommissionEstimateFromPayRate(job, ui);
   const expectedHoursValue = formatExpectedHoursValue(job, ui);
   const ratePeriodLabel = formatPayRatePeriodLabel(ui.payRatePeriod || ui.compensationType);
+  const showRemoteStates = showsRemoteAllowedStatesField(ui.jobLocationType);
+  const remoteStatesValue = formatRemoteAllowedStatesLabel(job.remoteAllowedStates);
 
   return (
     <section className="space-y-1">
@@ -2266,6 +2237,15 @@ export function JobFormStepReview({
             value={ui.jobLocationType}
             onEdit={() => onEditField("jobLocationType")}
           />
+          {showRemoteStates ? (
+            <ReviewRow
+              label="Remote work allowed in"
+              value={remoteStatesValue}
+              addLabel="allowed states"
+              error={fieldErrors.remoteAllowedStates}
+              onEdit={() => onEditField("remoteAllowedStates")}
+            />
+          ) : null}
           <ReviewRow
             label="Number of Positions"
             value={ui.numberOfPositions > 0 ? String(ui.numberOfPositions) : ""}
@@ -2402,6 +2382,15 @@ export function JobFormStepReview({
             addLabel="work location type"
             onEdit={() => onEditField("jobLocationType")}
           />
+          {showRemoteStates ? (
+            <ReviewRow
+              label="Remote work allowed in"
+              value={remoteStatesValue}
+              addLabel="allowed states"
+              error={fieldErrors.remoteAllowedStates}
+              onEdit={() => onEditField("remoteAllowedStates")}
+            />
+          ) : null}
           <ReviewRow
             label="Internal Notes"
             value={job.internalNotes ?? ""}
