@@ -9,7 +9,7 @@ import {
   type CSSProperties,
   type DragEvent,
 } from "react";
-import { Loader2, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import type { AdminResumeParsePreview } from "@/app/api/admin/add-candidate-from-resume/parse/route";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -24,8 +24,7 @@ import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
-import { parseCityStateLocation, workLocationFromResumePreview } from "@/lib/location/city-state";
-import { extractLocationFromResumeText } from "@/lib/resume/normalize-resume-text";
+import { parseCityStateLocation } from "@/lib/location/city-state";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
 
@@ -305,37 +304,21 @@ export default function AddCandidateModal({
           setLastName(preview.lastName ?? "");
           setEmail(preview.email ?? "");
           setPhone(preview.phone ?? "");
-          const parsedLocation = workLocationFromResumePreview(preview);
-          let workCityValue = parsedLocation.city || String(preview.city ?? "").trim();
-          let workStateCode =
-            parsedLocation.state ||
-            getStateCodeFromName(String(preview.state ?? "").trim()) ||
-            (/^[A-Za-z]{2}$/.test(String(preview.state ?? "").trim())
-              ? String(preview.state).trim().toUpperCase()
-              : "");
 
-          // PDF parses sometimes return identity but blank location — recover from extracted text.
-          const extracted = payload.extractedText?.trim() || source.text?.trim() || "";
-          if ((!workCityValue || !workStateCode) && extracted) {
-            const fromText = extractLocationFromResumeText(extracted);
-            workCityValue = workCityValue || fromText.city;
-            workStateCode = workStateCode || fromText.state;
-          }
-
-          // This field is assignment work location — if résumé has none, use the job worksite.
-          if ((!workCityValue || !workStateCode) && effectiveJobId) {
+          // Assignment work location always comes from the job worksite, not the résumé.
+          let workCityValue = "";
+          let workStateCode = "";
+          if (effectiveJobId) {
             const fromJob = await locationFromJobWorksite(effectiveJobId, jobLocation);
-            workCityValue = workCityValue || fromJob.city;
-            workStateCode = workStateCode || fromJob.state;
+            workCityValue = fromJob.city;
+            workStateCode = fromJob.state;
           }
-
-          const stateLabel =
-            getStateNameFromCode(workStateCode) ||
-            String(preview.state ?? "").trim() ||
-            workStateCode;
+          const stateLabel = getStateNameFromCode(workStateCode) || workStateCode;
           setWorkCity(workCityValue);
           setWorkState(stateLabel);
           setRelocateToJobSite(false);
+
+          const extracted = payload.extractedText?.trim() || source.text?.trim() || "";
           const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
           if (autoTitle) setResumeTitle(autoTitle);
           if (source.file && extracted) {
@@ -1076,8 +1059,7 @@ export default function AddCandidateModal({
                         Where will they work this assignment?
                       </p>
                       <p className="mt-1 text-xs text-[#64748B]">
-                        Filled from the résumé when we can, otherwise from the job location. Change
-                        it if they will work somewhere else.
+                        Filled from the job work location. Change it if they will work somewhere else.
                       </p>
                     </div>
                     <SearchableSelectField
@@ -1123,14 +1105,34 @@ export default function AddCandidateModal({
                       options={effectiveCityOptions}
                       emptyMessage="No cities found. Try another search."
                     />
-                    <label className="sm:col-span-2 flex items-center gap-2 text-sm text-[#334155]">
-                      <input
-                        type="checkbox"
-                        checked={relocateToJobSite}
-                        onChange={(event) => setRelocateToJobSite(event.target.checked)}
-                        disabled={uploading}
-                      />
-                      They will relocate to the job site
+                    <label className="sm:col-span-2 flex cursor-pointer items-center gap-2.5 text-sm text-[#334155]">
+                      <span
+                        className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border transition-colors"
+                        style={
+                          relocateToJobSite
+                            ? {
+                                borderColor: secondaryColor,
+                                backgroundColor: secondaryColor,
+                              }
+                            : {
+                                borderColor: "#D0D5DD",
+                                backgroundColor: "#FFFFFF",
+                              }
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={relocateToJobSite}
+                          onChange={(event) => setRelocateToJobSite(event.target.checked)}
+                          disabled={uploading}
+                          className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                          aria-label="They will relocate to the job site"
+                        />
+                        {relocateToJobSite ? (
+                          <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} aria-hidden />
+                        ) : null}
+                      </span>
+                      <span>They will relocate to the job site</span>
                     </label>
                     {workLocationPreview.message ? (
                       <p className="sm:col-span-2 text-sm text-[#B91C1C]" role="alert">
