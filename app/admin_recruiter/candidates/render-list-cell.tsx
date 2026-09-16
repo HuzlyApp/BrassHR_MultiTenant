@@ -129,7 +129,7 @@ export function renderListCell(
     case "assignee": {
       const name = c.assignedRecruiterName?.trim() ?? ""
       if (!name) {
-        return <span className="text-sm text-[#94A3B8]">—</span>
+        return <span className="text-sm text-[#94A3B8]">Not assign yet</span>
       }
       return (
         <div className="flex items-center justify-center gap-2">

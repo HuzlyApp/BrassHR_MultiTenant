@@ -21,8 +21,11 @@ import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-stat
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 import { getAppliedJobCountsByWorker } from "@/lib/workers/applied-job-count";
 import {
+  getApplicationJobAssigneesByWorker,
   getApplicationJobTitlesByWorker,
   joinApplicationJobTitles,
+  mergeWorkerJobAssigneeEntries,
+  type WorkerJobAssigneeEntry,
 } from "@/lib/workers/worker-application-job-titles";
 import {
   candidatePhoneNameKey,
@@ -556,8 +559,14 @@ export async function GET(req: Request) {
             } catch (siblingErr) {
               console.warn("[api/workers] identity sibling expansion failed", siblingErr);
             }
-            const [summaries, appliedJobCounts, matchBundle, jobTitlesByWorker, searchTextByWorker] =
-              await Promise.all([
+            const [
+              summaries,
+              appliedJobCounts,
+              matchBundle,
+              jobTitlesByWorker,
+              jobAssigneesByWorker,
+              searchTextByWorker,
+            ] = await Promise.all([
               getApplicationStatusSummariesForWorkers(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds: workerIdsForApps,
@@ -568,6 +577,10 @@ export async function GET(req: Request) {
                 workerIds: workerIdsForApps,
               }),
               getApplicationJobTitlesByWorker(supabase, {
+                tenantId: tenantIdForApps,
+                workerIds: workerIdsForApps,
+              }),
+              getApplicationJobAssigneesByWorker(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds: workerIdsForApps,
               }),
@@ -619,6 +632,8 @@ export async function GET(req: Request) {
             const countsByPhoneName = new Map<string, number>();
             const titlesByEmail = new Map<string, Set<string>>();
             const countsByEmail = new Map<string, number>();
+            const assigneesByPhoneName = new Map<string, WorkerJobAssigneeEntry[]>();
+            const assigneesByEmail = new Map<string, WorkerJobAssigneeEntry[]>();
             const summaryByPhoneName = new Map<string, WorkerApplicationStatusSummary>();
             const summaryByEmail = new Map<string, WorkerApplicationStatusSummary>();
             const matchByPhoneName = new Map<string, WorkerJobMatchSummary>();
@@ -662,6 +677,18 @@ export async function GET(req: Request) {
                   const addCount = (target: Map<string, number>, key: string) => {
                     target.set(key, (target.get(key) ?? 0) + (appliedJobCounts.get(id) ?? 0));
                   };
+                  const addAssignees = (
+                    target: Map<string, WorkerJobAssigneeEntry[]>,
+                    key: string
+                  ) => {
+                    target.set(
+                      key,
+                      mergeWorkerJobAssigneeEntries([
+                        target.get(key),
+                        jobAssigneesByWorker.get(id),
+                      ])
+                    );
+                  };
                   const preferSummary = (
                     target: Map<string, WorkerApplicationStatusSummary>,
                     key: string,
@@ -689,12 +716,14 @@ export async function GET(req: Request) {
                   if (phoneKey) {
                     addTitles(titlesByPhoneName, phoneKey);
                     addCount(countsByPhoneName, phoneKey);
+                    addAssignees(assigneesByPhoneName, phoneKey);
                     if (summary) preferSummary(summaryByPhoneName, phoneKey, summary);
                     if (match) preferMatch(matchByPhoneName, phoneKey, match);
                   }
                   if (emailNorm) {
                     addTitles(titlesByEmail, emailNorm);
                     addCount(countsByEmail, emailNorm);
+                    addAssignees(assigneesByEmail, emailNorm);
                     if (summary) preferSummary(summaryByEmail, emailNorm, summary);
                     if (match) preferMatch(matchByEmail, emailNorm, match);
                   }
@@ -723,22 +752,43 @@ export async function GET(req: Request) {
                 : new Map<string, string>();
             const assigneeIds = [
               ...new Set(
-                workersOut
-                  .map((row) => {
+                [
+                  ...workersOut.map((row) => {
                     const id = typeof row.id === "string" ? row.id.trim() : "";
                     const direct =
                       typeof row.assigned_recruiter_user_id === "string"
                         ? row.assigned_recruiter_user_id.trim()
                         : "";
                     return direct || (id ? applicationAssigneeFallback.get(id) ?? "" : "");
-                  })
-                  .filter(Boolean)
+                  }),
+                  ...[...jobAssigneesByWorker.values()].flatMap((entries) =>
+                    entries.map((entry) => entry.assignedRecruiterUserId?.trim() ?? "")
+                  ),
+                ].filter(Boolean)
               ),
             ];
             const assigneesById =
               tenantIdForApps && assigneeIds.length > 0
                 ? await loadStaffUsersByIds(supabase, tenantIdForApps, assigneeIds)
                 : new Map();
+            const resolveJobAssignees = (
+              entries: WorkerJobAssigneeEntry[] | undefined
+            ): Array<{
+              application_id: string;
+              job_title: string;
+              assigned_recruiter_user_id: string | null;
+              assigned_recruiter_name: string | null;
+            }> =>
+              (entries ?? []).map((entry) => {
+                const assigneeId = entry.assignedRecruiterUserId?.trim() || "";
+                const assignee = assigneeId ? assigneesById.get(assigneeId) : undefined;
+                return {
+                  application_id: entry.applicationId,
+                  job_title: entry.jobTitle,
+                  assigned_recruiter_user_id: assigneeId || null,
+                  assigned_recruiter_name: assignee?.name?.trim() || null,
+                };
+              });
             workersOut = workersOut.map((row) => {
               const id = typeof row.id === "string" ? row.id : "";
               const identityFields = {
@@ -788,6 +838,16 @@ export async function GET(req: Request) {
               const assigneeId =
                 directAssigneeId || (id ? applicationAssigneeFallback.get(id) ?? "" : "");
               const assignee = assigneeId ? assigneesById.get(assigneeId) : undefined;
+              const rolledJobAssignees =
+                (phoneKey ? assigneesByPhoneName.get(phoneKey) : undefined) ??
+                (emailNorm ? assigneesByEmail.get(emailNorm) : undefined);
+              const jobAssignees = resolveJobAssignees(
+                rolledJobAssignees && rolledJobAssignees.length > 0
+                  ? rolledJobAssignees
+                  : id
+                    ? jobAssigneesByWorker.get(id)
+                    : undefined
+              );
               return {
                 ...row,
                 ...(assigneeId && !directAssigneeId
@@ -799,6 +859,9 @@ export async function GET(req: Request) {
                       assigned_recruiter_name: assignee.name,
                       assigned_recruiter_photo_url: assignee.profilePhotoUrl,
                     }
+                  : {}),
+                ...(jobAssignees.length > 0
+                  ? { application_job_assignees: jobAssignees }
                   : {}),
                 ...(summary
                   ? {

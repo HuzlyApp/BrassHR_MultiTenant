@@ -320,6 +320,13 @@ export function collapseWorkersToCandidateProfiles(
     let bestEmail = typeof profile.email === "string" ? profile.email.trim() : "";
     let bestApplicationSibling: Record<string, unknown> | null = null;
     let bestMatchSibling: Record<string, unknown> | null = null;
+    const mergedJobAssignees: Array<{
+      application_id: string;
+      job_title: string;
+      assigned_recruiter_user_id: string | null;
+      assigned_recruiter_name: string | null;
+    }> = [];
+    const seenAssigneeApps = new Set<string>();
 
     for (const id of siblingIds) {
       appCount += options?.appliedJobCounts?.get(id) ?? 0;
@@ -337,6 +344,41 @@ export function collapseWorkersToCandidateProfiles(
           : "";
       for (const part of existingTitles.split(" | ")) {
         if (part.trim()) titleSet.add(part.trim());
+      }
+
+      const siblingAssignees = Array.isArray(sibling?.application_job_assignees)
+        ? sibling.application_job_assignees
+        : [];
+      for (const entry of siblingAssignees) {
+        if (!entry || typeof entry !== "object") continue;
+        const appId =
+          typeof (entry as { application_id?: unknown }).application_id === "string"
+            ? String((entry as { application_id: string }).application_id).trim()
+            : "";
+        const jobTitle =
+          typeof (entry as { job_title?: unknown }).job_title === "string"
+            ? String((entry as { job_title: string }).job_title).trim()
+            : "";
+        if (!appId || !jobTitle || seenAssigneeApps.has(appId)) continue;
+        seenAssigneeApps.add(appId);
+        const assigneeId =
+          typeof (entry as { assigned_recruiter_user_id?: unknown })
+            .assigned_recruiter_user_id === "string"
+            ? String(
+                (entry as { assigned_recruiter_user_id: string }).assigned_recruiter_user_id
+              ).trim()
+            : "";
+        const assigneeName =
+          typeof (entry as { assigned_recruiter_name?: unknown }).assigned_recruiter_name ===
+          "string"
+            ? String((entry as { assigned_recruiter_name: string }).assigned_recruiter_name).trim()
+            : "";
+        mergedJobAssignees.push({
+          application_id: appId,
+          job_title: jobTitle,
+          assigned_recruiter_user_id: assigneeId || null,
+          assigned_recruiter_name: assigneeName || null,
+        });
       }
 
       if (sibling && typeof sibling.application_id === "string" && sibling.application_id.trim()) {
@@ -407,6 +449,9 @@ export function collapseWorkersToCandidateProfiles(
           : {}),
       ...(titleSet.size
         ? { application_job_titles_text: [...titleSet].join(" | ") }
+        : {}),
+      ...(mergedJobAssignees.length > 0
+        ? { application_job_assignees: mergedJobAssignees }
         : {}),
       ...(bestMatchSibling
         ? {

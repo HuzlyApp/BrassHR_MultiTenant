@@ -130,6 +130,12 @@ type WorkerProfile = {
   assigned_recruiter_user_id?: string | null;
   assigned_recruiter_name?: string | null;
   assigned_recruiter_photo_url?: string | null;
+  application_job_assignees?: Array<{
+    application_id?: string | null;
+    job_title?: string | null;
+    assigned_recruiter_user_id?: string | null;
+    assigned_recruiter_name?: string | null;
+  }> | null;
   application_id?: string | null;
   application_status_id?: string | null;
   application_status_name?: string | null;
@@ -447,6 +453,28 @@ export default function CandidatesPage() {
       assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
       assignedRecruiterName: item.assigned_recruiter_name ?? null,
       assignedRecruiterPhotoUrl: item.assigned_recruiter_photo_url ?? null,
+      jobAssignees: Array.isArray(item.application_job_assignees)
+        ? item.application_job_assignees
+            .map((entry) => {
+              const applicationId = String(entry?.application_id ?? "").trim();
+              const jobTitle = String(entry?.job_title ?? "").trim();
+              if (!applicationId || !jobTitle) return null;
+              return {
+                applicationId,
+                jobTitle,
+                assignedRecruiterUserId:
+                  String(entry?.assigned_recruiter_user_id ?? "").trim() || null,
+                assignedRecruiterName:
+                  String(entry?.assigned_recruiter_name ?? "").trim() || null,
+              };
+            })
+            .filter(
+              (
+                entry
+              ): entry is NonNullable<CandidateRow["jobAssignees"]>[number] =>
+                Boolean(entry)
+            )
+        : [],
       ...mapWorkerMatchFields(item),
     };
   }, []);
@@ -601,10 +629,21 @@ export default function CandidatesPage() {
   const assigneeOptions = useMemo(
     () =>
       buildAssigneeFilterOptions(
-        candidates.map((row) => ({
-          id: row.assignedRecruiterUserId,
-          name: row.assignedRecruiterName,
-        }))
+        candidates.flatMap((row) => {
+          const fromJobs = (row.jobAssignees ?? [])
+            .map((entry) => ({
+              id: entry.assignedRecruiterUserId,
+              name: entry.assignedRecruiterName,
+            }))
+            .filter((entry) => Boolean(entry.id));
+          if (fromJobs.length > 0) return fromJobs;
+          return [
+            {
+              id: row.assignedRecruiterUserId,
+              name: row.assignedRecruiterName,
+            },
+          ];
+        })
       ),
     [candidates]
   );
@@ -630,7 +669,11 @@ export default function CandidatesPage() {
         const wanted = clientNameFilter.trim().toLowerCase();
         if ((row.applicationClientName ?? "").trim().toLowerCase() !== wanted) return false;
       }
-      return candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter);
+      return candidateMatchesAssigneeFilter(
+        row.assignedRecruiterUserId,
+        assigneeFilter,
+        (row.jobAssignees ?? []).map((entry) => entry.assignedRecruiterUserId)
+      );
     });
   }, [
     candidates,

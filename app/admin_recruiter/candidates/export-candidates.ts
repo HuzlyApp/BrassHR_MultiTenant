@@ -104,6 +104,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   },
   firstName: { header: columnLabel("firstName"), value: (row) => row.firstName || "—" },
   lastName: { header: columnLabel("lastName"), value: (row) => row.lastName || "—" },
+  assignee: {
+    header: columnLabel("assignee"),
+    value: (row) => row.assignedRecruiterName?.trim() || "Not assign yet",
+  },
 };
 
 function flattenBuilders(ids: CandidateColumnId[]): ExportColumn<CandidateRow>[] {

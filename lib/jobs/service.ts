@@ -1609,6 +1609,7 @@ export async function startOrResumeJobApplication(
       applicant_auth_user_id: input.applicantAuthUserId,
       worker_id: input.workerId ?? null,
       workflow_id: workflowId,
+      assigned_recruiter_user_id: null,
     })
     .select("id, status")
     .single();
@@ -2047,6 +2048,7 @@ export async function createAdminJobApplication(
       submitted_at: nowIso,
       source: "admin",
       created_by_staff_user_id: input.createdByStaffUserId ?? null,
+      assigned_recruiter_user_id: null,
     })
     .select("id, status, job_requisition_id, applicant_profile_id, worker_id")
     .single();

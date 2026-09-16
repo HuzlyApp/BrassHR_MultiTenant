@@ -30,6 +30,13 @@ export type CandidateRow = {
   assignedRecruiterUserId?: string | null
   assignedRecruiterName?: string | null
   assignedRecruiterPhotoUrl?: string | null
+  /** Per applied job assignee lines for the Assignee column. */
+  jobAssignees?: Array<{
+    applicationId: string
+    jobTitle: string
+    assignedRecruiterUserId: string | null
+    assignedRecruiterName: string | null
+  }>
   applicationJobTitle?: string | null
   applicationJobTitlesText?: string | null
   applicationSearchText?: string | null
