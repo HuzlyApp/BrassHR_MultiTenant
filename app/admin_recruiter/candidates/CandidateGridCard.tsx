@@ -102,6 +102,7 @@ export function CandidateGridCard({
             <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
               <CandidateAiAnalysisLink
                 workerId={c.id}
+                applicationId={c.matchApplicationId}
                 candidateName={c.name}
                 className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
               />

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { pickWorkerJobMatchSummary } from "./worker-job-match-summary";
+import {
+  pickWorkerJobMatchSummary,
+  pickWorkerJobMatchSummaryPreferringRequirementCounts,
+} from "./worker-job-match-summary";
 
 describe("pickWorkerJobMatchSummary", () => {
   it("returns highest analyzed score across applications", () => {
@@ -52,5 +55,32 @@ describe("pickWorkerJobMatchSummary", () => {
 
     expect(summary?.applicationId).toBe("app-new");
     expect(summary?.status).toBe("NEEDS_REVIEW");
+  });
+
+  it("prefers analyzed apps that have requirement counts over higher score without counts", () => {
+    const apps = [
+      {
+        id: "app-high-no-rows",
+        worker_id: "w1",
+        ai_match_status: "ANALYZED" as const,
+        ai_match_score: 90,
+        ai_match_category: "STRONG_MATCH",
+        ai_match_display_category: null,
+        updated_at: "2026-01-10T00:00:00Z",
+      },
+      {
+        id: "app-with-rows",
+        worker_id: "w1",
+        ai_match_status: "ANALYZED" as const,
+        ai_match_score: 70,
+        ai_match_category: "GOOD_MATCH",
+        ai_match_display_category: null,
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+    const counts = new Map([["app-with-rows", { confirmed: 5, verify: 2, notMet: 0 }]]);
+    const summary = pickWorkerJobMatchSummaryPreferringRequirementCounts(apps, counts);
+    expect(summary?.applicationId).toBe("app-with-rows");
+    expect(summary?.score).toBe(70);
   });
 });
