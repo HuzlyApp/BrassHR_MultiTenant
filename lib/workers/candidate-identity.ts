@@ -25,6 +25,11 @@ export type CandidateIdentityFields = {
   last_name?: string | null;
   created_at?: string | null;
   applied_job_count?: number | null;
+  /** Present when listing attach found an active job application for this worker. */
+  application_id?: string | null;
+  application_job_title?: string | null;
+  application_job_titles_text?: string | null;
+  match_application_id?: string | null;
 };
 
 /**
@@ -49,11 +54,20 @@ export function candidatePhoneNameKey(row: CandidateIdentityFields): string | nu
   return null;
 }
 
+function hasApplicationLinkage(row: CandidateIdentityFields): boolean {
+  if (String(row.application_id ?? "").trim()) return true;
+  if (String(row.match_application_id ?? "").trim()) return true;
+  if (String(row.application_job_titles_text ?? "").trim()) return true;
+  return false;
+}
+
 function scoreCandidateProfile(row: CandidateIdentityFields): number {
+  // Prefer rows that carry job-application data over email-only empty duplicates.
+  const hasApps = hasApplicationLinkage(row) ? 5000 : 0;
   const hasEmail = normalizeTenantEmail(String(row.email ?? "")) ? 1000 : 0;
   const apps = Number(row.applied_job_count ?? 0);
   const created = row.created_at ? Date.parse(row.created_at) : 0;
-  return hasEmail + apps * 10 + (Number.isFinite(created) ? created / 1e13 : 0);
+  return hasApps + hasEmail + apps * 10 + (Number.isFinite(created) ? created / 1e13 : 0);
 }
 
 /** Pick the best worker row to keep as the candidate profile within a duplicate group. */
@@ -284,6 +298,16 @@ export function collapseWorkersToCandidateProfiles(
         created_at: typeof row.created_at === "string" ? row.created_at : null,
         applied_job_count:
           typeof row.applied_job_count === "number" ? row.applied_job_count : null,
+        application_id:
+          typeof row.application_id === "string" ? row.application_id : null,
+        application_job_title:
+          typeof row.application_job_title === "string" ? row.application_job_title : null,
+        application_job_titles_text:
+          typeof row.application_job_titles_text === "string"
+            ? row.application_job_titles_text
+            : null,
+        match_application_id:
+          typeof row.match_application_id === "string" ? row.match_application_id : null,
       }))
     );
     const profileId = String(profile.id ?? "").trim();
@@ -294,6 +318,8 @@ export function collapseWorkersToCandidateProfiles(
     const titleSet = new Set<string>();
     let appCount = 0;
     let bestEmail = typeof profile.email === "string" ? profile.email.trim() : "";
+    let bestApplicationSibling: Record<string, unknown> | null = null;
+    let bestMatchSibling: Record<string, unknown> | null = null;
 
     for (const id of siblingIds) {
       appCount += options?.appliedJobCounts?.get(id) ?? 0;
@@ -312,18 +338,85 @@ export function collapseWorkersToCandidateProfiles(
       for (const part of existingTitles.split(" | ")) {
         if (part.trim()) titleSet.add(part.trim());
       }
+
+      if (sibling && typeof sibling.application_id === "string" && sibling.application_id.trim()) {
+        if (
+          !bestApplicationSibling ||
+          (typeof sibling.application_job_title === "string" &&
+            sibling.application_job_title.trim() &&
+            !(
+              typeof bestApplicationSibling.application_job_title === "string" &&
+              bestApplicationSibling.application_job_title.trim()
+            ))
+        ) {
+          bestApplicationSibling = sibling;
+        }
+      }
+      if (
+        sibling &&
+        typeof sibling.match_application_id === "string" &&
+        sibling.match_application_id.trim()
+      ) {
+        const siblingScore =
+          typeof sibling.ai_match_score === "number" ? sibling.ai_match_score : -1;
+        const bestScore =
+          typeof bestMatchSibling?.ai_match_score === "number"
+            ? bestMatchSibling.ai_match_score
+            : -1;
+        if (!bestMatchSibling || siblingScore > bestScore) {
+          bestMatchSibling = sibling;
+        }
+      }
     }
 
     if (appCount <= 0) {
       appCount = typeof profile.applied_job_count === "number" ? profile.applied_job_count : 1;
     }
 
+    const primaryTitle =
+      (typeof bestApplicationSibling?.application_job_title === "string"
+        ? bestApplicationSibling.application_job_title.trim()
+        : "") ||
+      (typeof profile.application_job_title === "string"
+        ? profile.application_job_title.trim()
+        : "") ||
+      [...titleSet][0] ||
+      "";
+
     collapsed.push({
       ...profile,
       ...(bestEmail ? { email: bestEmail } : {}),
       applied_job_count: appCount,
+      ...(bestApplicationSibling
+        ? {
+            application_id: bestApplicationSibling.application_id,
+            application_status_id: bestApplicationSibling.application_status_id,
+            application_status_name: bestApplicationSibling.application_status_name,
+            application_status_key: bestApplicationSibling.application_status_key,
+            application_status_ambiguous:
+              bestApplicationSibling.application_status_ambiguous,
+            application_job_title:
+              (typeof bestApplicationSibling.application_job_title === "string" &&
+              bestApplicationSibling.application_job_title.trim()
+                ? bestApplicationSibling.application_job_title
+                : primaryTitle) || null,
+            application_client_name: bestApplicationSibling.application_client_name,
+          }
+        : primaryTitle
+          ? { application_job_title: primaryTitle }
+          : {}),
       ...(titleSet.size
         ? { application_job_titles_text: [...titleSet].join(" | ") }
+        : {}),
+      ...(bestMatchSibling
+        ? {
+            match_application_id: bestMatchSibling.match_application_id,
+            ai_match_status: bestMatchSibling.ai_match_status,
+            ai_match_score: bestMatchSibling.ai_match_score,
+            ai_match_category: bestMatchSibling.ai_match_category,
+            ai_match_display_category: bestMatchSibling.ai_match_display_category,
+            ai_requirement_counts: bestMatchSibling.ai_requirement_counts,
+          }
         : {}),
       ...(siblingIds.length > 1
         ? { candidate_profile_sibling_ids: siblingIds.filter((id) => id !== profileId) }

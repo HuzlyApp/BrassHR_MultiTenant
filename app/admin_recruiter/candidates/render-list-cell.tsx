@@ -40,7 +40,9 @@ export function renderListCell(
 
   switch (col) {
     case "name": {
-      const jobTitle = resolveCandidateMatchJobTitle(c) || c.role?.trim() || ""
+      // Subtitle is applied job title only — do not fall back to resume job_role
+      // (that made empty Applied jobs look like a data bug).
+      const jobTitle = resolveCandidateMatchJobTitle(c)
       return (
         <div className="flex w-full min-w-0 items-center gap-3">
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
