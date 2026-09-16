@@ -1539,6 +1539,7 @@ export default function CandidatesPage() {
                             <div className="flex items-center justify-center gap-2">
                               <CandidateAiAnalysisLink
                                 workerId={c.id}
+                                applicationId={c.matchApplicationId}
                                 candidateName={c.name}
                               />
                               <button

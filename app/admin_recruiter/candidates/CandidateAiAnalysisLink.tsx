@@ -6,12 +6,14 @@ import { candidateAiAnalysisHref } from "@/app/admin_recruiter/candidates/candid
 
 type CandidateAiAnalysisLinkProps = {
   workerId: string | null | undefined;
+  applicationId?: string | null;
   candidateName?: string;
   className?: string;
 };
 
 export function CandidateAiAnalysisLink({
   workerId,
+  applicationId,
   candidateName,
   className = "inline-flex h-[26px] w-[30px] items-center justify-center rounded-lg border-2 border-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]",
 }: CandidateAiAnalysisLinkProps) {
@@ -24,7 +26,7 @@ export function CandidateAiAnalysisLink({
 
   return (
     <Link
-      href={candidateAiAnalysisHref(id)}
+      href={candidateAiAnalysisHref(id, { applicationId })}
       className={className}
       aria-label={label}
       title="AI Analysis"
