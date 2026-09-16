@@ -49,6 +49,7 @@ import { CandidateBulkSelectionBar } from "@/app/admin_recruiter/components/Cand
 import { ClaimCandidatesConfirmModal } from "@/app/admin_recruiter/components/ClaimCandidatesConfirmModal";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
+import { CurrentStageCell } from "@/app/admin_recruiter/components/CurrentStageCell";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
 import { postClaimApplications } from "@/app/admin_recruiter/candidates/claim-client";
 import { isApplicationClaimEligible } from "@/lib/candidates/claim";
@@ -2269,22 +2270,13 @@ export default function JobApplicationsPage() {
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "currentStage": {
         const stage = applicationCurrentStageMeta(row.status);
-        const note = row.statusNote?.trim() || stage.subtitle;
         return (
-          <div className="min-w-0 text-left">
-            <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
-            {note ? (
-              <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
-                {note}
-              </p>
-            ) : null}
-            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
-              />
-            </div>
-          </div>
+          <CurrentStageCell
+            label={stage.label}
+            note={row.statusNote?.trim() || stage.subtitle}
+            progress={stage.progress}
+            barColor={stage.barColor}
+          />
         );
       }
       case "interest": {

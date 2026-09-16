@@ -8,6 +8,7 @@ import { CalendarDays, ChevronDown, ChevronRight, Clock, Download, Info, Loader2
 import toast from "react-hot-toast";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { CurrentStageCell } from "@/app/admin_recruiter/components/CurrentStageCell";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
@@ -841,7 +842,6 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                     {filteredApplications.map((row) => {
                       const applied = formatProfileApplicationDate(row.appliedAt);
                       const stage = applicationCurrentStageMeta(row.status);
-                      const note = row.statusNote?.trim() || stage.subtitle;
                       return (
                         <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">
                           <td className="px-5 py-4 align-top">
@@ -874,21 +874,13 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                               <p className="mt-0.5 text-xs leading-4 text-[#64748B]">{applied.absolute}</p>
                             ) : null}
                           </td>
-                          <td className="min-w-[160px] px-4 py-4 align-top">
-                            <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">
-                              {stage.label}
-                            </p>
-                            {note ? (
-                              <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
-                                {note}
-                              </p>
-                            ) : null}
-                            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
-                              <div
-                                className="h-full rounded-full"
-                                style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
-                              />
-                            </div>
+                          <td className="min-w-[160px] max-w-[220px] px-4 py-4 align-top">
+                            <CurrentStageCell
+                              label={stage.label}
+                              note={row.statusNote?.trim() || stage.subtitle}
+                              progress={stage.progress}
+                              barColor={stage.barColor}
+                            />
                           </td>
                           <td className="px-4 py-4 align-top">
                             <span

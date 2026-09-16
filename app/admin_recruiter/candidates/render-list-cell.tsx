@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { Mail, Phone } from "lucide-react"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
+import { CurrentStageCell } from "@/app/admin_recruiter/components/CurrentStageCell"
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import { prefetchWorkerProfile } from "@/lib/admin/staff-detail-fetch-cache"
@@ -229,22 +230,13 @@ export function renderListCell(
         return <span className="text-sm text-[#94A3B8]">—</span>
       }
       const stage = applicationCurrentStageMeta(statusKey || "new")
-      const note = stage.subtitle
       return (
-        <div className="min-w-0 text-left">
-          <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
-          {note ? (
-            <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
-              {note}
-            </p>
-          ) : null}
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
-            />
-          </div>
-        </div>
+        <CurrentStageCell
+          label={stage.label}
+          note={stage.subtitle}
+          progress={stage.progress}
+          barColor={stage.barColor}
+        />
       )
     }
     case "evaluation": {
