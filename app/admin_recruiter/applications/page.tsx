@@ -1509,6 +1509,17 @@ export default function JobApplicationsPage() {
       ),
     [rows]
   );
+
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        [...selectedIds].map((id) => {
+          const row = rows.find((r) => r.id === id);
+          return { applicationId: id, status: row?.ai_match_status };
+        })
+      ),
+    [selectedIds, rows]
+  );
   const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
   const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
@@ -2050,10 +2061,19 @@ export default function JobApplicationsPage() {
     };
   }
 
-  async function runBulkMatchAnalyze(ids: string[]) {
+  async function runBulkMatchAnalyze(
+    ids: string[],
+    label: "Analyze" | "Reanalyze" = "Analyze",
+    options?: { emptyMessage?: string }
+  ) {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
     if (!uniqueIds.length) {
-      toast.error("All candidates on this job are already analyzed");
+      toast.error(
+        options?.emptyMessage ??
+          (label === "Reanalyze"
+            ? "None of the selected candidates have been analyzed yet"
+            : "Selected candidates are already analyzed — use Reanalyze")
+      );
       return;
     }
     if (bulkAnalyzeBusy || matchAnalyzingId) return;
@@ -2754,7 +2774,12 @@ export default function JobApplicationsPage() {
           onHighlightMultiJobChange={setHighlightMultiJobApplicants}
           searching={loading}
           onAnalyzeAll={
-            jobId ? () => void runBulkMatchAnalyze(jobAnalyzeIds) : undefined
+            jobId
+              ? () =>
+                  void runBulkMatchAnalyze(jobAnalyzeIds, "Analyze", {
+                    emptyMessage: "All candidates on this job are already analyzed",
+                  })
+              : undefined
           }
           analyzeAllLabel="Analyze all"
           analyzeBusy={bulkAnalyzeBusy}
@@ -2776,12 +2801,17 @@ export default function JobApplicationsPage() {
           claimBusy={claimBusy}
           archiveBusy={archiveBusy}
           deleteBusy={deleteBusy}
+          analyzeBusy={bulkAnalyzeBusy}
           onArchive={() => void handleBulkArchiveSelected()}
           onDelete={() => {
             setPendingDeleteIds([]);
             setDeleteError(null);
             setDeleteConfirmOpen(true);
           }}
+          onAnalyze={() => void runBulkMatchAnalyze(selectedAnalyzeIds, "Analyze")}
+          onReanalyze={() => void runBulkMatchAnalyze(selectedReanalyzeIds, "Reanalyze")}
+          analyzeDisabled={selectedAnalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
+          reanalyzeDisabled={selectedReanalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
           onExportCsv={handleExportApplicationsCsv}
           onExportXls={handleExportApplicationsXls}
           exportDisabled={rowsForExport().length === 0}
