@@ -6,6 +6,7 @@ import {
 } from "@/lib/resumeParseQuality"
 import {
   buildGrokResumeSnippet,
+  extractLocationFromResumeText,
   grokSnippetIsReduced,
   preExtractResumeFields,
   sanitizeParsedIdentityFields,
@@ -78,8 +79,9 @@ Schema:
 Rules:
 - first_name and last_name are the person's name only. Never put a job title, email, phone, LinkedIn URL, or pipe-separated contact line in last_name.
 - "Sr SAP Consultant", "Senior Engineer", and similar phrases are job_role, not last_name. A last initial such as "K" is a valid last_name.
+- City and state are geographic locations from the header or contact block (City, ST or City, State). Never use software/ERP module codes (MM, SD, FI, CO, PP, QM) as city or state.
+- Prefer an explicit home/current location near the name/contact lines. If none is there, use a clear location only when the snippet states where the person currently lives or is based.
 - Extract ZIP / postal code into zip when present.
-- City and state are geographic locations from the header. Never use software/ERP module codes (MM, SD, FI, CO, PP, QM) as city or state.
 - job_role is the current or most recent title (any industry, not only healthcare).
 - Repair obvious OCR/PDF typos in emails (gmail.cor → gmail.com, .con → .com on well-known providers).
 - If a field is already known below, only change it when the snippet clearly contradicts it; otherwise return the known value or fill missing fields.
@@ -127,11 +129,25 @@ export async function grokParseResume(
   const result = completion.choices?.[0]?.message?.content || ""
   const extracted = extractJsonObjectFromModelText(result)
   const fromGrok = normalizeParsedResume(extracted ?? {})
-  const normalized = sanitizeParsedIdentityFields(
+  let normalized = sanitizeParsedIdentityFields(
     normalizeParsedResume(mergeParsedFields(preExtracted, fromGrok)),
     fullText,
     opts,
   )
+
+  // PDF/Grok often miss header location even when city/state are in the text.
+  if (!normalized.city.trim() || !normalized.state.trim()) {
+    const fromText = extractLocationFromResumeText(fullText)
+    normalized = sanitizeParsedIdentityFields(
+      {
+        ...normalized,
+        city: normalized.city.trim() || fromText.city,
+        state: normalized.state.trim() || fromText.state,
+      },
+      fullText,
+      opts,
+    )
+  }
 
   logResumeTiming("process-resume", "grok-response", { aiParseMs })
 

@@ -119,6 +119,7 @@ import {
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 import {
   describeBulkMatchAnalysisOutcome,
   partitionMatchAnalysisTargets,
@@ -599,6 +600,7 @@ export default function JobApplicationsPage() {
   const jobMenuRef = useRef<HTMLDivElement>(null);
 
   const jobId = searchParams.get("jobId")?.trim() ?? "";
+  const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const [rows, setRows] = useState<ApplicationRow[]>([]);
   const [job, setJob] = useState<JobHeader | null>(null);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
@@ -2106,15 +2108,19 @@ export default function JobApplicationsPage() {
     );
 
     try {
-      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
-        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
-        setRows((current) =>
-          current.map((row) => {
-            const item = byId.get(row.id);
-            return item ? applyBulkMatchItem(row, item) : row;
-          })
-        );
-      });
+      const summary = await postBulkMatchAnalysis(
+        uniqueIds,
+        (chunk) => {
+          const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+          setRows((current) =>
+            current.map((row) => {
+              const item = byId.get(row.id);
+              return item ? applyBulkMatchItem(row, item) : row;
+            })
+          );
+        },
+        { analysisProvider }
+      );
       const outcome = describeBulkMatchAnalysisOutcome(summary);
       if (outcome.ok) {
         toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
@@ -2150,7 +2156,7 @@ export default function JobApplicationsPage() {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ analysisMode: mode }),
+          body: JSON.stringify({ analysisMode: mode, analysisProvider }),
         }
       );
       const payload = await response.json().catch(() => ({}));
@@ -2805,6 +2811,8 @@ export default function JobApplicationsPage() {
           analyzeAllLabel="Analyze all"
           analyzeBusy={bulkAnalyzeBusy}
           analyzeDisabled={jobAnalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
+          analysisProvider={analysisProvider}
+          onAnalysisProviderChange={setAnalysisProvider}
         />
 
         <CandidateBulkSelectionBar
@@ -3233,6 +3241,7 @@ export default function JobApplicationsPage() {
         onClose={() => setAddCandidateOpen(false)}
         jobId={jobId}
         jobTitle={jobTitle}
+        jobLocation={jobLocation !== "—" ? jobLocation : null}
         onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
       />
 

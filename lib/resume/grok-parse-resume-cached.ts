@@ -9,6 +9,9 @@ import type { NormalizedParsedResume } from "@/lib/resumeParseQuality";
 /** Long enough for a recruiter to review the parse preview and submit the candidate. */
 const RESUME_PARSE_CACHE_TTL_SECONDS = 30 * 60;
 
+/** Bump when parse post-processing changes so stale empty city/state caches are not reused. */
+const RESUME_PARSE_CACHE_VERSION = "v2-location";
+
 function resumeTextKey(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -22,7 +25,7 @@ export async function grokParseResumeCached(
   opts?: ResumeFieldExtractOptions,
 ): Promise<NormalizedParsedResume> {
   return getOrSetCache(
-    `resume:grok-parse:${resumeTextKey(text)}`,
+    `resume:grok-parse:${RESUME_PARSE_CACHE_VERSION}:${resumeTextKey(text)}`,
     async () => (await grokParseResume(text, opts)).normalized,
     RESUME_PARSE_CACHE_TTL_SECONDS
   );

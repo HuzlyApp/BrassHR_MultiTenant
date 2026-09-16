@@ -59,6 +59,7 @@ import {
   partitionMatchAnalysisTargets,
   postBulkMatchAnalysis,
 } from "@/lib/admin/bulk-match-analysis";
+import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 import {
   ACTIVE_CANDIDATE_PIPELINE_STATUSES,
   formatPipelineStatusLabel,
@@ -244,6 +245,7 @@ function mapWorkerMatchFields(item: WorkerProfile) {
 
 export default function CandidatesPage() {
   const router = useRouter();
+  const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const {
     statusOptions: progressStatusOptions,
@@ -833,7 +835,7 @@ export default function CandidatesPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysisMode: mode }),
+        body: JSON.stringify({ analysisMode: mode, analysisProvider }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Match analysis failed");
@@ -901,26 +903,30 @@ export default function CandidatesPage() {
     );
 
     try {
-      const summary = await postBulkMatchAnalysis(uniqueIds, (chunk) => {
-        const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
-        setCandidates((current) =>
-          current.map((row) => {
-            const applicationId = row.matchApplicationId?.trim() ?? "";
-            const item = applicationId ? byId.get(applicationId) : undefined;
-            if (!item?.result) return row;
-            const result = item.result;
-            return {
-              ...row,
-              aiMatchStatus: result.status ?? row.aiMatchStatus,
-              aiMatchScore: result.score ?? row.aiMatchScore,
-              aiMatchCategory: result.category ?? row.aiMatchCategory,
-              aiMatchDisplayCategory:
-                result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
-              aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
-            };
-          })
-        );
-      });
+      const summary = await postBulkMatchAnalysis(
+        uniqueIds,
+        (chunk) => {
+          const byId = new Map(chunk.map((item) => [item.jobApplicationId, item]));
+          setCandidates((current) =>
+            current.map((row) => {
+              const applicationId = row.matchApplicationId?.trim() ?? "";
+              const item = applicationId ? byId.get(applicationId) : undefined;
+              if (!item?.result) return row;
+              const result = item.result;
+              return {
+                ...row,
+                aiMatchStatus: result.status ?? row.aiMatchStatus,
+                aiMatchScore: result.score ?? row.aiMatchScore,
+                aiMatchCategory: result.category ?? row.aiMatchCategory,
+                aiMatchDisplayCategory:
+                  result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
+              };
+            })
+          );
+        },
+        { analysisProvider }
+      );
       const outcome = describeBulkMatchAnalysisOutcome(summary);
       if (outcome.ok) {
         toast.success(outcome.message, { duration: ACTION_TOAST_DURATION_MS });
@@ -1343,6 +1349,8 @@ export default function CandidatesPage() {
         analyzeAllLabel="Analyze all"
         analyzeBusy={bulkAnalyzeBusy}
         analyzeDisabled={pageAnalyzeIds.length === 0 || matchAnalyzingApplicationIds.size > 0}
+        analysisProvider={analysisProvider}
+        onAnalysisProviderChange={setAnalysisProvider}
         view={view}
         onViewChange={(nextView) => {
           setView(nextView);
@@ -1531,6 +1539,7 @@ export default function CandidatesPage() {
                             <div className="flex items-center justify-center gap-2">
                               <CandidateAiAnalysisLink
                                 workerId={c.id}
+                                applicationId={c.matchApplicationId}
                                 candidateName={c.name}
                               />
                               <button

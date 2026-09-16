@@ -26,10 +26,16 @@ import {
   collapseWorkersToCandidateProfiles,
   findIdentitySiblingWorkerIds,
 } from "@/lib/workers/candidate-identity";
-import { getWorkerJobMatchSummaries } from "@/lib/workers/worker-job-match-summary";
+import {
+  getWorkerJobMatchSummaries,
+  pickWorkerJobMatchSummaryPreferringRequirementCounts,
+} from "@/lib/workers/worker-job-match-summary";
 import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { statusOrFilter } from "@/lib/workers/workers-status-filter";
-import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import {
+  listingCountsForAnalyzedApplication,
+  loadRequirementOutcomeCountsByApplication,
+} from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
 import { getApplicationAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
   candidateListRequiresServerSearch,
@@ -546,7 +552,7 @@ export async function GET(req: Request) {
             } catch (siblingErr) {
               console.warn("[api/workers] identity sibling expansion failed", siblingErr);
             }
-            const [summaries, appliedJobCounts, matchSummaries, jobTitlesByWorker, searchTextByWorker] =
+            const [summaries, appliedJobCounts, matchBundle, jobTitlesByWorker, searchTextByWorker] =
               await Promise.all([
               getApplicationStatusSummariesForWorkers(supabase, {
                 tenantId: tenantIdForApps,
@@ -566,6 +572,7 @@ export async function GET(req: Request) {
                 workerIds,
               }),
             ]);
+            let matchSummaries = matchBundle.summaries;
 
             // Roll up applied-job titles/counts across identity siblings (including off-page duplicates).
             const titlesByPhoneName = new Map<string, Set<string>>();
@@ -662,9 +669,12 @@ export async function GET(req: Request) {
                 : new Map();
             const matchApplicationIds = [
               ...new Set(
-                [...matchSummaries.values()]
-                  .map((match) => match.applicationId?.trim())
-                  .filter((id): id is string => Boolean(id))
+                [
+                  ...matchBundle.analyzedApplicationIds,
+                  ...[...matchSummaries.values()]
+                    .map((match) => match.applicationId?.trim())
+                    .filter((id): id is string => Boolean(id)),
+                ]
               ),
             ];
             let requirementCountsByApplication = new Map<
@@ -678,6 +688,16 @@ export async function GET(req: Request) {
                   tenantIdForApps,
                   matchApplicationIds
                 );
+                // Prefer analyzed apps that actually have checklist rows when scores compete.
+                const refined = new Map(matchSummaries);
+                for (const [workerId, apps] of matchBundle.appsByWorker) {
+                  const next = pickWorkerJobMatchSummaryPreferringRequirementCounts(
+                    apps,
+                    requirementCountsByApplication
+                  );
+                  if (next) refined.set(workerId, next);
+                }
+                matchSummaries = refined;
               } catch (countsErr) {
                 console.warn("[api/workers] failed to attach requirement counts", countsErr);
               }
@@ -756,8 +776,11 @@ export async function GET(req: Request) {
                       ai_match_score: match.score,
                       ai_match_category: match.category,
                       ai_match_display_category: match.displayCategory,
-                      ai_requirement_counts:
-                        requirementCountsByApplication.get(match.applicationId) ?? null,
+                      ai_requirement_counts: listingCountsForAnalyzedApplication(
+                        requirementCountsByApplication,
+                        match.applicationId,
+                        match.status
+                      ),
                     }
                   : {}),
               };

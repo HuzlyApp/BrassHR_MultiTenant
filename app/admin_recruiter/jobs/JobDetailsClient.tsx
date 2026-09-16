@@ -1007,6 +1007,7 @@ export default function JobDetailsClient({ jobId }: Props) {
         onClose={() => setAddCandidateOpen(false)}
         jobId={jobId}
         jobTitle={title}
+        jobLocation={location !== "—" ? location : null}
         onSuccess={() => {
           void load({ silent: true });
         }}

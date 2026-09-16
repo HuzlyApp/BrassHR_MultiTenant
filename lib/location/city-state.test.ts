@@ -138,6 +138,20 @@ describe("parseCityStateLocation", () => {
         location: "Holly Springs, North Carolina",
       })
     ).toEqual({ city: "Holly Springs", state: "NC" });
+    expect(
+      workLocationFromResumePreview({
+        city: "Los Angeles",
+        state: "California",
+        location: "Los Angeles, California",
+      })
+    ).toEqual({ city: "Los Angeles", state: "CA" });
+    expect(
+      workLocationFromResumePreview({
+        city: "Los Angeles",
+        state: "",
+        location: "Los Angeles, CA",
+      })
+    ).toEqual({ city: "Los Angeles", state: "CA" });
     expect(workLocationFromResumePreview({ city: "", state: "", location: "" })).toEqual({
       city: "",
       state: "",

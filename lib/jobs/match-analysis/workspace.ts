@@ -237,6 +237,12 @@ export type ListingRequirementOutcomeCounts = {
   notMet: number;
 };
 
+export const EMPTY_LISTING_REQUIREMENT_COUNTS: ListingRequirementOutcomeCounts = {
+  confirmed: 0,
+  verify: 0,
+  notMet: 0,
+};
+
 /**
  * Ranking-table buckets for requirement outcomes:
  * CONF. = Confirmed / MET, VERIFY = needs verification, NOT MET = explicit not-met.

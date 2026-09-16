@@ -214,12 +214,34 @@ export function workLocationFromResumePreview(
     | undefined
 ): { city: string; state: string } {
   if (!preview) return { city: "", state: "" };
-  const combined = [preview.city, preview.state]
-    .map((part) => String(part ?? "").trim())
-    .filter(Boolean)
-    .join(", ");
-  const parsed = parseCityStateLocation(combined || preview.location);
-  return { city: parsed.city, state: parsed.stateCode };
+
+  const cityRaw = String(preview.city ?? "").trim();
+  const stateRaw = String(preview.state ?? "").trim();
+  const locationRaw = String(preview.location ?? "").trim();
+  const combined = [cityRaw, stateRaw].filter(Boolean).join(", ");
+
+  // Try richest strings first so a partial city/state pair does not hide a fuller location.
+  const candidates = [locationRaw, combined, cityRaw, stateRaw].filter(Boolean);
+  let city = "";
+  let stateCode = "";
+
+  for (const raw of candidates) {
+    const parsed = parseCityStateLocation(raw);
+    if (!city && parsed.city) city = parsed.city;
+    if (!stateCode && parsed.stateCode) stateCode = parsed.stateCode;
+    if (city && stateCode) break;
+  }
+
+  if (!city && cityRaw && !resolveState(cityRaw)) {
+    city = titleCaseCity(cleanLocationPart(cityRaw));
+  }
+
+  if (!stateCode && stateRaw) {
+    const resolved = resolveState(stateRaw);
+    if (resolved) stateCode = resolved.code;
+  }
+
+  return { city, state: stateCode };
 }
 
 export function cityStateMatchKey(raw: string | null | undefined): string {

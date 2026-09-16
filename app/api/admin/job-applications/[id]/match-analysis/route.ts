@@ -5,6 +5,7 @@ import {
   getMatchAnalysisModelName,
   MATCH_ANALYSIS_ERROR,
   MatchAnalysisGenerationError,
+  parseAnalysisProvider,
   runMatchAnalysisForApplication,
 } from "@/lib/jobs/match-analysis";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       ? (body.verifiedRecruiterInfo as Record<string, unknown>)
       : null;
   const analysisMode = body?.analysisMode === "deep" ? "deep" : "analyze";
+  const analysisProvider = parseAnalysisProvider(body?.analysisProvider);
 
   try {
     const result = await runMatchAnalysisForApplication({
@@ -90,6 +92,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       verifiedRecruiterInfo,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
       analysisMode,
+      analysisProvider,
     });
 
     void writeActivityLog({
@@ -100,12 +103,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
       tenantId,
       request: req,
       metadata: {
-        model: result.model ?? getMatchAnalysisModelName(),
+        model: result.model ?? getMatchAnalysisModelName(analysisProvider),
         status: result.status,
         score: result.score,
         category: result.category,
         repaired: result.repaired,
         analysisMode,
+        analysisProvider,
       },
     });
 

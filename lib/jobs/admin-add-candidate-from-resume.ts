@@ -6,7 +6,10 @@ import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-r
 import { createAdminJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
-import { preExtractResumeFields } from "@/lib/resume/normalize-resume-text";
+import {
+  extractLocationFromResumeText,
+  preExtractResumeFields,
+} from "@/lib/resume/normalize-resume-text";
 import {
   hasAdminCandidateIdentity,
   normalizeParsedResume,
@@ -182,9 +185,8 @@ async function parseExtractedResumeText(
   qualityMessage: string | null;
 }> {
   const contentError = validateExtractedResumeText(extractedText);
-  const fallback = normalizeParsedResume(
-    preExtractResumeFields(extractedText, { fileName }),
-  );
+  const preExtracted = preExtractResumeFields(extractedText, { fileName });
+  const fallback = normalizeParsedResume(preExtracted);
 
   let parsed = fallback;
   if (!contentError) {
@@ -196,6 +198,16 @@ async function parseExtractedResumeText(
       console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
       parsed = fallback;
     }
+  }
+
+  // Cached Grok results can omit city/state even when the text has them — always backfill.
+  if (!parsed.city.trim() || !parsed.state.trim()) {
+    const fromText = extractLocationFromResumeText(extractedText);
+    parsed = normalizeParsedResume({
+      ...parsed,
+      city: parsed.city.trim() || fromText.city || preExtracted.city || "",
+      state: parsed.state.trim() || fromText.state || preExtracted.state || "",
+    });
   }
 
   if (hasAdminCandidateIdentity(parsed)) {

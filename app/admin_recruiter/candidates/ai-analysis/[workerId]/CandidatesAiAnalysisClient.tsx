@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { AiAnalysisOverviewClient } from "@/app/admin_recruiter/applications/ai-analysis/AiAnalysisOverviewClient";
 import {
@@ -9,7 +10,53 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { CandidatesBreadcrumb } from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
 
+type ApplicationListRow = {
+  id?: string;
+  job_requisition_id?: string | null;
+  ai_match_status?: string | null;
+  ai_match_score?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+function rowTimestamp(row: ApplicationListRow): number {
+  const raw = row.updated_at || row.created_at || 0;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** Prefer listing match application, else highest ANALYZED score, else newest. */
+function pickApplicationForAnalysis(
+  rows: ApplicationListRow[],
+  preferredApplicationId?: string | null
+): ApplicationListRow | null {
+  if (rows.length === 0) return null;
+  const preferred = preferredApplicationId?.trim();
+  if (preferred) {
+    const match = rows.find((row) => row.id === preferred);
+    if (match) return match;
+  }
+
+  const analyzed = rows.filter(
+    (row) =>
+      row.ai_match_status === "ANALYZED" &&
+      row.ai_match_score != null &&
+      Number.isFinite(Number(row.ai_match_score))
+  );
+  if (analyzed.length > 0) {
+    return [...analyzed].sort((a, b) => {
+      const scoreDiff = Number(b.ai_match_score) - Number(a.ai_match_score);
+      if (scoreDiff !== 0) return scoreDiff;
+      return rowTimestamp(b) - rowTimestamp(a);
+    })[0];
+  }
+
+  return [...rows].sort((a, b) => rowTimestamp(b) - rowTimestamp(a))[0];
+}
+
 export function CandidatesAiAnalysisClient({ workerId }: { workerId: string }) {
+  const searchParams = useSearchParams();
+  const preferredApplicationId = searchParams.get("applicationId");
   const [applicationId, setApplicationId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -32,14 +79,16 @@ export function CandidatesAiAnalysisClient({ workerId }: { workerId: string }) {
         );
         const payload = (await response.json()) as {
           error?: string;
-          applications?: Array<{ id?: string; job_requisition_id?: string | null }>;
+          applications?: ApplicationListRow[];
         };
         if (!response.ok) throw new Error(payload.error || "Failed to load applications");
         const rows = Array.isArray(payload.applications) ? payload.applications : [];
-        const latest = rows[0];
+        const chosen = pickApplicationForAnalysis(rows, preferredApplicationId);
         if (cancelled) return;
-        setApplicationId(typeof latest?.id === "string" ? latest.id : null);
-        setJobId(typeof latest?.job_requisition_id === "string" ? latest.job_requisition_id : undefined);
+        setApplicationId(typeof chosen?.id === "string" ? chosen.id : null);
+        setJobId(
+          typeof chosen?.job_requisition_id === "string" ? chosen.job_requisition_id : undefined
+        );
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load AI analysis.");
@@ -53,7 +102,7 @@ export function CandidatesAiAnalysisClient({ workerId }: { workerId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [workerId]);
+  }, [workerId, preferredApplicationId]);
 
   if (loading) {
     return (

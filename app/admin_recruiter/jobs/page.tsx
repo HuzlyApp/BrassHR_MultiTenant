@@ -826,7 +826,11 @@ export default function AdminRecruiterJobsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
-  const [addCandidateJob, setAddCandidateJob] = useState<{ id: string; title: string } | null>(null);
+  const [addCandidateJob, setAddCandidateJob] = useState<{
+    id: string;
+    title: string;
+    location: string | null;
+  } | null>(null);
   const [importCandidateJobId, setImportCandidateJobId] = useState<string | null>(null);
   const [tagsJob, setTagsJob] = useState<JobListRow | null>(null);
   const [tagsBusy, setTagsBusy] = useState(false);
@@ -1772,7 +1776,11 @@ export default function AdminRecruiterJobsPage() {
           onExportXls={handleExportXls}
           onImportFromMsp={handleImportFromMsp}
           onAddCandidate={(job) => {
-            setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+            setAddCandidateJob({
+              id: job.id,
+              title: jobListDisplayTitle(job),
+              location: jobLocation(job) !== "—" ? jobLocation(job) : null,
+            });
           }}
           onImportCandidates={(job) => {
             setImportCandidateJobId(job.id);
@@ -1794,6 +1802,7 @@ export default function AdminRecruiterJobsPage() {
           onClose={() => setAddCandidateJob(null)}
           jobId={addCandidateJob?.id ?? ""}
           jobTitle={addCandidateJob?.title}
+          jobLocation={addCandidateJob?.location}
           onSuccess={() => {
             void load();
           }}
@@ -2096,7 +2105,11 @@ export default function AdminRecruiterJobsPage() {
               selectionMode={listingCardBulkSelectMode}
               onToggleSelect={listingCardBulkSelectMode ? toggleSelect : undefined}
               onAddCandidate={(job) => {
-                setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+                setAddCandidateJob({
+              id: job.id,
+              title: jobListDisplayTitle(job),
+              location: jobLocation(job) !== "—" ? jobLocation(job) : null,
+            });
               }}
               onImportCandidates={(job) => {
                 setImportCandidateJobId(job.id);
@@ -2239,7 +2252,11 @@ export default function AdminRecruiterJobsPage() {
           onClose={() => setOpenActionsMenu(null)}
           onImportFromMsp={handleImportFromMsp}
           onAddCandidate={(job) => {
-            setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+            setAddCandidateJob({
+              id: job.id,
+              title: jobListDisplayTitle(job),
+              location: jobLocation(job) !== "—" ? jobLocation(job) : null,
+            });
           }}
           onImportCandidates={(job) => {
             setImportCandidateJobId(job.id);
@@ -2297,6 +2314,7 @@ export default function AdminRecruiterJobsPage() {
         onClose={() => setAddCandidateJob(null)}
         jobId={addCandidateJob?.id ?? ""}
         jobTitle={addCandidateJob?.title}
+        jobLocation={addCandidateJob?.location}
         onSuccess={() => {
           void load();
         }}
