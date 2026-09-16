@@ -83,7 +83,7 @@ export async function runMatchAnalysisForApplication(args: {
   analyzedByUserId?: string | null;
   /** Lean Analyze (default) or Deeper Analysis prompt/schema. */
   analysisMode?: AnalysisMode;
-  /** Gemini (default) or Grok. */
+  /** Grok (default) or Gemini. */
   analysisProvider?: AnalysisProvider;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {
@@ -534,25 +534,12 @@ export async function runMatchAnalysisForApplication(args: {
       outputReference: null,
       requestedBy: analyzedByUserId ?? null,
     }).catch(() => undefined);
-
-    // Keep a prior successful analysis visible on listings (Conf/Verify/Not Met + match %).
-    const { data: prior } = await supabase
-      .from("job_applications")
-      .select("ai_analysis, ai_match_score, ai_analyzed_at")
-      .eq("id", jobApplicationId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    const hasPriorAnalysis =
-      prior?.ai_analysis != null &&
-      prior.ai_match_score != null &&
-      Number.isFinite(Number(prior.ai_match_score));
-
     await updateApplicationMatchFields({
       supabase,
       tenantId,
       jobApplicationId,
       patch: {
-        ai_match_status: hasPriorAnalysis ? "ANALYZED" : "FAILED",
+        ai_match_status: "FAILED",
         ai_analysis_progress: "failed",
         ai_analysis_error: message.slice(0, 2000),
       },

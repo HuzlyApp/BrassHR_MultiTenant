@@ -9,6 +9,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import { isLiveJobRequisitionStatus } from "@/lib/jobs/job-status";
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
 import {
   jobRequiresWorkflow,
   placementTypeFromApiRow,
@@ -424,6 +425,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   function updateUi(patch: Partial<JobFormUiState>) {
     setUi((current) => ({ ...current, ...patch }));
+    if ("jobLocationType" in patch) {
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next.remoteAllowedStates;
+        return next;
+      });
+    }
   }
 
   function buildPayloadJob(): JobRequisitionInput {
@@ -434,9 +442,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const errors: Record<string, string> = {};
     const isMsp = current.sourceType === "MSP";
     const isMspEor = isMsp && current.placementType === "Recruit_and_EOR";
+    const isRemote = isRemoteJobLocationType(current.jobLocationType ?? current.schedule);
 
     const location = current.location?.trim() || current.facility?.trim() || "";
-    if (!location) {
+    if (isRemote) {
+      if (!current.remoteAllowedStates?.length) {
+        errors.remoteAllowedStates = "Select the states where this remote role can be worked.";
+      }
+    } else if (!location) {
       errors.location = "Location is required.";
     }
 
@@ -527,13 +540,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (stepErrors.publicDescription) {
           setStep("description");
         } else if (
-          stepErrors.location ||
-          stepErrors.shiftType ||
-          stepErrors.sourceJobTitle ||
-          stepErrors.publicTitle ||
-          stepErrors.professionId ||
-          stepErrors.employmentType ||
-          stepErrors.workflowId
+          !(stepErrors.remoteAllowedStates && step === "review") &&
+          (stepErrors.location ||
+            stepErrors.remoteAllowedStates ||
+            stepErrors.shiftType ||
+            stepErrors.sourceJobTitle ||
+            stepErrors.publicTitle ||
+            stepErrors.professionId ||
+            stepErrors.employmentType ||
+            stepErrors.workflowId)
         ) {
           setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
         }
@@ -569,6 +584,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           }
         }
         setFieldErrors(payload.fieldErrors ?? {});
+        const apiFieldErrors = (payload.fieldErrors ?? {}) as Record<string, string>;
+        if (
+          !(apiFieldErrors.remoteAllowedStates && step === "review") &&
+          (apiFieldErrors.remoteAllowedStates ||
+            apiFieldErrors.location ||
+            apiFieldErrors.shiftType ||
+            apiFieldErrors.sourceJobTitle ||
+            apiFieldErrors.publicTitle ||
+            apiFieldErrors.professionId ||
+            apiFieldErrors.employmentType)
+        ) {
+          setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
+        }
         throw new Error(readServiceAreaApiMessage(payload, "Failed to save job"));
       }
       if (payload.job?.id) {
@@ -690,7 +718,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   function handleNext() {
     if (step === "requisition") {
       const errors = {
-        ...validateRequisitionStep(job),
+        ...validateRequisitionStep(buildPayloadJob()),
         ...validateWorkflowAssignment(),
       };
       if (Object.keys(errors).length > 0) {
@@ -965,6 +993,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 professionName={professionLabel}
                 onEditField={setReviewEditField}
                 brandVars={brandVars}
+                fieldErrors={fieldErrors}
               />
             ) : null}
           </div>
@@ -1039,6 +1068,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         onUpdate={({ job: nextJob, ui: nextUi }) => {
           setJob(nextJob);
           setUi(nextUi);
+          setFieldErrors((current) => {
+            const next = { ...current };
+            delete next.remoteAllowedStates;
+            delete next.location;
+            return next;
+          });
+          setMessage("");
           setReviewEditField(null);
         }}
       />

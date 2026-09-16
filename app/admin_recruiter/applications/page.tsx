@@ -49,6 +49,7 @@ import { CandidateBulkSelectionBar } from "@/app/admin_recruiter/components/Cand
 import { ClaimCandidatesConfirmModal } from "@/app/admin_recruiter/components/ClaimCandidatesConfirmModal";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
+import { CurrentStageCell } from "@/app/admin_recruiter/components/CurrentStageCell";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
 import { postClaimApplications } from "@/app/admin_recruiter/candidates/claim-client";
 import { isApplicationClaimEligible } from "@/lib/candidates/claim";
@@ -1484,34 +1485,13 @@ export default function JobApplicationsPage() {
   const listColumns = ensureActionsLast(
     listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS
   );
+  // Selection is for export / archive / delete / analyze — not claim-gated.
   const allVisibleSelected =
-    paginatedRows.length > 0 &&
-    paginatedRows
-      .filter((row) =>
-        isApplicationClaimEligible({
-          assignedRecruiterUserId: row.assigned_recruiter_user_id,
-          status: row.status,
-          currentUserId: currentUserId ?? "",
-        }).eligible
-      )
-      .every((row) => selectedIds.has(row.id)) &&
-    paginatedRows.some((row) =>
-      isApplicationClaimEligible({
-        assignedRecruiterUserId: row.assigned_recruiter_user_id,
-        status: row.status,
-        currentUserId: currentUserId ?? "",
-      }).eligible
-    );
+    paginatedRows.length > 0 && paginatedRows.every((row) => selectedIds.has(row.id));
 
-  const someVisibleSelected = paginatedRows.some(
-    (row) =>
-      selectedIds.has(row.id) &&
-      isApplicationClaimEligible({
-        assignedRecruiterUserId: row.assigned_recruiter_user_id,
-        status: row.status,
-        currentUserId: currentUserId ?? "",
-      }).eligible
-  );
+  const someVisibleSelected = paginatedRows.some((row) => selectedIds.has(row.id));
+
+  const selectedOnPageCount = paginatedRows.filter((row) => selectedIds.has(row.id)).length;
 
   const selectedEligibleCount = useMemo(
     () =>
@@ -1576,36 +1556,19 @@ export default function JobApplicationsPage() {
   function toggleSelectAllVisible() {
     setSelectedIds((current) => {
       const next = new Set(current);
-      const eligibleIds = paginatedRows
-        .filter((row) =>
-          isApplicationClaimEligible({
-            assignedRecruiterUserId: row.assigned_recruiter_user_id,
-            status: row.status,
-            currentUserId: currentUserId ?? "",
-          }).eligible
-        )
-        .map((row) => row.id);
+      const pageIds = paginatedRows.map((row) => row.id);
       const allSelected =
-        eligibleIds.length > 0 && eligibleIds.every((id) => next.has(id));
+        pageIds.length > 0 && pageIds.every((id) => next.has(id));
       if (allSelected) {
-        for (const id of eligibleIds) next.delete(id);
+        for (const id of pageIds) next.delete(id);
       } else {
-        for (const id of eligibleIds) next.add(id);
+        for (const id of pageIds) next.add(id);
       }
       return next;
     });
   }
 
   function toggleSelect(id: string) {
-    const row = rows.find((item) => item.id === id);
-    if (row) {
-      const eligibility = isApplicationClaimEligible({
-        assignedRecruiterUserId: row.assigned_recruiter_user_id,
-        status: row.status,
-        currentUserId: currentUserId ?? "",
-      });
-      if (!eligibility.eligible) return;
-    }
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -2313,22 +2276,13 @@ export default function JobApplicationsPage() {
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "currentStage": {
         const stage = rowCurrentStage(row, statusOptions);
-        const note = row.statusNote?.trim() || stage.subtitle;
         return (
-          <div className="min-w-0 text-left">
-            <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
-            {note ? (
-              <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
-                {note}
-              </p>
-            ) : null}
-            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
-              />
-            </div>
-          </div>
+          <CurrentStageCell
+            label={stage.label}
+            note={row.statusNote?.trim() || stage.subtitle}
+            progress={stage.progress}
+            barColor={stage.barColor}
+          />
         );
       }
       case "interest": {
@@ -2819,11 +2773,11 @@ export default function JobApplicationsPage() {
           selectedCount={selectedIds.size}
           eligibleCount={selectedEligibleCount}
           scopeLabel={
-            selectedEligibleCount === 0
+            selectedIds.size === 0
               ? undefined
               : allVisibleSelected
-                ? `All ${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} on this page selected`
-                : `${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} selected on this page`
+                ? `All ${selectedOnPageCount} candidate${selectedOnPageCount === 1 ? "" : "s"} on this page selected`
+                : `${selectedIds.size} candidate${selectedIds.size === 1 ? "" : "s"} selected on this page`
           }
           claimBusy={claimBusy}
           archiveBusy={archiveBusy}
@@ -2864,8 +2818,9 @@ export default function JobApplicationsPage() {
                   <ListTableCheckbox
                     checked={allVisibleSelected}
                     indeterminate={someVisibleSelected && !allVisibleSelected}
+                    disabled={paginatedRows.length === 0}
                     onChange={toggleSelectAllVisible}
-                    aria-label="Select all eligible candidates on this page"
+                    aria-label="Select all candidates on this page"
                   />
                 </th>
                 {listColumns.map((colId) => {
@@ -2927,20 +2882,6 @@ export default function JobApplicationsPage() {
                     >
                       <ListTableCheckbox
                         checked={selectedIds.has(row.id)}
-                        disabled={
-                          !isApplicationClaimEligible({
-                            assignedRecruiterUserId: row.assigned_recruiter_user_id,
-                            status: row.status,
-                            currentUserId: currentUserId ?? "",
-                          }).eligible
-                        }
-                        title={
-                          isApplicationClaimEligible({
-                            assignedRecruiterUserId: row.assigned_recruiter_user_id,
-                            status: row.status,
-                            currentUserId: currentUserId ?? "",
-                          }).reason ?? undefined
-                        }
                         onChange={() => toggleSelect(row.id)}
                         aria-label={`Select ${applicantName(row)}`}
                       />
