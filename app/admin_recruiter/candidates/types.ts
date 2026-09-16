@@ -40,6 +40,8 @@ export type CandidateRow = {
   applicationJobTitle?: string | null
   applicationJobTitlesText?: string | null
   applicationSearchText?: string | null
+  /** Applied jobs with IDs for linking to job details. */
+  appliedJobs?: Array<{ jobId: string; title: string }>
   /** MSP end client from latest application job; null/empty → show "—". */
   applicationClientName?: string | null
   matchApplicationId?: string | null

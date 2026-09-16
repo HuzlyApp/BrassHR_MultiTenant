@@ -327,6 +327,8 @@ export function collapseWorkersToCandidateProfiles(
       assigned_recruiter_name: string | null;
     }> = [];
     const seenAssigneeApps = new Set<string>();
+    const mergedAppliedJobs: Array<{ job_id: string; title: string }> = [];
+    const seenAppliedJobIds = new Set<string>();
 
     for (const id of siblingIds) {
       appCount += options?.appliedJobCounts?.get(id) ?? 0;
@@ -344,6 +346,25 @@ export function collapseWorkersToCandidateProfiles(
           : "";
       for (const part of existingTitles.split(" | ")) {
         if (part.trim()) titleSet.add(part.trim());
+      }
+
+      const siblingAppliedJobs = Array.isArray(sibling?.application_applied_jobs)
+        ? sibling.application_applied_jobs
+        : [];
+      for (const entry of siblingAppliedJobs) {
+        if (!entry || typeof entry !== "object") continue;
+        const jobId =
+          typeof (entry as { job_id?: unknown }).job_id === "string"
+            ? String((entry as { job_id: string }).job_id).trim()
+            : "";
+        const title =
+          typeof (entry as { title?: unknown }).title === "string"
+            ? String((entry as { title: string }).title).trim()
+            : "";
+        if (!jobId || !title || seenAppliedJobIds.has(jobId)) continue;
+        seenAppliedJobIds.add(jobId);
+        mergedAppliedJobs.push({ job_id: jobId, title });
+        titleSet.add(title);
       }
 
       const siblingAssignees = Array.isArray(sibling?.application_job_assignees)
@@ -449,6 +470,9 @@ export function collapseWorkersToCandidateProfiles(
           : {}),
       ...(titleSet.size
         ? { application_job_titles_text: [...titleSet].join(" | ") }
+        : {}),
+      ...(mergedAppliedJobs.length > 0
+        ? { application_applied_jobs: mergedAppliedJobs }
         : {}),
       ...(mergedJobAssignees.length > 0
         ? { application_job_assignees: mergedJobAssignees }

@@ -3,6 +3,7 @@ import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 
 type AppTitleRow = {
   worker_id: string | null;
+  job_requisition_id?: string | null;
   job_requisitions:
     | { public_title: string | null; source_job_title?: string | null }
     | { public_title: string | null; source_job_title?: string | null }[]
@@ -13,6 +14,11 @@ type AppAssigneeRow = AppTitleRow & {
   id?: string | null;
   assigned_recruiter_user_id?: string | null;
   created_at?: string | null;
+};
+
+export type WorkerAppliedJob = {
+  jobId: string;
+  title: string;
 };
 
 export type WorkerJobAssigneeEntry = {
@@ -32,21 +38,22 @@ function oneJobTitle(
   );
 }
 
-/** All applied job titles per worker (used for candidate search parity with applications list). */
-export async function getApplicationJobTitlesByWorker(
+/** Applied jobs (id + title) per worker for candidate list links. */
+export async function getApplicationAppliedJobsByWorker(
   supabase: SupabaseClient,
   args: { tenantId?: string | null; workerIds: string[] }
-): Promise<Map<string, string[]>> {
+): Promise<Map<string, WorkerAppliedJob[]>> {
   const workerIds = Array.from(new Set(args.workerIds.filter(Boolean)));
-  const result = new Map<string, string[]>();
+  const result = new Map<string, WorkerAppliedJob[]>();
   if (workerIds.length === 0) return result;
 
   const { data, error } = await queryInChunks(workerIds, async (chunk) => {
     let query = supabase
       .from("job_applications")
-      .select("worker_id, job_requisitions(public_title, source_job_title)")
+      .select("worker_id, job_requisition_id, job_requisitions(public_title, source_job_title)")
       .in("worker_id", chunk)
-      .not("status", "in", '("rejected","withdrawn")');
+      .not("status", "in", '("rejected","withdrawn")')
+      .order("created_at", { ascending: false });
 
     if (args.tenantId) {
       query = query.eq("tenant_id", args.tenantId);
@@ -59,13 +66,46 @@ export async function getApplicationJobTitlesByWorker(
 
   for (const row of data) {
     const workerId = row.worker_id?.trim();
+    const jobId =
+      typeof row.job_requisition_id === "string" ? row.job_requisition_id.trim() : "";
     const title = oneJobTitle(row.job_requisitions);
-    if (!workerId || !title) continue;
+    if (!workerId || !jobId || !title) continue;
     const list = result.get(workerId) ?? [];
-    if (!list.includes(title)) list.push(title);
+    if (list.some((entry) => entry.jobId === jobId)) continue;
+    list.push({ jobId, title });
     result.set(workerId, list);
   }
 
+  return result;
+}
+
+export function mergeWorkerAppliedJobs(
+  groups: Array<WorkerAppliedJob[] | undefined>
+): WorkerAppliedJob[] {
+  const byId = new Map<string, WorkerAppliedJob>();
+  for (const group of groups) {
+    for (const entry of group ?? []) {
+      const id = entry.jobId.trim();
+      if (!id || byId.has(id)) continue;
+      byId.set(id, entry);
+    }
+  }
+  return Array.from(byId.values());
+}
+
+/** All applied job titles per worker (used for candidate search parity with applications list). */
+export async function getApplicationJobTitlesByWorker(
+  supabase: SupabaseClient,
+  args: { tenantId?: string | null; workerIds: string[] }
+): Promise<Map<string, string[]>> {
+  const applied = await getApplicationAppliedJobsByWorker(supabase, args);
+  const result = new Map<string, string[]>();
+  for (const [workerId, jobs] of applied) {
+    result.set(
+      workerId,
+      jobs.map((job) => job.title).filter(Boolean)
+    );
+  }
   return result;
 }
 

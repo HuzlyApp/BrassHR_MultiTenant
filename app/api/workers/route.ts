@@ -21,10 +21,12 @@ import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-stat
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 import { getAppliedJobCountsByWorker } from "@/lib/workers/applied-job-count";
 import {
+  getApplicationAppliedJobsByWorker,
   getApplicationJobAssigneesByWorker,
-  getApplicationJobTitlesByWorker,
   joinApplicationJobTitles,
+  mergeWorkerAppliedJobs,
   mergeWorkerJobAssigneeEntries,
+  type WorkerAppliedJob,
   type WorkerJobAssigneeEntry,
 } from "@/lib/workers/worker-application-job-titles";
 import {
@@ -563,7 +565,7 @@ export async function GET(req: Request) {
               summaries,
               appliedJobCounts,
               matchBundle,
-              jobTitlesByWorker,
+              appliedJobsByWorker,
               jobAssigneesByWorker,
               searchTextByWorker,
             ] = await Promise.all([
@@ -576,7 +578,7 @@ export async function GET(req: Request) {
                 tenantId: tenantIdForApps,
                 workerIds: workerIdsForApps,
               }),
-              getApplicationJobTitlesByWorker(supabase, {
+              getApplicationAppliedJobsByWorker(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds: workerIdsForApps,
               }),
@@ -589,6 +591,12 @@ export async function GET(req: Request) {
                 workerIds: workerIdsForApps,
               }),
             ]);
+            const jobTitlesByWorker = new Map<string, string[]>(
+              [...appliedJobsByWorker.entries()].map(([workerId, jobs]) => [
+                workerId,
+                jobs.map((job) => job.title).filter(Boolean),
+              ])
+            );
             let matchSummaries = matchBundle.summaries;
 
             const matchApplicationIds = [
@@ -634,6 +642,8 @@ export async function GET(req: Request) {
             const countsByEmail = new Map<string, number>();
             const assigneesByPhoneName = new Map<string, WorkerJobAssigneeEntry[]>();
             const assigneesByEmail = new Map<string, WorkerJobAssigneeEntry[]>();
+            const appliedJobsByPhoneName = new Map<string, WorkerAppliedJob[]>();
+            const appliedJobsByEmail = new Map<string, WorkerAppliedJob[]>();
             const summaryByPhoneName = new Map<string, WorkerApplicationStatusSummary>();
             const summaryByEmail = new Map<string, WorkerApplicationStatusSummary>();
             const matchByPhoneName = new Map<string, WorkerJobMatchSummary>();
@@ -689,6 +699,15 @@ export async function GET(req: Request) {
                       ])
                     );
                   };
+                  const addAppliedJobs = (
+                    target: Map<string, WorkerAppliedJob[]>,
+                    key: string
+                  ) => {
+                    target.set(
+                      key,
+                      mergeWorkerAppliedJobs([target.get(key), appliedJobsByWorker.get(id)])
+                    );
+                  };
                   const preferSummary = (
                     target: Map<string, WorkerApplicationStatusSummary>,
                     key: string,
@@ -717,6 +736,7 @@ export async function GET(req: Request) {
                     addTitles(titlesByPhoneName, phoneKey);
                     addCount(countsByPhoneName, phoneKey);
                     addAssignees(assigneesByPhoneName, phoneKey);
+                    addAppliedJobs(appliedJobsByPhoneName, phoneKey);
                     if (summary) preferSummary(summaryByPhoneName, phoneKey, summary);
                     if (match) preferMatch(matchByPhoneName, phoneKey, match);
                   }
@@ -724,6 +744,7 @@ export async function GET(req: Request) {
                     addTitles(titlesByEmail, emailNorm);
                     addCount(countsByEmail, emailNorm);
                     addAssignees(assigneesByEmail, emailNorm);
+                    addAppliedJobs(appliedJobsByEmail, emailNorm);
                     if (summary) preferSummary(summaryByEmail, emailNorm, summary);
                     if (match) preferMatch(matchByEmail, emailNorm, match);
                   }
@@ -848,6 +869,15 @@ export async function GET(req: Request) {
                     ? jobAssigneesByWorker.get(id)
                     : undefined
               );
+              const rolledAppliedJobs =
+                (phoneKey ? appliedJobsByPhoneName.get(phoneKey) : undefined) ??
+                (emailNorm ? appliedJobsByEmail.get(emailNorm) : undefined);
+              const appliedJobs =
+                rolledAppliedJobs && rolledAppliedJobs.length > 0
+                  ? rolledAppliedJobs
+                  : id
+                    ? appliedJobsByWorker.get(id) ?? []
+                    : [];
               return {
                 ...row,
                 ...(assigneeId && !directAssigneeId
@@ -862,6 +892,14 @@ export async function GET(req: Request) {
                   : {}),
                 ...(jobAssignees.length > 0
                   ? { application_job_assignees: jobAssignees }
+                  : {}),
+                ...(appliedJobs.length > 0
+                  ? {
+                      application_applied_jobs: appliedJobs.map((job) => ({
+                        job_id: job.jobId,
+                        title: job.title,
+                      })),
+                    }
                   : {}),
                 ...(summary
                   ? {
