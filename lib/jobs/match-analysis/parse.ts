@@ -114,7 +114,8 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
     candidate_match: {
       recommended_overall_match_score: lean.recommended_overall_match_score,
       match_category: lean.match_category,
-      display_category: lean.display_category.trim() || MATCH_CATEGORY_LABELS[lean.match_category],
+      display_category:
+        (lean.display_category ?? "").trim() || MATCH_CATEGORY_LABELS[lean.match_category],
       confidence_score: 0,
       mandatory_requirement_override: knockout,
       recommended_action: lean.recommended_action,

@@ -160,7 +160,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "conf" || colId === "verify" || colId === "notMet") {
     return "min-w-[72px] whitespace-nowrap"
   }
-  if (colId === "currentStage") return "min-w-[170px]"
+  if (colId === "currentStage") return "min-w-[170px] max-w-[220px]"
   if (colId === "evaluation") return "min-w-[110px] whitespace-nowrap"
   if (colId === "assignee") return "min-w-[160px] whitespace-nowrap"
   if (colId === "matchJob") return "min-w-[220px]"

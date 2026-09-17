@@ -168,7 +168,7 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   }
   if (colId === "location") return "min-w-[120px] whitespace-nowrap";
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`;
-  if (colId === "currentStage") return "min-w-[170px]";
+  if (colId === "currentStage") return "min-w-[170px] max-w-[220px]";
   if (colId === "interest") return `min-w-[132px] whitespace-nowrap${center}`;
   if (colId === "email") return `min-w-[180px]${center}`;
   if (colId === "workflow") return `min-w-[140px]${center}`;
