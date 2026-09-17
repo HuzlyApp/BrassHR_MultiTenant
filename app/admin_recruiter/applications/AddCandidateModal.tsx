@@ -509,11 +509,6 @@ export default function AddCandidateModal({
   }, [workCity, cityOptions]);
 
   const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
-  const cityOptionsUnavailable =
-    Boolean(displayStateValue) &&
-    !citiesLoading &&
-    effectiveCityOptions.length === 0 &&
-    !workCity.trim();
 
   function handleWorkStateChange(value: string) {
     setWorkState(value);
@@ -1083,27 +1078,27 @@ export default function AddCandidateModal({
                     <SearchableSelectField
                       label="Work city"
                       compact
+                      allowCustom
                       disabled={
                         uploading ||
                         (!displayStateValue && !workCity.trim()) ||
-                        stateOptionsUnavailable ||
-                        cityOptionsUnavailable
+                        stateOptionsUnavailable
                       }
                       loading={citiesLoading}
                       value={workCity}
                       onChange={setWorkCity}
                       placeholder={
-                        stateOptionsUnavailable || cityOptionsUnavailable
-                          ? "No cities found"
+                        stateOptionsUnavailable
+                          ? "No states found"
                           : !displayStateValue
                             ? "Select state first"
                             : citiesLoading
                               ? "Loading…"
-                              : "Search city"
+                              : "Search or enter city"
                       }
-                      searchPlaceholder="Type to search cities"
+                      searchPlaceholder="Type any city"
                       options={effectiveCityOptions}
-                      emptyMessage="No cities found. Try another search."
+                      emptyMessage="Type a city name and press Enter."
                     />
                     <label className="sm:col-span-2 flex cursor-pointer items-center gap-2.5 text-sm text-[#334155]">
                       <span

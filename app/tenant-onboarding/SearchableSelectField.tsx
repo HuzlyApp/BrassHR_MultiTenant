@@ -51,6 +51,8 @@ type SearchableSelectFieldProps = {
   emptyMessage?: string
   /** Tighter field sizing for signup mobile layout */
   compact?: boolean
+  /** Allow confirming a typed value that is not in `options` (any city in an allowed state). */
+  allowCustom?: boolean
 }
 
 export default function SearchableSelectField({
@@ -67,6 +69,7 @@ export default function SearchableSelectField({
   error,
   emptyMessage = "No cities found",
   compact = false,
+  allowCustom = false,
 }: SearchableSelectFieldProps) {
   const branding = useTenantBranding()
   const brandVars = useMemo(
@@ -89,6 +92,19 @@ export default function SearchableSelectField({
     if (!q) return [...options]
     return options.filter((opt) => opt.toLowerCase().includes(q))
   }, [options, query])
+
+  const customValue = query.trim()
+  const showCustomOption =
+    allowCustom &&
+    Boolean(customValue) &&
+    !options.some((opt) => opt.toLowerCase() === customValue.toLowerCase())
+
+  function commitValue(next: string) {
+    onChange(next)
+    setOpen(false)
+    setQuery("")
+    onBlur?.()
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -193,6 +209,24 @@ export default function SearchableSelectField({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return
+                  event.preventDefault()
+                  const typed = query.trim()
+                  if (!typed) return
+                  const exact = options.find((opt) => opt.toLowerCase() === typed.toLowerCase())
+                  if (exact) {
+                    commitValue(exact)
+                    return
+                  }
+                  if (allowCustom) {
+                    commitValue(typed)
+                    return
+                  }
+                  if (filteredOptions.length === 1) {
+                    commitValue(filteredOptions[0] ?? typed)
+                  }
+                }}
                 placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
                 autoFocus
                 style={inputTypographyStyle}
@@ -200,17 +234,21 @@ export default function SearchableSelectField({
               />
             </div>
             <div className="max-h-[220px] overflow-y-auto py-1">
+              {showCustomOption ? (
+                <button
+                  type="button"
+                  onClick={() => commitValue(customValue)}
+                  className="w-full cursor-pointer px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9]"
+                >
+                  Use “{customValue}”
+                </button>
+              ) : null}
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((opt) => (
                   <button
                     key={opt}
                     type="button"
-                    onClick={() => {
-                      onChange(opt)
-                      setOpen(false)
-                      setQuery("")
-                      onBlur?.()
-                    }}
+                    onClick={() => commitValue(opt)}
                     className={`w-full cursor-pointer px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9] ${
                       opt === value ? "bg-[#eff6ff] font-medium" : ""
                     }`}
@@ -218,7 +256,7 @@ export default function SearchableSelectField({
                     {opt}
                   </button>
                 ))
-              ) : (
+              ) : showCustomOption ? null : (
                 <p className="px-[14px] py-3 text-[14px] text-[#64748b]">{emptyMessage}</p>
               )}
             </div>

@@ -424,12 +424,6 @@ export default function SignupPage() {
 
         const names = (data ?? []).map((row) => String(row.city_name));
         setCityOptions(names);
-        setForm((prev) => {
-          if (prev.city && names.length > 0 && !names.includes(prev.city)) {
-            return { ...prev, city: "" };
-          }
-          return prev;
-        });
       } catch {
         if (active) setCityOptions([]);
       } finally {
@@ -1029,35 +1023,26 @@ export default function SignupPage() {
                 />
               </div>
               <div className="min-w-0">
-                {form.state && cityOptions.length === 0 && !citiesLoading ? (
-                  <TextField
-                    label="City"
-                    required
-                    value={form.city}
-                    onChange={(value) => update("city", value)}
-                    placeholder="Enter your city"
-                  />
-                ) : (
-                  <SearchableSelectField
-                    label="City"
-                    required
-                    compact
-                    disabled={!form.state}
-                    loading={citiesLoading}
-                    value={form.city}
-                    onChange={(value) => update("city", value)}
-                    placeholder={
-                      !form.state
-                        ? "Select state first"
-                        : citiesLoading
-                          ? "Loading…"
-                          : "Search city"
-                    }
-                    searchPlaceholder="Type to search cities"
-                    options={effectiveCityOptions}
-                    emptyMessage="No cities found. Try another search."
-                  />
-                )}
+                <SearchableSelectField
+                  label="City"
+                  required
+                  compact
+                  allowCustom
+                  disabled={!form.state}
+                  loading={citiesLoading}
+                  value={form.city}
+                  onChange={(value) => update("city", value)}
+                  placeholder={
+                    !form.state
+                      ? "Select state first"
+                      : citiesLoading
+                        ? "Loading…"
+                        : "Search or enter city"
+                  }
+                  searchPlaceholder="Type any city"
+                  options={effectiveCityOptions}
+                  emptyMessage="Type a city name and press Enter."
+                />
               </div>
               <div className="signup-location-zip min-w-0 min-[600px]:col-span-2 lg:col-span-1" onBlur={() => setTouchedZip(true)}>
                 <TextField

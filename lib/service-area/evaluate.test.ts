@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateServiceArea, toPublicServiceAreaDecision } from "@/lib/service-area/evaluate";
+import { locationFromFreeText } from "@/lib/service-area/normalize";
 import type { ServiceAreaPolicy, TenantHiringArea } from "@/lib/service-area/types";
 
 const NYC_ZIPS = new Set(["10001", "11201", "10451", "10301", "11101"]);
@@ -145,6 +146,24 @@ describe("evaluateServiceArea Phase 1 holds", () => {
       "signup"
     );
     expect(decision.allowed).toBe(true);
+  });
+
+  it("allows Longview Texas on signup and apply with the full state name", () => {
+    const signup = evaluate(
+      { city: "Longview", state: "Texas", locationType: "onsite" },
+      "signup"
+    );
+    const apply = evaluate(
+      { city: "Longview", state: "Texas", locationType: "onsite" },
+      "apply"
+    );
+    const attach = evaluate(
+      { city: "Longview", state: "Texas", locationType: "onsite" },
+      "attach_candidate"
+    );
+    expect(signup.allowed).toBe(true);
+    expect(apply.allowed).toBe(true);
+    expect(attach.allowed).toBe(true);
   });
 
   it("AT-8: San Francisco signup is waitlisted", () => {
@@ -331,35 +350,41 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     }
   });
 
-  it("blocks unknown city/state values such as asdf, TX", () => {
-    const decision = evaluate({ city: "asdf", state: "TX", locationType: "onsite" });
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("unknown_location");
-  });
-
-  it("blocks unlisted plausible cities such as NotARealCity, TX", () => {
-    const decision = evaluate({ city: "NotARealCity", state: "TX", locationType: "onsite" });
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("unknown_location");
-  });
-
-  it("blocks unclassified New York cities that are not NYC or known upstate", () => {
-    const decision = evaluate({ city: "NotARealHamlet", state: "NY", locationType: "onsite" });
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("unknown_location");
-  });
-
-  it("allows other major allowed-state cities", () => {
+  it("allows any city in an allowed state, including full names like Texas", () => {
     for (const row of [
+      { city: "Longview", state: "TX" },
+      { city: "Longview", state: "Texas" },
+      { city: "Longview", state: "texas" },
+      { city: "Texas Hill Country", state: "Texas" },
       { city: "Dallas", state: "TX" },
       { city: "Raleigh", state: "NC" },
-      { city: "Seattle", state: "WA" },
-      { city: "Miami", state: "FL" },
-      { city: "Denver", state: "CO" },
+      { city: "Albany", state: "NY" },
+      { city: "NotARealHamlet", state: "NY" },
     ]) {
       const decision = evaluate({ ...row, locationType: "onsite" });
       expect(decision.allowed, `${row.city}, ${row.state}`).toBe(true);
     }
+  });
+
+  it("holds California when the state is written as a full name", () => {
+    const decision = evaluate({
+      city: "Los Angeles",
+      state: "California",
+      locationType: "onsite",
+    });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasonCode).toBe("platform_hold");
+  });
+
+  it("allows a Texas street address that uses the full state name", () => {
+    const parsed = locationFromFreeText("Northcastle Street, Longview, Texas");
+    expect(parsed).toEqual({ city: "Longview", state: "TX", postalCode: "" });
+    const decision = evaluate({
+      city: parsed.city,
+      state: parsed.state,
+      locationType: "onsite",
+    });
+    expect(decision.allowed).toBe(true);
   });
 
   it("blocks missing city or state", () => {
