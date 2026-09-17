@@ -1,18 +1,16 @@
 "use client";
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import { X, Lock } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { FileText, X, Lock } from "lucide-react";
 import { GOLD } from "../constants";
+import { resolveHireLibraryIconPath } from "../hire-library-icons";
+import { resolveCanvasStepThemeColor } from "../library-category-theme";
 import type { WorkflowNodeData } from "../types";
 
 type StepNodeType = Node<WorkflowNodeData>;
 
 export default function StepNode(props: NodeProps<StepNodeType>) {
   const { data, id, selected } = props;
-  const iconHostRef = useRef<HTMLSpanElement>(null);
-  const [iconBgColor, setIconBgColor] = useState<string>("#eaecf0");
-
   const onDelete = data.onDelete;
   const lockedFirstStep = data.lockedFirstStep === true;
   const phaseLabel =
@@ -20,22 +18,12 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
       ? "Post-Hire"
       : "Pre-Hire";
 
-  useEffect(() => {
-    const host = iconHostRef.current;
-    if (!host) return;
-
-    const iconRoot = host.firstElementChild as HTMLElement | null;
-    if (!iconRoot) return;
-
-    const nodesToInspect: HTMLElement[] = [iconRoot, ...(Array.from(iconRoot.children) as HTMLElement[])];
-    for (const el of nodesToInspect) {
-      const bg = window.getComputedStyle(el).backgroundColor;
-      if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
-        setIconBgColor(bg);
-        return;
-      }
-    }
-  }, [data.icon]);
+  const stageName =
+    typeof (data.settings as { stageName?: unknown }).stageName === "string"
+      ? (data.settings as { stageName?: string }).stageName
+      : null;
+  const themeColor = resolveCanvasStepThemeColor(data.stepId, stageName);
+  const iconPath = resolveHireLibraryIconPath(data.stepId);
 
   return (
     <div className="relative">
@@ -65,14 +53,13 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
       <div
         className="h-[70px] w-[232px] min-h-[46px] min-w-[100px] overflow-hidden rounded-md bg-white transition"
         style={{
-          border: `1px solid ${selected ? GOLD : iconBgColor}`,
+          border: `1px solid ${selected ? GOLD : themeColor}`,
         }}
       >
         <Handle
           type="target"
           position={Position.Top}
           style={{
-            // background: color.ring,
             width: 8,
             height: 8,
             border: "2px solid white",
@@ -82,10 +69,24 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
         <div className="flex h-full flex-col gap-2 p-2">
           <div className="flex items-center gap-2">
             <span
-              ref={iconHostRef}
-              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-md [&>svg]:h-[18px] [&>svg]:w-[18px]"
+              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-md"
+              style={{ backgroundColor: themeColor }}
             >
-            {data.icon}
+              {iconPath ? (
+                // eslint-disable-next-line @next/next/no-img-element -- hire-library SVG assets
+                <img
+                  src={iconPath}
+                  alt=""
+                  className="h-5 w-5 object-contain brightness-0 invert"
+                  draggable={false}
+                />
+              ) : data.icon ? (
+                <span className="flex h-full w-full items-center justify-center [&>*]:!h-full [&>*]:!w-full [&>*]:!bg-transparent [&_svg]:brightness-0 [&_svg]:invert">
+                  {data.icon}
+                </span>
+              ) : (
+                <FileText size={18} className="text-white" strokeWidth={2} />
+              )}
             </span>
             <span className="flex-1 whitespace-normal break-words text-black text-[11px] font-semibold leading-[14px]">
               {data.label}
@@ -149,7 +150,6 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
           type="source"
           position={Position.Bottom}
           style={{
-            // background: color.ring,
             width: 8,
             height: 8,
             border: "2px solid white",

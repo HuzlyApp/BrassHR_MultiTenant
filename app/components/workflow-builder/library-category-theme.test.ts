@@ -3,6 +3,7 @@ import {
   filterStepLibraryByPhase,
   LIBRARY_THEME_COLORS,
   mergeCustomStepCategories,
+  resolveCanvasStepThemeColor,
   resolveCategoryDisplayLabel,
   resolveStepLibraryPhase,
   resolveStepThemeColor,
@@ -378,6 +379,16 @@ describe("library-category-theme", () => {
     expect(
       resolveStepThemeColor({ id: "background-check" }, "screening-compliance", "Screening & Compliance Steps")
     ).toBe(LIBRARY_THEME_COLORS.compliance);
+  });
+
+  it("resolves canvas node theme colors from stage / step id like the library", () => {
+    expect(resolveCanvasStepThemeColor("collect-extra-files")).toBe(LIBRARY_THEME_COLORS.intake);
+    expect(resolveCanvasStepThemeColor("references-collection")).toBe(LIBRARY_THEME_COLORS.intake);
+    expect(resolveCanvasStepThemeColor("custom-form")).toBe(LIBRARY_THEME_COLORS.intake);
+    expect(resolveCanvasStepThemeColor("recruiter-screening")).toBe(LIBRARY_THEME_COLORS.screening);
+    expect(resolveCanvasStepThemeColor("background-check")).toBe(LIBRARY_THEME_COLORS.compliance);
+    expect(resolveCanvasStepThemeColor("release-to-client")).toBe(LIBRARY_THEME_COLORS.submission);
+    expect(resolveCanvasStepThemeColor("unknown-step", "Intake")).toBe(LIBRARY_THEME_COLORS.intake);
   });
 
   it("respects explicit defaultPhase on a step", () => {

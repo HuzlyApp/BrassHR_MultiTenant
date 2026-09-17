@@ -692,6 +692,85 @@ const FIGMA_POST_HIRE_STEP_IDS = new Set(
   FIGMA_POST_HIRE_GROUPS.flatMap((group) => group.steps.map((step) => step.id))
 );
 
+/** Map Figma stage display names (and close variants) → library theme colors. */
+const STAGE_NAME_THEME_COLORS: Record<string, string> = {
+  intake: LIBRARY_THEME_COLORS.intake,
+  screening: LIBRARY_THEME_COLORS.screening,
+  interview: LIBRARY_THEME_COLORS.interview,
+  submission: LIBRARY_THEME_COLORS.submission,
+  compliance: LIBRARY_THEME_COLORS.compliance,
+  "offer & agreement": LIBRARY_THEME_COLORS.offerAgreement,
+  "offer and agreement": LIBRARY_THEME_COLORS.offerAgreement,
+  approvals: LIBRARY_THEME_COLORS.approvals,
+  "payroll & tax": LIBRARY_THEME_COLORS.intake,
+  "payroll and tax": LIBRARY_THEME_COLORS.intake,
+  "access & systems": LIBRARY_THEME_COLORS.accessSystems,
+  "access and systems": LIBRARY_THEME_COLORS.accessSystems,
+  "training & policy": LIBRARY_THEME_COLORS.trainingPolicy,
+  "training and policy": LIBRARY_THEME_COLORS.trainingPolicy,
+  "welcome & complete": LIBRARY_THEME_COLORS.welcomeComplete,
+  "welcome and complete": LIBRARY_THEME_COLORS.welcomeComplete,
+};
+
+/** Canvas step ids that are not always listed under a Figma group id. */
+const CANVAS_STEP_THEME_ALIASES: Record<string, string> = {
+  "resume-basic-profile": LIBRARY_THEME_COLORS.intake,
+  "parameterized-job-application": LIBRARY_THEME_COLORS.intake,
+  "references-collection": LIBRARY_THEME_COLORS.intake,
+  "collect-references": LIBRARY_THEME_COLORS.intake,
+  "collect-extra-files": LIBRARY_THEME_COLORS.intake,
+  "custom-form": LIBRARY_THEME_COLORS.intake,
+  "custom-application-form": LIBRARY_THEME_COLORS.intake,
+  "document-upload": LIBRARY_THEME_COLORS.intake,
+  "release-to-client": LIBRARY_THEME_COLORS.submission,
+  "client-review": LIBRARY_THEME_COLORS.submission,
+  "candidate-selection": LIBRARY_THEME_COLORS.interview,
+  "internal-select": LIBRARY_THEME_COLORS.interview,
+  "interview-qualification": LIBRARY_THEME_COLORS.interview,
+  "pay-and-start-date": LIBRARY_THEME_COLORS.offerAgreement,
+  "i9-section-1": LIBRARY_THEME_COLORS.offerAgreement,
+  "manager-facility-approval": LIBRARY_THEME_COLORS.approvals,
+  "hr-final-approval": LIBRARY_THEME_COLORS.approvals,
+  "completion-milestone": LIBRARY_THEME_COLORS.approvals,
+};
+
+function buildFigmaStepThemeMap(): Record<string, string> {
+  const map: Record<string, string> = { ...CANVAS_STEP_THEME_ALIASES };
+  for (const group of [...FIGMA_PRE_HIRE_GROUPS, ...FIGMA_POST_HIRE_GROUPS]) {
+    const color = resolveCategoryConfig(group.id, group.label).color;
+    for (const step of group.steps) {
+      map[step.id] = color;
+    }
+  }
+  for (const byStep of Object.values(MIXED_CATEGORY_STEP_COLORS)) {
+    for (const [stepId, color] of Object.entries(byStep)) {
+      if (!map[stepId]) map[stepId] = color;
+    }
+  }
+  return map;
+}
+
+const FIGMA_STEP_THEME_BY_ID = buildFigmaStepThemeMap();
+
+/**
+ * Canvas node accent: same stage color as Steps Library (icon bg + border).
+ * Prefers settings.stageName when present, then library step id map.
+ */
+export function resolveCanvasStepThemeColor(
+  stepId: string,
+  stageName?: string | null
+): string {
+  const stage = String(stageName ?? "").trim().toLowerCase();
+  if (stage && STAGE_NAME_THEME_COLORS[stage]) {
+    return STAGE_NAME_THEME_COLORS[stage];
+  }
+
+  const id = String(stepId ?? "").trim();
+  if (!id) return LIBRARY_THEME_COLORS.slate;
+  if (id === CUSTOM_STEP_ID) return LIBRARY_THEME_COLORS.slate;
+  return FIGMA_STEP_THEME_BY_ID[id] ?? LIBRARY_THEME_COLORS.slate;
+}
+
 const PRE_HIRE_CATEGORY_ORDER = [
   CUSTOM_STEPS_CATEGORY_ID,
   "application-profile",

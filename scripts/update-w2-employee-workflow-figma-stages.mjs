@@ -811,13 +811,15 @@ async function main() {
   console.log(`Host: ${url}`);
   console.log(`Steps in draft: ${draft.nodes.length}`);
 
-  const { data: library } = await sb
+  const { data: libraries } = await sb
     .from("onboarding_libraries")
-    .select("id, name, slug")
-    .eq("tenant_id", preferred.id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .select("id, name, slug, is_uncategorized")
+    .eq("tenant_id", preferred.id);
+  const library =
+    (libraries ?? []).find((l) => l.slug === "onboarding" && !l.is_uncategorized) ??
+    (libraries ?? []).find((l) => /onboarding/i.test(String(l.name ?? "")) && !l.is_uncategorized) ??
+    (libraries ?? []).find((l) => !l.is_uncategorized) ??
+    null;
 
   const { data: existing } = await sb
     .from("onboarding_flows")

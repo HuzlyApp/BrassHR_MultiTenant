@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, PanelRightClose } from "lucide-react";
+import { ChevronDown, FileText, PanelRightClose } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import {
   BRAND_CTA_GRADIENT,
@@ -16,6 +16,8 @@ import {
 } from "@/lib/onboarding/normalize-workflow-settings";
 import { isFirmaAttachableWorkflowStepId } from "@/lib/onboarding/firma-step-settings";
 import { FirmaTemplateSelect } from "@/app/components/onboarding/FirmaTemplateSelect";
+import { resolveHireLibraryIconPath } from "./hire-library-icons";
+import { resolveCanvasStepThemeColor } from "./library-category-theme";
 import StepPreviewPanel from "./step-preview/StepPreviewPanel";
 
 type PanelTab = "settings" | "preview";
@@ -171,6 +173,12 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
     ? [...WORKFLOW_PROVIDER_OPTIONS]
     : (["Manual", "Third-party API"] as const);
   const showFirmaTemplatePicker = isFirmaAttachableWorkflowStepId(node.data.stepId);
+  const stageName =
+    typeof (settings as { stageName?: unknown }).stageName === "string"
+      ? (settings as { stageName?: string }).stageName
+      : null;
+  const themeColor = resolveCanvasStepThemeColor(node.data.stepId, stageName);
+  const iconPath = resolveHireLibraryIconPath(node.data.stepId);
 
   const patchSettings = (patch: Partial<StepSettings>, options?: { skipHistory?: boolean }) => {
     onUpdate(node.id, { settings: { ...settings, ...patch } }, options);
@@ -179,8 +187,25 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center gap-2.5 px-5 py-4">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white">
-          {node.data.icon}
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md"
+          style={{ backgroundColor: themeColor }}
+        >
+          {iconPath ? (
+            // eslint-disable-next-line @next/next/no-img-element -- hire-library SVG assets
+            <img
+              src={iconPath}
+              alt=""
+              className="h-5 w-5 object-contain brightness-0 invert"
+              draggable={false}
+            />
+          ) : node.data.icon ? (
+            <span className="flex h-full w-full items-center justify-center [&>*]:!h-full [&>*]:!w-full [&>*]:!bg-transparent [&_svg]:brightness-0 [&_svg]:invert">
+              {node.data.icon}
+            </span>
+          ) : (
+            <FileText size={18} className="text-white" strokeWidth={2} />
+          )}
         </span>
         <span
           className="truncate text-sm font-semibold leading-5"
