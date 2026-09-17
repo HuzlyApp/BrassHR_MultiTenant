@@ -35,6 +35,45 @@ export type HireStageGroup = {
   summaryLabel: string;
 };
 
+/**
+ * Exact library step keys → Figma Pre-Hire stages (Steps Library order).
+ * Preferred over regex so SSN stays in Compliance, Interview/Submission appear correctly.
+ */
+const PRE_HIRE_LIBRARY_STAGE: Record<string, (typeof PRE_HIRE_FIGMA_STAGES)[number]> = {
+  "resume-basic-profile": "Intake",
+  "parameterized-job-application": "Intake",
+  "collect-extra-files": "Intake",
+  "references-collection": "Intake",
+  "collect-references": "Intake",
+  "custom-form": "Intake",
+  "custom-application-form": "Intake",
+  "document-upload": "Intake",
+  "recruiter-screening": "Screening",
+  "skill-qualification-assessment": "Screening",
+  "reference-verification": "Screening",
+  "interview-qualification": "Interview",
+  "internal-select": "Interview",
+  "candidate-selection": "Interview",
+  "release-to-client": "Submission",
+  "client-review": "Submission",
+  "background-check": "Compliance",
+  "drug-test-screening": "Compliance",
+  "oig-exclusion-check": "Compliance",
+  "credential-license-verification": "Compliance",
+  "ssn-identity-verification": "Compliance",
+  "adverse-action-process": "Compliance",
+  "pay-and-start-date": "Offer & Agreement",
+  "pay-rate-hire-date": "Offer & Agreement",
+  "offer-acceptance": "Offer & Agreement",
+  "offer-accepted": "Offer & Agreement",
+  "employee-agreement": "Offer & Agreement",
+  "agreement-esign": "Offer & Agreement",
+  "i9-section-1": "Offer & Agreement",
+  "manager-facility-approval": "Approvals",
+  "hr-final-approval": "Approvals",
+  "completion-milestone": "Approvals",
+};
+
 /** Match Figma W2 Pre-hire board: Intake → … → Approvals. */
 const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; patterns: RegExp[] }> = [
   {
@@ -73,9 +112,6 @@ const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; pat
     patterns: [
       /interview/,
       /internal.?select/,
-      /candidate.?selection/,
-      /candidate.?approval/,
-      /client.?review/,
       /want.?to.?hire/,
       /hire.?intent/,
       /we.?want.?to.?hire/,
@@ -88,6 +124,8 @@ const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; pat
       /sent.?to.?client/,
       /msp/,
       /release.?to.?client/,
+      /released.?to.?client/,
+      /client.?review/,
       /submit.?to.?client/,
       /presented.?to.?client/,
       /profile.?ready/,
@@ -104,23 +142,34 @@ const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; pat
       /license/,
       /credential/,
       /ssn/,
-      /identity/,
+      /identity.?verif/,
       /adverse/,
     ],
   },
   {
     stage: "Offer & Agreement",
-    patterns: [/offer/, /agreement/, /contract/, /placement/, /pay.?rate/, /hire.?date/, /i-?9.?section.?1/],
+    patterns: [
+      /offer/,
+      /agreement/,
+      /contract/,
+      /placement/,
+      /pay.?and.?start/,
+      /pay.?rate/,
+      /hire.?date/,
+      /i-?9.?section.?1/,
+    ],
   },
   {
     // Final Review / Completion milestones stay in Approvals when pre-hire.
     stage: "Approvals",
     patterns: [
       /manager.?facility.?approv/,
+      /facility.?approv/,
       /hr.?final.?approv/,
       /final.?approval/,
       /final.?review/,
       /completion.?milestone/,
+      /pre.?hire.?approv/,
       /approv/,
       /sign.?off/,
     ],
@@ -208,6 +257,17 @@ function resolveStageName(
   explicitStage: string | null
 ): string {
   if (explicitStage) return explicitStage;
+
+  if (lifecycle === "pre_hire") {
+    const keys = [step.stepKey, step.stepType]
+      .map((value) => String(value ?? "").trim().toLowerCase())
+      .filter(Boolean);
+    for (const key of keys) {
+      const mapped = PRE_HIRE_LIBRARY_STAGE[key];
+      if (mapped) return mapped;
+    }
+  }
+
   const haystack = stepHaystack(step);
   const rules = lifecycle === "pre_hire" ? PRE_HIRE_RULES : POST_HIRE_RULES;
   for (const rule of rules) {
@@ -218,11 +278,7 @@ function resolveStageName(
 }
 
 function readExplicitStage(step: CandidateWorkflowStepView): string | null {
-  // Reserved for future settings.stage / settings.stageName from workflow builder.
-  const anyStep = step as CandidateWorkflowStepView & {
-    settings?: Record<string, unknown> | null;
-  };
-  const settings = anyStep.settings;
+  const settings = step.settings;
   if (!settings || typeof settings !== "object") return null;
   for (const key of ["stageName", "stage", "group", "section"] as const) {
     const value = settings[key];

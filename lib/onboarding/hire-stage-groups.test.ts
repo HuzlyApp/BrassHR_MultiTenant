@@ -89,6 +89,34 @@ describe("groupStepsIntoHireStages", () => {
     expect(meta.inProgress).toBe(1);
   });
 
+  it("puts SSN in Compliance and Submission/Interview stages in Figma order", () => {
+    const groups = groupStepsIntoHireStages(
+      [
+        step({ id: "i1", title: "Resume & Basic Profile", stepKey: "resume-basic-profile" }),
+        step({ id: "s1", title: "Skill Assessment", stepKey: "skill-qualification-assessment" }),
+        step({ id: "iv1", title: "Interview / Qualification", stepKey: "interview-qualification" }),
+        step({ id: "sub1", title: "Sent to Client / MSP", stepKey: "release-to-client" }),
+        step({ id: "c1", title: "SSN / Identity Verification", stepKey: "ssn-identity-verification" }),
+        step({ id: "o1", title: "Offer Acceptance", stepKey: "offer-acceptance" }),
+        step({ id: "a1", title: "HR Final Approval", stepKey: "hr-final-approval" }),
+      ],
+      "pre_hire"
+    );
+
+    expect(groups.map((g) => g.name)).toEqual([
+      "Intake",
+      "Screening",
+      "Interview",
+      "Submission",
+      "Compliance",
+      "Offer & Agreement",
+      "Approvals",
+    ]);
+    expect(groups.find((g) => g.name === "Compliance")?.steps.map((s) => s.title)).toEqual([
+      "SSN / Identity Verification",
+    ]);
+  });
+
   it("groups post-hire steps into Figma Payroll / Access / Training / Welcome buckets", () => {
     const groups = groupStepsIntoHireStages(
       [

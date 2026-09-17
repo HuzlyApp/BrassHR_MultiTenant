@@ -74,6 +74,8 @@ export type MappedAssignedStep = {
   detail?: string;
   assignedAt: string | null;
   completedAt: string | null;
+  /** Workflow builder settings (includes Figma stageName when present). */
+  settings?: Record<string, unknown> | null;
 };
 
 function asText(value: unknown): string | null {
@@ -283,6 +285,10 @@ export function mapAssignedStepRecords(params: {
       ? progressStatus
       : "pending";
     const unmatched = !matched;
+    const settings =
+      record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
+        ? record.settings
+        : null;
     return {
       id: record.id,
       snapshotStepId: record.snapshot_step_id,
@@ -302,6 +308,7 @@ export function mapAssignedStepRecords(params: {
         : undefined,
       assignedAt: params.assignedAt ?? record.created_at ?? null,
       completedAt: progress?.completed_at ?? record.completed_at ?? null,
+      settings,
     };
   });
 }
