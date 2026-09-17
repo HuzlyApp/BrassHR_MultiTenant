@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assignmentSourceLabel,
   buildPhaseAssignment,
+  enrichAssignedStepsDisplayFromEvidence,
   mapAssignedStepRecords,
   mapProgressToDisplayStatus,
   matchTenantStepForAssignedRecord,
@@ -154,7 +155,44 @@ describe("assigned workflow steps", () => {
 
   it("maps document review onto display status without inventing completion", () => {
     expect(mapProgressToDisplayStatus("pending")).toBe("not_started");
+    expect(mapProgressToDisplayStatus("pending", "uploaded")).toBe("submitted");
     expect(mapProgressToDisplayStatus("completed", "rejected")).toBe("rejected");
     expect(mapProgressToDisplayStatus("completed", "approved")).toBe("approved");
+  });
+
+  it("enriches resume steps to Submitted when a resume file exists but progress is pending", () => {
+    const mapped = mapAssignedStepRecords({
+      records: [
+        {
+          id: "rec-1",
+          snapshot_step_id: "step-resume-basic-profile",
+          title: "Resume & Basic Profile",
+          step_type: "resume-basic-profile",
+          is_required: true,
+          position: 1,
+          phase: "pre_hire",
+          status: "pending",
+          settings: {},
+        },
+      ],
+      tenantSteps: [
+        tenantStep({
+          id: "tenant-resume",
+          step_key: "resume_upload",
+          title: "Resume & Basic Profile",
+          step_type: "resume_upload",
+        }),
+      ],
+      progressByStepId: new Map([
+        ["tenant-resume", { onboarding_step_id: "tenant-resume", status: "pending" }],
+      ]),
+    });
+    expect(mapped[0]?.displayStatus).toBe("not_started");
+
+    const enriched = enrichAssignedStepsDisplayFromEvidence({
+      steps: mapped,
+      hasResumeUpload: true,
+    });
+    expect(enriched[0]?.displayStatus).toBe("submitted");
   });
 });

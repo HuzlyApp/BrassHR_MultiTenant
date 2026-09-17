@@ -48,6 +48,9 @@ export function HireStageBoard({
   profile,
   activationFailed,
   onRequestPostHireTab,
+  applicationId,
+  jobTitle,
+  onScheduled,
 }: {
   workerId?: string;
   lifecycle: HireStageLifecycle;
@@ -64,6 +67,9 @@ export function HireStageBoard({
   };
   activationFailed?: boolean;
   onRequestPostHireTab?: () => void;
+  applicationId?: string | null;
+  jobTitle?: string | null;
+  onScheduled?: () => void;
 }) {
   const stages = useMemo(() => groupStepsIntoHireStages(steps, lifecycle), [steps, lifecycle]);
   const progressMeta = useMemo(() => hireStageProgressMeta(stages), [stages]);
@@ -90,7 +96,7 @@ export function HireStageBoard({
     progressMeta.percent === 100;
 
   const proceedDisabledReason = !phaseView?.postHireVisible
-    ? "Convert / Approve as Worker to unlock Post-Hire."
+    ? "Select the candidate and complete required Pre-Hire steps to unlock Post-Hire."
     : phaseView.postHireLocked
       ? "Post-Hire is locked until hire activation completes."
       : null;
@@ -136,6 +142,7 @@ export function HireStageBoard({
       if (!res.ok) throw new Error(json.error || "Failed to schedule interview");
       setScheduleOpen(false);
       setScheduleSuccess(invitationSuccessMessage(json.invitation));
+      onScheduled?.();
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Failed to schedule interview");
     } finally {
@@ -173,7 +180,7 @@ export function HireStageBoard({
         <div className="min-w-0 flex-1 space-y-4">
           <header>
             <h1
-              className="text-2xl font-semibold tracking-tight"
+              className="text-3xl font-bold tracking-tight"
               style={{ color: "var(--brand-secondary)" }}
             >
               {title}
@@ -191,6 +198,7 @@ export function HireStageBoard({
           <HireStageStepper stages={stages} />
           <HireStageAccordion
             stages={stages}
+            lifecycle={lifecycle}
             onInspectStep={(step) => void openStep(step)}
             onScheduleInterview={
               lifecycle === "pre_hire" ? () => setScheduleOpen(true) : undefined
@@ -247,6 +255,11 @@ export function HireStageBoard({
           onSubmit={(payload) => void handleSchedule(payload)}
           fixedWorkerId={workerId}
           fixedApplicantName={profile.name || "Candidate"}
+          fixedApplicationId={applicationId ?? undefined}
+          fixedJobTitle={jobTitle ?? undefined}
+          defaultTitle={
+            jobTitle ? `Interview — ${jobTitle}` : `Interview — ${profile.name || "Candidate"}`
+          }
         />
       ) : null}
       <SuccessModal

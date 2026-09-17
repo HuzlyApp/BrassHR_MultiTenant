@@ -119,6 +119,48 @@ export function mapProgressToDisplayStatus(
   return "not_started";
 }
 
+/** Resume / profile collection steps often have evidence in worker_resumes, not step_progress. */
+export function isResumeLikeAssignedStep(step: {
+  stepKey?: string | null;
+  stepType?: string | null;
+  onboardingType?: string | null;
+  title?: string | null;
+}): boolean {
+  const hay = `${step.stepKey ?? ""} ${step.stepType ?? ""} ${step.onboardingType ?? ""} ${step.title ?? ""}`
+    .trim()
+    .toLowerCase();
+  return /resume/.test(hay) || hay.includes("basic profile");
+}
+
+/**
+ * Align list-card displayStatus with the step drawer: uploaded docs / resumes
+ * should show Submitted (etc.) even when worker_onboarding_step_progress is still pending.
+ */
+export function enrichAssignedStepsDisplayFromEvidence(params: {
+  steps: MappedAssignedStep[];
+  documentStatusByStepKey?: Map<string, string | null | undefined>;
+  hasResumeUpload?: boolean;
+}): MappedAssignedStep[] {
+  const byKey = params.documentStatusByStepKey ?? new Map();
+  return params.steps.map((step) => {
+    let docStatus =
+      byKey.get(step.stepKey) ??
+      byKey.get(step.stepType) ??
+      byKey.get(step.onboardingType) ??
+      null;
+
+    if (!docStatus && params.hasResumeUpload && isResumeLikeAssignedStep(step)) {
+      docStatus = "uploaded";
+    }
+
+    if (!docStatus) return step;
+
+    const displayStatus = mapProgressToDisplayStatus(step.status, docStatus);
+    if (displayStatus === step.displayStatus) return step;
+    return { ...step, displayStatus };
+  });
+}
+
 export function displayStatusLabel(status: WorkflowStepDisplayStatus): string {
   const labels: Record<WorkflowStepDisplayStatus, string> = {
     not_started: "Not Started",
@@ -140,6 +182,7 @@ export function isCompleteDisplayStatus(status: WorkflowStepDisplayStatus | Onbo
   return (
     status === "completed" ||
     status === "approved" ||
+    status === "submitted" ||
     status === "skipped" ||
     status === "not_applicable"
   );

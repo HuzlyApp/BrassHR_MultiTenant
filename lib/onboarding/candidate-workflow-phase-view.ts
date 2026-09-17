@@ -3,7 +3,11 @@ import { isCandidateAlreadyConverted } from "@/lib/admin/convert-candidate-to-wo
 import type { AdminAttachmentRequirement } from "@/lib/onboarding/build-admin-attachment-requirements";
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import { canRevealPostHire, isAuthoritativelyHired } from "@/lib/onboarding/lock-post-hire";
+import {
+  canRevealPostHire,
+  canRevealPostHireForStaffJourney,
+  isAuthoritativelyHired,
+} from "@/lib/onboarding/lock-post-hire";
 import { parseApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 import {
   type EmploymentJourneyStage,
@@ -17,6 +21,7 @@ import {
   type ProgressRowInput,
   buildPhaseAssignment,
   countsFromAssignedSteps,
+  enrichAssignedStepsDisplayFromEvidence,
   mapAssignedStepRecords,
   resolveAssignmentSource,
   sanitizeTagsForClient,
@@ -104,7 +109,8 @@ export async function loadCandidateWorkflowPhaseView(
 ): Promise<CandidateWorkflowPhaseView> {
   const { workerId, tenantId } = params;
 
-  const [applicationsRes, instancesRes, workerRes, config, progressRes, mappingsRes] = await Promise.all([
+  const [applicationsRes, instancesRes, workerRes, config, progressRes, mappingsRes, resumeRes] =
+    await Promise.all([
     supabase
       .from("job_applications")
       .select(
@@ -134,6 +140,14 @@ export async function loadCandidateWorkflowPhaseView(
       .eq("tenant_id", tenantId)
       .eq("worker_id", workerId),
     supabase.from("workflow_mappings").select("workflow_id").eq("tenant_id", tenantId).eq("is_active", true),
+    supabase
+      .from("worker_resumes")
+      .select("id, uploaded_at, storage_path, file_url")
+      .eq("tenant_id", tenantId)
+      .eq("worker_id", workerId)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (applicationsRes.error && !/hired_at|post_hire_suspended_at|does not exist/i.test(applicationsRes.error.message)) {
@@ -160,7 +174,7 @@ export async function loadCandidateWorkflowPhaseView(
   const postHireActivationFailed = isHired && !postHireUnlockedAt && workflowPhase === "pre_hire";
 
   const workerRow = (workerRes.data ?? {}) as Record<string, unknown>;
-  const postHireVisible = canRevealPostHire({
+  const convertedVisible = canRevealPostHire({
     workerStatus: asText(workerRow.status),
     convertedAt: asText(workerRow.converted_at),
     convertedWorkerId: asText(workerRow.converted_worker_id),
@@ -197,7 +211,16 @@ export async function loadCandidateWorkflowPhaseView(
   const activeRecords = stepRecords.filter((row) => asText(row.workflow_instance_id) === activeInstanceId);
 
   const tenantSteps = (config?.steps ?? []).filter((step) => step.is_enabled);
-  const mappedSteps = mapAssignedStepRecords({
+  const latestResume = ((resumeRes.data ?? []) as Array<Record<string, unknown>>)[0] ?? null;
+  const hasResumeUpload = Boolean(
+    params.resumeUrl?.trim() ||
+      params.resumePath?.trim() ||
+      asText(latestResume?.storage_path) ||
+      asText(latestResume?.file_url) ||
+      asText(latestResume?.id)
+  );
+
+  let mappedSteps = mapAssignedStepRecords({
     records: activeRecords.map((row) => ({
       id: String(row.id),
       snapshot_step_id: String(row.snapshot_step_id ?? ""),
@@ -219,16 +242,15 @@ export async function loadCandidateWorkflowPhaseView(
     assignedAt: asText(activeInstance?.started_at) ?? asText(activeInstance?.created_at),
   });
 
-  const preHireSteps = mappedSteps.filter((step) => step.phase === "pre_hire");
-  const postHireSteps = mappedSteps.filter((step) => step.phase === "post_hire");
-
   const documents = await loadAdminAttachmentRequirements({
     supabase,
     workerId,
     tenantId,
-    resumeUrl: params.resumeUrl ?? null,
-    resumePath: params.resumePath ?? null,
-    resumePathRaw: params.resumePathRaw ?? null,
+    resumeUrl:
+      params.resumeUrl ??
+      (hasResumeUpload ? asText(latestResume?.file_url) || "resume-uploaded" : null),
+    resumePath: params.resumePath ?? asText(latestResume?.storage_path),
+    resumePathRaw: params.resumePathRaw ?? asText(latestResume?.storage_path),
     legacyUrls: params.legacyUrls ?? {
       nursing_license_url: null,
       tb_test_url: null,
@@ -236,6 +258,28 @@ export async function loadCandidateWorkflowPhaseView(
       authorization_document_url: null,
     },
   }).catch(() => [] as AdminAttachmentRequirement[]);
+
+  const documentStatusByStepKey = new Map<string, string | null | undefined>();
+  for (const doc of documents) {
+    const key = asText(doc.step_key);
+    const status = asText(doc.status);
+    if (!key || !status) continue;
+    if (!documentStatusByStepKey.has(key)) documentStatusByStepKey.set(key, status);
+  }
+
+  mappedSteps = enrichAssignedStepsDisplayFromEvidence({
+    steps: mappedSteps,
+    documentStatusByStepKey,
+    hasResumeUpload,
+  });
+
+  const preHireSteps = mappedSteps.filter((step) => step.phase === "pre_hire");
+  const postHireSteps = mappedSteps.filter((step) => step.phase === "post_hire");
+  const postHireVisible = canRevealPostHireForStaffJourney({
+    convertedVisible,
+    applicationHired: isHired,
+    preHireSteps,
+  });
 
   const mappedWorkflowIds = ((mappingsRes.data ?? []) as Array<{ workflow_id?: string }>)
     .map((row) => asText(row.workflow_id))

@@ -14,9 +14,10 @@ export const PHASE_LABEL: Record<EmploymentLifecyclePhase, string> = {
 };
 
 export const POST_HIRE_LOCKED_MESSAGE =
-  "Post-Hire steps become available after the applicant is marked as Hired.";
+  "Post-Hire steps become available after the candidate is Selected and required Pre-Hire steps are nearly complete.";
 
-export const POST_HIRE_LOCKED_TAB_MESSAGE = "Available after this applicant is marked as Hired.";
+export const POST_HIRE_LOCKED_TAB_MESSAGE =
+  "Available after Selected by Client when required Pre-Hire steps are nearly complete.";
 
 export function lifecyclePhaseLabel(phase: EmploymentLifecyclePhase): string {
   return PHASE_LABEL[phase];
