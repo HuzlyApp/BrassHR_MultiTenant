@@ -1141,7 +1141,7 @@ export async function importExistingCandidatesToWorkspace(
         submitted_at: nowIso,
         source: "admin",
         created_by_staff_user_id: input.staffUserId,
-        assigned_recruiter_user_id: null,
+        assigned_recruiter_user_id: input.staffUserId,
         ai_match_status: aiMatchStatus,
       })
       .select("id")
