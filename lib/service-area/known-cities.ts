@@ -110,9 +110,8 @@ export function isKnownNyOutsideNyc(city: string | null | undefined): boolean {
 }
 
 /**
- * Onsite/hybrid city that cannot be classified as a real worksite.
- * Restricted whole states skip this (the hold applies regardless of city quality).
- * Empty city is handled as incomplete elsewhere so remote state-only eval can run.
+ * City-quality helper only. Phase 1 publish/apply gating is state-only
+ * (CA / IL / CT / NYC holds) and does not call this.
  */
 export function isUnverifiableWorkCity(input: {
   city?: string | null;

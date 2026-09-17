@@ -3,7 +3,6 @@ import {
   SERVICE_AREA_ENFORCE_PLATFORM_HOLDS,
 } from "@/lib/service-area/config";
 import type { ServiceAreaMessageKey } from "@/lib/service-area/copy";
-import { isUnverifiableWorkCity } from "@/lib/service-area/known-cities";
 import { locationMatchesPolicy, hiringLocationMatches } from "@/lib/service-area/match";
 import { normalizeRemoteStates, normalizeStateCode } from "@/lib/service-area/normalize";
 import type {
@@ -118,10 +117,6 @@ function evaluateSingleLocation(
     }
   }
 
-  if (isUnverifiableWorkCity(location)) {
-    return deny("unknown_location", action, null, null);
-  }
-
   if (!enforceHiringArea) return ok();
 
   const area = ctx.hiringArea;
@@ -161,6 +156,7 @@ function evaluateRemoteStates(
 
 /**
  * Pure decision engine. First failure wins: platform hold → tenant hiring area → allow.
+ * City allowlists are not used; "Texas" and "TX" are equivalent.
  * Does not log; callers persist denies via recordServiceAreaDecision.
  */
 export function evaluateServiceArea(

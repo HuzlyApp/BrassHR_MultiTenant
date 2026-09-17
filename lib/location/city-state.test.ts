@@ -16,6 +16,13 @@ describe("parseCityStateLocation", () => {
     expect(formatCityState("Neenah, Wisconsin, United States")).toBe("Neenah, WI");
   });
 
+  it("parses street + city + full state name as that city and TX", () => {
+    const parsed = parseCityStateLocation("Northcastle Street, Longview, Texas");
+    expect(parsed.city).toBe("Longview");
+    expect(parsed.stateCode).toBe("TX");
+    expect(parsed.stateName).toBe("Texas");
+  });
+
   it("keeps already-canonical City, ST labels", () => {
     expect(formatCityState("Blue Bell, PA")).toBe("Blue Bell, PA");
     expect(formatCityState("Avon Lake, OH")).toBe("Avon Lake, OH");
