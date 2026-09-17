@@ -128,5 +128,5 @@ export function isUnverifiableWorkCity(input: {
     return true;
   }
   if (isKnownUsCity(city, state)) return false;
-  return !isPlausibleCityName(city);
+  return true;
 }

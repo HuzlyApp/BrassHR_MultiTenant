@@ -62,7 +62,9 @@ export async function evaluateJobServiceArea(
   input: JobRequisitionInput,
   options: { publish: boolean; actorUserId: string; jobId?: string }
 ): Promise<{ decision: ServiceAreaDecision; warning: string | null; status: "ok" | "blocked" }> {
-  await assertTenantCanOperate(supabase, tenantId);
+  if (options.publish) {
+    await assertTenantCanOperate(supabase, tenantId);
+  }
 
   const locations: ServiceAreaLocation[] = [jobInputToServiceAreaLocation(input)];
   if (!isRemoteJobLocationType(input.jobLocationType ?? input.schedule)) {
