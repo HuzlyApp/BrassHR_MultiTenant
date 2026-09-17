@@ -19,6 +19,54 @@ import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema"
 const LINK_CLASS =
   "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
 
+/** Fixed navy for job-detail links (not tenant primary). */
+const JOB_LINK_CLASS =
+  "text-left text-[#1e3a8a] transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]"
+
+function resolvePrimaryAppliedJob(c: CandidateRow): { jobId: string; title: string } | null {
+  const title = resolveCandidateMatchJobTitle(c).trim()
+  const appliedJobs = c.appliedJobs ?? []
+  if (appliedJobs.length === 0) {
+    return title ? { jobId: "", title } : null
+  }
+  if (title) {
+    const match = appliedJobs.find((job) => job.title.trim() === title)
+    if (match) return match
+  }
+  return appliedJobs[0] ?? null
+}
+
+function JobDetailsLink({
+  jobId,
+  title,
+  className,
+  prefix,
+}: {
+  jobId: string
+  title: string
+  className?: string
+  prefix?: string
+}) {
+  const label = prefix ? `${prefix}${title}` : title
+  if (!jobId.trim()) {
+    return (
+      <span className={className} title={title}>
+        {label}
+      </span>
+    )
+  }
+  return (
+    <Link
+      href={`/admin_recruiter/jobs/${encodeURIComponent(jobId)}`}
+      className={`${JOB_LINK_CLASS} ${className ?? ""}`}
+      title={title}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {label}
+    </Link>
+  )
+}
+
 export function renderListCell(
   col: CandidateColumnId,
   c: CandidateRow,
@@ -40,7 +88,9 @@ export function renderListCell(
 
   switch (col) {
     case "name": {
-      const jobTitle = resolveCandidateMatchJobTitle(c) || c.role?.trim() || ""
+      // Subtitle is applied job title only — do not fall back to resume job_role
+      // (that made empty Applied jobs look like a data bug).
+      const primaryJob = resolvePrimaryAppliedJob(c)
       return (
         <div className="flex w-full min-w-0 items-center gap-3">
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
@@ -66,9 +116,15 @@ export function renderListCell(
               </span>
             ) : null}
             {!highlightMultiJob ? (
-              <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]" title={jobTitle || undefined}>
-                {jobTitle || "—"}
-              </p>
+              primaryJob ? (
+                <JobDetailsLink
+                  jobId={primaryJob.jobId}
+                  title={primaryJob.title}
+                  className="mt-0.5 block truncate text-[11px] leading-4"
+                />
+              ) : (
+                <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]">—</p>
+              )
             ) : null}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -127,7 +183,7 @@ export function renderListCell(
     case "assignee": {
       const name = c.assignedRecruiterName?.trim() ?? ""
       if (!name) {
-        return <span className="text-sm text-[#94A3B8]">—</span>
+        return <span className="text-sm text-[#94A3B8]">Not assign yet</span>
       }
       return (
         <div className="flex items-center justify-center gap-2">
@@ -163,22 +219,38 @@ export function renderListCell(
     case "jobRole":
       return <span className="text-sm text-[#374151]">{c.role}</span>
     case "matchJob": {
-      const titles = getCandidateJobTitleOptions(c)
-      if (titles.length === 0) {
+      const appliedJobs =
+        c.appliedJobs && c.appliedJobs.length > 0
+          ? c.appliedJobs
+          : getCandidateJobTitleOptions(c).map((title) => ({
+              jobId: "",
+              title,
+            }))
+      if (appliedJobs.length === 0) {
         return <span className="text-sm text-[#94A3B8]">—</span>
       }
-      if (titles.length === 1) {
+
+      if (appliedJobs.length === 1) {
         return (
-          <p className="whitespace-normal text-left text-xs leading-4 text-[#64748B]" title={titles[0]}>
-            {titles[0]}
-          </p>
+          <div className="text-left">
+            <JobDetailsLink
+              jobId={appliedJobs[0].jobId}
+              title={appliedJobs[0].title}
+              className="whitespace-normal text-xs leading-4"
+            />
+          </div>
         )
       }
       return (
-        <ol className="m-0 list-none space-y-0.5 p-0 text-left text-xs leading-4 text-[#64748B]">
-          {titles.map((title, index) => (
-            <li key={`${title}-${index}`} className="whitespace-normal" title={title}>
-              {index + 1}. {title}
+        <ol className="m-0 list-none space-y-0.5 p-0 text-left">
+          {appliedJobs.map((job, index) => (
+            <li key={job.jobId || `${job.title}-${index}`}>
+              <JobDetailsLink
+                jobId={job.jobId}
+                title={job.title}
+                prefix={`${index + 1}. `}
+                className="whitespace-normal text-xs leading-4"
+              />
             </li>
           ))}
         </ol>

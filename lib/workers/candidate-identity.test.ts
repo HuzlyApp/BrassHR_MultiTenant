@@ -110,6 +110,54 @@ describe("candidate-identity", () => {
     );
   });
 
+  it("merges application fields from sibling when emailed profile has none", () => {
+    const collapsed = collapseWorkersToCandidateProfiles(
+      [
+        {
+          id: "emailed-empty",
+          email: "swethareddy11r@gmail.com",
+          phone: "+1 (475) 224-8003",
+          first_name: "Swetha",
+          last_name: "Reddy",
+          applied_job_count: 0,
+          created_at: "2026-09-07T00:00:00.000Z",
+        },
+        {
+          id: "blank-with-app",
+          email: "",
+          phone: "+1 (475) 224-8003",
+          first_name: "Swetha",
+          last_name: "Reddy",
+          applied_job_count: 1,
+          application_id: "app-1",
+          application_job_title: "Software Engineer",
+          application_job_titles_text: "Software Engineer",
+          application_client_name: "Cotiviti USA, LLC",
+          application_status_name: "New / Not Contacted",
+          match_application_id: "app-1",
+          ai_match_status: "ANALYZED",
+          ai_match_score: 88,
+          created_at: "2026-08-28T00:00:00.000Z",
+        },
+      ],
+      {
+        appliedJobCounts: new Map([
+          ["emailed-empty", 0],
+          ["blank-with-app", 1],
+        ]),
+        jobTitlesByWorker: new Map([["blank-with-app", ["Software Engineer"]]]),
+      }
+    );
+
+    expect(collapsed).toHaveLength(1);
+    expect(collapsed[0].id).toBe("blank-with-app");
+    expect(collapsed[0].email).toBe("swethareddy11r@gmail.com");
+    expect(collapsed[0].application_job_title).toBe("Software Engineer");
+    expect(collapsed[0].application_id).toBe("app-1");
+    expect(collapsed[0].match_application_id).toBe("app-1");
+    expect(collapsed[0].ai_match_score).toBe(88);
+  });
+
   it("pages unique candidate profiles in first-seen order", () => {
     const unique = selectUniqueCandidateProfilesInOrder([
       {

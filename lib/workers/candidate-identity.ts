@@ -25,6 +25,11 @@ export type CandidateIdentityFields = {
   last_name?: string | null;
   created_at?: string | null;
   applied_job_count?: number | null;
+  /** Present when listing attach found an active job application for this worker. */
+  application_id?: string | null;
+  application_job_title?: string | null;
+  application_job_titles_text?: string | null;
+  match_application_id?: string | null;
 };
 
 /**
@@ -49,11 +54,20 @@ export function candidatePhoneNameKey(row: CandidateIdentityFields): string | nu
   return null;
 }
 
+function hasApplicationLinkage(row: CandidateIdentityFields): boolean {
+  if (String(row.application_id ?? "").trim()) return true;
+  if (String(row.match_application_id ?? "").trim()) return true;
+  if (String(row.application_job_titles_text ?? "").trim()) return true;
+  return false;
+}
+
 function scoreCandidateProfile(row: CandidateIdentityFields): number {
+  // Prefer rows that carry job-application data over email-only empty duplicates.
+  const hasApps = hasApplicationLinkage(row) ? 5000 : 0;
   const hasEmail = normalizeTenantEmail(String(row.email ?? "")) ? 1000 : 0;
   const apps = Number(row.applied_job_count ?? 0);
   const created = row.created_at ? Date.parse(row.created_at) : 0;
-  return hasEmail + apps * 10 + (Number.isFinite(created) ? created / 1e13 : 0);
+  return hasApps + hasEmail + apps * 10 + (Number.isFinite(created) ? created / 1e13 : 0);
 }
 
 /** Pick the best worker row to keep as the candidate profile within a duplicate group. */
@@ -284,6 +298,16 @@ export function collapseWorkersToCandidateProfiles(
         created_at: typeof row.created_at === "string" ? row.created_at : null,
         applied_job_count:
           typeof row.applied_job_count === "number" ? row.applied_job_count : null,
+        application_id:
+          typeof row.application_id === "string" ? row.application_id : null,
+        application_job_title:
+          typeof row.application_job_title === "string" ? row.application_job_title : null,
+        application_job_titles_text:
+          typeof row.application_job_titles_text === "string"
+            ? row.application_job_titles_text
+            : null,
+        match_application_id:
+          typeof row.match_application_id === "string" ? row.match_application_id : null,
       }))
     );
     const profileId = String(profile.id ?? "").trim();
@@ -294,6 +318,17 @@ export function collapseWorkersToCandidateProfiles(
     const titleSet = new Set<string>();
     let appCount = 0;
     let bestEmail = typeof profile.email === "string" ? profile.email.trim() : "";
+    let bestApplicationSibling: Record<string, unknown> | null = null;
+    let bestMatchSibling: Record<string, unknown> | null = null;
+    const mergedJobAssignees: Array<{
+      application_id: string;
+      job_title: string;
+      assigned_recruiter_user_id: string | null;
+      assigned_recruiter_name: string | null;
+    }> = [];
+    const seenAssigneeApps = new Set<string>();
+    const mergedAppliedJobs: Array<{ job_id: string; title: string }> = [];
+    const seenAppliedJobIds = new Set<string>();
 
     for (const id of siblingIds) {
       appCount += options?.appliedJobCounts?.get(id) ?? 0;
@@ -312,18 +347,145 @@ export function collapseWorkersToCandidateProfiles(
       for (const part of existingTitles.split(" | ")) {
         if (part.trim()) titleSet.add(part.trim());
       }
+
+      const siblingAppliedJobs = Array.isArray(sibling?.application_applied_jobs)
+        ? sibling.application_applied_jobs
+        : [];
+      for (const entry of siblingAppliedJobs) {
+        if (!entry || typeof entry !== "object") continue;
+        const jobId =
+          typeof (entry as { job_id?: unknown }).job_id === "string"
+            ? String((entry as { job_id: string }).job_id).trim()
+            : "";
+        const title =
+          typeof (entry as { title?: unknown }).title === "string"
+            ? String((entry as { title: string }).title).trim()
+            : "";
+        if (!jobId || !title || seenAppliedJobIds.has(jobId)) continue;
+        seenAppliedJobIds.add(jobId);
+        mergedAppliedJobs.push({ job_id: jobId, title });
+        titleSet.add(title);
+      }
+
+      const siblingAssignees = Array.isArray(sibling?.application_job_assignees)
+        ? sibling.application_job_assignees
+        : [];
+      for (const entry of siblingAssignees) {
+        if (!entry || typeof entry !== "object") continue;
+        const appId =
+          typeof (entry as { application_id?: unknown }).application_id === "string"
+            ? String((entry as { application_id: string }).application_id).trim()
+            : "";
+        const jobTitle =
+          typeof (entry as { job_title?: unknown }).job_title === "string"
+            ? String((entry as { job_title: string }).job_title).trim()
+            : "";
+        if (!appId || !jobTitle || seenAssigneeApps.has(appId)) continue;
+        seenAssigneeApps.add(appId);
+        const assigneeId =
+          typeof (entry as { assigned_recruiter_user_id?: unknown })
+            .assigned_recruiter_user_id === "string"
+            ? String(
+                (entry as { assigned_recruiter_user_id: string }).assigned_recruiter_user_id
+              ).trim()
+            : "";
+        const assigneeName =
+          typeof (entry as { assigned_recruiter_name?: unknown }).assigned_recruiter_name ===
+          "string"
+            ? String((entry as { assigned_recruiter_name: string }).assigned_recruiter_name).trim()
+            : "";
+        mergedJobAssignees.push({
+          application_id: appId,
+          job_title: jobTitle,
+          assigned_recruiter_user_id: assigneeId || null,
+          assigned_recruiter_name: assigneeName || null,
+        });
+      }
+
+      if (sibling && typeof sibling.application_id === "string" && sibling.application_id.trim()) {
+        if (
+          !bestApplicationSibling ||
+          (typeof sibling.application_job_title === "string" &&
+            sibling.application_job_title.trim() &&
+            !(
+              typeof bestApplicationSibling.application_job_title === "string" &&
+              bestApplicationSibling.application_job_title.trim()
+            ))
+        ) {
+          bestApplicationSibling = sibling;
+        }
+      }
+      if (
+        sibling &&
+        typeof sibling.match_application_id === "string" &&
+        sibling.match_application_id.trim()
+      ) {
+        const siblingScore =
+          typeof sibling.ai_match_score === "number" ? sibling.ai_match_score : -1;
+        const bestScore =
+          typeof bestMatchSibling?.ai_match_score === "number"
+            ? bestMatchSibling.ai_match_score
+            : -1;
+        if (!bestMatchSibling || siblingScore > bestScore) {
+          bestMatchSibling = sibling;
+        }
+      }
     }
 
     if (appCount <= 0) {
       appCount = typeof profile.applied_job_count === "number" ? profile.applied_job_count : 1;
     }
 
+    const primaryTitle =
+      (typeof bestApplicationSibling?.application_job_title === "string"
+        ? bestApplicationSibling.application_job_title.trim()
+        : "") ||
+      (typeof profile.application_job_title === "string"
+        ? profile.application_job_title.trim()
+        : "") ||
+      [...titleSet][0] ||
+      "";
+
     collapsed.push({
       ...profile,
       ...(bestEmail ? { email: bestEmail } : {}),
       applied_job_count: appCount,
+      ...(bestApplicationSibling
+        ? {
+            application_id: bestApplicationSibling.application_id,
+            application_status_id: bestApplicationSibling.application_status_id,
+            application_status_name: bestApplicationSibling.application_status_name,
+            application_status_key: bestApplicationSibling.application_status_key,
+            application_status_ambiguous:
+              bestApplicationSibling.application_status_ambiguous,
+            application_job_title:
+              (typeof bestApplicationSibling.application_job_title === "string" &&
+              bestApplicationSibling.application_job_title.trim()
+                ? bestApplicationSibling.application_job_title
+                : primaryTitle) || null,
+            application_client_name: bestApplicationSibling.application_client_name,
+          }
+        : primaryTitle
+          ? { application_job_title: primaryTitle }
+          : {}),
       ...(titleSet.size
         ? { application_job_titles_text: [...titleSet].join(" | ") }
+        : {}),
+      ...(mergedAppliedJobs.length > 0
+        ? { application_applied_jobs: mergedAppliedJobs }
+        : {}),
+      ...(mergedJobAssignees.length > 0
+        ? { application_job_assignees: mergedJobAssignees }
+        : {}),
+      ...(bestMatchSibling
+        ? {
+            match_application_id: bestMatchSibling.match_application_id,
+            ai_match_status: bestMatchSibling.ai_match_status,
+            ai_match_score: bestMatchSibling.ai_match_score,
+            ai_match_category: bestMatchSibling.ai_match_category,
+            ai_match_display_category: bestMatchSibling.ai_match_display_category,
+            ai_requirement_counts: bestMatchSibling.ai_requirement_counts,
+          }
         : {}),
       ...(siblingIds.length > 1
         ? { candidate_profile_sibling_ids: siblingIds.filter((id) => id !== profileId) }

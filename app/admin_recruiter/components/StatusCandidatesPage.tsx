@@ -97,6 +97,10 @@ type WorkerProfile = {
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
   application_client_name?: string | null;
+  application_applied_jobs?: Array<{
+    job_id?: string | null;
+    title?: string | null;
+  }> | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -306,6 +310,16 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         applicationJobTitlesText: item.application_job_titles_text ?? null,
         applicationSearchText: item.application_search_text ?? null,
         applicationClientName: item.application_client_name ?? null,
+        appliedJobs: Array.isArray(item.application_applied_jobs)
+          ? item.application_applied_jobs
+              .map((entry) => {
+                const jobId = String(entry?.job_id ?? "").trim();
+                const title = String(entry?.title ?? "").trim();
+                if (!jobId || !title) return null;
+                return { jobId, title };
+              })
+              .filter((entry): entry is { jobId: string; title: string } => Boolean(entry))
+          : [],
         email,
         phone,
         address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
