@@ -44,6 +44,7 @@ import {
 } from "@/lib/jobs/application-status";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
+import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
 import {
   MAX_RESUME_UPLOADS_PER_ROLE,
   resumeUploadLimitMessage,
@@ -611,27 +612,16 @@ export default function JobCandidateReviewClient() {
   }
 
   async function viewResumeFromHistory(resumeId: string) {
-    if (!selected?.id) return;
-    setResumeHistoryBusyId(resumeId);
-    try {
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(selected.id)}/resumes/${encodeURIComponent(resumeId)}`,
-        { cache: "no-store" }
-      );
-      const payload = (await response.json().catch(() => ({}))) as {
-        url?: string;
-        error?: string;
-      };
-      const url = payload.url?.trim() ?? "";
-      if (!response.ok || !url) {
-        throw new Error(payload.error || "Could not open resume.");
-      }
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not open resume.");
-    } finally {
-      setResumeHistoryBusyId(null);
-    }
+    if (!selected?.id || !workerId) return;
+    window.open(
+      adminWorkerResumePreviewHref({
+        workerId,
+        resumeId,
+        applicationId: selected.id,
+      }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   async function parseResumeFromHistory(resumeId: string) {

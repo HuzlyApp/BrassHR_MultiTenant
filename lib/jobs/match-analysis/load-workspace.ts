@@ -3,6 +3,9 @@ import { loadWorkerNotesForWorkerId } from "@/lib/worker-notes";
 import { loadApplicationScreeningContext } from "@/lib/jobs/screening-questions";
 import { pickResumeForApplication } from "./pick-resume-for-application";
 import { getMatchAnalysisModelName } from "./service";
+import { getMatchStepModels } from "./step-config";
+import { isMatchCallPackStatus } from "./call-pack-status";
+import { listScreeningUploads } from "./screening-uploads";
 import {
   loadVerificationNoteAuditForApplication,
   loadVerificationNotesForApplication,
@@ -29,7 +32,7 @@ export async function loadMatchAnalysisWorkspace(
   const { data: application, error } = await supabase
     .from("job_applications")
     .select(
-      "id, tenant_id, job_requisition_id, worker_id, status, status_id, created_at, updated_at, submitted_at, created_by_staff_user_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analysis, ai_analyzed_at, ai_analyzed_by, ai_analysis_error, ai_analysis_progress, ai_analysis_version, ai_analysis_model, recruiter_decision, recruiter_decision_note, recruiter_decision_at, recruiter_decision_by"
+      "id, tenant_id, job_requisition_id, worker_id, status, status_id, created_at, updated_at, submitted_at, created_by_staff_user_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analysis, ai_analyzed_at, ai_analyzed_by, ai_analysis_error, ai_analysis_progress, ai_analysis_version, ai_analysis_model, recruiter_decision, recruiter_decision_note, recruiter_decision_at, recruiter_decision_by, application_statuses(id, name, system_key)"
     )
     .eq("id", applicationId)
     .eq("tenant_id", tenantId)
@@ -47,6 +50,7 @@ export async function loadMatchAnalysisWorkspace(
     history,
     verificationNotes,
     verificationNoteAudit,
+    screeningUploads,
   ] = await Promise.all([
     supabase
       .from("job_application_match_requirements")
@@ -87,6 +91,7 @@ export async function loadMatchAnalysisWorkspace(
     loadVerificationNoteAuditForApplication(supabase, tenantId, applicationId, {
       limit: 100,
     }).catch(() => []),
+    listScreeningUploads(supabase, tenantId, applicationId).catch(() => []),
   ]);
 
   const verificationNoteSummaries = summarizeRequirementNotes(verificationNotes);
@@ -158,10 +163,28 @@ export async function loadMatchAnalysisWorkspace(
     };
   }
 
+  const statusRel = Array.isArray(application.application_statuses)
+    ? application.application_statuses[0]
+    : application.application_statuses;
+  const statusName =
+    statusRel && typeof statusRel === "object" && typeof (statusRel as { name?: unknown }).name === "string"
+      ? String((statusRel as { name: string }).name)
+      : String(application.status ?? "");
+  const statusSystemKey =
+    statusRel &&
+    typeof statusRel === "object" &&
+    typeof (statusRel as { system_key?: unknown }).system_key === "string"
+      ? String((statusRel as { system_key: string }).system_key)
+      : null;
+  const stepModels = getMatchStepModels();
+
   return {
     application: {
       ...application,
       ai_analysis_model: application.ai_analysis_model || getMatchAnalysisModelName(),
+      ai_match_stage: application.ai_match_stage ?? null,
+      status_name: statusName,
+      status_system_key: statusSystemKey,
     },
     requirements: (requirementsResult.data ?? []).map((row) => {
       const summary = verificationNoteSummaries.get(String(row.id));
@@ -176,6 +199,7 @@ export async function loadMatchAnalysisWorkspace(
     screeningQuestions: screening.questions,
     screeningAssessment: screening.assessment,
     recommendedQuestions,
+    screeningUploads,
     verifiedInformation: (verifiedResult.data ?? []).map((row) => ({
       id: String(row.id),
       category: String(row.category),
@@ -202,5 +226,14 @@ export async function loadMatchAnalysisWorkspace(
       ? usersById.get(String(application.recruiter_decision_by))?.name ?? null
       : null,
     modelName: application.ai_analysis_model || getMatchAnalysisModelName(),
+    matchProgression: {
+      stage: application.ai_match_stage ?? null,
+      callPackUnlocked: isMatchCallPackStatus({
+        statusName,
+        systemKey: statusSystemKey,
+      }),
+      requireDeepConfirm: stepModels.requireRecruiterConfirm,
+      deepModel: stepModels.step3Deep,
+    },
   };
 }

@@ -3,6 +3,7 @@ import {
   PROFILE_MATCH_RING_GREEN,
   PROFILE_MATCH_RING_ORANGE,
   PROFILE_MATCH_RING_RED,
+  formatMatchModelLabel,
   profileMatchRingColor,
 } from "@/lib/jobs/match-analysis/display";
 
@@ -20,5 +21,13 @@ describe("profileMatchRingColor", () => {
   it("uses red below 50%", () => {
     expect(profileMatchRingColor(49)).toBe(PROFILE_MATCH_RING_RED);
     expect(profileMatchRingColor(0)).toBe(PROFILE_MATCH_RING_RED);
+  });
+});
+
+describe("formatMatchModelLabel", () => {
+  it("formats Gemini and Grok Deep Match ids", () => {
+    expect(formatMatchModelLabel("gemini-3.1-pro-preview")).toBe("Gemini 3.1 Pro");
+    expect(formatMatchModelLabel("grok-4.3")).toBe("Grok 4.3");
+    expect(formatMatchModelLabel("grok-4-fast")).toBe("Grok 4 Fast");
   });
 });

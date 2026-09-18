@@ -94,6 +94,9 @@ describe("generateMatchAnalysis", () => {
     const result = await generateMatchAnalysis(input, resolved);
 
     expect(create).toHaveBeenCalledOnce();
+    const grokArgs = create.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: string }> };
+    expect(grokArgs.input?.[0]?.content).toContain("This is Step 1 Quick Match");
+    expect(grokArgs.input?.[0]?.content).not.toContain("You are an analyst.");
     expect(result.model).toBe("grok-4-fast");
     expect(result.analysis.mandatory_requirements).toHaveLength(1);
     expect(result.repaired).toBe(false);
