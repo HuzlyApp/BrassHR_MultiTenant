@@ -4,6 +4,7 @@ import { JOB_LOCATION_TYPES } from "@/lib/jobs/public-jobs-board";
 import { listPublicJobs } from "@/lib/jobs/service";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
 
 export const runtime = "nodejs";
 
@@ -16,12 +17,21 @@ function apiErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function resolvePublicJobsTenantSlug(req: NextRequest): string | null {
+  const fromQuery = req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
+  if (fromQuery && fromQuery.length >= 2) return fromQuery;
+  const fromHeader = req.headers.get("x-tenant-slug")?.trim().toLowerCase();
+  if (fromHeader && fromHeader.length >= 2) return fromHeader;
+  const { subdomainLabel } = resolveRequestTenantHost(req.headers);
+  return subdomainLabel;
+}
+
 export async function GET(req: NextRequest) {
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Jobs are temporarily unavailable" }, { status: 503 });
 
   try {
-    const tenant = await resolvePublicTenant(supabase, req.nextUrl.searchParams.get("tenant"));
+    const tenant = await resolvePublicTenant(supabase, resolvePublicJobsTenantSlug(req));
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     const employmentType = req.nextUrl.searchParams.get("employmentType") || undefined;

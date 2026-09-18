@@ -23,9 +23,21 @@ import {
   type JobsBoardUrlState,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
+import { isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
 type Option = { id: string; name: string; profession_id?: string };
+
+function resolveJobsBoardTenantSlug(
+  search: string,
+  path: string,
+  brandingSlug: string | null | undefined
+): string {
+  const resolved = resolveTenantSlugForClient(search, { path });
+  if (resolved.slug) return resolved.slug;
+  const fromBranding = brandingSlug?.trim().toLowerCase() ?? "";
+  return isTenantApplicantPortalSlug(fromBranding) ? fromBranding : "";
+}
 
 type BoardUrlPatch = Partial<
   Pick<
@@ -71,6 +83,7 @@ export default function JobsPortalClient() {
   const [tenant, setTenant] = useState(
     () => searchParams.get("tenant")?.trim().toLowerCase() ?? ""
   );
+  const [tenantReady, setTenantReady] = useState(false);
   const [jobs, setJobs] = useState<PublicBoardJob[]>([]);
   const [professions, setProfessions] = useState<Option[]>([]);
   const [specialties, setSpecialties] = useState<Option[]>([]);
@@ -88,11 +101,14 @@ export default function JobsPortalClient() {
   }, [selectedToken]);
 
   useEffect(() => {
-    const resolved = resolveTenantSlugForClient(window.location.search, {
-      path: window.location.pathname,
-    });
-    setTenant(resolved.slug ?? "");
-  }, [searchParams]);
+    const slug = resolveJobsBoardTenantSlug(
+      window.location.search,
+      window.location.pathname,
+      branding.slug
+    );
+    setTenant(slug);
+    setTenantReady(true);
+  }, [branding.slug, searchParams]);
 
   useEffect(() => {
     setQueryDraft(boardState.q);
@@ -179,9 +195,12 @@ export default function JobsPortalClient() {
   }, [boardState.location, boardState.q, locationDraft, queryDraft]);
 
   useEffect(() => {
+    if (!tenantReady) return;
     if (!tenant) {
       setError("Open this page from your employer's tenant job portal.");
       setLoading(false);
+      setJobs([]);
+      setTotal(0);
       return;
     }
     const params = buildPublicJobsApiSearchParams({
@@ -197,6 +216,7 @@ export default function JobsPortalClient() {
     });
     const controller = new AbortController();
     setLoading(true);
+    setError("");
     void fetch(`/api/public/jobs?${params}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json();
@@ -225,6 +245,7 @@ export default function JobsPortalClient() {
     boardState.q,
     boardState.specialtyId,
     tenant,
+    tenantReady,
   ]);
 
   useEffect(() => {
