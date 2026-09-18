@@ -43,6 +43,7 @@ import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
+import ServiceAreaLocationHint from "./ServiceAreaLocationHint";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMMISSION_FEE_TYPES,
@@ -320,6 +321,7 @@ export function JobFormStepRequisition({
   employmentTypes,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -329,6 +331,7 @@ export function JobFormStepRequisition({
   employmentTypes: EmploymentType[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const requisitionEmploymentTypes = employmentTypes.filter(
     (type) => type === "W2" || type === "1099"
@@ -473,6 +476,13 @@ export function JobFormStepRequisition({
             onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
             placeholder="Search city, area, or address"
             error={fieldErrors.location}
+          />
+          <ServiceAreaLocationHint
+            locationText={job.location}
+            postalCode={job.postalCode}
+            locationType={ui.jobLocationType || job.jobLocationType}
+            remoteAllowedStates={job.remoteAllowedStates}
+            onBlockedChange={onServiceAreaBlockedChange}
           />
 
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
@@ -752,12 +762,14 @@ export function JobFormStepMspDetails({
   fieldErrors,
   onJobChange,
   onUiChange,
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const facilityValue = job.facility?.trim() || job.location?.trim() || "";
   const isMspEor = isMspRecruitAndEor(job);
@@ -913,6 +925,13 @@ export function JobFormStepMspDetails({
           onPostalCodeChange={(postalCode) => onJobChange("postalCode", postalCode)}
           placeholder="Search city, area, or address"
           error={fieldErrors.location}
+        />
+        <ServiceAreaLocationHint
+          locationText={facilityValue}
+          postalCode={job.postalCode}
+          locationType={ui.jobLocationType || job.jobLocationType}
+          remoteAllowedStates={job.remoteAllowedStates}
+          onBlockedChange={onServiceAreaBlockedChange}
         />
       </div>
 
@@ -2129,6 +2148,7 @@ export function JobFormStepReview({
   onEditField,
   brandVars,
   fieldErrors = {},
+  onServiceAreaBlockedChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -2137,6 +2157,7 @@ export function JobFormStepReview({
   onEditField: (field: ReviewEditFieldId) => void;
   brandVars?: CSSProperties;
   fieldErrors?: Record<string, string>;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 }) {
   const [descriptionViewOpen, setDescriptionViewOpen] = useState(false);
   const descriptionHtml = job.publicDescription?.trim() || "";
@@ -2184,6 +2205,14 @@ export function JobFormStepReview({
 
   return (
     <section className="space-y-1">
+      <ServiceAreaLocationHint
+        silent
+        locationText={job.facility?.trim() || job.location}
+        postalCode={job.postalCode}
+        locationType={ui.jobLocationType || job.jobLocationType}
+        remoteAllowedStates={job.remoteAllowedStates}
+        onBlockedChange={onServiceAreaBlockedChange}
+      />
       <div className="mb-4">
         <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Job Details</h2>
       </div>
@@ -2218,6 +2247,7 @@ export function JobFormStepReview({
           <ReviewRow
             label="Job Location"
             value={job.location ?? ""}
+            error={fieldErrors.location}
             onEdit={() => onEditField("jobLocation")}
           />
           <ReviewRow
@@ -2345,6 +2375,7 @@ export function JobFormStepReview({
             label="Location"
             value={job.facility?.trim() || job.location?.trim() || ""}
             addLabel="location"
+            error={fieldErrors.location}
             onEdit={() => onEditField("facilityLocation")}
           />
           <ReviewRow
@@ -2796,6 +2827,7 @@ export function JobFormFooter({
   showPublishActions,
   termsAccepted,
   brandStyle,
+  saveDraftLabel = "Save",
   onBack,
   onNext,
   onPreview,
@@ -2811,6 +2843,8 @@ export function JobFormFooter({
   showPublishActions: boolean;
   termsAccepted: boolean;
   brandStyle: CSSProperties;
+  /** Label for the draft/save control (e.g. "Save draft" when location is restricted). */
+  saveDraftLabel?: string;
   onBack: () => void;
   onNext: () => void;
   onPreview: () => void;
@@ -3001,7 +3035,7 @@ export function JobFormFooter({
                     disabled={saving}
                     onClick={onSaveDraft}
                   >
-                    Save
+                    {saving ? "Saving…" : saveDraftLabel}
                   </button>
                   <button
                     type="button"
@@ -3028,7 +3062,7 @@ export function JobFormFooter({
                   disabled={saving}
                   onClick={onSaveDraft}
                 >
-                  Save
+                  {saving ? "Saving…" : saveDraftLabel}
                 </button>
               )}
             </div>

@@ -38,6 +38,10 @@ type SearchableSelectFieldProps = {
   emptyMessage?: string
   /** Tighter field sizing for signup mobile layout */
   compact?: boolean
+  /** Allow confirming a typed value that is not in `options` (any city in an allowed state). */
+  allowCustom?: boolean
+  /** Open the options panel above the field (useful near the bottom of modals). */
+  dropdownPlacement?: "up" | "down"
 }
 
 export default function SearchableSelectField({
@@ -54,6 +58,8 @@ export default function SearchableSelectField({
   error,
   emptyMessage = "No cities found",
   compact = false,
+  allowCustom = false,
+  dropdownPlacement = "down",
 }: SearchableSelectFieldProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -64,6 +70,19 @@ export default function SearchableSelectField({
     if (!q) return [...options]
     return options.filter((opt) => opt.toLowerCase().includes(q))
   }, [options, query])
+
+  const customValue = query.trim()
+  const showCustomOption =
+    allowCustom &&
+    Boolean(customValue) &&
+    !options.some((opt) => opt.toLowerCase() === customValue.toLowerCase())
+
+  function commitValue(next: string) {
+    onChange(next)
+    setOpen(false)
+    setQuery("")
+    onBlur?.()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -125,13 +144,35 @@ export default function SearchableSelectField({
         </button>
 
         {open && !isDisabled ? (
-          <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-lg">
+          <div
+            className={`absolute z-30 w-full overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-lg ${
+              dropdownPlacement === "up" ? "bottom-full mb-2" : "mt-2"
+            }`}
+          >
             <div className="relative border-b border-[#e2e8f0] p-2">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return
+                  event.preventDefault()
+                  const typed = query.trim()
+                  if (!typed) return
+                  const exact = options.find((opt) => opt.toLowerCase() === typed.toLowerCase())
+                  if (exact) {
+                    commitValue(exact)
+                    return
+                  }
+                  if (allowCustom) {
+                    commitValue(typed)
+                    return
+                  }
+                  if (filteredOptions.length === 1) {
+                    commitValue(filteredOptions[0] ?? typed)
+                  }
+                }}
                 placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
                 autoFocus
                 style={inputTypographyStyle}
@@ -139,17 +180,21 @@ export default function SearchableSelectField({
               />
             </div>
             <div className="max-h-[220px] overflow-y-auto py-1">
+              {showCustomOption ? (
+                <button
+                  type="button"
+                  onClick={() => commitValue(customValue)}
+                  className="w-full cursor-pointer px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9]"
+                >
+                  Use “{customValue}”
+                </button>
+              ) : null}
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((opt) => (
                   <button
                     key={opt}
                     type="button"
-                    onClick={() => {
-                      onChange(opt)
-                      setOpen(false)
-                      setQuery("")
-                      onBlur?.()
-                    }}
+                    onClick={() => commitValue(opt)}
                     className={`w-full cursor-pointer px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9] ${
                       opt === value ? "bg-[#eff6ff] font-medium" : ""
                     }`}
@@ -157,7 +202,7 @@ export default function SearchableSelectField({
                     {opt}
                   </button>
                 ))
-              ) : (
+              ) : showCustomOption ? null : (
                 <p className="px-[14px] py-3 text-[14px] text-[#64748b]">{emptyMessage}</p>
               )}
             </div>

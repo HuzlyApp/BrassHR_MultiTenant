@@ -53,16 +53,25 @@ export const US_STATE_NAME_TO_CODE: Record<string, string> = {
   Wyoming: "WY",
 };
 
-export function getStateCodeFromName(stateName: string): string | undefined {
-  const trimmed = stateName.trim();
-  if (!trimmed) return undefined;
-  return US_STATE_NAME_TO_CODE[trimmed];
-}
-
 /** Two-letter code → display name (reverse of US_STATE_NAME_TO_CODE). */
 export const US_STATE_CODE_TO_NAME: Record<string, string> = Object.fromEntries(
   Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => [code, name])
 );
+
+const STATE_NAME_TO_CODE_LOWER: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => [name.toLowerCase(), code])
+);
+
+/** Accepts "Texas", "texas", or "TX". */
+export function getStateCodeFromName(stateName: string): string | undefined {
+  const trimmed = stateName.trim();
+  if (!trimmed) return undefined;
+  if (/^[A-Za-z]{2}$/.test(trimmed)) {
+    const code = trimmed.toUpperCase();
+    return US_STATE_CODE_TO_NAME[code] ? code : undefined;
+  }
+  return STATE_NAME_TO_CODE_LOWER[trimmed.toLowerCase()];
+}
 
 export function getStateNameFromCode(stateCode: string): string | undefined {
   const trimmed = stateCode.trim().toUpperCase();

@@ -10,6 +10,8 @@ import { JobDescriptionEditor } from "./JobDescriptionEditor";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
+import ServiceAreaLocationHint from "./ServiceAreaLocationHint";
+import { SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import {
   RemoteAllowedStatesField,
   showsRemoteAllowedStatesField,
@@ -105,6 +107,7 @@ type Props = {
   employerOfRecordOptions: JobFormOption[];
   onOpenChange: (open: boolean) => void;
   onUpdate: (next: { job: JobRequisitionInput; ui: JobFormUiState }) => void;
+  onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
 };
 
 function ModalRadio({
@@ -195,14 +198,21 @@ export function JobReviewEditModal({
   employerOfRecordOptions,
   onOpenChange,
   onUpdate,
+  onServiceAreaBlockedChange,
 }: Props) {
   const [draft, setDraft] = useState<DraftState>(() => cloneDraft(job, ui));
   const [customBenefitName, setCustomBenefitName] = useState("");
+  const [serviceAreaBlocked, setServiceAreaBlocked] = useState(false);
+  const [serviceAreaBlockMessage, setServiceAreaBlockMessage] = useState<string | null>(null);
+  const [locationFieldError, setLocationFieldError] = useState("");
 
   useEffect(() => {
     if (open && field) {
       setDraft(cloneDraft(job, ui));
       setCustomBenefitName("");
+      setServiceAreaBlocked(false);
+      setServiceAreaBlockMessage(null);
+      setLocationFieldError("");
     }
   }, [open, field, job, ui]);
 
@@ -218,8 +228,24 @@ export function JobReviewEditModal({
   const rnrRatePeriod = draft.ui.payRatePeriod || "Hourly";
   const commissionEstimate = formatCommissionEstimateFromPayRate(draft.job, draft.ui);
 
+  function handleServiceAreaBlockedChange(blocked: boolean, message: string | null) {
+    setServiceAreaBlocked(blocked);
+    setServiceAreaBlockMessage(message);
+    setLocationFieldError(
+      blocked ? message || SERVICE_AREA_COPY.location_not_enabled : ""
+    );
+  }
+
   function patchJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
-    setDraft((current) => ({ ...current, job: { ...current.job, [key]: value } }));
+    setDraft((current) => {
+      const job = { ...current.job, [key]: value };
+      if (key === "location" || key === "postalCode" || key === "facility") {
+        job.worksiteCity = null;
+        job.worksiteState = null;
+        job.worksitePostalCode = null;
+      }
+      return { ...current, job };
+    });
   }
 
   function patchUi(patch: Partial<JobFormUiState>) {
@@ -227,6 +253,15 @@ export function JobReviewEditModal({
   }
 
   function handleUpdate() {
+    // Restricted locations may be kept for draft; publish remains gated on the review screen.
+    if (field === "jobLocation" || field === "facilityLocation") {
+      onServiceAreaBlockedChange?.(
+        serviceAreaBlocked,
+        serviceAreaBlocked
+          ? serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled
+          : null
+      );
+    }
     onUpdate(draft);
     onOpenChange(false);
   }
@@ -368,16 +403,27 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "jobLocation" ? (
-              <JobLocationAutocompleteField
-                id="review-edit-location"
-                label="Job Location"
-                required
-                value={draft.job.location ?? ""}
-                onChange={(next) => patchJob("location", next)}
-                onPostalCodeChange={(postalCode) => patchJob("postalCode", postalCode)}
-                placeholder="Search city, area, or address"
-                suggestionsClassName="!max-h-[21rem]"
-              />
+              <div>
+                <JobLocationAutocompleteField
+                  id="review-edit-location"
+                  label="Job Location"
+                  required
+                  value={draft.job.location ?? ""}
+                  onChange={(next) => patchJob("location", next)}
+                  onPostalCodeChange={(postalCode) => patchJob("postalCode", postalCode)}
+                  placeholder="Search city, area, or address"
+                  suggestionsClassName="!max-h-[21rem]"
+                  error={locationFieldError || undefined}
+                />
+                <ServiceAreaLocationHint
+                  silent
+                  locationText={draft.job.location}
+                  postalCode={draft.job.postalCode}
+                  locationType={draft.ui.jobLocationType || draft.job.jobLocationType}
+                  remoteAllowedStates={draft.job.remoteAllowedStates}
+                  onBlockedChange={handleServiceAreaBlockedChange}
+                />
+              </div>
             ) : null}
 
             {field === "additionalLocation" ? (
@@ -793,19 +839,32 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "facilityLocation" ? (
-              <JobLocationAutocompleteField
-                id="review-edit-facility"
-                label="Location"
-                required
-                value={draft.job.facility?.trim() || draft.job.location?.trim() || ""}
-                onChange={(next) => {
-                  patchJob("facility", next);
-                  if (isMsp) patchJob("location", next);
-                }}
-                onPostalCodeChange={(postalCode) => patchJob("postalCode", postalCode)}
-                placeholder="Search city, area, or address"
-                suggestionsClassName="!max-h-[21rem]"
-              />
+              <div>
+                <JobLocationAutocompleteField
+                  id="review-edit-facility"
+                  label="Location"
+                  required
+                  value={draft.job.facility?.trim() || draft.job.location?.trim() || ""}
+                  onChange={(next) => {
+                    patchJob("facility", next);
+                    if (isMsp) patchJob("location", next);
+                  }}
+                  onPostalCodeChange={(postalCode) => patchJob("postalCode", postalCode)}
+                  placeholder="Search city, area, or address"
+                  suggestionsClassName="!max-h-[21rem]"
+                  error={locationFieldError || undefined}
+                />
+                <ServiceAreaLocationHint
+                  silent
+                  locationText={
+                    draft.job.facility?.trim() || draft.job.location?.trim() || ""
+                  }
+                  postalCode={draft.job.postalCode}
+                  locationType={draft.ui.jobLocationType || draft.job.jobLocationType}
+                  remoteAllowedStates={draft.job.remoteAllowedStates}
+                  onBlockedChange={handleServiceAreaBlockedChange}
+                />
+              </div>
             ) : null}
 
             {field === "sourceJobUrl" ? (

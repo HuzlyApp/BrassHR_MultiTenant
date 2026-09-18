@@ -29,9 +29,8 @@ function messageForAction(
   action: ServiceAreaAction,
   reason: ServiceAreaReasonCode
 ): ServiceAreaMessageKey {
-  if (reason === "ok") return "location_not_available";
+  if (reason === "ok") return "location_not_enabled";
   if (action === "signup" || action === "activate_tenant") return "signup_waitlist";
-  if (action === "apply") return "location_not_available";
   return "location_not_enabled";
 }
 
@@ -39,7 +38,7 @@ function ok(): ServiceAreaDecision {
   return {
     allowed: true,
     reasonCode: "ok",
-    messageKey: "location_not_available",
+    messageKey: "location_not_enabled",
     layer: null,
     matchedPolicyId: null,
   };
@@ -64,7 +63,7 @@ function resolvedLocation(
   input: ServiceAreaLocation,
   jobWorksite?: JobWorksite | null
 ): ServiceAreaLocation {
-  if (input.relocateToJobSite && jobWorksite) {
+  if (input.relocateToJobSite && jobWorksite && jobWorksite.locationType !== "remote") {
     return {
       country: "US",
       city: jobWorksite.city,
@@ -157,6 +156,7 @@ function evaluateRemoteStates(
 
 /**
  * Pure decision engine. First failure wins: platform hold → tenant hiring area → allow.
+ * City allowlists are not used; "Texas" and "TX" are equivalent.
  * Does not log; callers persist denies via recordServiceAreaDecision.
  */
 export function evaluateServiceArea(
@@ -223,24 +223,24 @@ export function toPublicServiceAreaDecision(
   if (decision.allowed) {
     return { allowed: true, reasonCode: "ok", messageKey: decision.messageKey };
   }
-  if (decision.reasonCode === "incomplete_location") {
+  if (decision.reasonCode === "incomplete_location" || decision.reasonCode === "unknown_location") {
     return {
       allowed: false,
-      reasonCode: "incomplete_location",
-      messageKey: decision.messageKey,
+      reasonCode: decision.reasonCode,
+      messageKey: "location_not_enabled",
     };
   }
   if (decision.reasonCode === "remote_unscoped") {
     return {
       allowed: false,
       reasonCode: "remote_unscoped",
-      messageKey: decision.messageKey,
+      messageKey: "location_not_enabled",
     };
   }
   return {
     allowed: false,
     reasonCode: "location_not_available",
-    messageKey: "location_not_available",
+    messageKey: "location_not_enabled",
   };
 }
 

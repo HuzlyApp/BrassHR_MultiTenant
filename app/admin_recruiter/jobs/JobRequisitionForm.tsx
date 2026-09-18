@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -18,6 +18,7 @@ import {
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
+import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -107,7 +108,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [serviceAreaBlocked, setServiceAreaBlocked] = useState(false);
+  const [serviceAreaBlockMessage, setServiceAreaBlockMessage] = useState<string | null>(null);
   const skipJobLoadRef = useRef(false);
+
+  const onServiceAreaBlockedChange = useCallback((blocked: boolean, message: string | null) => {
+    setServiceAreaBlocked(blocked);
+    setServiceAreaBlockMessage(message);
+  }, []);
 
   const returnTo = jobId
     ? `/admin_recruiter/jobs/${encodeURIComponent(jobId)}/edit`
@@ -385,7 +393,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     ) {
       setConfirmRoutingChange(false);
     }
-    setJob((current) => ({ ...current, [key]: value }));
+    setJob((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "location" || key === "postalCode") {
+        next.worksiteCity = null;
+        next.worksiteState = null;
+        next.worksitePostalCode = null;
+      }
+      return next;
+    });
     setFieldErrors((current) => {
       const next = { ...current };
       delete next[key];
@@ -482,6 +498,25 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
 
+    if (action === "publish" && serviceAreaBlocked) {
+      const blockedMessage = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
+      setFieldErrors({ location: blockedMessage });
+      setMessage(blockedMessage);
+      setSaving(false);
+      // Stay on review when already reviewing — show the error there instead of jumping back.
+      if (step !== "review") {
+        if (payloadJob.sourceType === "MSP") setStep("msp-details");
+        else setStep("requisition");
+      }
+      return;
+    }
+    if (action === "save_draft" && serviceAreaBlocked) {
+      setMessage(
+        serviceAreaBlockMessage ||
+          `${SERVICE_AREA_COPY.location_not_enabled} You can save this draft, but it cannot be published yet.`
+      );
+    }
+
     if (action === "publish") {
       const stepErrors = {
         ...validateRequisitionStep(payloadJob),
@@ -494,7 +529,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (stepErrors.publicDescription) {
           setStep("description");
         } else if (
-          !(stepErrors.remoteAllowedStates && step === "review") &&
+          !(step === "review" && (stepErrors.remoteAllowedStates || stepErrors.location)) &&
           (stepErrors.location ||
             stepErrors.remoteAllowedStates ||
             stepErrors.shiftType ||
@@ -540,7 +575,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setFieldErrors(payload.fieldErrors ?? {});
         const apiFieldErrors = (payload.fieldErrors ?? {}) as Record<string, string>;
         if (
-          !(apiFieldErrors.remoteAllowedStates && step === "review") &&
+          !(
+            step === "review" &&
+            (apiFieldErrors.remoteAllowedStates || apiFieldErrors.location)
+          ) &&
           (apiFieldErrors.remoteAllowedStates ||
             apiFieldErrors.location ||
             apiFieldErrors.shiftType ||
@@ -551,15 +589,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ) {
           setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
         }
-        throw new Error(payload.error || "Failed to save job");
+        throw new Error(readServiceAreaApiMessage(payload, "Failed to save job"));
       }
       if (payload.job?.id) {
         setPersistedJobId(String(payload.job.id));
       }
       if (payload.serviceAreaWarning) {
-        setFieldErrors({ location: payload.serviceAreaWarning });
-        setMessage(payload.serviceAreaWarning);
-        return;
+        // Draft was saved with a hold warning — treat as successful save and leave the form.
+        setOriginalStatus("draft");
       }
       clearJobRequisitionFormDraft();
       router.push("/admin_recruiter/jobs");
@@ -670,7 +707,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   function handleNext() {
-    if (step === "requisition") {
+    if (step === "requisition" || step === "msp-details") {
       const errors = {
         ...validateRequisitionStep(buildPayloadJob()),
         ...validateWorkflowAssignment(),
@@ -679,19 +716,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
       }
-      setStep(job.sourceType === "MSP" ? "msp-details" : "compensation");
-      return;
-    }
-    if (step === "msp-details") {
-      const errors = {
-        ...validateRequisitionStep(buildPayloadJob()),
-        ...validateWorkflowAssignment(),
-      };
-      if (Object.keys(errors).length > 0) {
-        setFieldErrors((current) => ({ ...current, ...errors }));
-        return;
-      }
-      setStep("compensation");
+      // Restricted locations can continue as draft; publish stays blocked on review.
+      setStep(
+        step === "requisition" && job.sourceType === "MSP" ? "msp-details" : "compensation"
+      );
       return;
     }
     if (step === "compensation") {
@@ -846,6 +874,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   employmentTypes={options?.employmentTypes ?? ["W2", "1099"]}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
@@ -884,6 +913,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   fieldErrors={fieldErrors}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
@@ -948,6 +978,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 onEditField={setReviewEditField}
                 brandVars={brandVars}
                 fieldErrors={fieldErrors}
+                onServiceAreaBlockedChange={onServiceAreaBlockedChange}
               />
             ) : null}
           </div>
@@ -979,10 +1010,21 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               showPublishActions={showPublishActions && originalStatus !== "published"}
               termsAccepted={termsAccepted}
               brandStyle={brandStyle}
+              saveDraftLabel={
+                serviceAreaBlocked || originalStatus === "draft" ? "Save draft" : "Save"
+              }
               onBack={handleBack}
               onNext={handleNext}
               onPreview={() => setPreviewOpen(true)}
-              onSaveDraft={() => void save(originalStatus === "published" ? "publish" : "save_draft")}
+              onSaveDraft={() => {
+                // Restricted locations always save as draft (demotes a live job to draft).
+                // Published jobs with allowed locations keep Save → publish.
+                void save(
+                  originalStatus === "published" && !serviceAreaBlocked
+                    ? "publish"
+                    : "save_draft"
+                );
+              }}
               onPublish={() => void save("publish")}
               onTermsChange={setTermsAccepted}
               termsHref={tenantTermsHref}
@@ -994,9 +1036,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
-                disabled={saving}
+                disabled={saving || serviceAreaBlocked}
                 onClick={() => void save("publish")}
-                className="cursor-pointer text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
+                title={
+                  serviceAreaBlocked
+                    ? serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled
+                    : undefined
+                }
+                className="cursor-pointer text-sm font-medium text-[color:var(--brand-primary)] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Update published job
               </button>
@@ -1032,6 +1079,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           setMessage("");
           setReviewEditField(null);
         }}
+        onServiceAreaBlockedChange={onServiceAreaBlockedChange}
       />
 
       <JobPostPreviewModal
