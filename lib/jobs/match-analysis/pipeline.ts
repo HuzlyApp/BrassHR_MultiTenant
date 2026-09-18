@@ -31,7 +31,16 @@ import type {
   PipelineProgressStep,
 } from "./schema";
 import { ANALYSIS_PROVIDER_LABELS, parseAnalysisProvider } from "./schema";
-import { listingRequirementOutcomeCounts } from "./workspace";
+import { countQualificationOutcomes, listingRequirementOutcomeCounts } from "./workspace";
+import { applicationMatchScorePatch, matchStageFromMode } from "./match-stage";
+import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
+import {
+  DEEP_MATCH_BLOCKED_LOW_FIT,
+  canRunDeepMatch,
+  deepMatchBlockReason,
+  matchProgressionIndexFromStage,
+  quickMatchFitBand,
+} from "./progression";
 
 export type MatchAnalysisProgressEvent = {
   step: PipelineProgressStep;
@@ -107,7 +116,7 @@ export async function runMatchAnalysisForApplication(args: {
   const { data: application, error: appError } = await supabase
     .from("job_applications")
     .select(
-      "id, tenant_id, job_requisition_id, worker_id, applicant_profile_id, ai_match_status"
+      "id, tenant_id, job_requisition_id, worker_id, applicant_profile_id, ai_match_status, ai_match_stage, ai_analysis"
     )
     .eq("id", jobApplicationId)
     .eq("tenant_id", tenantId)
@@ -264,11 +273,67 @@ export async function runMatchAnalysisForApplication(args: {
     });
     const nextVersion = previousVersion + 1;
 
+    if (analysisMode === "deep") {
+      const { data: existingReqs } = await supabase
+        .from("job_application_match_requirements")
+        .select(
+          "requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
+        )
+        .eq("tenant_id", tenantId)
+        .eq("job_application_id", jobApplicationId);
+      const counts = countQualificationOutcomes(existingReqs ?? []);
+      const storedRoute = quickRouteFromAnalysis(application.ai_analysis);
+      const fitBand = storedRoute
+        ? fitBandFromQuickRoute(storedRoute)
+        : quickMatchFitBand({
+            mandatory: counts.mandatory,
+            confirmed: counts.confirmed,
+            notMet: counts.notMet,
+            blocking: counts.blocking,
+          });
+      const unlockedIndex = matchProgressionIndexFromStage(application.ai_match_stage);
+      const blocked = deepMatchBlockReason({
+        isAnalyzed: true,
+        fitBand,
+        unlockedIndex,
+      });
+      if (blocked || !canRunDeepMatch({ isAnalyzed: true, fitBand, unlockedIndex })) {
+        const message = blocked || DEEP_MATCH_BLOCKED_LOW_FIT;
+        emit("failed", message, "FAILED");
+        await updateApplicationMatchFields({
+          supabase,
+          tenantId,
+          jobApplicationId,
+          patch: {
+            ai_match_status: application.ai_match_status ?? "ANALYZED",
+            ai_analysis_progress: "failed",
+            ai_analysis_error: message,
+          },
+        });
+        return {
+          status: "FAILED",
+          analysis: null,
+          score: null,
+          category: null,
+          action: null,
+          readiness: null,
+          error: message,
+          repaired: false,
+          model: null,
+          requirementCounts: {
+            confirmed: counts.confirmed,
+            verify: counts.verify,
+            notMet: counts.notMet,
+          },
+        };
+      }
+    }
+
     emit(
       "analyzing",
       analysisMode === "deep"
-        ? `Running deeper ${providerLabel} match analysis`
-        : `Running ${providerLabel} match analysis`,
+        ? `Running Deep Match (${providerLabel})`
+        : `Running Quick Match (${providerLabel})`,
       "ANALYZING"
     );
     await setProgress(supabase, tenantId, jobApplicationId, "analyzing");
@@ -317,69 +382,71 @@ export async function runMatchAnalysisForApplication(args: {
       }
     }
 
-    let resolved;
-    try {
-      resolved = await resolvePromptVersion(supabase, {
-        tenantId,
-        featureKey: "candidate_match",
-        variantKey: analysisMode === "deep" ? "deep" : "default",
-        industryKey: jobIndustryKey,
-        tenantPrimaryIndustryKey: tenantPrimary,
-        clientName,
-        sourceKey,
-      });
-    } catch (error) {
-      if (error instanceof PromptNotConfiguredError) {
-        await recordAiPromptRun(supabase, {
+    let resolved = null;
+    if (analysisMode === "deep") {
+      try {
+        resolved = await resolvePromptVersion(supabase, {
           tenantId,
           featureKey: "candidate_match",
-          variantKey: analysisMode === "deep" ? "deep" : "default",
-          verticalKey: null,
-          industryKey: jobIndustryKey ?? tenantPrimary,
-          promptVersionId: null,
-          contentHash: null,
-          entityType: "job_application",
-          entityId: jobApplicationId,
-          inputHash: hashPromptInput({
-            jobDescription: fullJd,
-            resumeText: resume.sanitized,
-            recruiterNotes: notes,
-          }),
-          model: null,
-          inputTokens: null,
-          outputTokens: null,
-          latencyMs: Date.now() - startedAt,
-          creditCost: null,
-          status: "skipped_no_prompt",
-          errorCode: PROMPT_NOT_CONFIGURED,
-          outputReference: null,
-          requestedBy: analyzedByUserId ?? null,
-        }).catch(() => undefined);
-        emit("failed", error.message, "FAILED");
-        await updateApplicationMatchFields({
-          supabase,
-          tenantId,
-          jobApplicationId,
-          patch: {
-            ai_match_status: "FAILED",
-            ai_analysis_progress: "failed",
-            ai_analysis_error: error.message.slice(0, 2000),
-          },
+          variantKey: "deep",
+          industryKey: jobIndustryKey,
+          tenantPrimaryIndustryKey: tenantPrimary,
+          clientName,
+          sourceKey,
         });
-        return {
-          status: "FAILED",
-          analysis: null,
-          score: null,
-          category: null,
-          action: null,
-          readiness: null,
-          error: PROMPT_NOT_CONFIGURED,
-          repaired: false,
-          model: null,
-          requirementCounts: null,
-        };
+      } catch (error) {
+        if (error instanceof PromptNotConfiguredError) {
+          await recordAiPromptRun(supabase, {
+            tenantId,
+            featureKey: "candidate_match",
+            variantKey: "deep",
+            verticalKey: null,
+            industryKey: jobIndustryKey ?? tenantPrimary,
+            promptVersionId: null,
+            contentHash: null,
+            entityType: "job_application",
+            entityId: jobApplicationId,
+            inputHash: hashPromptInput({
+              jobDescription: fullJd,
+              resumeText: resume.sanitized,
+              recruiterNotes: notes,
+            }),
+            model: null,
+            inputTokens: null,
+            outputTokens: null,
+            latencyMs: Date.now() - startedAt,
+            creditCost: null,
+            status: "skipped_no_prompt",
+            errorCode: PROMPT_NOT_CONFIGURED,
+            outputReference: null,
+            requestedBy: analyzedByUserId ?? null,
+          }).catch(() => undefined);
+          emit("failed", error.message, "FAILED");
+          await updateApplicationMatchFields({
+            supabase,
+            tenantId,
+            jobApplicationId,
+            patch: {
+              ai_match_status: "FAILED",
+              ai_analysis_progress: "failed",
+              ai_analysis_error: error.message.slice(0, 2000),
+            },
+          });
+          return {
+            status: "FAILED",
+            analysis: null,
+            score: null,
+            category: null,
+            action: null,
+            readiness: null,
+            error: PROMPT_NOT_CONFIGURED,
+            repaired: false,
+            model: null,
+            requirementCounts: null,
+          };
+        }
+        throw error;
       }
-      throw error;
     }
 
     const modelResult = await generateMatchAnalysis(
@@ -416,6 +483,10 @@ export async function runMatchAnalysisForApplication(args: {
     });
 
     const analyzedAt = new Date().toISOString();
+    const stage = matchStageFromMode(analysisMode);
+    const scorePatch = applicationMatchScorePatch({ stage, analysis });
+    const persistedScore =
+      stage === "deep" ? analysis.candidate_match.recommended_overall_match_score : null;
 
     await updateApplicationMatchFields({
       supabase,
@@ -423,13 +494,7 @@ export async function runMatchAnalysisForApplication(args: {
       jobApplicationId,
       patch: {
         ai_match_status: "ANALYZED",
-        ai_match_score: analysis.candidate_match.recommended_overall_match_score,
-        ai_match_category: analysis.candidate_match.match_category,
-        ai_match_action: analysis.candidate_match.recommended_action,
-        ai_match_readiness: analysis.submission_readiness.readiness_status,
-        ai_match_display_category:
-          analysis.candidate_match.display_category ||
-          analysis.candidate_match.match_category,
+        ...scorePatch,
         ai_analysis_raw: modelResult.rawObject,
         ai_analysis: analysis,
         ai_analyzed_at: analyzedAt,
@@ -447,17 +512,20 @@ export async function runMatchAnalysisForApplication(args: {
         application_id: jobApplicationId,
         version: nextVersion,
         analysis,
-        score: analysis.candidate_match.recommended_overall_match_score,
-        category: analysis.candidate_match.match_category,
-        recommended_action: analysis.candidate_match.recommended_action,
+        score: persistedScore,
+        category: stage === "deep" ? analysis.candidate_match.match_category : null,
+        recommended_action:
+          stage === "deep" ? analysis.candidate_match.recommended_action : null,
         display_category:
-          analysis.candidate_match.display_category ||
-          analysis.candidate_match.match_category,
+          stage === "deep"
+            ? analysis.candidate_match.display_category ||
+              analysis.candidate_match.match_category
+            : null,
         model: modelResult.model,
         analyzed_by: analyzedByUserId ?? null,
         analyzed_at: analyzedAt,
-        prompt_version_id: resolved.promptVersionId,
-        prompt_content_hash: resolved.contentHash,
+        prompt_version_id: resolved?.promptVersionId ?? null,
+        prompt_content_hash: resolved?.contentHash ?? null,
       },
       { onConflict: "application_id,version" }
     );
@@ -465,11 +533,11 @@ export async function runMatchAnalysisForApplication(args: {
     await recordAiPromptRun(supabase, {
       tenantId,
       featureKey: "candidate_match",
-      variantKey: resolved.variantKey,
-      verticalKey: resolved.resolvedVerticalKey,
-      industryKey: resolved.requestedIndustryKey,
-      promptVersionId: resolved.promptVersionId,
-      contentHash: resolved.contentHash,
+      variantKey: resolved?.variantKey ?? (analysisMode === "deep" ? "deep" : "default"),
+      verticalKey: resolved?.resolvedVerticalKey ?? null,
+      industryKey: resolved?.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
+      promptVersionId: resolved?.promptVersionId ?? null,
+      contentHash: resolved?.contentHash ?? "hardcoded:quick_match",
       entityType: "job_application",
       entityId: jobApplicationId,
       inputHash: hashPromptInput({
@@ -493,10 +561,11 @@ export async function runMatchAnalysisForApplication(args: {
     return {
       status: "ANALYZED",
       analysis,
-      score: analysis.candidate_match.recommended_overall_match_score,
-      category: analysis.candidate_match.match_category,
-      action: analysis.candidate_match.recommended_action,
-      readiness: analysis.submission_readiness.readiness_status,
+      score: persistedScore,
+      category: stage === "deep" ? analysis.candidate_match.match_category : null,
+      action: stage === "deep" ? analysis.candidate_match.recommended_action : null,
+      readiness:
+        stage === "deep" ? analysis.submission_readiness.readiness_status : null,
       error: null,
       repaired: modelResult.repaired,
       model: modelResult.model,

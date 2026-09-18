@@ -3,12 +3,18 @@ import {
   MATCH_CATEGORY_LABELS,
   analyzeMatchResponseSchema,
   matchAnalysisResponseSchema,
+  quickMatchResponseSchema,
   type AnalyzeMatchResponse,
+  type EvidenceSource,
   type MatchAnalysisResponse,
+  type QuickEvidenceSource,
+  type QuickMatchResponse,
+  type QuickRoute,
   type RequirementItem,
   type RequirementOutcome,
   type RequirementStatus,
 } from "./schema";
+import { recomputeQuickMatchMetrics } from "./quick-route";
 import type { z } from "zod";
 
 export type ParseMatchAnalysisResult =
@@ -83,6 +89,123 @@ function expandLeanRequirement(
     verification_required: item.status !== "CONFIRMED" && item.status !== "NOT_APPLICABLE",
     confidence: item.status === "CONFIRMED" ? 80 : item.status === "PARTIAL" ? 50 : 20,
   };
+}
+
+function mapQuickEvidenceSource(source: QuickEvidenceSource | undefined): EvidenceSource {
+  if (source === "RECRUITER_NOTE") return "RECRUITER_NOTE";
+  if (source === "NONE" || !source) return "NONE";
+  return "RESUME";
+}
+
+function quickOutcomeFromStatus(status: RequirementStatus): RequirementOutcome {
+  switch (status) {
+    case "CONFIRMED":
+      return "MET";
+    case "PARTIAL":
+      return "VERIFY";
+    case "NOT_FOUND":
+      return "NOT_MET";
+    case "CONFLICTING":
+      return "CONFLICT";
+    case "NOT_APPLICABLE":
+    default:
+      return "NOT_APPLICABLE";
+  }
+}
+
+function routeDisplay(route: QuickRoute): {
+  category: MatchAnalysisResponse["candidate_match"]["match_category"];
+  action: MatchAnalysisResponse["candidate_match"]["recommended_action"];
+  display: string;
+} {
+  if (route === "STRONG") {
+    return { category: "STRONG_MATCH", action: "PRIORITIZE_AND_CALL", display: "Strong" };
+  }
+  if (route === "LOW_MATCH") {
+    return { category: "NOT_A_MATCH", action: "KEEP_AS_POSSIBLE", display: "Low match" };
+  }
+  return { category: "POSSIBLE_MATCH", action: "CALL_AND_VERIFY", display: "Review" };
+}
+
+function expandQuickMatchRequirement(
+  item: QuickMatchResponse["mandatory_requirements"][number],
+  requirementType: RequirementItem["requirement_type"]
+): RequirementItem {
+  const evidence = item.evidence?.trim() ?? "";
+  const source = mapQuickEvidenceSource(item.evidence_source);
+  return {
+    requirement: item.requirement,
+    requirement_type: requirementType,
+    status: item.status,
+    requirement_outcome: quickOutcomeFromStatus(item.status),
+    candidate_evidence: evidence,
+    evidence_source: source === "NONE" && evidence ? "RESUME" : source,
+    impact: "",
+    verification_required: item.status !== "CONFIRMED" && item.status !== "NOT_APPLICABLE",
+    confidence: item.status === "CONFIRMED" ? 80 : item.status === "PARTIAL" ? 50 : 20,
+  };
+}
+
+export function expandQuickMatchToFull(raw: QuickMatchResponse): MatchAnalysisResponse {
+  const metrics = recomputeQuickMatchMetrics(raw);
+  const display = routeDisplay(metrics.quick_route);
+  const blocking = raw.blocking_requirements.filter(Boolean);
+  const itemsToVerify = raw.items_to_verify.filter(Boolean);
+  const extracted = raw.extracted_resume;
+
+  return matchAnalysisResponseSchema.parse({
+    analysis_version: "1.0",
+    candidate_match: {
+      recommended_overall_match_score: 0,
+      match_category: display.category,
+      display_category: display.display,
+      confidence_score: 0,
+      mandatory_requirement_override: metrics.quick_route === "LOW_MATCH" && blocking.length > 0,
+      recommended_action: display.action,
+      recruiter_decision_summary: "",
+    },
+    experience_analysis: {
+      total_professional_experience_years: extracted.years_estimated,
+      relevant_specialty_experience_years: null,
+      recent_relevant_experience_years: null,
+      travel_experience_confirmed: false,
+      required_work_setting_experience_confirmed: false,
+      is_estimated: extracted.years_estimated != null,
+      experience_calculation_notes: [
+        extracted.headline,
+        extracted.education,
+        ...extracted.recent_titles,
+      ]
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 20),
+    },
+    mandatory_requirements: raw.mandatory_requirements.map((item) =>
+      expandQuickMatchRequirement(item, "MANDATORY")
+    ),
+    preferred_requirements: raw.preferred_requirements.map((item) =>
+      expandQuickMatchRequirement(item, "PREFERRED")
+    ),
+    strengths: [],
+    gaps_and_risks: [],
+    screening_questions: [],
+    submission_readiness: {
+      ready_to_submit: false,
+      readiness_status: "INSUFFICIENT_INFORMATION",
+      items_to_verify_before_submission: itemsToVerify,
+      documents_or_credentials_needed: [],
+      blocking_requirements: blocking,
+    },
+    quick_match: {
+      step: "quick_match",
+      quick_route: metrics.quick_route,
+      extracted_resume: extracted,
+      counts: metrics.counts,
+      mand_met: metrics.mand_met,
+      pref_met: metrics.pref_met,
+      weighted: metrics.weighted,
+    },
+  });
 }
 
 export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnalysisResponse {
@@ -160,6 +283,10 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
         }
       : undefined,
   });
+}
+
+function looksLikeQuickMatchOutput(obj: Record<string, unknown>): boolean {
+  return obj.step === "quick_match" || typeof obj.quick_route === "string";
 }
 
 function looksLikeLeanAnalyzeOutput(obj: Record<string, unknown>): boolean {
@@ -279,6 +406,19 @@ export function parseAndValidateMatchAnalysis(rawText: string): ParseMatchAnalys
       rawText,
       rawObject: null,
     };
+  }
+
+  if (looksLikeQuickMatchOutput(rawObject)) {
+    const quickParsed = quickMatchResponseSchema.safeParse(rawObject);
+    if (!quickParsed.success) {
+      return {
+        ok: false,
+        errors: formatZodErrors(quickParsed.error),
+        rawText,
+        rawObject,
+      };
+    }
+    return { ok: true, data: expandQuickMatchToFull(quickParsed.data), rawObject };
   }
 
   if (looksLikeLeanAnalyzeOutput(rawObject)) {
