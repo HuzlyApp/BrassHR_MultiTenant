@@ -40,6 +40,8 @@ type SearchableSelectFieldProps = {
   compact?: boolean
   /** Allow confirming a typed value that is not in `options` (any city in an allowed state). */
   allowCustom?: boolean
+  /** Open the options panel above the field (useful near the bottom of modals). */
+  dropdownPlacement?: "up" | "down"
 }
 
 export default function SearchableSelectField({
@@ -57,6 +59,7 @@ export default function SearchableSelectField({
   emptyMessage = "No cities found",
   compact = false,
   allowCustom = false,
+  dropdownPlacement = "down",
 }: SearchableSelectFieldProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -141,7 +144,11 @@ export default function SearchableSelectField({
         </button>
 
         {open && !isDisabled ? (
-          <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-lg">
+          <div
+            className={`absolute z-30 w-full overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-lg ${
+              dropdownPlacement === "up" ? "bottom-full mb-2" : "mt-2"
+            }`}
+          >
             <div className="relative border-b border-[#e2e8f0] p-2">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <input

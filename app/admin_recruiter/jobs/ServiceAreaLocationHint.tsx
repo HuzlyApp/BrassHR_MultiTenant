@@ -11,6 +11,8 @@ type Props = {
   locationType?: string | null;
   remoteAllowedStates?: string[] | null;
   onBlockedChange?: (blocked: boolean, message: string | null) => void;
+  /** When true, only sync blocked state — do not render the alert message. */
+  silent?: boolean;
 };
 
 export default function ServiceAreaLocationHint({
@@ -19,6 +21,7 @@ export default function ServiceAreaLocationHint({
   locationType,
   remoteAllowedStates,
   onBlockedChange,
+  silent = false,
 }: Props) {
   const parsed = locationFromFreeText(locationText, postalCode);
   const type = normalizeServiceAreaLocationType(locationType) ?? "onsite";
@@ -48,7 +51,7 @@ export default function ServiceAreaLocationHint({
     onBlockedChange?.(Boolean(preview.message), preview.message);
   }, [onBlockedChange, preview.message]);
 
-  if (!preview.message) return null;
+  if (silent || !preview.message) return null;
 
   return (
     <p className="mt-2 text-sm text-[#B91C1C]" role="alert">

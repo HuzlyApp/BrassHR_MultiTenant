@@ -503,8 +503,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setFieldErrors({ location: blockedMessage });
       setMessage(blockedMessage);
       setSaving(false);
-      if (payloadJob.sourceType === "MSP") setStep("msp-details");
-      else setStep("requisition");
+      // Stay on review when already reviewing — show the error there instead of jumping back.
+      if (step !== "review") {
+        if (payloadJob.sourceType === "MSP") setStep("msp-details");
+        else setStep("requisition");
+      }
       return;
     }
     if (action === "save_draft" && serviceAreaBlocked) {
@@ -526,7 +529,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (stepErrors.publicDescription) {
           setStep("description");
         } else if (
-          !(stepErrors.remoteAllowedStates && step === "review") &&
+          !(step === "review" && (stepErrors.remoteAllowedStates || stepErrors.location)) &&
           (stepErrors.location ||
             stepErrors.remoteAllowedStates ||
             stepErrors.shiftType ||
@@ -572,7 +575,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setFieldErrors(payload.fieldErrors ?? {});
         const apiFieldErrors = (payload.fieldErrors ?? {}) as Record<string, string>;
         if (
-          !(apiFieldErrors.remoteAllowedStates && step === "review") &&
+          !(
+            step === "review" &&
+            (apiFieldErrors.remoteAllowedStates || apiFieldErrors.location)
+          ) &&
           (apiFieldErrors.remoteAllowedStates ||
             apiFieldErrors.location ||
             apiFieldErrors.shiftType ||
@@ -702,7 +708,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   function handleNext() {
-    if (step === "requisition") {
+    if (step === "requisition" || step === "msp-details") {
+      if (serviceAreaBlocked) {
+        setMessage(serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled);
+        return;
+      }
       const errors = {
         ...validateRequisitionStep(buildPayloadJob()),
         ...validateWorkflowAssignment(),
@@ -711,19 +721,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
       }
-      setStep(job.sourceType === "MSP" ? "msp-details" : "compensation");
-      return;
-    }
-    if (step === "msp-details") {
-      const errors = {
-        ...validateRequisitionStep(buildPayloadJob()),
-        ...validateWorkflowAssignment(),
-      };
-      if (Object.keys(errors).length > 0) {
-        setFieldErrors((current) => ({ ...current, ...errors }));
-        return;
-      }
-      setStep("compensation");
+      setStep(
+        step === "requisition" && job.sourceType === "MSP" ? "msp-details" : "compensation"
+      );
       return;
     }
     if (step === "compensation") {
@@ -982,6 +982,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 onEditField={setReviewEditField}
                 brandVars={brandVars}
                 fieldErrors={fieldErrors}
+                onServiceAreaBlockedChange={onServiceAreaBlockedChange}
               />
             ) : null}
           </div>
@@ -1066,6 +1067,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           setMessage("");
           setReviewEditField(null);
         }}
+        onServiceAreaBlockedChange={onServiceAreaBlockedChange}
       />
 
       <JobPostPreviewModal
