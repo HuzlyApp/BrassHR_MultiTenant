@@ -253,17 +253,14 @@ export function JobReviewEditModal({
   }
 
   function handleUpdate() {
-    if (
-      (field === "jobLocation" || field === "facilityLocation") &&
-      serviceAreaBlocked
-    ) {
-      const blockedMessage =
-        serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
-      setLocationFieldError(blockedMessage);
-      return;
-    }
+    // Restricted locations may be kept for draft; publish remains gated on the review screen.
     if (field === "jobLocation" || field === "facilityLocation") {
-      onServiceAreaBlockedChange?.(false, null);
+      onServiceAreaBlockedChange?.(
+        serviceAreaBlocked,
+        serviceAreaBlocked
+          ? serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled
+          : null
+      );
     }
     onUpdate(draft);
     onOpenChange(false);

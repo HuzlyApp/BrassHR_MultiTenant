@@ -2827,6 +2827,7 @@ export function JobFormFooter({
   showPublishActions,
   termsAccepted,
   brandStyle,
+  saveDraftLabel = "Save",
   onBack,
   onNext,
   onPreview,
@@ -2842,6 +2843,8 @@ export function JobFormFooter({
   showPublishActions: boolean;
   termsAccepted: boolean;
   brandStyle: CSSProperties;
+  /** Label for the draft/save control (e.g. "Save draft" when location is restricted). */
+  saveDraftLabel?: string;
   onBack: () => void;
   onNext: () => void;
   onPreview: () => void;
@@ -3032,7 +3035,7 @@ export function JobFormFooter({
                     disabled={saving}
                     onClick={onSaveDraft}
                   >
-                    Save
+                    {saving ? "Saving…" : saveDraftLabel}
                   </button>
                   <button
                     type="button"
@@ -3059,7 +3062,7 @@ export function JobFormFooter({
                   disabled={saving}
                   onClick={onSaveDraft}
                 >
-                  Save
+                  {saving ? "Saving…" : saveDraftLabel}
                 </button>
               )}
             </div>
