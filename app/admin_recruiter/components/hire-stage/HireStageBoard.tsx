@@ -176,50 +176,56 @@ export function HireStageBoard({
 
   return (
     <>
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div className="min-w-0 flex-1 space-y-4">
-          <header>
-            <h1
-              className="text-3xl font-bold tracking-tight"
-              style={{ color: "var(--brand-secondary)" }}
-            >
-              {title}
-            </h1>
-            <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>
-          </header>
-
-          {activationFailed ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Candidate is hired but Post-Hire activation did not complete. Retry status change or
-              conversion.
-            </div>
-          ) : null}
-
+      <div className="flex flex-col gap-4">
+        {/* Centered under Pre Hire / Post Hire tabs */}
+        <div className="flex w-full justify-center">
           <HireStageStepper stages={stages} />
-          <HireStageAccordion
-            stages={stages}
-            lifecycle={lifecycle}
-            onInspectStep={(step) => void openStep(step)}
-            onScheduleInterview={
-              lifecycle === "pre_hire" ? () => setScheduleOpen(true) : undefined
-            }
-          />
         </div>
 
-        <HireStageSidebar
-          lifecycle={lifecycle}
-          profile={profile}
-          templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
-          progressPercent={progressMeta.percent}
-          progressLabel={progressMeta.label}
-          lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
-          showProceedToPostHire={lifecycle === "pre_hire" && preHireComplete}
-          proceedDisabledReason={proceedDisabledReason}
-          onProceedToPostHire={() => {
-            if (proceedDisabledReason) return;
-            onRequestPostHireTab?.();
-          }}
-        />
+        <header className="w-full shrink-0">
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            style={{ color: "var(--brand-secondary)" }}
+          >
+            {title}
+          </h1>
+          <p className="mt-1 text-sm text-[#64748B]">{subtitle}</p>
+        </header>
+
+        {activationFailed ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Candidate is hired but Post-Hire activation did not complete. Retry status change or
+            conversion.
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            <HireStageAccordion
+              stages={stages}
+              lifecycle={lifecycle}
+              onInspectStep={(step) => void openStep(step)}
+              onScheduleInterview={
+                lifecycle === "pre_hire" ? () => setScheduleOpen(true) : undefined
+              }
+            />
+          </div>
+
+          <HireStageSidebar
+            lifecycle={lifecycle}
+            profile={profile}
+            templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
+            progressPercent={progressMeta.percent}
+            progressLabel={progressMeta.label}
+            lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
+            showProceedToPostHire={lifecycle === "pre_hire" && preHireComplete}
+            proceedDisabledReason={proceedDisabledReason}
+            onProceedToPostHire={() => {
+              if (proceedDisabledReason) return;
+              onRequestPostHireTab?.();
+            }}
+          />
+        </div>
       </div>
 
       <CandidateWorkflowStepDrawer

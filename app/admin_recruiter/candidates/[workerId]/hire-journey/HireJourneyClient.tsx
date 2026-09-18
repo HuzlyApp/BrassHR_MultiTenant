@@ -118,8 +118,8 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
 
   return (
     <div className="admin-recruiter-page-pad bg-[#F5F6F8]">
-      <div className="admin-recruiter-content-width space-y-5">
-        <div className="flex justify-center">
+      <div className="admin-recruiter-content-width space-y-4">
+        <div className="flex w-full justify-center">
           <div
             className="inline-flex rounded-full border border-[#E5E7EB] bg-white p-1 shadow-sm"
             role="tablist"
