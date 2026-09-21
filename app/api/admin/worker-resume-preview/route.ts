@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     if (resumeIdCheck?.ok) {
       let resumeQuery = supabase
         .from("worker_resumes")
-        .select("storage_path, file_url, original_file_name, file_name")
+        .select("storage_path, file_url, original_file_name, file_name, job_application_id")
         .eq("id", resumeIdCheck.value)
         .is("deleted_at", null);
       resumeQuery = userIdForLegacy
@@ -95,17 +95,31 @@ export async function GET(req: NextRequest) {
         : resumeQuery.eq("worker_id", workerId);
       const { data: resumeRow, error: resumeErr } = await resumeQuery.maybeSingle();
       if (resumeErr) throw resumeErr;
+      if (!resumeRow) {
+        return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+      }
+      // Same ownership rule as admin job-application resume actions: a resume bound to
+      // another application must not open from this application's preview/history flow.
+      if (applicationId) {
+        const boundApplicationId =
+          typeof resumeRow.job_application_id === "string"
+            ? resumeRow.job_application_id.trim()
+            : "";
+        if (boundApplicationId && boundApplicationId !== applicationId) {
+          return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+        }
+      }
       const scopedPath =
-        (typeof resumeRow?.storage_path === "string" && resumeRow.storage_path.trim()) ||
-        (typeof resumeRow?.file_url === "string" && resumeRow.file_url.trim()) ||
+        (typeof resumeRow.storage_path === "string" && resumeRow.storage_path.trim()) ||
+        (typeof resumeRow.file_url === "string" && resumeRow.file_url.trim()) ||
         "";
       const scopedNormalized = scopedPath
         ? normalizeResumeStorageObjectPath(scopedPath)
         : null;
       resumePath = scopedNormalized?.trim() || "";
       storedName =
-        (typeof resumeRow?.original_file_name === "string" && resumeRow.original_file_name.trim()) ||
-        (typeof resumeRow?.file_name === "string" && resumeRow.file_name.trim()) ||
+        (typeof resumeRow.original_file_name === "string" && resumeRow.original_file_name.trim()) ||
+        (typeof resumeRow.file_name === "string" && resumeRow.file_name.trim()) ||
         fileNameFromPath(resumePath);
       if (!resumePath) {
         return NextResponse.json({ error: "Resume not found" }, { status: 404 });
