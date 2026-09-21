@@ -326,14 +326,9 @@ export function JobDetailPanel({
             >
               {title}
             </h2>
-            <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
-            {facts.length ? (
-              <p className={`mt-1 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p>
-            ) : null}
-            <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 ${JOB_POSTING_METADATA_CLASS}`}>
-              {pay ? <span>{pay}</span> : null}
-              {posted ? <span>{posted}</span> : null}
-            </div>
+            <p className={`mt-1.5 truncate ${JOB_POSTING_METADATA_CLASS}`}>
+              {[locationLine, ...facts, pay, posted].filter(Boolean).join(" · ")}
+            </p>
           </div>
           {!stacked && jobToken ? (
             <div className="flex shrink-0 items-center self-center">

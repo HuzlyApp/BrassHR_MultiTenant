@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildJobsBoardHref,
   buildPublicJobsApiSearchParams,
+  buildPublicJobsKeywordOrFilters,
+  buildPublicJobsLocationOrFilter,
   descriptionHasSection,
   formatPublicJobDescriptionHtml,
   formatPublicJobPay,
@@ -261,5 +263,35 @@ describe("sortPublicBoardJobs", () => {
       "Remote"
     );
     expect(sorted[0]?.public_job_token).toBe("newer");
+  });
+});
+
+describe("public jobs search filter builders", () => {
+  it("builds keyword or-filters with one phrase filter per comma tag", () => {
+    const filters = buildPublicJobsKeywordOrFilters("Senior Oracle,Remote");
+    expect(filters).toHaveLength(2);
+    expect(filters[0]).toContain('public_title.ilike."%Senior Oracle%"');
+    expect(filters[0]).toContain("location_type.ilike.");
+    expect(filters[1]).toContain('public_title.ilike."%Remote%"');
+  });
+
+  it("treats a single unspaced query as one phrase tag", () => {
+    const filters = buildPublicJobsKeywordOrFilters("Oracle DBA");
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toContain('public_title.ilike."%Oracle DBA%"');
+  });
+
+  it("builds location or-filter that matches remote workplace type", () => {
+    const filter = buildPublicJobsLocationOrFilter("remote");
+    expect(filter).toContain('location_type.eq."Remote"');
+    expect(filter).toContain('and(location_type.is.null,schedule.eq."Remote")');
+    expect(filter).toContain('and(location_type.is.null,location.ilike."%Remote%")');
+    expect(filter).not.toContain('location.ilike."%remote%"');
+  });
+
+  it("builds city location search without workplace exact-match branches", () => {
+    const filter = buildPublicJobsLocationOrFilter("Blue Bell");
+    expect(filter).toContain('location.ilike."%Blue Bell%"');
+    expect(filter).not.toContain("location_type.eq.");
   });
 });

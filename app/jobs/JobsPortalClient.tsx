@@ -13,11 +13,12 @@ import {
   buildJobsBoardHref,
   buildPublicJobsApiSearchParams,
   hasActiveJobsBoardFilters,
-  JOBS_BOARD_INPUT_DEBOUNCE_MS,
   parseJobsBoardSearchParams,
+  parsePublicJobsQueryTags,
   PUBLIC_JOBS_DESKTOP_MIN_WIDTH,
   PUBLIC_JOBS_PAGE_SIZE,
   resolveSelectedJobToken,
+  serializePublicJobsQueryTags,
   sortPublicBoardJobs,
   type JobsBoardActiveChip,
   type JobsBoardUrlState,
@@ -27,6 +28,29 @@ import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context"
 
 type Option = { id: string; name: string; profession_id?: string };
 
+<<<<<<< HEAD
+=======
+/** Fold legacy `location=` into advanced-search tags so one chip bar covers city/state too. */
+function mergePublicJobsSearchTags(q: string, location: string): string[] {
+  const tags = parsePublicJobsQueryTags(q);
+  const loc = location.trim();
+  if (!loc) return tags;
+  if (tags.some((tag) => tag.toLowerCase() === loc.toLowerCase())) return tags;
+  return parsePublicJobsQueryTags(serializePublicJobsQueryTags([...tags, loc]));
+}
+
+function resolveJobsBoardTenantSlug(
+  search: string,
+  path: string,
+  brandingSlug: string | null | undefined
+): string {
+  const resolved = resolveTenantSlugForClient(search, { path });
+  if (resolved.slug) return resolved.slug;
+  const fromBranding = brandingSlug?.trim().toLowerCase() ?? "";
+  return isTenantApplicantPortalSlug(fromBranding) ? fromBranding : "";
+}
+
+>>>>>>> d98a6eb5 (Refactor job search functionality to support advanced filtering and improved user experience)
 type BoardUrlPatch = Partial<
   Pick<
     JobsBoardUrlState,
@@ -75,8 +99,9 @@ export default function JobsPortalClient() {
   const [professions, setProfessions] = useState<Option[]>([]);
   const [specialties, setSpecialties] = useState<Option[]>([]);
   const [tenantName, setTenantName] = useState("");
-  const [queryDraft, setQueryDraft] = useState(boardState.q);
-  const [locationDraft, setLocationDraft] = useState(boardState.location);
+  const [queryTags, setQueryTags] = useState(() =>
+    mergePublicJobsSearchTags(boardState.q, boardState.location)
+  );
   const [selectedToken, setSelectedToken] = useState<string | null>(boardState.job);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(boardState.panel === "detail");
   const [total, setTotal] = useState(0);
@@ -95,8 +120,7 @@ export default function JobsPortalClient() {
   }, [searchParams]);
 
   useEffect(() => {
-    setQueryDraft(boardState.q);
-    setLocationDraft(boardState.location);
+    setQueryTags(mergePublicJobsSearchTags(boardState.q, boardState.location));
   }, [boardState.q, boardState.location]);
 
   const boardStateRef = useRef(boardState);
@@ -162,6 +186,7 @@ export default function JobsPortalClient() {
   }, [replaceBoardUrl]);
 
   useEffect(() => {
+<<<<<<< HEAD
     const timer = window.setTimeout(() => {
       const current = boardStateRef.current;
       if (queryDraft.trim() === current.q && locationDraft.trim() === current.location) return;
@@ -179,6 +204,9 @@ export default function JobsPortalClient() {
   }, [boardState.location, boardState.q, locationDraft, queryDraft]);
 
   useEffect(() => {
+=======
+    if (!tenantReady) return;
+>>>>>>> d98a6eb5 (Refactor job search functionality to support advanced filtering and improved user experience)
     if (!tenant) {
       setError("Open this page from your employer's tenant job portal.");
       setLoading(false);
@@ -320,38 +348,33 @@ export default function JobsPortalClient() {
     });
   };
 
-  const clearSecondary = useCallback(() => {
-    if (!tenant) return;
-    const current = boardStateRef.current;
-    const nextState = {
-      ...current,
-      professionId: "",
-      specialtyId: "",
-      employmentType: "",
-      locationType: "",
+  const applySearchTags = (tags: string[]) => {
+    const serialized = serializePublicJobsQueryTags(tags);
+    const nextTags = parsePublicJobsQueryTags(serialized);
+    setQueryTags(nextTags);
+    boardStateRef.current = {
+      ...boardStateRef.current,
+      q: serialized,
+      location: "",
       page: 1,
     };
-    boardStateRef.current = nextState;
-    const href = buildJobsBoardHref({
-      tenant,
-      q: nextState.q,
-      professionId: "",
-      specialtyId: "",
-      employmentType: "",
-      locationType: "",
-      location: nextState.location,
-      sort: nextState.sort,
+    replaceBoardUrl({ q: serialized, location: "", page: 1 });
+    return nextTags;
+  };
+
+  const resetSearch = () => {
+    setQueryTags([]);
+    boardStateRef.current = {
+      ...boardStateRef.current,
+      q: "",
+      location: "",
       page: 1,
-      job: selectedToken ?? nextState.job,
-      panel: mobileDetailOpen && !isDesktop ? "detail" : null,
-    });
-    lastHrefRef.current = href;
-    router.replace(href, { scroll: false });
-  }, [isDesktop, mobileDetailOpen, router, selectedToken, tenant]);
+    };
+    replaceBoardUrl({ q: "", location: "", page: 1 });
+  };
 
   const clearAllSearchAndFilters = () => {
-    setQueryDraft("");
-    setLocationDraft("");
+    setQueryTags([]);
     boardStateRef.current = {
       ...boardStateRef.current,
       q: "",
@@ -411,16 +434,13 @@ export default function JobsPortalClient() {
           </div>
           <div id="jobs-board-filters" className="mt-4">
             <JobsBoardFilters
-              query={queryDraft}
-              location={locationDraft}
+              queryTags={queryTags}
               professionId={boardState.professionId}
               specialtyId={boardState.specialtyId}
               employmentType={boardState.employmentType}
               locationType={boardState.locationType}
               professions={professions}
               specialties={filteredSpecialties}
-              onQueryChange={setQueryDraft}
-              onLocationChange={setLocationDraft}
               onEmploymentTypeChange={(value) =>
                 replaceBoardUrl({
                   employmentType: value,
@@ -430,10 +450,9 @@ export default function JobsPortalClient() {
                 })
               }
               onLocationTypeChange={(value) => replaceBoardUrl({ locationType: value, page: 1 })}
-              onSearch={() => {
-                replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 });
-              }}
-              onClearSecondary={clearSecondary}
+              onSearch={applySearchTags}
+              onResetSearch={resetSearch}
+              onClearSecondary={clearAllSearchAndFilters}
               onRemoveChip={removeChip}
             />
           </div>

@@ -32,7 +32,6 @@ export function JobResultCard({
   const locationLine = formatJobLocationLine(job.location, job.location_type);
   const pay = formatPublicJobPay(job);
   const posted = formatPostedDate(job.published_at, job.updated_at);
-  const meta = [profession, pay, posted].filter(Boolean).join(" · ");
 
   return (
     <article>
@@ -76,8 +75,9 @@ export function JobResultCard({
             </span>
           ) : null}
         </div>
-        <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
-        {meta ? <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>{meta}</p> : null}
+        <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>
+          {[locationLine, profession, pay, posted].filter(Boolean).join(" · ")}
+        </p>
       </button>
     </article>
   );

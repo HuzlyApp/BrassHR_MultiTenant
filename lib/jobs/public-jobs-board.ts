@@ -197,7 +197,10 @@ export type JobsBoardActiveChip = {
 };
 
 export function jobsBoardActiveChips(
-  state: Pick<JobsBoardUrlState, "professionId" | "specialtyId" | "employmentType" | "locationType">,
+  state: Pick<
+    JobsBoardUrlState,
+    "professionId" | "specialtyId" | "employmentType" | "locationType"
+  >,
   labels: { profession?: string; specialty?: string }
 ): JobsBoardActiveChip[] {
   const chips: JobsBoardActiveChip[] = [];
@@ -206,6 +209,111 @@ export function jobsBoardActiveChips(
   if (state.employmentType) chips.push({ key: "employmentType", label: state.employmentType });
   if (state.locationType) chips.push({ key: "locationType", label: state.locationType });
   return chips;
+}
+
+/** Strip characters that break PostgREST `or` / `ilike` filter fragments. */
+export function sanitizePublicJobsSearchTerm(raw: string): string {
+  return raw
+    .replace(/[%_]/g, " ")
+    .replace(/,/g, " ")
+    .replace(/"/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function publicJobsIlikePattern(term: string): string {
+  const cleaned = sanitizePublicJobsSearchTerm(term);
+  return `"%${cleaned}%"`;
+}
+
+const PUBLIC_JOBS_KEYWORD_COLUMNS = [
+  "public_title",
+  "source_job_title",
+  "public_description",
+  "location",
+  "location_type",
+  "schedule",
+  "employment_type",
+] as const;
+
+const MAX_PUBLIC_JOBS_QUERY_TAGS = 16;
+
+/** Parse comma-separated keyword tags from the jobs board `q` param (same rules as skills chips). */
+export function parsePublicJobsQueryTags(query: string | null | undefined): string[] {
+  if (!query?.trim()) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of query.split(",")) {
+    const tag = part.trim();
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+    if (out.length >= MAX_PUBLIC_JOBS_QUERY_TAGS) break;
+  }
+  return out;
+}
+
+export function serializePublicJobsQueryTags(tags: string[]): string {
+  return parsePublicJobsQueryTags(tags.join(",")).join(",");
+}
+
+/** One PostgREST `or(...)` filter per keyword tag/phrase (AND across tags). */
+export function buildPublicJobsKeywordOrFilters(query: string): string[] {
+  const tags = parsePublicJobsQueryTags(query);
+  return tags
+    .map((tag) => {
+      const cleaned = sanitizePublicJobsSearchTerm(tag);
+      if (!cleaned) return "";
+      const pattern = publicJobsIlikePattern(cleaned);
+      return PUBLIC_JOBS_KEYWORD_COLUMNS.map((column) => `${column}.ilike.${pattern}`).join(",");
+    })
+    .filter(Boolean);
+}
+
+export function matchWorkplaceTypeFromLocationSearch(raw: string): JobLocationType | null {
+  const normalized = sanitizePublicJobsSearchTerm(raw).toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "onsite" || normalized === "on site") return "On-site";
+  for (const type of JOB_LOCATION_TYPES) {
+    if (type.toLowerCase() === normalized) return type;
+  }
+  return null;
+}
+
+/**
+ * Workplace filter matching (advanced dropdown + typing "remote" in location).
+ * Includes jobs with empty location_type that still say Remote/Hybrid/On-site in location text.
+ */
+export function buildPublicJobsWorkplaceTypeOrFilter(locationType: string): string | null {
+  const cleaned = locationType.trim();
+  if (!cleaned) return null;
+  const quoted = `"${cleaned.replace(/"/g, '\\"')}"`;
+  // Keep commas (e.g. "Remote, Hybrid") — only strip PostgREST wildcards / quotes.
+  const ilikeValue = cleaned.replace(/[%_]/g, " ").replace(/"/g, " ").replace(/\s+/g, " ").trim();
+  const pattern = `"%${ilikeValue}%"`;
+  return [
+    `location_type.eq.${quoted}`,
+    `and(location_type.is.null,schedule.eq.${quoted})`,
+    `and(location_type.eq."",schedule.eq.${quoted})`,
+    `and(location_type.is.null,location.ilike.${pattern})`,
+    `and(location_type.eq."",location.ilike.${pattern})`,
+  ].join(",");
+}
+
+/** Location box: city/state text, or exact workplace words like "remote". */
+export function buildPublicJobsLocationOrFilter(location: string): string | null {
+  const cleaned = sanitizePublicJobsSearchTerm(location);
+  if (!cleaned) return null;
+  const workplace = matchWorkplaceTypeFromLocationSearch(location);
+  if (workplace) return buildPublicJobsWorkplaceTypeOrFilter(workplace);
+  const pattern = publicJobsIlikePattern(cleaned);
+  return [
+    `location.ilike.${pattern}`,
+    `location_type.ilike.${pattern}`,
+    `schedule.ilike.${pattern}`,
+  ].join(",");
 }
 
 export function jobActivityTimestamp(job: Pick<PublicBoardJob, "published_at" | "updated_at">): number {

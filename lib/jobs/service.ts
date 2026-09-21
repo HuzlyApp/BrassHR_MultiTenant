@@ -29,6 +29,11 @@ import {
   normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
 import {
+  buildPublicJobsKeywordOrFilters,
+  buildPublicJobsLocationOrFilter,
+  buildPublicJobsWorkplaceTypeOrFilter,
+} from "@/lib/jobs/public-jobs-board";
+import {
   deriveEorType,
   isMspRecruitAndRelease,
   jobRequiresWorkflow,
@@ -1382,23 +1387,17 @@ export async function listPublicJobs(
     .range(from, to);
 
   if (filters.query?.trim()) {
-    const term = filters.query.trim().replace(/[%_,]/g, " ");
-    query = query.or(
-      `public_title.ilike.%${term}%,source_job_title.ilike.%${term}%,public_description.ilike.%${term}%,location.ilike.%${term}%`
-    );
+    for (const orFilter of buildPublicJobsKeywordOrFilters(filters.query)) {
+      query = query.or(orFilter);
+    }
   }
   if (filters.professionId) query = query.eq("profession_id", filters.professionId);
   if (filters.specialtyId) query = query.eq("specialty_id", filters.specialtyId);
-  if (filters.location?.trim()) query = query.ilike("location", `%${filters.location.trim()}%`);
+  const locationOr = buildPublicJobsLocationOrFilter(filters.location ?? "");
+  if (locationOr) query = query.or(locationOr);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
-  if (filters.locationType?.trim()) {
-    // Match admin placement display: location_type, else schedule when location_type is empty.
-    const value = filters.locationType.trim().replace(/"/g, '\\"');
-    const quoted = `"${value}"`;
-    query = query.or(
-      `location_type.eq.${quoted},and(location_type.is.null,schedule.eq.${quoted})`
-    );
-  }
+  const workplaceOr = buildPublicJobsWorkplaceTypeOrFilter(filters.locationType ?? "");
+  if (workplaceOr) query = query.or(workplaceOr);
 
   const { data, error, count } = await query;
   if (error) throw error;

@@ -198,19 +198,48 @@ describe("JobsPortalClient", () => {
     );
   });
 
-  it.each([
-    ["keyword", "Search jobs, titles, or keywords", "ICU", "q=ICU"],
-    ["location", "Location", "Austin", "location=Austin"],
-  ])("searches by %s", async (_label, aria, value, expected) => {
+  const searchLabel = "Search by job title, skills, experience, location...";
+
+  it("searches with advanced search tags including location phrases", async () => {
     const user = userEvent.setup();
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
     nav.replace.mockClear();
-    await user.clear(screen.getByLabelText(aria));
-    await user.type(screen.getByLabelText(aria), value);
+    await user.type(screen.getByLabelText(searchLabel), "Austin");
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith(
-      expect.stringContaining(expected),
+      expect.stringContaining("q=Austin"),
+      expect.objectContaining({ scroll: false })
+    );
+  });
+
+  it("creates keyword tags with Enter and comma like jobs advanced search", async () => {
+    const user = userEvent.setup();
+    await renderBoard();
+    await screen.findByTestId("job-card-rn-1");
+    const keyword = screen.getByLabelText(searchLabel);
+    nav.replace.mockClear();
+    await user.type(keyword, "Oracle,");
+    expect(screen.getByRole("button", { name: "Remove Oracle" })).toBeInTheDocument();
+    expect(screen.queryByTestId("jobs-reset-search")).not.toBeInTheDocument();
+    await user.type(keyword, "DBA{Enter}");
+    expect(screen.getByRole("button", { name: "Remove DBA" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(nav.replace).toHaveBeenCalledWith(
+        expect.stringMatching(/q=Oracle(%2C|,)DBA/),
+        expect.objectContaining({ scroll: false })
+      )
+    );
+  });
+
+  it("shows Reset search only after a search is applied", async () => {
+    const user = userEvent.setup();
+    await renderBoard("tenant=zipstaff&q=ICU");
+    expect(await screen.findByTestId("jobs-reset-search")).toBeInTheDocument();
+    nav.replace.mockClear();
+    await user.click(screen.getByTestId("jobs-reset-search"));
+    expect(nav.replace).toHaveBeenCalledWith(
+      expect.not.stringContaining("q="),
       expect.objectContaining({ scroll: false })
     );
   });
@@ -237,13 +266,14 @@ describe("JobsPortalClient", () => {
     await renderBoard(
       "tenant=zipstaff&q=RN&professionId=prof-nursing&specialtyId=spec-icu&location=Dallas&employmentType=W2&job=rn-2"
     );
-    expect(await screen.findByLabelText("Search jobs, titles, or keywords")).toHaveValue("RN");
+    expect(await screen.findByRole("button", { name: "Remove RN" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Dallas" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Profession" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Specialty" })).not.toBeInTheDocument();
     expect(screen.getByTestId("jobs-active-chip-professionId")).toHaveTextContent("Nursing");
-    expect(screen.getByLabelText("Location")).toHaveValue("Dallas");
     expect(screen.getByRole("button", { name: "Employment type" })).toHaveTextContent("W2");
     expect(screen.getByTestId("jobs-active-chip-specialtyId")).toHaveTextContent("ICU");
+    expect(screen.getByTestId("jobs-reset-search")).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("job-card-rn-2")).toHaveAttribute("aria-pressed", "true")
     );
@@ -265,7 +295,8 @@ describe("JobsPortalClient", () => {
       expect.objectContaining({ scroll: false })
     );
     const cleared = String(nav.replace.mock.calls.at(-1)?.[0]);
-    expect(cleared).toContain("q=RN");
+    expect(cleared).not.toContain("q=");
+    expect(cleared).not.toContain("location=");
     expect(cleared).not.toContain("professionId=");
     expect(cleared).not.toContain("specialtyId=");
     expect(cleared).not.toContain("employmentType=");
@@ -289,7 +320,7 @@ describe("JobsPortalClient", () => {
     await screen.findByTestId("job-card-rn-2");
     unmount();
     await renderBoard("tenant=zipstaff&q=nurse&page=1&job=rn-2");
-    expect(await screen.findByLabelText("Search jobs, titles, or keywords")).toHaveValue("nurse");
+    expect(await screen.findByRole("button", { name: "Remove nurse" })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("job-card-rn-2")).toHaveAttribute("aria-pressed", "true")
     );
@@ -438,7 +469,7 @@ describe("JobsPortalClient", () => {
     const user = userEvent.setup();
     await renderBoard("tenant=zipstaff", false);
     await screen.findByTestId("job-card-rn-1");
-    expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search by job title, skills, experience, location...")).toBeInTheDocument();
     const toggle = screen.getByTestId("jobs-filters-row-toggle");
     const filterRow = document.getElementById("jobs-board-filter-row");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -455,7 +486,7 @@ describe("JobsPortalClient", () => {
   it("keeps search visible on desktop with a filter-row toggle", async () => {
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
-    expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search by job title, skills, experience, location...")).toBeInTheDocument();
     expect(screen.getByTestId("jobs-filters-row-toggle")).toBeInTheDocument();
     expect(document.getElementById("jobs-board-filters")).toBeInTheDocument();
   });

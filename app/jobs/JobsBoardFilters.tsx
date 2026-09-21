@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  FilterChipInput,
+  type FilterChipInputHandle,
+} from "@/app/admin_recruiter/components/FilterChipInput";
 import { JobsBoardPillMenu } from "@/app/jobs/JobsBoardPillMenu";
 import {
   hasSecondaryJobsBoardFilters,
   JOB_LOCATION_TYPES,
   jobsBoardActiveChips,
+  parsePublicJobsQueryTags,
+  serializePublicJobsQueryTags,
   type JobsBoardActiveChip,
   type JobsBoardUrlState,
 } from "@/lib/jobs/public-jobs-board";
@@ -13,8 +19,7 @@ import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
 
 type Option = { id: string; name: string; profession_id?: string };
 
-const searchInputClass =
-  "min-h-10 w-full border-0 bg-transparent px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-0";
+const SEARCH_PLACEHOLDER = "Search by job title, skills, experience, location...";
 
 function employmentTypeOptions(emptyLabel: string) {
   return [{ value: "", label: emptyLabel }, ...EMPLOYMENT_TYPES.map((type) => ({ value: type, label: type }))];
@@ -24,39 +29,42 @@ function workplaceTypeOptions(emptyLabel: string) {
   return [{ value: "", label: emptyLabel }, ...JOB_LOCATION_TYPES.map((type) => ({ value: type, label: type }))];
 }
 
+function tagsKey(tags: string[]): string {
+  return tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean).join("|");
+}
+
 export function JobsBoardFilters({
-  query,
-  location,
+  queryTags,
   professionId,
   specialtyId,
   employmentType,
   locationType,
   professions,
   specialties,
-  onQueryChange,
-  onLocationChange,
+  onSearch,
+  onResetSearch,
+  onClearSecondary,
   onEmploymentTypeChange,
   onLocationTypeChange,
-  onSearch,
-  onClearSecondary,
   onRemoveChip,
 }: {
-  query: string;
-  location: string;
+  queryTags: string[];
   professionId: string;
   specialtyId: string;
   employmentType: string;
   locationType: string;
   professions: Option[];
   specialties: Option[];
-  onQueryChange: (value: string) => void;
-  onLocationChange: (value: string) => void;
+  onSearch: (queryTags: string[]) => void;
+  onResetSearch: () => void;
+  onClearSecondary: () => void;
   onEmploymentTypeChange: (value: string) => void;
   onLocationTypeChange: (value: string) => void;
-  onSearch: () => void;
-  onClearSecondary: () => void;
   onRemoveChip: (key: JobsBoardActiveChip["key"]) => void;
 }) {
+  const keywordChipRef = useRef<FilterChipInputHandle>(null);
+  const [draftTags, setDraftTags] = useState(queryTags);
+  const [draftText, setDraftText] = useState("");
   const [filtersRowOpen, setFiltersRowOpen] = useState(false);
   const filterState: Pick<
     JobsBoardUrlState,
@@ -68,57 +76,98 @@ export function JobsBoardFilters({
   const workplaceOptions = useMemo(() => workplaceTypeOptions("All workplace types"), []);
   // Workplace type applies to W2 / 1099 (and All); Contract postings don't use it.
   const showWorkplaceTypeFilter = employmentType !== "Contract";
-  const chipState = showWorkplaceTypeFilter
-    ? filterState
-    : { ...filterState, locationType: "" };
-  const hasSecondary = hasSecondaryJobsBoardFilters(chipState);
+
+  useEffect(() => {
+    setDraftTags(queryTags);
+    setDraftText("");
+  }, [queryTags]);
+
+  const chipState = {
+    professionId,
+    specialtyId,
+    employmentType,
+    locationType: showWorkplaceTypeFilter ? locationType : "",
+  };
+  const hasSecondary = hasSecondaryJobsBoardFilters({
+    ...filterState,
+    locationType: showWorkplaceTypeFilter ? locationType : "",
+  });
   const chips = jobsBoardActiveChips(chipState, {
     profession: professionName,
     specialty: specialtyName,
   });
+  const hasAppliedSearch = queryTags.length > 0;
+  const hasDraftSearch = draftTags.length > 0 || Boolean(draftText.trim());
+  const searchDirty = tagsKey(draftTags) !== tagsKey(queryTags) || Boolean(draftText.trim());
+  const hasFilterChips = chips.length > 0;
 
   useEffect(() => {
-    if (hasSecondary) setFiltersRowOpen(true);
-  }, [hasSecondary]);
+    if (hasSecondary || hasAppliedSearch) setFiltersRowOpen(true);
+  }, [hasAppliedSearch, hasSecondary]);
+
+  function normalizeTags(tags: string[]) {
+    return parsePublicJobsQueryTags(serializePublicJobsQueryTags(tags));
+  }
+
+  function submitSearch(nextTags?: string[]) {
+    const committed = nextTags ?? keywordChipRef.current?.commitDraft() ?? draftTags;
+    const normalized = normalizeTags(committed);
+    setDraftTags(normalized);
+    setDraftText("");
+    onSearch(normalized);
+  }
+
+  function resetSearch() {
+    keywordChipRef.current?.clearDraft();
+    setDraftTags([]);
+    setDraftText("");
+    onResetSearch();
+  }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-stretch gap-2">
+      <div className="flex items-center gap-2">
         <form
-          className="flex min-w-0 flex-1 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-1 sm:flex-row sm:items-center"
+          className="flex min-w-0 flex-1 flex-row items-center gap-2 rounded-lg border border-slate-200 bg-white p-1"
           onSubmit={(event) => {
             event.preventDefault();
-            onSearch();
+            submitSearch();
           }}
           aria-label="Search open positions"
         >
-          <label className="min-w-0 flex-1">
-            <span className="sr-only">Search jobs, titles, or keywords</span>
-            <input
-              aria-label="Search jobs, titles, or keywords"
-              placeholder="Search jobs, titles, or keywords"
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              className={searchInputClass}
+          <div className="min-w-0 flex-1 px-2 py-0.5">
+            <FilterChipInput
+              ref={keywordChipRef}
+              embedded
+              values={draftTags}
+              placeholder={SEARCH_PLACEHOLDER}
+              aria-label={SEARCH_PLACEHOLDER}
+              onChange={setDraftTags}
+              onDraftTextChange={setDraftText}
+              onEnterSubmit={(tags) => {
+                submitSearch(tags);
+              }}
             />
-          </label>
-          <div className="hidden h-7 w-px bg-slate-200 sm:block" aria-hidden />
-          <label className="min-w-0 flex-1">
-            <span className="sr-only">City, state, country, or remote</span>
-            <input
-              aria-label="Location"
-              placeholder="City, state, country, or remote"
-              value={location}
-              onChange={(event) => onLocationChange(event.target.value)}
-              className={searchInputClass}
-            />
-          </label>
-          <button
-            type="submit"
-            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none"
-          >
-            Search
-          </button>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 pr-0.5">
+            <button
+              type="submit"
+              disabled={!searchDirty && !hasDraftSearch && !hasAppliedSearch}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:px-5"
+            >
+              Search
+            </button>
+            {hasAppliedSearch ? (
+              <button
+                type="button"
+                data-testid="jobs-reset-search"
+                onClick={resetSearch}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+              >
+                Reset search
+              </button>
+            ) : null}
+          </div>
         </form>
 
         <button
@@ -129,7 +178,7 @@ export function JobsBoardFilters({
           onClick={() => setFiltersRowOpen((open) => !open)}
           title={filtersRowOpen ? "Hide filters" : "Show filters"}
           className={`relative inline-flex size-10 shrink-0 items-center justify-center self-center rounded-lg border bg-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none ${
-            filtersRowOpen || hasSecondary
+            filtersRowOpen || hasFilterChips || hasAppliedSearch
               ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[color:var(--brand-primary)]"
               : "border-slate-200 text-[color:var(--brand-primary)] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_40%,#e2e8f0)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
           }`}
@@ -151,7 +200,7 @@ export function JobsBoardFilters({
             />
           </svg>
           <span className="sr-only">{filtersRowOpen ? "Hide filters" : "Show filters"}</span>
-          {hasSecondary && !filtersRowOpen ? (
+          {(hasFilterChips || hasAppliedSearch) && !filtersRowOpen ? (
             <span
               className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)] ring-2 ring-white"
               aria-hidden
@@ -181,7 +230,7 @@ export function JobsBoardFilters({
               placeholder="Workplace type"
             />
           ) : null}
-          {hasSecondary ? (
+          {hasFilterChips || hasAppliedSearch ? (
             <button
               type="button"
               onClick={onClearSecondary}
