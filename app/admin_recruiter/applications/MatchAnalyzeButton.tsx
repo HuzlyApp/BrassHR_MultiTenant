@@ -127,6 +127,70 @@ export function DeepMatchConfirmDialog({
   );
 }
 
+export function FollowUpConfirmDialog({
+  open,
+  verifyCount,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  verifyCount: number;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const branding = useTenantBranding();
+  const brandVars = brandingToCssVars(branding) as CSSProperties;
+  const primaryColor = branding.buttonColor || branding.primaryHex;
+  const secondaryColor = branding.secondaryHex;
+  const itemLabel = verifyCount === 1 ? "item" : "items";
+
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/40 p-4"
+      style={brandVars}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="follow-up-confirm-title"
+        className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl"
+      >
+        <h2 id="follow-up-confirm-title" className="text-lg font-semibold text-[#0F172A]">
+          Continue to Follow-up?
+        </h2>
+        <p className="mt-2 text-sm text-[#64748B]">
+          The Qualification Checklist still has {verifyCount} {itemLabel} that need verification.
+          Generate screening questions from those notes anyway?
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="h-10 rounded-lg border-2 bg-white px-4 text-sm font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:opacity-60"
+            style={{ borderColor: secondaryColor, color: secondaryColor }}
+          >
+            Stay on checklist
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="h-10 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {busy ? "Generating…" : "Continue to Follow-up"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /**
  * Quick Match / Deep Match control used across candidate list cells, row menus, and overview.
  * On stages 1–3 the main action is Quick Match; the chevron offers Deep Match (confirm cost).

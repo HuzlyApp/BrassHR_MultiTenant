@@ -35,7 +35,7 @@ export const MATCH_PROGRESSION_STEPS = [
     stepNumber: 3,
     label: "2nd Follow-up",
     subtitle: "Notes / Email · no %",
-    hint: "Step 3 · 2nd follow-up. Apply notes or upload the email. Status can move. Still no %.",
+    hint: "Step 3 · 2nd follow-up. Screening questions are generated from the Qualification Checklist and recruiter notes. Apply notes or upload the email. Still no %.",
     sectionId: "match-step-follow-up",
   },
   {
@@ -106,6 +106,75 @@ export function quickMatchFitBand(
   return "review";
 }
 
+/** Review becomes Strong once the recruiter reaches Deep Match (step 4). Low stays Low. */
+export function displayFitBand(args: {
+  fitBand: QuickMatchFitBand;
+  stage?: string | null;
+  hasDeepMatch?: boolean;
+}): QuickMatchFitBand {
+  if (args.fitBand === "low") return "low";
+  const atDeep =
+    Boolean(args.hasDeepMatch) || args.stage === "deep" || args.stage === "submission";
+  if (args.fitBand === "review" && atDeep) return "strong";
+  return args.fitBand;
+}
+
+/** Listing Fit uses the same checklist band as overview when mandatory/blocking are present. */
+export function listingDisplayFitBand(args: {
+  analyzed: boolean;
+  stage?: string | null;
+  counts?: {
+    confirmed?: number | null;
+    verify?: number | null;
+    notMet?: number | null;
+    mandatory?: number | null;
+    blocking?: number | null;
+  } | null;
+}): QuickMatchFitBand | null {
+  if (!args.analyzed) return null;
+  const confirmed = Number(args.counts?.confirmed ?? 0);
+  const verify = Number(args.counts?.verify ?? 0);
+  const notMet = Number(args.counts?.notMet ?? 0);
+  const mandatory =
+    args.counts?.mandatory == null || Number.isNaN(Number(args.counts.mandatory))
+      ? null
+      : Number(args.counts.mandatory);
+  const blocking =
+    args.counts?.blocking == null || Number.isNaN(Number(args.counts.blocking))
+      ? null
+      : Number(args.counts.blocking);
+
+  let band: QuickMatchFitBand;
+  if (mandatory != null && blocking != null) {
+    band = quickMatchFitBand({ mandatory, confirmed, notMet, blocking });
+  } else {
+    const total = confirmed + verify + notMet;
+    band = "review";
+    if (notMet >= 2) band = "low";
+    else if (notMet === 0 && total > 0 && confirmed / total >= 0.7) band = "strong";
+  }
+  return displayFitBand({ fitBand: band, stage: args.stage });
+}
+
+export function fitBandLabel(band: QuickMatchFitBand): string {
+  if (band === "strong") return "Strong";
+  if (band === "low") return "Low";
+  return "Review";
+}
+
+export function fitBandTagClassName(band: QuickMatchFitBand): string {
+  if (band === "strong") return "bg-[#00B135] text-white";
+  if (band === "low") return "bg-[#FEE2E2] text-[#991B1B]";
+  return "bg-[#FEF9C3] text-[#854D0E]";
+}
+
+export function fitBandSortRank(band: QuickMatchFitBand | null | undefined): number | null {
+  if (band === "strong") return 3;
+  if (band === "review") return 2;
+  if (band === "low") return 1;
+  return null;
+}
+
 export function canAdvanceMatchProgression(args: {
   isAnalyzed: boolean;
   fitBand: QuickMatchFitBand;
@@ -170,6 +239,11 @@ export function matchProgressionStepRequiresDeepConfirm(args: {
   unlockedIndex: number;
 }): boolean {
   return args.index === 3 && args.unlockedIndex < 3;
+}
+
+/** Ask before Follow-up if the Qualification Checklist still has items to confirm. */
+export function matchProgressionFollowUpNeedsConfirm(verifyCount: number): boolean {
+  return Number.isFinite(verifyCount) && verifyCount > 0;
 }
 
 export function matchProgressionStepAt(index: number): MatchProgressionStep | null {

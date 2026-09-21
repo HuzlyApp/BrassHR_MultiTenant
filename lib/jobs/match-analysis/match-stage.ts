@@ -8,7 +8,9 @@ export function parseMatchStage(value: unknown): MatchStage | null {
 }
 
 export function matchStageFromMode(mode: AnalysisMode): MatchStage {
-  return mode === "deep" ? "deep" : "quick";
+  if (mode === "deep") return "deep";
+  if (mode === "follow_up") return "follow_up";
+  return "quick";
 }
 
 export function isDeepMatchStage(stage: unknown): boolean {

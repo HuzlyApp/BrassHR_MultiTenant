@@ -35,10 +35,8 @@ import {
   formatMatchModelLabel,
   formatMatchScore,
   formatRecommendedAction,
-  matchCategoryBadgeClassName,
 } from "@/lib/jobs/match-analysis/display";
 import {
-  RECRUITER_DECISION_LABELS,
   VERIFIED_INFO_CATEGORIES,
   VERIFIED_INFO_CATEGORY_LABELS,
   countQualificationOutcomes,
@@ -48,6 +46,7 @@ import {
   recruiterActionLabel,
   recruiterVerifiedNeedsNoteDecision,
   requirementShowsAddNote,
+  checklistStep2Items,
   type QualificationDisplayStatus,
   type QualificationFilter,
   type QualificationOutcomeCounts,
@@ -59,7 +58,11 @@ import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModa
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
-import { DeepMatchConfirmDialog, MatchAnalyzeButton } from "../MatchAnalyzeButton";
+import {
+  DeepMatchConfirmDialog,
+  FollowUpConfirmDialog,
+  MatchAnalyzeButton,
+} from "../MatchAnalyzeButton";
 import {
   MatchAnalysisModelSelect,
   useMatchAnalysisProvider,
@@ -81,7 +84,11 @@ import {
   canAdvanceMatchProgression,
   canRunDeepMatch,
   canSelectMatchProgressionStep,
+  displayFitBand,
+  fitBandLabel,
+  fitBandTagClassName,
   matchProgressionInitialIndex,
+  matchProgressionFollowUpNeedsConfirm,
   matchProgressionStepRequiresDeepConfirm,
   matchProgressionPrimaryAction,
   matchProgressionStageFromIndex,
@@ -503,13 +510,6 @@ function ringStrokeColor(score: number | null | undefined): string {
   return "#EF4444";
 }
 
-function overviewMatchTagClass(category: string | null | undefined): string {
-  if (category === "STRONG_MATCH" || category === "GOOD_MATCH") {
-    return "bg-[#00B135] text-white";
-  }
-  return matchCategoryBadgeClassName(category);
-}
-
 export function AiAnalysisOverviewClient({
   applicationId,
   backHref,
@@ -528,7 +528,6 @@ export function AiAnalysisOverviewClient({
     workerId,
     analysis,
     blocking,
-    verifyItems,
     isAnalyzed,
     verifyingId,
     toggleVerified,
@@ -541,10 +540,6 @@ export function AiAnalysisOverviewClient({
     recommendedAnswers,
     updateRecommendedAnswer,
     savingAnswers,
-    decision,
-    setDecision,
-    decisionNote,
-    setDecisionNote,
     savingDecision,
     verifiedTitle,
     setVerifiedTitle,
@@ -563,14 +558,12 @@ export function AiAnalysisOverviewClient({
     saveScreeningAnswers,
     uploadScreeningReply,
     uploadingScreening,
-    recordDecision,
     advanceMatchProgress,
     draftSubmissionResume,
     draftingSubmissionResume,
     sendToTalentPool,
     addVerified,
     saveExtractedText,
-    decisionOptions,
   } = workspace;
 
   const [filter, setFilter] = useState<FilterId>("All");
@@ -601,6 +594,7 @@ export function AiAnalysisOverviewClient({
   const [viewedStep, setViewedStep] = useState(0);
   const [userPickedStep, setUserPickedStep] = useState(false);
   const [confirmDeepOpen, setConfirmDeepOpen] = useState(false);
+  const [confirmFollowUpOpen, setConfirmFollowUpOpen] = useState(false);
   const [talentPoolBusy, setTalentPoolBusy] = useState(false);
   const pendingProgressionScrollRef = useRef<string | null>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
@@ -755,6 +749,10 @@ export function AiAnalysisOverviewClient({
     () => countQualificationOutcomes(data?.requirements ?? [], blocking),
     [data?.requirements, blocking]
   );
+  const checklistItems = useMemo(
+    () => checklistStep2Items(data?.requirements ?? [], blocking),
+    [data?.requirements, blocking]
+  );
   const matchScore = publicMatchScore(app?.ai_match_stage, app?.ai_match_score);
   const storedRoute = analysis?.quick_match?.quick_route ?? null;
   const matchLabel = hasDeepMatch
@@ -782,9 +780,8 @@ export function AiAnalysisOverviewClient({
         readiness: analysis?.submission_readiness?.readiness_status,
       })
     : null;
-  const strengths = analysis?.strengths ?? [];
-  const verificationNeeded =
-    verifyItems.length > 0 ? verifyItems : analysis?.gaps_and_risks ?? [];
+  const strengths = checklistItems.strengths;
+  const verificationNeeded = checklistItems.verifications;
   const recommendedQuestions = data?.recommendedQuestions ?? [];
   const screeningUploads = data?.screeningUploads ?? [];
   const resumeCompleteness = hasDeepMatch
@@ -799,6 +796,11 @@ export function AiAnalysisOverviewClient({
   const fitBand = storedRoute
     ? fitBandFromQuickRoute(storedRoute)
     : quickMatchFitBand(outcomeCounts);
+  const displayedFitBand = displayFitBand({
+    fitBand,
+    stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+    hasDeepMatch,
+  });
   const canAdvance = canAdvanceMatchProgression({
     isAnalyzed,
     fitBand,
@@ -882,9 +884,38 @@ export function AiAnalysisOverviewClient({
       requestDeepMatchConfirm();
       return;
     }
+    if (index === 2 && unlockedIndex < 2) {
+      void moveToFollowUp();
+      return;
+    }
     setUserPickedStep(true);
     pendingProgressionScrollRef.current = "top";
     setViewedStep(index);
+  }
+
+  async function runFollowUpAnalysis() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    const ok = await handleRunAnalyze("follow_up");
+    if (!ok) return;
+    setConfirmFollowUpOpen(false);
+    setUserPickedStep(true);
+    pendingProgressionScrollRef.current = "top";
+    setViewedStep(2);
+  }
+
+  function moveToFollowUp() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    if (matchProgressionFollowUpNeedsConfirm(outcomeCounts.verify)) {
+      setConfirmFollowUpOpen(true);
+      return;
+    }
+    void runFollowUpAnalysis();
   }
 
   async function handlePrimaryProgressionAction() {
@@ -904,6 +935,10 @@ export function AiAnalysisOverviewClient({
     }
     if (primaryAction.kind === "deep") {
       requestDeepMatchConfirm();
+      return;
+    }
+    if (primaryAction.nextIndex === 2) {
+      moveToFollowUp();
       return;
     }
     if (!canAdvance) {
@@ -1100,6 +1135,13 @@ export function AiAnalysisOverviewClient({
               >
                 AI Analysis Overview
               </h1>
+              {isAnalyzed ? (
+                <span
+                  className={`ml-auto inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(displayedFitBand)}`}
+                >
+                  {fitBandLabel(displayedFitBand)}
+                </span>
+              ) : null}
             </div>
             <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
               <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
@@ -1112,13 +1154,6 @@ export function AiAnalysisOverviewClient({
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
                   <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
-                    {hasDeepMatch ? (
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-normal leading-[15px] ${overviewMatchTagClass(app?.ai_match_category)}`}
-                      >
-                        {matchLabel}
-                      </span>
-                    ) : null}
                     {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
                         Confidence {confidencePercent}%
@@ -1641,13 +1676,13 @@ export function AiAnalysisOverviewClient({
               </SectionHeaderBlock>
               <ul className="mt-4 space-y-3">
                 {strengths.length ? (
-                  strengths.map((item) => (
-                    <AlignedIconListItem key={item} iconSrc="/icon-park-solid_check-one.svg">
+                  strengths.map((item, index) => (
+                    <AlignedIconListItem key={`strength-${index}`} iconSrc="/icon-park-solid_check-one.svg">
                       {item}
                     </AlignedIconListItem>
                   ))
                 ) : (
-                  <li className="text-sm text-[#667085]">No documented strengths in this analysis.</li>
+                  <li className="text-sm text-[#667085]">No confirmed items on the Qualification Checklist yet.</li>
                 )}
               </ul>
             </section>
@@ -1665,13 +1700,13 @@ export function AiAnalysisOverviewClient({
               </SectionHeaderBlock>
               <ul className="mt-4 space-y-3">
                 {verificationNeeded.length ? (
-                  verificationNeeded.map((item) => (
-                    <AlignedIconListItem key={item} iconSrc="/ic_round-warning.svg">
+                  verificationNeeded.map((item, index) => (
+                    <AlignedIconListItem key={`verify-${index}`} iconSrc="/ic_round-warning.svg">
                       {item}
                     </AlignedIconListItem>
                   ))
                 ) : (
-                  <li className="text-sm text-[#667085]">No additional verification items identified.</li>
+                  <li className="text-sm text-[#667085]">No checklist items need verification.</li>
                 )}
               </ul>
             </section>
@@ -2039,57 +2074,6 @@ export function AiAnalysisOverviewClient({
           </section>
 
           <section className={CARD}>
-            <SidebarSectionHeader
-              title="Final Decision"
-              subtitle="Kept separate from the AI recommendation."
-            />
-            <div className="mt-4 rounded-lg bg-[#EFF8FF] px-3 py-2.5 text-sm text-[#175CD3]">
-              AI Recommendation: <span className="font-semibold">{recommendation}</span>
-            </div>
-            <div className="mt-4 space-y-2.5">
-              {decisionOptions.map((option) => {
-                const selected = decision === option;
-                return (
-                  <label key={option} className="flex cursor-pointer items-center gap-2.5 text-sm text-[#344054]">
-                    <span
-                      className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                        selected
-                          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
-                          : "border-[#D0D5DD] bg-white"
-                      }`}
-                    >
-                      {selected ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
-                    </span>
-                    <input
-                      type="radio"
-                      name="final-decision"
-                      className="sr-only"
-                      checked={selected}
-                      onChange={() => setDecision(option)}
-                    />
-                    {RECRUITER_DECISION_LABELS[option]}
-                  </label>
-                );
-              })}
-            </div>
-            <textarea
-              value={decisionNote}
-              onChange={(event) => setDecisionNote(event.target.value)}
-              rows={3}
-              placeholder="Decision notes (optional)..."
-              className={`${AREA} mt-4`}
-            />
-            <button
-              type="button"
-              className={`${PRIMARY_BTN} mt-3 w-full`}
-              disabled={savingDecision}
-              onClick={() => void recordDecision()}
-            >
-              {savingDecision ? "Saving…" : "Record Decision"}
-            </button>
-          </section>
-
-          <section className={CARD}>
             <SidebarSectionHeader title="Analysis history" />
             {analysisHistory.length ? (
               <ul className="mt-4 flex flex-col gap-2">
@@ -2156,6 +2140,17 @@ export function AiAnalysisOverviewClient({
         busy={analyzing}
         onCancel={() => setConfirmDeepOpen(false)}
         onConfirm={() => void confirmAndRunDeepMatch()}
+      />
+
+      <FollowUpConfirmDialog
+        open={confirmFollowUpOpen}
+        verifyCount={outcomeCounts.verify}
+        busy={analyzing}
+        onCancel={() => {
+          if (analyzing) return;
+          setConfirmFollowUpOpen(false);
+        }}
+        onConfirm={() => void runFollowUpAnalysis()}
       />
 
       <ResumeHistoryModal

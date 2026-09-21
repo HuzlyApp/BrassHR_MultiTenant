@@ -1,4 +1,5 @@
 import type { AnalysisMode, MatchAnalysisResponse, StructuredJobRequirements } from "./schema";
+import { FOLLOW_UP_SYSTEM_PROMPT } from "./follow-up-questions";
 
 // Existing detailed prompt. Used only for Deeper Analysis. Do not simplify.
 export const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are an expert staffing candidate-to-job matching analyst and recruiting advisor supporting recruiters across healthcare and non-healthcare staffing, including nursing, allied health, physicians, IT, engineering, finance, manufacturing, logistics, warehouse, public works, administrative, executive, and professional services.
@@ -438,7 +439,9 @@ evidence is one short line with the job and date when status is CONFIRMED or PAR
 mand_met, pref_met, weighted are 0–1 decimals. The app recomputes quick_route from those plus blockers. Do not invent STRONG.`;
 
 export function systemPromptForMode(mode: AnalysisMode): string {
-  return mode === "deep" ? DEEP_ANALYSIS_SYSTEM_PROMPT : ANALYZE_SYSTEM_PROMPT;
+  if (mode === "deep") return DEEP_ANALYSIS_SYSTEM_PROMPT;
+  if (mode === "follow_up") return FOLLOW_UP_SYSTEM_PROMPT;
+  return ANALYZE_SYSTEM_PROMPT;
 }
 
 /** Default match-analysis run uses Analyze (lean), not Deeper Analysis. */

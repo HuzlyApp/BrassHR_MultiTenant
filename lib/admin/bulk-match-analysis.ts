@@ -14,6 +14,8 @@ export type BulkMatchAnalysisItem = {
     analysis?: { candidate_match?: { display_category?: string } } | null;
     requirementCounts?: { confirmed: number; verify: number; notMet: number } | null;
     analyzedAt?: string | null;
+    stage?: string | null;
+    ai_match_stage?: string | null;
   };
 };
 

@@ -12,6 +12,13 @@ import {
   truncateStrengthsAndGaps,
   type MatchAnalysisUserPromptInput,
 } from "./prompts";
+import {
+  FOLLOW_UP_SYSTEM_PROMPT,
+  buildFollowUpQuestionsPrompt,
+  buildFollowUpRepairPrompt,
+  parseFollowUpQuestions,
+  type ChecklistFollowUpRow,
+} from "./follow-up-questions";
 import { parseAndValidateMatchAnalysis } from "./parse";
 import { rescoreMatchAnalysis } from "./score";
 import {
@@ -21,6 +28,7 @@ import {
   type AnalysisProvider,
   type MatchAnalysisResponse,
 } from "./schema";
+import type { AnalysisScreeningQuestion } from "./workspace";
 import {
   deepMatchModelForProvider,
   isBlockedStep3Model,
@@ -454,6 +462,57 @@ export async function generateMatchAnalysis(
     rawObject: parsed.rawObject,
     repaired,
     model,
+  };
+}
+
+export async function generateFollowUpQuestions(
+  input: {
+    jobTitle?: string | null;
+    checklist: ChecklistFollowUpRow[];
+  },
+  provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
+): Promise<{
+  questions: AnalysisScreeningQuestion[];
+  repaired: boolean;
+  model: string;
+  rawObject: Record<string, unknown> | null;
+}> {
+  const selectedProvider = parseAnalysisProvider(provider);
+  const model = getMatchAnalysisModelName(selectedProvider);
+  const system = FOLLOW_UP_SYSTEM_PROMPT;
+  const userPrompt = buildFollowUpQuestionsPrompt(input);
+
+  const rawText = await callProvider(selectedProvider, {
+    system,
+    user: userPrompt,
+    maxTokens: BASE_MAX_TOKENS,
+    model,
+  });
+
+  let parsed = parseFollowUpQuestions(rawText);
+  let repaired = false;
+  if (!parsed.ok) {
+    const repairedText = await callProvider(selectedProvider, {
+      system,
+      user: buildFollowUpRepairPrompt({
+        badJson: rawText,
+        validationErrors: parsed.errors,
+      }),
+      maxTokens: BASE_MAX_TOKENS,
+      model,
+    });
+    parsed = parseFollowUpQuestions(repairedText);
+    repaired = true;
+  }
+  if (!parsed.ok) {
+    throw new MatchAnalysisGenerationError("INVALID_RESPONSE");
+  }
+
+  return {
+    questions: parsed.questions,
+    repaired,
+    model,
+    rawObject: parsed.rawObject,
   };
 }
 

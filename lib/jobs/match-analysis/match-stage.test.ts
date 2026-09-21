@@ -19,8 +19,9 @@ const analysis = {
 } as MatchAnalysisResponse;
 
 describe("match stage", () => {
-  it("maps analyze to quick and deep to deep", () => {
+  it("maps analyze to quick, follow_up to follow_up, and deep to deep", () => {
     expect(matchStageFromMode("analyze")).toBe("quick");
+    expect(matchStageFromMode("follow_up")).toBe("follow_up");
     expect(matchStageFromMode("deep")).toBe("deep");
   });
 
