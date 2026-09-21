@@ -39,6 +39,13 @@ export async function GET(req: NextRequest) {
       : null;
     const applicationId =
       applicationIdCheck && applicationIdCheck.ok ? applicationIdCheck.value : null;
+    const resumeIdRaw = req.nextUrl.searchParams.get("resumeId")?.trim() || "";
+    const resumeIdCheck = resumeIdRaw
+      ? parseRequiredUuid(resumeIdRaw, "resumeId")
+      : null;
+    if (resumeIdRaw && resumeIdCheck && !resumeIdCheck.ok) {
+      return NextResponse.json({ error: resumeIdCheck.error }, { status: 400 });
+    }
 
     const auth = await requireApiSession();
     if (auth instanceof NextResponse) return auth;
@@ -75,8 +82,51 @@ export async function GET(req: NextRequest) {
     const reqRow = Array.isArray(reqRows) ? reqRows[0] : null;
     const resumePathRaw = (reqRow as { resume_path?: string } | null | undefined)?.resume_path;
     let resumePath = "";
+    let storedName = "";
 
-    if (applicationId) {
+    if (resumeIdCheck?.ok) {
+      let resumeQuery = supabase
+        .from("worker_resumes")
+        .select("storage_path, file_url, original_file_name, file_name, job_application_id")
+        .eq("id", resumeIdCheck.value)
+        .is("deleted_at", null);
+      resumeQuery = userIdForLegacy
+        ? resumeQuery.or(`worker_id.eq.${workerId},worker_id.eq.${userIdForLegacy}`)
+        : resumeQuery.eq("worker_id", workerId);
+      const { data: resumeRow, error: resumeErr } = await resumeQuery.maybeSingle();
+      if (resumeErr) throw resumeErr;
+      if (!resumeRow) {
+        return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+      }
+      // Same ownership rule as admin job-application resume actions: a resume bound to
+      // another application must not open from this application's preview/history flow.
+      if (applicationId) {
+        const boundApplicationId =
+          typeof resumeRow.job_application_id === "string"
+            ? resumeRow.job_application_id.trim()
+            : "";
+        if (boundApplicationId && boundApplicationId !== applicationId) {
+          return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+        }
+      }
+      const scopedPath =
+        (typeof resumeRow.storage_path === "string" && resumeRow.storage_path.trim()) ||
+        (typeof resumeRow.file_url === "string" && resumeRow.file_url.trim()) ||
+        "";
+      const scopedNormalized = scopedPath
+        ? normalizeResumeStorageObjectPath(scopedPath)
+        : null;
+      resumePath = scopedNormalized?.trim() || "";
+      storedName =
+        (typeof resumeRow.original_file_name === "string" && resumeRow.original_file_name.trim()) ||
+        (typeof resumeRow.file_name === "string" && resumeRow.file_name.trim()) ||
+        fileNameFromPath(resumePath);
+      if (!resumePath) {
+        return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+      }
+    }
+
+    if (!resumePath && applicationId) {
       const scopedPath = await getLatestWorkerResumeStoragePath(supabase, workerId, {
         jobApplicationId: applicationId,
       });
@@ -116,15 +166,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unable to load resume file" }, { status: 404 });
     }
 
-    const storedName = fileNameFromPath(resumePath);
+    const originalName = storedName || fileNameFromPath(resumePath);
     const fileName = buildWorkerResumeFileName({
       firstName: worker.first_name as string | null | undefined,
       lastName: worker.last_name as string | null | undefined,
-      originalFileName: storedName,
+      originalFileName: originalName,
     });
     const arrayBuffer = await blob.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const fileType = resolveResumeFileType({ name: storedName, type: blob.type });
+    const fileType = resolveResumeFileType({ name: originalName, type: blob.type });
 
     if (fileType === "docx") {
       try {

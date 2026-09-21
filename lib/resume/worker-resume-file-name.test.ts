@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  adminWorkerResumePreviewHref,
   buildWorkerResumeFileName,
   contentDispositionInline,
   resumeFileExtension,
@@ -51,6 +52,16 @@ describe("buildWorkerResumeFileName", () => {
   it("defaults to resume.pdf when nothing usable is provided", () => {
     expect(buildWorkerResumeFileName({})).toBe("resume.pdf");
   });
+
+  it("keeps the Stage 5 optimized suffix instead of rewriting to _resume", () => {
+    expect(
+      buildWorkerResumeFileName({
+        firstName: "Jordan",
+        lastName: "Hale",
+        originalFileName: "Jordan_Hale_submission_resume.pdf",
+      })
+    ).toBe("Jordan_Hale_submission_resume.pdf");
+  });
 });
 
 describe("splitFullName", () => {
@@ -76,6 +87,20 @@ describe("sanitizeResumeNamePart / extension helpers", () => {
   it("builds a quoted Content-Disposition value", () => {
     expect(contentDispositionInline('Joe_Bloe_resume.pdf')).toBe(
       'inline; filename="Joe_Bloe_resume.pdf"'
+    );
+  });
+});
+
+describe("adminWorkerResumePreviewHref", () => {
+  it("targets a specific resume so View PDF can display that file", () => {
+    expect(
+      adminWorkerResumePreviewHref({
+        workerId: "worker-1",
+        resumeId: "resume-9",
+        applicationId: "app-3",
+      })
+    ).toBe(
+      "/api/admin/worker-resume-preview?workerId=worker-1&resumeId=resume-9&applicationId=app-3"
     );
   });
 });

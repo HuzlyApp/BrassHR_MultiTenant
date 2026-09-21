@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import type { AnalysisMode, AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+import type { AnalysisMode, AnalysisProvider, ReadinessStatus } from "@/lib/jobs/match-analysis/schema";
 import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/jobs/match-analysis/workspace";
 import type { VerificationNote, VerificationNoteDraft } from "@/lib/jobs/match-analysis/verification-notes";
 import { summarizeRequirementNotes } from "@/lib/jobs/match-analysis/verification-notes";
+import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
 
 export type ScreeningQuestionView = {
   id: string;
@@ -31,6 +32,7 @@ export type MatchAnalysisWorkspacePayload = {
     ai_match_category: string | null;
     ai_match_action: string | null;
     ai_match_display_category: string | null;
+    ai_match_stage?: string | null;
     ai_analysis: Record<string, unknown> | null;
     ai_analysis_error: string | null;
     ai_analysis_version: number | null;
@@ -39,6 +41,8 @@ export type MatchAnalysisWorkspacePayload = {
     recruiter_decision: string | null;
     recruiter_decision_note: string | null;
     recruiter_decision_at: string | null;
+    status_name?: string | null;
+    status_system_key?: string | null;
   };
   requirements: QualificationRequirement[];
   screeningQuestions?: ScreeningQuestionView[];
@@ -50,6 +54,20 @@ export type MatchAnalysisWorkspacePayload = {
     relatedRequirement: string;
     answer: string;
   }>;
+  screeningUploads?: Array<{
+    id: string;
+    questionKey: string | null;
+    fileName: string;
+    mimeType: string | null;
+    extractedText: string | null;
+    createdAt: string;
+  }>;
+  matchProgression?: {
+    stage?: string | null;
+    callPackUnlocked?: boolean;
+    requireDeepConfirm?: boolean;
+    deepModel?: string;
+  };
   verifiedInformation?: Array<{
     id: string;
     category: string;
@@ -120,6 +138,7 @@ export type MatchAnalysisParsed = {
   strengths?: string[];
   gaps_and_risks?: string[];
   submission_readiness?: {
+    readiness_status?: ReadinessStatus;
     items_to_verify_before_submission?: string[];
     blocking_requirements?: string[];
   };
@@ -132,6 +151,20 @@ export type MatchAnalysisParsed = {
   };
   experience_analysis?: {
     experience_calculation_notes?: string[];
+  };
+  quick_match?: {
+    step?: "quick_match";
+    quick_route?: "STRONG" | "REVIEW" | "LOW_MATCH";
+    mand_met?: number;
+    pref_met?: number;
+    weighted?: number;
+    extracted_resume?: {
+      headline?: string;
+      years_estimated?: number | null;
+      recent_titles?: string[];
+      named_products_in_jobs?: string[];
+      education?: string;
+    };
   };
 };
 
@@ -184,7 +217,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [extractedDraft, setExtractedDraft] = useState("");
   const [savingText, setSavingText] = useState(false);
   const [resumes, setResumes] = useState<UploadedResumeItem[]>([]);
-  const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
+  const [uploadingScreening, setUploadingScreening] = useState(false);
+  const [draftingSubmissionResume, setDraftingSubmissionResume] = useState(false);
 
   const applyWorkspacePayload = useCallback((
     payload: MatchAnalysisWorkspacePayload,
@@ -336,8 +370,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         json.status === "NEEDS_REVIEW"
           ? "Needs résumé text before analysis"
           : mode === "deep"
-            ? "Deeper match analysis complete"
-            : "Match analysis complete"
+            ? "Deep Match complete"
+            : "Quick Match complete"
       );
       await Promise.all([load(), loadResumes()]);
       return true;
@@ -612,6 +646,47 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
+  async function uploadScreeningReply(file: File, questionKey?: string) {
+    setUploadingScreening(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (questionKey) form.append("questionKey", questionKey);
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis/screening-uploads`,
+        { method: "POST", credentials: "include", body: form }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        extractedText?: string;
+        uploads?: MatchAnalysisWorkspacePayload["screeningUploads"];
+      };
+      if (!res.ok) throw new Error(json.error || "Failed to upload reply");
+      if (json.extractedText?.trim()) {
+        const text = json.extractedText.trim();
+        const key = questionKey || data?.recommendedQuestions?.[0]?.key;
+        if (key) {
+          const next = `${recommendedAnswersRef.current[key] ?? ""}\n\n${text}`.trim();
+          recommendedAnswersRef.current = { ...recommendedAnswersRef.current, [key]: next };
+          setRecommendedAnswers(recommendedAnswersRef.current);
+        }
+      }
+      setData((current) =>
+        current
+          ? { ...current, screeningUploads: json.uploads ?? current.screeningUploads }
+          : current
+      );
+      toast.success("Reply uploaded");
+      await load({ preserveLocalAnswers: true, silent: true });
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload reply");
+      return false;
+    } finally {
+      setUploadingScreening(false);
+    }
+  }
+
   async function recordDecision() {
     if (!decision) {
       toast.error("Select a recruiter decision first.");
@@ -631,6 +706,100 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record decision");
+    } finally {
+      setSavingDecision(false);
+    }
+  }
+
+  function fileNameFromDisposition(header: string | null): string | null {
+    const quoted = header?.match(/filename="([^"]+)"/i);
+    if (quoted?.[1]) return quoted[1];
+    const plain = header?.match(/filename=([^;]+)/i);
+    return plain?.[1]?.trim() || null;
+  }
+
+  async function draftSubmissionResume(): Promise<boolean> {
+    setDraftingSubmissionResume(true);
+    try {
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis/submission-resume`,
+        { method: "POST", credentials: "include" }
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error || "Could not draft the submission résumé.");
+      }
+      const blob = await res.blob();
+      const fileName =
+        fileNameFromDisposition(res.headers.get("Content-Disposition")) ||
+        "submission-resume.pdf";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Optimized submission résumé downloaded.");
+      await Promise.all([load({ silent: true }), loadResumes()]);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not draft the submission résumé.");
+      return false;
+    } finally {
+      setDraftingSubmissionResume(false);
+    }
+  }
+
+  async function advanceMatchProgress(progressStage: "call_pack" | "follow_up" | "submission") {
+    const res = await fetch(
+      `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+      {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ progressStage }),
+      }
+    );
+    const json = (await res.json().catch(() => ({}))) as { error?: string; stage?: string };
+    if (!res.ok) throw new Error(json.error || "Could not advance this step.");
+    await load({ silent: true });
+    return json.stage ?? progressStage;
+  }
+
+  async function sendToTalentPool() {
+    setSavingDecision(true);
+    try {
+      const decisionRes = await fetch(`/api/admin/job-applications/${applicationId}/decision`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision: "do_not_pursue",
+          note: "Not a fit · Talent Pool",
+        }),
+      });
+      const decisionJson = await decisionRes.json().catch(() => ({}));
+      if (!decisionRes.ok) throw new Error(decisionJson.error || "Could not record Talent Pool.");
+      const statusRes = await fetch(`/api/admin/job-applications/${applicationId}/status`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "rejected",
+          note: "Not a fit · Talent Pool",
+        }),
+      });
+      const statusJson = await statusRes.json().catch(() => ({}));
+      if (!statusRes.ok) throw new Error(statusJson.error || "Could not set Not a Fit.");
+      setDecision("do_not_pursue");
+      toast.success("Moved to Talent Pool. Later AI steps will not run.");
+      await load();
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not move to Talent Pool.");
+      return false;
     } finally {
       setSavingDecision(false);
     }
@@ -735,26 +904,19 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   }
 
   async function viewResume(resumeId: string) {
-    setOpeningResumeId(resumeId);
-    try {
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
-        { cache: "no-store", credentials: "include" }
-      );
-      const payload = (await response.json().catch(() => ({}))) as {
-        url?: string;
-        error?: string;
-      };
-      const url = payload.url?.trim() ?? "";
-      if (!response.ok || !url) {
-        throw new Error(payload.error || "Could not open resume.");
-      }
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not open resume.");
-    } finally {
-      setOpeningResumeId(null);
+    if (!workerId) {
+      toast.error("Could not open resume.");
+      return;
     }
+    window.open(
+      adminWorkerResumePreviewHref({
+        workerId,
+        resumeId,
+        applicationId,
+      }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   async function saveExtractedText() {
@@ -819,7 +981,6 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     setExtractedDraft,
     savingText,
     resumes,
-    openingResumeId,
     viewResume,
     load,
     runAnalyze,
@@ -829,7 +990,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     deleteVerificationNote,
     markNoteSentToCandidate,
     saveScreeningAnswers,
+    uploadScreeningReply,
+    uploadingScreening,
     recordDecision,
+    advanceMatchProgress,
+    draftSubmissionResume,
+    draftingSubmissionResume,
+    sendToTalentPool,
     addVerified,
     saveDetails,
     reextractContact,

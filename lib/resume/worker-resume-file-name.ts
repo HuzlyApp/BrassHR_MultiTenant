@@ -25,6 +25,11 @@ export function sanitizeResumeNamePart(value: string): string {
     .slice(0, 60);
 }
 
+/** Job-tailored Stage 5 pack. Keep this suffix when rewriting display names. */
+export function isSubmissionResumeFileName(name: string | null | undefined): boolean {
+  return /_submission_resume\.(pdf|docx)$/i.test(String(name ?? "").trim());
+}
+
 function fallbackResumeFileName(
   originalFileName: string | null | undefined,
   ext: string
@@ -52,11 +57,28 @@ export function buildWorkerResumeFileName(input: {
   const first = sanitizeResumeNamePart(input.firstName ?? "");
   const last = sanitizeResumeNamePart(input.lastName ?? "");
   const base = [first, last].filter(Boolean).join("_");
-  if (base) return `${base}_resume${ext}`;
+  if (base) {
+    const kind = isSubmissionResumeFileName(input.originalFileName)
+      ? "submission_resume"
+      : "resume";
+    return `${base}_${kind}${ext}`;
+  }
   return fallbackResumeFileName(input.originalFileName, ext);
 }
 
 export function contentDispositionInline(fileName: string): string {
   const safe = fileName.replace(/["\\\r\n]/g, "_");
   return `inline; filename="${safe}"`;
+}
+
+/** Same-origin PDF/DOCX preview. Opens in the browser instead of downloading. */
+export function adminWorkerResumePreviewHref(args: {
+  workerId: string;
+  resumeId?: string | null;
+  applicationId?: string | null;
+}): string {
+  const params = new URLSearchParams({ workerId: args.workerId });
+  if (args.resumeId?.trim()) params.set("resumeId", args.resumeId.trim());
+  if (args.applicationId?.trim()) params.set("applicationId", args.applicationId.trim());
+  return `/api/admin/worker-resume-preview?${params.toString()}`;
 }

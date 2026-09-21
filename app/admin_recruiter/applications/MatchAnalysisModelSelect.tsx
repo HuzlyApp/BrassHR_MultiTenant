@@ -59,7 +59,7 @@ export function MatchAnalysisModelSelect({
   const heightClass = variant === "primary" ? "h-8" : "h-[2.375rem]";
 
   return (
-    <label className={`inline-flex items-center gap-2 ${className}`}>
+    <label className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap ${className}`}>
       <span className="text-xs font-medium text-[#64748B]">Model</span>
       <select
         value={value}

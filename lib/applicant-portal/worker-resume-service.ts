@@ -564,7 +564,7 @@ export async function getWorkerResumeFileUrl(
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("worker_resumes")
-    .select("file_url, storage_path, original_file_name, file_name")
+    .select("file_url, storage_path")
     .eq("id", resumeId)
     .eq("worker_id", workerId)
     .is("deleted_at", null)
@@ -577,24 +577,8 @@ export async function getWorkerResumeFileUrl(
     null;
   if (!stored) return null;
 
-  const { data: worker } = await supabase
-    .from("worker")
-    .select("first_name, last_name")
-    .eq("id", workerId)
-    .maybeSingle();
-
-  const downloadFileName = buildWorkerResumeFileName({
-    firstName: worker?.first_name as string | null | undefined,
-    lastName: worker?.last_name as string | null | undefined,
-    originalFileName:
-      (data?.original_file_name as string | null) ||
-      (data?.file_name as string | null) ||
-      stored,
-  });
-
   return resolveStorageAccessibleUrl(supabase, stored, {
     defaultBucket: WORKER_RESUMES_BUCKET,
     extraBuckets: [WORKER_RESUMES_BUCKET],
-    downloadFileName,
   });
 }

@@ -160,7 +160,8 @@ function JobDetailActions({
         return;
       }
       if (result === "shared" || result === "aborted") return;
-      toast.error("Sharing is not available on this device");
+      // Cross-origin embeds need allow="web-share; clipboard-write" on the parent iframe.
+      toast.error("Could not share this job");
     } catch {
       toast.error("Could not share this job");
     }

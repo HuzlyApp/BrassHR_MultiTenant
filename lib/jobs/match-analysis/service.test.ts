@@ -94,6 +94,9 @@ describe("generateMatchAnalysis", () => {
     const result = await generateMatchAnalysis(input, resolved);
 
     expect(create).toHaveBeenCalledOnce();
+    const grokArgs = create.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: string }> };
+    expect(grokArgs.input?.[0]?.content).toContain("This is Step 1 Quick Match");
+    expect(grokArgs.input?.[0]?.content).not.toContain("You are an analyst.");
     expect(result.model).toBe("grok-4-fast");
     expect(result.analysis.mandatory_requirements).toHaveLength(1);
     expect(result.repaired).toBe(false);
@@ -153,5 +156,55 @@ describe("generateMatchAnalysis", () => {
     expect(create).toHaveBeenCalledOnce();
     expect(result.model).toBe("grok-4-fast");
     expect(result.analysis.mandatory_requirements).toHaveLength(1);
+  });
+
+  it("uses the Step 3 deep Grok model and ignores catalog grok-4-fast", async () => {
+    const create = vi.fn(async () => ({
+      output_text: JSON.stringify(LEAN_ANALYSIS),
+    }));
+    __setGrokClientForTests({
+      responses: { create },
+    } as never);
+
+    const result = await generateMatchAnalysis(
+      { ...input, analysisMode: "deep" },
+      {
+        ...resolved,
+        variantKey: "deep",
+        modelConfig: { model: "grok-4-fast" },
+      },
+      "grok"
+    );
+
+    expect(create).toHaveBeenCalledOnce();
+    const grokArgs = create.mock.calls[0]?.[0] as { model?: string };
+    expect(grokArgs.model).toBe("grok-4.3");
+    expect(result.model).toBe("grok-4.3");
+  });
+
+  it("uses the Step 3 deep Gemini model when Gemini is selected for Deep Match", async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toContain("/models/gemini-3.1-pro-preview:generateContent");
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(LEAN_ANALYSIS) }] } }],
+        }),
+      };
+    });
+    __setGeminiFetchForTests(fetchMock as unknown as typeof fetch);
+
+    const result = await generateMatchAnalysis(
+      { ...input, analysisMode: "deep" },
+      {
+        ...resolved,
+        variantKey: "deep",
+        modelConfig: { model: "grok-4-fast" },
+      },
+      "gemini"
+    );
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.model).toBe("gemini-3.1-pro-preview");
   });
 });
