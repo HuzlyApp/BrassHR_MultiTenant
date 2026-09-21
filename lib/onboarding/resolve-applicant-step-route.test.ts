@@ -17,19 +17,20 @@ function step(partial: Partial<TenantOnboardingStep> & Pick<TenantOnboardingStep
 }
 
 describe("resolve-applicant-step-route", () => {
-  it("maps background check to authorizations documents", () => {
-    expect(WORKFLOW_STEP_APPLICANT_ROUTE["background-check"]).toBe(
-      "/application/authorizations-documents"
+  it("maps collect-extra-files to professional license / document upload screen", () => {
+    expect(WORKFLOW_STEP_APPLICANT_ROUTE["collect-extra-files"]).toBe(
+      "/application/professional-license"
     );
     const route = routeForApplicantStep(
       step({
-        step_key: "authorization_background_check",
-        step_type: "custom_question",
-        metadata: { workflow_step_id: "background-check" },
-      })
+        step_key: "document_upload",
+        step_type: "document_upload",
+        metadata: { workflow_step_id: "collect-extra-files" },
+      }),
+      "testcompany"
     );
-    expect(route).toContain("/application/authorizations-documents");
-    expect(route).toContain("stepKey=authorization_background_check");
+    expect(route).toContain("/application/professional-license");
+    expect(route).toContain("stepKey=document_upload");
   });
 
   it("keeps Firma-enabled background check on Authorizations & Documents (Click and Sign)", () => {
