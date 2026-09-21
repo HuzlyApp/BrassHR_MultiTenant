@@ -816,6 +816,9 @@ export async function transitionJobStatus(
         jobRowToInput(jobRow as Record<string, unknown>),
         { publish: true, actorUserId, jobId }
       );
+      if (!normalizeJobToken(jobRow.public_job_token ? String(jobRow.public_job_token) : null)) {
+        patch.public_job_token = randomUUID();
+      }
     }
     patch.published_at = existing.published_at
       ? String(existing.published_at)
@@ -1363,9 +1366,14 @@ export async function listPublicJobs(
     )
     .eq("tenant_id", tenantId)
     .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
+    // Public board cards/detail links require a token; exclude unpublished tokens from count too.
+    .not("public_job_token", "is", null)
+    .neq("public_job_token", "")
     // MSP jobs publish without workflow_id; still list them on the public board.
     .or(`application_deadline.is.null,application_deadline.gte.${today}`)
-    .order("published_at", { ascending: false })
+    // Prefer latest activity so "Most recent" matches Posted/Updated labels on cards.
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
     .range(from, to);
 
   if (filters.query?.trim()) {
@@ -1378,7 +1386,14 @@ export async function listPublicJobs(
   if (filters.specialtyId) query = query.eq("specialty_id", filters.specialtyId);
   if (filters.location?.trim()) query = query.ilike("location", `%${filters.location.trim()}%`);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
-  if (filters.locationType?.trim()) query = query.eq("location_type", filters.locationType.trim());
+  if (filters.locationType?.trim()) {
+    // Match admin placement display: location_type, else schedule when location_type is empty.
+    const value = filters.locationType.trim().replace(/"/g, '\\"');
+    const quoted = `"${value}"`;
+    query = query.or(
+      `location_type.eq.${quoted},and(location_type.is.null,schedule.eq.${quoted})`
+    );
+  }
 
   const { data, error, count } = await query;
   if (error) throw error;
