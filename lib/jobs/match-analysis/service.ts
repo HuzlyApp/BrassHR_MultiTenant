@@ -6,9 +6,7 @@ import { renderPromptTemplate } from "@/lib/ai-catalog/render-prompt";
 import { parseJsonObject, validateAgainstJsonSchema } from "@/lib/ai-catalog/validate-response";
 import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
 import {
-  ANALYZE_SYSTEM_PROMPT,
   buildMatchAnalysisRepairPrompt,
-  buildMatchAnalysisUserPrompt,
   truncateStrengthsAndGaps,
   type MatchAnalysisUserPromptInput,
 } from "./prompts";
@@ -358,8 +356,9 @@ export type MatchAnalysisGenerationResult = {
 export type GrokMatchAnalysisResult = MatchAnalysisGenerationResult;
 
 /**
- * Call the selected provider. Quick Match (analyze) uses the hardcoded Step 1 prompt
- * for now. Deep Match still requires a database-resolved prompt.
+ * Call the selected provider using a catalog-resolved prompt for both Quick Match
+ * (`default`) and Deep Match (`deep`). Recruiter/JD/résumé values are rendered
+ * through renderPromptTemplate (UNTRUSTED_DATA boundary).
  */
 export async function generateMatchAnalysis(
   input: MatchAnalysisUserPromptInput,
@@ -369,27 +368,26 @@ export async function generateMatchAnalysis(
   const selectedProvider = parseAnalysisProvider(provider);
   const resumeLen = input.resumeText.length;
   const analysisMode = input.analysisMode === "deep" || resolved?.variantKey === "deep" ? "deep" : "analyze";
-  const cfg = resolved?.modelConfig ?? {};
+  if (!resolved) {
+    throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
+  }
+  const cfg = resolved.modelConfig ?? {};
   const longResumeChars = Number(cfg.long_resume_chars ?? LONG_RESUME_CHARS);
   const maxTokens =
     resumeLen > longResumeChars
       ? Number(cfg.long_resume_max_tokens ?? LONG_RESUME_MAX_TOKENS)
       : Number(cfg.base_max_tokens ?? BASE_MAX_TOKENS);
 
-  const system =
-    analysisMode === "deep" ? resolved?.systemPrompt?.trim() ?? "" : ANALYZE_SYSTEM_PROMPT;
-  if (!system.trim()) {
+  const system = resolved.systemPrompt?.trim() ?? "";
+  if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
   }
 
-  const userPrompt =
-    analysisMode === "deep"
-      ? renderPromptTemplate(
-          resolved?.userPromptTemplate ?? "",
-          assembleMatchAnalysisVariables(input),
-          { required: ["job_description", "candidate_resume"] }
-        )
-      : buildMatchAnalysisUserPrompt({ ...input, analysisMode: "analyze" });
+  const userPrompt = renderPromptTemplate(
+    resolved.userPromptTemplate ?? "",
+    assembleMatchAnalysisVariables(input),
+    { required: ["job_description", "candidate_resume"] }
+  );
   const model = modelForProvider(selectedProvider, cfg, analysisMode);
 
   const rawText = await callProvider(selectedProvider, {
@@ -402,7 +400,7 @@ export async function generateMatchAnalysis(
   let parsedJson = parseJsonObject(rawText);
   let parsed = parseAndValidateMatchAnalysis(rawText);
   let schemaErrors =
-    analysisMode === "deep" && resolved && parsedJson.ok
+    parsedJson.ok
       ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
       : parsed.ok
         ? []
@@ -415,7 +413,7 @@ export async function generateMatchAnalysis(
       badJson: rawText,
       validationErrors: [...schemaErrors, ...(parsed.ok ? [] : parsed.errors)],
       analysisMode,
-      responseSchema: analysisMode === "deep" ? resolved?.responseSchema : null,
+      responseSchema: resolved.responseSchema,
     });
     const repairedText = await callProvider(selectedProvider, {
       system,
@@ -427,7 +425,7 @@ export async function generateMatchAnalysis(
     parsedJson = parseJsonObject(repairedText);
     parsed = parseAndValidateMatchAnalysis(repairedText);
     schemaErrors =
-      analysisMode === "deep" && resolved && parsedJson.ok
+      parsedJson.ok
         ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
         : parsed.ok
           ? []

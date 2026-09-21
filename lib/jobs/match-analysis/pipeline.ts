@@ -382,71 +382,70 @@ export async function runMatchAnalysisForApplication(args: {
       }
     }
 
+    const promptVariantKey = analysisMode === "deep" ? "deep" : "default";
     let resolved = null;
-    if (analysisMode === "deep") {
-      try {
-        resolved = await resolvePromptVersion(supabase, {
+    try {
+      resolved = await resolvePromptVersion(supabase, {
+        tenantId,
+        featureKey: "candidate_match",
+        variantKey: promptVariantKey,
+        industryKey: jobIndustryKey,
+        tenantPrimaryIndustryKey: tenantPrimary,
+        clientName,
+        sourceKey,
+      });
+    } catch (error) {
+      if (error instanceof PromptNotConfiguredError) {
+        await recordAiPromptRun(supabase, {
           tenantId,
           featureKey: "candidate_match",
-          variantKey: "deep",
-          industryKey: jobIndustryKey,
-          tenantPrimaryIndustryKey: tenantPrimary,
-          clientName,
-          sourceKey,
+          variantKey: promptVariantKey,
+          verticalKey: null,
+          industryKey: jobIndustryKey ?? tenantPrimary,
+          promptVersionId: null,
+          contentHash: null,
+          entityType: "job_application",
+          entityId: jobApplicationId,
+          inputHash: hashPromptInput({
+            jobDescription: fullJd,
+            resumeText: resume.sanitized,
+            recruiterNotes: notes,
+          }),
+          model: null,
+          inputTokens: null,
+          outputTokens: null,
+          latencyMs: Date.now() - startedAt,
+          creditCost: null,
+          status: "skipped_no_prompt",
+          errorCode: PROMPT_NOT_CONFIGURED,
+          outputReference: null,
+          requestedBy: analyzedByUserId ?? null,
+        }).catch(() => undefined);
+        emit("failed", error.message, "FAILED");
+        await updateApplicationMatchFields({
+          supabase,
+          tenantId,
+          jobApplicationId,
+          patch: {
+            ai_match_status: "FAILED",
+            ai_analysis_progress: "failed",
+            ai_analysis_error: error.message.slice(0, 2000),
+          },
         });
-      } catch (error) {
-        if (error instanceof PromptNotConfiguredError) {
-          await recordAiPromptRun(supabase, {
-            tenantId,
-            featureKey: "candidate_match",
-            variantKey: "deep",
-            verticalKey: null,
-            industryKey: jobIndustryKey ?? tenantPrimary,
-            promptVersionId: null,
-            contentHash: null,
-            entityType: "job_application",
-            entityId: jobApplicationId,
-            inputHash: hashPromptInput({
-              jobDescription: fullJd,
-              resumeText: resume.sanitized,
-              recruiterNotes: notes,
-            }),
-            model: null,
-            inputTokens: null,
-            outputTokens: null,
-            latencyMs: Date.now() - startedAt,
-            creditCost: null,
-            status: "skipped_no_prompt",
-            errorCode: PROMPT_NOT_CONFIGURED,
-            outputReference: null,
-            requestedBy: analyzedByUserId ?? null,
-          }).catch(() => undefined);
-          emit("failed", error.message, "FAILED");
-          await updateApplicationMatchFields({
-            supabase,
-            tenantId,
-            jobApplicationId,
-            patch: {
-              ai_match_status: "FAILED",
-              ai_analysis_progress: "failed",
-              ai_analysis_error: error.message.slice(0, 2000),
-            },
-          });
-          return {
-            status: "FAILED",
-            analysis: null,
-            score: null,
-            category: null,
-            action: null,
-            readiness: null,
-            error: PROMPT_NOT_CONFIGURED,
-            repaired: false,
-            model: null,
-            requirementCounts: null,
-          };
-        }
-        throw error;
+        return {
+          status: "FAILED",
+          analysis: null,
+          score: null,
+          category: null,
+          action: null,
+          readiness: null,
+          error: PROMPT_NOT_CONFIGURED,
+          repaired: false,
+          model: null,
+          requirementCounts: null,
+        };
       }
+      throw error;
     }
 
     const modelResult = await generateMatchAnalysis(
@@ -524,8 +523,8 @@ export async function runMatchAnalysisForApplication(args: {
         model: modelResult.model,
         analyzed_by: analyzedByUserId ?? null,
         analyzed_at: analyzedAt,
-        prompt_version_id: resolved?.promptVersionId ?? null,
-        prompt_content_hash: resolved?.contentHash ?? null,
+        prompt_version_id: resolved.promptVersionId,
+        prompt_content_hash: resolved.contentHash,
       },
       { onConflict: "application_id,version" }
     );
@@ -533,11 +532,11 @@ export async function runMatchAnalysisForApplication(args: {
     await recordAiPromptRun(supabase, {
       tenantId,
       featureKey: "candidate_match",
-      variantKey: resolved?.variantKey ?? (analysisMode === "deep" ? "deep" : "default"),
-      verticalKey: resolved?.resolvedVerticalKey ?? null,
-      industryKey: resolved?.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
-      promptVersionId: resolved?.promptVersionId ?? null,
-      contentHash: resolved?.contentHash ?? "hardcoded:quick_match",
+      variantKey: resolved.variantKey,
+      verticalKey: resolved.resolvedVerticalKey ?? null,
+      industryKey: resolved.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
+      promptVersionId: resolved.promptVersionId,
+      contentHash: resolved.contentHash,
       entityType: "job_application",
       entityId: jobApplicationId,
       inputHash: hashPromptInput({
