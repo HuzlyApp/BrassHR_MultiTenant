@@ -51,7 +51,7 @@ const VIEW_BUTTON_CLASS =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2";
 
 const applyClassName =
-  "inline-flex h-9 min-w-[8.75rem] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none";
+  "inline-flex h-9 min-w-[7.25rem] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-[color:var(--brand-primary)] px-3.5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none";
 
 const BRAND_ICON_COLOR = "var(--brand-primary)";
 const BRAND_ICON_CLASS = "h-4 w-4";
@@ -317,7 +317,7 @@ export function JobDetailPanel({
             ← Back to jobs
           </button>
         ) : null}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className={JOB_POSTING_COMPANY_CLASS}>{companyName}</p>
             <h2
@@ -336,13 +336,15 @@ export function JobDetailPanel({
             </div>
           </div>
           {!stacked && jobToken ? (
-            <JobDetailActions
-              jobToken={jobToken}
-              tenantSlug={tenantSlug}
-              applyHref={applyHref}
-              shareHref={shareHref}
-              title={title}
-            />
+            <div className="flex shrink-0 items-center self-center">
+              <JobDetailActions
+                jobToken={jobToken}
+                tenantSlug={tenantSlug}
+                applyHref={applyHref}
+                shareHref={shareHref}
+                title={title}
+              />
+            </div>
           ) : null}
         </div>
       </header>

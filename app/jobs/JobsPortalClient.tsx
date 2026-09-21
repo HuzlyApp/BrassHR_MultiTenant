@@ -233,16 +233,35 @@ export default function JobsPortalClient() {
       boardState.job && jobs.some((job) => job.public_job_token === boardState.job)
         ? boardState.job
         : null;
-    const preferred = urlJobInResults ?? selectedTokenRef.current;
-    const resolved = resolveSelectedJobToken(jobs, preferred);
+    const preferred =
+      urlJobInResults ??
+      (selectedTokenRef.current &&
+      jobs.some((job) => job.public_job_token === selectedTokenRef.current)
+        ? selectedTokenRef.current
+        : null);
+    // Desktop split needs a selected job for the details pane; mobile waits for a tap.
+    const resolved = resolveSelectedJobToken(jobs, preferred, {
+      fallbackToFirst: isDesktop,
+    });
     setSelectedToken(resolved);
+    selectedTokenRef.current = resolved;
     if (resolved !== boardState.job) {
-      replaceBoardUrlRef.current({ job: resolved });
+      // On mobile, never inject the first job into the URL until the user selects one.
+      if (isDesktop || boardState.job || resolved === null) {
+        replaceBoardUrlRef.current({ job: resolved });
+      }
     }
     if (!jobs.length) setMobileDetailOpen(false);
-  }, [boardState.job, jobs, loading]);
+  }, [boardState.job, isDesktop, jobs, loading]);
 
   useEffect(() => {
+    if (boardState.employmentType === "Contract" && boardState.locationType) {
+      replaceBoardUrlRef.current({ locationType: "", page: boardState.page });
+    }
+  }, [boardState.employmentType, boardState.locationType, boardState.page]);
+
+  useEffect(() => {
+    // Deep links / shared job URLs can open mobile detail once; first visits stay on the list.
     if (!isDesktop && landedWithJobRef.current && boardState.job) {
       setMobileDetailOpen(true);
     }
@@ -259,8 +278,8 @@ export default function JobsPortalClient() {
     [boardState.professionId, specialties]
   );
   const visibleJobs = useMemo(
-    () => sortPublicBoardJobs(jobs, boardState.sort, boardState.q),
-    [boardState.q, boardState.sort, jobs]
+    () => sortPublicBoardJobs(jobs, boardState.sort, boardState.q, boardState.location),
+    [boardState.location, boardState.q, boardState.sort, jobs]
   );
   const pageCount = Math.max(1, Math.ceil(total / PUBLIC_JOBS_PAGE_SIZE));
   const selectedJob = visibleJobs.find((job) => job.public_job_token === selectedToken) ?? null;
@@ -402,9 +421,14 @@ export default function JobsPortalClient() {
               specialties={filteredSpecialties}
               onQueryChange={setQueryDraft}
               onLocationChange={setLocationDraft}
-              onProfessionChange={(value) => replaceBoardUrl({ professionId: value, specialtyId: "", page: 1 })}
-              onSpecialtyChange={(value) => replaceBoardUrl({ specialtyId: value, page: 1 })}
-              onEmploymentTypeChange={(value) => replaceBoardUrl({ employmentType: value, page: 1 })}
+              onEmploymentTypeChange={(value) =>
+                replaceBoardUrl({
+                  employmentType: value,
+                  // Contract jobs don't use workplace type — drop it when Contract is selected.
+                  ...(value === "Contract" ? { locationType: "" } : {}),
+                  page: 1,
+                })
+              }
               onLocationTypeChange={(value) => replaceBoardUrl({ locationType: value, page: 1 })}
               onSearch={() => {
                 replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 });
@@ -435,7 +459,7 @@ export default function JobsPortalClient() {
           <section
             data-testid="jobs-results-panel"
             aria-label="Job results"
-            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,28rem)] lg:max-w-[42%] lg:flex-none ${
+            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,24rem)] lg:max-w-[36%] lg:flex-none ${
               showMobileDetail ? "hidden" : "flex flex-1"
             }`}
           >
@@ -445,7 +469,7 @@ export default function JobsPortalClient() {
               </p>
               <JobsBoardSortMenu
                 value={boardState.sort}
-                onChange={(sort) => replaceBoardUrl({ sort })}
+                onChange={(sort) => replaceBoardUrl({ sort, page: 1 })}
               />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">

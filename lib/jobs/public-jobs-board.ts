@@ -9,6 +9,7 @@ import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
 import { formatCityState } from "@/lib/location/city-state";
 
 export const PUBLIC_JOBS_PAGE_SIZE = 10;
+/** Split list+detail from laptop width up; tablet/mobile use stacked list → detail. */
 export const PUBLIC_JOBS_DESKTOP_MIN_WIDTH = 1024;
 export const JOBS_BOARD_INPUT_DEBOUNCE_MS = 300;
 export const JOB_LOCATION_TYPES = ["Remote", "Hybrid", "On-site", "Remote, Hybrid"] as const;
@@ -207,27 +208,100 @@ export function jobsBoardActiveChips(
   return chips;
 }
 
+export function jobActivityTimestamp(job: Pick<PublicBoardJob, "published_at" | "updated_at">): number {
+  const published = Date.parse(String(job.published_at ?? "")) || 0;
+  const updated = Date.parse(String(job.updated_at ?? "")) || 0;
+  return Math.max(published, updated);
+}
+
+function tokenizeSearchTerms(...parts: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const part of parts) {
+    for (const raw of String(part ?? "")
+      .toLowerCase()
+      .split(/[^a-z0-9+#.]+/i)) {
+      const token = raw.trim();
+      if (token.length < 2 || seen.has(token)) continue;
+      seen.add(token);
+      tokens.push(token);
+    }
+  }
+  return tokens;
+}
+
+/** Higher = more relevant for "Most relevant" sort. */
+export function jobRelevanceScore(
+  job: PublicBoardJob,
+  query: string,
+  locationQuery = ""
+): number {
+  const title = publicBoardJobTitle(job).toLowerCase();
+  const sourceTitle = String(job.source_job_title ?? "").toLowerCase();
+  const location = String(job.location ?? "").toLowerCase();
+  const workplace = String(job.location_type ?? job.schedule ?? "").toLowerCase();
+  const description = String(job.public_description ?? "").toLowerCase();
+  const term = query.trim().toLowerCase();
+  const locationTerm = locationQuery.trim().toLowerCase();
+  let score = 0;
+
+  if (term) {
+    if (title === term || sourceTitle === term) score += 80;
+    else if (title.startsWith(term) || sourceTitle.startsWith(term)) score += 60;
+    else if (title.includes(term) || sourceTitle.includes(term)) score += 45;
+
+    for (const token of tokenizeSearchTerms(term)) {
+      if (title.includes(token) || sourceTitle.includes(token)) score += 14;
+      else if (location.includes(token) || workplace.includes(token)) score += 8;
+      else if (description.includes(token)) score += 4;
+    }
+  }
+
+  if (locationTerm) {
+    if (location.includes(locationTerm) || workplace.includes(locationTerm)) score += 28;
+    for (const token of tokenizeSearchTerms(locationTerm)) {
+      if (location.includes(token) || workplace.includes(token)) score += 10;
+      else if (title.includes(token) || description.includes(token)) score += 3;
+    }
+  }
+
+  // Without keywords, still rank "better" postings above sparse ones so Relevant ≠ Recent.
+  if (job.workflow_id) score += 10;
+  if (job.pay_rate_min != null || job.pay_rate_max != null || job.pay_rate != null) score += 6;
+  if (description.length > 280) score += 5;
+  else if (description.length > 80) score += 2;
+  if (job.location_type?.trim()) score += 4;
+  if (job.employment_type?.trim()) score += 2;
+  if (title.length >= 12) score += 2;
+
+  return score;
+}
+
 export function sortPublicBoardJobs(
   jobs: PublicBoardJob[],
   sort: JobsBoardSort,
-  query: string
+  query: string,
+  locationQuery = ""
 ): PublicBoardJob[] {
-  if (sort !== "relevant" || !query.trim()) return jobs;
-  const term = query.trim().toLowerCase();
-  const score = (job: PublicBoardJob) => {
-    const title = publicBoardJobTitle(job).toLowerCase();
-    const location = String(job.location ?? "").toLowerCase();
-    if (title.startsWith(term)) return 3;
-    if (title.includes(term)) return 2;
-    if (location.includes(term)) return 1;
-    return 0;
-  };
-  return [...jobs].sort((a, b) => score(b) - score(a));
+  const byActivityDesc = (a: PublicBoardJob, b: PublicBoardJob) =>
+    jobActivityTimestamp(b) - jobActivityTimestamp(a);
+
+  if (sort !== "relevant") {
+    return [...jobs].sort(byActivityDesc);
+  }
+
+  return [...jobs].sort((a, b) => {
+    const scoreDiff =
+      jobRelevanceScore(b, query, locationQuery) - jobRelevanceScore(a, query, locationQuery);
+    if (scoreDiff !== 0) return scoreDiff;
+    return byActivityDesc(a, b);
+  });
 }
 
 export function resolveSelectedJobToken(
   jobs: Array<Pick<PublicBoardJob, "public_job_token">>,
-  requestedToken: string | null | undefined
+  requestedToken: string | null | undefined,
+  options?: { fallbackToFirst?: boolean }
 ): string | null {
   const tokens = jobs
     .map((job) => normalizeJobToken(job.public_job_token))
@@ -235,6 +309,7 @@ export function resolveSelectedJobToken(
   if (!tokens.length) return null;
   const requested = normalizeJobToken(requestedToken);
   if (requested && tokens.includes(requested)) return requested;
+  if (options?.fallbackToFirst === false) return null;
   return tokens[0] ?? null;
 }
 
