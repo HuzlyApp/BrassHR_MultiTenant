@@ -24,12 +24,11 @@ import {
   type JobsBoardUrlState,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
+import { isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
 type Option = { id: string; name: string; profession_id?: string };
 
-<<<<<<< HEAD
-=======
 /** Fold legacy `location=` into advanced-search tags so one chip bar covers city/state too. */
 function mergePublicJobsSearchTags(q: string, location: string): string[] {
   const tags = parsePublicJobsQueryTags(q);
@@ -50,7 +49,6 @@ function resolveJobsBoardTenantSlug(
   return isTenantApplicantPortalSlug(fromBranding) ? fromBranding : "";
 }
 
->>>>>>> d98a6eb5 (Refactor job search functionality to support advanced filtering and improved user experience)
 type BoardUrlPatch = Partial<
   Pick<
     JobsBoardUrlState,
@@ -95,6 +93,7 @@ export default function JobsPortalClient() {
   const [tenant, setTenant] = useState(
     () => searchParams.get("tenant")?.trim().toLowerCase() ?? ""
   );
+  const [tenantReady, setTenantReady] = useState(false);
   const [jobs, setJobs] = useState<PublicBoardJob[]>([]);
   const [professions, setProfessions] = useState<Option[]>([]);
   const [specialties, setSpecialties] = useState<Option[]>([]);
@@ -113,11 +112,14 @@ export default function JobsPortalClient() {
   }, [selectedToken]);
 
   useEffect(() => {
-    const resolved = resolveTenantSlugForClient(window.location.search, {
-      path: window.location.pathname,
-    });
-    setTenant(resolved.slug ?? "");
-  }, [searchParams]);
+    const slug = resolveJobsBoardTenantSlug(
+      window.location.search,
+      window.location.pathname,
+      branding.slug
+    );
+    setTenant(slug);
+    setTenantReady(true);
+  }, [branding.slug, searchParams]);
 
   useEffect(() => {
     setQueryTags(mergePublicJobsSearchTags(boardState.q, boardState.location));
@@ -186,30 +188,12 @@ export default function JobsPortalClient() {
   }, [replaceBoardUrl]);
 
   useEffect(() => {
-<<<<<<< HEAD
-    const timer = window.setTimeout(() => {
-      const current = boardStateRef.current;
-      if (queryDraft.trim() === current.q && locationDraft.trim() === current.location) return;
-      replaceBoardUrlRef.current({
-        q: queryDraft,
-        location: locationDraft,
-        page: 1,
-        professionId: current.professionId,
-        specialtyId: current.specialtyId,
-        employmentType: current.employmentType,
-        locationType: current.locationType,
-      });
-    }, JOBS_BOARD_INPUT_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [boardState.location, boardState.q, locationDraft, queryDraft]);
-
-  useEffect(() => {
-=======
     if (!tenantReady) return;
->>>>>>> d98a6eb5 (Refactor job search functionality to support advanced filtering and improved user experience)
     if (!tenant) {
       setError("Open this page from your employer's tenant job portal.");
       setLoading(false);
+      setJobs([]);
+      setTotal(0);
       return;
     }
     const params = buildPublicJobsApiSearchParams({
@@ -225,6 +209,7 @@ export default function JobsPortalClient() {
     });
     const controller = new AbortController();
     setLoading(true);
+    setError("");
     void fetch(`/api/public/jobs?${params}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json();
@@ -253,6 +238,7 @@ export default function JobsPortalClient() {
     boardState.q,
     boardState.specialtyId,
     tenant,
+    tenantReady,
   ]);
 
   useEffect(() => {
