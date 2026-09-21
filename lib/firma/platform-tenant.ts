@@ -7,7 +7,7 @@ import {
 } from "@/lib/firma/provision-tenant-workspace";
 
 export const PLATFORM_TENANT_SEED = {
-  name: "Braas HR",
+  name: "Brass HR",
   slug: PLATFORM_DEFAULT_TENANT_SLUG,
   plan: "platform",
   is_active: true,
@@ -15,7 +15,7 @@ export const PLATFORM_TENANT_SEED = {
   primary_color: "#BC8B41",
   secondary_color: "#104b83",
   accent_color: "#E9B771",
-  welcome_headline: "Welcome to Braas HR",
+  welcome_headline: "Welcome to Brass HR",
   welcome_subtitle: "HR Simplified for growing teams",
   auth_background_image_url: "/images/singup-bg-image.jpg",
 } as const;
@@ -46,7 +46,7 @@ async function loadPlatformTenant(
 }
 
 /**
- * Ensures the Braas HR platform tenant exists and has a live Firma workspace.
+ * Ensures the Brass HR platform tenant exists and has a live Firma workspace.
  * SQL seed/bootstrap never called Firma; this closes that gap and is idempotent.
  */
 export async function ensurePlatformTenantWithFirmaWorkspace(
@@ -70,7 +70,7 @@ export async function ensurePlatformTenantWithFirmaWorkspace(
     if (error?.code === "23505") {
       tenant = await loadPlatformTenant(supabase);
     } else if (error || !data?.id) {
-      throw new Error(error?.message || "Could not create the Braas HR platform tenant");
+      throw new Error(error?.message || "Could not create the Brass HR platform tenant");
     } else {
       tenant = data as PlatformTenantRow;
       created = true;
@@ -87,7 +87,7 @@ export async function ensurePlatformTenantWithFirmaWorkspace(
   }
 
   if (!tenant?.id) {
-    throw new Error("Braas HR platform tenant was not found after upsert");
+    throw new Error("Brass HR platform tenant was not found after upsert");
   }
 
   console.info("[firma-provision] platform tenant ready", {

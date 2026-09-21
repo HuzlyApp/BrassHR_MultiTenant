@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import type { ListingRequirementOutcomeCounts } from "@/lib/jobs/match-analysis/workspace";
 
 export type WorkerJobMatchSummary = {
   applicationId: string;
@@ -26,16 +27,29 @@ function rowTimestamp(row: MatchAppRow): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+function isAnalyzedWithScore(row: MatchAppRow): boolean {
+  return (
+    row.ai_match_status === "ANALYZED" &&
+    row.ai_match_score != null &&
+    Number.isFinite(Number(row.ai_match_score))
+  );
+}
+
+function toSummary(row: MatchAppRow): WorkerJobMatchSummary {
+  return {
+    applicationId: row.id,
+    status: row.ai_match_status,
+    score: row.ai_match_score,
+    category: row.ai_match_category,
+    displayCategory: row.ai_match_display_category,
+  };
+}
+
 /** Pick the highest analyzed score per worker; otherwise the newest application to analyze. */
 export function pickWorkerJobMatchSummary(apps: MatchAppRow[]): WorkerJobMatchSummary | null {
   if (apps.length === 0) return null;
 
-  const analyzed = apps.filter(
-    (row) =>
-      row.ai_match_status === "ANALYZED" &&
-      row.ai_match_score != null &&
-      Number.isFinite(Number(row.ai_match_score))
-  );
+  const analyzed = apps.filter(isAnalyzedWithScore);
 
   const chosen =
     analyzed.length > 0
@@ -47,24 +61,55 @@ export function pickWorkerJobMatchSummary(apps: MatchAppRow[]): WorkerJobMatchSu
       : [...apps].sort((a, b) => rowTimestamp(b) - rowTimestamp(a))[0];
 
   if (!chosen) return null;
-
-  return {
-    applicationId: chosen.id,
-    status: chosen.ai_match_status,
-    score: chosen.ai_match_score,
-    category: chosen.ai_match_category,
-    displayCategory: chosen.ai_match_display_category,
-  };
+  return toSummary(chosen);
 }
+
+/**
+ * Prefer analyzed applications that have Conf/Verify/Not Met checklist rows.
+ * Falls back to highest score, then newest app.
+ */
+export function pickWorkerJobMatchSummaryPreferringRequirementCounts(
+  apps: MatchAppRow[],
+  countsByApplication: Map<string, ListingRequirementOutcomeCounts>
+): WorkerJobMatchSummary | null {
+  if (apps.length === 0) return null;
+
+  const analyzed = apps.filter(isAnalyzedWithScore);
+  if (analyzed.length === 0) {
+    return pickWorkerJobMatchSummary(apps);
+  }
+
+  const chosen = [...analyzed].sort((a, b) => {
+    const aHas = countsByApplication.has(a.id) ? 1 : 0;
+    const bHas = countsByApplication.has(b.id) ? 1 : 0;
+    if (bHas !== aHas) return bHas - aHas;
+    const scoreDiff = Number(b.ai_match_score) - Number(a.ai_match_score);
+    if (scoreDiff !== 0) return scoreDiff;
+    return rowTimestamp(b) - rowTimestamp(a);
+  })[0];
+
+  return chosen ? toSummary(chosen) : null;
+}
+
+export type WorkerJobMatchSummariesResult = {
+  summaries: Map<string, WorkerJobMatchSummary>;
+  /** All ANALYZED application ids for the requested workers (for count loading). */
+  analyzedApplicationIds: string[];
+  appsByWorker: Map<string, MatchAppRow[]>;
+};
 
 /** Best job-application match per worker for candidates listing. */
 export async function getWorkerJobMatchSummaries(
   supabase: SupabaseClient,
   args: { tenantId?: string | null; workerIds: string[] }
-): Promise<Map<string, WorkerJobMatchSummary>> {
+): Promise<WorkerJobMatchSummariesResult> {
   const workerIds = Array.from(new Set(args.workerIds.filter(Boolean)));
-  const result = new Map<string, WorkerJobMatchSummary>();
-  if (workerIds.length === 0) return result;
+  const summaries = new Map<string, WorkerJobMatchSummary>();
+  const appsByWorker = new Map<string, MatchAppRow[]>();
+  const analyzedApplicationIds: string[] = [];
+  if (workerIds.length === 0) {
+    return { summaries, analyzedApplicationIds, appsByWorker };
+  }
 
   const { data, error } = await queryInChunks(workerIds, async (chunk) => {
     let query = supabase
@@ -84,19 +129,19 @@ export async function getWorkerJobMatchSummaries(
   });
   if (error) throw error;
 
-  const byWorker = new Map<string, MatchAppRow[]>();
   for (const row of data) {
     const workerId = row.worker_id?.trim();
     if (!workerId) continue;
-    const list = byWorker.get(workerId) ?? [];
+    const list = appsByWorker.get(workerId) ?? [];
     list.push(row);
-    byWorker.set(workerId, list);
+    appsByWorker.set(workerId, list);
+    if (isAnalyzedWithScore(row)) analyzedApplicationIds.push(row.id);
   }
 
-  for (const [workerId, apps] of byWorker) {
+  for (const [workerId, apps] of appsByWorker) {
     const summary = pickWorkerJobMatchSummary(apps);
-    if (summary) result.set(workerId, summary);
+    if (summary) summaries.set(workerId, summary);
   }
 
-  return result;
+  return { summaries, analyzedApplicationIds, appsByWorker };
 }

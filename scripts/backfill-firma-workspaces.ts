@@ -134,7 +134,7 @@ async function main() {
 
   if (!platform?.id) {
     const { error: insertErr } = await supabase.from("tenants").insert({
-      name: "Braas HR",
+      name: "Brass HR",
       slug: PLATFORM_SLUG,
       subdomain: PLATFORM_SLUG,
       plan: "platform",
@@ -143,13 +143,13 @@ async function main() {
       primary_color: "#BC8B41",
       secondary_color: "#104b83",
       accent_color: "#E9B771",
-      welcome_headline: "Welcome to Braas HR",
+      welcome_headline: "Welcome to Brass HR",
       welcome_subtitle: "HR Simplified for growing teams",
       auth_background_image_url: "/images/singup-bg-image.jpg",
       updated_at: new Date().toISOString(),
     });
     if (insertErr && insertErr.code !== "23505") throw insertErr;
-    console.log("[backfill] created Braas HR platform tenant");
+    console.log("[backfill] created Brass HR platform tenant");
   }
 
   const { data: tenants, error } = await supabase

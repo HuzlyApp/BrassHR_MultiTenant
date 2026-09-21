@@ -1,3 +1,4 @@
+import { parseCityStateLocation } from "@/lib/location/city-state"
 import { sanitizeResumeEmail, type NormalizedParsedResume } from "@/lib/resumeParseQuality"
 
 const EMAIL_RE =
@@ -12,6 +13,11 @@ const ZIP_RE = /\b\d{5}(?:-\d{4})?\b/
 
 const CITY_STATE_RE =
   /\b([A-Z][a-zA-Z.'-]+(?:\s+[A-Z][a-zA-Z.'-]+){0,2}),\s*([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?\b/
+
+const LOCATION_LABEL_RE =
+  /^(?:location|based\s+in|residing\s+in|lives?\s+in|address|city\s*\/\s*state)\s*[:\-–—]?\s+/i
+
+const BULLET_LINE_RE = /^[\s•●◦▪▸►\-*–—]+/
 
 const US_STATE_CODES = new Set([
   "AL","AK","AZ","AR","CA","CO","CT","DC","DE","FL","GA","HI","IA","ID","IL","IN","KS","KY",
@@ -65,6 +71,76 @@ function firstMatch(re: RegExp, text: string): string {
 
 function lines(text: string): string[] {
   return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+}
+
+/**
+ * Find a US city/state in resume header/contact lines.
+ * Prefers early lines; supports "City, ST", "City, StateName", and labeled location lines.
+ */
+export function extractLocationFromResumeText(text: string): { city: string; state: string } {
+  const repaired = repairExtractedResumeText(text)
+  if (!repaired) return { city: "", state: "" }
+
+  const allLines = lines(repaired)
+  const candidates: string[] = []
+
+  for (let i = 0; i < Math.min(allLines.length, 40); i += 1) {
+    const raw = allLines[i] ?? ""
+    if (!raw || raw.length > 100) continue
+    if (EMAIL_RE.test(raw) || URL_RE.test(raw) || SECTION_HEADER_RE.test(raw)) continue
+    if (BULLET_LINE_RE.test(raw) && i > 12) continue
+    // Skip ERP module lists that look like "MM, SD, FI/CO, …"
+    if (looksLikeSoftwareModuleList(raw)) continue
+
+    const unlabeled = raw.replace(LOCATION_LABEL_RE, "").trim()
+    if (unlabeled) candidates.push(unlabeled)
+
+    // City and state sometimes land on consecutive PDF lines.
+    const next = allLines[i + 1] ?? ""
+    if (
+      next &&
+      next.length <= 40 &&
+      !EMAIL_RE.test(next) &&
+      !URL_RE.test(next) &&
+      !SECTION_HEADER_RE.test(next) &&
+      !looksLikeSoftwareModuleList(next)
+    ) {
+      candidates.push(`${unlabeled || raw}, ${next.replace(LOCATION_LABEL_RE, "").trim()}`)
+    }
+  }
+
+  for (const candidate of candidates) {
+    const parsed = parseCityStateLocation(candidate)
+    if (parsed.city && parsed.stateCode && !cityLooksLikeSoftwareModules(parsed.city)) {
+      return { city: parsed.city, state: parsed.stateCode }
+    }
+
+    const cityStateMatch = candidate.match(CITY_STATE_RE)
+    if (cityStateMatch && US_STATE_CODES.has(cityStateMatch[2] ?? "")) {
+      const city = (cityStateMatch[1] ?? "").trim()
+      const state = (cityStateMatch[2] ?? "").trim()
+      if (city && !cityLooksLikeSoftwareModules(city)) {
+        return { city, state }
+      }
+    }
+  }
+
+  return { city: "", state: "" }
+}
+
+function looksLikeSoftwareModuleList(line: string): boolean {
+  const codes = line.toUpperCase().match(/\b[A-Z]{2,3}\b/g) ?? []
+  const moduleHits = codes.filter((code) => SOFTWARE_MODULE_LOCATION_CODES.has(code)).length
+  return moduleHits >= 2
+}
+
+function cityLooksLikeSoftwareModules(city: string): boolean {
+  const tokens = city
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean)
+  if (tokens.some((token) => SOFTWARE_MODULE_LOCATION_CODES.has(token))) return true
+  return city.length <= 3 && SOFTWARE_MODULE_LOCATION_CODES.has(city.toUpperCase())
 }
 
 function looksLikeTitleToken(token: string): boolean {
@@ -256,15 +332,18 @@ export function preExtractResumeFields(
   const zip = firstMatch(ZIP_RE, trimmed)
 
   const allLines = lines(trimmed)
-  let city = ""
-  let state = ""
-  for (const line of allLines.slice(0, 8)) {
-    if (EMAIL_RE.test(line) || URL_RE.test(line)) continue
-    const cityStateMatch = line.match(CITY_STATE_RE)
-    if (cityStateMatch && US_STATE_CODES.has(cityStateMatch[2] ?? "")) {
-      city = cityStateMatch[1] ?? ""
-      state = cityStateMatch[2] ?? ""
-      break
+  const location = extractLocationFromResumeText(trimmed)
+  let city = location.city
+  let state = location.state
+  if (!city || !state) {
+    for (const line of allLines.slice(0, 8)) {
+      if (EMAIL_RE.test(line) || URL_RE.test(line)) continue
+      const cityStateMatch = line.match(CITY_STATE_RE)
+      if (cityStateMatch && US_STATE_CODES.has(cityStateMatch[2] ?? "")) {
+        city = city || (cityStateMatch[1] ?? "")
+        state = state || (cityStateMatch[2] ?? "")
+        break
+      }
     }
   }
 

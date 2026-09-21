@@ -11,7 +11,10 @@ import { isUuid } from "@/lib/validation/uuid";
 import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { buildWorkerResumeFileName, splitFullName } from "@/lib/resume/worker-resume-file-name";
-import { loadRequirementOutcomeCountsByApplication } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import {
+  listingCountsForAnalyzedApplication,
+  loadRequirementOutcomeCountsByApplication,
+} from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
 import { getWorkerAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
   filterWorkerIdsMatchingSkills,
@@ -292,7 +295,11 @@ export async function GET(req: NextRequest) {
                 profilePhotoUrl: null,
               }
             : null,
-          ai_requirement_counts: requirementCountsByApplication.get(applicationId) ?? null,
+          ai_requirement_counts: listingCountsForAnalyzedApplication(
+            requirementCountsByApplication,
+            applicationId,
+            (row as { ai_match_status?: string | null }).ai_match_status
+          ),
         };
       }),
     });
