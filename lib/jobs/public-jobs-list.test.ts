@@ -64,7 +64,7 @@ describe("listPublicJobs", () => {
     );
   });
 
-  it("requires a public job token and matches workplace via location_type or schedule", async () => {
+  it("requires a public job token and matches workplace via location_type, schedule, or location text", async () => {
     const { client, notCalls, neqCalls, orCalls } = createListClient();
     await listPublicJobs(client as never, "tenant-zipstaff", { locationType: "Remote, Hybrid" });
     expect(notCalls).toContainEqual(["public_job_token", "is", null]);
@@ -77,6 +77,11 @@ describe("listPublicJobs", () => {
         filters.includes('and(location_type.is.null,schedule.eq."Remote, Hybrid")')
       )
     ).toBe(true);
+    expect(
+      orCalls.some((filters) =>
+        filters.includes('and(location_type.is.null,location.ilike."%Remote, Hybrid%")')
+      )
+    ).toBe(true);
   });
 
   it("orders by latest activity for Most recent", async () => {
@@ -85,5 +90,19 @@ describe("listPublicJobs", () => {
     expect(orderCalls[0]?.[0]).toBe("updated_at");
     expect(orderCalls[0]?.[1]).toMatchObject({ ascending: false });
     expect(orderCalls[1]?.[0]).toBe("published_at");
+  });
+
+  it("applies multi-tag keyword search and location workplace matching", async () => {
+    const { client, orCalls } = createListClient();
+    await listPublicJobs(client as never, "tenant-zipstaff", {
+      query: "Oracle DBA,Remote",
+      location: "remote",
+      employmentType: "W2",
+    });
+    expect(orCalls.some((filters) => filters.includes('public_title.ilike."%Oracle DBA%"'))).toBe(
+      true
+    );
+    expect(orCalls.some((filters) => filters.includes('public_title.ilike."%Remote%"'))).toBe(true);
+    expect(orCalls.some((filters) => filters.includes('location_type.eq."Remote"'))).toBe(true);
   });
 });
