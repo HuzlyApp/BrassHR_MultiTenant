@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -20,13 +20,12 @@ import {
 import {
   benefitItems,
   descriptionHasSection,
-  formatJobLocationLine,
-  formatPostedDate,
+  formatJobPlaceLine,
+  formatPostedDateDetail,
   formatPublicJobDescriptionHtml,
-  formatPublicJobPay,
+  formatPublicJobPayParts,
   formatWorkplaceType,
   publicBoardJobTitle,
-  relationName,
   selectedJobApplyHref,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
@@ -275,12 +274,12 @@ export function JobDetailPanel({
   }
 
   const title = publicBoardJobTitle(job);
-  const profession = relationName(job.professions);
-  const specialty = relationName(job.specialties);
   const workplace = formatWorkplaceType(job.location_type);
-  const locationLine = formatJobLocationLine(job.location, job.location_type);
-  const pay = formatPublicJobPay(job);
-  const posted = formatPostedDate(job.published_at, job.updated_at);
+  const placeLine =
+    formatJobPlaceLine(job.location) ||
+    (workplace && /^remote$/i.test(workplace) ? "Remote" : "");
+  const payParts = formatPublicJobPayParts(job);
+  const postedDetail = formatPostedDateDetail(job.published_at, job.updated_at);
   const applyHref = selectedJobApplyHref(tenantSlug, job);
   const jobToken = String(job.public_job_token ?? "").trim();
   const shareHref = jobToken ? buildPublicJobSharePath(tenantSlug, jobToken) ?? "" : "";
@@ -295,7 +294,26 @@ export function JobDetailPanel({
   const showQualifications =
     Boolean(job.qualifications?.trim()) && !descriptionHasSection(descriptionHtml, "Qualifications");
   const showBenefits = benefits.length > 0 && !descriptionHasSection(descriptionHtml, "Benefits");
-  const facts = [job.employment_type, workplace, profession, specialty].filter(Boolean);
+  const typeBits = [workplace, job.employment_type?.trim()].filter(Boolean) as string[];
+  const metaSegments: ReactNode[] = [];
+  if (typeBits.length) {
+    metaSegments.push(
+      <span key="type" className="font-semibold text-[#1D2739]">
+        {typeBits.join(" • ")}
+      </span>
+    );
+  }
+  if (payParts) {
+    metaSegments.push(
+      <span key="pay">
+        Pay Rate: <span className="font-semibold text-[#1D2739]">{payParts.amount}</span>
+        {payParts.unit ? ` ${payParts.unit}` : ""}
+      </span>
+    );
+  }
+  if (postedDetail) {
+    metaSegments.push(<span key="posted">{postedDetail}</span>);
+  }
 
   return (
     <article
@@ -325,9 +343,22 @@ export function JobDetailPanel({
             >
               {title}
             </h2>
-            <p className={`mt-1.5 truncate ${JOB_POSTING_METADATA_CLASS}`}>
-              {[locationLine, ...facts, pay, posted].filter(Boolean).join(" · ")}
-            </p>
+            {placeLine ? (
+              <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{placeLine}</p>
+            ) : null}
+            {metaSegments.length ? (
+              <p
+                data-testid="jobs-detail-meta-row"
+                className={`mt-1.5 flex flex-wrap items-center ${JOB_POSTING_METADATA_CLASS}`}
+              >
+                {metaSegments.map((segment, index) => (
+                  <span key={index} className="inline-flex items-center">
+                    {index > 0 ? <span className="mx-2 text-[#94A3B8]" aria-hidden>|</span> : null}
+                    {segment}
+                  </span>
+                ))}
+              </p>
+            ) : null}
           </div>
           {!stacked && jobToken ? (
             <div className="flex shrink-0 items-center self-center">

@@ -467,20 +467,33 @@ export function formatPublicJobPay(job: Pick<
   PublicBoardJob,
   "pay_rate_min" | "pay_rate_max" | "pay_rate" | "pay_rate_period" | "rate_unit" | "compensation_type" | "show_pay_by"
 >): string | null {
+  const parts = formatPublicJobPayParts(job);
+  if (!parts) return null;
+  const period = formatPayPeriodLabel(job.pay_rate_period || job.rate_unit || job.compensation_type);
+  return period ? `${parts.amount} ${period}` : parts.amount;
+}
+
+/** Figma detail row: amount + short unit (e.g. amount "$35 - $67", unit "/ hr"). */
+export function formatPublicJobPayParts(job: Pick<
+  PublicBoardJob,
+  "pay_rate_min" | "pay_rate_max" | "pay_rate" | "pay_rate_period" | "rate_unit" | "compensation_type" | "show_pay_by"
+>): { amount: string; unit: string } | null {
   const min = toFiniteNumber(job.pay_rate_min);
   const max = toFiniteNumber(job.pay_rate_max);
   const suggested = toFiniteNumber(job.pay_rate);
   if (min == null && max == null && suggested == null) return null;
-  const period = formatPayPeriodLabel(job.pay_rate_period || job.rate_unit || job.compensation_type);
   const showPayBy = String(job.show_pay_by ?? "").trim().toLowerCase();
   const isRange = showPayBy.includes("range") || (min != null && max != null && min !== max);
+  let amount: string;
   if (isRange && min != null && max != null && min !== max) {
-    return period ? `$${formatMoney(min)} – $${formatMoney(max)} ${period}` : `$${formatMoney(min)} – $${formatMoney(max)}`;
+    amount = `$${formatMoney(min)} - $${formatMoney(max)}`;
+  } else {
+    const value = min ?? max ?? suggested;
+    if (value == null) return null;
+    const prefix = showPayBy.includes("starting") ? "From " : "";
+    amount = `${prefix}$${formatMoney(value)}`;
   }
-  const amount = min ?? max ?? suggested;
-  if (amount == null) return null;
-  const prefix = showPayBy.includes("starting") ? "From " : "";
-  return period ? `${prefix}$${formatMoney(amount)} ${period}` : `${prefix}$${formatMoney(amount)}`;
+  return { amount, unit: formatPayUnitShort(job.pay_rate_period || job.rate_unit || job.compensation_type) };
 }
 
 export function formatWorkplaceType(locationType: string | null | undefined): string | null {
@@ -488,12 +501,19 @@ export function formatWorkplaceType(locationType: string | null | undefined): st
   return value || null;
 }
 
+/** Place-only line for detail header (workplace goes in the meta row). */
+export function formatJobPlaceLine(location: string | null | undefined): string {
+  const raw = location?.trim() || "";
+  if (!raw) return "";
+  return formatCityState(raw) || raw;
+}
+
 export function formatJobLocationLine(
   location: string | null | undefined,
   locationType: string | null | undefined
 ): string {
   const workplace = formatWorkplaceType(locationType);
-  const place = formatCityState(location) || location?.trim() || "";
+  const place = formatJobPlaceLine(location);
   if (workplace && /^remote$/i.test(workplace) && !place) return "Remote";
   if (workplace && place && !place.toLowerCase().includes(workplace.toLowerCase())) {
     return `${place} · ${workplace}`;
@@ -502,17 +522,21 @@ export function formatJobLocationLine(
 }
 
 export function formatPostedDate(iso: string | null | undefined, updatedIso?: string | null): string | null {
-  const published = parseDate(iso);
-  const updated = parseDate(updatedIso);
-  const shown = updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
-    ? updated
-    : published ?? updated;
-  if (!shown) return null;
-  const label = updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
-    ? "Updated"
-    : "Posted";
-  return `${label} ${shown.toLocaleDateString(undefined, {
+  const resolved = resolvePostedDate(iso, updatedIso);
+  if (!resolved) return null;
+  return `${resolved.label} ${resolved.date.toLocaleDateString(undefined, {
     month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+}
+
+/** Figma detail: "Posted: September 2, 2026" */
+export function formatPostedDateDetail(iso: string | null | undefined, updatedIso?: string | null): string | null {
+  const resolved = resolvePostedDate(iso, updatedIso);
+  if (!resolved) return null;
+  return `${resolved.label}: ${resolved.date.toLocaleDateString("en-US", {
+    month: "long",
     day: "numeric",
     year: "numeric",
   })}`;
@@ -579,6 +603,35 @@ function formatPayPeriodLabel(period: string | null | undefined): string {
   if (raw.includes("month")) return "per month";
   if (raw.includes("year") || raw.includes("annual")) return "per year";
   return String(period ?? "").trim();
+}
+
+function formatPayUnitShort(period: string | null | undefined): string {
+  const raw = String(period ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw.includes("hour")) return "/ hr";
+  if (raw.includes("week")) return "/ wk";
+  if (raw.includes("month")) return "/ mo";
+  if (raw.includes("year") || raw.includes("annual")) return "/ yr";
+  if (raw.includes("day")) return "/ day";
+  return "";
+}
+
+function resolvePostedDate(
+  iso: string | null | undefined,
+  updatedIso?: string | null
+): { label: "Posted" | "Updated"; date: Date } | null {
+  const published = parseDate(iso);
+  const updated = parseDate(updatedIso);
+  const shown =
+    updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
+      ? updated
+      : published ?? updated;
+  if (!shown) return null;
+  const label =
+    updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
+      ? "Updated"
+      : "Posted";
+  return { label, date: shown };
 }
 
 function parseDate(iso: string | null | undefined): Date | null {
