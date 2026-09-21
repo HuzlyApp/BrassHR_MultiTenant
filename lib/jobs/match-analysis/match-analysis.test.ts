@@ -348,6 +348,10 @@ describe("analyze vs deep prompts", () => {
     expect(ANALYZE_SYSTEM_PROMPT).not.toContain("REQUIREMENT LISTS");
   });
 
+  it("uses the follow-up prompt when generating Step 3 screening questions", () => {
+    expect(systemPromptForMode("follow_up")).toContain("Qualification Checklist");
+  });
+
   it("uses the deep schema only when analysisMode is deep", () => {
     const prompt = buildMatchAnalysisUserPrompt({ ...sampleInput, analysisMode: "deep" });
     expect(prompt).toContain("recruiter_decision_summary");

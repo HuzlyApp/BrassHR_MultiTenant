@@ -9,6 +9,7 @@ import {
 } from "./build-job-requirements";
 import {
   generateMatchAnalysis,
+  generateFollowUpQuestions,
   MatchAnalysisGenerationError,
 } from "./service";
 import { resolvePromptVersion } from "@/lib/ai-catalog/resolve-prompt";
@@ -30,17 +31,27 @@ import type {
   MatchAnalysisResponse,
   PipelineProgressStep,
 } from "./schema";
-import { ANALYSIS_PROVIDER_LABELS, parseAnalysisProvider } from "./schema";
-import { countQualificationOutcomes, listingRequirementOutcomeCounts } from "./workspace";
-import { applicationMatchScorePatch, matchStageFromMode } from "./match-stage";
+import { ANALYSIS_PROVIDER_LABELS, parseAnalysisMode, parseAnalysisProvider } from "./schema";
+import {
+  countQualificationOutcomes,
+  listingRequirementOutcomeCounts,
+} from "./workspace";
+import { applicationMatchScorePatch, isDeepMatchStage, matchStageFromMode } from "./match-stage";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
 import {
   DEEP_MATCH_BLOCKED_LOW_FIT,
+  canAdvanceMatchProgression,
   canRunDeepMatch,
   deepMatchBlockReason,
   matchProgressionIndexFromStage,
   quickMatchFitBand,
 } from "./progression";
+import { loadVerificationNotesForApplication } from "./verification-notes-service";
+import { summarizeRequirementNotes } from "./verification-notes";
+import {
+  checklistFollowUpRows,
+  mergeFollowUpQuestions,
+} from "./follow-up-questions";
 
 export type MatchAnalysisProgressEvent = {
   step: PipelineProgressStep;
@@ -80,6 +91,232 @@ async function setProgress(
   });
 }
 
+export const FOLLOW_UP_BLOCKED_NOT_READY =
+  "Finish Verifications before generating follow-up questions.";
+
+async function failedAnalysis(
+  error: string,
+  extra?: Partial<RunMatchAnalysisResult>
+): Promise<RunMatchAnalysisResult> {
+  return {
+    status: "FAILED",
+    analysis: null,
+    score: null,
+    category: null,
+    action: null,
+    readiness: null,
+    error,
+    repaired: false,
+    model: null,
+    requirementCounts: extra?.requirementCounts ?? null,
+    ...extra,
+  };
+}
+
+async function runFollowUpQuestionsForApplication(args: {
+  supabase: SupabaseClient;
+  tenantId: string;
+  jobApplicationId: string;
+  analyzedByUserId?: string | null;
+  analysisProvider: AnalysisProvider;
+  application: {
+    ai_match_status?: string | null;
+    ai_match_stage?: string | null;
+    ai_analysis?: unknown;
+    recruiter_decision?: string | null;
+    job_requisition_id?: string | null;
+  };
+  jobTitle: string;
+  onProgress?: (event: MatchAnalysisProgressEvent) => void;
+}): Promise<RunMatchAnalysisResult> {
+  const {
+    supabase,
+    tenantId,
+    jobApplicationId,
+    analyzedByUserId,
+    analysisProvider,
+    application,
+    jobTitle,
+    onProgress,
+  } = args;
+  const emit = (step: PipelineProgressStep, message: string, status?: AiMatchPipelineStatus) => {
+    onProgress?.({ step, message, status });
+  };
+
+  if (String(application.ai_match_status ?? "").toUpperCase() !== "ANALYZED") {
+    return failedAnalysis("Run Quick Match before Follow-up questions.");
+  }
+  if (isDeepMatchStage(application.ai_match_stage)) {
+    return failedAnalysis("Follow-up questions run before Deep Match.");
+  }
+  const currentIndex = matchProgressionIndexFromStage(application.ai_match_stage);
+  if (currentIndex < 1) {
+    return failedAnalysis(FOLLOW_UP_BLOCKED_NOT_READY);
+  }
+
+  const { data: requirementRows, error: reqError } = await supabase
+    .from("job_application_match_requirements")
+    .select(
+      "id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified, recruiter_note"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("job_application_id", jobApplicationId)
+    .order("sort_order", { ascending: true });
+  if (reqError) throw reqError;
+
+  const counts = countQualificationOutcomes(requirementRows ?? []);
+  const storedRoute = quickRouteFromAnalysis(application.ai_analysis);
+  const fitBand = storedRoute
+    ? fitBandFromQuickRoute(storedRoute)
+    : quickMatchFitBand({
+        mandatory: counts.mandatory,
+        confirmed: counts.confirmed,
+        notMet: counts.notMet,
+        blocking: counts.blocking,
+      });
+  const parked = application.recruiter_decision === "do_not_pursue";
+  if (
+    !canAdvanceMatchProgression({
+      isAnalyzed: true,
+      fitBand,
+      parkedInTalentPool: parked,
+    })
+  ) {
+    return failedAnalysis(
+      parked ? "This candidate is in Talent Pool." : DEEP_MATCH_BLOCKED_LOW_FIT,
+      { requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []) }
+    );
+  }
+
+  const notes = await loadVerificationNotesForApplication(supabase, tenantId, jobApplicationId);
+  const summaries = summarizeRequirementNotes(notes);
+  const existingAnalysis =
+    application.ai_analysis &&
+    typeof application.ai_analysis === "object" &&
+    !Array.isArray(application.ai_analysis)
+      ? (application.ai_analysis as Record<string, unknown>)
+      : null;
+  if (!existingAnalysis) {
+    return failedAnalysis("Run Quick Match before Follow-up questions.");
+  }
+  const blockingTexts = Array.isArray(
+    (existingAnalysis.submission_readiness as { blocking_requirements?: unknown } | undefined)
+      ?.blocking_requirements
+  )
+    ? (
+        (existingAnalysis.submission_readiness as { blocking_requirements: unknown[] })
+          .blocking_requirements
+      )
+        .map((item) => String(item ?? "").trim())
+        .filter(Boolean)
+    : [];
+
+  const checklist = checklistFollowUpRows(
+    (requirementRows ?? []).map((row) => {
+      const summary = summaries.get(String(row.id));
+      return {
+        requirement_text: String(row.requirement_text ?? ""),
+        requirement_type: String(row.requirement_type ?? ""),
+        status: String(row.status ?? ""),
+        requirement_outcome: String(row.requirement_outcome ?? ""),
+        verification_required: Boolean(row.verification_required),
+        recruiter_verified: Boolean(row.recruiter_verified),
+        recruiter_note: (row.recruiter_note as string | null) ?? null,
+        latest_verification_note: summary?.latestNote
+          ? {
+              id: summary.latestNote.id,
+              noteBody: summary.latestNote.noteBody,
+              candidateQuestion: summary.latestNote.candidateQuestion,
+              dueDate: summary.latestNote.dueDate,
+              verificationStatus: summary.latestNote.verificationStatus,
+              candidateResponse: summary.latestNote.candidateResponse,
+              createdByName: summary.latestNote.createdByName,
+              updatedByName: summary.latestNote.updatedByName,
+              createdAt: summary.latestNote.createdAt,
+              updatedAt: summary.latestNote.updatedAt,
+            }
+          : null,
+      };
+    }),
+    blockingTexts
+  );
+
+  emit(
+    "analyzing",
+    `Writing follow-up questions (${ANALYSIS_PROVIDER_LABELS[analysisProvider]})`,
+    "ANALYZING"
+  );
+  await updateApplicationMatchFields({
+    supabase,
+    tenantId,
+    jobApplicationId,
+    patch: {
+      ai_match_status: "ANALYZING",
+      ai_analysis_progress: "analyzing",
+      ai_analysis_error: null,
+    },
+  });
+
+  try {
+    const generated = await generateFollowUpQuestions(
+      { jobTitle, checklist },
+      analysisProvider
+    );
+    const merged = mergeFollowUpQuestions(existingAnalysis, generated.questions);
+    const previousVersion = await snapshotCurrentAnalysisVersion({
+      supabase,
+      tenantId,
+      applicationId: jobApplicationId,
+      analyzedBy: analyzedByUserId ?? null,
+    });
+    const analyzedAt = new Date().toISOString();
+    await updateApplicationMatchFields({
+      supabase,
+      tenantId,
+      jobApplicationId,
+      patch: {
+        ai_match_status: "ANALYZED",
+        ai_match_stage: "follow_up",
+        ai_analysis: merged,
+        ai_analyzed_at: analyzedAt,
+        ai_analyzed_by: analyzedByUserId ?? null,
+        ai_analysis_model: generated.model,
+        ai_analysis_version: previousVersion + 1,
+        ai_analysis_error: null,
+        ai_analysis_progress: "completed",
+      },
+    });
+    emit("completed", "Follow-up questions ready", "ANALYZED");
+    return {
+      status: "ANALYZED",
+      analysis: merged as unknown as MatchAnalysisResponse,
+      score: null,
+      category: null,
+      action: null,
+      readiness: null,
+      error: null,
+      repaired: generated.repaired,
+      model: generated.model,
+      requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []),
+      analyzedAt,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not write follow-up questions.";
+    await updateApplicationMatchFields({
+      supabase,
+      tenantId,
+      jobApplicationId,
+      patch: {
+        ai_match_status: "ANALYZED",
+        ai_analysis_progress: "failed",
+        ai_analysis_error: message.slice(0, 2000),
+      },
+    });
+    throw error;
+  }
+}
+
 /**
  * End-to-end match analysis for one job application.
  */
@@ -105,7 +342,7 @@ export async function runMatchAnalysisForApplication(args: {
     analyzedByUserId,
     onProgress,
   } = args;
-  const analysisMode: AnalysisMode = args.analysisMode === "deep" ? "deep" : "analyze";
+  const analysisMode = parseAnalysisMode(args.analysisMode);
   const analysisProvider = parseAnalysisProvider(args.analysisProvider);
   const providerLabel = ANALYSIS_PROVIDER_LABELS[analysisProvider];
 
@@ -116,7 +353,7 @@ export async function runMatchAnalysisForApplication(args: {
   const { data: application, error: appError } = await supabase
     .from("job_applications")
     .select(
-      "id, tenant_id, job_requisition_id, worker_id, applicant_profile_id, ai_match_status, ai_match_stage, ai_analysis"
+      "id, tenant_id, job_requisition_id, worker_id, applicant_profile_id, ai_match_status, ai_match_stage, ai_analysis, recruiter_decision"
     )
     .eq("id", jobApplicationId)
     .eq("tenant_id", tenantId)
@@ -176,6 +413,23 @@ export async function runMatchAnalysisForApplication(args: {
       model: null,
       requirementCounts: null,
     };
+  }
+
+  if (analysisMode === "follow_up") {
+    const jobTitle =
+      typeof job.public_title === "string" && job.public_title.trim()
+        ? job.public_title
+        : "Job";
+    return runFollowUpQuestionsForApplication({
+      supabase,
+      tenantId,
+      jobApplicationId,
+      analyzedByUserId,
+      analysisProvider,
+      application,
+      jobTitle,
+      onProgress,
+    });
   }
 
   emit("preparing", "Preparing résumé and job requirements", "ANALYZING");

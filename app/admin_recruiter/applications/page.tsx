@@ -109,7 +109,7 @@ import {
   type ApplicationStatusOption,
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
-import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
+import { MatchScoreCell, RequirementOutcomeCountCell, FitBandCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
 import {
   AssignRecruiterModal,
@@ -119,6 +119,7 @@ import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
+import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 import {
@@ -157,6 +158,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_match_stage?: string | null;
   ai_analyzed_at?: string | null;
   ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
@@ -1714,6 +1716,7 @@ export default function JobApplicationsPage() {
           ai_match_action: null,
           ai_match_readiness: null,
           ai_match_display_category: null,
+          ai_match_stage: null,
           ai_requirement_counts: null,
         };
       })
@@ -1758,6 +1761,7 @@ export default function JobApplicationsPage() {
                   ai_match_action: matchPayload.action ?? null,
                   ai_match_readiness: matchPayload.readiness ?? null,
                   ai_match_display_category: matchPayload.displayCategory ?? null,
+                  ai_match_stage: matchPayload.stage ?? matchPayload.ai_match_stage ?? null,
                   ai_requirement_counts: requirementCountsFromAnalyzePayload(matchPayload),
                 }
               : row
@@ -2047,6 +2051,7 @@ export default function JobApplicationsPage() {
       ai_match_readiness: result.readiness ?? row.ai_match_readiness,
       ai_match_display_category:
         result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_match_stage: result.stage ?? result.ai_match_stage ?? row.ai_match_stage,
       ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
       ai_analyzed_at:
         result.status === "ANALYZED"
@@ -2137,6 +2142,7 @@ export default function JobApplicationsPage() {
                 ai_match_display_category:
                   payload.analysis?.candidate_match?.display_category ??
                   row.ai_match_display_category,
+                ai_match_stage: payload.stage ?? payload.ai_match_stage ?? row.ai_match_stage,
                 ai_requirement_counts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
                 ai_analyzed_at:
@@ -2242,6 +2248,17 @@ export default function JobApplicationsPage() {
             score={row.ai_match_score}
             analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={(mode) => void runMatchAnalyze(row.id, mode)}
+          />
+        );
+      case "fit":
+        return (
+          <FitBandCell
+            analyzed={row.ai_match_status === "ANALYZED"}
+            band={listingDisplayFitBand({
+              analyzed: row.ai_match_status === "ANALYZED",
+              stage: row.ai_match_stage,
+              counts: row.ai_requirement_counts,
+            })}
           />
         );
       case "conf":

@@ -12,6 +12,7 @@ export {
   ANALYSIS_PROVIDER_LABELS,
   DEFAULT_ANALYSIS_PROVIDER,
   parseAnalysisProvider,
+  parseAnalysisMode,
   matchAnalysisResponseSchema,
   analyzeMatchResponseSchema,
   quickMatchResponseSchema,
@@ -48,6 +49,7 @@ export {
   canRunDeepMatch,
   canSelectMatchProgressionStep,
   matchProgressionStepRequiresDeepConfirm,
+  matchProgressionFollowUpNeedsConfirm,
   continueMatchProgressionLabel,
   matchProgressionFurthestIndex,
   matchProgressionInitialIndex,
@@ -97,6 +99,7 @@ export {
 export {
   runMatchAnalysisForApplication,
   runMatchAnalysisBulk,
+  FOLLOW_UP_BLOCKED_NOT_READY,
   type RunMatchAnalysisResult,
   type MatchAnalysisProgressEvent,
 } from "./pipeline";

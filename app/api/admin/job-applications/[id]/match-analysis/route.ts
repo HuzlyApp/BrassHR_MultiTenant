@@ -5,8 +5,10 @@ import {
   getMatchAnalysisModelName,
   MATCH_ANALYSIS_ERROR,
   MatchAnalysisGenerationError,
+  parseAnalysisMode,
   parseAnalysisProvider,
   runMatchAnalysisForApplication,
+  FOLLOW_UP_BLOCKED_NOT_READY,
 } from "@/lib/jobs/match-analysis";
 import { isDeepMatchStage, parseMatchStage } from "@/lib/jobs/match-analysis/match-stage";
 import {
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     body?.verifiedRecruiterInfo && typeof body.verifiedRecruiterInfo === "object"
       ? (body.verifiedRecruiterInfo as Record<string, unknown>)
       : null;
-  const analysisMode = body?.analysisMode === "deep" ? "deep" : "analyze";
+  const analysisMode = parseAnalysisMode(body?.analysisMode);
   const analysisProvider = parseAnalysisProvider(body?.analysisProvider);
 
   try {
@@ -134,7 +136,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if (
       result.status === "FAILED" &&
-      (result.error === DEEP_MATCH_BLOCKED_LOW_FIT || result.error === DEEP_MATCH_BLOCKED_NOT_READY)
+      (result.error === DEEP_MATCH_BLOCKED_LOW_FIT ||
+        result.error === DEEP_MATCH_BLOCKED_NOT_READY ||
+        result.error === FOLLOW_UP_BLOCKED_NOT_READY)
     ) {
       return NextResponse.json({ error: result.error, status: result.status }, { status: 409 });
     }
@@ -274,6 +278,46 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
   if (requestedIndex < currentIndex) {
     return NextResponse.json({ ok: true, stage: application.ai_match_stage });
+  }
+
+  if (requested === "follow_up") {
+    const analysisProvider = parseAnalysisProvider(
+      (body as { analysisProvider?: unknown }).analysisProvider
+    );
+    const result = await runMatchAnalysisForApplication({
+      supabase,
+      tenantId,
+      jobApplicationId: id,
+      analyzedByUserId: auth.devBypass ? null : auth.userId,
+      analysisMode: "follow_up",
+      analysisProvider,
+    });
+    if (result.status !== "ANALYZED") {
+      const status =
+        result.error === DEEP_MATCH_BLOCKED_LOW_FIT ||
+        result.error === FOLLOW_UP_BLOCKED_NOT_READY
+          ? 409
+          : 502;
+      return NextResponse.json(
+        { error: result.error || "Could not write follow-up questions.", status: result.status },
+        { status }
+      );
+    }
+    void writeActivityLog({
+      actorUserId: auth.devBypass ? null : auth.userId,
+      action: "job_application.match_progress_advanced",
+      entityType: "job_application",
+      entityId: id,
+      tenantId,
+      request: req,
+      metadata: {
+        from: application.ai_match_stage,
+        to: "follow_up",
+        analysisMode: "follow_up",
+        model: result.model,
+      },
+    });
+    return NextResponse.json({ ok: true, stage: "follow_up" });
   }
 
   const { error: updateError } = await supabase
