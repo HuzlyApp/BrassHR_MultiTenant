@@ -21,6 +21,11 @@ import {
   type AnalysisProvider,
   type MatchAnalysisResponse,
 } from "./schema";
+import {
+  deepMatchModelForProvider,
+  isBlockedStep3Model,
+  sanitizeStep3Model,
+} from "./step-config";
 
 const DEFAULT_GROK_MODEL = "grok-4-fast";
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
@@ -126,8 +131,24 @@ export function getMatchAnalysisModelName(
 
 function modelForProvider(
   provider: AnalysisProvider,
-  cfg: Record<string, unknown>
+  cfg: Record<string, unknown>,
+  analysisMode: "analyze" | "deep" = "analyze"
 ): string {
+  if (analysisMode === "deep") {
+    const deepDefault = deepMatchModelForProvider(provider);
+    const configured = typeof cfg.model === "string" ? cfg.model.trim() : "";
+    if (!configured || isBlockedStep3Model(configured)) return deepDefault;
+    const lower = configured.toLowerCase();
+    if (provider === "gemini") {
+      return lower.includes("gemini")
+        ? sanitizeStep3Model(configured, deepDefault)
+        : deepDefault;
+    }
+    return lower.includes("gemini")
+      ? deepDefault
+      : sanitizeStep3Model(configured, deepDefault);
+  }
+
   const configured = typeof cfg.model === "string" ? cfg.model.trim() : "";
   const fallback = getMatchAnalysisModelName(provider);
   if (!configured) return fallback;
@@ -369,7 +390,7 @@ export async function generateMatchAnalysis(
           { required: ["job_description", "candidate_resume"] }
         )
       : buildMatchAnalysisUserPrompt({ ...input, analysisMode: "analyze" });
-  const model = modelForProvider(selectedProvider, cfg);
+  const model = modelForProvider(selectedProvider, cfg, analysisMode);
 
   const rawText = await callProvider(selectedProvider, {
     system,
@@ -413,6 +434,13 @@ export async function generateMatchAnalysis(
           : parsed.errors;
     repaired = true;
     if (!parsed.ok || schemaErrors.length) {
+      console.error("[match-analysis] INVALID_RESPONSE after repair", {
+        analysisMode,
+        provider: selectedProvider,
+        model,
+        parseErrors: parsed.ok ? [] : parsed.errors.slice(0, 20),
+        schemaErrors: schemaErrors.slice(0, 20),
+      });
       throw new MatchAnalysisGenerationError("INVALID_RESPONSE");
     }
   }

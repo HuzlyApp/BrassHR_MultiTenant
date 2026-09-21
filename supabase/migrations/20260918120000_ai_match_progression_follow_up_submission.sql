@@ -2,6 +2,9 @@
 -- Quick Match / Deep Match still write quick|deep; recruiter Continue writes call_pack|follow_up|submission.
 
 ALTER TABLE public.job_applications
+  ADD COLUMN IF NOT EXISTS ai_match_stage text;
+
+ALTER TABLE public.job_applications
   DROP CONSTRAINT IF EXISTS job_applications_ai_match_stage_chk;
 
 ALTER TABLE public.job_applications

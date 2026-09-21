@@ -18,6 +18,9 @@ type StepTone = "current" | "completed" | "upcoming";
 
 const CHEVRON_SRC = "/icons/admin-recruiter/ai-analysis/chevron.svg";
 
+/** Wide enough for "2nd Follow-up" + "Notes / Email • no %" on one line. */
+const STEP_MIN_WIDTH_CLASS = "min-w-[13.75rem] sm:min-w-[14.5rem] lg:min-w-[15.25rem]";
+
 const STEP_ICONS: Record<
   MatchProgressionStepId,
   { src: string; frameClass: string; nested?: boolean }
@@ -84,13 +87,15 @@ function StepSubtitle({ text, tone }: { text: string; tone: StepTone }) {
   const bulletColor = tone === "upcoming" ? "text-[#94A3B8]" : color;
 
   if (parts.length < 2) {
-    return <span className={`text-xs font-normal leading-4 ${color}`}>{text}</span>;
+    return (
+      <span className={`whitespace-nowrap text-xs font-normal leading-4 ${color}`}>{text}</span>
+    );
   }
 
   return (
-    <span className={`flex items-start gap-1 whitespace-nowrap text-xs font-normal leading-4 ${color}`}>
+    <span className={`flex items-center gap-1 whitespace-nowrap text-xs font-normal leading-4 ${color}`}>
       {parts.map((part, index) => (
-        <span key={`${part}-${index}`} className="flex items-start gap-1">
+        <span key={`${part}-${index}`} className="flex items-center gap-1">
           {index > 0 ? <span className={bulletColor}>•</span> : null}
           <span>{part}</span>
         </span>
@@ -135,16 +140,16 @@ function StepButton({
   const labelColor = tone === "upcoming" ? "text-[#374151]" : "text-white";
 
   return (
-    <li className="min-w-0 flex-1">
+    <li className={`${STEP_MIN_WIDTH_CLASS} flex-1`}>
       <button
         type="button"
         disabled={!enabled}
         aria-current={tone === "current" ? "step" : undefined}
         onClick={() => onSelect(index)}
-        className={`flex h-full min-h-[86px] w-full items-center justify-center overflow-hidden rounded-lg px-3.5 py-3 text-left transition ${cardClass} ${hoverClass} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
+        className={`flex h-full min-h-[86px] w-full items-center justify-center rounded-lg px-3.5 py-3 text-left transition ${cardClass} ${hoverClass} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
       >
-        <span className="flex w-full items-start gap-3.5">
-          <span className="flex shrink-0 items-start justify-center py-1">
+        <span className="flex w-full items-center gap-3.5">
+          <span className="flex shrink-0 items-center justify-center">
             <span
               className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full p-2 ${
                 tone === "completed" ? "bg-[#001A46]" : "bg-[color:var(--brand-primary)]"
@@ -153,16 +158,18 @@ function StepButton({
               <StepGlyph stepId={step.id} />
             </span>
           </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex min-w-0 flex-col gap-1">
             <span className="flex flex-col items-start">
               <span
-                className={`font-normal ${labelColor} ${
+                className={`whitespace-nowrap font-normal ${labelColor} ${
                   step.stepNumber === 1 ? "text-xs leading-4" : "text-sm leading-5"
                 }`}
               >
                 STEP {step.stepNumber}
               </span>
-              <span className={`h-5 text-base font-semibold leading-5 ${labelColor}`}>
+              <span
+                className={`whitespace-nowrap text-base font-semibold leading-5 ${labelColor}`}
+              >
                 {step.label}
               </span>
             </span>
@@ -181,8 +188,8 @@ export function MatchProgressionStepper({
   onSelect,
 }: MatchProgressionStepperProps) {
   return (
-    <nav aria-label="AI match progression" className="w-full overflow-x-auto">
-      <ol className="flex min-w-[1080px] items-stretch">
+    <nav aria-label="AI match progression" className="w-full overflow-x-auto pb-1">
+      <ol className="flex w-full min-w-[72rem] items-stretch lg:min-w-[78rem]">
         {MATCH_PROGRESSION_STEPS.flatMap((step, index) => {
           const nodes = [
             <StepButton

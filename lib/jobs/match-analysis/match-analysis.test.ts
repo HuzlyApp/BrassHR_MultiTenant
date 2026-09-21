@@ -164,6 +164,40 @@ describe("parseAndValidateMatchAnalysis", () => {
     }
   });
 
+  it("coerces Deep Match quirks: string screening questions, bad outcome, invalid confidence", () => {
+    const deep = {
+      ...baseAnalysis({
+        mandatory_requirements: [
+          {
+            requirement: "3+ years React",
+            requirement_type: "MANDATORY",
+            status: "PARTIAL",
+            requirement_outcome: "partial",
+            candidate_evidence: "Skills list mentions React",
+            evidence_source: "RESUME",
+            impact: "",
+            verification_required: true,
+            confidence: "n/a",
+          },
+        ],
+        screening_questions: [
+          "Confirm React production experience.",
+          "Verify TypeScript usage on last project.",
+        ],
+      }),
+    };
+
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(deep));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.mandatory_requirements[0]?.requirement_outcome).toBe("VERIFY");
+      expect(parsed.data.mandatory_requirements[0]?.confidence).toBe(50);
+      expect(parsed.data.screening_questions).toHaveLength(2);
+      expect(parsed.data.screening_questions[0]?.question).toContain("React");
+      expect(parsed.data.screening_questions[0]?.priority).toBe(1);
+    }
+  });
+
   it("hydrates lean Analyze JSON into the full match-analysis shape", () => {
     const lean = {
       recommended_overall_match_score: 68,

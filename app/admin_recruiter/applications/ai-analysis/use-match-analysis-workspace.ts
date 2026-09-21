@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import type { AnalysisMode, AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+import type { AnalysisMode, AnalysisProvider, ReadinessStatus } from "@/lib/jobs/match-analysis/schema";
 import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
@@ -138,6 +138,7 @@ export type MatchAnalysisParsed = {
   strengths?: string[];
   gaps_and_risks?: string[];
   submission_readiness?: {
+    readiness_status?: ReadinessStatus;
     items_to_verify_before_submission?: string[];
     blocking_requirements?: string[];
   };

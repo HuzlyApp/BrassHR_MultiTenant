@@ -22,7 +22,6 @@ import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTyp
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
-  CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
@@ -829,23 +828,31 @@ export function AiAnalysisOverviewClient({
     unlockedIndex,
     parkedInTalentPool,
   });
-  const progressionHint = MATCH_PROGRESSION_STEPS[viewedStep]?.hint ?? "";
-  const preferredConfirmed = useMemo(() => {
-    return (data?.requirements ?? []).filter((row) => {
-      const type = String(row.requirement_type ?? "").toUpperCase();
-      return type === "PREFERRED" && qualificationDisplayStatus(row, blocking) === "Confirmed";
-    }).length;
-  }, [data?.requirements, blocking]);
+  const progressionStep = MATCH_PROGRESSION_STEPS[viewedStep] ?? null;
+  const progressionHint = progressionStep?.hint ?? "";
+  const progressionHintBody = progressionHint.replace(/^Step\s+\d+\s*·\s*[^.]*\.\s*/i, "").trim();
+  // Only used by the commented-out checklist counts under the progression hint.
+  // const preferredConfirmed = useMemo(() => {
+  //   return (data?.requirements ?? []).filter((row) => {
+  //     const type = String(row.requirement_type ?? "").toUpperCase();
+  //     return type === "PREFERRED" && qualificationDisplayStatus(row, blocking) === "Confirmed";
+  //   }).length;
+  // }, [data?.requirements, blocking]);
 
   useEffect(() => {
     if (!userPickedStep) setViewedStep(derivedProgressionIndex);
   }, [derivedProgressionIndex, userPickedStep]);
 
   useEffect(() => {
-    const sectionId = pendingProgressionScrollRef.current;
-    if (!sectionId) return;
+    if (!pendingProgressionScrollRef.current) return;
     pendingProgressionScrollRef.current = null;
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Step changes should open at the top of the overview, not mid-page section anchors.
+    const top = document.getElementById("ai-analysis-overview-top");
+    if (top) {
+      top.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [viewedStep]);
 
   function requestDeepMatchConfirm() {
@@ -865,6 +872,7 @@ export function AiAnalysisOverviewClient({
     const ok = await handleRunAnalyze("deep");
     if (!ok) return;
     setUserPickedStep(true);
+    pendingProgressionScrollRef.current = "top";
     setViewedStep(3);
   }
 
@@ -875,7 +883,7 @@ export function AiAnalysisOverviewClient({
       return;
     }
     setUserPickedStep(true);
-    pendingProgressionScrollRef.current = MATCH_PROGRESSION_STEPS[index]?.sectionId ?? null;
+    pendingProgressionScrollRef.current = "top";
     setViewedStep(index);
   }
 
@@ -1068,11 +1076,7 @@ export function AiAnalysisOverviewClient({
         <CandidatesBreadcrumb currentLabel="AI Analysis" backHref={backHref} />
       )}
 
-      <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
-        AI Analysis Overview
-      </h1>
-
-      <div className="mt-4">
+      <div className="mt-4 scroll-mt-4" id="ai-analysis-overview-top">
         <MatchProgressionStepper
           viewedIndex={viewedStep}
           unlockedIndex={unlockedIndex}
@@ -1084,6 +1088,19 @@ export function AiAnalysisOverviewClient({
       <div className="mt-6 grid min-w-0 items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_minmax(16rem,21.875rem)]">
         <div className="min-w-0 space-y-5">
           <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
+              <BrandedSvgIcon
+                src="/fluent_person-star-24-regular.svg"
+                className="h-5 w-5"
+                color={branding.primaryHex}
+              />
+              <h1
+                className="m-0 text-base font-semibold leading-6 tracking-normal sm:text-lg sm:leading-7"
+                style={{ ...CANDIDATES_PAGE_TITLE_STYLE, color: branding.secondaryHex }}
+              >
+                AI Analysis Overview
+              </h1>
+            </div>
             <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
               <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
                 <MatchRing
@@ -1266,26 +1283,25 @@ export function AiAnalysisOverviewClient({
             ) : null}
           </section>
 
-          {progressionHint ? (
-            <div
-              className={`rounded-[12px] border px-4 py-2.5 text-sm leading-5 ${
-                viewedStep >= 4
-                  ? "border-[#A7F3D0] bg-[#ECFDF3] text-[#067647]"
-                  : viewedStep >= 3
-                    ? "border-[#FEC84B] bg-[#FFFAEB] text-[#B54708]"
-                    : "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]"
-              }`}
-            >
-              {progressionHint}
-              {isAnalyzed ? (
-                <span className="mt-1 block text-xs font-medium text-[#344054]">
-                  Mandatory {outcomeCounts.mandatory} · Confirmed {outcomeCounts.confirmed} · Partial {outcomeCounts.verify} · Not met {outcomeCounts.notMet}
-                  {outcomeCounts.preferred
-                    ? ` · Preferred confirmed ${preferredConfirmed} / ${outcomeCounts.preferred}`
-                    : ""}
-                  {fitBand === "low" ? " · Low match" : fitBand === "strong" ? " · Strong" : " · Review"}
+          {progressionStep && progressionHint ? (
+            <div className="flex overflow-hidden rounded-[12px] border border-[color:var(--brand-primary)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+              <div className="w-1 shrink-0 bg-[color:var(--brand-primary)]" aria-hidden />
+              <div className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+                <span className="inline-flex w-fit shrink-0 items-center rounded-md bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+                  Step {progressionStep.stepNumber}
                 </span>
-              ) : null}
+                <div className="min-w-0">
+                  <p
+                    className="m-0 text-sm font-semibold leading-5"
+                    style={{ color: branding.secondaryHex }}
+                  >
+                    {progressionStep.label}
+                  </p>
+                  {progressionHintBody ? (
+                    <p className="m-0 mt-0.5 text-sm leading-5 text-[#667085]">{progressionHintBody}</p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -1299,7 +1315,7 @@ export function AiAnalysisOverviewClient({
               </SectionHeaderBlock>
               {latestSubmissionResume ? (
                 <div className="mt-4 flex flex-col gap-3">
-                  <div className="flex items-start gap-3 rounded-lg border border-[#A7F3D0] bg-[#F6FEF9] px-3 py-3">
+                  <div className="flex items-start gap-3 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 py-3">
                     <BrandedFileTypeIcon type="pdf" className="mt-0.5 h-7 w-7 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
@@ -1310,7 +1326,7 @@ export function AiAnalysisOverviewClient({
                         >
                           {latestSubmissionResume.fileName}
                         </button>
-                        <span className="shrink-0 rounded-md bg-[#027A48] px-2 py-0.5 text-[11px] font-semibold text-white">
+                        <span className="shrink-0 rounded-md bg-[color:var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                           Optimized
                         </span>
                       </div>
@@ -1850,7 +1866,7 @@ export function AiAnalysisOverviewClient({
                       key={resume.id}
                       className={`flex items-start gap-3 rounded-lg px-3 py-2.5 ${
                         isOptimized
-                          ? "border border-[#A7F3D0] bg-[#F6FEF9]"
+                          ? "border border-[color:var(--brand-primary)] bg-white"
                           : "border border-[#E5E7EB] bg-white"
                       }`}
                     >
@@ -1870,7 +1886,7 @@ export function AiAnalysisOverviewClient({
                             {resume.fileName}
                           </button>
                           {isOptimized ? (
-                            <span className="shrink-0 rounded-md bg-[#027A48] px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <span className="shrink-0 rounded-md bg-[color:var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                               Optimized
                             </span>
                           ) : isLatest ? (

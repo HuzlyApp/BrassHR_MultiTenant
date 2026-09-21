@@ -19,6 +19,8 @@ import {
   type AnalysisProvider,
 } from "@/lib/jobs/match-analysis/schema";
 import { deepMatchModelForProvider } from "@/lib/jobs/match-analysis/step-config";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 export type MatchAnalyzeButtonProps = {
   analyzing?: boolean;
@@ -76,9 +78,17 @@ export function DeepMatchConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const branding = useTenantBranding();
+  const brandVars = brandingToCssVars(branding) as CSSProperties;
+  const primaryColor = branding.buttonColor || branding.primaryHex;
+  const secondaryColor = branding.secondaryHex;
+
   if (!open || typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/40 p-4">
+    <div
+      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/40 p-4"
+      style={brandVars}
+    >
       <div
         role="dialog"
         aria-modal="true"
@@ -96,7 +106,8 @@ export function DeepMatchConfirmDialog({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="h-10 rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#334155]"
+            className="h-10 rounded-lg border-2 bg-white px-4 text-sm font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:opacity-60"
+            style={{ borderColor: secondaryColor, color: secondaryColor }}
           >
             Cancel
           </button>
@@ -104,7 +115,8 @@ export function DeepMatchConfirmDialog({
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className="h-10 rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white"
+            className="h-10 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+            style={{ backgroundColor: primaryColor }}
           >
             Run Deep Match
           </button>
