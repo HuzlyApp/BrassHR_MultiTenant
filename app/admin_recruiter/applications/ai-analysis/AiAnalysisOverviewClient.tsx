@@ -540,6 +540,8 @@ export function AiAnalysisOverviewClient({
     recommendedAnswers,
     updateRecommendedAnswer,
     savingAnswers,
+    decision,
+    decisionNote,
     savingDecision,
     verifiedTitle,
     setVerifiedTitle,
