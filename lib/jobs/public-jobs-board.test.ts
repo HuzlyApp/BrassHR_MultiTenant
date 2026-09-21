@@ -5,8 +5,10 @@ import {
   buildPublicJobsKeywordOrFilters,
   buildPublicJobsLocationOrFilter,
   descriptionHasSection,
+  formatPostedDateDetail,
   formatPublicJobDescriptionHtml,
   formatPublicJobPay,
+  formatPublicJobPayParts,
   formatWorkplaceType,
   hasActiveJobsBoardFilters,
   jobCardSummary,
@@ -172,7 +174,19 @@ describe("job meta formatting", () => {
         pay_rate_period: "Hourly",
         show_pay_by: "Range",
       })
-    ).toBe("$45 – $55 per hour");
+    ).toBe("$45 - $55 per hour");
+  });
+
+  it("formats Figma-style pay parts and posted detail", () => {
+    expect(
+      formatPublicJobPayParts({
+        pay_rate_min: 35,
+        pay_rate_max: 67,
+        pay_rate_period: "Hourly",
+        show_pay_by: "Range",
+      })
+    ).toEqual({ amount: "$35 - $67", unit: "/ hr" });
+    expect(formatPostedDateDetail("2026-09-02T12:00:00.000Z")).toMatch(/^Posted: September 2, 2026$/);
   });
 
   it("returns workplace type when present", () => {
