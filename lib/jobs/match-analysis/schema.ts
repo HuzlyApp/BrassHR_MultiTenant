@@ -67,7 +67,7 @@ export const PIPELINE_PROGRESS_STEPS = [
   "failed",
 ] as const;
 
-export const ANALYSIS_MODES = ["analyze", "follow_up", "deep"] as const;
+export const ANALYSIS_MODES = ["analyze", "call_pack", "follow_up", "deep"] as const;
 export const ANALYSIS_PROVIDERS = ["grok", "gemini"] as const;
 export const DEFAULT_ANALYSIS_PROVIDER = "grok" as const;
 export const QUICK_ROUTES = ["STRONG", "REVIEW", "LOW_MATCH"] as const;
@@ -95,6 +95,8 @@ export function parseAnalysisProvider(value: unknown): AnalysisProvider {
 
 export function parseAnalysisMode(value: unknown): AnalysisMode {
   if (value === "deep") return "deep";
+  if (value === "call_pack") return "call_pack";
+  /** @deprecated Prefer call_pack — screening questions now generate at Step 2. */
   if (value === "follow_up") return "follow_up";
   return "analyze";
 }

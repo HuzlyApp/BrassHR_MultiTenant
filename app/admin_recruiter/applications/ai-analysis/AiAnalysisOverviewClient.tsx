@@ -992,6 +992,10 @@ export function AiAnalysisOverviewClient({
       requestDeepMatchConfirm();
       return;
     }
+    if (index === 1 && unlockedIndex < 1) {
+      void moveToVerifications();
+      return;
+    }
     if (index === 2 && unlockedIndex < 2) {
       void moveToFollowUp();
       return;
@@ -1001,17 +1005,40 @@ export function AiAnalysisOverviewClient({
     setViewedStep(index);
   }
 
-  async function runFollowUpAnalysis() {
+  async function runVerificationsAnalysis() {
     if (!canAdvance) {
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
       return;
     }
-    const ok = await handleRunAnalyze("follow_up");
+    const ok = await handleRunAnalyze("call_pack");
     if (!ok) return;
-    setConfirmFollowUpOpen(false);
     setUserPickedStep(true);
     pendingProgressionScrollRef.current = "top";
-    setViewedStep(2);
+    setViewedStep(1);
+  }
+
+  function moveToVerifications() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    void runVerificationsAnalysis();
+  }
+
+  async function advanceToFollowUp() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    try {
+      await advanceMatchProgress("follow_up");
+      setConfirmFollowUpOpen(false);
+      setUserPickedStep(true);
+      pendingProgressionScrollRef.current = "top";
+      setViewedStep(2);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not continue to Follow-up.");
+    }
   }
 
   function moveToFollowUp() {
@@ -1023,7 +1050,7 @@ export function AiAnalysisOverviewClient({
       setConfirmFollowUpOpen(true);
       return;
     }
-    void runFollowUpAnalysis();
+    void advanceToFollowUp();
   }
 
   async function handlePrimaryProgressionAction() {
@@ -1043,6 +1070,10 @@ export function AiAnalysisOverviewClient({
     }
     if (primaryAction.kind === "deep") {
       requestDeepMatchConfirm();
+      return;
+    }
+    if (primaryAction.nextIndex === 1) {
+      moveToVerifications();
       return;
     }
     if (primaryAction.nextIndex === 2) {
@@ -1832,14 +1863,13 @@ export function AiAnalysisOverviewClient({
             </section>
           </div>
 
-          {viewedStep >= 2 ? (
-          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-follow-up">
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`}>
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <SectionTitle>Recommended Screening Questions</SectionTitle>
+                  <SectionTitle>List of screening questions</SectionTitle>
                   <p className="mt-1 text-sm text-[#667085]">
-                    {recommendedQuestions.length} targeted questions to confirm before submission.
+                    Step 2 call pack · {recommendedQuestions.length} targeted questions to confirm on the call.
                   </p>
                 </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1858,15 +1888,6 @@ export function AiAnalysisOverviewClient({
                     Copy all
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className={`${OUTLINE_BTN} h-10 gap-2 px-3`}
-                  disabled={uploadingScreening}
-                  onClick={() => screeningUploadRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4" aria-hidden />
-                  {uploadingScreening ? "Uploading…" : "Upload reply"}
-                </button>
               </div>
               </div>
             </SectionHeaderBlock>
@@ -1901,6 +1922,54 @@ export function AiAnalysisOverviewClient({
                             <span className="font-medium text-[#475467]">Related:</span> {item.relatedRequirement}
                           </p>
                         ) : null}
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm text-[#667085]">
+                  {analyzing
+                    ? "Generating screening questions…"
+                    : "No screening questions yet. Continue to Verifications to generate the call pack."}
+                </p>
+              )}
+            </div>
+          </section>
+
+          {viewedStep >= 2 ? (
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-follow-up">
+            <SectionHeaderBlock>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <SectionTitle>2nd Follow-up</SectionTitle>
+                  <p className="mt-1 text-sm text-[#667085]">
+                    Record answers from the call or email remaining questions. Upload the reply when it arrives.
+                  </p>
+                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`${OUTLINE_BTN} h-10 gap-2 px-3`}
+                  disabled={uploadingScreening}
+                  onClick={() => screeningUploadRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" aria-hidden />
+                  {uploadingScreening ? "Uploading…" : "Upload reply"}
+                </button>
+              </div>
+              </div>
+            </SectionHeaderBlock>
+
+            <div className="mt-4 space-y-4">
+              {recommendedQuestions.length ? (
+                recommendedQuestions.map((item, index) => (
+                  <article key={`follow-up-${item.key}`} className="rounded-[12px] border border-[#E5E7EB] bg-[#FCFCFD] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--brand-primary)] text-sm font-semibold text-[color:var(--brand-primary)]">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-6 text-[#101828]">{item.question}</p>
                         <label className="mt-3 block">
                           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
                             Notes
@@ -1924,7 +1993,7 @@ export function AiAnalysisOverviewClient({
                   </article>
                 ))
               ) : (
-                <p className="text-sm text-[#667085]">No recommended screening questions for this analysis.</p>
+                <p className="text-sm text-[#667085]">No remaining screening questions from Verifications.</p>
               )}
             </div>
 
@@ -2270,7 +2339,7 @@ export function AiAnalysisOverviewClient({
           if (analyzing) return;
           setConfirmFollowUpOpen(false);
         }}
-        onConfirm={() => void runFollowUpAnalysis()}
+        onConfirm={() => void advanceToFollowUp()}
       />
 
       <ResumeHistoryModal

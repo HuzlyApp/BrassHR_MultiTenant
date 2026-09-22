@@ -40,7 +40,7 @@ export {
   type MatchStage,
 } from "./match-stage";
 export { isMatchCallPackStatus } from "./call-pack-status";
-export { getMatchStepModels, MATCH_CONFIG_KEYS, deepMatchModelForProvider } from "./step-config";
+export { getMatchStepModels, getStep2QuestionRoute, MATCH_CONFIG_KEYS, deepMatchModelForProvider } from "./step-config";
 export {
   MATCH_PROGRESSION_INTRO,
   MATCH_PROGRESSION_STEPS,

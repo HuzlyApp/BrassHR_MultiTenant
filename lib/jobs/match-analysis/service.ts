@@ -33,6 +33,7 @@ import {
   deepMatchModelForProvider,
   DEFAULT_STEP1_MODEL,
   getMatchStepModels,
+  getStep2QuestionRoute,
   isBlockedStep1Model,
   isBlockedStep3Model,
   sanitizeStep1Model,
@@ -503,50 +504,72 @@ export async function generateFollowUpQuestions(
     jobTitle?: string | null;
     checklist: ChecklistFollowUpRow[];
   },
-  provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
+  _provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
 ): Promise<{
   questions: AnalysisScreeningQuestion[];
   repaired: boolean;
   model: string;
   rawObject: Record<string, unknown> | null;
 }> {
-  const selectedProvider = parseAnalysisProvider(provider);
-  const model = getMatchAnalysisModelName(selectedProvider);
+  // FS-AI-MATCH Step 2: grok-4-fast primary → gemini-2.5-flash-lite fallback.
+  // Provider toggle is ignored so volume routing stays consistent.
+  void _provider;
+  const route = getStep2QuestionRoute();
   const system = FOLLOW_UP_SYSTEM_PROMPT;
   const userPrompt = buildFollowUpQuestionsPrompt(input);
 
-  const rawText = await callProvider(selectedProvider, {
-    system,
-    user: userPrompt,
-    maxTokens: BASE_MAX_TOKENS,
-    model,
-  });
-
-  let parsed = parseFollowUpQuestions(rawText);
-  let repaired = false;
-  if (!parsed.ok) {
-    const repairedText = await callProvider(selectedProvider, {
+  async function runOnce(provider: AnalysisProvider, model: string) {
+    const rawText = await callProvider(provider, {
       system,
-      user: buildFollowUpRepairPrompt({
-        badJson: rawText,
-        validationErrors: parsed.errors,
-      }),
+      user: userPrompt,
       maxTokens: BASE_MAX_TOKENS,
       model,
     });
-    parsed = parseFollowUpQuestions(repairedText);
-    repaired = true;
-  }
-  if (!parsed.ok) {
-    throw new MatchAnalysisGenerationError("INVALID_RESPONSE");
+
+    let parsed = parseFollowUpQuestions(rawText);
+    let repaired = false;
+    if (!parsed.ok) {
+      const repairedText = await callProvider(provider, {
+        system,
+        user: buildFollowUpRepairPrompt({
+          badJson: rawText,
+          validationErrors: parsed.errors,
+        }),
+        maxTokens: BASE_MAX_TOKENS,
+        model,
+      });
+      parsed = parseFollowUpQuestions(repairedText);
+      repaired = true;
+    }
+    if (!parsed.ok) {
+      throw new MatchAnalysisGenerationError("INVALID_RESPONSE");
+    }
+    return {
+      questions: parsed.questions,
+      repaired,
+      model,
+      rawObject: parsed.rawObject,
+    };
   }
 
-  return {
-    questions: parsed.questions,
-    repaired,
-    model,
-    rawObject: parsed.rawObject,
-  };
+  try {
+    return await runOnce(route.primary.provider, route.primary.model);
+  } catch (primaryError) {
+    const sameModel =
+      route.primary.model.toLowerCase() === route.fallback.model.toLowerCase() &&
+      route.primary.provider === route.fallback.provider;
+    if (sameModel) throw primaryError;
+    const code =
+      primaryError instanceof MatchAnalysisGenerationError ? primaryError.code : "UNKNOWN";
+    if (code === "INVALID_RESPONSE" || code === "PROMPT_NOT_CONFIGURED") {
+      throw primaryError;
+    }
+    try {
+      return await runOnce(route.fallback.provider, route.fallback.model);
+    } catch {
+      throw primaryError;
+    }
+  }
 }
 
 /** @deprecated Use generateMatchAnalysis(..., "grok"). */

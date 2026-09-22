@@ -226,7 +226,7 @@ export function formatChecklistStep2Item(
   return note ? `${text} — ${note}` : text;
 }
 
-/** Step 2 (Verifications) is driven by Qualification Checklist Confirmed vs Needs Verification. */
+/** Step 2 (Verifications) checklist panels + AI screening questions (call pack). */
 export function checklistStep2Items(
   requirements: QualificationRequirement[],
   blockingTexts: string[] = []

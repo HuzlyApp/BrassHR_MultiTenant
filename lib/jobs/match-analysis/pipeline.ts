@@ -93,7 +93,9 @@ async function setProgress(
 }
 
 export const FOLLOW_UP_BLOCKED_NOT_READY =
-  "Finish Verifications before generating follow-up questions.";
+  "Run Quick Match before Verifications screening questions.";
+/** @deprecated Use FOLLOW_UP_BLOCKED_NOT_READY — same gate for Step 2 call pack. */
+export const CALL_PACK_BLOCKED_NOT_READY = FOLLOW_UP_BLOCKED_NOT_READY;
 
 async function failedAnalysis(
   error: string,
@@ -114,7 +116,7 @@ async function failedAnalysis(
   };
 }
 
-async function runFollowUpQuestionsForApplication(args: {
+async function runCallPackQuestionsForApplication(args: {
   supabase: SupabaseClient;
   tenantId: string;
   jobApplicationId: string;
@@ -145,14 +147,17 @@ async function runFollowUpQuestionsForApplication(args: {
   };
 
   if (String(application.ai_match_status ?? "").toUpperCase() !== "ANALYZED") {
-    return failedAnalysis("Run Quick Match before Follow-up questions.");
+    return failedAnalysis("Run Quick Match before Verifications screening questions.");
   }
   if (isDeepMatchStage(application.ai_match_stage)) {
-    return failedAnalysis("Follow-up questions run before Deep Match.");
+    return failedAnalysis("Screening questions run before Deep Match.");
   }
   const currentIndex = matchProgressionIndexFromStage(application.ai_match_stage);
-  if (currentIndex < 1) {
-    return failedAnalysis(FOLLOW_UP_BLOCKED_NOT_READY);
+  // Must have completed Quick Match (index 0). May re-run while still on Verifications.
+  if (currentIndex > 1) {
+    return failedAnalysis(
+      "Screening questions are generated at Verifications (Step 2), before 2nd Follow-up."
+    );
   }
 
   const { data: requirementRows, error: reqError } = await supabase
@@ -198,7 +203,7 @@ async function runFollowUpQuestionsForApplication(args: {
       ? (application.ai_analysis as Record<string, unknown>)
       : null;
   if (!existingAnalysis) {
-    return failedAnalysis("Run Quick Match before Follow-up questions.");
+    return failedAnalysis("Run Quick Match before Verifications screening questions.");
   }
   const blockingTexts = Array.isArray(
     (existingAnalysis.submission_readiness as { blocking_requirements?: unknown } | undefined)
@@ -242,11 +247,7 @@ async function runFollowUpQuestionsForApplication(args: {
     blockingTexts
   );
 
-  emit(
-    "analyzing",
-    `Writing follow-up questions (${ANALYSIS_PROVIDER_LABELS[analysisProvider]})`,
-    "ANALYZING"
-  );
+  emit("analyzing", "Writing Verifications screening questions (Grok Fast → Gemini Lite)", "ANALYZING");
   await updateApplicationMatchFields({
     supabase,
     tenantId,
@@ -277,7 +278,7 @@ async function runFollowUpQuestionsForApplication(args: {
       jobApplicationId,
       patch: {
         ai_match_status: "ANALYZED",
-        ai_match_stage: "follow_up",
+        ai_match_stage: "call_pack",
         ai_analysis: merged,
         ai_analyzed_at: analyzedAt,
         ai_analyzed_by: analyzedByUserId ?? null,
@@ -287,7 +288,7 @@ async function runFollowUpQuestionsForApplication(args: {
         ai_analysis_progress: "completed",
       },
     });
-    emit("completed", "Follow-up questions ready", "ANALYZED");
+    emit("completed", "Verifications screening questions ready", "ANALYZED");
     return {
       status: "ANALYZED",
       analysis: merged as unknown as MatchAnalysisResponse,
@@ -303,7 +304,7 @@ async function runFollowUpQuestionsForApplication(args: {
     };
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Could not write follow-up questions.";
+      error instanceof Error ? error.message : "Could not write Verifications screening questions.";
     await updateApplicationMatchFields({
       supabase,
       tenantId,
@@ -416,12 +417,12 @@ export async function runMatchAnalysisForApplication(args: {
     };
   }
 
-  if (analysisMode === "follow_up") {
+  if (analysisMode === "call_pack" || analysisMode === "follow_up") {
     const jobTitle =
       typeof job.public_title === "string" && job.public_title.trim()
         ? job.public_title
         : "Job";
-    return runFollowUpQuestionsForApplication({
+    return runCallPackQuestionsForApplication({
       supabase,
       tenantId,
       jobApplicationId,

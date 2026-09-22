@@ -26,7 +26,7 @@ export const MATCH_PROGRESSION_STEPS = [
     stepNumber: 2,
     label: "Verifications",
     subtitle: "Call pack · no %",
-    hint: "Step 2 · Verifications unlocked. Strengths, gaps, and call questions added. Still no %.",
+    hint: "Step 2 · Verifications unlocked. Documented strengths, verification needed, and screening questions (AI). Still no %.",
     sectionId: "match-step-verifications",
   },
   {
@@ -35,7 +35,7 @@ export const MATCH_PROGRESSION_STEPS = [
     stepNumber: 3,
     label: "2nd Follow-up",
     subtitle: "Notes / Email · no %",
-    hint: "Step 3 · 2nd follow-up. Screening questions are generated from the Qualification Checklist and recruiter notes. Apply notes or upload the email. Still no %.",
+    hint: "Step 3 · 2nd follow-up. Use remaining questions from Verifications, record notes, or upload the email reply. Still no %.",
     sectionId: "match-step-follow-up",
   },
   {

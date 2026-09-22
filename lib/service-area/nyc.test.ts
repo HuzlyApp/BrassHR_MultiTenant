@@ -34,8 +34,9 @@ describe("unverifiable cities", () => {
     expect(isUnverifiableWorkCity({ city: "asdf", state: "TX" })).toBe(true);
   });
 
-  it("rejects unlisted but plausible cities in allowed states", () => {
-    expect(isUnverifiableWorkCity({ city: "NotARealCity", state: "TX" })).toBe(true);
+  it("accepts unlisted but plausible cities in allowed states", () => {
+    expect(isUnverifiableWorkCity({ city: "Spicewood", state: "TX" })).toBe(false);
+    expect(isUnverifiableWorkCity({ city: "NotARealCity", state: "TX" })).toBe(false);
   });
 
   it("does not treat CA garbage as unknown because the state is held", () => {

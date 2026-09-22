@@ -27,10 +27,12 @@ function req(overrides: Partial<QualificationRequirement>): QualificationRequire
 }
 
 describe("follow-up screening questions", () => {
-  it("parses follow_up as its own analysis mode", () => {
+  it("parses call_pack as Step 2 Verifications screening-question mode", () => {
+    expect(parseAnalysisMode("call_pack")).toBe("call_pack");
     expect(parseAnalysisMode("follow_up")).toBe("follow_up");
     expect(parseAnalysisMode("deep")).toBe("deep");
     expect(parseAnalysisMode("analyze")).toBe("analyze");
+    expect(systemPromptForMode("call_pack")).toBe(FOLLOW_UP_SYSTEM_PROMPT);
     expect(systemPromptForMode("follow_up")).toBe(FOLLOW_UP_SYSTEM_PROMPT);
   });
 
@@ -69,6 +71,7 @@ describe("follow-up screening questions", () => {
     expect(prompt).toContain("Ask for card photo");
     expect(prompt).toContain("Can you send your BLS card?");
     expect(prompt).toContain("QUALIFICATION CHECKLIST");
+    expect(prompt).toContain("Step 2 Verifications");
   });
 
   it("parses screening questions and merges them into the existing analysis", () => {

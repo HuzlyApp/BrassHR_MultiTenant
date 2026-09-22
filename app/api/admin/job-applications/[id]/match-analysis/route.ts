@@ -280,7 +280,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: true, stage: application.ai_match_stage });
   }
 
-  if (requested === "follow_up") {
+  if (requested === "call_pack") {
     const analysisProvider = parseAnalysisProvider(
       (body as { analysisProvider?: unknown }).analysisProvider
     );
@@ -289,7 +289,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       tenantId,
       jobApplicationId: id,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
-      analysisMode: "follow_up",
+      analysisMode: "call_pack",
       analysisProvider,
     });
     if (result.status !== "ANALYZED") {
@@ -299,7 +299,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           ? 409
           : 502;
       return NextResponse.json(
-        { error: result.error || "Could not write follow-up questions.", status: result.status },
+        {
+          error: result.error || "Could not write Verifications screening questions.",
+          status: result.status,
+        },
         { status }
       );
     }
@@ -312,12 +315,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       request: req,
       metadata: {
         from: application.ai_match_stage,
-        to: "follow_up",
-        analysisMode: "follow_up",
+        to: "call_pack",
+        analysisMode: "call_pack",
         model: result.model,
       },
     });
-    return NextResponse.json({ ok: true, stage: "follow_up" });
+    return NextResponse.json({ ok: true, stage: "call_pack", model: result.model });
   }
 
   const { error: updateError } = await supabase

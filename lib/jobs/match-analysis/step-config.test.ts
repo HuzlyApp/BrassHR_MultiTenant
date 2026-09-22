@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_STEP1_MODEL,
+  DEFAULT_STEP2_FALLBACK_MODEL,
+  DEFAULT_STEP2_MODEL,
   DEFAULT_STEP3_GROK_MODEL,
   DEFAULT_STEP3_MODEL,
   MATCH_CONFIG_KEYS,
   deepMatchModelForProvider,
   getMatchStepModels,
+  getStep2QuestionRoute,
   isBlockedStep1Model,
   isBlockedStep3Model,
   matchConfigEnvName,
@@ -18,6 +21,7 @@ const ENV_KEYS = [
   "AI_MATCH_STEP1_CLASSIFY_MODEL",
   "AI_MATCH_STEP2_QUESTION_MODEL",
   "AI_MATCH_STEP2_VISION_MODEL",
+  "AI_MATCH_STEP2_FALLBACK_MODEL",
   "AI_MATCH_STEP3_DEEP_MODEL",
   "AI_MATCH_STEP3_REQUIRE_RECRUITER_CONFIRM",
 ] as const;
@@ -34,14 +38,23 @@ describe("match step config", () => {
     );
   });
 
-  it("defaults Step 1 to Flash-Lite and Step 3 to gemini-3.1-pro-preview", () => {
+  it("defaults Step 1–2 to grok-4-fast with Gemini Flash-Lite fallback", () => {
     const models = getMatchStepModels();
     expect(models.step1Classify).toBe(DEFAULT_STEP1_MODEL);
     expect(models.step1Extract).toBe(DEFAULT_STEP1_MODEL);
-    expect(models.step2Question).toBe(DEFAULT_STEP1_MODEL);
+    expect(models.step2Question).toBe(DEFAULT_STEP2_MODEL);
+    expect(models.step2Fallback).toBe(DEFAULT_STEP2_FALLBACK_MODEL);
+    expect(models.step2Question).toBe("grok-4-fast");
+    expect(models.step2Fallback).toBe("gemini-2.5-flash-lite");
     expect(models.step3Deep).toBe(DEFAULT_STEP3_MODEL);
     expect(models.step3Deep).toBe("gemini-3.1-pro-preview");
     expect(models.requireRecruiterConfirm).toBe(true);
+  });
+
+  it("routes Step 2 questions to grok-4-fast with gemini-2.5-flash-lite fallback", () => {
+    const route = getStep2QuestionRoute();
+    expect(route.primary).toEqual({ provider: "grok", model: "grok-4-fast" });
+    expect(route.fallback).toEqual({ provider: "gemini", model: "gemini-2.5-flash-lite" });
   });
 
   it("rejects flagship models on Step 1 and cheap models on Step 3", () => {

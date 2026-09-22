@@ -384,8 +384,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           ? "Needs résumé text before analysis"
           : mode === "deep"
             ? "Deep Match complete"
-            : mode === "follow_up"
-              ? "Follow-up questions ready"
+            : mode === "call_pack" || mode === "follow_up"
+              ? "Verifications screening questions ready"
               : "Quick Match complete"
       );
       await Promise.all([load(), loadResumes()]);
@@ -767,14 +767,20 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
-  async function advanceMatchProgress(progressStage: "call_pack" | "follow_up" | "submission") {
+  async function advanceMatchProgress(
+    progressStage: "call_pack" | "follow_up" | "submission",
+    opts?: { analysisProvider?: AnalysisProvider }
+  ) {
     const res = await fetch(
       `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
       {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressStage }),
+        body: JSON.stringify({
+          progressStage,
+          ...(opts?.analysisProvider ? { analysisProvider: opts.analysisProvider } : {}),
+        }),
       }
     );
     const json = (await res.json().catch(() => ({}))) as { error?: string; stage?: string };

@@ -440,7 +440,7 @@ mand_met, pref_met, weighted are 0–1 decimals. The app recomputes quick_route 
 
 export function systemPromptForMode(mode: AnalysisMode): string {
   if (mode === "deep") return DEEP_ANALYSIS_SYSTEM_PROMPT;
-  if (mode === "follow_up") return FOLLOW_UP_SYSTEM_PROMPT;
+  if (mode === "call_pack" || mode === "follow_up") return FOLLOW_UP_SYSTEM_PROMPT;
   return ANALYZE_SYSTEM_PROMPT;
 }
 
