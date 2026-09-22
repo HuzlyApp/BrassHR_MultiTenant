@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -20,13 +20,12 @@ import {
 import {
   benefitItems,
   descriptionHasSection,
-  formatJobLocationLine,
-  formatPostedDate,
+  formatJobPlaceLine,
+  formatPostedDateDetail,
   formatPublicJobDescriptionHtml,
-  formatPublicJobPay,
+  formatPublicJobPayParts,
   formatWorkplaceType,
   publicBoardJobTitle,
-  relationName,
   selectedJobApplyHref,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
@@ -51,7 +50,7 @@ const VIEW_BUTTON_CLASS =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2";
 
 const applyClassName =
-  "inline-flex h-9 min-w-[8.75rem] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none";
+  "inline-flex h-9 min-w-[7.25rem] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-[color:var(--brand-primary)] px-3.5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 motion-reduce:transition-none";
 
 const BRAND_ICON_COLOR = "var(--brand-primary)";
 const BRAND_ICON_CLASS = "h-4 w-4";
@@ -275,12 +274,12 @@ export function JobDetailPanel({
   }
 
   const title = publicBoardJobTitle(job);
-  const profession = relationName(job.professions);
-  const specialty = relationName(job.specialties);
   const workplace = formatWorkplaceType(job.location_type);
-  const locationLine = formatJobLocationLine(job.location, job.location_type);
-  const pay = formatPublicJobPay(job);
-  const posted = formatPostedDate(job.published_at, job.updated_at);
+  const placeLine =
+    formatJobPlaceLine(job.location) ||
+    (workplace && /^remote$/i.test(workplace) ? "Remote" : "");
+  const payParts = formatPublicJobPayParts(job);
+  const postedDetail = formatPostedDateDetail(job.published_at, job.updated_at);
   const applyHref = selectedJobApplyHref(tenantSlug, job);
   const jobToken = String(job.public_job_token ?? "").trim();
   const shareHref = jobToken ? buildPublicJobSharePath(tenantSlug, jobToken) ?? "" : "";
@@ -295,7 +294,26 @@ export function JobDetailPanel({
   const showQualifications =
     Boolean(job.qualifications?.trim()) && !descriptionHasSection(descriptionHtml, "Qualifications");
   const showBenefits = benefits.length > 0 && !descriptionHasSection(descriptionHtml, "Benefits");
-  const facts = [job.employment_type, workplace, profession, specialty].filter(Boolean);
+  const typeBits = [workplace, job.employment_type?.trim()].filter(Boolean) as string[];
+  const metaSegments: ReactNode[] = [];
+  if (typeBits.length) {
+    metaSegments.push(
+      <span key="type" className="font-semibold text-[#1D2739]">
+        {typeBits.join(" • ")}
+      </span>
+    );
+  }
+  if (payParts) {
+    metaSegments.push(
+      <span key="pay">
+        Pay Rate: <span className="font-semibold text-[#1D2739]">{payParts.amount}</span>
+        {payParts.unit ? ` ${payParts.unit}` : ""}
+      </span>
+    );
+  }
+  if (postedDetail) {
+    metaSegments.push(<span key="posted">{postedDetail}</span>);
+  }
 
   return (
     <article
@@ -316,7 +334,7 @@ export function JobDetailPanel({
             ← Back to jobs
           </button>
         ) : null}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className={JOB_POSTING_COMPANY_CLASS}>{companyName}</p>
             <h2
@@ -325,23 +343,33 @@ export function JobDetailPanel({
             >
               {title}
             </h2>
-            <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
-            {facts.length ? (
-              <p className={`mt-1 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p>
+            {placeLine ? (
+              <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{placeLine}</p>
             ) : null}
-            <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 ${JOB_POSTING_METADATA_CLASS}`}>
-              {pay ? <span>{pay}</span> : null}
-              {posted ? <span>{posted}</span> : null}
-            </div>
+            {metaSegments.length ? (
+              <p
+                data-testid="jobs-detail-meta-row"
+                className={`mt-1.5 flex flex-wrap items-center ${JOB_POSTING_METADATA_CLASS}`}
+              >
+                {metaSegments.map((segment, index) => (
+                  <span key={index} className="inline-flex items-center">
+                    {index > 0 ? <span className="mx-2 text-[#94A3B8]" aria-hidden>|</span> : null}
+                    {segment}
+                  </span>
+                ))}
+              </p>
+            ) : null}
           </div>
           {!stacked && jobToken ? (
-            <JobDetailActions
-              jobToken={jobToken}
-              tenantSlug={tenantSlug}
-              applyHref={applyHref}
-              shareHref={shareHref}
-              title={title}
-            />
+            <div className="flex shrink-0 items-center self-center">
+              <JobDetailActions
+                jobToken={jobToken}
+                tenantSlug={tenantSlug}
+                applyHref={applyHref}
+                shareHref={shareHref}
+                title={title}
+              />
+            </div>
           ) : null}
         </div>
       </header>

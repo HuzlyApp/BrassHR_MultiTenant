@@ -9,6 +9,7 @@ import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
 import { formatCityState } from "@/lib/location/city-state";
 
 export const PUBLIC_JOBS_PAGE_SIZE = 10;
+/** Split list+detail from laptop width up; tablet/mobile use stacked list → detail. */
 export const PUBLIC_JOBS_DESKTOP_MIN_WIDTH = 1024;
 export const JOBS_BOARD_INPUT_DEBOUNCE_MS = 300;
 export const JOB_LOCATION_TYPES = ["Remote", "Hybrid", "On-site", "Remote, Hybrid"] as const;
@@ -196,7 +197,10 @@ export type JobsBoardActiveChip = {
 };
 
 export function jobsBoardActiveChips(
-  state: Pick<JobsBoardUrlState, "professionId" | "specialtyId" | "employmentType" | "locationType">,
+  state: Pick<
+    JobsBoardUrlState,
+    "professionId" | "specialtyId" | "employmentType" | "locationType"
+  >,
   labels: { profession?: string; specialty?: string }
 ): JobsBoardActiveChip[] {
   const chips: JobsBoardActiveChip[] = [];
@@ -207,27 +211,205 @@ export function jobsBoardActiveChips(
   return chips;
 }
 
+/** Strip characters that break PostgREST `or` / `ilike` filter fragments. */
+export function sanitizePublicJobsSearchTerm(raw: string): string {
+  return raw
+    .replace(/[%_]/g, " ")
+    .replace(/,/g, " ")
+    .replace(/"/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function publicJobsIlikePattern(term: string): string {
+  const cleaned = sanitizePublicJobsSearchTerm(term);
+  return `"%${cleaned}%"`;
+}
+
+const PUBLIC_JOBS_KEYWORD_COLUMNS = [
+  "public_title",
+  "source_job_title",
+  "public_description",
+  "location",
+  "location_type",
+  "schedule",
+  "employment_type",
+] as const;
+
+const MAX_PUBLIC_JOBS_QUERY_TAGS = 16;
+
+/** Parse comma-separated keyword tags from the jobs board `q` param (same rules as skills chips). */
+export function parsePublicJobsQueryTags(query: string | null | undefined): string[] {
+  if (!query?.trim()) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of query.split(",")) {
+    const tag = part.trim();
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+    if (out.length >= MAX_PUBLIC_JOBS_QUERY_TAGS) break;
+  }
+  return out;
+}
+
+export function serializePublicJobsQueryTags(tags: string[]): string {
+  return parsePublicJobsQueryTags(tags.join(",")).join(",");
+}
+
+/** One PostgREST `or(...)` filter per keyword tag/phrase (AND across tags). */
+export function buildPublicJobsKeywordOrFilters(query: string): string[] {
+  const tags = parsePublicJobsQueryTags(query);
+  return tags
+    .map((tag) => {
+      const cleaned = sanitizePublicJobsSearchTerm(tag);
+      if (!cleaned) return "";
+      const pattern = publicJobsIlikePattern(cleaned);
+      return PUBLIC_JOBS_KEYWORD_COLUMNS.map((column) => `${column}.ilike.${pattern}`).join(",");
+    })
+    .filter(Boolean);
+}
+
+export function matchWorkplaceTypeFromLocationSearch(raw: string): JobLocationType | null {
+  const normalized = sanitizePublicJobsSearchTerm(raw).toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "onsite" || normalized === "on site") return "On-site";
+  for (const type of JOB_LOCATION_TYPES) {
+    if (type.toLowerCase() === normalized) return type;
+  }
+  return null;
+}
+
+/**
+ * Workplace filter matching (advanced dropdown + typing "remote" in location).
+ * Includes jobs with empty location_type that still say Remote/Hybrid/On-site in location text.
+ */
+export function buildPublicJobsWorkplaceTypeOrFilter(locationType: string): string | null {
+  const cleaned = locationType.trim();
+  if (!cleaned) return null;
+  const quoted = `"${cleaned.replace(/"/g, '\\"')}"`;
+  // Keep commas (e.g. "Remote, Hybrid") — only strip PostgREST wildcards / quotes.
+  const ilikeValue = cleaned.replace(/[%_]/g, " ").replace(/"/g, " ").replace(/\s+/g, " ").trim();
+  const pattern = `"%${ilikeValue}%"`;
+  return [
+    `location_type.eq.${quoted}`,
+    `and(location_type.is.null,schedule.eq.${quoted})`,
+    `and(location_type.eq."",schedule.eq.${quoted})`,
+    `and(location_type.is.null,location.ilike.${pattern})`,
+    `and(location_type.eq."",location.ilike.${pattern})`,
+  ].join(",");
+}
+
+/** Location box: city/state text, or exact workplace words like "remote". */
+export function buildPublicJobsLocationOrFilter(location: string): string | null {
+  const cleaned = sanitizePublicJobsSearchTerm(location);
+  if (!cleaned) return null;
+  const workplace = matchWorkplaceTypeFromLocationSearch(location);
+  if (workplace) return buildPublicJobsWorkplaceTypeOrFilter(workplace);
+  const pattern = publicJobsIlikePattern(cleaned);
+  return [
+    `location.ilike.${pattern}`,
+    `location_type.ilike.${pattern}`,
+    `schedule.ilike.${pattern}`,
+  ].join(",");
+}
+
+export function jobActivityTimestamp(job: Pick<PublicBoardJob, "published_at" | "updated_at">): number {
+  const published = Date.parse(String(job.published_at ?? "")) || 0;
+  const updated = Date.parse(String(job.updated_at ?? "")) || 0;
+  return Math.max(published, updated);
+}
+
+function tokenizeSearchTerms(...parts: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const part of parts) {
+    for (const raw of String(part ?? "")
+      .toLowerCase()
+      .split(/[^a-z0-9+#.]+/i)) {
+      const token = raw.trim();
+      if (token.length < 2 || seen.has(token)) continue;
+      seen.add(token);
+      tokens.push(token);
+    }
+  }
+  return tokens;
+}
+
+/** Higher = more relevant for "Most relevant" sort. */
+export function jobRelevanceScore(
+  job: PublicBoardJob,
+  query: string,
+  locationQuery = ""
+): number {
+  const title = publicBoardJobTitle(job).toLowerCase();
+  const sourceTitle = String(job.source_job_title ?? "").toLowerCase();
+  const location = String(job.location ?? "").toLowerCase();
+  const workplace = String(job.location_type ?? job.schedule ?? "").toLowerCase();
+  const description = String(job.public_description ?? "").toLowerCase();
+  const term = query.trim().toLowerCase();
+  const locationTerm = locationQuery.trim().toLowerCase();
+  let score = 0;
+
+  if (term) {
+    if (title === term || sourceTitle === term) score += 80;
+    else if (title.startsWith(term) || sourceTitle.startsWith(term)) score += 60;
+    else if (title.includes(term) || sourceTitle.includes(term)) score += 45;
+
+    for (const token of tokenizeSearchTerms(term)) {
+      if (title.includes(token) || sourceTitle.includes(token)) score += 14;
+      else if (location.includes(token) || workplace.includes(token)) score += 8;
+      else if (description.includes(token)) score += 4;
+    }
+  }
+
+  if (locationTerm) {
+    if (location.includes(locationTerm) || workplace.includes(locationTerm)) score += 28;
+    for (const token of tokenizeSearchTerms(locationTerm)) {
+      if (location.includes(token) || workplace.includes(token)) score += 10;
+      else if (title.includes(token) || description.includes(token)) score += 3;
+    }
+  }
+
+  // Without keywords, still rank "better" postings above sparse ones so Relevant ≠ Recent.
+  if (job.workflow_id) score += 10;
+  if (job.pay_rate_min != null || job.pay_rate_max != null || job.pay_rate != null) score += 6;
+  if (description.length > 280) score += 5;
+  else if (description.length > 80) score += 2;
+  if (job.location_type?.trim()) score += 4;
+  if (job.employment_type?.trim()) score += 2;
+  if (title.length >= 12) score += 2;
+
+  return score;
+}
+
 export function sortPublicBoardJobs(
   jobs: PublicBoardJob[],
   sort: JobsBoardSort,
-  query: string
+  query: string,
+  locationQuery = ""
 ): PublicBoardJob[] {
-  if (sort !== "relevant" || !query.trim()) return jobs;
-  const term = query.trim().toLowerCase();
-  const score = (job: PublicBoardJob) => {
-    const title = publicBoardJobTitle(job).toLowerCase();
-    const location = String(job.location ?? "").toLowerCase();
-    if (title.startsWith(term)) return 3;
-    if (title.includes(term)) return 2;
-    if (location.includes(term)) return 1;
-    return 0;
-  };
-  return [...jobs].sort((a, b) => score(b) - score(a));
+  const byActivityDesc = (a: PublicBoardJob, b: PublicBoardJob) =>
+    jobActivityTimestamp(b) - jobActivityTimestamp(a);
+
+  if (sort !== "relevant") {
+    return [...jobs].sort(byActivityDesc);
+  }
+
+  return [...jobs].sort((a, b) => {
+    const scoreDiff =
+      jobRelevanceScore(b, query, locationQuery) - jobRelevanceScore(a, query, locationQuery);
+    if (scoreDiff !== 0) return scoreDiff;
+    return byActivityDesc(a, b);
+  });
 }
 
 export function resolveSelectedJobToken(
   jobs: Array<Pick<PublicBoardJob, "public_job_token">>,
-  requestedToken: string | null | undefined
+  requestedToken: string | null | undefined,
+  options?: { fallbackToFirst?: boolean }
 ): string | null {
   const tokens = jobs
     .map((job) => normalizeJobToken(job.public_job_token))
@@ -235,6 +417,7 @@ export function resolveSelectedJobToken(
   if (!tokens.length) return null;
   const requested = normalizeJobToken(requestedToken);
   if (requested && tokens.includes(requested)) return requested;
+  if (options?.fallbackToFirst === false) return null;
   return tokens[0] ?? null;
 }
 
@@ -284,20 +467,33 @@ export function formatPublicJobPay(job: Pick<
   PublicBoardJob,
   "pay_rate_min" | "pay_rate_max" | "pay_rate" | "pay_rate_period" | "rate_unit" | "compensation_type" | "show_pay_by"
 >): string | null {
+  const parts = formatPublicJobPayParts(job);
+  if (!parts) return null;
+  const period = formatPayPeriodLabel(job.pay_rate_period || job.rate_unit || job.compensation_type);
+  return period ? `${parts.amount} ${period}` : parts.amount;
+}
+
+/** Figma detail row: amount + short unit (e.g. amount "$35 - $67", unit "/ hr"). */
+export function formatPublicJobPayParts(job: Pick<
+  PublicBoardJob,
+  "pay_rate_min" | "pay_rate_max" | "pay_rate" | "pay_rate_period" | "rate_unit" | "compensation_type" | "show_pay_by"
+>): { amount: string; unit: string } | null {
   const min = toFiniteNumber(job.pay_rate_min);
   const max = toFiniteNumber(job.pay_rate_max);
   const suggested = toFiniteNumber(job.pay_rate);
   if (min == null && max == null && suggested == null) return null;
-  const period = formatPayPeriodLabel(job.pay_rate_period || job.rate_unit || job.compensation_type);
   const showPayBy = String(job.show_pay_by ?? "").trim().toLowerCase();
   const isRange = showPayBy.includes("range") || (min != null && max != null && min !== max);
+  let amount: string;
   if (isRange && min != null && max != null && min !== max) {
-    return period ? `$${formatMoney(min)} – $${formatMoney(max)} ${period}` : `$${formatMoney(min)} – $${formatMoney(max)}`;
+    amount = `$${formatMoney(min)} - $${formatMoney(max)}`;
+  } else {
+    const value = min ?? max ?? suggested;
+    if (value == null) return null;
+    const prefix = showPayBy.includes("starting") ? "From " : "";
+    amount = `${prefix}$${formatMoney(value)}`;
   }
-  const amount = min ?? max ?? suggested;
-  if (amount == null) return null;
-  const prefix = showPayBy.includes("starting") ? "From " : "";
-  return period ? `${prefix}$${formatMoney(amount)} ${period}` : `${prefix}$${formatMoney(amount)}`;
+  return { amount, unit: formatPayUnitShort(job.pay_rate_period || job.rate_unit || job.compensation_type) };
 }
 
 export function formatWorkplaceType(locationType: string | null | undefined): string | null {
@@ -305,12 +501,19 @@ export function formatWorkplaceType(locationType: string | null | undefined): st
   return value || null;
 }
 
+/** Place-only line for detail header (workplace goes in the meta row). */
+export function formatJobPlaceLine(location: string | null | undefined): string {
+  const raw = location?.trim() || "";
+  if (!raw) return "";
+  return formatCityState(raw) || raw;
+}
+
 export function formatJobLocationLine(
   location: string | null | undefined,
   locationType: string | null | undefined
 ): string {
   const workplace = formatWorkplaceType(locationType);
-  const place = formatCityState(location) || location?.trim() || "";
+  const place = formatJobPlaceLine(location);
   if (workplace && /^remote$/i.test(workplace) && !place) return "Remote";
   if (workplace && place && !place.toLowerCase().includes(workplace.toLowerCase())) {
     return `${place} · ${workplace}`;
@@ -319,17 +522,21 @@ export function formatJobLocationLine(
 }
 
 export function formatPostedDate(iso: string | null | undefined, updatedIso?: string | null): string | null {
-  const published = parseDate(iso);
-  const updated = parseDate(updatedIso);
-  const shown = updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
-    ? updated
-    : published ?? updated;
-  if (!shown) return null;
-  const label = updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
-    ? "Updated"
-    : "Posted";
-  return `${label} ${shown.toLocaleDateString(undefined, {
+  const resolved = resolvePostedDate(iso, updatedIso);
+  if (!resolved) return null;
+  return `${resolved.label} ${resolved.date.toLocaleDateString(undefined, {
     month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+}
+
+/** Figma detail: "Posted: September 2, 2026" */
+export function formatPostedDateDetail(iso: string | null | undefined, updatedIso?: string | null): string | null {
+  const resolved = resolvePostedDate(iso, updatedIso);
+  if (!resolved) return null;
+  return `${resolved.label}: ${resolved.date.toLocaleDateString("en-US", {
+    month: "long",
     day: "numeric",
     year: "numeric",
   })}`;
@@ -396,6 +603,35 @@ function formatPayPeriodLabel(period: string | null | undefined): string {
   if (raw.includes("month")) return "per month";
   if (raw.includes("year") || raw.includes("annual")) return "per year";
   return String(period ?? "").trim();
+}
+
+function formatPayUnitShort(period: string | null | undefined): string {
+  const raw = String(period ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw.includes("hour")) return "/ hr";
+  if (raw.includes("week")) return "/ wk";
+  if (raw.includes("month")) return "/ mo";
+  if (raw.includes("year") || raw.includes("annual")) return "/ yr";
+  if (raw.includes("day")) return "/ day";
+  return "";
+}
+
+function resolvePostedDate(
+  iso: string | null | undefined,
+  updatedIso?: string | null
+): { label: "Posted" | "Updated"; date: Date } | null {
+  const published = parseDate(iso);
+  const updated = parseDate(updatedIso);
+  const shown =
+    updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
+      ? updated
+      : published ?? updated;
+  if (!shown) return null;
+  const label =
+    updated && published && updated.getTime() - published.getTime() > 36 * 60 * 60 * 1000
+      ? "Updated"
+      : "Posted";
+  return { label, date: shown };
 }
 
 function parseDate(iso: string | null | undefined): Date | null {

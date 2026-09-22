@@ -13,11 +13,12 @@ import {
   buildJobsBoardHref,
   buildPublicJobsApiSearchParams,
   hasActiveJobsBoardFilters,
-  JOBS_BOARD_INPUT_DEBOUNCE_MS,
   parseJobsBoardSearchParams,
+  parsePublicJobsQueryTags,
   PUBLIC_JOBS_DESKTOP_MIN_WIDTH,
   PUBLIC_JOBS_PAGE_SIZE,
   resolveSelectedJobToken,
+  serializePublicJobsQueryTags,
   sortPublicBoardJobs,
   type JobsBoardActiveChip,
   type JobsBoardUrlState,
@@ -27,6 +28,15 @@ import { isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
 type Option = { id: string; name: string; profession_id?: string };
+
+/** Fold legacy `location=` into advanced-search tags so one chip bar covers city/state too. */
+function mergePublicJobsSearchTags(q: string, location: string): string[] {
+  const tags = parsePublicJobsQueryTags(q);
+  const loc = location.trim();
+  if (!loc) return tags;
+  if (tags.some((tag) => tag.toLowerCase() === loc.toLowerCase())) return tags;
+  return parsePublicJobsQueryTags(serializePublicJobsQueryTags([...tags, loc]));
+}
 
 function resolveJobsBoardTenantSlug(
   search: string,
@@ -88,8 +98,9 @@ export default function JobsPortalClient() {
   const [professions, setProfessions] = useState<Option[]>([]);
   const [specialties, setSpecialties] = useState<Option[]>([]);
   const [tenantName, setTenantName] = useState("");
-  const [queryDraft, setQueryDraft] = useState(boardState.q);
-  const [locationDraft, setLocationDraft] = useState(boardState.location);
+  const [queryTags, setQueryTags] = useState(() =>
+    mergePublicJobsSearchTags(boardState.q, boardState.location)
+  );
   const [selectedToken, setSelectedToken] = useState<string | null>(boardState.job);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(boardState.panel === "detail");
   const [total, setTotal] = useState(0);
@@ -111,8 +122,7 @@ export default function JobsPortalClient() {
   }, [branding.slug, searchParams]);
 
   useEffect(() => {
-    setQueryDraft(boardState.q);
-    setLocationDraft(boardState.location);
+    setQueryTags(mergePublicJobsSearchTags(boardState.q, boardState.location));
   }, [boardState.q, boardState.location]);
 
   const boardStateRef = useRef(boardState);
@@ -178,23 +188,6 @@ export default function JobsPortalClient() {
   }, [replaceBoardUrl]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const current = boardStateRef.current;
-      if (queryDraft.trim() === current.q && locationDraft.trim() === current.location) return;
-      replaceBoardUrlRef.current({
-        q: queryDraft,
-        location: locationDraft,
-        page: 1,
-        professionId: current.professionId,
-        specialtyId: current.specialtyId,
-        employmentType: current.employmentType,
-        locationType: current.locationType,
-      });
-    }, JOBS_BOARD_INPUT_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [boardState.location, boardState.q, locationDraft, queryDraft]);
-
-  useEffect(() => {
     if (!tenantReady) return;
     if (!tenant) {
       setError("Open this page from your employer's tenant job portal.");
@@ -254,16 +247,35 @@ export default function JobsPortalClient() {
       boardState.job && jobs.some((job) => job.public_job_token === boardState.job)
         ? boardState.job
         : null;
-    const preferred = urlJobInResults ?? selectedTokenRef.current;
-    const resolved = resolveSelectedJobToken(jobs, preferred);
+    const preferred =
+      urlJobInResults ??
+      (selectedTokenRef.current &&
+      jobs.some((job) => job.public_job_token === selectedTokenRef.current)
+        ? selectedTokenRef.current
+        : null);
+    // Desktop split needs a selected job for the details pane; mobile waits for a tap.
+    const resolved = resolveSelectedJobToken(jobs, preferred, {
+      fallbackToFirst: isDesktop,
+    });
     setSelectedToken(resolved);
+    selectedTokenRef.current = resolved;
     if (resolved !== boardState.job) {
-      replaceBoardUrlRef.current({ job: resolved });
+      // On mobile, never inject the first job into the URL until the user selects one.
+      if (isDesktop || boardState.job || resolved === null) {
+        replaceBoardUrlRef.current({ job: resolved });
+      }
     }
     if (!jobs.length) setMobileDetailOpen(false);
-  }, [boardState.job, jobs, loading]);
+  }, [boardState.job, isDesktop, jobs, loading]);
 
   useEffect(() => {
+    if (boardState.employmentType === "Contract" && boardState.locationType) {
+      replaceBoardUrlRef.current({ locationType: "", page: boardState.page });
+    }
+  }, [boardState.employmentType, boardState.locationType, boardState.page]);
+
+  useEffect(() => {
+    // Deep links / shared job URLs can open mobile detail once; first visits stay on the list.
     if (!isDesktop && landedWithJobRef.current && boardState.job) {
       setMobileDetailOpen(true);
     }
@@ -280,8 +292,8 @@ export default function JobsPortalClient() {
     [boardState.professionId, specialties]
   );
   const visibleJobs = useMemo(
-    () => sortPublicBoardJobs(jobs, boardState.sort, boardState.q),
-    [boardState.q, boardState.sort, jobs]
+    () => sortPublicBoardJobs(jobs, boardState.sort, boardState.q, boardState.location),
+    [boardState.location, boardState.q, boardState.sort, jobs]
   );
   const pageCount = Math.max(1, Math.ceil(total / PUBLIC_JOBS_PAGE_SIZE));
   const selectedJob = visibleJobs.find((job) => job.public_job_token === selectedToken) ?? null;
@@ -322,38 +334,33 @@ export default function JobsPortalClient() {
     });
   };
 
-  const clearSecondary = useCallback(() => {
-    if (!tenant) return;
-    const current = boardStateRef.current;
-    const nextState = {
-      ...current,
-      professionId: "",
-      specialtyId: "",
-      employmentType: "",
-      locationType: "",
+  const applySearchTags = (tags: string[]) => {
+    const serialized = serializePublicJobsQueryTags(tags);
+    const nextTags = parsePublicJobsQueryTags(serialized);
+    setQueryTags(nextTags);
+    boardStateRef.current = {
+      ...boardStateRef.current,
+      q: serialized,
+      location: "",
       page: 1,
     };
-    boardStateRef.current = nextState;
-    const href = buildJobsBoardHref({
-      tenant,
-      q: nextState.q,
-      professionId: "",
-      specialtyId: "",
-      employmentType: "",
-      locationType: "",
-      location: nextState.location,
-      sort: nextState.sort,
+    replaceBoardUrl({ q: serialized, location: "", page: 1 });
+    return nextTags;
+  };
+
+  const resetSearch = () => {
+    setQueryTags([]);
+    boardStateRef.current = {
+      ...boardStateRef.current,
+      q: "",
+      location: "",
       page: 1,
-      job: selectedToken ?? nextState.job,
-      panel: mobileDetailOpen && !isDesktop ? "detail" : null,
-    });
-    lastHrefRef.current = href;
-    router.replace(href, { scroll: false });
-  }, [isDesktop, mobileDetailOpen, router, selectedToken, tenant]);
+    };
+    replaceBoardUrl({ q: "", location: "", page: 1 });
+  };
 
   const clearAllSearchAndFilters = () => {
-    setQueryDraft("");
-    setLocationDraft("");
+    setQueryTags([]);
     boardStateRef.current = {
       ...boardStateRef.current,
       q: "",
@@ -413,24 +420,25 @@ export default function JobsPortalClient() {
           </div>
           <div id="jobs-board-filters" className="mt-4">
             <JobsBoardFilters
-              query={queryDraft}
-              location={locationDraft}
+              queryTags={queryTags}
               professionId={boardState.professionId}
               specialtyId={boardState.specialtyId}
               employmentType={boardState.employmentType}
               locationType={boardState.locationType}
               professions={professions}
               specialties={filteredSpecialties}
-              onQueryChange={setQueryDraft}
-              onLocationChange={setLocationDraft}
-              onProfessionChange={(value) => replaceBoardUrl({ professionId: value, specialtyId: "", page: 1 })}
-              onSpecialtyChange={(value) => replaceBoardUrl({ specialtyId: value, page: 1 })}
-              onEmploymentTypeChange={(value) => replaceBoardUrl({ employmentType: value, page: 1 })}
+              onEmploymentTypeChange={(value) =>
+                replaceBoardUrl({
+                  employmentType: value,
+                  // Contract jobs don't use workplace type — drop it when Contract is selected.
+                  ...(value === "Contract" ? { locationType: "" } : {}),
+                  page: 1,
+                })
+              }
               onLocationTypeChange={(value) => replaceBoardUrl({ locationType: value, page: 1 })}
-              onSearch={() => {
-                replaceBoardUrl({ q: queryDraft, location: locationDraft, page: 1 });
-              }}
-              onClearSecondary={clearSecondary}
+              onSearch={applySearchTags}
+              onResetSearch={resetSearch}
+              onClearSecondary={clearAllSearchAndFilters}
               onRemoveChip={removeChip}
             />
           </div>
@@ -456,7 +464,7 @@ export default function JobsPortalClient() {
           <section
             data-testid="jobs-results-panel"
             aria-label="Job results"
-            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,28rem)] lg:max-w-[42%] lg:flex-none ${
+            className={`min-h-0 w-full flex-col lg:flex lg:w-[min(100%,24rem)] lg:max-w-[36%] lg:flex-none ${
               showMobileDetail ? "hidden" : "flex flex-1"
             }`}
           >
@@ -466,7 +474,7 @@ export default function JobsPortalClient() {
               </p>
               <JobsBoardSortMenu
                 value={boardState.sort}
-                onChange={(sort) => replaceBoardUrl({ sort })}
+                onChange={(sort) => replaceBoardUrl({ sort, page: 1 })}
               />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">

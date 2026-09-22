@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { createAdminJobApplication, bulkDeleteJobApplications, parseBulkDeleteIds } from "@/lib/jobs/service";
+import { createAdminJobApplication, bulkDeleteJobApplications, deleteOrphanWorkersAfterApplicationDelete, parseBulkDeleteIds } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
@@ -415,12 +415,22 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "At least one application id is required" }, { status: 400 });
     }
 
-    const { deletedIds } = await bulkDeleteJobApplications(supabase, tenantId, ids);
+    const { deletedIds, workerIds } = await bulkDeleteJobApplications(supabase, tenantId, ids);
     if (!deletedIds.length) {
       return NextResponse.json({ error: "No candidates were deleted" }, { status: 404 });
     }
 
-    return NextResponse.json({ deletedIds, count: deletedIds.length });
+    const { deletedWorkerIds } = await deleteOrphanWorkersAfterApplicationDelete(
+      supabase,
+      tenantId,
+      workerIds
+    );
+
+    return NextResponse.json({
+      deletedIds,
+      deletedWorkerIds,
+      count: deletedIds.length,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: formatApiError(error, "Failed to delete candidates") },
