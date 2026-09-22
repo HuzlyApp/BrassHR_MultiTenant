@@ -102,6 +102,23 @@ import { deepMatchModelForProvider } from "@/lib/jobs/match-analysis/step-config
 
 const CARD =
   "rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
+/** Clears sticky admin header when scrolling step anchors into view. */
+const STEP_SCROLL_MARGIN_CLASS =
+  "scroll-mt-[calc(var(--admin-recruiter-header-height,67px)+1rem)]";
+
+function scrollAiAnalysisBelowHeader(elementId = "ai-analysis-overview-top") {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--admin-recruiter-header-height")
+    .trim();
+  const headerPx = Number.parseFloat(raw) || 67;
+  const y = el.getBoundingClientRect().top + window.scrollY - headerPx - 16;
+  window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+}
 const FIELD =
   "h-11 w-full rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition placeholder:text-[#98A2B3] focus:border-[color:var(--brand-primary)]";
 const SELECT_FIELD =
@@ -850,13 +867,8 @@ export function AiAnalysisOverviewClient({
   useEffect(() => {
     if (!pendingProgressionScrollRef.current) return;
     pendingProgressionScrollRef.current = null;
-    // Step changes should open at the top of the overview, not mid-page section anchors.
-    const top = document.getElementById("ai-analysis-overview-top");
-    if (top) {
-      top.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Keep stepper + overview fully visible under the sticky admin header.
+    scrollAiAnalysisBelowHeader("ai-analysis-overview-top");
   }, [viewedStep]);
 
   function requestDeepMatchConfirm() {
@@ -1113,7 +1125,7 @@ export function AiAnalysisOverviewClient({
         <CandidatesBreadcrumb currentLabel="AI Analysis" backHref={backHref} />
       )}
 
-      <div className="mt-4 scroll-mt-4" id="ai-analysis-overview-top">
+      <div className={`mt-4 ${STEP_SCROLL_MARGIN_CLASS}`} id="ai-analysis-overview-top">
         <MatchProgressionStepper
           viewedIndex={viewedStep}
           unlockedIndex={unlockedIndex}
@@ -1182,10 +1194,7 @@ export function AiAnalysisOverviewClient({
                             aria-pressed={active}
                             onClick={() => {
                               setFilter(card.filter);
-                              document.getElementById("match-step-quick")?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "start",
-                              });
+                              scrollAiAnalysisBelowHeader("match-step-quick");
                             }}
                             className={`inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-1.5 transition ${
                               active
@@ -1343,7 +1352,7 @@ export function AiAnalysisOverviewClient({
           ) : null}
 
           {viewedStep >= 4 ? (
-            <section className={CARD} id="match-step-submission">
+            <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-submission">
               <SectionHeaderBlock>
                 <SectionTitle>Optimized submission résumé</SectionTitle>
                 <p className="mt-1 text-sm text-[#667085]">
@@ -1421,7 +1430,7 @@ export function AiAnalysisOverviewClient({
             </section>
           ) : null}
 
-          <section className={CARD} id="match-step-quick">
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-quick">
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -1664,7 +1673,7 @@ export function AiAnalysisOverviewClient({
 
           {viewedStep >= 1 ? (
           <>
-          <div className="grid gap-3 lg:grid-cols-2" id="match-step-verifications">
+          <div className={`grid gap-3 lg:grid-cols-2 ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-verifications">
             <section className={CARD}>
               <SectionHeaderBlock>
                 <div className="flex items-center gap-2">
@@ -1715,7 +1724,7 @@ export function AiAnalysisOverviewClient({
           </div>
 
           {viewedStep >= 2 ? (
-          <section className={CARD} id="match-step-follow-up">
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-follow-up">
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1843,7 +1852,7 @@ export function AiAnalysisOverviewClient({
           ) : null}
 
           {viewedStep >= 3 ? (
-          <section className={CARD} id="match-step-deep">
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-deep">
             <SectionHeaderBlock>
               <button
                 type="button"

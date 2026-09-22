@@ -5,6 +5,7 @@ import {
   getMatchAnalysisModelName,
   MATCH_ANALYSIS_ERROR,
   MatchAnalysisGenerationError,
+  matchAnalysisErrorCode,
   parseAnalysisMode,
   parseAnalysisProvider,
   runMatchAnalysisForApplication,
@@ -157,8 +158,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       requirements: requirements ?? [],
     });
   } catch (error) {
-    const code =
-      error instanceof MatchAnalysisGenerationError ? error.code : "UNKNOWN";
+    const code = matchAnalysisErrorCode(error);
 
     console.error("[job-applications/match-analysis]", {
       code,

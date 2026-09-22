@@ -31,12 +31,17 @@ import {
 import type { AnalysisScreeningQuestion } from "./workspace";
 import {
   deepMatchModelForProvider,
+  DEFAULT_STEP1_MODEL,
+  getMatchStepModels,
+  isBlockedStep1Model,
   isBlockedStep3Model,
+  sanitizeStep1Model,
   sanitizeStep3Model,
 } from "./step-config";
 
 const DEFAULT_GROK_MODEL = "grok-4-fast";
-const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+/** Quick Match Gemini default — FSD Step 1 Flash-Lite (not gemini-flash-latest). */
+const DEFAULT_GEMINI_MODEL = DEFAULT_STEP1_MODEL;
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const TEMPERATURE = 0;
 const BASE_MAX_TOKENS = 16_000;
@@ -100,7 +105,9 @@ function resolveGeminiBaseUrl(): string {
 }
 
 function resolveGeminiModel(): string {
-  return process.env.GEMINI_MATCH_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const fromEnv = process.env.GEMINI_MATCH_MODEL?.trim() || "";
+  if (fromEnv) return sanitizeStep1Model(fromEnv, DEFAULT_GEMINI_MODEL);
+  return sanitizeStep1Model(getMatchStepModels().step1Extract, DEFAULT_GEMINI_MODEL);
 }
 
 let grokClient: OpenAI | null = null;
@@ -162,7 +169,9 @@ function modelForProvider(
   if (!configured) return fallback;
   const lower = configured.toLowerCase();
   if (provider === "gemini") {
-    return lower.includes("gemini") ? configured : fallback;
+    // Catalog may still pin Grok; keep Gemini Quick Match on Step 1 Flash-Lite.
+    if (!lower.includes("gemini") || isBlockedStep1Model(configured)) return fallback;
+    return sanitizeStep1Model(configured, fallback);
   }
   return lower.includes("gemini") ? fallback : configured;
 }
@@ -196,10 +205,28 @@ function extractGeminiText(payload: unknown): string {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   }).candidates;
   const parts = candidates?.[0]?.content?.parts ?? [];
-  return parts
-    .map((part) => (typeof part.text === "string" ? part.text : ""))
-    .join("\n")
-    .trim();
+  const texts = parts
+    .map((part) => (typeof part.text === "string" ? part.text.trim() : ""))
+    .filter(Boolean);
+  if (!texts.length) return "";
+  // Prefer a part that looks like JSON (newer Gemini models may also emit thought text).
+  const jsonLike = [...texts].reverse().find((t) => t.startsWith("{") || t.startsWith("["));
+  return (jsonLike ?? texts[texts.length - 1] ?? "").trim();
+}
+
+export function matchAnalysisErrorCode(error: unknown): MatchAnalysisGenerationError["code"] | "UNKNOWN" {
+  if (error instanceof MatchAnalysisGenerationError) return error.code;
+  if (
+    error &&
+    typeof error === "object" &&
+    "name" in error &&
+    error.name === "MatchAnalysisGenerationError" &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as MatchAnalysisGenerationError).code;
+  }
+  return "UNKNOWN";
 }
 
 function mapApiError(error: unknown): MatchAnalysisGenerationError {
@@ -229,11 +256,15 @@ function mapApiError(error: unknown): MatchAnalysisGenerationError {
   if (
     code === "ECONNREFUSED" ||
     code === "ENOTFOUND" ||
-    msg.includes("fetch") ||
+    msg.includes("fetch failed") ||
     msg.includes("network") ||
     msg.includes("econn")
   ) {
     return new MatchAnalysisGenerationError("NETWORK");
+  }
+  // Gemini often returns 400/404 for retired or invalid model ids.
+  if (status === 400 || status === 404) {
+    return new MatchAnalysisGenerationError("INVALID_RESPONSE");
   }
   return new MatchAnalysisGenerationError("UNKNOWN");
 }
@@ -262,6 +293,7 @@ async function callGrok(args: {
     }
     return text;
   } catch (error) {
+    if (error instanceof MatchAnalysisGenerationError) throw error;
     throw mapApiError(error);
   }
 }
@@ -338,6 +370,7 @@ async function callGemini(args: {
     }
     return text;
   } catch (error) {
+    if (error instanceof MatchAnalysisGenerationError) throw error;
     throw mapApiError(error);
   } finally {
     clearTimeout(timer);

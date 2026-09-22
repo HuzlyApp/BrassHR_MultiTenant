@@ -93,6 +93,7 @@ export {
   generateMatchAnalysisWithGrok,
   getMatchAnalysisModelName,
   MatchAnalysisGenerationError,
+  matchAnalysisErrorCode,
   __setGrokClientForTests,
   __setGeminiFetchForTests,
 } from "./service";

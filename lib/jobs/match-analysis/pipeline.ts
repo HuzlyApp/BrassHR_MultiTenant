@@ -11,6 +11,7 @@ import {
   generateMatchAnalysis,
   generateFollowUpQuestions,
   MatchAnalysisGenerationError,
+  matchAnalysisErrorCode,
 } from "./service";
 import { resolvePromptVersion } from "@/lib/ai-catalog/resolve-prompt";
 import { PromptNotConfiguredError, PROMPT_NOT_CONFIGURED } from "@/lib/ai-catalog/errors";
@@ -852,8 +853,7 @@ export async function runMatchAnalysisForApplication(args: {
       latencyMs: null,
       creditCost: null,
       status: "failed",
-      errorCode:
-        error instanceof MatchAnalysisGenerationError ? error.code : "UNKNOWN",
+      errorCode: matchAnalysisErrorCode(error),
       outputReference: null,
       requestedBy: analyzedByUserId ?? null,
     }).catch(() => undefined);
