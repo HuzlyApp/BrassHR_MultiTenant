@@ -2142,9 +2142,26 @@ export async function bulkDeleteJobApplications(
   supabase: DbClient,
   tenantId: string,
   ids: string[]
-): Promise<{ deletedIds: string[] }> {
+): Promise<{ deletedIds: string[]; workerIds: string[] }> {
   const normalized = normalizeBulkDeleteIds(ids);
-  if (!normalized.length) return { deletedIds: [] };
+  if (!normalized.length) return { deletedIds: [], workerIds: [] };
+
+  // Capture worker ids before deleting applications so callers can remove orphan candidates.
+  const { data: beforeRows, error: beforeError } = await supabase
+    .from("job_applications")
+    .select("id, worker_id")
+    .in("id", normalized)
+    .eq("tenant_id", tenantId);
+
+  if (beforeError) throw beforeError;
+
+  const workerIds = [
+    ...new Set(
+      (beforeRows ?? [])
+        .map((row) => String(row.worker_id ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
 
   const { data, error } = await supabase
     .from("job_applications")
@@ -2154,7 +2171,43 @@ export async function bulkDeleteJobApplications(
     .select("id");
 
   if (error) throw error;
-  return { deletedIds: (data ?? []).map((row) => String(row.id)) };
+  return {
+    deletedIds: (data ?? []).map((row) => String(row.id)),
+    workerIds,
+  };
+}
+
+/**
+ * After applications are deleted, hard-delete any workers that no longer have applications.
+ * Keeps Candidates list in sync with Applications "Delete candidate".
+ */
+export async function deleteOrphanWorkersAfterApplicationDelete(
+  supabase: DbClient,
+  tenantId: string,
+  workerIds: string[]
+): Promise<{ deletedWorkerIds: string[] }> {
+  const normalized = normalizeBulkDeleteIds(workerIds);
+  if (!normalized.length) return { deletedWorkerIds: [] };
+
+  const { data: remainingApps, error: remainingError } = await supabase
+    .from("job_applications")
+    .select("worker_id")
+    .in("worker_id", normalized)
+    .eq("tenant_id", tenantId);
+
+  if (remainingError) throw remainingError;
+
+  const stillLinked = new Set(
+    (remainingApps ?? [])
+      .map((row) => String(row.worker_id ?? "").trim())
+      .filter(Boolean)
+  );
+  const orphanWorkerIds = normalized.filter((id) => !stillLinked.has(id));
+  if (!orphanWorkerIds.length) return { deletedWorkerIds: [] };
+
+  const { bulkDeleteWorkers } = await import("@/lib/workers/bulk-delete-workers");
+  const result = await bulkDeleteWorkers(supabase, tenantId, orphanWorkerIds);
+  return { deletedWorkerIds: result.deletedIds };
 }
 
 export async function bulkDeleteJobRequisitions(
