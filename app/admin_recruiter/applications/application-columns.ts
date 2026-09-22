@@ -50,7 +50,6 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
   "contact",
   "clientName",
-  "matches",
   "fit",
   "conf",
   "verify",
@@ -63,7 +62,7 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "actions",
 ];
 
-const STORAGE_KEY = "nexus-job-applications-list-columns-v5";
+const STORAGE_KEY = "nexus-job-applications-list-columns-v6";
 
 function insertAfter(
   order: ApplicationColumnId[],
@@ -90,8 +89,8 @@ function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationC
   let next = [...order];
   next = insertAfter(next, "contact", "candidates");
   next = insertAfter(next, "clientName", "contact");
-  next = insertAfter(next, "matches", "clientName");
-  next = insertAfter(next, "fit", "matches");
+  // Match % is optional — not force-added; recruiters can enable it via Edit Columns.
+  next = insertAfter(next, "fit", "clientName");
   next = insertAfter(next, "conf", "fit");
   next = insertAfter(next, "verify", "conf");
   next = insertAfter(next, "notMet", "verify");

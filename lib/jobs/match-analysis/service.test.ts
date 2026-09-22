@@ -178,8 +178,8 @@ describe("generateMatchAnalysis", () => {
 
     expect(create).toHaveBeenCalledOnce();
     const grokArgs = create.mock.calls[0]?.[0] as { model?: string };
-    expect(grokArgs.model).toBe("grok-4.3");
-    expect(result.model).toBe("grok-4.3");
+    expect(grokArgs.model).toBe("grok-4.6");
+    expect(result.model).toBe("grok-4.6");
   });
 
   it("uses the Step 3 deep Gemini model when Gemini is selected for Deep Match", async () => {

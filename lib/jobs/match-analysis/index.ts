@@ -104,3 +104,9 @@ export {
   type RunMatchAnalysisResult,
   type MatchAnalysisProgressEvent,
 } from "./pipeline";
+export {
+  runAutoQuickMatchForApplication,
+  scheduleAutoQuickMatchForApplication,
+  scheduleAutoQuickMatchForApplications,
+  type AutoQuickMatchResult,
+} from "./auto-quick-match";

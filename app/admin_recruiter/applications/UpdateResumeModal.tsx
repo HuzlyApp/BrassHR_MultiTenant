@@ -17,6 +17,27 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import type { ResumeHistoryItem } from "./ResumeHistoryModal";
 
+/** Mirrors server `AutoQuickMatchResult` without importing server-only modules. */
+export type UpdateResumeAutoQuickMatch = {
+  status: string;
+  error: string | null;
+  model: string | null;
+  score: number | null;
+  category: string | null;
+  action: string | null;
+  readiness: string | null;
+  displayCategory?: string | null;
+  stage?: string | null;
+  requirementCounts?: { confirmed: number; verify: number; notMet: number } | null;
+};
+
+export type UpdateResumeResult = {
+  resumeUploaded: boolean;
+  firstName: string;
+  lastName: string;
+  autoQuickMatch?: UpdateResumeAutoQuickMatch | null;
+};
+
 type UpdateResumeModalProps = {
   open: boolean;
   applicationId: string;
@@ -24,7 +45,7 @@ type UpdateResumeModalProps = {
   initialFirstName?: string;
   initialLastName?: string;
   onClose: () => void;
-  onUpdated: (result: { resumeUploaded: boolean; firstName: string; lastName: string }) => void;
+  onUpdated: (result: UpdateResumeResult) => void;
 };
 
 const FIELD_LABEL_CLASS = "mb-1.5 block text-sm font-normal text-[#6B7280]";
@@ -273,6 +294,7 @@ export default function UpdateResumeModal({
 
     setSaving(true);
     try {
+      let autoQuickMatch: UpdateResumeAutoQuickMatch | null = null;
       if (resumeFile) {
         const form = new FormData();
         form.set("resume", resumeFile);
@@ -282,10 +304,14 @@ export default function UpdateResumeModal({
           `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
           { method: "POST", credentials: "include", body: form }
         );
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          autoQuickMatch?: UpdateResumeAutoQuickMatch | null;
+        };
         if (!response.ok) {
           throw new Error(payload.error || "Failed to upload resume");
         }
+        autoQuickMatch = payload.autoQuickMatch ?? null;
       }
 
       if (nameChanged) {
@@ -308,6 +334,7 @@ export default function UpdateResumeModal({
         resumeUploaded: Boolean(resumeFile),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        autoQuickMatch,
       });
       onClose();
     } catch (error) {

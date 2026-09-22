@@ -626,11 +626,23 @@ export function CandidateProfileDocumentsTab({
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
         { method: "POST", body: form }
       );
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        autoQuickMatch?: { status?: string; error?: string | null } | null;
+      };
       if (!response.ok) throw new Error(payload.error || "Failed to upload resume");
       setUploadModalOpen(false);
       setPendingUpload(null);
       toast.success(resumeId ? "Resume reuploaded successfully." : "Resume uploaded successfully.");
+      const match = payload.autoQuickMatch;
+      if (match?.status === "ANALYZED") {
+        toast.success("Quick Match complete.");
+      } else if (match && match.status !== "ANALYZED") {
+        toast.error(
+          match.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
       await onReload();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to upload resume";

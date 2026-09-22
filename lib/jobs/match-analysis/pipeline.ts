@@ -768,14 +768,13 @@ export async function runMatchAnalysisForApplication(args: {
         version: nextVersion,
         analysis,
         score: persistedScore,
-        category: stage === "deep" ? analysis.candidate_match.match_category : null,
+        category: analysis.candidate_match.match_category || null,
         recommended_action:
           stage === "deep" ? analysis.candidate_match.recommended_action : null,
         display_category:
-          stage === "deep"
-            ? analysis.candidate_match.display_category ||
-              analysis.candidate_match.match_category
-            : null,
+          analysis.candidate_match.display_category?.trim() ||
+          analysis.candidate_match.match_category ||
+          null,
         model: modelResult.model,
         analyzed_by: analyzedByUserId ?? null,
         analyzed_at: analyzedAt,

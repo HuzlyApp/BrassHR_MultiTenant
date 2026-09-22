@@ -93,8 +93,9 @@ import {
   matchProgressionPrimaryAction,
   matchProgressionStageFromIndex,
   quickMatchFitBand,
+  type QuickMatchFitBand,
 } from "@/lib/jobs/match-analysis/progression";
-import { fitBandFromQuickRoute } from "@/lib/jobs/match-analysis/quick-route";
+import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "@/lib/jobs/match-analysis/quick-route";
 import { isSubmissionResumeFileName } from "@/lib/jobs/match-analysis/submission-resume";
 import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
 import { MatchProgressionStepper } from "./MatchProgressionStepper";
@@ -199,22 +200,39 @@ function copyText(value: string, success: string) {
   toast.success(success);
 }
 
+function fitBandRingColors(band: QuickMatchFitBand | null | undefined): {
+  track: string;
+  stroke: string;
+} {
+  if (band === "low") return { track: "#FEE2E2", stroke: "#DC2626" };
+  if (band === "strong") return { track: "#DCFCE7", stroke: "#00B135" };
+  if (band === "review") return { track: "#FEF9C3", stroke: "#CA8A04" };
+  return { track: "#E5E7EB", stroke: "#E5E7EB" };
+}
+
 function MatchRing({
   percent,
   label,
   strokeColor,
+  fitBand = null,
 }: {
   percent: number | null;
   label: string;
   strokeColor: string;
+  fitBand?: QuickMatchFitBand | null;
 }) {
   const outer = 139;
   const size = 121;
   const stroke = 10;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const fill = percent == null ? 0 : Math.min(100, Math.max(0, percent));
+  // Quick Match keeps the ring empty of % — color the full ring by fit band instead.
+  const labelOnly = percent == null;
+  const bandColors = fitBandRingColors(fitBand);
+  const fill = labelOnly ? (fitBand ? 100 : 0) : Math.min(100, Math.max(0, percent ?? 0));
   const offset = circumference - (fill / 100) * circumference;
+  const trackColor = labelOnly ? bandColors.track : "#E5E7EB";
+  const progressColor = labelOnly ? bandColors.stroke : strokeColor;
 
   return (
     <div className="relative shrink-0" style={{ width: outer, height: outer }}>
@@ -230,7 +248,7 @@ function MatchRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#E5E7EB"
+          stroke={trackColor}
           strokeWidth={stroke}
         />
         <circle
@@ -238,7 +256,7 @@ function MatchRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={strokeColor}
+          stroke={progressColor}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -246,13 +264,17 @@ function MatchRing({
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="flex w-[79px] flex-col items-center text-center">
-          <span className="h-9 text-[30px] font-semibold leading-9 text-black">
-            {percent == null ? "—" : `${percent}%`}
+      <div className="absolute inset-0 flex items-center justify-center px-3">
+        {labelOnly ? (
+          <span className="max-w-[6.5rem] text-center text-[18px] font-semibold leading-6 text-black sm:text-[20px] sm:leading-7">
+            {label}
           </span>
-          <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
-        </div>
+        ) : (
+          <div className="flex w-[79px] flex-col items-center text-center">
+            <span className="h-9 text-[30px] font-semibold leading-9 text-black">{`${percent}%`}</span>
+            <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -321,6 +343,53 @@ function historyScoreBadgeClass(score: number | null | undefined): string {
   return "bg-[#DC2626] text-white";
 }
 
+function historyStatusFromItem(item: {
+  score: number | null;
+  category: string | null;
+  display_category: string | null;
+  analysis?: unknown;
+}): { label: string; band: QuickMatchFitBand | null } {
+  const route = quickRouteFromAnalysis(item.analysis);
+  if (route) {
+    const band = fitBandFromQuickRoute(route);
+    const fromAnalysis =
+      item.analysis &&
+      typeof item.analysis === "object" &&
+      "candidate_match" in item.analysis &&
+      item.analysis.candidate_match &&
+      typeof item.analysis.candidate_match === "object" &&
+      "display_category" in item.analysis.candidate_match &&
+      typeof (item.analysis.candidate_match as { display_category?: unknown }).display_category ===
+        "string"
+        ? String(
+            (item.analysis.candidate_match as { display_category: string }).display_category
+          ).trim()
+        : "";
+    const label =
+      item.display_category?.trim() ||
+      fromAnalysis ||
+      (route === "STRONG" ? "Strong" : route === "LOW_MATCH" ? "Low match" : "Review");
+    return { label, band };
+  }
+
+  const display = item.display_category?.trim();
+  if (display) {
+    const lower = display.toLowerCase();
+    const band: QuickMatchFitBand | null = lower.includes("low")
+      ? "low"
+      : lower.includes("strong") || lower.includes("good")
+        ? "strong"
+        : lower.includes("review")
+          ? "review"
+          : null;
+    return { label: display, band };
+  }
+
+  const categoryLabel = formatMatchCategory(item.category);
+  if (categoryLabel) return { label: categoryLabel, band: null };
+  return { label: "Not analyzed", band: null };
+}
+
 function AnalysisHistoryItem({
   item,
 }: {
@@ -332,23 +401,30 @@ function AnalysisHistoryItem({
     display_category: string | null;
     model: string | null;
     analyzed_at: string;
+    analysis?: unknown;
   };
 }) {
-  const categoryLabel =
-    item.display_category || formatMatchCategory(item.category) || "Not analyzed";
+  const { label, band } = historyStatusFromItem(item);
+  const hasScore = item.score != null && Number.isFinite(Number(item.score));
 
   return (
     <li className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-semibold text-[#475467]">Version {item.version}</span>
+          {hasScore ? (
+            <span
+              className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${historyScoreBadgeClass(item.score)}`}
+            >
+              {formatMatchScore(item.score)}
+            </span>
+          ) : null}
           <span
-            className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${historyScoreBadgeClass(item.score)}`}
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+              band ? fitBandTagClassName(band) : "bg-[#F2F4F7] text-[#475467]"
+            }`}
           >
-            {formatMatchScore(item.score)}
-          </span>
-          <span className="inline-flex rounded-md bg-[#E5E7EB] px-2 py-0.5 text-xs font-semibold text-[#344054]">
-            {categoryLabel}
+            {label}
           </span>
         </div>
         <p className="text-xs leading-4 text-[#94A3B8]">
@@ -715,11 +791,26 @@ export function AiAnalysisOverviewClient({
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
         { method: "POST", body: formData }
       );
-      const payload = (await response.json().catch(() => ({}))) as { error?: string; resumes?: ResumeHistoryItem[] };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        autoQuickMatch?: {
+          status?: string;
+          error?: string | null;
+        } | null;
+      };
       if (!response.ok) throw new Error(payload.error || "Could not upload resume.");
       await loadResumeHistory();
       setWorkspaceReloadToken((t) => t + 1);
       toast.success("Resume uploaded.");
+      const match = payload.autoQuickMatch;
+      if (match?.status === "ANALYZED") {
+        toast.success("Quick Match complete.");
+      } else if (match && match.status !== "ANALYZED") {
+        toast.error(
+          match.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not upload resume.");
     } finally {
@@ -786,7 +877,10 @@ export function AiAnalysisOverviewClient({
             : "Quick Match"
       : "Not analyzed";
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
-  const jobTitle = analysis?.job?.job_title?.trim() || "—";
+  const jobTitle =
+    data?.job?.title?.trim() ||
+    analysis?.job?.job_title?.trim() ||
+    "";
   const confidencePercent =
     hasDeepMatch && analysis?.candidate_match?.confidence_score != null
       ? Math.round(Number(analysis.candidate_match.confidence_score))
@@ -982,19 +1076,31 @@ export function AiAnalysisOverviewClient({
   const analysisHistory = useMemo(() => {
     const rows = data?.analysisHistory ?? [];
     if (rows.length) return rows;
-    if (!app || (app.ai_match_status !== "ANALYZED" && app.ai_match_score == null && !app.ai_analyzed_at)) return [];
+    if (!app || (app.ai_match_status !== "ANALYZED" && app.ai_match_score == null && !app.ai_analyzed_at)) {
+      return [];
+    }
+    const route = quickRouteFromAnalysis(analysis);
+    const quickLabel =
+      route === "STRONG"
+        ? "Strong"
+        : route === "LOW_MATCH"
+          ? "Low match"
+          : route === "REVIEW"
+            ? "Review"
+            : null;
     return [
       {
         id: app.id,
         version: Number(app.ai_analysis_version) || 1,
         score: app.ai_match_score,
         category: app.ai_match_category,
-        display_category: app.ai_match_display_category,
+        display_category: app.ai_match_display_category || quickLabel || null,
         model: app.ai_analysis_model,
         analyzed_at: app.ai_analyzed_at ?? "",
+        analysis: analysis ?? null,
       },
     ];
-  }, [data?.analysisHistory, app]);
+  }, [data?.analysisHistory, app, analysis]);
 
   useEffect(() => {
     if (app?.status_name) setStatusName(app.status_name);
@@ -1139,7 +1245,7 @@ export function AiAnalysisOverviewClient({
           <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
             <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
               <BrandedSvgIcon
-                src="/fluent_person-star-24-regular.svg"
+                src="/hugeicons_ai-user.svg"
                 className="h-5 w-5"
                 color={branding.primaryHex}
               />
@@ -1163,10 +1269,13 @@ export function AiAnalysisOverviewClient({
                   percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
+                  fitBand={isAnalyzed ? displayedFitBand : null}
                 />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
-                  <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
+                  {jobTitle ? (
+                    <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
                     {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">

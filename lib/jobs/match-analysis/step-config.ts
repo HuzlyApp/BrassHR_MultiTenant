@@ -23,7 +23,7 @@ export const MATCH_CONFIG_KEYS = {
 export const DEFAULT_STEP1_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_STEP2_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_STEP3_MODEL = "gemini-3.1-pro-preview";
-export const DEFAULT_STEP3_GROK_MODEL = "grok-4.3";
+export const DEFAULT_STEP3_GROK_MODEL = "grok-4.6";
 export const DEFAULT_STEP1_FALLBACKS = [
   "gpt-5.4-nano",
   "gemini-2.5-flash-lite",

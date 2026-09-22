@@ -1690,8 +1690,29 @@ export default function JobApplicationsPage() {
 
   function handleResumeUpdated(
     applicationId: string,
-    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+    result: {
+      resumeUploaded: boolean;
+      firstName: string;
+      lastName: string;
+      autoQuickMatch?: {
+        status: string;
+        error: string | null;
+        score: number | null;
+        category: string | null;
+        action: string | null;
+        readiness: string | null;
+        displayCategory?: string | null;
+        stage?: string | null;
+        requirementCounts?: ListingRequirementOutcomeCounts | null;
+      } | null;
+    }
   ) {
+    const match = result.resumeUploaded ? result.autoQuickMatch : null;
+    const matchOk = match?.status === "ANALYZED";
+    const matchFailed = Boolean(
+      result.resumeUploaded && match && match.status !== "ANALYZED"
+    );
+
     setRows((current) =>
       current.map((row) => {
         if (row.id !== applicationId) return row;
@@ -1708,9 +1729,22 @@ export default function JobApplicationsPage() {
         } as ApplicationRow;
 
         if (!result.resumeUploaded) return renamed;
+        if (matchOk && match) {
+          return {
+            ...renamed,
+            ai_match_status: match.status,
+            ai_match_score: match.score ?? null,
+            ai_match_category: match.category ?? null,
+            ai_match_action: match.action ?? null,
+            ai_match_readiness: match.readiness ?? null,
+            ai_match_display_category: match.displayCategory ?? null,
+            ai_match_stage: match.stage ?? "quick",
+            ai_requirement_counts: match.requirementCounts ?? null,
+          };
+        }
         return {
           ...renamed,
-          ai_match_status: "ANALYZING",
+          ai_match_status: matchFailed ? "FAILED" : "READY",
           ai_match_score: null,
           ai_match_category: null,
           ai_match_action: null,
@@ -1729,48 +1763,21 @@ export default function JobApplicationsPage() {
         duration: ACTION_TOAST_DURATION_MS,
       });
       setResumeSuccessOpen(true);
+      if (matchOk) {
+        toast.success(`${candidateLabel}: Quick Match complete`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      } else if (matchFailed) {
+        toast.error(
+          match?.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
     } else {
       toast.success(`${candidateLabel}: candidate details updated`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
     }
-
-    if (!result.resumeUploaded) return;
-
-    void (async () => {
-      try {
-        const matchResponse = await fetch(
-          `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }
-        );
-        const matchPayload = await matchResponse.json().catch(() => ({}));
-        if (!matchResponse.ok) return;
-        setRows((current) =>
-          current.map((row) =>
-            row.id === applicationId
-              ? {
-                  ...row,
-                  ai_match_status: matchPayload.status ?? "ANALYZED",
-                  ai_match_score: matchPayload.score ?? null,
-                  ai_match_category: matchPayload.category ?? null,
-                  ai_match_action: matchPayload.action ?? null,
-                  ai_match_readiness: matchPayload.readiness ?? null,
-                  ai_match_display_category: matchPayload.displayCategory ?? null,
-                  ai_match_stage: matchPayload.stage ?? matchPayload.ai_match_stage ?? null,
-                  ai_requirement_counts: requirementCountsFromAnalyzePayload(matchPayload),
-                }
-              : row
-          )
-        );
-      } catch {
-        /* upload already succeeded */
-      }
-    })();
   }
 
   function beginArchiveCandidate(applicationId: string) {
@@ -2235,9 +2242,17 @@ export default function JobApplicationsPage() {
       }
       case "clientName": {
         const clientName = applicationClientName(row);
+        if (!clientName) {
+          return (
+            <span className="block w-full text-center text-sm leading-5 text-[#0F172A]">—</span>
+          );
+        }
         return (
-          <span className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]" title={clientName || undefined}>
-            {clientName || "—"}
+          <span
+            className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]"
+            title={clientName}
+          >
+            {clientName}
           </span>
         );
       }

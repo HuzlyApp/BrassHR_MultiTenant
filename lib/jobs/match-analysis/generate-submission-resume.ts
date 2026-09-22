@@ -11,8 +11,9 @@ import {
   type SubmissionResume,
   type SubmissionResumeIdentity,
 } from "./submission-resume";
+import { DEFAULT_STEP3_GROK_MODEL } from "./step-config";
 
-const DEFAULT_MODEL = "grok-4-fast";
+const DEFAULT_MODEL = DEFAULT_STEP3_GROK_MODEL;
 const MAX_OUTPUT_TOKENS = 4_000;
 const TIMEOUT_MS = 45_000;
 
@@ -108,7 +109,12 @@ export async function generateOptimizedSubmissionResume(args: {
 
   try {
     const response = await client.responses.create({
-      model: process.env.XAI_MATCH_MODEL?.trim() || process.env.GROK_MATCH_MODEL?.trim() || DEFAULT_MODEL,
+      model:
+        process.env.AI_MATCH_STEP5_SUBMISSION_MODEL?.trim() ||
+        process.env.AI_MATCH_STEP3_DEEP_GROK_MODEL?.trim() ||
+        process.env.XAI_MATCH_DEEP_MODEL?.trim() ||
+        process.env.GROK_MATCH_DEEP_MODEL?.trim() ||
+        DEFAULT_MODEL,
       temperature: 0.2,
       max_output_tokens: MAX_OUTPUT_TOKENS,
       reasoning: { effort: "none" },

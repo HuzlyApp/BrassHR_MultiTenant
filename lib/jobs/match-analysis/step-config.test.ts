@@ -53,7 +53,7 @@ describe("match step config", () => {
     expect(isBlockedStep3Model("gemini-3.5-flash-lite")).toBe(true);
     expect(isBlockedStep3Model("grok-4-fast")).toBe(true);
     expect(isBlockedStep3Model("gemini-3.1-pro-preview")).toBe(false);
-    expect(isBlockedStep3Model("grok-4.3")).toBe(false);
+    expect(isBlockedStep3Model("grok-4.6")).toBe(false);
     expect(sanitizeStep1Model("gpt-5.4")).toBe(DEFAULT_STEP1_MODEL);
     expect(sanitizeStep3Model("gemini-3.5-flash-lite")).toBe(DEFAULT_STEP3_MODEL);
     expect(sanitizeStep3Model("gemini-2.5-pro")).toBe(DEFAULT_STEP3_MODEL);
@@ -69,8 +69,9 @@ describe("match step config", () => {
     expect(models.requireRecruiterConfirm).toBe(false);
   });
 
-  it("uses grok-4.3 for Deep Match when Grok is selected", () => {
+  it("uses grok-4.6 for Deep Match when Grok is selected", () => {
     expect(deepMatchModelForProvider("grok")).toBe(DEFAULT_STEP3_GROK_MODEL);
+    expect(deepMatchModelForProvider("grok")).toBe("grok-4.6");
     expect(deepMatchModelForProvider("gemini")).toBe(DEFAULT_STEP3_MODEL);
   });
 });

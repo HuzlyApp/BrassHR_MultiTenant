@@ -18,6 +18,7 @@ import {
   normalizeAnalysisScreeningQuestions,
 } from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
+import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 
 function displayName(first: string | null | undefined, last: string | null | undefined, email?: string | null) {
   const name = `${first ?? ""} ${last ?? ""}`.trim();
@@ -42,6 +43,16 @@ export async function loadMatchAnalysisWorkspace(
 
   const analysis = (application.ai_analysis ?? null) as MatchAnalysisResponse | null;
 
+  const jobId = String(application.job_requisition_id ?? "").trim();
+  const jobPromise = jobId
+    ? supabase
+        .from("job_requisitions")
+        .select("id, public_title, location, facility, facility_name")
+        .eq("id", jobId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
   const [
     requirementsResult,
     screening,
@@ -51,6 +62,7 @@ export async function loadMatchAnalysisWorkspace(
     verificationNotes,
     verificationNoteAudit,
     screeningUploads,
+    jobResult,
   ] = await Promise.all([
     supabase
       .from("job_application_match_requirements")
@@ -86,12 +98,13 @@ export async function loadMatchAnalysisWorkspace(
       .select("id, question_key, question_text, reason, related_requirement, answer_text, updated_at")
       .eq("tenant_id", tenantId)
       .eq("application_id", applicationId),
-    loadAnalysisHistory(supabase, tenantId, applicationId, false).catch(() => []),
+    loadAnalysisHistory(supabase, tenantId, applicationId, true).catch(() => []),
     loadVerificationNotesForApplication(supabase, tenantId, applicationId).catch(() => []),
     loadVerificationNoteAuditForApplication(supabase, tenantId, applicationId, {
       limit: 100,
     }).catch(() => []),
     listScreeningUploads(supabase, tenantId, applicationId).catch(() => []),
+    jobPromise,
   ]);
 
   const verificationNoteSummaries = summarizeRequirementNotes(verificationNotes);
@@ -177,6 +190,18 @@ export async function loadMatchAnalysisWorkspace(
       ? String((statusRel as { system_key: string }).system_key)
       : null;
   const stepModels = getMatchStepModels();
+  const jobRow = jobResult.data;
+  const jobTitleFromRequisition = jobRow
+    ? publicJobDisplayTitle({
+        public_title: typeof jobRow.public_title === "string" ? jobRow.public_title : null,
+      })
+    : "";
+  const jobTitle =
+    (jobTitleFromRequisition && jobTitleFromRequisition !== "Untitled job"
+      ? jobTitleFromRequisition
+      : "") ||
+    analysis?.job?.job_title?.trim() ||
+    "";
 
   return {
     application: {
@@ -186,6 +211,17 @@ export async function loadMatchAnalysisWorkspace(
       status_name: statusName,
       status_system_key: statusSystemKey,
     },
+    job: jobId
+      ? {
+          id: jobId,
+          title: jobTitle || null,
+          location:
+            (typeof jobRow?.location === "string" && jobRow.location.trim()) ||
+            (typeof jobRow?.facility_name === "string" && jobRow.facility_name.trim()) ||
+            (typeof jobRow?.facility === "string" && jobRow.facility.trim()) ||
+            null,
+        }
+      : null,
     requirements: (requirementsResult.data ?? []).map((row) => {
       const summary = verificationNoteSummaries.get(String(row.id));
       return {
