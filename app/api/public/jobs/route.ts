@@ -72,8 +72,7 @@ export async function GET(req: NextRequest) {
         .select("profession_id, specialty_id")
         .eq("tenant_id", tenant.id)
         .in("status", ["open", "published"])
-        .not("public_job_token", "is", null)
-        .neq("public_job_token", ""),
+        .not("public_job_token", "is", null),
     ]);
 
     const usedProfessionIds = new Set(

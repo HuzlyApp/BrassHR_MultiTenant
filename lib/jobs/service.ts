@@ -1371,9 +1371,8 @@ export async function listPublicJobs(
     )
     .eq("tenant_id", tenantId)
     .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
-    // Public board cards/detail links require a token; exclude unpublished tokens from count too.
+    // Public board requires a token; avoid neq("") which breaks uuid-typed columns.
     .not("public_job_token", "is", null)
-    .neq("public_job_token", "")
     // MSP jobs publish without workflow_id; still list them on the public board.
     .or(`application_deadline.is.null,application_deadline.gte.${today}`)
     // Prefer latest activity so "Most recent" matches Posted/Updated labels on cards.
