@@ -17,7 +17,7 @@ type ApplicationSearchRow = ApplicationListSearchRow & {
     | null;
 };
 
-const APPLICATION_SEARCH_SELECT = `id, worker_id, status, status_id, job_requisition_id, application_statuses(id, system_key), job_requisitions(public_title, source_job_title, location, facility, facility_name, internal_requisition_number), ${JOB_APPLICATION_APPLICANT_EMBED}`;
+const APPLICATION_SEARCH_SELECT = `id, worker_id, status, status_id, job_requisition_id, application_statuses(id, system_key), job_requisitions(public_title, source_job_title, location, facility, facility_name, internal_requisition_number, external_requisition_id), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
 /** Same inclusion rules as the applications screen “All” tab. */
 export function isApplicationIncludedInAllTabSearch(

@@ -126,6 +126,17 @@ export function renderListCell(
         </span>
       )
     }
+    case "sourceJobId": {
+      const sourceJobId = c.applicationSourceJobId?.trim() ?? ""
+      return (
+        <span
+          className="mx-auto block max-w-[200px] truncate text-center text-sm text-[#374151]"
+          title={sourceJobId || undefined}
+        >
+          {sourceJobId || "—"}
+        </span>
+      )
+    }
     case "assignee": {
       const name = c.assignedRecruiterName?.trim() ?? ""
       if (!name) {
