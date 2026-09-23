@@ -130,12 +130,7 @@ export function validatePublishableJob(
     errors.publicDescription = "Public job description is required.";
   }
   const isRemote = isRemoteJobLocationType(input.jobLocationType ?? input.schedule);
-  if (isRemote) {
-    if (!input.remoteAllowedStates?.length) {
-      errors.remoteAllowedStates =
-        "Select the states where this remote role can be worked. There is no United States-wide option.";
-    }
-  } else {
+  if (!isRemote) {
     const parsed = locationFromFreeText(location, input.postalCode);
     const hasWorksite = Boolean(parsed.city && parsed.state);
     if (!hasWorksite) {

@@ -24,7 +24,6 @@ export default function ServiceAreaLocationHint({
   const type = normalizeServiceAreaLocationType(locationType) ?? "onsite";
   const location = useMemo(() => {
     if (type === "remote") {
-      if (!remoteAllowedStates?.length && !parsed.state) return null;
       return {
         city: parsed.city,
         state: parsed.state,

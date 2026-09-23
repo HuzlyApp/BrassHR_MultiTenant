@@ -235,13 +235,13 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     expect(decision.allowed).toBe(true);
   });
 
-  it("AT-14: remote with empty allowed states cannot publish", () => {
+  it("AT-14: remote with empty allowed states publishes as All States", () => {
     const decision = evaluate(
       { locationType: "remote", remoteAllowedStates: [] },
       "publish_job"
     );
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("remote_unscoped");
+    expect(decision.allowed).toBe(true);
+    expect(decision.reasonCode).toBe("ok");
   });
 
   it("remote publish with CA in the list is hold", () => {
@@ -371,11 +371,12 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     );
   });
 
-  it("blocks remote US-wide publish", () => {
+  it("allows remote US-wide (All States) publish", () => {
     const empty = evaluate({ locationType: "remote", remoteAllowedStates: [] }, "publish_job");
     const usToken = evaluate({ locationType: "remote", remoteAllowedStates: ["US"] }, "publish_job");
-    expect(empty.reasonCode).toBe("remote_unscoped");
-    expect(usToken.reasonCode).toBe("remote_unscoped");
+    expect(empty.allowed).toBe(true);
+    // "US" is not a state code — normalize strips it to empty → All States.
+    expect(usToken.allowed).toBe(true);
   });
 
   it("blocks remote lists that include restricted states", () => {
