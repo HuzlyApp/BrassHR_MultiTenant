@@ -45,7 +45,6 @@ import {
   qualificationDisplayStatus,
   recruiterActionLabel,
   recruiterVerifiedNeedsNoteDecision,
-  requirementShowsAddNote,
   checklistStep2Items,
   type QualificationDisplayStatus,
   type QualificationFilter,
@@ -226,7 +225,7 @@ function MatchRing({
   const stroke = 10;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  // Quick Match keeps the ring empty of % — color the full ring by fit band instead.
+  // Steps 1–3: label-only ring colored by fit band (no %). Step 4+: fill to match %.
   const labelOnly = percent == null;
   const bandColors = fitBandRingColors(fitBand);
   const fill = labelOnly ? (fitBand ? 100 : 0) : Math.min(100, Math.max(0, percent ?? 0));
@@ -865,16 +864,22 @@ export function AiAnalysisOverviewClient({
   );
   const matchScore = publicMatchScore(app?.ai_match_stage, app?.ai_match_score);
   const storedRoute = analysis?.quick_match?.quick_route ?? null;
+  const parkedInTalentPool =
+    app?.recruiter_decision === "do_not_pursue" ||
+    (statusSystemKey ?? app?.status_system_key) === "rejected";
+  const fitBand = storedRoute
+    ? fitBandFromQuickRoute(storedRoute)
+    : quickMatchFitBand(outcomeCounts);
+  const displayedFitBand = displayFitBand({
+    fitBand,
+    stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+    hasDeepMatch,
+  });
+  // Steps 1–3: show Low / Review / Strong. Step 4+ (Deep Match): show actual match %.
   const matchLabel = hasDeepMatch
-    ? app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Deep Match"
+    ? app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Match"
     : isAnalyzed
-      ? storedRoute === "STRONG"
-        ? "Strong"
-        : storedRoute === "LOW_MATCH"
-          ? "Low match"
-          : storedRoute === "REVIEW"
-            ? "Review"
-            : "Quick Match"
+      ? fitBandLabel(displayedFitBand)
       : "Not analyzed";
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
   const jobTitle =
@@ -903,17 +908,6 @@ export function AiAnalysisOverviewClient({
   const jobCompleteness = hasDeepMatch
     ? analysis?.data_quality?.job_description_completeness ?? "—"
     : "—";
-  const parkedInTalentPool =
-    app?.recruiter_decision === "do_not_pursue" ||
-    (statusSystemKey ?? app?.status_system_key) === "rejected";
-  const fitBand = storedRoute
-    ? fitBandFromQuickRoute(storedRoute)
-    : quickMatchFitBand(outcomeCounts);
-  const displayedFitBand = displayFitBand({
-    fitBand,
-    stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
-    hasDeepMatch,
-  });
   const canAdvance = canAdvanceMatchProgression({
     isAnalyzed,
     fitBand,
@@ -970,7 +964,7 @@ export function AiAnalysisOverviewClient({
       toast.error(
         parkedInTalentPool || fitBand === "low"
           ? "Low match — move to Talent Pool. Do not run Deep Match."
-          : "Finish Verifications and 2nd Follow-up before Run Deep Match."
+          : "Finish Verifications and Follow-Up before Run Deep Match."
       );
       return;
     }
@@ -1357,7 +1351,7 @@ export function AiAnalysisOverviewClient({
               </div>
               <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                 <div className={`${HEADER_TOOLBAR} justify-center sm:justify-start`}>
-                  {primaryAction ? (
+                  {primaryAction && primaryAction.kind !== "advance" ? (
                     <button
                       type="button"
                       className={HEADER_OUTLINE_BTN}
@@ -1666,22 +1660,7 @@ export function AiAnalysisOverviewClient({
                             </div>
                           </td>
                           <td className="py-3.5 text-sm text-[#475467]">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span>{actionLabel}</span>
-                              {requirementShowsAddNote(row, blocking) ? (
-                                <button
-                                  type="button"
-                                  className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setOpenReqId(row.id);
-                                    setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "pending" });
-                                  }}
-                                >
-                                  Add Note
-                                </button>
-                              ) : null}
-                            </div>
+                            {actionLabel}
                           </td>
                           <td className="py-3.5">
                             <button
@@ -1930,7 +1909,7 @@ export function AiAnalysisOverviewClient({
                 <p className="text-sm text-[#667085]">
                   {analyzing
                     ? "Generating screening questions…"
-                    : "No screening questions yet. Continue to Verifications to generate the call pack."}
+                    : "No screening questions yet. Open the Verifications step to generate the call pack."}
                 </p>
               )}
             </div>
@@ -1941,7 +1920,7 @@ export function AiAnalysisOverviewClient({
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <SectionTitle>2nd Follow-up</SectionTitle>
+                  <SectionTitle>Follow-Up</SectionTitle>
                   <p className="mt-1 text-sm text-[#667085]">
                     Record answers from the call or email remaining questions. Upload the reply when it arrives.
                   </p>

@@ -11,7 +11,7 @@ import {
   type SubmissionResume,
   type SubmissionResumeIdentity,
 } from "./submission-resume";
-import { DEFAULT_STEP3_GROK_MODEL } from "./step-config";
+import { DEFAULT_STEP3_GROK_MODEL, grokReasoningEffort } from "./step-config";
 
 const DEFAULT_MODEL = DEFAULT_STEP3_GROK_MODEL;
 const MAX_OUTPUT_TOKENS = 4_000;
@@ -107,17 +107,19 @@ export async function generateOptimizedSubmissionResume(args: {
     .filter(Boolean)
     .join("\n\n");
 
+  const model =
+    process.env.AI_MATCH_STEP5_SUBMISSION_MODEL?.trim() ||
+    process.env.AI_MATCH_STEP3_DEEP_GROK_MODEL?.trim() ||
+    process.env.XAI_MATCH_DEEP_MODEL?.trim() ||
+    process.env.GROK_MATCH_DEEP_MODEL?.trim() ||
+    DEFAULT_MODEL;
+
   try {
     const response = await client.responses.create({
-      model:
-        process.env.AI_MATCH_STEP5_SUBMISSION_MODEL?.trim() ||
-        process.env.AI_MATCH_STEP3_DEEP_GROK_MODEL?.trim() ||
-        process.env.XAI_MATCH_DEEP_MODEL?.trim() ||
-        process.env.GROK_MATCH_DEEP_MODEL?.trim() ||
-        DEFAULT_MODEL,
+      model,
       temperature: 0.2,
       max_output_tokens: MAX_OUTPUT_TOKENS,
-      reasoning: { effort: "none" },
+      reasoning: { effort: grokReasoningEffort(model) },
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: user },
@@ -127,6 +129,7 @@ export async function generateOptimizedSubmissionResume(args: {
     return { resume: mergeSubmissionResume(parsed, fallback), usedModel: Boolean(parsed) };
   } catch (error) {
     console.warn("[submission-resume] model rewrite failed, using fallback", {
+      model,
       message: error instanceof Error ? error.message : "unknown",
     });
     return { resume: fallback, usedModel: false };

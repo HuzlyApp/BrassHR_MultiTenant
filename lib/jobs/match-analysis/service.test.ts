@@ -177,9 +177,66 @@ describe("generateMatchAnalysis", () => {
     );
 
     expect(create).toHaveBeenCalledOnce();
-    const grokArgs = create.mock.calls[0]?.[0] as { model?: string };
+    const grokArgs = create.mock.calls[0]?.[0] as {
+      model?: string;
+      reasoning?: { effort?: string };
+    };
+    const requestOpts = create.mock.calls[0]?.[1] as { timeout?: number } | undefined;
     expect(grokArgs.model).toBe("grok-4.6");
+    expect(grokArgs.reasoning).toEqual({ effort: "low" });
+    expect(requestOpts?.timeout).toBeGreaterThanOrEqual(60_000);
+    expect(requestOpts?.timeout).toBeLessThanOrEqual(120_000);
     expect(result.model).toBe("grok-4.6");
+  });
+
+  it("disables reasoning for Quick Match grok-4-fast", async () => {
+    const create = vi.fn(async () => ({
+      output_text: JSON.stringify(LEAN_ANALYSIS),
+    }));
+    __setGrokClientForTests({
+      responses: { create },
+    } as never);
+
+    await generateMatchAnalysis(input, resolved, "grok");
+
+    const grokArgs = create.mock.calls[0]?.[0] as { reasoning?: { effort?: string } };
+    expect(grokArgs.reasoning).toEqual({ effort: "none" });
+  });
+
+  it("falls back to Gemini when Deep Match Grok times out", async () => {
+    const create = vi.fn(async () => {
+      const err = new Error("Request timed out.");
+      err.name = "APIConnectionTimeoutError";
+      throw err;
+    });
+    __setGrokClientForTests({
+      responses: { create },
+    } as never);
+
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toContain("/models/gemini-3.1-pro-preview:generateContent");
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(LEAN_ANALYSIS) }] } }],
+        }),
+      };
+    });
+    __setGeminiFetchForTests(fetchMock as unknown as typeof fetch);
+
+    const result = await generateMatchAnalysis(
+      { ...input, analysisMode: "deep" },
+      {
+        ...resolved,
+        variantKey: "deep",
+        modelConfig: { model: "grok-4-fast" },
+      },
+      "grok"
+    );
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.model).toBe("gemini-3.1-pro-preview");
   });
 
   it("uses the Step 3 deep Gemini model when Gemini is selected for Deep Match", async () => {

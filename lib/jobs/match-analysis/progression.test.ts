@@ -18,11 +18,11 @@ import {
 } from "./progression";
 
 describe("match progression steps", () => {
-  it("keeps recruiter order Quick Match → Verifications → 2nd Follow-up → Deep Match → Submission", () => {
+  it("keeps recruiter order Quick Match → Verifications → Follow-Up → Deep Match → Submission", () => {
     expect(MATCH_PROGRESSION_STEPS.map((step) => step.label)).toEqual([
       "Quick Match",
       "Verifications",
-      "2nd Follow-up",
+      "Follow-Up",
       "Deep Match",
       "Submission",
     ]);
@@ -125,13 +125,13 @@ describe("match progression steps", () => {
     );
   });
 
-  it("blocks later steps for low fit or Talent Pool", () => {
+  it("allows Verifications for low fit but blocks Deep Match and Talent Pool", () => {
     expect(
       canAdvanceMatchProgression({ isAnalyzed: true, fitBand: "review" })
     ).toBe(true);
     expect(
       canAdvanceMatchProgression({ isAnalyzed: true, fitBand: "low" })
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canAdvanceMatchProgression({
         isAnalyzed: true,
@@ -153,6 +153,13 @@ describe("match progression steps", () => {
         unlockedIndex: 2,
       })
     ).toBe(true);
+    expect(
+      canRunDeepMatch({
+        isAnalyzed: true,
+        fitBand: "low",
+        unlockedIndex: 2,
+      })
+    ).toBe(false);
     expect(
       deepMatchBlockReason({
         isAnalyzed: true,
@@ -206,7 +213,7 @@ describe("match progression steps", () => {
   it("labels Continue with the next recruiter action", () => {
     expect(matchProgressionPrimaryAction(0)?.label).toBe("Continue to Verifications");
     expect(matchProgressionPrimaryAction(1)?.label).toBe("Continue to Follow-up");
-    expect(matchProgressionPrimaryAction(2)?.label).toBe("Run Deep Match");
+    expect(matchProgressionPrimaryAction(2)).toBeNull();
     expect(matchProgressionPrimaryAction(3)?.label).toBe("Draft submission résumé");
     expect(matchProgressionPrimaryAction(4)?.label).toBe("Draft submission résumé");
     expect(matchProgressionPrimaryAction(4, { hasSubmissionResume: true })?.label).toBe(

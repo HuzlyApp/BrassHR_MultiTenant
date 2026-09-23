@@ -9,6 +9,7 @@ import {
   deepMatchModelForProvider,
   getMatchStepModels,
   getStep2QuestionRoute,
+  grokReasoningEffort,
   isBlockedStep1Model,
   isBlockedStep3Model,
   matchConfigEnvName,
@@ -86,5 +87,13 @@ describe("match step config", () => {
     expect(deepMatchModelForProvider("grok")).toBe(DEFAULT_STEP3_GROK_MODEL);
     expect(deepMatchModelForProvider("grok")).toBe("grok-4.6");
     expect(deepMatchModelForProvider("gemini")).toBe(DEFAULT_STEP3_MODEL);
+  });
+
+  it("maps Grok reasoning effort by model family", () => {
+    expect(grokReasoningEffort("grok-4-fast")).toBe("none");
+    expect(grokReasoningEffort("grok-4.3")).toBe("none");
+    expect(grokReasoningEffort("grok-4.6")).toBe("low");
+    expect(grokReasoningEffort("grok-4.7")).toBe("low");
+    expect(grokReasoningEffort("grok-4.20-0309-non-reasoning")).toBe("none");
   });
 });

@@ -26,7 +26,7 @@ import { enforceMatchAnalysisRateLimits } from "@/lib/jobs/match-analysis/rate-l
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 type RouteContext = { params: Promise<{ id: string }> };
 

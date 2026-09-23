@@ -1,9 +1,10 @@
 /**
  * Recruiter-facing AI match progression (FS-AI-MATCH-001).
- * Visual order: Quick Match → Verifications → 2nd Follow-up → Deep Match → Submission.
+ * Visual order: Quick Match → Verifications → Follow-Up → Deep Match → Submission.
  *
  * Later paid steps do not unlock from application status. The recruiter must
- * push a strong/review candidate forward. Low fit exits to Talent Pool.
+ * push the candidate forward through Verifications and Follow-Up. Deep Match
+ * stays blocked for low fit; Talent Pool exits skip later paid AI.
  */
 
 import type { MatchStage } from "./match-stage";
@@ -16,8 +17,8 @@ export const MATCH_PROGRESSION_STEPS = [
     stage: "quick",
     stepNumber: 1,
     label: "Quick Match",
-    subtitle: "Checklist · no %",
-    hint: "Step 1 · Quick Match. Checklist only. Ring empty. Low match → Talent Pool. Review / strong → Verifications.",
+    subtitle: "Checklist",
+    hint: "Step 1 · Quick Match. Checklist only. Ring empty. Low, review, or strong can continue to Verifications. Talent Pool is optional for low fit.",
     sectionId: "match-step-quick",
   },
   {
@@ -25,17 +26,17 @@ export const MATCH_PROGRESSION_STEPS = [
     stage: "call_pack",
     stepNumber: 2,
     label: "Verifications",
-    subtitle: "Call pack · no %",
-    hint: "Step 2 · Verifications unlocked. Documented strengths, verification needed, and screening questions (AI). Still no %.",
+    subtitle: "Screening questions",
+    hint: "Step 2 · Verifications unlocked. Documented strengths, verification needed, and screening questions (AI).",
     sectionId: "match-step-verifications",
   },
   {
     id: "follow_up",
     stage: "follow_up",
     stepNumber: 3,
-    label: "2nd Follow-up",
-    subtitle: "Notes / Email · no %",
-    hint: "Step 3 · 2nd follow-up. Use remaining questions from Verifications, record notes, or upload the email reply. Still no %.",
+    label: "Follow-Up",
+    subtitle: "Enrichment",
+    hint: "Step 3 · Follow-Up. Use remaining questions from Verifications, record notes, or upload the email reply.",
     sectionId: "match-step-follow-up",
   },
   {
@@ -43,8 +44,8 @@ export const MATCH_PROGRESSION_STEPS = [
     stage: "deep",
     stepNumber: 4,
     label: "Deep Match",
-    subtitle: "Fills the ring",
-    hint: "Step 4 · Deep Match (paid). Confirm Run Deep Match to open this step. Ring fills after the paid run.",
+    subtitle: "Candidate match",
+    hint: "Step 4 · Deep Match (paid). Confirm Run Deep Match to open this step. Candidate match score fills after the paid run.",
     sectionId: "match-step-deep",
   },
   {
@@ -71,7 +72,7 @@ export type MatchProgressionState = {
 };
 
 export const MATCH_PROGRESSION_INTRO =
-  "Recruiter steps. Continue unlocks Verifications and Follow-up. Deep Match asks you to confirm the paid run before that step opens. A low-fit exit at any diamond goes to Talent Pool — it does not fill the ring.";
+  "Recruiter steps. Use the step bar to open Verifications and Follow-up (including low match). Deep Match asks you to confirm the paid run before that step opens and stays blocked for low fit. A Talent Pool exit skips later paid AI — it does not fill the ring.";
 
 export const FLOW_DIAMOND_COPY =
   "LOW_MATCH if any skill blocker or weighted < 0.40. STRONG if no blocker, weighted ≥ 0.70, mand_met ≥ 0.60, and confirmed/M ≥ 0.50. Else REVIEW. Do not run Deep Match on LOW_MATCH.";
@@ -80,7 +81,7 @@ export const DEEP_MATCH_BLOCKED_LOW_FIT =
   "Low match — do not run Deep Match. Move this candidate to Talent Pool.";
 
 export const DEEP_MATCH_BLOCKED_NOT_READY =
-  "Finish Verifications and 2nd Follow-up before Run Deep Match.";
+  "Finish Verifications and Follow-Up before Run Deep Match.";
 
 export function matchProgressionIndexFromStage(stage: unknown): number {
   const parsed = parseMatchStage(stage);
@@ -182,7 +183,8 @@ export function canAdvanceMatchProgression(args: {
 }): boolean {
   if (args.parkedInTalentPool) return false;
   if (!args.isAnalyzed) return false;
-  return args.fitBand !== "low";
+  // Low fit may still open Verifications / Follow-up; Deep Match stays gated separately.
+  return true;
 }
 
 export function canRunDeepMatch(args: {
@@ -191,7 +193,9 @@ export function canRunDeepMatch(args: {
   unlockedIndex: number;
   parkedInTalentPool?: boolean;
 }): boolean {
-  if (!canAdvanceMatchProgression(args)) return false;
+  if (args.parkedInTalentPool) return false;
+  if (!args.isAnalyzed) return false;
+  if (args.fitBand === "low") return false;
   return args.unlockedIndex >= 2;
 }
 
@@ -262,7 +266,7 @@ export function matchProgressionPrimaryAction(
 ): MatchProgressionPrimaryAction | null {
   if (viewedIndex <= 0) return { kind: "advance", label: "Continue to Verifications", nextIndex: 1 };
   if (viewedIndex === 1) return { kind: "advance", label: "Continue to Follow-up", nextIndex: 2 };
-  if (viewedIndex === 2) return { kind: "deep", label: "Run Deep Match" };
+  if (viewedIndex === 2) return null;
   if (viewedIndex === 3) return { kind: "draft", label: "Draft submission résumé" };
   if (viewedIndex >= 4) {
     if (!opts?.hasSubmissionResume) return { kind: "draft", label: "Draft submission résumé" };

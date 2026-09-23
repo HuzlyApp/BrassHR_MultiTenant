@@ -99,6 +99,22 @@ export function deepMatchModelForProvider(provider: "gemini" | "grok"): string {
   return getMatchStepModels().step3Deep;
 }
 
+/**
+ * xAI Responses API reasoning.effort for a Grok model id.
+ * Flagship Grok 4.5+ rejects "none" (always-on reasoning) → use "low".
+ * Fast / non-reasoning / 4.3 variants still accept "none".
+ */
+export function grokReasoningEffort(model: string): "none" | "low" {
+  const id = model.trim().toLowerCase();
+  if (!id) return "none";
+  if (id.includes("fast") || id.includes("non-reasoning")) return "none";
+  // grok-4.5, grok-4.6, grok-4.7, grok-4.20-… (not -fast / non-reasoning)
+  if (/^grok-4\.(?:[5-9]|\d{2,})\b/.test(id) || /^grok-5\b/.test(id)) {
+    return "low";
+  }
+  return "none";
+}
+
 export type MatchStepModelConfig = {
   step1Extract: string;
   step1Classify: string;

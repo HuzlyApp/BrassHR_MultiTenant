@@ -18,7 +18,7 @@ type StepTone = "current" | "completed" | "upcoming";
 
 const CHEVRON_SRC = "/icons/admin-recruiter/ai-analysis/chevron.svg";
 
-/** Wide enough for "2nd Follow-up" + "Notes / Email • no %" on one line. */
+/** Wide enough for "Follow-Up" + "Enrichment" on one line. */
 const STEP_MIN_WIDTH_CLASS = "min-w-[13.75rem] sm:min-w-[14.5rem] lg:min-w-[15.25rem]";
 
 const STEP_ICONS: Record<

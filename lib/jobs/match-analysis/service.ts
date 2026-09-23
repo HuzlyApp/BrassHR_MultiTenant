@@ -34,6 +34,7 @@ import {
   DEFAULT_STEP1_MODEL,
   getMatchStepModels,
   getStep2QuestionRoute,
+  grokReasoningEffort,
   isBlockedStep1Model,
   isBlockedStep3Model,
   sanitizeStep1Model,
@@ -48,7 +49,34 @@ const TEMPERATURE = 0;
 const BASE_MAX_TOKENS = 16_000;
 const LONG_RESUME_MAX_TOKENS = 24_000;
 const LONG_RESUME_CHARS = 8_000;
-const API_TIMEOUT_MS = Number(process.env.MATCH_ANALYSIS_TIMEOUT_MS ?? 90_000);
+const DEFAULT_API_TIMEOUT_MS = 90_000;
+/** Flagship Deep Match (reasoning) often needs longer than Quick Match. */
+const DEFAULT_DEEP_API_TIMEOUT_MS = 120_000;
+
+function readTimeoutMs(envName: string, fallback: number): number {
+  const raw = Number(process.env[envName]);
+  if (Number.isFinite(raw) && raw >= 5_000) return Math.floor(raw);
+  return fallback;
+}
+
+function apiTimeoutMs(): number {
+  return readTimeoutMs("MATCH_ANALYSIS_TIMEOUT_MS", DEFAULT_API_TIMEOUT_MS);
+}
+
+function deepApiTimeoutMs(): number {
+  return Math.max(
+    apiTimeoutMs(),
+    readTimeoutMs("MATCH_ANALYSIS_DEEP_TIMEOUT_MS", DEFAULT_DEEP_API_TIMEOUT_MS)
+  );
+}
+
+/** Primary Grok Deep Match attempt — leave headroom for Gemini fallback within maxDuration. */
+function deepGrokAttemptTimeoutMs(): number {
+  return Math.min(
+    deepApiTimeoutMs(),
+    readTimeoutMs("MATCH_ANALYSIS_DEEP_GROK_TIMEOUT_MS", 60_000)
+  );
+}
 
 export class MatchAnalysisGenerationError extends Error {
   readonly code:
@@ -123,7 +151,7 @@ function getGrokClient(): OpenAI {
   grokClient = new OpenAI({
     apiKey,
     baseURL: resolveGrokBaseUrl(),
-    timeout: API_TIMEOUT_MS,
+    timeout: apiTimeoutMs(),
     maxRetries: 0,
   });
   return grokClient;
@@ -275,19 +303,26 @@ async function callGrok(args: {
   user: string;
   maxTokens: number;
   model?: string;
+  timeoutMs?: number;
 }): Promise<string> {
   const openai = getGrokClient();
+  const model = args.model || resolveGrokModel();
+  const timeoutMs = args.timeoutMs ?? apiTimeoutMs();
+  const startedAt = Date.now();
   try {
-    const response = await openai.responses.create({
-      model: args.model || resolveGrokModel(),
-      temperature: TEMPERATURE,
-      max_output_tokens: args.maxTokens,
-      reasoning: { effort: "none" },
-      input: [
-        { role: "system", content: args.system },
-        { role: "user", content: args.user },
-      ],
-    });
+    const response = await openai.responses.create(
+      {
+        model,
+        temperature: TEMPERATURE,
+        max_output_tokens: args.maxTokens,
+        reasoning: { effort: grokReasoningEffort(model) },
+        input: [
+          { role: "system", content: args.system },
+          { role: "user", content: args.user },
+        ],
+      },
+      { timeout: timeoutMs }
+    );
     const text = extractOutputText(response);
     if (!text) {
       throw new MatchAnalysisGenerationError("EMPTY");
@@ -295,6 +330,16 @@ async function callGrok(args: {
     return text;
   } catch (error) {
     if (error instanceof MatchAnalysisGenerationError) throw error;
+    const anyErr = error as { status?: number; message?: string; code?: string; name?: string };
+    console.error("[match-analysis] grok request failed", {
+      model,
+      timeoutMs,
+      elapsedMs: Date.now() - startedAt,
+      status: anyErr?.status ?? null,
+      code: anyErr?.code ?? null,
+      name: anyErr?.name ?? null,
+      detail: String(anyErr?.message ?? error).slice(0, 500),
+    });
     throw mapApiError(error);
   }
 }
@@ -304,6 +349,7 @@ async function callGemini(args: {
   user: string;
   maxTokens: number;
   model?: string;
+  timeoutMs?: number;
 }): Promise<string> {
   const apiKey = resolveGeminiApiKey();
   if (!apiKey) {
@@ -311,9 +357,10 @@ async function callGemini(args: {
   }
 
   const model = args.model || resolveGeminiModel();
+  const timeoutMs = args.timeoutMs ?? apiTimeoutMs();
   const url = `${resolveGeminiBaseUrl()}/models/${encodeURIComponent(model)}:generateContent`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const doFetch = geminiFetchImpl ?? fetch;
 
   try {
@@ -380,12 +427,73 @@ async function callGemini(args: {
 
 async function callProvider(
   provider: AnalysisProvider,
-  args: { system: string; user: string; maxTokens: number; model: string }
+  args: {
+    system: string;
+    user: string;
+    maxTokens: number;
+    model: string;
+    timeoutMs?: number;
+  }
 ): Promise<string> {
   if (provider === "grok") {
     return callGrok(args);
   }
   return callGemini(args);
+}
+
+function shouldFallbackDeepProvider(error: unknown): boolean {
+  const code = matchAnalysisErrorCode(error);
+  return code === "TIMEOUT" || code === "NETWORK" || code === "UNKNOWN" || code === "RATE_LIMIT";
+}
+
+/**
+ * Deep Match: try the selected provider, then fall back Grok → Gemini on transport failures.
+ * Quick Match stays single-provider (volume routing is handled elsewhere).
+ */
+async function callProviderWithDeepFallback(args: {
+  provider: AnalysisProvider;
+  analysisMode: "analyze" | "deep";
+  system: string;
+  user: string;
+  maxTokens: number;
+  model: string;
+  modelConfig: Record<string, unknown>;
+}): Promise<{ text: string; provider: AnalysisProvider; model: string }> {
+  const canFallbackToGemini = args.analysisMode === "deep" && args.provider === "grok";
+  const timeoutMs =
+    args.analysisMode === "deep"
+      ? canFallbackToGemini
+        ? deepGrokAttemptTimeoutMs()
+        : deepApiTimeoutMs()
+      : apiTimeoutMs();
+  try {
+    const text = await callProvider(args.provider, {
+      system: args.system,
+      user: args.user,
+      maxTokens: args.maxTokens,
+      model: args.model,
+      timeoutMs,
+    });
+    return { text, provider: args.provider, model: args.model };
+  } catch (error) {
+    if (!canFallbackToGemini || !shouldFallbackDeepProvider(error)) {
+      throw error;
+    }
+    const fallbackModel = modelForProvider("gemini", args.modelConfig, "deep");
+    console.warn("[match-analysis] deep grok failed; falling back to gemini", {
+      primaryModel: args.model,
+      fallbackModel,
+      code: matchAnalysisErrorCode(error),
+    });
+    const text = await callProvider("gemini", {
+      system: args.system,
+      user: args.user,
+      maxTokens: args.maxTokens,
+      model: fallbackModel,
+      timeoutMs: deepApiTimeoutMs(),
+    });
+    return { text, provider: "gemini", model: fallbackModel };
+  }
 }
 
 export type MatchAnalysisGenerationResult = {
@@ -434,12 +542,18 @@ export async function generateMatchAnalysis(
       : buildMatchAnalysisUserPrompt({ ...input, analysisMode: "analyze" });
   const model = modelForProvider(selectedProvider, cfg, analysisMode);
 
-  const rawText = await callProvider(selectedProvider, {
+  const primary = await callProviderWithDeepFallback({
+    provider: selectedProvider,
+    analysisMode,
     system,
     user: userPrompt,
     maxTokens,
     model,
+    modelConfig: cfg,
   });
+  let activeProvider = primary.provider;
+  let activeModel = primary.model;
+  const rawText = primary.text;
 
   let parsedJson = parseJsonObject(rawText);
   let parsed = parseAndValidateMatchAnalysis(rawText);
@@ -459,15 +573,20 @@ export async function generateMatchAnalysis(
       analysisMode,
       responseSchema: analysisMode === "deep" ? resolved?.responseSchema : null,
     });
-    const repairedText = await callProvider(selectedProvider, {
+    const repairedCall = await callProviderWithDeepFallback({
+      provider: activeProvider,
+      analysisMode,
       system,
       user: repairUser,
       maxTokens,
-      model,
+      model: activeModel,
+      modelConfig: cfg,
     });
-    finalRawText = repairedText;
-    parsedJson = parseJsonObject(repairedText);
-    parsed = parseAndValidateMatchAnalysis(repairedText);
+    activeProvider = repairedCall.provider;
+    activeModel = repairedCall.model;
+    finalRawText = repairedCall.text;
+    parsedJson = parseJsonObject(repairedCall.text);
+    parsed = parseAndValidateMatchAnalysis(repairedCall.text);
     schemaErrors =
       analysisMode === "deep" && resolved && parsedJson.ok
         ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
@@ -478,8 +597,8 @@ export async function generateMatchAnalysis(
     if (!parsed.ok || schemaErrors.length) {
       console.error("[match-analysis] INVALID_RESPONSE after repair", {
         analysisMode,
-        provider: selectedProvider,
-        model,
+        provider: activeProvider,
+        model: activeModel,
         parseErrors: parsed.ok ? [] : parsed.errors.slice(0, 20),
         schemaErrors: schemaErrors.slice(0, 20),
       });
@@ -495,7 +614,7 @@ export async function generateMatchAnalysis(
     rawText: finalRawText,
     rawObject: parsed.rawObject,
     repaired,
-    model,
+    model: activeModel,
   };
 }
 
