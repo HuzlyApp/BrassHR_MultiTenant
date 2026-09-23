@@ -59,7 +59,7 @@ export function MatchAnalysisModelSelect({
   const heightClass = variant === "primary" ? "h-8" : "h-[2.375rem]";
 
   return (
-    <label className={`inline-flex items-center gap-2 ${className}`}>
+    <label className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap ${className}`}>
       <span className="text-xs font-medium text-[#64748B]">Model</span>
       <select
         value={value}
@@ -69,8 +69,8 @@ export function MatchAnalysisModelSelect({
         className={`${heightClass} appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat py-0 pl-2.5 pr-8 text-xs font-semibold text-[#0F172A] outline-none transition hover:bg-[#F8FAFC] focus:border-[color:var(--brand-primary)] disabled:opacity-60`}
         style={{ backgroundImage: SELECT_CHEVRON }}
       >
-        <option value="gemini">{ANALYSIS_PROVIDER_LABELS.gemini}</option>
         <option value="grok">{ANALYSIS_PROVIDER_LABELS.grok}</option>
+        <option value="gemini">{ANALYSIS_PROVIDER_LABELS.gemini}</option>
       </select>
     </label>
   );

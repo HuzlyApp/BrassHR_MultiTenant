@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,6 +14,7 @@ import {
   Medal,
   Search,
   Tag,
+  Upload,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -21,7 +22,6 @@ import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTyp
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
-  CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
@@ -32,12 +32,11 @@ import {
 } from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
 import {
   formatMatchCategory,
+  formatMatchModelLabel,
   formatMatchScore,
   formatRecommendedAction,
-  matchCategoryBadgeClassName,
 } from "@/lib/jobs/match-analysis/display";
 import {
-  RECRUITER_DECISION_LABELS,
   VERIFIED_INFO_CATEGORIES,
   VERIFIED_INFO_CATEGORY_LABELS,
   countQualificationOutcomes,
@@ -46,7 +45,7 @@ import {
   qualificationDisplayStatus,
   recruiterActionLabel,
   recruiterVerifiedNeedsNoteDecision,
-  requirementShowsAddNote,
+  checklistStep2Items,
   type QualificationDisplayStatus,
   type QualificationFilter,
   type QualificationOutcomeCounts,
@@ -58,7 +57,11 @@ import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModa
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
-import { MatchAnalyzeButton } from "../MatchAnalyzeButton";
+import {
+  DeepMatchConfirmDialog,
+  FollowUpConfirmDialog,
+  MatchAnalyzeButton,
+} from "../MatchAnalyzeButton";
 import {
   MatchAnalysisModelSelect,
   useMatchAnalysisProvider,
@@ -73,9 +76,49 @@ import {
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 import type { VerificationNote } from "@/lib/jobs/match-analysis/verification-notes";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { deepMatchSubmitBanner, isDeepMatchStage, publicMatchScore } from "@/lib/jobs/match-analysis/match-stage";
+import {
+  FLOW_DIAMOND_COPY,
+  MATCH_PROGRESSION_STEPS,
+  canAdvanceMatchProgression,
+  canRunDeepMatch,
+  canSelectMatchProgressionStep,
+  displayFitBand,
+  fitBandLabel,
+  fitBandTagClassName,
+  matchProgressionInitialIndex,
+  matchProgressionFollowUpNeedsConfirm,
+  matchProgressionStepRequiresDeepConfirm,
+  matchProgressionPrimaryAction,
+  matchProgressionStageFromIndex,
+  quickMatchFitBand,
+  type QuickMatchFitBand,
+} from "@/lib/jobs/match-analysis/progression";
+import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "@/lib/jobs/match-analysis/quick-route";
+import { isSubmissionResumeFileName } from "@/lib/jobs/match-analysis/submission-resume";
+import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
+import { MatchProgressionStepper } from "./MatchProgressionStepper";
+import { deepMatchModelForProvider } from "@/lib/jobs/match-analysis/step-config";
 
 const CARD =
   "rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
+/** Clears sticky admin header when scrolling step anchors into view. */
+const STEP_SCROLL_MARGIN_CLASS =
+  "scroll-mt-[calc(var(--admin-recruiter-header-height,67px)+1rem)]";
+
+function scrollAiAnalysisBelowHeader(elementId = "ai-analysis-overview-top") {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--admin-recruiter-header-height")
+    .trim();
+  const headerPx = Number.parseFloat(raw) || 67;
+  const y = el.getBoundingClientRect().top + window.scrollY - headerPx - 16;
+  window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+}
 const FIELD =
   "h-11 w-full rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition placeholder:text-[#98A2B3] focus:border-[color:var(--brand-primary)]";
 const SELECT_FIELD =
@@ -89,11 +132,9 @@ const PRIMARY_BTN =
 const OUTLINE_BTN =
   "inline-flex items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_OUTLINE_BTN =
-  "inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-60";
-const SIDEBAR_SAVE_BTN =
-  "flex min-h-[60px] w-full min-w-0 flex-1 basis-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 py-3 text-sm font-semibold leading-5 text-white transition hover:brightness-95 disabled:opacity-60";
-const SIDEBAR_REEXTRACT_BTN =
-  "flex min-h-[60px] w-full min-w-0 flex-1 basis-0 items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-3 py-3 text-center text-sm font-semibold leading-5 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
+  "inline-flex h-8 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-60";
+const HEADER_TOOLBAR =
+  "flex min-w-0 flex-wrap items-center gap-2";
 const SIDEBAR_TITLE_CLASS = "text-base font-semibold";
 const SECTION_HEADER_DIVIDER = "border-b border-[#E5E7EB] pb-4";
 
@@ -158,22 +199,39 @@ function copyText(value: string, success: string) {
   toast.success(success);
 }
 
+function fitBandRingColors(band: QuickMatchFitBand | null | undefined): {
+  track: string;
+  stroke: string;
+} {
+  if (band === "low") return { track: "#FEE2E2", stroke: "#DC2626" };
+  if (band === "strong") return { track: "#DCFCE7", stroke: "#00B135" };
+  if (band === "review") return { track: "#FEF9C3", stroke: "#CA8A04" };
+  return { track: "#E5E7EB", stroke: "#E5E7EB" };
+}
+
 function MatchRing({
   percent,
   label,
   strokeColor,
+  fitBand = null,
 }: {
   percent: number | null;
   label: string;
   strokeColor: string;
+  fitBand?: QuickMatchFitBand | null;
 }) {
   const outer = 139;
   const size = 121;
   const stroke = 10;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const fill = percent == null ? 0 : Math.min(100, Math.max(0, percent));
+  // Steps 1–3: label-only ring colored by fit band (no %). Step 4+: fill to match %.
+  const labelOnly = percent == null;
+  const bandColors = fitBandRingColors(fitBand);
+  const fill = labelOnly ? (fitBand ? 100 : 0) : Math.min(100, Math.max(0, percent ?? 0));
   const offset = circumference - (fill / 100) * circumference;
+  const trackColor = labelOnly ? bandColors.track : "#E5E7EB";
+  const progressColor = labelOnly ? bandColors.stroke : strokeColor;
 
   return (
     <div className="relative shrink-0" style={{ width: outer, height: outer }}>
@@ -189,7 +247,7 @@ function MatchRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#E5E7EB"
+          stroke={trackColor}
           strokeWidth={stroke}
         />
         <circle
@@ -197,7 +255,7 @@ function MatchRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={strokeColor}
+          stroke={progressColor}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -205,13 +263,17 @@ function MatchRing({
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="flex w-[79px] flex-col items-center text-center">
-          <span className="h-9 text-[30px] font-semibold leading-9 text-black">
-            {percent == null ? "—" : `${percent}%`}
+      <div className="absolute inset-0 flex items-center justify-center px-3">
+        {labelOnly ? (
+          <span className="max-w-[6.5rem] text-center text-[18px] font-semibold leading-6 text-black sm:text-[20px] sm:leading-7">
+            {label}
           </span>
-          <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
-        </div>
+        ) : (
+          <div className="flex w-[79px] flex-col items-center text-center">
+            <span className="h-9 text-[30px] font-semibold leading-9 text-black">{`${percent}%`}</span>
+            <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -280,6 +342,53 @@ function historyScoreBadgeClass(score: number | null | undefined): string {
   return "bg-[#DC2626] text-white";
 }
 
+function historyStatusFromItem(item: {
+  score: number | null;
+  category: string | null;
+  display_category: string | null;
+  analysis?: unknown;
+}): { label: string; band: QuickMatchFitBand | null } {
+  const route = quickRouteFromAnalysis(item.analysis);
+  if (route) {
+    const band = fitBandFromQuickRoute(route);
+    const fromAnalysis =
+      item.analysis &&
+      typeof item.analysis === "object" &&
+      "candidate_match" in item.analysis &&
+      item.analysis.candidate_match &&
+      typeof item.analysis.candidate_match === "object" &&
+      "display_category" in item.analysis.candidate_match &&
+      typeof (item.analysis.candidate_match as { display_category?: unknown }).display_category ===
+        "string"
+        ? String(
+            (item.analysis.candidate_match as { display_category: string }).display_category
+          ).trim()
+        : "";
+    const label =
+      item.display_category?.trim() ||
+      fromAnalysis ||
+      (route === "STRONG" ? "Strong" : route === "LOW_MATCH" ? "Low match" : "Review");
+    return { label, band };
+  }
+
+  const display = item.display_category?.trim();
+  if (display) {
+    const lower = display.toLowerCase();
+    const band: QuickMatchFitBand | null = lower.includes("low")
+      ? "low"
+      : lower.includes("strong") || lower.includes("good")
+        ? "strong"
+        : lower.includes("review")
+          ? "review"
+          : null;
+    return { label: display, band };
+  }
+
+  const categoryLabel = formatMatchCategory(item.category);
+  if (categoryLabel) return { label: categoryLabel, band: null };
+  return { label: "Not analyzed", band: null };
+}
+
 function AnalysisHistoryItem({
   item,
 }: {
@@ -291,23 +400,30 @@ function AnalysisHistoryItem({
     display_category: string | null;
     model: string | null;
     analyzed_at: string;
+    analysis?: unknown;
   };
 }) {
-  const categoryLabel =
-    item.display_category || formatMatchCategory(item.category) || "Not analyzed";
+  const { label, band } = historyStatusFromItem(item);
+  const hasScore = item.score != null && Number.isFinite(Number(item.score));
 
   return (
     <li className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-semibold text-[#475467]">Version {item.version}</span>
+          {hasScore ? (
+            <span
+              className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${historyScoreBadgeClass(item.score)}`}
+            >
+              {formatMatchScore(item.score)}
+            </span>
+          ) : null}
           <span
-            className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${historyScoreBadgeClass(item.score)}`}
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+              band ? fitBandTagClassName(band) : "bg-[#F2F4F7] text-[#475467]"
+            }`}
           >
-            {formatMatchScore(item.score)}
-          </span>
-          <span className="inline-flex rounded-md bg-[#E5E7EB] px-2 py-0.5 text-xs font-semibold text-[#344054]">
-            {categoryLabel}
+            {label}
           </span>
         </div>
         <p className="text-xs leading-4 text-[#94A3B8]">
@@ -486,13 +602,6 @@ function ringStrokeColor(score: number | null | undefined): string {
   return "#EF4444";
 }
 
-function overviewMatchTagClass(category: string | null | undefined): string {
-  if (category === "STRONG_MATCH" || category === "GOOD_MATCH") {
-    return "bg-[#00B135] text-white";
-  }
-  return matchCategoryBadgeClassName(category);
-}
-
 export function AiAnalysisOverviewClient({
   applicationId,
   backHref,
@@ -511,7 +620,6 @@ export function AiAnalysisOverviewClient({
     workerId,
     analysis,
     blocking,
-    verifyItems,
     isAnalyzed,
     verifyingId,
     toggleVerified,
@@ -525,9 +633,7 @@ export function AiAnalysisOverviewClient({
     updateRecommendedAnswer,
     savingAnswers,
     decision,
-    setDecision,
     decisionNote,
-    setDecisionNote,
     savingDecision,
     verifiedTitle,
     setVerifiedTitle,
@@ -536,26 +642,22 @@ export function AiAnalysisOverviewClient({
     verifiedCategory,
     setVerifiedCategory,
     savingVerified,
-    teamMembers,
-    assignedId,
-    setAssignedId,
     info,
-    setInfo,
-    savingInfo,
     extractedDraft,
     setExtractedDraft,
     savingText,
     resumes,
-    openingResumeId,
     viewResume,
     runAnalyze,
     saveScreeningAnswers,
-    recordDecision,
+    uploadScreeningReply,
+    uploadingScreening,
+    advanceMatchProgress,
+    draftSubmissionResume,
+    draftingSubmissionResume,
+    sendToTalentPool,
     addVerified,
-    saveDetails,
-    reextractContact,
     saveExtractedText,
-    decisionOptions,
   } = workspace;
 
   const [filter, setFilter] = useState<FilterId>("All");
@@ -581,7 +683,16 @@ export function AiAnalysisOverviewClient({
   const [downloadingAssessment, setDownloadingAssessment] = useState(false);
   const [commOpen, setCommOpen] = useState(false);
   const [askCandidateNote, setAskCandidateNote] = useState<VerificationNote | null>(null);
+  const [statusName, setStatusName] = useState("");
+  const [statusSystemKey, setStatusSystemKey] = useState<string | null>(null);
+  const [viewedStep, setViewedStep] = useState(0);
+  const [userPickedStep, setUserPickedStep] = useState(false);
+  const [confirmDeepOpen, setConfirmDeepOpen] = useState(false);
+  const [confirmFollowUpOpen, setConfirmFollowUpOpen] = useState(false);
+  const [talentPoolBusy, setTalentPoolBusy] = useState(false);
+  const pendingProgressionScrollRef = useRef<string | null>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
+  const screeningUploadRef = useRef<HTMLInputElement>(null);
 
   const loadResumeHistory = useCallback(async () => {
     setResumeHistoryLoading(true);
@@ -611,21 +722,19 @@ export function AiAnalysisOverviewClient({
   }
 
   async function viewResumeFromHistory(resumeId: string) {
-    setResumeHistoryBusyId(resumeId);
-    try {
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
-        { cache: "no-store" }
-      );
-      const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
-      const url = payload.url?.trim() ?? "";
-      if (!response.ok || !url) throw new Error(payload.error || "Could not open resume.");
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not open resume.");
-    } finally {
-      setResumeHistoryBusyId(null);
+    if (!workerId) {
+      toast.error("Could not open resume.");
+      return;
     }
+    window.open(
+      adminWorkerResumePreviewHref({
+        workerId,
+        resumeId,
+        applicationId,
+      }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   async function parseResumeFromHistory(resumeId: string) {
@@ -681,11 +790,26 @@ export function AiAnalysisOverviewClient({
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
         { method: "POST", body: formData }
       );
-      const payload = (await response.json().catch(() => ({}))) as { error?: string; resumes?: ResumeHistoryItem[] };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        autoQuickMatch?: {
+          status?: string;
+          error?: string | null;
+        } | null;
+      };
       if (!response.ok) throw new Error(payload.error || "Could not upload resume.");
       await loadResumeHistory();
       setWorkspaceReloadToken((t) => t + 1);
       toast.success("Resume uploaded.");
+      const match = payload.autoQuickMatch;
+      if (match?.status === "ANALYZED") {
+        toast.success("Quick Match complete.");
+      } else if (match && match.status !== "ANALYZED") {
+        toast.error(
+          match.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not upload resume.");
     } finally {
@@ -701,9 +825,10 @@ export function AiAnalysisOverviewClient({
 
   async function handleRunAnalyze(mode: AnalysisMode = "analyze") {
     const ok = await runAnalyze(mode, analysisProvider);
-    if (!ok) return;
+    if (!ok) return false;
     setOpenReqId("");
     router.refresh();
+    return true;
   }
 
   async function confirmRemoveFromJob() {
@@ -728,42 +853,284 @@ export function AiAnalysisOverviewClient({
   }
 
   const app = data?.application;
-  const matchScore =
-    isAnalyzed && app?.ai_match_score != null && Number.isFinite(Number(app.ai_match_score))
-      ? Number(app.ai_match_score)
-      : null;
-  const matchLabel =
-    app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Not analyzed";
+  const hasDeepMatch = isDeepMatchStage(app?.ai_match_stage);
+  const outcomeCounts = useMemo(
+    () => countQualificationOutcomes(data?.requirements ?? [], blocking),
+    [data?.requirements, blocking]
+  );
+  const checklistItems = useMemo(
+    () => checklistStep2Items(data?.requirements ?? [], blocking),
+    [data?.requirements, blocking]
+  );
+  const matchScore = publicMatchScore(app?.ai_match_stage, app?.ai_match_score);
+  const storedRoute = analysis?.quick_match?.quick_route ?? null;
+  const parkedInTalentPool =
+    app?.recruiter_decision === "do_not_pursue" ||
+    (statusSystemKey ?? app?.status_system_key) === "rejected";
+  const fitBand = storedRoute
+    ? fitBandFromQuickRoute(storedRoute)
+    : quickMatchFitBand(outcomeCounts);
+  const displayedFitBand = displayFitBand({
+    fitBand,
+    stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+    hasDeepMatch,
+  });
+  // Steps 1–3: show Low / Review / Strong. Step 4+ (Deep Match): show actual match %.
+  const matchLabel = hasDeepMatch
+    ? app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Match"
+    : isAnalyzed
+      ? fitBandLabel(displayedFitBand)
+      : "Not analyzed";
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
-  const jobTitle = analysis?.job?.job_title?.trim() || "—";
+  const jobTitle =
+    data?.job?.title?.trim() ||
+    analysis?.job?.job_title?.trim() ||
+    "";
   const confidencePercent =
-    analysis?.candidate_match?.confidence_score != null
+    hasDeepMatch && analysis?.candidate_match?.confidence_score != null
       ? Math.round(Number(analysis.candidate_match.confidence_score))
       : null;
-  const recommendation = formatRecommendedAction(app?.ai_match_action);
-  const summary = analysis?.candidate_match?.recruiter_decision_summary ?? "";
-  const strengths = analysis?.strengths ?? [];
-  const verificationNeeded =
-    verifyItems.length > 0 ? verifyItems : analysis?.gaps_and_risks ?? [];
+  const recommendation = hasDeepMatch ? formatRecommendedAction(app?.ai_match_action) : "";
+  const summary = hasDeepMatch ? analysis?.candidate_match?.recruiter_decision_summary ?? "" : "";
+  const submitBanner = hasDeepMatch
+    ? deepMatchSubmitBanner({
+        action: app?.ai_match_action,
+        readiness: analysis?.submission_readiness?.readiness_status,
+      })
+    : null;
+  const strengths = checklistItems.strengths;
+  const verificationNeeded = checklistItems.verifications;
   const recommendedQuestions = data?.recommendedQuestions ?? [];
-  const resumeCompleteness = analysis?.data_quality?.resume_completeness ?? "—";
-  const jobCompleteness = analysis?.data_quality?.job_description_completeness ?? "—";
+  const screeningUploads = data?.screeningUploads ?? [];
+  const resumeCompleteness = hasDeepMatch
+    ? analysis?.data_quality?.resume_completeness ?? "—"
+    : "—";
+  const jobCompleteness = hasDeepMatch
+    ? analysis?.data_quality?.job_description_completeness ?? "—"
+    : "—";
+  const canAdvance = canAdvanceMatchProgression({
+    isAnalyzed,
+    fitBand,
+    parkedInTalentPool,
+  });
+  const progressionState = useMemo(
+    () => ({
+      isAnalyzed,
+      stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+      hasDeepMatch,
+      parkedInTalentPool,
+      fitBand,
+    }),
+    [isAnalyzed, app?.ai_match_stage, data?.matchProgression?.stage, hasDeepMatch, parkedInTalentPool, fitBand]
+  );
+  const unlockedIndex = matchProgressionInitialIndex(progressionState);
+  const derivedProgressionIndex = unlockedIndex;
+  const latestSubmissionResume = useMemo(() => {
+    const packs = resumes.filter((row) => isSubmissionResumeFileName(row.fileName));
+    return packs[packs.length - 1] ?? null;
+  }, [resumes]);
+  const hasSubmissionResume = Boolean(latestSubmissionResume);
+  const primaryAction = matchProgressionPrimaryAction(viewedStep, { hasSubmissionResume });
+  const canRunPaidDeep = canRunDeepMatch({
+    isAnalyzed,
+    fitBand,
+    unlockedIndex,
+    parkedInTalentPool,
+  });
+  const progressionStep = MATCH_PROGRESSION_STEPS[viewedStep] ?? null;
+  const progressionHint = progressionStep?.hint ?? "";
+  const progressionHintBody = progressionHint.replace(/^Step\s+\d+\s*·\s*[^.]*\.\s*/i, "").trim();
+  // Only used by the commented-out checklist counts under the progression hint.
+  // const preferredConfirmed = useMemo(() => {
+  //   return (data?.requirements ?? []).filter((row) => {
+  //     const type = String(row.requirement_type ?? "").toUpperCase();
+  //     return type === "PREFERRED" && qualificationDisplayStatus(row, blocking) === "Confirmed";
+  //   }).length;
+  // }, [data?.requirements, blocking]);
+
+  useEffect(() => {
+    if (!userPickedStep) setViewedStep(derivedProgressionIndex);
+  }, [derivedProgressionIndex, userPickedStep]);
+
+  useEffect(() => {
+    if (!pendingProgressionScrollRef.current) return;
+    pendingProgressionScrollRef.current = null;
+    // Keep stepper + overview fully visible under the sticky admin header.
+    scrollAiAnalysisBelowHeader("ai-analysis-overview-top");
+  }, [viewedStep]);
+
+  function requestDeepMatchConfirm() {
+    if (!canRunPaidDeep) {
+      toast.error(
+        parkedInTalentPool || fitBand === "low"
+          ? "Low match — move to Talent Pool. Do not run Deep Match."
+          : "Finish Verifications and Follow-Up before Run Deep Match."
+      );
+      return;
+    }
+    setConfirmDeepOpen(true);
+  }
+
+  async function confirmAndRunDeepMatch() {
+    setConfirmDeepOpen(false);
+    const ok = await handleRunAnalyze("deep");
+    if (!ok) return;
+    setUserPickedStep(true);
+    pendingProgressionScrollRef.current = "top";
+    setViewedStep(3);
+  }
+
+  function selectProgressionStep(index: number) {
+    if (!canSelectMatchProgressionStep({ index, unlockedIndex, canAdvance })) return;
+    if (matchProgressionStepRequiresDeepConfirm({ index, unlockedIndex })) {
+      requestDeepMatchConfirm();
+      return;
+    }
+    if (index === 1 && unlockedIndex < 1) {
+      void moveToVerifications();
+      return;
+    }
+    if (index === 2 && unlockedIndex < 2) {
+      void moveToFollowUp();
+      return;
+    }
+    setUserPickedStep(true);
+    pendingProgressionScrollRef.current = "top";
+    setViewedStep(index);
+  }
+
+  async function runVerificationsAnalysis() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    const ok = await handleRunAnalyze("call_pack");
+    if (!ok) return;
+    setUserPickedStep(true);
+    pendingProgressionScrollRef.current = "top";
+    setViewedStep(1);
+  }
+
+  function moveToVerifications() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    void runVerificationsAnalysis();
+  }
+
+  async function advanceToFollowUp() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    try {
+      await advanceMatchProgress("follow_up");
+      setConfirmFollowUpOpen(false);
+      setUserPickedStep(true);
+      pendingProgressionScrollRef.current = "top";
+      setViewedStep(2);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not continue to Follow-up.");
+    }
+  }
+
+  function moveToFollowUp() {
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    if (matchProgressionFollowUpNeedsConfirm(outcomeCounts.verify)) {
+      setConfirmFollowUpOpen(true);
+      return;
+    }
+    void advanceToFollowUp();
+  }
+
+  async function handlePrimaryProgressionAction() {
+    if (!primaryAction) return;
+    if (primaryAction.kind === "msp") {
+      setCommOpen(true);
+      return;
+    }
+    if (primaryAction.kind === "draft") {
+      if (!hasDeepMatch) {
+        toast.error("Run Deep Match before drafting the submission résumé.");
+        return;
+      }
+      const drafted = await draftSubmissionResume();
+      if (drafted) selectProgressionStep(4);
+      return;
+    }
+    if (primaryAction.kind === "deep") {
+      requestDeepMatchConfirm();
+      return;
+    }
+    if (primaryAction.nextIndex === 1) {
+      moveToVerifications();
+      return;
+    }
+    if (primaryAction.nextIndex === 2) {
+      moveToFollowUp();
+      return;
+    }
+    if (!canAdvance) {
+      toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    try {
+      await advanceMatchProgress(matchProgressionStageFromIndex(primaryAction.nextIndex) as "call_pack" | "follow_up");
+      selectProgressionStep(primaryAction.nextIndex);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not continue.");
+    }
+  }
+
+  async function handleTalentPool() {
+    setTalentPoolBusy(true);
+    try {
+      const ok = await sendToTalentPool();
+      if (ok) {
+        setStatusName("Not a Fit");
+        setStatusSystemKey("rejected");
+      }
+    } finally {
+      setTalentPoolBusy(false);
+    }
+  }
   const analysisHistory = useMemo(() => {
     const rows = data?.analysisHistory ?? [];
     if (rows.length) return rows;
-    if (!app || (app.ai_match_status !== "ANALYZED" && app.ai_match_score == null)) return [];
+    if (!app || (app.ai_match_status !== "ANALYZED" && app.ai_match_score == null && !app.ai_analyzed_at)) {
+      return [];
+    }
+    const route = quickRouteFromAnalysis(analysis);
+    const quickLabel =
+      route === "STRONG"
+        ? "Strong"
+        : route === "LOW_MATCH"
+          ? "Low match"
+          : route === "REVIEW"
+            ? "Review"
+            : null;
     return [
       {
         id: app.id,
         version: Number(app.ai_analysis_version) || 1,
         score: app.ai_match_score,
         category: app.ai_match_category,
-        display_category: app.ai_match_display_category,
+        display_category: app.ai_match_display_category || quickLabel || null,
         model: app.ai_analysis_model,
         analyzed_at: app.ai_analyzed_at ?? "",
+        analysis: analysis ?? null,
       },
     ];
-  }, [data?.analysisHistory, app]);
+  }, [data?.analysisHistory, app, analysis]);
+
+  useEffect(() => {
+    if (app?.status_name) setStatusName(app.status_name);
+    if (app?.status_system_key !== undefined) setStatusSystemKey(app.status_system_key ?? null);
+  }, [app?.status_name, app?.status_system_key]);
 
   const noteFeedItems = useMemo(() => {
     const verified = (data?.verifiedInformation ?? []).map((item) => ({
@@ -812,11 +1179,6 @@ export function AiAnalysisOverviewClient({
     [resumes, app?.ai_analyzed_at, isAnalyzed]
   );
 
-  const outcomeCounts = useMemo(
-    () => countQualificationOutcomes(data?.requirements ?? [], blocking),
-    [data?.requirements, blocking]
-  );
-
   const filteredRequirements = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = filterQualificationRequirements(
@@ -838,7 +1200,7 @@ export function AiAnalysisOverviewClient({
       downloadMatchAnalysisAssessment({
         candidateName,
         jobTitle,
-        matchScore: app?.ai_match_score ?? null,
+        matchScore,
         matchLabel,
         recommendation,
         summary,
@@ -894,29 +1256,52 @@ export function AiAnalysisOverviewClient({
         <CandidatesBreadcrumb currentLabel="AI Analysis" backHref={backHref} />
       )}
 
-      <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
-        AI Analysis Overview
-      </h1>
+      <div className={`mt-4 ${STEP_SCROLL_MARGIN_CLASS}`} id="ai-analysis-overview-top">
+        <MatchProgressionStepper
+          viewedIndex={viewedStep}
+          unlockedIndex={unlockedIndex}
+          canAdvance={canAdvance}
+          onSelect={selectProgressionStep}
+        />
+      </div>
 
-      <div className="mt-6 grid items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_350px]">
+      <div className="mt-6 grid min-w-0 items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_minmax(16rem,21.875rem)]">
         <div className="min-w-0 space-y-5">
-          <section className="overflow-visible rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex flex-col items-center gap-4 border-b border-[#E5E7EB] px-4 py-2.5 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-center min-[900px]:justify-between sm:px-5">
-              <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center min-[900px]:w-auto min-[900px]:flex-row min-[900px]:items-center min-[900px]:gap-5 min-[900px]:text-left">
+          <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
+            <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
+              <BrandedSvgIcon
+                src="/hugeicons_ai-user.svg"
+                className="h-5 w-5"
+                color={branding.primaryHex}
+              />
+              <h1
+                className="m-0 text-base font-semibold leading-6 tracking-normal sm:text-lg sm:leading-7"
+                style={{ ...CANDIDATES_PAGE_TITLE_STYLE, color: branding.secondaryHex }}
+              >
+                AI Analysis Overview
+              </h1>
+              {isAnalyzed ? (
+                <span
+                  className={`ml-auto inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(displayedFitBand)}`}
+                >
+                  {fitBandLabel(displayedFitBand)}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
+              <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
                 <MatchRing
                   percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
+                  fitBand={isAnalyzed ? displayedFitBand : null}
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
-                  <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
-                  <div className="mt-3 flex flex-wrap justify-center gap-2 min-[900px]:justify-start">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-normal leading-[15px] ${overviewMatchTagClass(app?.ai_match_category)}`}
-                    >
-                      {matchLabel}
-                    </span>
+                  {jobTitle ? (
+                    <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
                     {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
                         Confidence {confidencePercent}%
@@ -930,7 +1315,7 @@ export function AiAnalysisOverviewClient({
                   </div>
                   {isAnalyzed && outcomeCounts.total > 0 ? (
                     <div
-                      className="mt-3 flex flex-wrap justify-center gap-2 min-[900px]:justify-start"
+                      className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start"
                       aria-label="Requirement outcome counts"
                     >
                       {OUTCOME_STAT_CARDS.map((card) => {
@@ -943,10 +1328,7 @@ export function AiAnalysisOverviewClient({
                             aria-pressed={active}
                             onClick={() => {
                               setFilter(card.filter);
-                              document.getElementById("qualification-checklist")?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "start",
-                              });
+                              scrollAiAnalysisBelowHeader("match-step-quick");
                             }}
                             className={`inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-1.5 transition ${
                               active
@@ -967,40 +1349,85 @@ export function AiAnalysisOverviewClient({
                   ) : null}
                 </div>
               </div>
-              <div className="relative z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-2 min-[480px]:w-auto min-[480px]:justify-end min-[900px]:gap-3">
-                {workerId ? (
-                  <Link
-                    href={candidateApplicantProfileHref(workerId, {
-                      from: backHref.includes("/admin_recruiter/candidates")
-                        ? "candidates"
-                        : "applications",
-                      jobId: jobId || undefined,
-                    })}
+              <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div className={`${HEADER_TOOLBAR} justify-center sm:justify-start`}>
+                  {primaryAction && primaryAction.kind !== "advance" ? (
+                    <button
+                      type="button"
+                      className={HEADER_OUTLINE_BTN}
+                      disabled={
+                        analyzing ||
+                        talentPoolBusy ||
+                        draftingSubmissionResume ||
+                        (primaryAction.kind !== "msp" &&
+                          primaryAction.kind !== "draft" &&
+                          !canAdvance &&
+                          primaryAction.kind !== "deep") ||
+                        (primaryAction.kind === "deep" && !canRunPaidDeep) ||
+                        (primaryAction.kind === "draft" && !hasDeepMatch)
+                      }
+                      onClick={() => void handlePrimaryProgressionAction()}
+                    >
+                      {draftingSubmissionResume && primaryAction.kind === "draft"
+                        ? "Drafting résumé…"
+                        : primaryAction.label}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
                     className={HEADER_OUTLINE_BTN}
+                    disabled={talentPoolBusy || parkedInTalentPool || savingDecision}
+                    onClick={() => void handleTalentPool()}
                   >
-                    View Profile
-                  </Link>
-                ) : (
-                  <button type="button" disabled className={HEADER_OUTLINE_BTN}>
-                    View Profile
+                    {parkedInTalentPool ? "In Talent Pool" : talentPoolBusy ? "Moving…" : "Not a fit · Talent Pool"}
                   </button>
-                )}
-                <CandidateApplicationStatusControl
-                  applicationId={applicationId}
-                  buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
-                />
-                <MatchAnalysisModelSelect
-                  variant="primary"
-                  value={analysisProvider}
-                  onChange={setAnalysisProvider}
-                  disabled={analyzing}
-                />
-                <MatchAnalyzeButton
-                  variant="primary"
-                  analyzing={analyzing}
-                  isAnalyzed={isAnalyzed}
-                  onAnalyze={(mode) => void handleRunAnalyze(mode)}
-                />
+                  {workerId ? (
+                    <Link
+                      href={candidateApplicantProfileHref(workerId, {
+                        from: backHref.includes("/admin_recruiter/candidates")
+                          ? "candidates"
+                          : "applications",
+                        jobId: jobId || undefined,
+                      })}
+                      className={HEADER_OUTLINE_BTN}
+                    >
+                      View Profile
+                    </Link>
+                  ) : (
+                    <button type="button" disabled className={HEADER_OUTLINE_BTN}>
+                      View Profile
+                    </button>
+                  )}
+                  <CandidateApplicationStatusControl
+                    applicationId={applicationId}
+                    buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
+                    onStatusChanged={(next) => {
+                      setStatusName(next.statusName);
+                      setStatusSystemKey(null);
+                    }}
+                  />
+                </div>
+                <div className={`${HEADER_TOOLBAR} justify-center sm:justify-end`}>
+                  <MatchAnalysisModelSelect
+                    variant="primary"
+                    value={analysisProvider}
+                    onChange={setAnalysisProvider}
+                    disabled={analyzing}
+                    className="h-8 shrink-0"
+                  />
+                  <MatchAnalyzeButton
+                    variant="primary"
+                    analyzing={analyzing}
+                    isAnalyzed={isAnalyzed}
+                    deepPrimary={viewedStep >= 3}
+                    hasDeepMatch={hasDeepMatch}
+                    analysisProvider={analysisProvider}
+                    requireDeepConfirm={data?.matchProgression?.requireDeepConfirm !== false}
+                    allowDeep={canRunPaidDeep}
+                    className="shrink-0"
+                    onAnalyze={(mode) => void handleRunAnalyze(mode)}
+                  />
+                </div>
               </div>
             </div>
             {app?.ai_analysis_error ? (
@@ -1010,12 +1437,134 @@ export function AiAnalysisOverviewClient({
               <p className="px-5 py-5 text-xs leading-4 text-[#4B5563]">{summary}</p>
             ) : !isAnalyzed ? (
               <p className="px-5 py-5 text-xs leading-4 text-[#6B7280]">
-                This candidate has not been analyzed yet. Run analysis to populate match results.
+                This candidate has not been analyzed yet. Run Quick Match to populate the checklist.
+              </p>
+            ) : !hasDeepMatch ? (
+              <p className="px-5 py-5 text-xs leading-4 text-[#6B7280]">
+                Quick Match is complete. Match % and confidence appear after Run Deep Match.
+              </p>
+            ) : null}
+            {submitBanner ? (
+              <div
+                className={`border-t border-[#E5E7EB] px-5 py-3 text-sm font-semibold ${
+                  submitBanner.kind === "submit"
+                    ? "bg-[#ECFDF3] text-[#027A48]"
+                    : submitBanner.kind === "do_not_submit"
+                      ? "bg-[#FEF3F2] text-[#B42318]"
+                      : "bg-[#FFFAEB] text-[#B54708]"
+                }`}
+              >
+                {submitBanner.label}
+              </div>
+            ) : viewedStep >= 4 ? (
+              <p className="border-t border-[#E5E7EB] px-5 py-3 text-sm text-[#667085]">
+                Run Deep Match to fill the submit recommendation.
               </p>
             ) : null}
           </section>
 
-          <section className={CARD} id="qualification-checklist">
+          {progressionStep && progressionHint ? (
+            <div className="flex overflow-hidden rounded-[12px] border border-[color:var(--brand-primary)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+              <div className="w-1 shrink-0 bg-[color:var(--brand-primary)]" aria-hidden />
+              <div className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+                <span className="inline-flex w-fit shrink-0 items-center rounded-md bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+                  Step {progressionStep.stepNumber}
+                </span>
+                <div className="min-w-0">
+                  <p
+                    className="m-0 text-sm font-semibold leading-5"
+                    style={{ color: branding.secondaryHex }}
+                  >
+                    {progressionStep.label}
+                  </p>
+                  {progressionHintBody ? (
+                    <p className="m-0 mt-0.5 text-sm leading-5 text-[#667085]">{progressionHintBody}</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {viewedStep >= 4 ? (
+            <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-submission">
+              <SectionHeaderBlock>
+                <SectionTitle>Optimized submission résumé</SectionTitle>
+                <p className="mt-1 text-sm text-[#667085]">
+                  Job-tailored PDF for the MSP / client portal. This is not the original upload.
+                </p>
+              </SectionHeaderBlock>
+              {latestSubmissionResume ? (
+                <div className="mt-4 flex flex-col gap-3">
+                  <div className="flex items-start gap-3 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 py-3">
+                    <BrandedFileTypeIcon type="pdf" className="mt-0.5 h-7 w-7 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void viewResume(latestSubmissionResume.id)}
+                          className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
+                        >
+                          {latestSubmissionResume.fileName}
+                        </button>
+                        <span className="shrink-0 rounded-md bg-[color:var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
+                          Optimized
+                        </span>
+                      </div>
+                      {latestSubmissionResume.uploadedAtLabel || latestSubmissionResume.uploadedAt ? (
+                        <p className="mt-0.5 text-xs text-[#667085]">
+                          Created{" "}
+                          {latestSubmissionResume.uploadedAtLabel ||
+                            formatWhen(latestSubmissionResume.uploadedAt)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={PRIMARY_BTN}
+                      onClick={() => void viewResume(latestSubmissionResume.id)}
+                    >
+                      View PDF
+                    </button>
+                    <button
+                      type="button"
+                      className={OUTLINE_BTN}
+                      disabled={draftingSubmissionResume || !hasDeepMatch}
+                      onClick={() => void draftSubmissionResume()}
+                    >
+                      {draftingSubmissionResume ? "Drafting…" : "Draft again"}
+                    </button>
+                    {hasSubmissionResume ? (
+                      <button
+                        type="button"
+                        className={OUTLINE_BTN}
+                        onClick={() => setCommOpen(true)}
+                      >
+                        Email MSP / upload portal
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <p className="text-sm text-[#667085]">
+                    No optimized résumé yet. Draft one from Deep Match evidence, then upload that file to the portal.
+                  </p>
+                  <button
+                    type="button"
+                    className={`${PRIMARY_BTN} mt-3`}
+                    disabled={draftingSubmissionResume || !hasDeepMatch}
+                    onClick={() => void draftSubmissionResume()}
+                  >
+                    {draftingSubmissionResume ? "Drafting résumé…" : "Draft submission résumé"}
+                  </button>
+                </div>
+              )}
+            </section>
+          ) : null}
+
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-quick">
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -1111,22 +1660,7 @@ export function AiAnalysisOverviewClient({
                             </div>
                           </td>
                           <td className="py-3.5 text-sm text-[#475467]">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span>{actionLabel}</span>
-                              {requirementShowsAddNote(row, blocking) ? (
-                                <button
-                                  type="button"
-                                  className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setOpenReqId(row.id);
-                                    setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "pending" });
-                                  }}
-                                >
-                                  Add Note
-                                </button>
-                              ) : null}
-                            </div>
+                            {actionLabel}
                           </td>
                           <td className="py-3.5">
                             <button
@@ -1248,9 +1782,17 @@ export function AiAnalysisOverviewClient({
                 </tbody>
               </table>
             </div>
+            {isAnalyzed ? (
+              <p className="mt-4 rounded-lg border border-[#FEDF89] bg-[#FFFAEB] px-3 py-2 text-xs leading-5 text-[#B54708]">
+                {FLOW_DIAMOND_COPY}
+                {fitBand === "low" ? " This applicant is Low match." : fitBand === "strong" ? " This applicant is Strong." : " This applicant is Review."}
+              </p>
+            ) : null}
           </section>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          {viewedStep >= 1 ? (
+          <>
+          <div className={`grid gap-3 lg:grid-cols-2 ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-verifications">
             <section className={CARD}>
               <SectionHeaderBlock>
                 <div className="flex items-center gap-2">
@@ -1264,13 +1806,13 @@ export function AiAnalysisOverviewClient({
               </SectionHeaderBlock>
               <ul className="mt-4 space-y-3">
                 {strengths.length ? (
-                  strengths.map((item) => (
-                    <AlignedIconListItem key={item} iconSrc="/icon-park-solid_check-one.svg">
+                  strengths.map((item, index) => (
+                    <AlignedIconListItem key={`strength-${index}`} iconSrc="/icon-park-solid_check-one.svg">
                       {item}
                     </AlignedIconListItem>
                   ))
                 ) : (
-                  <li className="text-sm text-[#667085]">No documented strengths in this analysis.</li>
+                  <li className="text-sm text-[#667085]">No confirmed items on the Qualification Checklist yet.</li>
                 )}
               </ul>
             </section>
@@ -1288,27 +1830,28 @@ export function AiAnalysisOverviewClient({
               </SectionHeaderBlock>
               <ul className="mt-4 space-y-3">
                 {verificationNeeded.length ? (
-                  verificationNeeded.map((item) => (
-                    <AlignedIconListItem key={item} iconSrc="/ic_round-warning.svg">
+                  verificationNeeded.map((item, index) => (
+                    <AlignedIconListItem key={`verify-${index}`} iconSrc="/ic_round-warning.svg">
                       {item}
                     </AlignedIconListItem>
                   ))
                 ) : (
-                  <li className="text-sm text-[#667085]">No additional verification items identified.</li>
+                  <li className="text-sm text-[#667085]">No checklist items need verification.</li>
                 )}
               </ul>
             </section>
           </div>
 
-          <section className={CARD}>
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`}>
             <SectionHeaderBlock>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <SectionTitle>Recommended Screening Questions</SectionTitle>
+                  <SectionTitle>List of screening questions</SectionTitle>
                   <p className="mt-1 text-sm text-[#667085]">
-                    {recommendedQuestions.length} targeted questions to confirm before submission.
+                    Step 2 call pack · {recommendedQuestions.length} targeted questions to confirm on the call.
                   </p>
                 </div>
+              <div className="flex flex-wrap items-center gap-2">
                 {recommendedQuestions.length ? (
                   <button
                     type="button"
@@ -1324,6 +1867,7 @@ export function AiAnalysisOverviewClient({
                     Copy all
                   </button>
                 ) : null}
+              </div>
               </div>
             </SectionHeaderBlock>
 
@@ -1357,6 +1901,54 @@ export function AiAnalysisOverviewClient({
                             <span className="font-medium text-[#475467]">Related:</span> {item.relatedRequirement}
                           </p>
                         ) : null}
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="text-sm text-[#667085]">
+                  {analyzing
+                    ? "Generating screening questions…"
+                    : "No screening questions yet. Open the Verifications step to generate the call pack."}
+                </p>
+              )}
+            </div>
+          </section>
+
+          {viewedStep >= 2 ? (
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-follow-up">
+            <SectionHeaderBlock>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <SectionTitle>Follow-Up</SectionTitle>
+                  <p className="mt-1 text-sm text-[#667085]">
+                    Record answers from the call or email remaining questions. Upload the reply when it arrives.
+                  </p>
+                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`${OUTLINE_BTN} h-10 gap-2 px-3`}
+                  disabled={uploadingScreening}
+                  onClick={() => screeningUploadRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" aria-hidden />
+                  {uploadingScreening ? "Uploading…" : "Upload reply"}
+                </button>
+              </div>
+              </div>
+            </SectionHeaderBlock>
+
+            <div className="mt-4 space-y-4">
+              {recommendedQuestions.length ? (
+                recommendedQuestions.map((item, index) => (
+                  <article key={`follow-up-${item.key}`} className="rounded-[12px] border border-[#E5E7EB] bg-[#FCFCFD] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--brand-primary)] text-sm font-semibold text-[color:var(--brand-primary)]">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-6 text-[#101828]">{item.question}</p>
                         <label className="mt-3 block">
                           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
                             Notes
@@ -1380,7 +1972,7 @@ export function AiAnalysisOverviewClient({
                   </article>
                 ))
               ) : (
-                <p className="text-sm text-[#667085]">No recommended screening questions for this analysis.</p>
+                <p className="text-sm text-[#667085]">No remaining screening questions from Verifications.</p>
               )}
             </div>
 
@@ -1396,9 +1988,28 @@ export function AiAnalysisOverviewClient({
                 </button>
               </div>
             ) : null}
+            {screeningUploads.length ? (
+              <ul className="mt-4 space-y-2 border-t border-[#E5E7EB] pt-4">
+                {screeningUploads.map((item) => (
+                  <li key={item.id} className="text-sm text-[#344054]">
+                    <span className="font-medium">{item.fileName}</span>
+                    {item.extractedText ? (
+                      <p className="mt-1 whitespace-pre-wrap text-xs text-[#667085]">
+                        {item.extractedText.slice(0, 400)}
+                        {item.extractedText.length > 400 ? "…" : ""}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </section>
+          ) : null}
+          </>
+          ) : null}
 
-          <section className={CARD}>
+          {viewedStep >= 3 ? (
+          <section className={`${CARD} ${STEP_SCROLL_MARGIN_CLASS}`} id="match-step-deep">
             <SectionHeaderBlock>
               <button
                 type="button"
@@ -1422,115 +2033,43 @@ export function AiAnalysisOverviewClient({
 
             {dataQualityOpen ? (
               <div className="mt-4 space-y-5 text-sm leading-6 text-[#344054]">
-                <NoteBlock title="Missing Information" items={analysis?.data_quality?.missing_information ?? []} />
-                <NoteBlock
-                  title="Job-description conflicts"
-                  items={analysis?.data_quality?.job_description_conflicts ?? []}
-                  empty="None."
-                />
-                <NoteBlock title="Résumé conflicts" items={analysis?.data_quality?.resume_conflicts ?? []} />
-                <NoteBlock
-                  title="Experience calculations"
-                  items={analysis?.experience_analysis?.experience_calculation_notes ?? []}
-                />
+                {hasDeepMatch ? (
+                  <>
+                    <NoteBlock title="Missing Information" items={analysis?.data_quality?.missing_information ?? []} />
+                    <NoteBlock
+                      title="Job-description conflicts"
+                      items={analysis?.data_quality?.job_description_conflicts ?? []}
+                      empty="None."
+                    />
+                    <NoteBlock title="Résumé conflicts" items={analysis?.data_quality?.resume_conflicts ?? []} />
+                    <NoteBlock
+                      title="Experience calculations"
+                      items={analysis?.experience_analysis?.experience_calculation_notes ?? []}
+                    />
+                  </>
+                ) : (
+                  <p>Run Deep Match to fill data quality notes and the submit recommendation.</p>
+                )}
               </div>
             ) : null}
           </section>
+          ) : null}
         </div>
 
         <aside className="min-w-0 space-y-5">
-          <section className={CARD}>
-            <SidebarSectionHeader title="Candidate information" />
-            <div className="mt-4 space-y-3">
-              <Field label="Assigned recruiter">
-                <select
-                  value={assignedId}
-                  onChange={(event) => setAssignedId(event.target.value)}
-                  className={SELECT_FIELD}
-                  style={{ backgroundImage: SELECT_CHEVRON }}
-                >
-                  <option value="">Unassigned</option>
-                  {teamMembers.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Full name">
-                <input
-                  value={`${info.firstName} ${info.lastName}`.trim()}
-                  onChange={(event) => {
-                    const [first, ...rest] = event.target.value.split(" ");
-                    setInfo((current) => ({
-                      ...current,
-                      firstName: first || "",
-                      lastName: rest.join(" "),
-                    }));
-                  }}
-                  className={FIELD}
-                />
-              </Field>
-              <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
-                <Field label="Email">
-                  <input
-                    value={info.email}
-                    onChange={(event) => setInfo((current) => ({ ...current, email: event.target.value }))}
-                    className={FIELD}
-                  />
-                </Field>
-                <Field label="Phone">
-                  <input
-                    value={info.phone}
-                    onChange={(event) => setInfo((current) => ({ ...current, phone: event.target.value }))}
-                    className={FIELD}
-                  />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
-                <Field label="Specialty">
-                  <input
-                    value={info.specialty}
-                    onChange={(event) => setInfo((current) => ({ ...current, specialty: event.target.value }))}
-                    className={FIELD}
-                  />
-                </Field>
-                <Field label="Location">
-                  <input
-                    value={info.location}
-                    onChange={(event) => setInfo((current) => ({ ...current, location: event.target.value }))}
-                    className={FIELD}
-                  />
-                </Field>
-              </div>
-            </div>
-            <div className="mt-4 flex w-full items-stretch gap-3">
-              <button
-                type="button"
-                className={SIDEBAR_SAVE_BTN}
-                disabled={savingInfo}
-                onClick={() => void saveDetails()}
-              >
-                {savingInfo ? "Saving…" : "Save Details"}
-              </button>
-              <button type="button" className={SIDEBAR_REEXTRACT_BTN} onClick={() => void reextractContact()}>
-                Re-extract contact details
-              </button>
-            </div>
-          </section>
-
           <section className={CARD}>
             <SidebarSectionHeader title="Resume" />
             {resumes.length > 0 ? (
               <div className="mt-4 flex flex-col gap-2">
                 {resumes.map((resume, index) => {
                   const isLatest = resumes.length > 1 && index === resumes.length - 1;
+                  const isOptimized = isSubmissionResumeFileName(resume.fileName);
                   return (
                     <div
                       key={resume.id}
                       className={`flex items-start gap-3 rounded-lg px-3 py-2.5 ${
-                        isLatest
-                          ? "border border-[#E5E7EB] bg-white"
+                        isOptimized
+                          ? "border border-[color:var(--brand-primary)] bg-white"
                           : "border border-[#E5E7EB] bg-white"
                       }`}
                     >
@@ -1542,7 +2081,6 @@ export function AiAnalysisOverviewClient({
                         <div className="flex items-start justify-between gap-2">
                           <button
                             type="button"
-                            disabled={openingResumeId === resume.id}
                             onClick={() => void viewResume(resume.id)}
                             className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
                             title={`View ${resume.fileName}`}
@@ -1550,7 +2088,11 @@ export function AiAnalysisOverviewClient({
                           >
                             {resume.fileName}
                           </button>
-                          {isLatest ? (
+                          {isOptimized ? (
+                            <span className="shrink-0 rounded-md bg-[color:var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
+                              Optimized
+                            </span>
+                          ) : isLatest ? (
                             <span className="shrink-0 rounded-md bg-[color:var(--brand-secondary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                               Latest
                             </span>
@@ -1700,57 +2242,6 @@ export function AiAnalysisOverviewClient({
           </section>
 
           <section className={CARD}>
-            <SidebarSectionHeader
-              title="Final Decision"
-              subtitle="Kept separate from the AI recommendation."
-            />
-            <div className="mt-4 rounded-lg bg-[#EFF8FF] px-3 py-2.5 text-sm text-[#175CD3]">
-              AI Recommendation: <span className="font-semibold">{recommendation}</span>
-            </div>
-            <div className="mt-4 space-y-2.5">
-              {decisionOptions.map((option) => {
-                const selected = decision === option;
-                return (
-                  <label key={option} className="flex cursor-pointer items-center gap-2.5 text-sm text-[#344054]">
-                    <span
-                      className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                        selected
-                          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
-                          : "border-[#D0D5DD] bg-white"
-                      }`}
-                    >
-                      {selected ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
-                    </span>
-                    <input
-                      type="radio"
-                      name="final-decision"
-                      className="sr-only"
-                      checked={selected}
-                      onChange={() => setDecision(option)}
-                    />
-                    {RECRUITER_DECISION_LABELS[option]}
-                  </label>
-                );
-              })}
-            </div>
-            <textarea
-              value={decisionNote}
-              onChange={(event) => setDecisionNote(event.target.value)}
-              rows={3}
-              placeholder="Decision notes (optional)..."
-              className={`${AREA} mt-4`}
-            />
-            <button
-              type="button"
-              className={`${PRIMARY_BTN} mt-3 w-full`}
-              disabled={savingDecision}
-              onClick={() => void recordDecision()}
-            >
-              {savingDecision ? "Saving…" : "Record Decision"}
-            </button>
-          </section>
-
-          <section className={CARD}>
             <SidebarSectionHeader title="Analysis history" />
             {analysisHistory.length ? (
               <ul className="mt-4 flex flex-col gap-2">
@@ -1798,6 +2289,36 @@ export function AiAnalysisOverviewClient({
         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
         className="hidden"
         onChange={(e) => void handleResumeFileSelected(e.target.files?.[0])}
+      />
+      <input
+        ref={screeningUploadRef}
+        type="file"
+        accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.webp,.gif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void uploadScreeningReply(file);
+          if (screeningUploadRef.current) screeningUploadRef.current.value = "";
+        }}
+      />
+
+      <DeepMatchConfirmDialog
+        open={confirmDeepOpen}
+        modelLabel={formatMatchModelLabel(deepMatchModelForProvider(analysisProvider))}
+        busy={analyzing}
+        onCancel={() => setConfirmDeepOpen(false)}
+        onConfirm={() => void confirmAndRunDeepMatch()}
+      />
+
+      <FollowUpConfirmDialog
+        open={confirmFollowUpOpen}
+        verifyCount={outcomeCounts.verify}
+        busy={analyzing}
+        onCancel={() => {
+          if (analyzing) return;
+          setConfirmFollowUpOpen(false);
+        }}
+        onConfirm={() => void advanceToFollowUp()}
       />
 
       <ResumeHistoryModal

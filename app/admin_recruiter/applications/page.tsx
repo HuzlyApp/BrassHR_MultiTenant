@@ -49,6 +49,7 @@ import { CandidateBulkSelectionBar } from "@/app/admin_recruiter/components/Cand
 import { ClaimCandidatesConfirmModal } from "@/app/admin_recruiter/components/ClaimCandidatesConfirmModal";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
+import { CurrentStageCell } from "@/app/admin_recruiter/components/CurrentStageCell";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
 import { postClaimApplications } from "@/app/admin_recruiter/candidates/claim-client";
 import { isApplicationClaimEligible } from "@/lib/candidates/claim";
@@ -108,7 +109,7 @@ import {
   type ApplicationStatusOption,
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
-import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
+import { MatchScoreCell, RequirementOutcomeCountCell, FitBandCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
 import {
   AssignRecruiterModal,
@@ -118,6 +119,7 @@ import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
+import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 import {
@@ -156,6 +158,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_match_stage?: string | null;
   ai_analyzed_at?: string | null;
   ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
@@ -1484,34 +1487,13 @@ export default function JobApplicationsPage() {
   const listColumns = ensureActionsLast(
     listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS
   );
+  // Selection is for export / archive / delete / analyze — not claim-gated.
   const allVisibleSelected =
-    paginatedRows.length > 0 &&
-    paginatedRows
-      .filter((row) =>
-        isApplicationClaimEligible({
-          assignedRecruiterUserId: row.assigned_recruiter_user_id,
-          status: row.status,
-          currentUserId: currentUserId ?? "",
-        }).eligible
-      )
-      .every((row) => selectedIds.has(row.id)) &&
-    paginatedRows.some((row) =>
-      isApplicationClaimEligible({
-        assignedRecruiterUserId: row.assigned_recruiter_user_id,
-        status: row.status,
-        currentUserId: currentUserId ?? "",
-      }).eligible
-    );
+    paginatedRows.length > 0 && paginatedRows.every((row) => selectedIds.has(row.id));
 
-  const someVisibleSelected = paginatedRows.some(
-    (row) =>
-      selectedIds.has(row.id) &&
-      isApplicationClaimEligible({
-        assignedRecruiterUserId: row.assigned_recruiter_user_id,
-        status: row.status,
-        currentUserId: currentUserId ?? "",
-      }).eligible
-  );
+  const someVisibleSelected = paginatedRows.some((row) => selectedIds.has(row.id));
+
+  const selectedOnPageCount = paginatedRows.filter((row) => selectedIds.has(row.id)).length;
 
   const selectedEligibleCount = useMemo(
     () =>
@@ -1576,36 +1558,19 @@ export default function JobApplicationsPage() {
   function toggleSelectAllVisible() {
     setSelectedIds((current) => {
       const next = new Set(current);
-      const eligibleIds = paginatedRows
-        .filter((row) =>
-          isApplicationClaimEligible({
-            assignedRecruiterUserId: row.assigned_recruiter_user_id,
-            status: row.status,
-            currentUserId: currentUserId ?? "",
-          }).eligible
-        )
-        .map((row) => row.id);
+      const pageIds = paginatedRows.map((row) => row.id);
       const allSelected =
-        eligibleIds.length > 0 && eligibleIds.every((id) => next.has(id));
+        pageIds.length > 0 && pageIds.every((id) => next.has(id));
       if (allSelected) {
-        for (const id of eligibleIds) next.delete(id);
+        for (const id of pageIds) next.delete(id);
       } else {
-        for (const id of eligibleIds) next.add(id);
+        for (const id of pageIds) next.add(id);
       }
       return next;
     });
   }
 
   function toggleSelect(id: string) {
-    const row = rows.find((item) => item.id === id);
-    if (row) {
-      const eligibility = isApplicationClaimEligible({
-        assignedRecruiterUserId: row.assigned_recruiter_user_id,
-        status: row.status,
-        currentUserId: currentUserId ?? "",
-      });
-      if (!eligibility.eligible) return;
-    }
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -1725,8 +1690,29 @@ export default function JobApplicationsPage() {
 
   function handleResumeUpdated(
     applicationId: string,
-    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+    result: {
+      resumeUploaded: boolean;
+      firstName: string;
+      lastName: string;
+      autoQuickMatch?: {
+        status: string;
+        error: string | null;
+        score: number | null;
+        category: string | null;
+        action: string | null;
+        readiness: string | null;
+        displayCategory?: string | null;
+        stage?: string | null;
+        requirementCounts?: ListingRequirementOutcomeCounts | null;
+      } | null;
+    }
   ) {
+    const match = result.resumeUploaded ? result.autoQuickMatch : null;
+    const matchOk = match?.status === "ANALYZED";
+    const matchFailed = Boolean(
+      result.resumeUploaded && match && match.status !== "ANALYZED"
+    );
+
     setRows((current) =>
       current.map((row) => {
         if (row.id !== applicationId) return row;
@@ -1743,14 +1729,28 @@ export default function JobApplicationsPage() {
         } as ApplicationRow;
 
         if (!result.resumeUploaded) return renamed;
+        if (matchOk && match) {
+          return {
+            ...renamed,
+            ai_match_status: match.status,
+            ai_match_score: match.score ?? null,
+            ai_match_category: match.category ?? null,
+            ai_match_action: match.action ?? null,
+            ai_match_readiness: match.readiness ?? null,
+            ai_match_display_category: match.displayCategory ?? null,
+            ai_match_stage: match.stage ?? "quick",
+            ai_requirement_counts: match.requirementCounts ?? null,
+          };
+        }
         return {
           ...renamed,
-          ai_match_status: "ANALYZING",
+          ai_match_status: matchFailed ? "FAILED" : "READY",
           ai_match_score: null,
           ai_match_category: null,
           ai_match_action: null,
           ai_match_readiness: null,
           ai_match_display_category: null,
+          ai_match_stage: null,
           ai_requirement_counts: null,
         };
       })
@@ -1763,47 +1763,21 @@ export default function JobApplicationsPage() {
         duration: ACTION_TOAST_DURATION_MS,
       });
       setResumeSuccessOpen(true);
+      if (matchOk) {
+        toast.success(`${candidateLabel}: Quick Match complete`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      } else if (matchFailed) {
+        toast.error(
+          match?.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
     } else {
       toast.success(`${candidateLabel}: candidate details updated`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
     }
-
-    if (!result.resumeUploaded) return;
-
-    void (async () => {
-      try {
-        const matchResponse = await fetch(
-          `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }
-        );
-        const matchPayload = await matchResponse.json().catch(() => ({}));
-        if (!matchResponse.ok) return;
-        setRows((current) =>
-          current.map((row) =>
-            row.id === applicationId
-              ? {
-                  ...row,
-                  ai_match_status: matchPayload.status ?? "ANALYZED",
-                  ai_match_score: matchPayload.score ?? null,
-                  ai_match_category: matchPayload.category ?? null,
-                  ai_match_action: matchPayload.action ?? null,
-                  ai_match_readiness: matchPayload.readiness ?? null,
-                  ai_match_display_category: matchPayload.displayCategory ?? null,
-                  ai_requirement_counts: requirementCountsFromAnalyzePayload(matchPayload),
-                }
-              : row
-          )
-        );
-      } catch {
-        /* upload already succeeded */
-      }
-    })();
   }
 
   function beginArchiveCandidate(applicationId: string) {
@@ -2084,6 +2058,7 @@ export default function JobApplicationsPage() {
       ai_match_readiness: result.readiness ?? row.ai_match_readiness,
       ai_match_display_category:
         result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_match_stage: result.stage ?? result.ai_match_stage ?? row.ai_match_stage,
       ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
       ai_analyzed_at:
         result.status === "ANALYZED"
@@ -2174,6 +2149,7 @@ export default function JobApplicationsPage() {
                 ai_match_display_category:
                   payload.analysis?.candidate_match?.display_category ??
                   row.ai_match_display_category,
+                ai_match_stage: payload.stage ?? payload.ai_match_stage ?? row.ai_match_stage,
                 ai_requirement_counts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
                 ai_analyzed_at:
@@ -2266,9 +2242,17 @@ export default function JobApplicationsPage() {
       }
       case "clientName": {
         const clientName = applicationClientName(row);
+        if (!clientName) {
+          return (
+            <span className="block w-full text-center text-sm leading-5 text-[#0F172A]">—</span>
+          );
+        }
         return (
-          <span className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]" title={clientName || undefined}>
-            {clientName || "—"}
+          <span
+            className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]"
+            title={clientName}
+          >
+            {clientName}
           </span>
         );
       }
@@ -2279,6 +2263,17 @@ export default function JobApplicationsPage() {
             score={row.ai_match_score}
             analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={(mode) => void runMatchAnalyze(row.id, mode)}
+          />
+        );
+      case "fit":
+        return (
+          <FitBandCell
+            analyzed={row.ai_match_status === "ANALYZED"}
+            band={listingDisplayFitBand({
+              analyzed: row.ai_match_status === "ANALYZED",
+              stage: row.ai_match_stage,
+              counts: row.ai_requirement_counts,
+            })}
           />
         );
       case "conf":
@@ -2313,22 +2308,13 @@ export default function JobApplicationsPage() {
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "currentStage": {
         const stage = rowCurrentStage(row, statusOptions);
-        const note = row.statusNote?.trim() || stage.subtitle;
         return (
-          <div className="min-w-0 text-left">
-            <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
-            {note ? (
-              <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
-                {note}
-              </p>
-            ) : null}
-            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
-              />
-            </div>
-          </div>
+          <CurrentStageCell
+            label={stage.label}
+            note={row.statusNote?.trim() || stage.subtitle}
+            progress={stage.progress}
+            barColor={stage.barColor}
+          />
         );
       }
       case "interest": {
@@ -2819,11 +2805,11 @@ export default function JobApplicationsPage() {
           selectedCount={selectedIds.size}
           eligibleCount={selectedEligibleCount}
           scopeLabel={
-            selectedEligibleCount === 0
+            selectedIds.size === 0
               ? undefined
               : allVisibleSelected
-                ? `All ${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} on this page selected`
-                : `${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} selected on this page`
+                ? `All ${selectedOnPageCount} candidate${selectedOnPageCount === 1 ? "" : "s"} on this page selected`
+                : `${selectedIds.size} candidate${selectedIds.size === 1 ? "" : "s"} selected on this page`
           }
           claimBusy={claimBusy}
           archiveBusy={archiveBusy}
@@ -2864,8 +2850,9 @@ export default function JobApplicationsPage() {
                   <ListTableCheckbox
                     checked={allVisibleSelected}
                     indeterminate={someVisibleSelected && !allVisibleSelected}
+                    disabled={paginatedRows.length === 0}
                     onChange={toggleSelectAllVisible}
-                    aria-label="Select all eligible candidates on this page"
+                    aria-label="Select all candidates on this page"
                   />
                 </th>
                 {listColumns.map((colId) => {
@@ -2927,20 +2914,6 @@ export default function JobApplicationsPage() {
                     >
                       <ListTableCheckbox
                         checked={selectedIds.has(row.id)}
-                        disabled={
-                          !isApplicationClaimEligible({
-                            assignedRecruiterUserId: row.assigned_recruiter_user_id,
-                            status: row.status,
-                            currentUserId: currentUserId ?? "",
-                          }).eligible
-                        }
-                        title={
-                          isApplicationClaimEligible({
-                            assignedRecruiterUserId: row.assigned_recruiter_user_id,
-                            status: row.status,
-                            currentUserId: currentUserId ?? "",
-                          }).reason ?? undefined
-                        }
                         onChange={() => toggleSelect(row.id)}
                         aria-label={`Select ${applicantName(row)}`}
                       />

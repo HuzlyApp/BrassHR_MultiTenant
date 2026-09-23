@@ -16,6 +16,7 @@ import {
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { runAutoQuickMatchForApplication } from "@/lib/jobs/match-analysis/auto-quick-match";
 
 export const runtime = "nodejs";
 
@@ -250,12 +251,22 @@ export async function POST(
       .eq("id", applicationId);
     if (matchResetError) throw matchResetError;
 
+    // Step 1 Quick Match runs automatically after résumé attach; manual Re-run remains available.
+    const autoQuickMatch = await runAutoQuickMatchForApplication({
+      supabase,
+      tenantId,
+      jobApplicationId: applicationId,
+      analyzedByUserId: auth.userId,
+      reason: "admin_resume_upload",
+    });
+
     return NextResponse.json({
       ok: true,
       path: objectPath,
       fileName: safeName,
       applicationId,
       workerId,
+      autoQuickMatch,
     });
   } catch (error) {
     console.error("[admin/job-applications/resume]", error);

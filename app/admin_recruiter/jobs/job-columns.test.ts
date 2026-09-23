@@ -23,6 +23,13 @@ describe("visibleJobColumnsForTab", () => {
     expect(cols).toEqual(DEFAULT_JOB_COLUMNS);
   });
 
+  it("includes MSP Source Job ID in default columns after MSP/Client", () => {
+    expect(DEFAULT_JOB_COLUMNS).toContain("sourceJobId");
+    expect(DEFAULT_JOB_COLUMNS.indexOf("sourceJobId")).toBe(
+      DEFAULT_JOB_COLUMNS.indexOf("contractGroup") + 1
+    );
+  });
+
   it("defaults MSP/Client on Hot after Location when missing", () => {
     const withoutClient = DEFAULT_JOB_COLUMNS.filter((id) => id !== "contractGroup");
     const cols = visibleJobColumnsForTab(withoutClient, "hot");

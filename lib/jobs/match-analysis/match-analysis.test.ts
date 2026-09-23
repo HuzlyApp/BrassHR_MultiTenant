@@ -110,6 +110,44 @@ describe("parseAndValidateMatchAnalysis", () => {
     }
   });
 
+  it("parses Step 1 Quick Match JSON and recomputes the route without a match percent", () => {
+    const parsed = parseAndValidateMatchAnalysis(
+      JSON.stringify({
+        step: "quick_match",
+        quick_route: "STRONG",
+        extracted_resume: {
+          headline: "Java engineer",
+          years_estimated: 8,
+          recent_titles: ["SWE"],
+          named_products_in_jobs: [],
+          education: "BS CS",
+        },
+        mandatory_requirements: [
+          {
+            requirement: "Java",
+            status: "PARTIAL",
+            evidence: "skills list",
+            evidence_source: "SKILLS_LIST",
+          },
+          { requirement: "SQL", status: "PARTIAL", evidence: "related", evidence_source: "SUMMARY" },
+        ],
+        preferred_requirements: [],
+        blocking_requirements: [],
+        items_to_verify: ["Confirm Java version"],
+      })
+    );
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.quick_match?.quick_route).toBe("REVIEW");
+      expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(0);
+      expect(parsed.data.candidate_match.display_category).toBe("Review");
+      expect(parsed.data.screening_questions).toEqual([]);
+      expect(parsed.data.strengths).toEqual([]);
+      expect(parsed.data.mandatory_requirements[0].evidence_source).toBe("RESUME");
+      expect(parsed.data.mandatory_requirements[0].requirement_outcome).toBe("VERIFY");
+    }
+  });
+
   it("returns validation errors for invalid category", () => {
     const bad = {
       ...baseAnalysis(),
@@ -123,6 +161,40 @@ describe("parseAndValidateMatchAnalysis", () => {
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(parsed.errors.some((e) => e.includes("match_category"))).toBe(true);
+    }
+  });
+
+  it("coerces Deep Match quirks: string screening questions, bad outcome, invalid confidence", () => {
+    const deep = {
+      ...baseAnalysis({
+        mandatory_requirements: [
+          {
+            requirement: "3+ years React",
+            requirement_type: "MANDATORY",
+            status: "PARTIAL",
+            requirement_outcome: "partial",
+            candidate_evidence: "Skills list mentions React",
+            evidence_source: "RESUME",
+            impact: "",
+            verification_required: true,
+            confidence: "n/a",
+          },
+        ],
+        screening_questions: [
+          "Confirm React production experience.",
+          "Verify TypeScript usage on last project.",
+        ],
+      }),
+    };
+
+    const parsed = parseAndValidateMatchAnalysis(JSON.stringify(deep));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.mandatory_requirements[0]?.requirement_outcome).toBe("VERIFY");
+      expect(parsed.data.mandatory_requirements[0]?.confidence).toBe(50);
+      expect(parsed.data.screening_questions).toHaveLength(2);
+      expect(parsed.data.screening_questions[0]?.question).toContain("React");
+      expect(parsed.data.screening_questions[0]?.priority).toBe(1);
     }
   });
 
@@ -263,16 +335,22 @@ describe("analyze vs deep prompts", () => {
     resumeText: "ICU RN at Memorial 2022-2024.",
   };
 
-  it("defaults to the Analyze prompt and lean JSON schema", () => {
+  it("defaults to the hardcoded Quick Match prompt and JSON schema", () => {
     expect(systemPromptForMode("analyze")).toBe(ANALYZE_SYSTEM_PROMPT);
     expect(systemPromptForMode("deep")).toBe(DEEP_ANALYSIS_SYSTEM_PROMPT);
     const prompt = buildMatchAnalysisUserPrompt(sampleInput);
     expect(prompt).toContain(ANALYZE_RESPONSE_SCHEMA);
-    expect(prompt).toContain("no more than 4 focused screening questions");
+    expect(prompt).toContain("Do not score");
     expect(prompt).not.toContain("recruiter_decision_summary");
     expect(prompt).not.toContain("experience_calculation_notes");
-    expect(ANALYZE_SYSTEM_PROMPT).toContain("REQUIREMENT LISTS");
-    expect(ANALYZE_SYSTEM_PROMPT).toContain("Do not put job qualifications only under items_to_verify");
+    expect(ANALYZE_SYSTEM_PROMPT).toContain("This is Step 1 Quick Match");
+    expect(ANALYZE_SYSTEM_PROMPT).toContain("The app recomputes quick_route");
+    expect(ANALYZE_SYSTEM_PROMPT).not.toContain("REQUIREMENT LISTS");
+  });
+
+  it("uses the Verifications prompt when generating Step 2 screening questions", () => {
+    expect(systemPromptForMode("call_pack")).toContain("Qualification Checklist");
+    expect(systemPromptForMode("call_pack")).toContain("Verifications");
   });
 
   it("uses the deep schema only when analysisMode is deep", () => {
@@ -685,15 +763,15 @@ describe("rescoreMatchAnalysis", () => {
 });
 
 describe("parseAnalysisProvider", () => {
-  it("defaults to gemini", () => {
-    expect(parseAnalysisProvider(undefined)).toBe("gemini");
-    expect(parseAnalysisProvider(null)).toBe("gemini");
-    expect(parseAnalysisProvider("")).toBe("gemini");
-    expect(parseAnalysisProvider("unknown")).toBe("gemini");
-    expect(parseAnalysisProvider("gemini")).toBe("gemini");
+  it("defaults to grok", () => {
+    expect(parseAnalysisProvider(undefined)).toBe("grok");
+    expect(parseAnalysisProvider(null)).toBe("grok");
+    expect(parseAnalysisProvider("")).toBe("grok");
+    expect(parseAnalysisProvider("unknown")).toBe("grok");
+    expect(parseAnalysisProvider("grok")).toBe("grok");
   });
 
-  it("accepts grok", () => {
-    expect(parseAnalysisProvider("grok")).toBe("grok");
+  it("accepts gemini", () => {
+    expect(parseAnalysisProvider("gemini")).toBe("gemini");
   });
 });

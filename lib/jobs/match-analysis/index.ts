@@ -12,8 +12,10 @@ export {
   ANALYSIS_PROVIDER_LABELS,
   DEFAULT_ANALYSIS_PROVIDER,
   parseAnalysisProvider,
+  parseAnalysisMode,
   matchAnalysisResponseSchema,
   analyzeMatchResponseSchema,
+  quickMatchResponseSchema,
   requirementItemSchema,
   structuredJobRequirementsSchema,
   type MatchAnalysisResponse,
@@ -24,9 +26,40 @@ export {
   type RecommendedAction,
   type AnalysisMode,
   type AnalysisProvider,
+  type QuickRoute,
   type AiMatchPipelineStatus,
   type PipelineProgressStep,
 } from "./schema";
+
+export {
+  MATCH_STAGES,
+  parseMatchStage,
+  isDeepMatchStage,
+  publicMatchScore,
+  deepMatchSubmitBanner,
+  type MatchStage,
+} from "./match-stage";
+export { isMatchCallPackStatus } from "./call-pack-status";
+export { getMatchStepModels, getStep2QuestionRoute, MATCH_CONFIG_KEYS, deepMatchModelForProvider } from "./step-config";
+export {
+  MATCH_PROGRESSION_INTRO,
+  MATCH_PROGRESSION_STEPS,
+  FLOW_DIAMOND_COPY,
+  canAdvanceMatchProgression,
+  canRunDeepMatch,
+  canSelectMatchProgressionStep,
+  matchProgressionStepRequiresDeepConfirm,
+  matchProgressionFollowUpNeedsConfirm,
+  continueMatchProgressionLabel,
+  matchProgressionFurthestIndex,
+  matchProgressionInitialIndex,
+  matchProgressionPrimaryAction,
+  matchProgressionStageFromIndex,
+  quickMatchFitBand,
+  type MatchProgressionStep,
+  type MatchProgressionStepId,
+  type QuickMatchFitBand,
+} from "./progression";
 
 export {
   ANALYZE_SYSTEM_PROMPT,
@@ -40,7 +73,14 @@ export {
 } from "./prompts";
 
 export { sanitizeResumeForMatchAnalysis, normalizeResumeWhitespace } from "./sanitize-resume";
+export {
+  buildFallbackSubmissionResume,
+  isSubmissionResumeFileName,
+  submissionResumeFileName,
+  type SubmissionResume,
+} from "./submission-resume";
 export { parseAndValidateMatchAnalysis } from "./parse";
+export { recomputeQuickMatchMetrics, fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
 export { rescoreMatchAnalysis, applyFairnessOutcomes } from "./score";
 export {
   buildStructuredJobRequirements,
@@ -53,12 +93,20 @@ export {
   generateMatchAnalysisWithGrok,
   getMatchAnalysisModelName,
   MatchAnalysisGenerationError,
+  matchAnalysisErrorCode,
   __setGrokClientForTests,
   __setGeminiFetchForTests,
 } from "./service";
 export {
   runMatchAnalysisForApplication,
   runMatchAnalysisBulk,
+  FOLLOW_UP_BLOCKED_NOT_READY,
   type RunMatchAnalysisResult,
   type MatchAnalysisProgressEvent,
 } from "./pipeline";
+export {
+  runAutoQuickMatchForApplication,
+  scheduleAutoQuickMatchForApplication,
+  scheduleAutoQuickMatchForApplications,
+  type AutoQuickMatchResult,
+} from "./auto-quick-match";

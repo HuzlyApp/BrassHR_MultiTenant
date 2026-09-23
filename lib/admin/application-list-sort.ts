@@ -7,11 +7,16 @@ import {
 } from "@/lib/jobs/application-applicant-display";
 import { applicationCurrentStageMeta, applicationStatusLabel } from "@/lib/jobs/application-status";
 import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
+import {
+  fitBandSortRank,
+  listingDisplayFitBand,
+} from "@/lib/jobs/match-analysis/progression";
 
 export const APPLICATION_LIST_SORTABLE_COLUMNS = [
   "candidates",
   "contact",
   "matches",
+  "fit",
   "conf",
   "verify",
   "notMet",
@@ -53,6 +58,7 @@ export type ApplicationListSortRow = {
   ai_match_status?: string | null;
   ai_match_score?: number | null;
   ai_match_category?: string | null;
+  ai_match_stage?: string | null;
   ai_analyzed_at?: string | null;
   ai_requirement_counts?: {
     confirmed?: number | null;
@@ -94,6 +100,7 @@ export function defaultApplicationListSortDirection(
   column: ApplicationListSortColumn
 ): ApplicationListSortDirection {
   return column === "matches" ||
+    column === "fit" ||
     column === "dateApplied" ||
     column === "activity" ||
     column === "evaluation" ||
@@ -261,6 +268,23 @@ function compareColumn(
     }
     case "matches":
       return compareMatchScore(a, b) * directionMultiplier;
+    case "fit": {
+      const aBand = listingDisplayFitBand({
+        analyzed: a.ai_match_status === "ANALYZED",
+        stage: a.ai_match_stage,
+        counts: a.ai_requirement_counts,
+      });
+      const bBand = listingDisplayFitBand({
+        analyzed: b.ai_match_status === "ANALYZED",
+        stage: b.ai_match_stage,
+        counts: b.ai_requirement_counts,
+      });
+      return compareNumericNullLast(
+        fitBandSortRank(aBand),
+        fitBandSortRank(bBand),
+        directionMultiplier
+      );
+    }
     case "conf":
       return compareNumericNullLast(
         requirementCount(a, "confirmed"),

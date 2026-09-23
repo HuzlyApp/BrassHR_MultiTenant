@@ -2,6 +2,7 @@ export type CandidateColumnId =
   | "name"
   | "contact"
   | "clientName"
+  | "sourceJobId"
   | "status"
   | "progressStatus"
   | "reference"
@@ -45,6 +46,7 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
   { id: "name", label: "Candidate" },
   { id: "contact", label: "Contact" },
   { id: "clientName", label: "Client name" },
+  { id: "sourceJobId", label: "MSP Source Job ID" },
   { id: "status", label: "Status" },
   { id: "progressStatus", label: "Progress Status" },
   { id: "reference", label: "Reference" },
@@ -153,6 +155,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "name") return "min-w-[220px]"
   if (colId === "contact") return "min-w-[200px]"
   if (colId === "clientName") return "min-w-[140px] whitespace-nowrap"
+  if (colId === "sourceJobId") return "min-w-[150px] whitespace-nowrap"
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"
@@ -160,7 +163,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "conf" || colId === "verify" || colId === "notMet") {
     return "min-w-[72px] whitespace-nowrap"
   }
-  if (colId === "currentStage") return "min-w-[170px]"
+  if (colId === "currentStage") return "min-w-[170px] max-w-[220px]"
   if (colId === "evaluation") return "min-w-[110px] whitespace-nowrap"
   if (colId === "assignee") return "min-w-[160px] whitespace-nowrap"
   if (colId === "matchJob") return "min-w-[220px]"

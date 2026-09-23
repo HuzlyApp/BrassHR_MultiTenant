@@ -84,6 +84,36 @@ describe("sortApplicationRows", () => {
     const sorted = sortApplicationRows(analyzedRows, { column: "evaluation", direction: "desc" });
     expect(sorted.map((item) => item.id)).toEqual(["new", "old", "none"]);
   });
+
+  it("sorts Fit Strong before Review before Low, with unanalyzed last", () => {
+    const fitRows = [
+      row({
+        id: "review",
+        ai_match_status: "ANALYZED",
+        ai_match_stage: "follow_up",
+        ai_requirement_counts: { confirmed: 2, verify: 4, notMet: 0 },
+      }),
+      row({
+        id: "strong",
+        ai_match_status: "ANALYZED",
+        ai_match_stage: "deep",
+        ai_requirement_counts: { confirmed: 2, verify: 4, notMet: 0 },
+      }),
+      row({
+        id: "low",
+        ai_match_status: "ANALYZED",
+        ai_match_stage: "quick",
+        ai_requirement_counts: { confirmed: 1, verify: 1, notMet: 2 },
+      }),
+      row({
+        id: "none",
+        ai_match_status: "READY",
+        ai_requirement_counts: null,
+      }),
+    ];
+    const sorted = sortApplicationRows(fitRows, { column: "fit", direction: "desc" });
+    expect(sorted.map((item) => item.id)).toEqual(["strong", "review", "low", "none"]);
+  });
 });
 
 describe("toggleApplicationListSort", () => {

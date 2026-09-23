@@ -26,6 +26,7 @@ import {
 } from "@/lib/resume/validate-resume-upload";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { scheduleAutoQuickMatchForApplication } from "@/lib/jobs/match-analysis/auto-quick-match";
 
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
@@ -423,8 +424,19 @@ export async function adminAddCandidateFromResume(
     });
   }
 
+  const applicationId = String(result.application?.id ?? "").trim();
+  if (applicationId) {
+    scheduleAutoQuickMatchForApplication({
+      supabase,
+      tenantId: input.tenantId,
+      jobApplicationId: applicationId,
+      analyzedByUserId: input.staffUserId ?? null,
+      reason: "admin_add_candidate_from_resume",
+    });
+  }
+
   return {
-    applicationId: String(result.application?.id ?? ""),
+    applicationId,
     applicantProfileId: result.applicantProfileId,
     jobTitle: result.jobTitle,
     candidateName: fullName,

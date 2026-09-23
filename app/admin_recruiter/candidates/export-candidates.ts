@@ -26,6 +26,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
     header: columnLabel("clientName"),
     value: (row) => row.applicationClientName?.trim() || "—",
   },
+  sourceJobId: {
+    header: columnLabel("sourceJobId"),
+    value: (row) => row.applicationSourceJobId?.trim() || "—",
+  },
   status: { header: columnLabel("status"), value: (row) => row.status },
   progressStatus: {
     header: columnLabel("progressStatus"),

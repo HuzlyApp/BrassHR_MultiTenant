@@ -212,6 +212,38 @@ export function isBlockingRequirement(
   return blockingTexts.some((item) => item.trim().toLowerCase() === text || item.toLowerCase().includes(text));
 }
 
+function checklistStep2Note(
+  req: Pick<QualificationRequirement, "recruiter_note" | "latest_verification_note">
+): string {
+  return (req.latest_verification_note?.noteBody || req.recruiter_note || "").trim();
+}
+
+export function formatChecklistStep2Item(
+  req: Pick<QualificationRequirement, "requirement_text" | "recruiter_note" | "latest_verification_note">
+): string {
+  const text = req.requirement_text.trim();
+  const note = checklistStep2Note(req);
+  return note ? `${text} — ${note}` : text;
+}
+
+/** Step 2 (Verifications) checklist panels + AI screening questions (call pack). */
+export function checklistStep2Items(
+  requirements: QualificationRequirement[],
+  blockingTexts: string[] = []
+): { strengths: string[]; verifications: string[] } {
+  const strengths: string[] = [];
+  const verifications: string[] = [];
+  for (const req of requirements) {
+    const display = qualificationDisplayStatus(req, blockingTexts);
+    if (display === "Not Met" || display === "Blocking") continue;
+    const item = formatChecklistStep2Item(req);
+    if (!item) continue;
+    if (display === "Confirmed") strengths.push(item);
+    else verifications.push(item);
+  }
+  return { strengths, verifications };
+}
+
 export type RequirementOutcomeCountRow = Pick<
   QualificationRequirement,
   | "requirement_type"
@@ -235,12 +267,16 @@ export type ListingRequirementOutcomeCounts = {
   confirmed: number;
   verify: number;
   notMet: number;
+  mandatory?: number;
+  blocking?: number;
 };
 
 export const EMPTY_LISTING_REQUIREMENT_COUNTS: ListingRequirementOutcomeCounts = {
   confirmed: 0,
   verify: 0,
   notMet: 0,
+  mandatory: 0,
+  blocking: 0,
 };
 
 /**
@@ -284,7 +320,13 @@ export function listingRequirementOutcomeCounts(
   requirements: RequirementOutcomeCountRow[]
 ): ListingRequirementOutcomeCounts {
   const counts = countQualificationOutcomes(requirements);
-  return { confirmed: counts.confirmed, verify: counts.verify, notMet: counts.notMet };
+  return {
+    confirmed: counts.confirmed,
+    verify: counts.verify,
+    notMet: counts.notMet,
+    mandatory: counts.mandatory,
+    blocking: counts.blocking,
+  };
 }
 
 export function parseListingRequirementCounts(

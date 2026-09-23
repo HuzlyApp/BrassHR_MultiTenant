@@ -11,23 +11,41 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Loader2, RefreshCw, Sparkles } from "lucide-react";
-import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { formatMatchModelLabel } from "@/lib/jobs/match-analysis/display";
+import {
+  DEFAULT_ANALYSIS_PROVIDER,
+  parseAnalysisProvider,
+  type AnalysisMode,
+  type AnalysisProvider,
+} from "@/lib/jobs/match-analysis/schema";
+import { deepMatchModelForProvider } from "@/lib/jobs/match-analysis/step-config";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 export type MatchAnalyzeButtonProps = {
   analyzing?: boolean;
   isAnalyzed?: boolean;
+  /** Stage 4/5: primary action is Deep Match instead of Quick Match. */
+  deepPrimary?: boolean;
+  hasDeepMatch?: boolean;
   disabled?: boolean;
   /** primary = AI overview header; outline = panels; compact = list cells */
   variant?: "primary" | "outline" | "compact";
   className?: string;
   buttonClassName?: string;
+  /** Confirm paid Deep Match (ai.match.step3.require_recruiter_confirm). */
+  requireDeepConfirm?: boolean;
+  /** Hide/disable Deep Match until the recruiter has pushed a qualified candidate through. */
+  allowDeep?: boolean;
+  analysisProvider?: AnalysisProvider;
+  deepModelLabel?: string;
   onAnalyze: (mode: AnalysisMode) => void;
 };
 
-function modeLabels(isAnalyzed: boolean) {
+function modeLabels(args: { isAnalyzed: boolean; hasDeepMatch?: boolean }) {
   return {
-    analyze: isAnalyzed ? "Reanalyze" : "Analyze",
-    deep: isAnalyzed ? "Deeper Reanalyze" : "Deeper Analyze",
+    analyze: args.isAnalyzed ? "Re-run Quick Match" : "Quick Match",
+    deep: args.hasDeepMatch ? "Re-run Deep Match" : "Run Deep Match",
   } as const;
 }
 
@@ -37,25 +55,171 @@ function menuItemClassName(disabled?: boolean) {
   }`;
 }
 
+function resolveDeepModelLabel(
+  analysisProvider?: AnalysisProvider,
+  deepModelLabel?: string
+): string {
+  if (deepModelLabel?.trim()) return deepModelLabel.trim();
+  return formatMatchModelLabel(
+    deepMatchModelForProvider(parseAnalysisProvider(analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER))
+  );
+}
+
+export function DeepMatchConfirmDialog({
+  open,
+  modelLabel,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  modelLabel: string;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const branding = useTenantBranding();
+  const brandVars = brandingToCssVars(branding) as CSSProperties;
+  const primaryColor = branding.buttonColor || branding.primaryHex;
+  const secondaryColor = branding.secondaryHex;
+
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/40 p-4"
+      style={brandVars}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deep-match-confirm-title"
+        className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl"
+      >
+        <h2 id="deep-match-confirm-title" className="text-lg font-semibold text-[#0F172A]">
+          Run Deep Match?
+        </h2>
+        <p className="mt-2 text-sm text-[#64748B]">
+          This uses a paid model ({modelLabel}) and writes match % and confidence. Continue?
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="h-10 rounded-lg border-2 bg-white px-4 text-sm font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:opacity-60"
+            style={{ borderColor: secondaryColor, color: secondaryColor }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="h-10 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+            style={{ backgroundColor: primaryColor }}
+          >
+            Run Deep Match
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+export function FollowUpConfirmDialog({
+  open,
+  verifyCount,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  verifyCount: number;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const branding = useTenantBranding();
+  const brandVars = brandingToCssVars(branding) as CSSProperties;
+  const primaryColor = branding.buttonColor || branding.primaryHex;
+  const secondaryColor = branding.secondaryHex;
+  const itemLabel = verifyCount === 1 ? "item" : "items";
+
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/40 p-4"
+      style={brandVars}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="follow-up-confirm-title"
+        className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl"
+      >
+        <h2 id="follow-up-confirm-title" className="text-lg font-semibold text-[#0F172A]">
+          Continue to Follow-up?
+        </h2>
+        <p className="mt-2 text-sm text-[#64748B]">
+          The Qualification Checklist still has {verifyCount} {itemLabel} that need verification.
+          Generate screening questions from those notes anyway?
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="h-10 rounded-lg border-2 bg-white px-4 text-sm font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] disabled:opacity-60"
+            style={{ borderColor: secondaryColor, color: secondaryColor }}
+          >
+            Stay on checklist
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="h-10 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {busy ? "Generating…" : "Continue to Follow-up"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /**
- * Analyze / Deeper Analyze control used across candidate list cells, row menus, and overview.
- * Main action runs standard Analyze; chevron (or compact tap) offers Deeper Analyze.
+ * Quick Match / Deep Match control used across candidate list cells, row menus, and overview.
+ * On stages 1–3 the main action is Quick Match; the chevron offers Deep Match (confirm cost).
+ * On stages 4–5 the main action is Deep Match.
  */
 export function MatchAnalyzeButton({
   analyzing = false,
   isAnalyzed = false,
+  deepPrimary = false,
+  hasDeepMatch = false,
   disabled = false,
   variant = "outline",
   className = "",
   buttonClassName = "",
+  requireDeepConfirm = true,
+  allowDeep = true,
+  analysisProvider = DEFAULT_ANALYSIS_PROVIDER,
+  deepModelLabel,
   onAnalyze,
 }: MatchAnalyzeButtonProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [confirmDeep, setConfirmDeep] = useState(false);
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({ visibility: "hidden" });
-  const labels = modeLabels(isAnalyzed);
+  const labels = modeLabels({ isAnalyzed, hasDeepMatch });
   const busy = analyzing || disabled;
+  const resolvedDeepLabel = resolveDeepModelLabel(analysisProvider, deepModelLabel);
+  const primaryMode: AnalysisMode = deepPrimary ? "deep" : "analyze";
 
   const updateMenuPosition = useCallback(() => {
     const el = rootRef.current;
@@ -109,6 +273,11 @@ export function MatchAnalyzeButton({
 
   function run(mode: AnalysisMode) {
     setOpen(false);
+    if (mode === "deep" && !allowDeep) return;
+    if (mode === "deep" && requireDeepConfirm) {
+      setConfirmDeep(true);
+      return;
+    }
     onAnalyze(mode);
   }
 
@@ -121,13 +290,14 @@ export function MatchAnalyzeButton({
       <Sparkles className="h-3.5 w-3.5" aria-hidden />
     );
 
-  const primaryLabel =
-    analyzing
-      ? "Analyzing…"
+  const primaryLabel = analyzing
+    ? "Analyzing…"
+    : deepPrimary
+      ? labels.deep
       : variant === "primary"
         ? isAnalyzed
-          ? "Reanalyze"
-          : "Analyze candidate"
+          ? "Re-run Quick Match"
+          : "Quick Match"
         : labels.analyze;
 
   if (variant === "compact") {
@@ -146,7 +316,7 @@ export function MatchAnalyzeButton({
           ) : (
             <Sparkles className="h-3 w-3" aria-hidden />
           )}
-          {analyzing ? "Analyzing…" : "Analyze"}
+          {analyzing ? "Analyzing…" : "Quick Match"}
           {!analyzing ? <ChevronDown className="h-3 w-3 opacity-70" aria-hidden /> : null}
         </button>
         {open && typeof document !== "undefined"
@@ -165,21 +335,32 @@ export function MatchAnalyzeButton({
                   onClick={() => run("analyze")}
                 >
                   <Sparkles className="h-3.5 w-3.5 text-[#64748B]" aria-hidden />
-                  Analyze
+                  Quick Match
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className={menuItemClassName()}
+                  disabled={!allowDeep}
+                  className={menuItemClassName(!allowDeep)}
                   onClick={() => run("deep")}
                 >
                   <Sparkles className="h-3.5 w-3.5 text-[var(--brand-primary,#0F766E)]" aria-hidden />
-                  Deeper Analyze
+                  Run Deep Match
                 </button>
               </div>,
               document.body
             )
           : null}
+      <DeepMatchConfirmDialog
+        open={confirmDeep}
+        modelLabel={resolvedDeepLabel}
+        busy={busy}
+        onCancel={() => setConfirmDeep(false)}
+        onConfirm={() => {
+          setConfirmDeep(false);
+          onAnalyze("deep");
+        }}
+      />
       </div>
     );
   }
@@ -193,11 +374,14 @@ export function MatchAnalyzeButton({
     : "inline-flex items-center justify-center rounded-r-lg border border-[#CBD5E1] bg-white px-2 py-1.5 text-[#0F172A] shadow-sm transition hover:bg-[#F8FAFC] disabled:opacity-60";
 
   return (
-    <div ref={rootRef} className={`relative inline-flex ${className}`}>
+    <div
+      ref={rootRef}
+      className={`relative inline-flex shrink-0 items-stretch ${isPrimary ? "h-8" : ""} ${className}`}
+    >
       <button
         type="button"
-        disabled={busy}
-        onClick={() => run("analyze")}
+        disabled={busy || (primaryMode === "deep" && !allowDeep)}
+        onClick={() => run(primaryMode)}
         className={mainClass}
       >
         {icon}
@@ -223,28 +407,65 @@ export function MatchAnalyzeButton({
               style={menuStyle}
               className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg"
             >
-              <button
-                type="button"
-                role="menuitem"
-                className={menuItemClassName()}
-                onClick={() => run("analyze")}
-              >
-                {labels.analyze}
-                <span className="ml-auto text-[11px] text-[#94A3B8]">Standard</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className={menuItemClassName()}
-                onClick={() => run("deep")}
-              >
-                {labels.deep}
-                <span className="ml-auto text-[11px] text-[#94A3B8]">Full</span>
-              </button>
+              {deepPrimary ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!allowDeep}
+                    className={menuItemClassName(!allowDeep)}
+                    onClick={() => run("deep")}
+                  >
+                    {labels.deep}
+                    <span className="ml-auto text-[11px] text-[#94A3B8]">Paid</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={menuItemClassName()}
+                    onClick={() => run("analyze")}
+                  >
+                    {labels.analyze}
+                    <span className="ml-auto text-[11px] text-[#94A3B8]">Standard</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={menuItemClassName()}
+                    onClick={() => run("analyze")}
+                  >
+                    {labels.analyze}
+                    <span className="ml-auto text-[11px] text-[#94A3B8]">Standard</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!allowDeep}
+                    className={menuItemClassName(!allowDeep)}
+                    onClick={() => run("deep")}
+                  >
+                    {labels.deep}
+                    <span className="ml-auto text-[11px] text-[#94A3B8]">Paid</span>
+                  </button>
+                </>
+              )}
             </div>,
             document.body
           )
         : null}
+      <DeepMatchConfirmDialog
+        open={confirmDeep}
+        modelLabel={resolvedDeepLabel}
+        busy={busy}
+        onCancel={() => setConfirmDeep(false)}
+        onConfirm={() => {
+          setConfirmDeep(false);
+          onAnalyze("deep");
+        }}
+      />
     </div>
   );
 }
@@ -253,25 +474,41 @@ export function MatchAnalyzeButton({
 export function MatchAnalyzeMenuItems({
   analyzing = false,
   isAnalyzed = false,
+  hasDeepMatch = false,
+  requireDeepConfirm = true,
+  analysisProvider = DEFAULT_ANALYSIS_PROVIDER,
+  deepModelLabel,
   onAnalyze,
   onClose,
 }: {
   analyzing?: boolean;
   isAnalyzed?: boolean;
+  hasDeepMatch?: boolean;
+  requireDeepConfirm?: boolean;
+  analysisProvider?: AnalysisProvider;
+  deepModelLabel?: string;
   onAnalyze: (mode: AnalysisMode) => void;
   onClose?: () => void;
 }): ReactNode {
-  const labels = modeLabels(isAnalyzed);
+  const labels = modeLabels({ isAnalyzed, hasDeepMatch });
+  const resolvedDeepLabel = resolveDeepModelLabel(analysisProvider, deepModelLabel);
+  function run(mode: AnalysisMode) {
+    if (mode === "deep" && requireDeepConfirm) {
+      const ok = window.confirm(
+        `Run Deep Match? This uses a paid model (${resolvedDeepLabel}) and writes match %.`
+      );
+      if (!ok) return;
+    }
+    onAnalyze(mode);
+    onClose?.();
+  }
   return (
     <>
       <button
         type="button"
         role="menuitem"
         disabled={analyzing}
-        onClick={() => {
-          onAnalyze("analyze");
-          onClose?.();
-        }}
+        onClick={() => run("analyze")}
         className={menuItemClassName(analyzing)}
       >
         {labels.analyze}
@@ -280,10 +517,7 @@ export function MatchAnalyzeMenuItems({
         type="button"
         role="menuitem"
         disabled={analyzing}
-        onClick={() => {
-          onAnalyze("deep");
-          onClose?.();
-        }}
+        onClick={() => run("deep")}
         className={menuItemClassName(analyzing)}
       >
         {labels.deep}

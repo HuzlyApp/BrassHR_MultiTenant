@@ -25,6 +25,7 @@ import {
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { scheduleAutoQuickMatchForApplication } from "@/lib/jobs/match-analysis/auto-quick-match";
 
 export type WorkerAppliedJobOption = {
   applicationId: string;
@@ -264,6 +265,44 @@ async function storeResumeFromFile(
   if (!persistedId) throw new Error("Could not save resume record.");
 
   await syncWorkerPrimaryResumePath(supabase, applicant.id, applicant.user_id);
+
+  let jobApplicationId = options?.jobApplicationId?.trim() || "";
+  if (!jobApplicationId && mode === "update" && options?.resumeId?.trim()) {
+    const { data: existing } = await supabase
+      .from("worker_resumes")
+      .select("job_application_id")
+      .eq("id", options.resumeId.trim())
+      .maybeSingle();
+    jobApplicationId =
+      typeof existing?.job_application_id === "string" ? existing.job_application_id.trim() : "";
+  }
+
+  if (jobApplicationId) {
+    await supabase
+      .from("job_applications")
+      .update({
+        ai_match_status: "READY",
+        ai_match_score: null,
+        ai_match_category: null,
+        ai_match_action: null,
+        ai_match_readiness: null,
+        ai_match_display_category: null,
+        ai_analyzed_at: null,
+        ai_analysis_error: null,
+        ai_analysis_progress: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobApplicationId)
+      .eq("tenant_id", applicant.tenant_id);
+
+    scheduleAutoQuickMatchForApplication({
+      supabase,
+      tenantId: applicant.tenant_id,
+      jobApplicationId,
+      analyzedByUserId: userId,
+      reason: mode === "update" ? "applicant_portal_resume_reupload" : "applicant_portal_resume_upload",
+    });
+  }
 
   return { resumeId: persistedId, parseStatus: "pending" };
 }
@@ -564,7 +603,7 @@ export async function getWorkerResumeFileUrl(
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("worker_resumes")
-    .select("file_url, storage_path, original_file_name, file_name")
+    .select("file_url, storage_path")
     .eq("id", resumeId)
     .eq("worker_id", workerId)
     .is("deleted_at", null)
@@ -577,24 +616,8 @@ export async function getWorkerResumeFileUrl(
     null;
   if (!stored) return null;
 
-  const { data: worker } = await supabase
-    .from("worker")
-    .select("first_name, last_name")
-    .eq("id", workerId)
-    .maybeSingle();
-
-  const downloadFileName = buildWorkerResumeFileName({
-    firstName: worker?.first_name as string | null | undefined,
-    lastName: worker?.last_name as string | null | undefined,
-    originalFileName:
-      (data?.original_file_name as string | null) ||
-      (data?.file_name as string | null) ||
-      stored,
-  });
-
   return resolveStorageAccessibleUrl(supabase, stored, {
     defaultBucket: WORKER_RESUMES_BUCKET,
     extraBuckets: [WORKER_RESUMES_BUCKET],
-    downloadFileName,
   });
 }
