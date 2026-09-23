@@ -19,6 +19,7 @@ import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import { showsRemoteAllowedStatesField } from "./RemoteAllowedStatesField";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -410,7 +411,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   function updateUi(patch: Partial<JobFormUiState>) {
-    setUi((current) => ({ ...current, ...patch }));
+    const clearsRemote =
+      "jobLocationType" in patch &&
+      patch.jobLocationType != null &&
+      !showsRemoteAllowedStatesField(patch.jobLocationType);
+
+    setUi((current) => ({
+      ...current,
+      ...patch,
+      ...(clearsRemote ? { remoteStatesScope: "all" as const } : {}),
+    }));
+    if (clearsRemote) {
+      setJob((current) => ({ ...current, remoteAllowedStates: [] }));
+    }
     if ("jobLocationType" in patch) {
       setFieldErrors((current) => {
         const next = { ...current };
@@ -432,8 +445,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
     const location = current.location?.trim() || current.facility?.trim() || "";
     if (isRemote) {
-      if (!current.remoteAllowedStates?.length) {
-        errors.remoteAllowedStates = "Select the states where this remote role can be worked.";
+      if (ui.remoteStatesScope === "restrict" && !current.remoteAllowedStates?.length) {
+        errors.remoteAllowedStates =
+          "Select at least one state, or switch back to All States.";
       }
     } else if (!location) {
       errors.location = "Location is required.";

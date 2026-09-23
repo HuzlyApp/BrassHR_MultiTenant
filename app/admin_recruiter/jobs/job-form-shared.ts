@@ -43,12 +43,17 @@ export const JOB_FORM_COMMISSION_FEE_TYPES = [
 
 export type CommissionFeeType = "" | (typeof JOB_FORM_COMMISSION_FEE_TYPES)[number]["value"];
 
+/** Remote jobs default to all US states; restrict only for exceptions. */
+export type RemoteStatesScope = "all" | "restrict";
+
 export type JobFormUiState = {
   numberOfPositions: number;
   yearsOfExperience: string;
   additionalLocations: string[];
   showInMultipleAreas: boolean;
   jobLocationType: string;
+  /** All States (default) vs explicit state allow-list for remote roles. */
+  remoteStatesScope: RemoteStatesScope;
   employerOnRecord: "" | "yes" | "no";
   compensationType: string;
   currency: string;
@@ -225,6 +230,7 @@ export function defaultJobFormUiState(): JobFormUiState {
     additionalLocations: [],
     showInMultipleAreas: false,
     jobLocationType: "",
+    remoteStatesScope: "all",
     employerOnRecord: "",
     compensationType: "",
     currency: "",
@@ -250,6 +256,7 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
     : [];
   ui.showInMultipleAreas = Boolean(job.showInMultipleAreas);
   ui.jobLocationType = job.jobLocationType?.trim() || job.schedule?.trim() || "";
+  ui.remoteStatesScope = (job.remoteAllowedStates?.length ?? 0) > 0 ? "restrict" : "all";
   if (typeof job.isEmployerOnRecord === "boolean") {
     ui.employerOnRecord = job.isEmployerOnRecord ? "yes" : "no";
   } else {
@@ -486,6 +493,7 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
     eorType: deriveEorType(job),
     schedule: ui.jobLocationType,
     jobLocationType: ui.jobLocationType,
+    remoteAllowedStates: ui.remoteStatesScope === "all" ? [] : job.remoteAllowedStates ?? [],
     numberOfPositions: Math.max(1, Math.trunc(ui.numberOfPositions || 1)),
     yearsOfExperience: ui.yearsOfExperience,
     additionalLocations: ui.additionalLocations
