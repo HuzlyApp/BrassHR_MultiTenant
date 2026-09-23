@@ -520,7 +520,12 @@ export function JobReviewEditModal({
                     value={draft.ui.jobLocationType ?? ""}
                     onChange={(event) => {
                       const nextType = event.target.value;
-                      patchUi({ jobLocationType: nextType });
+                      patchUi({
+                        jobLocationType: nextType,
+                        ...(!showsRemoteAllowedStatesField(nextType)
+                          ? { remoteStatesScope: "all" as const }
+                          : {}),
+                      });
                       if (!showsRemoteAllowedStatesField(nextType)) {
                         patchJob("remoteAllowedStates", []);
                       }
@@ -543,8 +548,10 @@ export function JobReviewEditModal({
                 {showsRemoteAllowedStatesField(draft.ui.jobLocationType) ? (
                   <RemoteAllowedStatesField
                     value={draft.job.remoteAllowedStates ?? []}
+                    scope={draft.ui.remoteStatesScope}
                     required={isRemoteJobLocationType(draft.ui.jobLocationType)}
                     onChange={(next) => patchJob("remoteAllowedStates", next)}
+                    onScopeChange={(next) => patchUi({ remoteStatesScope: next })}
                   />
                 ) : null}
               </div>
@@ -553,8 +560,10 @@ export function JobReviewEditModal({
             {field === "remoteAllowedStates" ? (
               <RemoteAllowedStatesField
                 value={draft.job.remoteAllowedStates ?? []}
+                scope={draft.ui.remoteStatesScope}
                 required={isRemoteJobLocationType(draft.ui.jobLocationType)}
                 onChange={(next) => patchJob("remoteAllowedStates", next)}
+                onScopeChange={(next) => patchUi({ remoteStatesScope: next })}
               />
             ) : null}
 

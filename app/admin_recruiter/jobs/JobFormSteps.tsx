@@ -577,9 +577,11 @@ export function JobFormStepRequisition({
         {showsRemoteAllowedStatesField(ui.jobLocationType) ? (
           <RemoteAllowedStatesField
             value={job.remoteAllowedStates ?? []}
+            scope={ui.remoteStatesScope}
             error={fieldErrors.remoteAllowedStates}
             required={isRemoteJobLocationType(ui.jobLocationType)}
             onChange={(next) => onJobChange("remoteAllowedStates", next)}
+            onScopeChange={(next) => onUiChange({ remoteStatesScope: next })}
           />
         ) : null}
 
@@ -1036,9 +1038,11 @@ export function JobFormStepMspDetails({
         {showsRemoteAllowedStatesField(ui.jobLocationType) ? (
           <RemoteAllowedStatesField
             value={job.remoteAllowedStates ?? []}
+            scope={ui.remoteStatesScope}
             error={fieldErrors.remoteAllowedStates}
             required={isRemoteJobLocationType(ui.jobLocationType)}
             onChange={(next) => onJobChange("remoteAllowedStates", next)}
+            onScopeChange={(next) => onUiChange({ remoteStatesScope: next })}
           />
         ) : null}
       </div>

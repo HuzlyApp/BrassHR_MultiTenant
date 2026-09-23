@@ -46,7 +46,7 @@ export function useServiceAreaPreview(
     }
     const hasEnough =
       location.locationType === "remote"
-        ? Boolean(location.remoteAllowedStates?.length || location.state)
+        ? true // empty remoteAllowedStates = All States
         : Boolean(location.state && location.city);
     if (!hasEnough) {
       setDecision(null);

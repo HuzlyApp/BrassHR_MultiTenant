@@ -69,7 +69,7 @@ export type JobRequisitionInput = {
   worksiteCity?: string | null;
   worksiteState?: string | null;
   worksitePostalCode?: string | null;
-  /** Required when work location type is Remote. No United States shortcut. */
+  /** Empty = All States (nationwide). Non-empty = restricted allow-list. */
   remoteAllowedStates?: string[] | null;
   schedule?: string | null;
   qualifications?: string | null;
