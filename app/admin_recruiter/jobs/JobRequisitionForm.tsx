@@ -475,6 +475,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (!current.sourceJobTitle?.trim()) {
         errors.sourceJobTitle = "Source Job Title is required.";
       }
+      if (!current.professionId?.trim()) {
+        errors.professionId = "Profession is required.";
+      }
       if (isMspEor) {
         if (current.employmentType !== "W2" && current.employmentType !== "1099") {
           errors.employmentType = "Select W2 or 1099 for EOR placements.";
@@ -484,7 +487,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (!current.publicTitle?.trim()) {
         errors.publicTitle = "Job Title is required.";
       }
-      if (!current.profession?.trim() && !current.professionId) {
+      if (!current.professionId?.trim()) {
         errors.professionId = "Profession is required.";
       }
       if (!current.employmentType) {
@@ -942,6 +945,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   job={job}
                   ui={ui}
                   fieldErrors={fieldErrors}
+                  professions={options?.professions ?? []}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
                   onServiceAreaBlockedChange={onServiceAreaBlockedChange}
