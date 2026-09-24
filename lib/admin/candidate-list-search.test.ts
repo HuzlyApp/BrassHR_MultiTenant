@@ -5,6 +5,7 @@ import {
   matchesCandidateListSearch,
   resolveApplicationJobCode,
   resolveApplicationJobLocation,
+  resolveApplicationSourceJobId,
 } from "@/lib/admin/candidate-list-search";
 
 describe("isPhoneLikeSearchQuery", () => {
@@ -106,6 +107,18 @@ describe("matchesApplicationListSearch", () => {
     expect(resolveApplicationJobLocation(row)).toBe("Austin, TX");
   });
 
+  it("resolves MSP Source Job ID separately from internal job code", () => {
+    const withSource = {
+      ...row,
+      job_requisitions: {
+        ...row.job_requisitions,
+        external_requisition_id: "122ZO3892",
+      },
+    };
+    expect(resolveApplicationJobCode(withSource)).toBe("REQ-7788");
+    expect(resolveApplicationSourceJobId(withSource)).toBe("122ZO3892");
+  });
+
   it("matches by applicant and job fields", () => {
     expect(matchesApplicationListSearch(row, "pat kim")).toBe(true);
     expect(matchesApplicationListSearch(row, "pat.kim@clinic.org")).toBe(true);
@@ -113,6 +126,18 @@ describe("matchesApplicationListSearch", () => {
     expect(matchesApplicationListSearch(row, "req-7788")).toBe(true);
     expect(matchesApplicationListSearch(row, "austin")).toBe(true);
     expect(matchesApplicationListSearch(row, "systems engineer")).toBe(true);
+    expect(
+      matchesApplicationListSearch(
+        {
+          ...row,
+          job_requisitions: {
+            ...row.job_requisitions,
+            external_requisition_id: "122ZO3892",
+          },
+        },
+        "122ZO"
+      )
+    ).toBe(true);
   });
 
   it("does not match email query digits against an unrelated phone", () => {

@@ -9,6 +9,7 @@ export function parseMatchStage(value: unknown): MatchStage | null {
 
 export function matchStageFromMode(mode: AnalysisMode): MatchStage {
   if (mode === "deep") return "deep";
+  if (mode === "call_pack") return "call_pack";
   if (mode === "follow_up") return "follow_up";
   return "quick";
 }

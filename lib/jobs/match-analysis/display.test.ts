@@ -27,6 +27,7 @@ describe("profileMatchRingColor", () => {
 describe("formatMatchModelLabel", () => {
   it("formats Gemini and Grok Deep Match ids", () => {
     expect(formatMatchModelLabel("gemini-3.1-pro-preview")).toBe("Gemini 3.1 Pro");
+    expect(formatMatchModelLabel("grok-4.6")).toBe("Grok 4.6");
     expect(formatMatchModelLabel("grok-4.3")).toBe("Grok 4.3");
     expect(formatMatchModelLabel("grok-4-fast")).toBe("Grok 4 Fast");
   });

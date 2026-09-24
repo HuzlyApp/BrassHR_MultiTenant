@@ -28,6 +28,7 @@ import {
   resolvePublishedFlowForJobWorkflow,
 } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
+import { scheduleAutoQuickMatchForApplications } from "@/lib/jobs/match-analysis/auto-quick-match";
 import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { normalizeApplicantEmail } from "@/lib/jobs/validation";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
@@ -1123,6 +1124,7 @@ export async function importExistingCandidatesToWorkspace(
   }
 
   const imported: string[] = [];
+  const importedApplicationIds: string[] = [];
   const racedAlready: string[] = [];
   const nowIso = new Date().toISOString();
 
@@ -1180,6 +1182,9 @@ export async function importExistingCandidatesToWorkspace(
     }
 
     imported.push(worker.id);
+    if (aiMatchStatus === "READY") {
+      importedApplicationIds.push(String(application.id));
+    }
 
     const activityRows = [
       {
@@ -1237,6 +1242,15 @@ export async function importExistingCandidatesToWorkspace(
 
   const importedCount = imported.length;
   const skippedAlreadyAddedCount = skippedAlready.length;
+  if (importedApplicationIds.length) {
+    scheduleAutoQuickMatchForApplications({
+      supabase,
+      tenantId: input.tenantId,
+      jobApplicationIds: importedApplicationIds,
+      analyzedByUserId: input.staffUserId,
+      reason: "import_existing_candidates",
+    });
+  }
   return {
     imported,
     skippedAlreadyAdded: skippedAlready,

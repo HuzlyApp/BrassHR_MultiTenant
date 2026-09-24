@@ -1,9 +1,12 @@
 /**
- * Candidate Match AI model routing (FS-AI-MATCH-001 v1.5).
+ * Candidate Match AI model routing (FS-AI-MATCH-001 v1.7).
+ *
+ * Volume steps (1–3): Grok Fast primary, Gemini Flash-Lite fallback.
+ * Paid steps (4–5): Grok 4.6 / Pro — never write % from Fast.
  *
  * Config keys:
  *   ai.match.step1.extract_model / classify_model
- *   ai.match.step2.question_model / vision_model
+ *   ai.match.step2.question_model / vision_model / fallback_model
  *   ai.match.step3.deep_model
  *   ai.match.step3.require_recruiter_confirm
  *
@@ -16,19 +19,21 @@ export const MATCH_CONFIG_KEYS = {
   step1Classify: "ai.match.step1.classify_model",
   step2Question: "ai.match.step2.question_model",
   step2Vision: "ai.match.step2.vision_model",
+  step2Fallback: "ai.match.step2.fallback_model",
   step3Deep: "ai.match.step3.deep_model",
   step3RequireConfirm: "ai.match.step3.require_recruiter_confirm",
 } as const;
 
-export const DEFAULT_STEP1_MODEL = "gemini-3.5-flash-lite";
-export const DEFAULT_STEP2_MODEL = "gemini-3.5-flash-lite";
+export const DEFAULT_STEP1_MODEL = "grok-4-fast";
+export const DEFAULT_STEP2_MODEL = "grok-4-fast";
+export const DEFAULT_STEP2_FALLBACK_MODEL = "gemini-2.5-flash-lite";
 export const DEFAULT_STEP3_MODEL = "gemini-3.1-pro-preview";
-export const DEFAULT_STEP3_GROK_MODEL = "grok-4.3";
+export const DEFAULT_STEP3_GROK_MODEL = "grok-4.6";
 export const DEFAULT_STEP1_FALLBACKS = [
-  "gpt-5.4-nano",
   "gemini-2.5-flash-lite",
-  "grok-4-fast",
+  "gpt-5.4-nano",
 ] as const;
+export const DEFAULT_STEP2_FALLBACKS = [DEFAULT_STEP2_FALLBACK_MODEL] as const;
 export const DEFAULT_STEP3_FALLBACKS = ["gpt-5.4", "claude-sonnet-5"] as const;
 
 /** Retired Gemini IDs that still appear in env or prompt-catalog config. */
@@ -94,14 +99,51 @@ export function deepMatchModelForProvider(provider: "gemini" | "grok"): string {
   return getMatchStepModels().step3Deep;
 }
 
+/**
+ * xAI Responses API reasoning.effort for a Grok model id.
+ * Flagship Grok 4.5+ rejects "none" (always-on reasoning) → use "low".
+ * Fast / non-reasoning / 4.3 variants still accept "none".
+ */
+export function grokReasoningEffort(model: string): "none" | "low" {
+  const id = model.trim().toLowerCase();
+  if (!id) return "none";
+  if (id.includes("fast") || id.includes("non-reasoning")) return "none";
+  // grok-4.5, grok-4.6, grok-4.7, grok-4.20-… (not -fast / non-reasoning)
+  if (/^grok-4\.(?:[5-9]|\d{2,})\b/.test(id) || /^grok-5\b/.test(id)) {
+    return "low";
+  }
+  return "none";
+}
+
 export type MatchStepModelConfig = {
   step1Extract: string;
   step1Classify: string;
   step2Question: string;
   step2Vision: string;
+  step2Fallback: string;
   step3Deep: string;
   requireRecruiterConfirm: boolean;
 };
+
+export type Step2ModelRoute = {
+  primary: { provider: "gemini" | "grok"; model: string };
+  fallback: { provider: "gemini" | "grok"; model: string };
+};
+
+/** Step 2 Verifications: grok-4-fast primary → gemini-2.5-flash-lite fallback. */
+export function getStep2QuestionRoute(): Step2ModelRoute {
+  const models = getMatchStepModels();
+  return {
+    primary: {
+      provider: providerForModel(models.step2Question, "grok"),
+      model: models.step2Question,
+    },
+    fallback: {
+      provider: providerForModel(models.step2Fallback, "gemini"),
+      model: models.step2Fallback,
+    },
+  };
+}
 
 export function getMatchStepModels(): MatchStepModelConfig {
   return {
@@ -116,6 +158,11 @@ export function getMatchStepModels(): MatchStepModelConfig {
     ),
     step2Vision: sanitizeStep1Model(
       readEnv(matchConfigEnvName(MATCH_CONFIG_KEYS.step2Vision)) || DEFAULT_STEP2_MODEL
+    ),
+    step2Fallback: sanitizeStep1Model(
+      readEnv(matchConfigEnvName(MATCH_CONFIG_KEYS.step2Fallback)) ||
+        DEFAULT_STEP2_FALLBACK_MODEL,
+      DEFAULT_STEP2_FALLBACK_MODEL
     ),
     step3Deep: sanitizeStep3Model(
       readEnv(matchConfigEnvName(MATCH_CONFIG_KEYS.step3Deep)) || DEFAULT_STEP3_MODEL

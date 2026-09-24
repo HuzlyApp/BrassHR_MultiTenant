@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import type { AnalysisMode, AnalysisProvider, ReadinessStatus } from "@/lib/jobs/match-analysis/schema";
+import type {
+  AnalysisMode,
+  AnalysisProvider,
+  MatchAnalysisResponse,
+  ReadinessStatus,
+} from "@/lib/jobs/match-analysis/schema";
 import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
@@ -44,6 +49,11 @@ export type MatchAnalysisWorkspacePayload = {
     status_name?: string | null;
     status_system_key?: string | null;
   };
+  job?: {
+    id: string;
+    title: string | null;
+    location?: string | null;
+  } | null;
   requirements: QualificationRequirement[];
   screeningQuestions?: ScreeningQuestionView[];
   recommendedQuestions?: Array<{
@@ -94,6 +104,7 @@ export type MatchAnalysisWorkspacePayload = {
     display_category: string | null;
     model: string | null;
     analyzed_at: string;
+    analysis?: MatchAnalysisResponse | null;
   }>;
   extractedResume?: { text: string; fileName: string | null } | null;
   assignedRecruiter?: { id: string; name: string } | null;
@@ -133,6 +144,8 @@ export type MatchAnalysisParsed = {
   candidate_match?: {
     recruiter_decision_summary?: string;
     confidence_score?: number;
+    display_category?: string | null;
+    match_category?: string | null;
   };
   job?: { job_title?: string };
   strengths?: string[];
@@ -371,8 +384,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           ? "Needs résumé text before analysis"
           : mode === "deep"
             ? "Deep Match complete"
-            : mode === "follow_up"
-              ? "Follow-up questions ready"
+            : mode === "call_pack" || mode === "follow_up"
+              ? "Verifications screening questions ready"
               : "Quick Match complete"
       );
       await Promise.all([load(), loadResumes()]);
@@ -754,14 +767,20 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
-  async function advanceMatchProgress(progressStage: "call_pack" | "follow_up" | "submission") {
+  async function advanceMatchProgress(
+    progressStage: "call_pack" | "follow_up" | "submission",
+    opts?: { analysisProvider?: AnalysisProvider }
+  ) {
     const res = await fetch(
       `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
       {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressStage }),
+        body: JSON.stringify({
+          progressStage,
+          ...(opts?.analysisProvider ? { analysisProvider: opts.analysisProvider } : {}),
+        }),
       }
     );
     const json = (await res.json().catch(() => ({}))) as { error?: string; stage?: string };

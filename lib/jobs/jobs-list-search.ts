@@ -53,6 +53,8 @@ export type JobTextSearchRow = {
   source_type?: string | null;
   public_title?: string | null;
   source_job_title?: string | null;
+  /** MSP Source Job ID / Internal Reference. */
+  external_requisition_id?: string | null;
   location?: string | null;
   facility?: string | null;
   facility_name?: string | null;
@@ -62,7 +64,7 @@ export type JobTextSearchRow = {
 };
 
 /**
- * Free-text matches job name/title, location, MSP/client name, or profession (OR).
+ * Free-text matches job name/title, MSP Source Job ID, location, MSP/client name, or profession (OR).
  */
 export function jobMatchesTextSearch(job: JobTextSearchRow, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -76,6 +78,7 @@ export function jobMatchesTextSearch(job: JobTextSearchRow, query: string): bool
     jobDisplayTitleForSearch(job),
     job.public_title,
     job.source_job_title,
+    job.external_requisition_id,
     rawLocation,
     formattedLocation,
     job.msp_name,
@@ -151,6 +154,7 @@ export function jobDashboardSearchHaystack(job: JobDashboardSearchRow): string {
     jobDisplayTitleForSearch(job),
     job.public_title,
     job.source_job_title,
+    job.external_requisition_id,
     rawLocation,
     formattedLocation,
     job.msp_name,

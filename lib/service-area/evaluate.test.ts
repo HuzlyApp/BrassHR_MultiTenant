@@ -337,10 +337,14 @@ describe("evaluateServiceArea Phase 1 holds", () => {
     expect(decision.reasonCode).toBe("unknown_location");
   });
 
-  it("blocks unlisted plausible cities such as NotARealCity, TX", () => {
-    const decision = evaluate({ city: "NotARealCity", state: "TX", locationType: "onsite" });
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("unknown_location");
+  it("allows unlisted plausible cities in allowed states such as Spicewood, TX", () => {
+    for (const row of [
+      { city: "Spicewood", state: "TX" },
+      { city: "NotARealCity", state: "TX" },
+    ]) {
+      const decision = evaluate({ ...row, locationType: "onsite" });
+      expect(decision.allowed, `${row.city}, ${row.state}`).toBe(true);
+    }
   });
 
   it("blocks unclassified New York cities that are not NYC or known upstate", () => {

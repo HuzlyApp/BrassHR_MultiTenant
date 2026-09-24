@@ -22,6 +22,7 @@ import { isResumeUploadValidationError } from "@/lib/resume/validate-resume-uplo
 import { normalizeResumeWhitespace } from "@/lib/jobs/match-analysis/sanitize-resume"
 import { repairExtractedResumeText } from "@/lib/resume/normalize-resume-text"
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name"
+import { scheduleAutoQuickMatchForApplication } from "@/lib/jobs/match-analysis/auto-quick-match"
 
 function finalizeExtractedResumeText(text: string): string {
   return repairExtractedResumeText(normalizeResumeWhitespace(text))
@@ -471,6 +472,7 @@ export async function POST(req: Request) {
   const capturedTenantId = workerCtx.tenantId
   const capturedText = text
   const capturedTenantSlug = tenantSlug
+  const capturedApplicationId = jobApplication?.application.id ?? null
   if (text.trim()) {
     after(async () => {
       const origin = resolveApplicantEmailAppOrigin(req)
@@ -482,6 +484,16 @@ export async function POST(req: Request) {
         textLength,
         origin: origin ?? null,
       })
+
+      if (capturedApplicationId && capturedTenantId) {
+        scheduleAutoQuickMatchForApplication({
+          supabase,
+          tenantId: capturedTenantId,
+          jobApplicationId: capturedApplicationId,
+          analyzedByUserId: null,
+          reason: "candidate_resume_upload",
+        })
+      }
 
       if (origin) {
         await sendResumeContinuationEmail(supabase, {

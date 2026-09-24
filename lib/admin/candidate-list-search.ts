@@ -8,7 +8,7 @@ import {
 } from "@/lib/jobs/application-applicant-display";
 
 export const CANDIDATE_LIST_SEARCH_PLACEHOLDER =
-  "Search name, email, phone, job code, job role, location…";
+  "Search name, email, phone, job code, MSP Source Job ID, job role, location…";
 
 function oneEmbedded(value: EmbeddedRecord): Record<string, unknown> {
   if (!value) return {};
@@ -138,6 +138,11 @@ export function resolveApplicationJobCode(row: ApplicationListSearchRow): string
   return jobId ? jobId.slice(0, 8).toUpperCase() : "";
 }
 
+export function resolveApplicationSourceJobId(row: ApplicationListSearchRow): string {
+  const job = oneEmbedded(row.job_requisitions);
+  return String(job.external_requisition_id ?? "").trim();
+}
+
 export function resolveApplicationJobLocation(row: ApplicationListSearchRow): string {
   const job = oneEmbedded(row.job_requisitions);
   return (
@@ -157,6 +162,7 @@ export function collectApplicationListSearchFields(row: ApplicationListSearchRow
     resolveApplicationApplicantEmail(row),
     resolveApplicationApplicantPhone(row),
     resolveApplicationJobCode(row),
+    resolveApplicationSourceJobId(row),
     resolveApplicationJobLocation(row),
     resolveApplicationApplicantLocation(row),
     jobTitle,
