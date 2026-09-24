@@ -1027,13 +1027,6 @@ export function AiAnalysisOverviewClient({
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
       return;
     }
-    const unanswered = recommendedQuestions.filter(
-      (item) => !(recommendedAnswers[item.key] ?? item.answer ?? "").trim()
-    );
-    if (recommendedQuestions.length && unanswered.length) {
-      toast.error("Record an answer for each screening question before Follow-Up.");
-      return;
-    }
     if (!callContext.trim()) {
       toast.error("Add call context before continuing to Follow-Up.");
       return;
@@ -1058,13 +1051,6 @@ export function AiAnalysisOverviewClient({
   function moveToFollowUp() {
     if (!canAdvance) {
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
-      return;
-    }
-    const unanswered = recommendedQuestions.filter(
-      (item) => !(recommendedAnswers[item.key] ?? item.answer ?? "").trim()
-    );
-    if (recommendedQuestions.length && unanswered.length) {
-      toast.error("Record an answer for each screening question before Follow-Up.");
       return;
     }
     if (!callContext.trim()) {
