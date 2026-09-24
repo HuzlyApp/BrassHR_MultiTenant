@@ -46,16 +46,16 @@ describe("match step config", () => {
     expect(models.step2Question).toBe(DEFAULT_STEP2_MODEL);
     expect(models.step2Fallback).toBe(DEFAULT_STEP2_FALLBACK_MODEL);
     expect(models.step2Question).toBe("grok-4-fast");
-    expect(models.step2Fallback).toBe("gemini-2.5-flash-lite");
+    expect(models.step2Fallback).toBe("gemini-3.5-flash-lite");
     expect(models.step3Deep).toBe(DEFAULT_STEP3_MODEL);
     expect(models.step3Deep).toBe("gemini-3.1-pro-preview");
     expect(models.requireRecruiterConfirm).toBe(true);
   });
 
-  it("routes Step 2 questions to grok-4-fast with gemini-2.5-flash-lite fallback", () => {
+  it("routes Step 2 questions to grok-4-fast with gemini-3.5-flash-lite fallback", () => {
     const route = getStep2QuestionRoute();
     expect(route.primary).toEqual({ provider: "grok", model: "grok-4-fast" });
-    expect(route.fallback).toEqual({ provider: "gemini", model: "gemini-2.5-flash-lite" });
+    expect(route.fallback).toEqual({ provider: "gemini", model: "gemini-3.5-flash-lite" });
   });
 
   it("rejects flagship models on Step 1 and cheap models on Step 3", () => {
@@ -74,11 +74,11 @@ describe("match step config", () => {
   });
 
   it("honors env overrides when the model is allowed for the step", () => {
-    process.env.AI_MATCH_STEP1_CLASSIFY_MODEL = "gemini-2.5-flash-lite";
+    process.env.AI_MATCH_STEP1_CLASSIFY_MODEL = "gemini-3.5-flash-lite";
     process.env.AI_MATCH_STEP3_DEEP_MODEL = "gpt-5.4";
     process.env.AI_MATCH_STEP3_REQUIRE_RECRUITER_CONFIRM = "false";
     const models = getMatchStepModels();
-    expect(models.step1Classify).toBe("gemini-2.5-flash-lite");
+    expect(models.step1Classify).toBe("gemini-3.5-flash-lite");
     expect(models.step3Deep).toBe("gpt-5.4");
     expect(models.requireRecruiterConfirm).toBe(false);
   });
