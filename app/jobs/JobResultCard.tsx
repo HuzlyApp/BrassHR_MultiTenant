@@ -7,10 +7,8 @@ import {
 } from "@/app/admin_recruiter/jobs/job-posting-typography";
 import {
   formatJobLocationLine,
-  formatPostedDate,
   formatPublicJobPay,
   publicBoardJobTitle,
-  relationName,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
 
@@ -28,11 +26,8 @@ export function JobResultCard({
   buttonRef?: (node: HTMLButtonElement | null) => void;
 }) {
   const title = publicBoardJobTitle(job);
-  const profession = relationName(job.professions);
   const locationLine = formatJobLocationLine(job.location, job.location_type);
   const pay = formatPublicJobPay(job);
-  const posted = formatPostedDate(job.published_at, job.updated_at);
-  const meta = [profession, pay, posted].filter(Boolean).join(" · ");
 
   return (
     <article>
@@ -67,7 +62,7 @@ export function JobResultCard({
               {title}
             </p>
             {companyName ? (
-              <p className={`mt-0.5 truncate ${JOB_POSTING_METADATA_CLASS}`}>{companyName}</p>
+              <p className={`mt-1 truncate ${JOB_POSTING_METADATA_CLASS}`}>{companyName}</p>
             ) : null}
           </div>
           {job.employment_type ? (
@@ -76,8 +71,17 @@ export function JobResultCard({
             </span>
           ) : null}
         </div>
-        <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
-        {meta ? <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>{meta}</p> : null}
+        {locationLine ? (
+          <p className={`mt-2 truncate pl-2 text-left ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
+        ) : null}
+        {pay ? (
+          <p
+            data-testid="job-card-pay"
+            className={`mt-2 truncate pl-2 text-left font-medium ${JOB_POSTING_METADATA_CLASS}`}
+          >
+            {pay}
+          </p>
+        ) : null}
       </button>
     </article>
   );

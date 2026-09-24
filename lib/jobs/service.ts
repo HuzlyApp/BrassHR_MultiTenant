@@ -29,6 +29,11 @@ import {
   normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
 import {
+  buildPublicJobsKeywordOrFilters,
+  buildPublicJobsLocationOrFilter,
+  buildPublicJobsWorkplaceTypeOrFilter,
+} from "@/lib/jobs/public-jobs-board";
+import {
   deriveEorType,
   isMspRecruitAndRelease,
   jobRequiresWorkflow,
@@ -820,6 +825,9 @@ export async function transitionJobStatus(
         jobRowToInput(jobRow as Record<string, unknown>),
         { publish: true, actorUserId, jobId }
       );
+      if (!normalizeJobToken(jobRow.public_job_token ? String(jobRow.public_job_token) : null)) {
+        patch.public_job_token = randomUUID();
+      }
     }
     patch.published_at = existing.published_at
       ? String(existing.published_at)
@@ -1368,22 +1376,28 @@ export async function listPublicJobs(
     )
     .eq("tenant_id", tenantId)
     .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
+    // Public board cards/detail links require a token; exclude unpublished tokens from count too.
+    .not("public_job_token", "is", null)
+    .neq("public_job_token", "")
     // MSP jobs publish without workflow_id; still list them on the public board.
     .or(`application_deadline.is.null,application_deadline.gte.${today}`)
-    .order("published_at", { ascending: false })
+    // Prefer latest activity so "Most recent" matches Posted/Updated labels on cards.
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
     .range(from, to);
 
   if (filters.query?.trim()) {
-    const term = filters.query.trim().replace(/[%_,]/g, " ");
-    query = query.or(
-      `public_title.ilike.%${term}%,source_job_title.ilike.%${term}%,public_description.ilike.%${term}%,location.ilike.%${term}%`
-    );
+    for (const orFilter of buildPublicJobsKeywordOrFilters(filters.query)) {
+      query = query.or(orFilter);
+    }
   }
   if (filters.professionId) query = query.eq("profession_id", filters.professionId);
   if (filters.specialtyId) query = query.eq("specialty_id", filters.specialtyId);
-  if (filters.location?.trim()) query = query.ilike("location", `%${filters.location.trim()}%`);
+  const locationOr = buildPublicJobsLocationOrFilter(filters.location ?? "");
+  if (locationOr) query = query.or(locationOr);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
-  if (filters.locationType?.trim()) query = query.eq("location_type", filters.locationType.trim());
+  const workplaceOr = buildPublicJobsWorkplaceTypeOrFilter(filters.locationType ?? "");
+  if (workplaceOr) query = query.or(workplaceOr);
 
   const { data, error, count } = await query;
   if (error) throw error;
@@ -2131,9 +2145,26 @@ export async function bulkDeleteJobApplications(
   supabase: DbClient,
   tenantId: string,
   ids: string[]
-): Promise<{ deletedIds: string[] }> {
+): Promise<{ deletedIds: string[]; workerIds: string[] }> {
   const normalized = normalizeBulkDeleteIds(ids);
-  if (!normalized.length) return { deletedIds: [] };
+  if (!normalized.length) return { deletedIds: [], workerIds: [] };
+
+  // Capture worker ids before deleting applications so callers can remove orphan candidates.
+  const { data: beforeRows, error: beforeError } = await supabase
+    .from("job_applications")
+    .select("id, worker_id")
+    .in("id", normalized)
+    .eq("tenant_id", tenantId);
+
+  if (beforeError) throw beforeError;
+
+  const workerIds = [
+    ...new Set(
+      (beforeRows ?? [])
+        .map((row) => String(row.worker_id ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
 
   const { data, error } = await supabase
     .from("job_applications")
@@ -2143,7 +2174,43 @@ export async function bulkDeleteJobApplications(
     .select("id");
 
   if (error) throw error;
-  return { deletedIds: (data ?? []).map((row) => String(row.id)) };
+  return {
+    deletedIds: (data ?? []).map((row) => String(row.id)),
+    workerIds,
+  };
+}
+
+/**
+ * After applications are deleted, hard-delete any workers that no longer have applications.
+ * Keeps Candidates list in sync with Applications "Delete candidate".
+ */
+export async function deleteOrphanWorkersAfterApplicationDelete(
+  supabase: DbClient,
+  tenantId: string,
+  workerIds: string[]
+): Promise<{ deletedWorkerIds: string[] }> {
+  const normalized = normalizeBulkDeleteIds(workerIds);
+  if (!normalized.length) return { deletedWorkerIds: [] };
+
+  const { data: remainingApps, error: remainingError } = await supabase
+    .from("job_applications")
+    .select("worker_id")
+    .in("worker_id", normalized)
+    .eq("tenant_id", tenantId);
+
+  if (remainingError) throw remainingError;
+
+  const stillLinked = new Set(
+    (remainingApps ?? [])
+      .map((row) => String(row.worker_id ?? "").trim())
+      .filter(Boolean)
+  );
+  const orphanWorkerIds = normalized.filter((id) => !stillLinked.has(id));
+  if (!orphanWorkerIds.length) return { deletedWorkerIds: [] };
+
+  const { bulkDeleteWorkers } = await import("@/lib/workers/bulk-delete-workers");
+  const result = await bulkDeleteWorkers(supabase, tenantId, orphanWorkerIds);
+  return { deletedWorkerIds: result.deletedIds };
 }
 
 export async function bulkDeleteJobRequisitions(

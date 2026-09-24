@@ -31,7 +31,7 @@ import {
 import type { AnalysisScreeningQuestion } from "./workspace";
 import {
   deepMatchModelForProvider,
-  DEFAULT_STEP1_MODEL,
+  DEFAULT_STEP1_FALLBACKS,
   getMatchStepModels,
   getStep2QuestionRoute,
   grokReasoningEffort,
@@ -43,7 +43,7 @@ import {
 
 const DEFAULT_GROK_MODEL = "grok-4-fast";
 /** Quick Match Gemini default — FSD Step 1 Flash-Lite (not gemini-flash-latest). */
-const DEFAULT_GEMINI_MODEL = DEFAULT_STEP1_MODEL;
+const DEFAULT_GEMINI_MODEL = DEFAULT_STEP1_FALLBACKS[0];
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const TEMPERATURE = 0;
 const BASE_MAX_TOKENS = 16_000;
@@ -136,7 +136,12 @@ function resolveGeminiBaseUrl(): string {
 function resolveGeminiModel(): string {
   const fromEnv = process.env.GEMINI_MATCH_MODEL?.trim() || "";
   if (fromEnv) return sanitizeStep1Model(fromEnv, DEFAULT_GEMINI_MODEL);
-  return sanitizeStep1Model(getMatchStepModels().step1Extract, DEFAULT_GEMINI_MODEL);
+  // Step 1 catalog/env may pin Grok Fast; Gemini provider must still call a Gemini model.
+  const fromConfig = getMatchStepModels().step1Extract.trim();
+  if (fromConfig.toLowerCase().includes("gemini")) {
+    return sanitizeStep1Model(fromConfig, DEFAULT_GEMINI_MODEL);
+  }
+  return DEFAULT_GEMINI_MODEL;
 }
 
 let grokClient: OpenAI | null = null;

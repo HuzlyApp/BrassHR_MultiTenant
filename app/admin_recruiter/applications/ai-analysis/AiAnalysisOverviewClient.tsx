@@ -45,6 +45,7 @@ import {
   qualificationDisplayStatus,
   recruiterActionLabel,
   recruiterVerifiedNeedsNoteDecision,
+  requirementShowsAddNote,
   checklistStep2Items,
   type QualificationDisplayStatus,
   type QualificationFilter,
@@ -1660,7 +1661,22 @@ export function AiAnalysisOverviewClient({
                             </div>
                           </td>
                           <td className="py-3.5 text-sm text-[#475467]">
-                            {actionLabel}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{actionLabel}</span>
+                              {requirementShowsAddNote(row, blocking) ? (
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setOpenReqId(row.id);
+                                    setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "pending" });
+                                  }}
+                                >
+                                  Add Note
+                                </button>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="py-3.5">
                             <button
