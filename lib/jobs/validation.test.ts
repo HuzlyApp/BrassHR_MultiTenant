@@ -161,12 +161,13 @@ describe("job requisition validation", () => {
     expect(errors.remoteAllowedStates).toBeUndefined();
   });
 
-  it("rejects remote publish without a state list", () => {
+  it("allows remote publish with All States (empty list)", () => {
     const errors = validatePublishableJob(
       { ...validJob, location: "", jobLocationType: "Remote", remoteAllowedStates: [], shiftType: "Full-time" },
       validJob.professionId
     );
-    expect(errors.remoteAllowedStates).toMatch(/states where this remote role can be worked/i);
+    expect(errors.remoteAllowedStates).toBeUndefined();
+    expect(errors.location).toBeUndefined();
   });
 
   it("does not require MSP name, contract group, or source job ID", () => {

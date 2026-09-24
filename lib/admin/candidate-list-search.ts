@@ -23,6 +23,18 @@ export function normalizeCandidateSearchQuery(query: string): { text: string; di
   };
 }
 
+/**
+ * True when the query is meant as a phone (or numeric) lookup.
+ * Emails and mixed alphanumeric strings must not fall through to phone-digit matching —
+ * e.g. `singh.ca.1237@gmail.com` extracts `1237`, which can falsely match `(512) 373-…`.
+ */
+export function isPhoneLikeSearchQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed || trimmed.includes("@")) return false;
+  const withoutPhoneFmt = trimmed.replace(/[\s().+\-_/]/g, "");
+  return /^\d{3,}$/.test(withoutPhoneFmt);
+}
+
 function normalizeSearchComparable(value: string): string {
   return value
     .trim()
@@ -105,7 +117,7 @@ export function matchesCandidateListSearch(row: CandidateListSearchRow, query: s
     return true;
   }
 
-  if (digits) {
+  if (digits && isPhoneLikeSearchQuery(query)) {
     return includesDigits(row.phone, digits) || includesDigits(row.reference ?? "", digits);
   }
 
@@ -167,7 +179,7 @@ export function matchesApplicationListSearch(row: ApplicationListSearchRow, quer
     return true;
   }
 
-  if (digits) {
+  if (digits && isPhoneLikeSearchQuery(query)) {
     return includesDigits(resolveApplicationApplicantPhone(row), digits);
   }
 

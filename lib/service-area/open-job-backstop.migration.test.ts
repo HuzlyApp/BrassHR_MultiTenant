@@ -3,14 +3,18 @@ import { describe, expect, it } from "vitest";
 import { SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 
 describe("open job service-area database backstop", () => {
-  const sql = readFileSync(
+  const legacySql = readFileSync(
     new URL("../../supabase/migrations/20260911204637_open_job_service_area_backstop.sql", import.meta.url),
+    "utf8"
+  );
+  const sql = readFileSync(
+    new URL("../../supabase/migrations/20260923065943_remote_all_states_default.sql", import.meta.url),
     "utf8"
   );
 
   it("only fires for open/published/active jobs and preserves drafts", () => {
-    expect(sql).toMatch(/WHEN \(lower\(COALESCE\(NEW\.status, ''\)\) IN \('open', 'published', 'active'\)\)/);
-    expect(sql).toMatch(/Drafts are not affected/);
+    expect(legacySql).toMatch(/WHEN \(lower\(COALESCE\(NEW\.status, ''\)\) IN \('open', 'published', 'active'\)\)/);
+    expect(sql).toMatch(/Drafts are allowed/);
     expect(sql).not.toMatch(/\brejected\b/i);
   });
 
@@ -29,5 +33,10 @@ describe("open job service-area database backstop", () => {
     expect(sql).toContain("remote,-hybrid");
     expect(sql).toMatch(/v_type IN \('hybrid', 'remote,-hybrid', 'remote-hybrid'\)/);
     expect(sql).toContain("NEW.remote_allowed_states");
+  });
+
+  it("treats empty remote_allowed_states as All States", () => {
+    expect(sql).toMatch(/Empty = All States/);
+    expect(sql).toMatch(/array_length\(v_remote, 1\) IS NOT NULL/);
   });
 });

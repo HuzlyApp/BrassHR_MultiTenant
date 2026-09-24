@@ -129,7 +129,7 @@ describe("JobsPortalClient", () => {
     await renderBoard();
     const split = await screen.findByTestId("jobs-split-view");
     expect(split.className).toContain("lg:flex");
-    expect(screen.getByTestId("jobs-results-panel").className).toContain("lg:max-w-[42%]");
+    expect(screen.getByTestId("jobs-results-panel").className).toContain("lg:max-w-[36%]");
     expect(screen.getByLabelText("Selected job details").className).toContain("lg:flex-1");
     expect(await screen.findByTestId("job-card-rn-1")).toBeInTheDocument();
     expect(screen.queryByText(/Page \d+ of \d+/i)).not.toBeInTheDocument();
@@ -137,7 +137,7 @@ describe("JobsPortalClient", () => {
     expect(screen.queryByRole("link", { name: /view details/i })).not.toBeInTheDocument();
   });
 
-  it("selects the first result on initial load", async () => {
+  it("selects the first result on initial load on desktop", async () => {
     await renderBoard();
     const first = await screen.findByTestId("job-card-rn-1");
     await waitFor(() => expect(first).toHaveAttribute("aria-pressed", "true"));
@@ -145,6 +145,18 @@ describe("JobsPortalClient", () => {
     expect(nav.replace).toHaveBeenCalledWith(
       expect.stringContaining("job=rn-1"),
       expect.objectContaining({ scroll: false })
+    );
+  });
+
+  it("does not auto-select or open a job on mobile first visit", async () => {
+    await renderBoard("tenant=zipstaff", false);
+    const first = await screen.findByTestId("job-card-rn-1");
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("Selected job details").className).toContain("hidden");
+    expect(screen.queryByTestId("jobs-back-to-jobs")).not.toBeInTheDocument();
+    expect(nav.replace).not.toHaveBeenCalledWith(
+      expect.stringContaining("job="),
+      expect.anything()
     );
   });
 
@@ -186,26 +198,55 @@ describe("JobsPortalClient", () => {
     );
   });
 
-  it.each([
-    ["keyword", "Search jobs, titles, or keywords", "ICU", "q=ICU"],
-    ["location", "Location", "Austin", "location=Austin"],
-  ])("searches by %s", async (_label, aria, value, expected) => {
+  const searchLabel = "Search by job title, skills, experience, location...";
+
+  it("searches with advanced search tags including location phrases", async () => {
     const user = userEvent.setup();
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
     nav.replace.mockClear();
-    await user.clear(screen.getByLabelText(aria));
-    await user.type(screen.getByLabelText(aria), value);
+    await user.type(screen.getByLabelText(searchLabel), "Austin");
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith(
-      expect.stringContaining(expected),
+      expect.stringContaining("q=Austin"),
+      expect.objectContaining({ scroll: false })
+    );
+  });
+
+  it("creates keyword tags with Enter and comma like jobs advanced search", async () => {
+    const user = userEvent.setup();
+    await renderBoard();
+    await screen.findByTestId("job-card-rn-1");
+    const keyword = screen.getByLabelText(searchLabel);
+    nav.replace.mockClear();
+    await user.type(keyword, "Oracle,");
+    expect(screen.getByRole("button", { name: "Remove Oracle" })).toBeInTheDocument();
+    expect(screen.queryByTestId("jobs-reset-search")).not.toBeInTheDocument();
+    await user.type(keyword, "DBA{Enter}");
+    expect(screen.getByRole("button", { name: "Remove DBA" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(nav.replace).toHaveBeenCalledWith(
+        expect.stringMatching(/q=Oracle(%2C|,)DBA/),
+        expect.objectContaining({ scroll: false })
+      )
+    );
+  });
+
+  it("shows Reset search only after a search is applied", async () => {
+    const user = userEvent.setup();
+    await renderBoard("tenant=zipstaff&q=ICU");
+    expect(await screen.findByTestId("jobs-reset-search")).toBeInTheDocument();
+    nav.replace.mockClear();
+    await user.click(screen.getByTestId("jobs-reset-search"));
+    expect(nav.replace).toHaveBeenCalledWith(
+      expect.not.stringContaining("q="),
       expect.objectContaining({ scroll: false })
     );
   });
 
   it.each([
-    ["Profession", "Nursing", "professionId=prof-nursing"],
     ["Employment type", "Contract", "employmentType=Contract"],
+    ["Workplace type", "Remote", "locationType=Remote"],
   ])("filters by %s from the compact chip row", async (aria, optionLabel, expected) => {
     const user = userEvent.setup();
     await renderBoard();
@@ -220,32 +261,19 @@ describe("JobsPortalClient", () => {
     );
   });
 
-  it("filters by specialty from the All filters sheet", async () => {
-    const user = userEvent.setup();
-    await renderBoard();
-    await screen.findByTestId("job-card-rn-1");
-    nav.replace.mockClear();
-    await user.click(screen.getByTestId("jobs-filters-row-toggle"));
-    await user.click(screen.getByTestId("jobs-all-filters"));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Specialty" }));
-    await user.click(screen.getByRole("option", { name: "ICU" }));
-    expect(nav.replace).toHaveBeenCalledWith(
-      expect.stringContaining("specialtyId=spec-icu"),
-      expect.objectContaining({ scroll: false })
-    );
-  });
-
   it("applies combined filters from the URL and can clear secondary filters", async () => {
     const user = userEvent.setup();
     await renderBoard(
       "tenant=zipstaff&q=RN&professionId=prof-nursing&specialtyId=spec-icu&location=Dallas&employmentType=W2&job=rn-2"
     );
-    expect(await screen.findByLabelText("Search jobs, titles, or keywords")).toHaveValue("RN");
-    expect(screen.getByRole("button", { name: "Profession" })).toHaveTextContent("Nursing");
-    expect(screen.getByLabelText("Location")).toHaveValue("Dallas");
+    expect(await screen.findByRole("button", { name: "Remove RN" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Dallas" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Profession" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Specialty" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("jobs-active-chip-professionId")).toHaveTextContent("Nursing");
     expect(screen.getByRole("button", { name: "Employment type" })).toHaveTextContent("W2");
     expect(screen.getByTestId("jobs-active-chip-specialtyId")).toHaveTextContent("ICU");
+    expect(screen.getByTestId("jobs-reset-search")).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("job-card-rn-2")).toHaveAttribute("aria-pressed", "true")
     );
@@ -267,7 +295,8 @@ describe("JobsPortalClient", () => {
       expect.objectContaining({ scroll: false })
     );
     const cleared = String(nav.replace.mock.calls.at(-1)?.[0]);
-    expect(cleared).toContain("q=RN");
+    expect(cleared).not.toContain("q=");
+    expect(cleared).not.toContain("location=");
     expect(cleared).not.toContain("professionId=");
     expect(cleared).not.toContain("specialtyId=");
     expect(cleared).not.toContain("employmentType=");
@@ -291,7 +320,7 @@ describe("JobsPortalClient", () => {
     await screen.findByTestId("job-card-rn-2");
     unmount();
     await renderBoard("tenant=zipstaff&q=nurse&page=1&job=rn-2");
-    expect(await screen.findByLabelText("Search jobs, titles, or keywords")).toHaveValue("nurse");
+    expect(await screen.findByRole("button", { name: "Remove nurse" })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("job-card-rn-2")).toHaveAttribute("aria-pressed", "true")
     );
@@ -427,11 +456,20 @@ describe("JobsPortalClient", () => {
     expect(screen.getByLabelText("Selected job details").className).toContain("hidden");
   });
 
+  it("uses split list+detail layout from laptop width up", async () => {
+    await renderBoard("tenant=zipstaff", true);
+    await screen.findByTestId("job-card-rn-1");
+    expect(screen.getByTestId("jobs-split-view")).toHaveAttribute("data-layout", "split");
+    expect(screen.getByTestId("jobs-results-panel").className).toContain("lg:flex");
+    expect(screen.getByLabelText("Selected job details").className).toContain("lg:flex");
+    expect(screen.getByLabelText("Selected job details").className).not.toContain("fixed inset-0");
+  });
+
   it("shows search by default and toggles the filter row from the filter icon", async () => {
     const user = userEvent.setup();
     await renderBoard("tenant=zipstaff", false);
     await screen.findByTestId("job-card-rn-1");
-    expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search by job title, skills, experience, location...")).toBeInTheDocument();
     const toggle = screen.getByTestId("jobs-filters-row-toggle");
     const filterRow = document.getElementById("jobs-board-filter-row");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -439,7 +477,7 @@ describe("JobsPortalClient", () => {
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(filterRow?.className).not.toContain("hidden");
-    expect(screen.getByRole("button", { name: "Profession" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Employment type" })).toBeInTheDocument();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(filterRow?.className).toContain("hidden");
@@ -448,21 +486,44 @@ describe("JobsPortalClient", () => {
   it("keeps search visible on desktop with a filter-row toggle", async () => {
     await renderBoard();
     await screen.findByTestId("job-card-rn-1");
-    expect(screen.getByLabelText("Search jobs, titles, or keywords")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search by job title, skills, experience, location...")).toBeInTheDocument();
     expect(screen.getByTestId("jobs-filters-row-toggle")).toBeInTheDocument();
     expect(document.getElementById("jobs-board-filters")).toBeInTheDocument();
   });
 
-  it("opens All filters and restores focus when closed", async () => {
+  it("hides Workplace type when Employment type is Contract", async () => {
     const user = userEvent.setup();
-    await renderBoard();
+    await renderBoard("tenant=zipstaff&employmentType=Contract");
     await screen.findByTestId("job-card-rn-1");
     await user.click(screen.getByTestId("jobs-filters-row-toggle"));
-    const trigger = screen.getByTestId("jobs-all-filters");
-    await user.click(trigger);
-    expect(await screen.findByRole("heading", { name: "All filters" })).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "All filters" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Employment type" })).toHaveTextContent("Contract");
+    expect(screen.queryByRole("button", { name: "Workplace type" })).not.toBeInTheDocument();
+  });
+
+  it("clears workplace type when switching Employment type to Contract", async () => {
+    const user = userEvent.setup();
+    await renderBoard("tenant=zipstaff&employmentType=W2&locationType=Remote");
+    await screen.findByTestId("job-card-rn-1");
+    await user.click(screen.getByTestId("jobs-filters-row-toggle"));
+    nav.replace.mockClear();
+    await user.click(screen.getByRole("button", { name: "Employment type" }));
+    await user.click(screen.getByRole("option", { name: "Contract" }));
+    const href = String(nav.replace.mock.calls.at(-1)?.[0] ?? "");
+    expect(href).toContain("employmentType=Contract");
+    expect(href).not.toContain("locationType=");
+  });
+
+  it("shows Workplace type for W2 with all workplace options", async () => {
+    const user = userEvent.setup();
+    await renderBoard("tenant=zipstaff&employmentType=W2");
+    await screen.findByTestId("job-card-rn-1");
+    await user.click(screen.getByTestId("jobs-filters-row-toggle"));
+    await user.click(screen.getByRole("button", { name: "Workplace type" }));
+    expect(screen.getByRole("option", { name: "All workplace types" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Remote" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Hybrid" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "On-site" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Remote, Hybrid" })).toBeInTheDocument();
   });
 
   it("truncates long titles on result cards", async () => {
