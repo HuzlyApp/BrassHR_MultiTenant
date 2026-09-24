@@ -42,7 +42,7 @@ import {
 } from "./step-config";
 
 const DEFAULT_GROK_MODEL = "grok-4-fast";
-/** Quick Match Gemini default — FSD Step 1 Flash-Lite (not gemini-flash-latest). */
+/** Quick Match Gemini default — FSD Step 1 Flash-Lite (gemini-3.5-flash-lite). */
 const DEFAULT_GEMINI_MODEL = DEFAULT_STEP1_FALLBACKS[0];
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const TEMPERATURE = 0;
@@ -635,7 +635,7 @@ export async function generateFollowUpQuestions(
   model: string;
   rawObject: Record<string, unknown> | null;
 }> {
-  // FS-AI-MATCH Step 2: grok-4-fast primary → gemini-2.5-flash-lite fallback.
+  // FS-AI-MATCH Step 2: grok-4-fast primary → gemini-3.5-flash-lite fallback.
   // Provider toggle is ignored so volume routing stays consistent.
   void _provider;
   const route = getStep2QuestionRoute();
