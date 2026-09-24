@@ -8,7 +8,12 @@ import type { MatchAnalysisResponse } from "./schema";
 
 export { isSubmissionResumeFileName };
 
-const clipped = (max: number) => z.string().trim().max(max).default("");
+/** Trim and hard-cap length so LLM / requirement text never fails Zod `.max()`. */
+const clipped = (max: number) =>
+  z.preprocess((value) => {
+    if (value == null) return "";
+    return String(value).replace(/\s+/g, " ").trim().slice(0, max);
+  }, z.string().max(max));
 
 export const submissionResumeSchema = z.object({
   fullName: clipped(120),
@@ -52,14 +57,15 @@ export type SubmissionResumeIdentity = {
   jobTitle: string;
 };
 
-function cleanList(items: unknown, max: number): string[] {
+function cleanList(items: unknown, max: number, maxItemLength = 80): string[] {
   if (!Array.isArray(items)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
   for (const item of items) {
     const text = String(item ?? "")
       .replace(/\s+/g, " ")
-      .trim();
+      .trim()
+      .slice(0, maxItemLength);
     if (!text) continue;
     const key = text.toLowerCase();
     if (seen.has(key)) continue;
