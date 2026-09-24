@@ -135,6 +135,57 @@ describe("submission résumé pack", () => {
     expect(submissionResumeToPlainText(resume)).toContain("PROFESSIONAL SUMMARY");
   });
 
+  it("truncates overlong skills instead of failing Zod validation", () => {
+    const longSkill =
+      "Lead implementation of customer-facing IT solutions from planning through final deployment across multi-vendor environments";
+    expect(longSkill.length).toBeGreaterThan(80);
+
+    const parsed = parseSubmissionResume({
+      fullName: "Chris Onyekaba",
+      headline: "IT Project Coordinator",
+      email: "chris@example.com",
+      phone: "",
+      location: "Remote",
+      summary: "Experienced PM.",
+      skills: [longSkill, "PMP", longSkill + " again"],
+      experience: [],
+      education: [],
+      licenses: [],
+    });
+
+    expect(parsed).not.toBeNull();
+    expect(parsed!.skills[0]).toHaveLength(80);
+    expect(parsed!.skills.every((item) => item.length <= 80)).toBe(true);
+
+    const withLongRequirements = analysisFixture();
+    withLongRequirements.mandatory_requirements = [
+      {
+        requirement: longSkill,
+        requirement_type: "MANDATORY",
+        status: "CONFIRMED",
+        requirement_outcome: "MET",
+        candidate_evidence: "Resume bullets",
+        evidence_source: "RESUME",
+        impact: "",
+        verification_required: false,
+        confidence: 90,
+      },
+    ];
+
+    const fallback = buildFallbackSubmissionResume({
+      identity: {
+        fullName: "Chris Onyekaba",
+        email: "chris@example.com",
+        phone: "",
+        location: "Remote",
+        jobTitle: "IT Project Coordinator / Project Manager",
+      },
+      analysis: withLongRequirements,
+      resumeText: "Project manager with delivery ownership.",
+    });
+    expect(fallback.skills.every((item) => item.length <= 80)).toBe(true);
+  });
+
   it("keeps identity from the fallback when the model omits contact fields", () => {
     const fallback = buildFallbackSubmissionResume({
       identity: {

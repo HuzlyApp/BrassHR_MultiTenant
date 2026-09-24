@@ -42,6 +42,7 @@ Rules:
 - Never invent employers, titles, dates, licenses, education, tools, or achievements.
 - Do not include protected-class details, SSN, or street address.
 - Keep bullets factual and concise.
+- skills[] must be short labels (max ~80 characters each), not full requirement sentences.
 - If a fact is missing, omit it.`;
 
 function resolveGrokClient(): OpenAI | null {
