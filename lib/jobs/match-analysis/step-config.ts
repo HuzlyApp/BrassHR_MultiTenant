@@ -26,11 +26,12 @@ export const MATCH_CONFIG_KEYS = {
 
 export const DEFAULT_STEP1_MODEL = "grok-4-fast";
 export const DEFAULT_STEP2_MODEL = "grok-4-fast";
-export const DEFAULT_STEP2_FALLBACK_MODEL = "gemini-2.5-flash-lite";
+/** Google retired gemini-2.5-flash-lite for new API keys — use 3.5 Flash-Lite. */
+export const DEFAULT_STEP2_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_STEP3_MODEL = "gemini-3.1-pro-preview";
 export const DEFAULT_STEP3_GROK_MODEL = "grok-4.6";
 export const DEFAULT_STEP1_FALLBACKS = [
-  "gemini-2.5-flash-lite",
+  "gemini-3.5-flash-lite",
   "gpt-5.4-nano",
 ] as const;
 export const DEFAULT_STEP2_FALLBACKS = [DEFAULT_STEP2_FALLBACK_MODEL] as const;
@@ -38,6 +39,10 @@ export const DEFAULT_STEP3_FALLBACKS = ["gpt-5.4", "claude-sonnet-5"] as const;
 
 /** Retired Gemini IDs that still appear in env or prompt-catalog config. */
 const RETIRED_MODEL_ALIASES: Record<string, string> = {
+  "gemini-2.5-flash-lite": DEFAULT_STEP2_FALLBACK_MODEL,
+  "gemini-2.0-flash-lite": DEFAULT_STEP2_FALLBACK_MODEL,
+  "gemini-2.5-flash": "gemini-3.5-flash",
+  "gemini-2.0-flash": "gemini-3.6-flash",
   "gemini-2.5-pro": DEFAULT_STEP3_MODEL,
 };
 
@@ -77,9 +82,9 @@ function remapRetiredModel(model: string): string {
 }
 
 export function sanitizeStep1Model(model: string, fallback = DEFAULT_STEP1_MODEL): string {
-  const trimmed = model.trim();
-  if (!trimmed || isBlockedStep1Model(trimmed)) return fallback;
-  return trimmed;
+  const remapped = remapRetiredModel(model.trim());
+  if (!remapped || isBlockedStep1Model(remapped)) return fallback;
+  return remapped;
 }
 
 export function sanitizeStep3Model(model: string, fallback = DEFAULT_STEP3_MODEL): string {
@@ -130,7 +135,7 @@ export type Step2ModelRoute = {
   fallback: { provider: "gemini" | "grok"; model: string };
 };
 
-/** Step 2 Verifications: grok-4-fast primary → gemini-2.5-flash-lite fallback. */
+/** Step 2 Verifications: grok-4-fast primary → gemini-3.5-flash-lite fallback. */
 export function getStep2QuestionRoute(): Step2ModelRoute {
   const models = getMatchStepModels();
   return {

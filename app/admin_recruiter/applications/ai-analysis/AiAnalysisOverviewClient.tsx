@@ -691,6 +691,7 @@ export function AiAnalysisOverviewClient({
   const [userPickedStep, setUserPickedStep] = useState(false);
   const [confirmDeepOpen, setConfirmDeepOpen] = useState(false);
   const [confirmFollowUpOpen, setConfirmFollowUpOpen] = useState(false);
+  const [followUpAdvancing, setFollowUpAdvancing] = useState(false);
   const [talentPoolBusy, setTalentPoolBusy] = useState(false);
   const pendingProgressionScrollRef = useRef<string | null>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
@@ -1037,6 +1038,8 @@ export function AiAnalysisOverviewClient({
       toast.error("Add call context before continuing to Follow-Up.");
       return;
     }
+    if (followUpAdvancing) return;
+    setFollowUpAdvancing(true);
     try {
       const saved = await saveScreeningAnswers({ silent: true });
       if (!saved) return;
@@ -1047,6 +1050,8 @@ export function AiAnalysisOverviewClient({
       setViewedStep(2);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not continue to Follow-up.");
+    } finally {
+      setFollowUpAdvancing(false);
     }
   }
 
@@ -1445,7 +1450,10 @@ export function AiAnalysisOverviewClient({
                     variant="primary"
                     analyzing={analyzing}
                     isAnalyzed={isAnalyzed}
+                    viewedStep={viewedStep}
                     deepPrimary={viewedStep >= 3}
+                    hasVerifications={unlockedIndex >= 1}
+                    hasFollowUp={unlockedIndex >= 2}
                     hasDeepMatch={hasDeepMatch}
                     analysisProvider={analysisProvider}
                     requireDeepConfirm={data?.matchProgression?.requireDeepConfirm !== false}
@@ -2384,9 +2392,9 @@ export function AiAnalysisOverviewClient({
       <FollowUpConfirmDialog
         open={confirmFollowUpOpen}
         verifyCount={outcomeCounts.verify}
-        busy={analyzing}
+        busy={followUpAdvancing}
         onCancel={() => {
-          if (analyzing) return;
+          if (followUpAdvancing) return;
           setConfirmFollowUpOpen(false);
         }}
         onConfirm={() => void advanceToFollowUp()}

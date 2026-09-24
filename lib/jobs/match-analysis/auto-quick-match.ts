@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 import {
   runMatchAnalysisBulk,
   runMatchAnalysisForApplication,
@@ -92,6 +93,7 @@ export async function runAutoQuickMatchForApplication(args: {
         reason: args.reason ?? null,
         status: result.status,
         error: result.error,
+        provider: args.analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER,
       });
     }
     return toAutoResult(result);
@@ -101,12 +103,28 @@ export async function runAutoQuickMatchForApplication(args: {
       applicationId,
       reason: args.reason ?? null,
       message,
+      provider: args.analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER,
     });
     return emptyAutoResult(message);
   }
 }
 
-/** Fire-and-forget Quick Match (does not block the caller). */
+/** Keep serverless invocations alive for background Quick Match (Vercel/Next). */
+function runInRequestBackground(task: () => Promise<void>): void {
+  try {
+    after(() => {
+      void task();
+    });
+  } catch {
+    // Outside a request context (tests/scripts) — still fire-and-forget.
+    void task();
+  }
+}
+
+/**
+ * Fire-and-forget Quick Match after the HTTP response.
+ * Uses Next.js `after()` so Vercel does not freeze the work when the response is sent.
+ */
 export function scheduleAutoQuickMatchForApplication(args: {
   supabase: SupabaseClient;
   tenantId: string;
@@ -115,7 +133,9 @@ export function scheduleAutoQuickMatchForApplication(args: {
   analysisProvider?: AnalysisProvider;
   reason?: string;
 }): void {
-  void runAutoQuickMatchForApplication(args);
+  runInRequestBackground(async () => {
+    await runAutoQuickMatchForApplication(args);
+  });
 }
 
 export function scheduleAutoQuickMatchForApplications(args: {
@@ -128,15 +148,16 @@ export function scheduleAutoQuickMatchForApplications(args: {
 }): void {
   const ids = [...new Set(args.jobApplicationIds.map((id) => id.trim()).filter(Boolean))];
   if (!ids.length) return;
-  void runMatchAnalysisBulk({
-    supabase: args.supabase,
-    tenantId: args.tenantId,
-    jobApplicationIds: ids,
-    analyzedByUserId: args.analyzedByUserId ?? null,
-    analysisMode: "analyze",
-    analysisProvider: args.analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER,
-  })
-    .then((results) => {
+  runInRequestBackground(async () => {
+    try {
+      const results = await runMatchAnalysisBulk({
+        supabase: args.supabase,
+        tenantId: args.tenantId,
+        jobApplicationIds: ids,
+        analyzedByUserId: args.analyzedByUserId ?? null,
+        analysisMode: "analyze",
+        analysisProvider: args.analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER,
+      });
       const failed = results.filter((row) => row.result.status !== "ANALYZED");
       if (failed.length) {
         console.warn("[auto-quick-match] bulk finished with failures", {
@@ -145,11 +166,11 @@ export function scheduleAutoQuickMatchForApplications(args: {
           failed: failed.length,
         });
       }
-    })
-    .catch((error) => {
+    } catch (error) {
       console.error("[auto-quick-match] bulk failed", {
         reason: args.reason ?? null,
         message: error instanceof Error ? error.message : "unknown",
       });
-    });
+    }
+  });
 }

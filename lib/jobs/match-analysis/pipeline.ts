@@ -43,7 +43,11 @@ import {
   aiScreeningQuestionKey,
   matchSavedAiScreeningAnswer,
 } from "./workspace";
-import { applicationMatchScorePatch, isDeepMatchStage, matchStageFromMode } from "./match-stage";
+import {
+  applicationMatchScorePatch,
+  matchStageFromMode,
+  parseMatchStage,
+} from "./match-stage";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
 import {
   DEEP_MATCH_BLOCKED_LOW_FIT,
@@ -51,6 +55,7 @@ import {
   canRunDeepMatch,
   deepMatchBlockReason,
   matchProgressionIndexFromStage,
+  matchProgressionStageFromIndex,
   quickMatchFitBand,
 } from "./progression";
 import { loadVerificationNotesForApplication } from "./verification-notes-service";
@@ -128,6 +133,8 @@ async function runCallPackQuestionsForApplication(args: {
   jobApplicationId: string;
   analyzedByUserId?: string | null;
   analysisProvider: AnalysisProvider;
+  /** call_pack = Verifications; follow_up = Follow-up enrichment re-run. */
+  progressMode: Extract<AnalysisMode, "call_pack" | "follow_up">;
   application: {
     ai_match_status?: string | null;
     ai_match_stage?: string | null;
@@ -144,6 +151,7 @@ async function runCallPackQuestionsForApplication(args: {
     jobApplicationId,
     analyzedByUserId,
     analysisProvider,
+    progressMode,
     application,
     jobTitle,
     onProgress,
@@ -151,19 +159,17 @@ async function runCallPackQuestionsForApplication(args: {
   const emit = (step: PipelineProgressStep, message: string, status?: AiMatchPipelineStatus) => {
     onProgress?.({ step, message, status });
   };
+  const stepLabel = progressMode === "follow_up" ? "Follow-up" : "Verifications";
+  const targetIndex = progressMode === "follow_up" ? 2 : 1;
 
   if (String(application.ai_match_status ?? "").toUpperCase() !== "ANALYZED") {
     return failedAnalysis("Run Quick Match before Verifications screening questions.");
   }
-  if (isDeepMatchStage(application.ai_match_stage)) {
-    return failedAnalysis("Screening questions run before Deep Match.");
-  }
   const currentIndex = matchProgressionIndexFromStage(application.ai_match_stage);
-  // Must have completed Quick Match (index 0). May re-run while still on Verifications.
-  if (currentIndex > 1) {
-    return failedAnalysis(
-      "Screening questions are generated at Verifications (Step 2), before 2nd Follow-up."
-    );
+  // First Verifications unlock from Quick Match (index 0). Re-runs allowed after
+  // Verifications/Follow-up/Deep without blocking or regressing ai_match_stage.
+  if (progressMode === "follow_up" && currentIndex < 2) {
+    return failedAnalysis("Continue to Follow-up from the stepper before re-running Follow-up.");
   }
 
   const { data: requirementRows, error: reqError } = await supabase
@@ -253,7 +259,11 @@ async function runCallPackQuestionsForApplication(args: {
     blockingTexts
   );
 
-  emit("analyzing", "Writing Verifications screening questions (Grok Fast → Gemini Lite)", "ANALYZING");
+  emit(
+    "analyzing",
+    `Writing ${stepLabel} screening questions (Grok Fast → Gemini Lite)`,
+    "ANALYZING"
+  );
   await updateApplicationMatchFields({
     supabase,
     tenantId,
@@ -278,13 +288,19 @@ async function runCallPackQuestionsForApplication(args: {
       analyzedBy: analyzedByUserId ?? null,
     });
     const analyzedAt = new Date().toISOString();
+    // Never move stage backward when re-running Verifications after Follow-up / Deep.
+    const nextStage =
+      currentIndex > targetIndex
+        ? (parseMatchStage(application.ai_match_stage) ??
+          matchProgressionStageFromIndex(targetIndex))
+        : matchProgressionStageFromIndex(Math.max(currentIndex, targetIndex));
     await updateApplicationMatchFields({
       supabase,
       tenantId,
       jobApplicationId,
       patch: {
         ai_match_status: "ANALYZED",
-        ai_match_stage: "call_pack",
+        ai_match_stage: nextStage,
         ai_analysis: merged,
         ai_analyzed_at: analyzedAt,
         ai_analyzed_by: analyzedByUserId ?? null,
@@ -294,7 +310,7 @@ async function runCallPackQuestionsForApplication(args: {
         ai_analysis_progress: "completed",
       },
     });
-    emit("completed", "Verifications screening questions ready", "ANALYZED");
+    emit("completed", `${stepLabel} screening questions ready`, "ANALYZED");
     return {
       status: "ANALYZED",
       analysis: merged as unknown as MatchAnalysisResponse,
@@ -434,6 +450,7 @@ export async function runMatchAnalysisForApplication(args: {
       jobApplicationId,
       analyzedByUserId,
       analysisProvider,
+      progressMode: analysisMode,
       application,
       jobTitle,
       onProgress,

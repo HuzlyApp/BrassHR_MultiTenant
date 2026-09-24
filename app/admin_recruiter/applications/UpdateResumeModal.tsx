@@ -16,6 +16,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import type { ResumeHistoryItem } from "./ResumeHistoryModal";
+import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 
 /** Mirrors server `AutoQuickMatchResult` without importing server-only modules. */
 export type UpdateResumeAutoQuickMatch = {
@@ -133,6 +134,7 @@ export default function UpdateResumeModal({
   const branding = useTenantBranding();
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const primaryColor = branding.primaryHex || "#BC8B41";
+  const [analysisProvider] = useMatchAnalysisProvider();
 
   const [currentResume, setCurrentResume] = useState<ResumeHistoryItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -298,6 +300,7 @@ export default function UpdateResumeModal({
       if (resumeFile) {
         const form = new FormData();
         form.set("resume", resumeFile);
+        form.set("analysisProvider", analysisProvider);
         // Replacing keeps the upload out of the admin upload quota.
         if (currentResume) form.set("resumeId", currentResume.id);
         const response = await fetch(
