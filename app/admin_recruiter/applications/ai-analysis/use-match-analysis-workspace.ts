@@ -11,6 +11,8 @@ import type {
 import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
+  CALL_CONTEXT_QUESTION_KEY,
+  CALL_CONTEXT_QUESTION_TEXT,
   type QualificationRequirement,
   type RecruiterDecision,
   type VerifiedInfoCategory,
@@ -64,6 +66,8 @@ export type MatchAnalysisWorkspacePayload = {
     relatedRequirement: string;
     answer: string;
   }>;
+  /** Step 2 call-pack context required before Follow-Up; included in Deep Match notes. */
+  callContext?: string;
   screeningUploads?: Array<{
     id: string;
     questionKey: string | null;
@@ -199,15 +203,23 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [busyVerificationNoteId, setBusyVerificationNoteId] = useState<string | null>(null);
   const [jobAnswers, setJobAnswers] = useState<Record<string, string>>({});
   const [recommendedAnswers, setRecommendedAnswers] = useState<Record<string, string>>({});
+  const [callContext, setCallContext] = useState("");
   const [savingAnswers, setSavingAnswers] = useState(false);
   const recommendedAnswersRef = useRef(recommendedAnswers);
   recommendedAnswersRef.current = recommendedAnswers;
+  const callContextRef = useRef(callContext);
+  callContextRef.current = callContext;
   const jobAnswersRef = useRef(jobAnswers);
   jobAnswersRef.current = jobAnswers;
 
   function updateRecommendedAnswer(key: string, value: string) {
     recommendedAnswersRef.current = { ...recommendedAnswersRef.current, [key]: value };
     setRecommendedAnswers(recommendedAnswersRef.current);
+  }
+
+  function updateCallContext(value: string) {
+    callContextRef.current = value;
+    setCallContext(value);
   }
   const [decision, setDecision] = useState<RecruiterDecision | "">("");
   const [decisionNote, setDecisionNote] = useState("");
@@ -249,6 +261,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         (opts?.preserveLocalAnswers ? recommendedAnswersRef.current[item.key] ?? "" : "");
     }
     setRecommendedAnswers(rec);
+    const nextContext =
+      payload.callContext ||
+      (opts?.preserveLocalAnswers ? callContextRef.current : "");
+    callContextRef.current = nextContext;
+    setCallContext(nextContext);
     const jobs: Record<string, string> = {};
     for (const item of payload.screeningQuestions ?? []) {
       jobs[item.id] = item.answered
@@ -610,11 +627,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     });
   }
 
-  async function saveScreeningAnswers() {
+  async function saveScreeningAnswers(opts?: { silent?: boolean }): Promise<boolean> {
     setSavingAnswers(true);
     try {
       const currentRecommended = recommendedAnswersRef.current;
       const currentJob = jobAnswersRef.current;
+      const currentContext = callContextRef.current;
+      const questions = data?.recommendedQuestions ?? [];
       const res = await fetch(`/api/admin/job-applications/${applicationId}/screening-answers`, {
         method: "POST",
         credentials: "include",
@@ -623,12 +642,20 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           jobAnswers: Object.entries(currentJob)
             .filter(([, answer]) => String(answer ?? "").trim() !== "")
             .map(([questionId, answer]) => ({ questionId, answer })),
-          recommendedAnswers: (data?.recommendedQuestions ?? []).map((item) => ({
-            key: item.key,
-            question: item.question,
-            priority: item.priority,
-            answer: currentRecommended[item.key] ?? "",
-          })),
+          callContext: currentContext,
+          recommendedAnswers: [
+            ...questions.map((item) => ({
+              key: item.key,
+              question: item.question,
+              priority: item.priority,
+              answer: currentRecommended[item.key] ?? "",
+            })),
+            {
+              key: CALL_CONTEXT_QUESTION_KEY,
+              question: CALL_CONTEXT_QUESTION_TEXT,
+              answer: currentContext,
+            },
+          ],
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -636,28 +663,46 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       const saved = Array.isArray(json.recommendedAnswers)
         ? (json.recommendedAnswers as Array<{ key: string; answer: string }>)
         : [];
-      if (saved.length) {
-        setRecommendedAnswers((current) => {
-          const next = { ...current };
-          for (const item of saved) next[item.key] = item.answer ?? next[item.key] ?? "";
-          return next;
-        });
-        setData((current) => {
-          if (!current) return current;
-          const byKey = new Map(saved.map((item) => [item.key, item.answer ?? ""]));
-          return {
-            ...current,
-            recommendedQuestions: (current.recommendedQuestions ?? []).map((item) => ({
-              ...item,
-              answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
-            })),
-          };
-        });
+      if (!saved.length) {
+        throw new Error("Nothing was saved to job_application_ai_screening_answers");
       }
-      toast.success("Screening notes saved");
+      setRecommendedAnswers((current) => {
+        const next = { ...current };
+        for (const item of saved) {
+          if (item.key === CALL_CONTEXT_QUESTION_KEY) continue;
+          next[item.key] = item.answer ?? next[item.key] ?? "";
+        }
+        return next;
+      });
+      const savedContext = saved.find((item) => item.key === CALL_CONTEXT_QUESTION_KEY);
+      if (savedContext) {
+        callContextRef.current = savedContext.answer ?? "";
+        setCallContext(callContextRef.current);
+      } else {
+        callContextRef.current = currentContext;
+        setCallContext(currentContext);
+      }
+      setData((current) => {
+        if (!current) return current;
+        const byKey = new Map(saved.map((item) => [item.key, item.answer ?? ""]));
+        return {
+          ...current,
+          callContext: byKey.get(CALL_CONTEXT_QUESTION_KEY) ?? currentContext,
+          recommendedQuestions: (current.recommendedQuestions ?? []).map((item) => ({
+            ...item,
+            answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
+          })),
+        };
+      });
+      if (!opts?.silent) {
+        const count = typeof json.savedCount === "number" ? json.savedCount : saved.length;
+        toast.success(`Saved ${count} screening answer${count === 1 ? "" : "s"} to Supabase`);
+      }
       await load({ preserveLocalAnswers: true, silent: true });
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save screening notes");
+      return false;
     } finally {
       setSavingAnswers(false);
     }
@@ -981,6 +1026,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     recommendedAnswers,
     setRecommendedAnswers,
     updateRecommendedAnswer,
+    callContext,
+    updateCallContext,
     savingAnswers,
     decision,
     setDecision,
