@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { adminAddCandidateFromResume } from "@/lib/jobs/admin-add-candidate-from-resume";
+import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 import { JobValidationError } from "@/lib/jobs/types";
 import { jobValidationServiceAreaResponse } from "@/lib/service-area/http";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
@@ -8,6 +9,8 @@ import { enforceRateLimit, envRateLimit } from "@/lib/security/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
+/** Quick Match LLM can exceed default serverless limits after resume create. */
+export const maxDuration = 180;
 
 /** Same bulk-load path as parse preview. Override with env. */
 const CREATE_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_ADD_CANDIDATE_PER_HOUR", 400);
@@ -63,6 +66,7 @@ export async function POST(req: NextRequest) {
     const workState = String(form.get("workState") ?? "").trim();
     const workPostalCode = String(form.get("workPostalCode") ?? "").trim();
     const relocateToJobSite = String(form.get("relocateToJobSite") ?? "") === "true";
+    const analysisProvider = parseAnalysisProvider(form.get("analysisProvider"));
     const resumeFile = form.get("resume");
     const file = resumeFile instanceof File && resumeFile.size > 0 ? resumeFile : null;
 
@@ -91,6 +95,7 @@ export async function POST(req: NextRequest) {
       workState: workState || null,
       workPostalCode: workPostalCode || null,
       relocateToJobSite,
+      analysisProvider,
     });
 
     return NextResponse.json(
@@ -100,6 +105,7 @@ export async function POST(req: NextRequest) {
         applicantProfileId: result.applicantProfileId,
         jobTitle: result.jobTitle,
         candidateName: result.candidateName,
+        autoQuickMatch: result.autoQuickMatch,
       },
       { status: 201 }
     );
