@@ -384,9 +384,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           ? "Needs résumé text before analysis"
           : mode === "deep"
             ? "Deep Match complete"
-            : mode === "call_pack" || mode === "follow_up"
+            : mode === "call_pack"
               ? "Verifications screening questions ready"
-              : "Quick Match complete"
+              : mode === "follow_up"
+                ? "Follow-up screening questions refreshed"
+                : "Quick Match complete"
       );
       await Promise.all([load(), loadResumes()]);
       return true;
