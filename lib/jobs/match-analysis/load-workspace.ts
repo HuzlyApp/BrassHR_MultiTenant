@@ -16,6 +16,7 @@ import {
   aiScreeningQuestionKey,
   matchSavedAiScreeningAnswer,
   normalizeAnalysisScreeningQuestions,
+  CALL_CONTEXT_QUESTION_KEY,
 } from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
@@ -144,6 +145,8 @@ export async function loadMatchAnalysisWorkspace(
   const aiAnswersByKey = new Map(
     (aiAnswersResult.data ?? []).map((row) => [String(row.question_key), row])
   );
+  const callContext =
+    String(aiAnswersByKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
   const recommendedQuestions = normalizeAnalysisScreeningQuestions(
     analysis?.screening_questions
   ).map((question) => {
@@ -235,6 +238,7 @@ export async function loadMatchAnalysisWorkspace(
     screeningQuestions: screening.questions,
     screeningAssessment: screening.assessment,
     recommendedQuestions,
+    callContext,
     screeningUploads,
     verifiedInformation: (verifiedResult.data ?? []).map((row) => ({
       id: String(row.id),

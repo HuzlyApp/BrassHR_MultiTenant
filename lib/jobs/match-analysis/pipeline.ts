@@ -36,6 +36,12 @@ import { ANALYSIS_PROVIDER_LABELS, parseAnalysisMode, parseAnalysisProvider } fr
 import {
   countQualificationOutcomes,
   listingRequirementOutcomeCounts,
+  CALL_CONTEXT_QUESTION_KEY,
+  formatScreeningPackForAiNotes,
+  isCallContextQuestionKey,
+  normalizeAnalysisScreeningQuestions,
+  aiScreeningQuestionKey,
+  matchSavedAiScreeningAnswer,
 } from "./workspace";
 import { applicationMatchScorePatch, isDeepMatchStage, matchStageFromMode } from "./match-stage";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
@@ -505,6 +511,37 @@ export async function runMatchAnalysisForApplication(args: {
         .map((n) => (n.body as string | null)?.trim() || "")
         .filter(Boolean)
         .join("\n---\n");
+    }
+
+    {
+      const { data: screeningRows } = await supabase
+        .from("job_application_ai_screening_answers")
+        .select("question_key, question_text, answer_text")
+        .eq("tenant_id", tenantId)
+        .eq("application_id", jobApplicationId);
+      const byKey = new Map(
+        (screeningRows ?? []).map((row) => [String(row.question_key), row])
+      );
+      const callContext =
+        String(byKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
+      const analysisQuestions = normalizeAnalysisScreeningQuestions(
+        (application.ai_analysis as MatchAnalysisResponse | null)?.screening_questions
+      );
+      const packQuestions = analysisQuestions.map((question) => {
+        const key = aiScreeningQuestionKey(question.priority, question.question);
+        const saved = matchSavedAiScreeningAnswer(byKey, key, question.question);
+        return {
+          question: question.question,
+          answer: isCallContextQuestionKey(key) ? "" : saved?.answer_text ?? "",
+        };
+      });
+      const packNotes = formatScreeningPackForAiNotes({
+        questions: packQuestions,
+        callContext,
+      });
+      if (packNotes) {
+        notes = notes ? `${notes}\n\n${packNotes}` : packNotes;
+      }
     }
 
     let verified = verifiedRecruiterInfo ?? null;

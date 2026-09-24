@@ -163,7 +163,7 @@ export function FollowUpConfirmDialog({
         </h2>
         <p className="mt-2 text-sm text-[#64748B]">
           The Qualification Checklist still has {verifyCount} {itemLabel} that need verification.
-          Generate screening questions from those notes anyway?
+          Continue to Follow-up with your screening answers and call context anyway?
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <button

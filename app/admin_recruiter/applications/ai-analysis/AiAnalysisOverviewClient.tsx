@@ -45,7 +45,6 @@ import {
   qualificationDisplayStatus,
   recruiterActionLabel,
   recruiterVerifiedNeedsNoteDecision,
-  requirementShowsAddNote,
   checklistStep2Items,
   type QualificationDisplayStatus,
   type QualificationFilter,
@@ -632,6 +631,8 @@ export function AiAnalysisOverviewClient({
     busyVerificationNoteId,
     recommendedAnswers,
     updateRecommendedAnswer,
+    callContext,
+    updateCallContext,
     savingAnswers,
     decision,
     decisionNote,
@@ -1025,7 +1026,20 @@ export function AiAnalysisOverviewClient({
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
       return;
     }
+    const unanswered = recommendedQuestions.filter(
+      (item) => !(recommendedAnswers[item.key] ?? item.answer ?? "").trim()
+    );
+    if (recommendedQuestions.length && unanswered.length) {
+      toast.error("Record an answer for each screening question before Follow-Up.");
+      return;
+    }
+    if (!callContext.trim()) {
+      toast.error("Add call context before continuing to Follow-Up.");
+      return;
+    }
     try {
+      const saved = await saveScreeningAnswers({ silent: true });
+      if (!saved) return;
       await advanceMatchProgress("follow_up");
       setConfirmFollowUpOpen(false);
       setUserPickedStep(true);
@@ -1039,6 +1053,17 @@ export function AiAnalysisOverviewClient({
   function moveToFollowUp() {
     if (!canAdvance) {
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
+      return;
+    }
+    const unanswered = recommendedQuestions.filter(
+      (item) => !(recommendedAnswers[item.key] ?? item.answer ?? "").trim()
+    );
+    if (recommendedQuestions.length && unanswered.length) {
+      toast.error("Record an answer for each screening question before Follow-Up.");
+      return;
+    }
+    if (!callContext.trim()) {
+      toast.error("Add call context before continuing to Follow-Up.");
       return;
     }
     if (matchProgressionFollowUpNeedsConfirm(outcomeCounts.verify)) {
@@ -1661,22 +1686,7 @@ export function AiAnalysisOverviewClient({
                             </div>
                           </td>
                           <td className="py-3.5 text-sm text-[#475467]">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span>{actionLabel}</span>
-                              {requirementShowsAddNote(row, blocking) ? (
-                                <button
-                                  type="button"
-                                  className="rounded-md border border-[#D0D5DD] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#344054] hover:bg-[#F9FAFB]"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setOpenReqId(row.id);
-                                    setNoteCreateSignal({ id: row.id, n: Date.now(), prefill: "pending" });
-                                  }}
-                                >
-                                  Add Note
-                                </button>
-                              ) : null}
-                            </div>
+                            <span>{actionLabel}</span>
                           </td>
                           <td className="py-3.5">
                             <button
@@ -1917,6 +1927,24 @@ export function AiAnalysisOverviewClient({
                             <span className="font-medium text-[#475467]">Related:</span> {item.relatedRequirement}
                           </p>
                         ) : null}
+                        <label className="mt-3 block">
+                          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Candidate answer
+                          </span>
+                          <textarea
+                            value={recommendedAnswers[item.key] ?? ""}
+                            onChange={(event) =>
+                              updateRecommendedAnswer(item.key, event.target.value)
+                            }
+                            onBlur={(event) => {
+                              if (event.target.value.trim() === (item.answer ?? "").trim()) return;
+                              void saveScreeningAnswers();
+                            }}
+                            rows={3}
+                            placeholder="Record the candidate’s answer from the call…"
+                            className={`${AREA} min-h-[5.5rem] resize-y`}
+                          />
+                        </label>
                       </div>
                     </div>
                   </article>
@@ -1928,6 +1956,33 @@ export function AiAnalysisOverviewClient({
                     : "No screening questions yet. Open the Verifications step to generate the call pack."}
                 </p>
               )}
+            </div>
+
+            <div className="mt-4 rounded-[12px] border border-[#E5E7EB] bg-[#FCFCFD] p-4">
+              <label className="block">
+                <textarea
+                  value={callContext}
+                  onChange={(event) => updateCallContext(event.target.value)}
+                  onBlur={(event) => {
+                    if (event.target.value.trim() === (data?.callContext ?? "").trim()) return;
+                    void saveScreeningAnswers();
+                  }}
+                  rows={4}
+                  placeholder="Tone, availability, red flags, client-fit notes, anything the model should use next…"
+                  className={`${AREA} min-h-[6.5rem] resize-y`}
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className={OUTLINE_BTN}
+                disabled={savingAnswers}
+                onClick={() => void saveScreeningAnswers()}
+              >
+                {savingAnswers ? "Saving…" : "Save screening answers"}
+              </button>
             </div>
           </section>
 
