@@ -43,7 +43,6 @@ import {
   filterQualificationRequirements,
   isVerifiedInfoCategory,
   qualificationDisplayStatus,
-  recruiterActionLabel,
   recruiterVerifiedNeedsNoteDecision,
   checklistStep2Items,
   type QualificationDisplayStatus,
@@ -1338,11 +1337,6 @@ export function AiAnalysisOverviewClient({
                         Confidence {confidencePercent}%
                       </span>
                     ) : null}
-                    {recommendation ? (
-                      <span className="inline-flex rounded-full bg-[#ECF1F9] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-[#012352]">
-                        {recommendation}
-                      </span>
-                    ) : null}
                   </div>
                   {isAnalyzed && outcomeCounts.total > 0 ? (
                     <div
@@ -1653,7 +1647,6 @@ export function AiAnalysisOverviewClient({
                     <th className="py-3 pr-3 text-left">Requirement</th>
                     <th className="py-3 pr-3 text-center">Type</th>
                     <th className="py-3 pr-3 text-center">Status</th>
-                    <th className="py-3 text-left">Action</th>
                     <th className="w-10 py-3" />
                   </tr>
                 </thead>
@@ -1661,7 +1654,6 @@ export function AiAnalysisOverviewClient({
                   {filteredRequirements.map((row: QualificationRequirement) => {
                     const open = openReqId === row.id;
                     const displayStatus = qualificationDisplayStatus(row, blocking);
-                    const actionLabel = recruiterActionLabel(row);
                     return (
                       <Fragment key={row.id}>
                         <tr
@@ -1693,9 +1685,6 @@ export function AiAnalysisOverviewClient({
                               ) : null}
                             </div>
                           </td>
-                          <td className="py-3.5 text-sm text-[#475467]">
-                            <span>{actionLabel}</span>
-                          </td>
                           <td className="py-3.5">
                             <button
                               type="button"
@@ -1713,7 +1702,7 @@ export function AiAnalysisOverviewClient({
                         </tr>
                         {open ? (
                           <tr className="border-b border-[#F2F4F7]">
-                            <td colSpan={5} className="pb-4 pr-3">
+                            <td colSpan={4} className="pb-4 pr-3">
                               <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3">
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
                                   Candidate Evidence
