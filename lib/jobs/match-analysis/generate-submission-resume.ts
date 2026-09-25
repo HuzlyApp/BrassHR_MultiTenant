@@ -38,7 +38,8 @@ Schema:
 Rules:
 - Optimize wording and order for the target job.
 - Put the most relevant experience first.
-- Use keywords from confirmed requirements only when they already appear in the résumé or evidence.
+- Use keywords from confirmed requirements only when they already appear in the résumé, Deep Match evidence, or recruiter enrichment (screening answers, call context, verified info, notes).
+- Prefer recruiter-confirmed facts from Steps 2–4 when they clarify wording already supported by the résumé.
 - Never invent employers, titles, dates, licenses, education, tools, or achievements.
 - Do not include protected-class details, SSN, or street address.
 - Keep bullets factual and concise.
@@ -83,16 +84,15 @@ function confirmedLines(analysis: MatchAnalysisResponse | null): string[] {
     .slice(0, 12);
 }
 
-export async function generateOptimizedSubmissionResume(args: {
+/** User prompt for Step 5 draft — includes Deep Match + Steps 2–3 enrichment. */
+export function buildSubmissionResumeUserPrompt(args: {
   identity: SubmissionResumeIdentity;
   analysis: MatchAnalysisResponse | null;
   resumeText: string;
-}): Promise<{ resume: SubmissionResume; usedModel: boolean }> {
-  const fallback = buildFallbackSubmissionResume(args);
-  const client = resolveGrokClient();
-  if (!client) return { resume: fallback, usedModel: false };
-
-  const user = [
+  enrichmentNotes?: string | null;
+}): string {
+  const enrichment = String(args.enrichmentNotes ?? "").trim();
+  return [
     `Target job: ${args.identity.jobTitle || "Unknown"}`,
     `Candidate: ${args.identity.fullName}`,
     `Contact: ${[args.identity.email, args.identity.phone, args.identity.location].filter(Boolean).join(" | ")}`,
@@ -103,10 +103,26 @@ export async function generateOptimizedSubmissionResume(args: {
       ? `Confirmed evidence:\n${confirmedLines(args.analysis).map((line) => `- ${line}`).join("\n")}`
       : "",
     args.analysis?.strengths?.length ? `Strengths:\n- ${args.analysis.strengths.join("\n- ")}` : "",
+    enrichment
+      ? `Recruiter enrichment from Verifications / Follow-Up / Deep Match:\n${enrichment}`
+      : "",
     `Original résumé:\n${sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, 12_000) || "(no résumé text)"}`,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+export async function generateOptimizedSubmissionResume(args: {
+  identity: SubmissionResumeIdentity;
+  analysis: MatchAnalysisResponse | null;
+  resumeText: string;
+  enrichmentNotes?: string | null;
+}): Promise<{ resume: SubmissionResume; usedModel: boolean }> {
+  const fallback = buildFallbackSubmissionResume(args);
+  const client = resolveGrokClient();
+  if (!client) return { resume: fallback, usedModel: false };
+
+  const user = buildSubmissionResumeUserPrompt(args);
 
   const model =
     process.env.AI_MATCH_STEP5_SUBMISSION_MODEL?.trim() ||

@@ -8,6 +8,7 @@ import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { isDeepMatchStage } from "./match-stage";
 import { matchAnalysisResponseSchema, type MatchAnalysisResponse } from "./schema";
 import { generateOptimizedSubmissionResume } from "./generate-submission-resume";
+import { loadSubmissionEnrichmentNotes } from "./submission-enrichment";
 import { isSubmissionResumeFileName, submissionResumeFileName, submissionResumeToPlainText } from "./submission-resume";
 import { renderSubmissionResumePdf } from "./submission-resume-pdf";
 
@@ -133,12 +134,17 @@ export async function draftSubmissionResumePack(args: {
   };
 
   const analysis = parseStoredAnalysis(application.ai_analysis);
-  const resumeText = await loadSourceResumeText(
-    supabase,
-    tenantId,
-    applicationId,
-    application.worker_id ? String(application.worker_id) : null
-  );
+  const workerId = application.worker_id ? String(application.worker_id) : null;
+  const [resumeText, enrichmentNotes] = await Promise.all([
+    loadSourceResumeText(supabase, tenantId, applicationId, workerId),
+    loadSubmissionEnrichmentNotes({
+      supabase,
+      tenantId,
+      applicationId,
+      workerId,
+      analysis,
+    }),
+  ]);
   if (!resumeText && !analysis) {
     throw new SubmissionResumeError("No résumé text is available to optimize.", 409);
   }
@@ -147,6 +153,7 @@ export async function draftSubmissionResumePack(args: {
     identity,
     analysis,
     resumeText,
+    enrichmentNotes,
   });
   const pdf = await renderSubmissionResumePdf(resume);
   const fileName = submissionResumeFileName(resume.fullName || fullName);
@@ -162,7 +169,6 @@ export async function draftSubmissionResumePack(args: {
   }
 
   const now = new Date().toISOString();
-  const workerId = application.worker_id ? String(application.worker_id) : null;
   if (!workerId) {
     throw new SubmissionResumeError("This application has no candidate record to attach the résumé to.", 409);
   }
