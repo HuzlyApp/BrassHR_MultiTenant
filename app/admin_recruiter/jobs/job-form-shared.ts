@@ -547,12 +547,8 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
       job.sourceType === "MSP"
         ? job.facility?.trim() || job.location?.trim() || null
         : job.location,
-    professionId: isMspRecruitAndEor(job)
-      ? null
-      : job.sourceType === "MSP" && isMspRecruitAndRelease(job)
-        ? job.professionId || null
-        : job.professionId,
-    profession: isMspRecruitAndEor(job) ? null : job.profession,
+    professionId: job.professionId || null,
+    profession: job.profession ?? null,
     specialtyId: job.sourceType === "Internal" ? job.specialtyId : null,
     compensationType: isMspRecruitAndRelease(job)
       ? ui.payRatePeriod || compensationType || null
