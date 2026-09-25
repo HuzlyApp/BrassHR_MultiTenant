@@ -7,6 +7,7 @@ import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { isReuploadedResumePath } from "@/lib/resume/resume-reupload-path";
 import { countResumeUploadsForRole } from "@/lib/resume/resume-upload-limit";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { ensureApplicationResumeFromWorker } from "@/lib/jobs/match-analysis/ensure-application-resume";
 
 export type AdminJobApplicationResumeHistoryItem = {
   id: string;
@@ -180,6 +181,19 @@ export async function loadAdminJobApplicationResumeHistory(
       adminUploadCount: 0,
     };
   }
+
+  // Import / talent-pool: attach existing worker résumé before listing history.
+  await ensureApplicationResumeFromWorker({
+    supabase,
+    tenantId,
+    applicationId,
+    workerId,
+  }).catch((error) => {
+    console.warn(
+      "[resume-history] ensure application resume failed:",
+      error instanceof Error ? error.message : error
+    );
+  });
 
   const { data: worker, error: workerError } = await supabase
     .from("worker")

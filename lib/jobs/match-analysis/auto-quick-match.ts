@@ -138,6 +138,56 @@ export function scheduleAutoQuickMatchForApplication(args: {
   });
 }
 
+/**
+ * Await Step 1 Quick Match for many applications (import / bulk attach).
+ * Prefer this over `schedule*` when the HTTP route has enough `maxDuration`.
+ */
+export async function runAutoQuickMatchForApplications(args: {
+  supabase: SupabaseClient;
+  tenantId: string;
+  jobApplicationIds: string[];
+  analyzedByUserId?: string | null;
+  analysisProvider?: AnalysisProvider;
+  reason?: string;
+}): Promise<AutoQuickMatchResult[]> {
+  const ids = [...new Set(args.jobApplicationIds.map((id) => id.trim()).filter(Boolean))];
+  if (!ids.length) return [];
+
+  try {
+    const results = await runMatchAnalysisBulk({
+      supabase: args.supabase,
+      tenantId: args.tenantId,
+      jobApplicationIds: ids,
+      analyzedByUserId: args.analyzedByUserId ?? null,
+      analysisMode: "analyze",
+      analysisProvider: args.analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER,
+    });
+    const mapped = results.map((row) => {
+      const result = row.result;
+      if (!("analysis" in result)) {
+        return emptyAutoResult(result.error || "Auto Quick Match failed");
+      }
+      return toAutoResult(result);
+    });
+    const failed = mapped.filter((row) => row.status !== "ANALYZED");
+    if (failed.length) {
+      console.warn("[auto-quick-match] bulk finished with failures", {
+        reason: args.reason ?? null,
+        total: mapped.length,
+        failed: failed.length,
+      });
+    }
+    return mapped;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown";
+    console.error("[auto-quick-match] bulk failed", {
+      reason: args.reason ?? null,
+      message,
+    });
+    return ids.map(() => emptyAutoResult(message));
+  }
+}
+
 export function scheduleAutoQuickMatchForApplications(args: {
   supabase: SupabaseClient;
   tenantId: string;
@@ -149,28 +199,6 @@ export function scheduleAutoQuickMatchForApplications(args: {
   const ids = [...new Set(args.jobApplicationIds.map((id) => id.trim()).filter(Boolean))];
   if (!ids.length) return;
   runInRequestBackground(async () => {
-    try {
-      const results = await runMatchAnalysisBulk({
-        supabase: args.supabase,
-        tenantId: args.tenantId,
-        jobApplicationIds: ids,
-        analyzedByUserId: args.analyzedByUserId ?? null,
-        analysisMode: "analyze",
-        analysisProvider: args.analysisProvider ?? DEFAULT_ANALYSIS_PROVIDER,
-      });
-      const failed = results.filter((row) => row.result.status !== "ANALYZED");
-      if (failed.length) {
-        console.warn("[auto-quick-match] bulk finished with failures", {
-          reason: args.reason ?? null,
-          total: results.length,
-          failed: failed.length,
-        });
-      }
-    } catch (error) {
-      console.error("[auto-quick-match] bulk failed", {
-        reason: args.reason ?? null,
-        message: error instanceof Error ? error.message : "unknown",
-      });
-    }
+    await runAutoQuickMatchForApplications(args);
   });
 }

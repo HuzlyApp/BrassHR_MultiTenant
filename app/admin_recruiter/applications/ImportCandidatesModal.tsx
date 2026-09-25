@@ -315,12 +315,34 @@ export default function ImportCandidatesModal({
         body: JSON.stringify({ candidateIds }),
       });
       const json = (await response.json().catch(() => null)) as
-        | { message?: string; error?: string }
+        | {
+            message?: string;
+            error?: string;
+            autoQuickMatch?: { total?: number; analyzed?: number; failed?: number } | null;
+          }
         | null;
       if (!response.ok) {
         throw new Error(readServiceAreaApiMessage(json, "Failed to import candidates"));
       }
       toast.success(json?.message || "Candidates successfully added.");
+      const match = json?.autoQuickMatch;
+      if (match && (match.total ?? 0) > 0) {
+        const analyzed = match.analyzed ?? 0;
+        const failed = match.failed ?? 0;
+        if (failed === 0) {
+          toast.success(
+            `Quick Match complete for ${analyzed} candidate${analyzed === 1 ? "" : "s"}.`
+          );
+        } else if (analyzed > 0) {
+          toast.error(
+            `Quick Match finished for ${analyzed}, failed for ${failed}. Open a candidate and use Re-run Quick Match if needed.`
+          );
+        } else {
+          toast.error(
+            "Quick Match did not finish — open a candidate and use Re-run Quick Match to try again."
+          );
+        }
+      }
       setSelectedIds([]);
       setPreview(null);
       setConfirmOpen(false);
@@ -843,7 +865,7 @@ export default function ImportCandidatesModal({
                 style={{ backgroundColor: primaryColor }}
                 onClick={() => void confirmImport(selectedIds)}
               >
-                {importing ? "Importing…" : "Import"}
+                {importing ? "Importing & Quick Match…" : "Import"}
               </button>
             </div>
           </div>
