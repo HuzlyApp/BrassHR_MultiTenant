@@ -83,6 +83,7 @@ import {
   canRunDeepMatch,
   canSelectMatchProgressionStep,
   displayFitBand,
+  fitBandFromDeepMatchResult,
   fitBandLabel,
   fitBandTagClassName,
   matchProgressionInitialIndex,
@@ -883,6 +884,14 @@ export function AiAnalysisOverviewClient({
     : isAnalyzed
       ? fitBandLabel(displayedFitBand)
       : "Not analyzed";
+  // After Deep Match, badge follows scored result (e.g. Weak Match → Low), not Quick Match Strong.
+  const statusFitBand = hasDeepMatch
+    ? fitBandFromDeepMatchResult({
+        category: app?.ai_match_category,
+        displayCategory: app?.ai_match_display_category || matchLabel,
+        score: matchScore,
+      })
+    : displayedFitBand;
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
   const jobTitle =
     data?.job?.title?.trim() ||
@@ -1296,13 +1305,6 @@ export function AiAnalysisOverviewClient({
               >
                 AI Analysis Overview
               </h1>
-              {isAnalyzed ? (
-                <span
-                  className={`ml-auto inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(displayedFitBand)}`}
-                >
-                  {fitBandLabel(displayedFitBand)}
-                </span>
-              ) : null}
             </div>
             <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
               <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
@@ -1310,17 +1312,24 @@ export function AiAnalysisOverviewClient({
                   percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
-                  fitBand={isAnalyzed ? displayedFitBand : null}
+                  fitBand={isAnalyzed ? statusFitBand : null}
                 />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   {jobTitle ? (
                     <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
                   ) : null}
-                  <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                     {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
                         Confidence {confidencePercent}%
+                      </span>
+                    ) : null}
+                    {isAnalyzed ? (
+                      <span
+                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(statusFitBand)}`}
+                      >
+                        {fitBandLabel(statusFitBand)}
                       </span>
                     ) : null}
                   </div>
