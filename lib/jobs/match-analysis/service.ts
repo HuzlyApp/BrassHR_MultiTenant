@@ -1,20 +1,16 @@
 import "server-only";
 
 import OpenAI from "openai";
-import { assembleMatchAnalysisVariables } from "@/lib/ai-catalog/assemble-match-variables";
+import { assembleFollowUpPromptVariables, assembleMatchAnalysisVariables } from "@/lib/ai-catalog/assemble-match-variables";
 import { renderPromptTemplate } from "@/lib/ai-catalog/render-prompt";
 import { parseJsonObject, validateAgainstJsonSchema } from "@/lib/ai-catalog/validate-response";
 import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
 import {
-  ANALYZE_SYSTEM_PROMPT,
   buildMatchAnalysisRepairPrompt,
-  buildMatchAnalysisUserPrompt,
   truncateStrengthsAndGaps,
   type MatchAnalysisUserPromptInput,
 } from "./prompts";
 import {
-  FOLLOW_UP_SYSTEM_PROMPT,
-  buildFollowUpQuestionsPrompt,
   buildFollowUpRepairPrompt,
   parseFollowUpQuestions,
   type ChecklistFollowUpRow,
@@ -513,38 +509,34 @@ export type MatchAnalysisGenerationResult = {
 export type GrokMatchAnalysisResult = MatchAnalysisGenerationResult;
 
 /**
- * Call the selected provider. Quick Match (analyze) uses the hardcoded Step 1 prompt
- * for now. Deep Match still requires a database-resolved prompt.
+ * Call the selected provider using a published AI prompt catalog version.
+ * Quick Match and Deep Match both resolve from `ai_prompt_version` (no hardcoded bodies).
  */
 export async function generateMatchAnalysis(
   input: MatchAnalysisUserPromptInput,
-  resolved: ResolvedPromptVersion | null,
+  resolved: ResolvedPromptVersion,
   provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
 ): Promise<MatchAnalysisGenerationResult> {
   const selectedProvider = parseAnalysisProvider(provider);
   const resumeLen = input.resumeText.length;
-  const analysisMode = input.analysisMode === "deep" || resolved?.variantKey === "deep" ? "deep" : "analyze";
-  const cfg = resolved?.modelConfig ?? {};
+  const analysisMode = input.analysisMode === "deep" || resolved.variantKey === "deep" ? "deep" : "analyze";
+  const cfg = resolved.modelConfig ?? {};
   const longResumeChars = Number(cfg.long_resume_chars ?? LONG_RESUME_CHARS);
   const maxTokens =
     resumeLen > longResumeChars
       ? Number(cfg.long_resume_max_tokens ?? LONG_RESUME_MAX_TOKENS)
       : Number(cfg.base_max_tokens ?? BASE_MAX_TOKENS);
 
-  const system =
-    analysisMode === "deep" ? resolved?.systemPrompt?.trim() ?? "" : ANALYZE_SYSTEM_PROMPT;
-  if (!system.trim()) {
+  const system = resolved.systemPrompt?.trim() ?? "";
+  if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
   }
 
-  const userPrompt =
-    analysisMode === "deep"
-      ? renderPromptTemplate(
-          resolved?.userPromptTemplate ?? "",
-          assembleMatchAnalysisVariables(input),
-          { required: ["job_description", "candidate_resume"] }
-        )
-      : buildMatchAnalysisUserPrompt({ ...input, analysisMode: "analyze" });
+  const userPrompt = renderPromptTemplate(
+    resolved.userPromptTemplate ?? "",
+    assembleMatchAnalysisVariables(input),
+    { required: ["job_description", "candidate_resume"] }
+  );
   const model = modelForProvider(selectedProvider, cfg, analysisMode);
 
   const primary = await callProviderWithDeepFallback({
@@ -563,7 +555,7 @@ export async function generateMatchAnalysis(
   let parsedJson = parseJsonObject(rawText);
   let parsed = parseAndValidateMatchAnalysis(rawText);
   let schemaErrors =
-    analysisMode === "deep" && resolved && parsedJson.ok
+    analysisMode === "deep" && parsedJson.ok
       ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
       : parsed.ok
         ? []
@@ -576,7 +568,7 @@ export async function generateMatchAnalysis(
       badJson: rawText,
       validationErrors: [...schemaErrors, ...(parsed.ok ? [] : parsed.errors)],
       analysisMode,
-      responseSchema: analysisMode === "deep" ? resolved?.responseSchema : null,
+      responseSchema: analysisMode === "deep" ? resolved.responseSchema : null,
     });
     const repairedCall = await callProviderWithDeepFallback({
       provider: activeProvider,
@@ -593,7 +585,7 @@ export async function generateMatchAnalysis(
     parsedJson = parseJsonObject(repairedCall.text);
     parsed = parseAndValidateMatchAnalysis(repairedCall.text);
     schemaErrors =
-      analysisMode === "deep" && resolved && parsedJson.ok
+      analysisMode === "deep" && parsedJson.ok
         ? validateAgainstJsonSchema(parsedJson.value, resolved.responseSchema)
         : parsed.ok
           ? []
@@ -627,26 +619,46 @@ export async function generateFollowUpQuestions(
   input: {
     jobTitle?: string | null;
     checklist: ChecklistFollowUpRow[];
+    enrichmentNotes?: string | null;
   },
+  resolved: ResolvedPromptVersion,
   _provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
 ): Promise<{
   questions: AnalysisScreeningQuestion[];
   repaired: boolean;
   model: string;
   rawObject: Record<string, unknown> | null;
+  promptVersionId: string;
+  contentHash: string;
 }> {
-  // FS-AI-MATCH Step 2: grok-4-fast primary → gemini-3.5-flash-lite fallback.
-  // Provider toggle is ignored so volume routing stays consistent.
+  // FS-AI-MATCH Steps 2–3: catalog system/user prompts; grok-4-fast → gemini-3.5-flash-lite.
   void _provider;
+  const system = resolved.systemPrompt?.trim() ?? "";
+  if (!system) {
+    throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
+  }
+  const userPrompt = renderPromptTemplate(
+    resolved.userPromptTemplate ?? "",
+    assembleFollowUpPromptVariables(input),
+    { required: ["qualification_checklist"] }
+  );
+  const cfg = resolved.modelConfig ?? {};
+  const catalogModel =
+    typeof cfg.model === "string" && cfg.model.trim() ? sanitizeStep1Model(cfg.model) : "";
   const route = getStep2QuestionRoute();
-  const system = FOLLOW_UP_SYSTEM_PROMPT;
-  const userPrompt = buildFollowUpQuestionsPrompt(input);
+  const primaryModel = catalogModel || route.primary.model;
+  const primaryProvider: AnalysisProvider = catalogModel
+    ? primaryModel.toLowerCase().includes("gemini")
+      ? "gemini"
+      : "grok"
+    : route.primary.provider;
+  const maxTokens = Number(cfg.base_max_tokens ?? BASE_MAX_TOKENS);
 
   async function runOnce(provider: AnalysisProvider, model: string) {
     const rawText = await callProvider(provider, {
       system,
       user: userPrompt,
-      maxTokens: BASE_MAX_TOKENS,
+      maxTokens,
       model,
     });
 
@@ -659,7 +671,7 @@ export async function generateFollowUpQuestions(
           badJson: rawText,
           validationErrors: parsed.errors,
         }),
-        maxTokens: BASE_MAX_TOKENS,
+        maxTokens,
         model,
       });
       parsed = parseFollowUpQuestions(repairedText);
@@ -673,15 +685,17 @@ export async function generateFollowUpQuestions(
       repaired,
       model,
       rawObject: parsed.rawObject,
+      promptVersionId: resolved.promptVersionId,
+      contentHash: resolved.contentHash,
     };
   }
 
   try {
-    return await runOnce(route.primary.provider, route.primary.model);
+    return await runOnce(primaryProvider, primaryModel);
   } catch (primaryError) {
     const sameModel =
-      route.primary.model.toLowerCase() === route.fallback.model.toLowerCase() &&
-      route.primary.provider === route.fallback.provider;
+      primaryModel.toLowerCase() === route.fallback.model.toLowerCase() &&
+      primaryProvider === route.fallback.provider;
     if (sameModel) throw primaryError;
     const code =
       primaryError instanceof MatchAnalysisGenerationError ? primaryError.code : "UNKNOWN";
@@ -699,7 +713,7 @@ export async function generateFollowUpQuestions(
 /** @deprecated Use generateMatchAnalysis(..., "grok"). */
 export async function generateMatchAnalysisWithGrok(
   input: MatchAnalysisUserPromptInput,
-  resolved: ResolvedPromptVersion | null
+  resolved: ResolvedPromptVersion
 ): Promise<MatchAnalysisGenerationResult> {
   return generateMatchAnalysis(input, resolved, "grok");
 }

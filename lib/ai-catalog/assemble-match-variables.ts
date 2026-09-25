@@ -66,3 +66,65 @@ export function assembleMatchAnalysisVariables(
     recruiter_notes: notes,
   };
 }
+
+export type FollowUpChecklistVariableRow = {
+  requirement: string;
+  type: string;
+  status: string;
+  recruiterNote: string;
+  candidateQuestion: string;
+  candidateResponse: string;
+};
+
+export function assembleFollowUpPromptVariables(input: {
+  jobTitle?: string | null;
+  checklist: FollowUpChecklistVariableRow[];
+  enrichmentNotes?: string | null;
+}): PromptTemplateVariables {
+  const lines = input.checklist.length
+    ? input.checklist.map((row, index) => {
+        const parts = [`${index + 1}. [${row.status}] ${row.type}: ${row.requirement}`];
+        if (row.recruiterNote) parts.push(`   Recruiter note: ${row.recruiterNote}`);
+        if (row.candidateQuestion) parts.push(`   Question sent: ${row.candidateQuestion}`);
+        if (row.candidateResponse) parts.push(`   Candidate reply: ${row.candidateResponse}`);
+        return parts.join("\n");
+      })
+    : ["(empty checklist)"];
+  return {
+    job_title: input.jobTitle?.trim() || "(unknown)",
+    qualification_checklist: lines.join("\n"),
+    enrichment_notes: String(input.enrichmentNotes ?? "").trim() || "(none)",
+  };
+}
+
+export function assembleSubmissionResumeVariables(input: {
+  jobTitle?: string | null;
+  candidateName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  recruiterSummary?: string | null;
+  confirmedEvidence?: string[] | null;
+  strengths?: string[] | null;
+  enrichmentNotes?: string | null;
+  resumeText?: string | null;
+}): PromptTemplateVariables {
+  const contact = [input.email, input.phone, input.location]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" | ");
+  const confirmed = (input.confirmedEvidence ?? []).map((line) => line.trim()).filter(Boolean);
+  const strengths = (input.strengths ?? []).map((line) => line.trim()).filter(Boolean);
+  return {
+    job_title: input.jobTitle?.trim() || "Unknown",
+    candidate_name: input.candidateName?.trim() || "Candidate",
+    candidate_contact: contact || "(none)",
+    recruiter_summary: input.recruiterSummary?.trim() || "(none)",
+    confirmed_evidence: confirmed.length
+      ? confirmed.map((line) => `- ${line}`).join("\n")
+      : "(none)",
+    strengths: strengths.length ? strengths.map((line) => `- ${line}`).join("\n") : "(none)",
+    enrichment_notes: String(input.enrichmentNotes ?? "").trim() || "(none)",
+    candidate_resume: String(input.resumeText ?? "").trim() || "(no résumé text)",
+  };
+}

@@ -355,7 +355,7 @@ OUTPUT RULES
 
 Return valid JSON only. Do not include markdown, commentary, code fences, or text outside the JSON. Use only the allowed categories, actions, statuses, and response fields. Follow the required output structure exactly (see RESPONSE_SCHEMA).`;
 
-/** Temporary hardcoded Step 1 Quick Match prompt. Swap back to the catalog when ready. */
+/** Catalog-backed Step 1 Quick Match body (seeded into ai_prompt_version). Kept for tests / seed generator. */
 export const ANALYZE_SYSTEM_PROMPT = `You extract and classify a candidate against a JD. You do not score. You do not recommend submit/hold.
 
 This is Step 1 Quick Match. A later paid step writes the match percent.
@@ -438,6 +438,7 @@ counts.confirmed / partial / not_found are mandatory items only (ignore NOT_APPL
 evidence is one short line with the job and date when status is CONFIRMED or PARTIAL.
 mand_met, pref_met, weighted are 0–1 decimals. The app recomputes quick_route from those plus blockers. Do not invent STRONG.`;
 
+/** @deprecated Runtime uses catalog `resolvePromptVersion`. Kept for tests / seed content parity. */
 export function systemPromptForMode(mode: AnalysisMode): string {
   if (mode === "deep") return DEEP_ANALYSIS_SYSTEM_PROMPT;
   if (mode === "call_pack" || mode === "follow_up") return FOLLOW_UP_SYSTEM_PROMPT;
