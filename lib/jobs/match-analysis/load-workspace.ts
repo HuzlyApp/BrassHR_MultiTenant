@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadWorkerNotesForWorkerId } from "@/lib/worker-notes";
 import { loadApplicationScreeningContext } from "@/lib/jobs/screening-questions";
 import { pickResumeForApplication } from "./pick-resume-for-application";
+import { ensureApplicationResumeFromWorker } from "./ensure-application-resume";
 import { getMatchAnalysisModelName } from "./service";
 import { getMatchStepModels } from "./step-config";
 import { isMatchCallPackStatus } from "./call-pack-status";
@@ -169,11 +170,23 @@ export async function loadMatchAnalysisWorkspace(
     .order("uploaded_at", { ascending: false })
     .limit(5);
   const preferred = pickResumeForApplication(resumeRow, applicationId);
-  if (preferred?.extracted_text) {
+  if (preferred?.extracted_text || preferred?.original_file_name || preferred?.file_name) {
     extractedResume = {
-      text: String(preferred.extracted_text),
+      text: String(preferred.extracted_text ?? ""),
       fileName: String(preferred.original_file_name || preferred.file_name || "Resume"),
     };
+  } else {
+    // Imported / talent-pool candidates: attach the worker's existing résumé to this job.
+    const ensured = await ensureApplicationResumeFromWorker({
+      supabase,
+      tenantId,
+      applicationId,
+      workerId:
+        typeof application.worker_id === "string" ? application.worker_id : null,
+    });
+    if (ensured) {
+      extractedResume = { text: ensured.text, fileName: ensured.fileName };
+    }
   }
 
   const statusRel = Array.isArray(application.application_statuses)
