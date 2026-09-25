@@ -1035,10 +1035,6 @@ export function AiAnalysisOverviewClient({
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
       return;
     }
-    if (!callContext.trim()) {
-      toast.error("Add call context before continuing to Follow-Up.");
-      return;
-    }
     if (followUpAdvancing) return;
     setFollowUpAdvancing(true);
     try {
@@ -1059,10 +1055,6 @@ export function AiAnalysisOverviewClient({
   function moveToFollowUp() {
     if (!canAdvance) {
       toast.error("This candidate is not qualified to continue. Use Talent Pool.");
-      return;
-    }
-    if (!callContext.trim()) {
-      toast.error("Add call context before continuing to Follow-Up.");
       return;
     }
     if (matchProgressionFollowUpNeedsConfirm(outcomeCounts.verify)) {
