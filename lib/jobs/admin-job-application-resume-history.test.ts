@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/jobs/match-analysis/ensure-application-resume", () => ({
+  ensureApplicationResumeFromWorker: vi.fn(async () => null),
+}));
+
 import {
   loadAdminJobApplicationResumeHistory,
   selectResumesForJobHistory,

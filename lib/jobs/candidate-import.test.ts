@@ -32,6 +32,32 @@ vi.mock("@/lib/service-area/db", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/jobs/match-analysis/auto-quick-match", () => ({
+  runAutoQuickMatchForApplications: vi.fn(async (args: { jobApplicationIds: string[] }) =>
+    (args.jobApplicationIds ?? []).map(() => ({
+      status: "ANALYZED",
+      error: null,
+      model: null,
+      score: null,
+      category: null,
+      action: null,
+      readiness: null,
+      displayCategory: null,
+      stage: "quick",
+      requirementCounts: null,
+    }))
+  ),
+  scheduleAutoQuickMatchForApplications: vi.fn(),
+}));
+
+vi.mock("@/lib/jobs/match-analysis/ensure-application-resume", () => ({
+  ensureApplicationResumeFromWorker: vi.fn(async () => ({
+    text: "A".repeat(50),
+    fileName: "Resume.pdf",
+    storagePath: "resumes/jordan.pdf",
+  })),
+}));
+
 import { CandidateImportError, importExistingCandidatesToWorkspace } from "./candidate-import";
 import { evaluateServiceAreaWithDb } from "@/lib/service-area/db";
 
@@ -148,8 +174,11 @@ function createFakeSupabase(state: {
         return chain({
           data: [
             {
+              id: "resume-1",
               worker_id: "11111111-1111-4111-8111-111111111111",
               extracted_text: "A".repeat(50),
+              storage_path: "resumes/jordan.pdf",
+              job_application_id: null,
             },
           ],
         });
@@ -243,6 +272,7 @@ describe("importExistingCandidatesToWorkspace", () => {
     expect(result.skippedAlreadyAdded).toEqual([OTHER_ID]);
     expect(result.skippedNotFound).toEqual(["44444444-4444-4444-8444-444444444444"]);
     expect(result.message).toContain("1 candidate");
+    expect(result.autoQuickMatch).toEqual({ total: 1, analyzed: 1, failed: 0 });
     expect(inserted[0]).toMatchObject({
       worker_id: WORKER_ID,
       status: "new",

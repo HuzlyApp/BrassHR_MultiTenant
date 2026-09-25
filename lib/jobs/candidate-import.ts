@@ -28,7 +28,8 @@ import {
   resolvePublishedFlowForJobWorkflow,
 } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
-import { scheduleAutoQuickMatchForApplications } from "@/lib/jobs/match-analysis/auto-quick-match";
+import { runAutoQuickMatchForApplications } from "@/lib/jobs/match-analysis/auto-quick-match";
+import { ensureApplicationResumeFromWorker } from "@/lib/jobs/match-analysis/ensure-application-resume";
 import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { normalizeApplicantEmail } from "@/lib/jobs/validation";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
@@ -96,6 +97,22 @@ export type ImportMutationResult = {
   jobTitle: string;
   jobRef: string;
   message: string;
+  /** Step 1 Quick Match summary when résumés were ready for analysis. */
+  autoQuickMatch: {
+    total: number;
+    analyzed: number;
+    failed: number;
+  } | null;
+};
+
+type ImportResumeRow = {
+  id: string;
+  worker_id: string;
+  extracted_text: string;
+  storage_path: string | null;
+  job_application_id: string | null;
+  file_name: string | null;
+  original_file_name: string | null;
 };
 
 type JobImportRow = {
@@ -1100,14 +1117,16 @@ export async function importExistingCandidatesToWorkspace(
   const skippedNotFound = remaining.filter((id) => !foundIds.has(id));
   const toInsert = workers.filter((row) => foundIds.has(row.id));
 
-  const resumeByWorker = new Map<string, string>();
+  const resumeByWorker = new Map<string, ImportResumeRow>();
   if (toInsert.length) {
     const resumeResult = await queryInChunks(
       toInsert.map((row) => row.id),
       async (chunk) => {
         const result = await supabase
           .from("worker_resumes")
-          .select("worker_id, extracted_text, uploaded_at")
+          .select(
+            "id, worker_id, extracted_text, storage_path, job_application_id, file_name, original_file_name, uploaded_at"
+          )
           .eq("tenant_id", input.tenantId)
           .in("worker_id", chunk)
           .is("deleted_at", null)
@@ -1116,10 +1135,27 @@ export async function importExistingCandidatesToWorkspace(
       }
     );
     if (resumeResult.error) throw resumeResult.error;
-    for (const row of resumeResult.data as Array<{ worker_id?: string | null; extracted_text?: string | null }>) {
+    for (const row of resumeResult.data as Array<{
+      id?: string | null;
+      worker_id?: string | null;
+      extracted_text?: string | null;
+      storage_path?: string | null;
+      job_application_id?: string | null;
+      file_name?: string | null;
+      original_file_name?: string | null;
+    }>) {
       const workerId = asText(row.worker_id);
-      if (!workerId || resumeByWorker.has(workerId)) continue;
-      resumeByWorker.set(workerId, asText(row.extracted_text));
+      const resumeId = asText(row.id);
+      if (!workerId || !resumeId || resumeByWorker.has(workerId)) continue;
+      resumeByWorker.set(workerId, {
+        id: resumeId,
+        worker_id: workerId,
+        extracted_text: asText(row.extracted_text),
+        storage_path: asText(row.storage_path) || null,
+        job_application_id: asText(row.job_application_id) || null,
+        file_name: asText(row.file_name) || null,
+        original_file_name: asText(row.original_file_name) || null,
+      });
     }
   }
 
@@ -1130,8 +1166,11 @@ export async function importExistingCandidatesToWorkspace(
 
   for (const worker of toInsert) {
     const profileId = await ensureApplicantProfileForWorker(supabase, input.tenantId, worker);
-    const resumeText = resumeByWorker.get(worker.id) ?? "";
-    const aiMatchStatus = resumeText.length > 40 ? "READY" : "NEEDS_REVIEW";
+    const resume = resumeByWorker.get(worker.id);
+    const resumeText = resume?.extracted_text ?? "";
+    const hasResumeFile = Boolean(resume?.storage_path?.trim());
+    // READY when we have usable text OR a file Quick Match can download+extract.
+    const aiMatchStatus = resumeText.length > 40 || hasResumeFile ? "READY" : "NEEDS_REVIEW";
 
     const { data: application, error: insertError } = await supabase
       .from("job_applications")
@@ -1179,6 +1218,21 @@ export async function importExistingCandidatesToWorkspace(
     } catch (error) {
       await supabase.from("job_applications").delete().eq("id", application.id);
       throw error;
+    }
+
+    // Attach existing talent-pool résumé to this application (bind or clone).
+    try {
+      await ensureApplicationResumeFromWorker({
+        supabase,
+        tenantId: input.tenantId,
+        applicationId: String(application.id),
+        workerId: worker.id,
+      });
+    } catch (error) {
+      console.warn(
+        "[candidate-import] resume attach failed:",
+        error instanceof Error ? error.message : error
+      );
     }
 
     imported.push(worker.id);
@@ -1242,14 +1296,22 @@ export async function importExistingCandidatesToWorkspace(
 
   const importedCount = imported.length;
   const skippedAlreadyAddedCount = skippedAlready.length;
+  let autoQuickMatch: ImportMutationResult["autoQuickMatch"] = null;
   if (importedApplicationIds.length) {
-    scheduleAutoQuickMatchForApplications({
+    // Await Step 1 like Add Candidate — fire-and-forget after() was often killed mid-run.
+    const results = await runAutoQuickMatchForApplications({
       supabase,
       tenantId: input.tenantId,
       jobApplicationIds: importedApplicationIds,
       analyzedByUserId: input.staffUserId,
       reason: "import_existing_candidates",
     });
+    const analyzed = results.filter((row) => row.status === "ANALYZED").length;
+    autoQuickMatch = {
+      total: results.length,
+      analyzed,
+      failed: results.length - analyzed,
+    };
   }
   return {
     imported,
@@ -1261,5 +1323,6 @@ export async function importExistingCandidatesToWorkspace(
     jobTitle: asText(jobRow.public_title) || "Untitled job",
     jobRef: jobRefOf(jobRow),
     message: buildImportResultMessage(importedCount, skippedAlreadyAddedCount),
+    autoQuickMatch,
   };
 }

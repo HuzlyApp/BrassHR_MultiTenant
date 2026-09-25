@@ -106,6 +106,7 @@ export {
 } from "./pipeline";
 export {
   runAutoQuickMatchForApplication,
+  runAutoQuickMatchForApplications,
   scheduleAutoQuickMatchForApplication,
   scheduleAutoQuickMatchForApplications,
   type AutoQuickMatchResult,
