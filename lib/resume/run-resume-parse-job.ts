@@ -77,12 +77,13 @@ export async function runResumeParseJob(params: {
       resumeId,
       qualityMs,
       qualityPassed: quality.ok,
+      nameNeedsReview: grok.nameAssessment?.needsReview ?? false,
     })
 
     const parsedJson = sanitizePostgresJson(
-      normalizedResumeToStoredJson(
-        quality.ok ? quality.normalized : grok.normalized,
-      ),
+      normalizedResumeToStoredJson(quality.ok ? quality.normalized : grok.normalized, {
+        nameAssessment: grok.nameAssessment,
+      }),
     )
     const completedAt = new Date().toISOString()
     const parsedFirst =

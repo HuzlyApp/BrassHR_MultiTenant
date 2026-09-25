@@ -9,10 +9,11 @@ import {
   extractLocationFromResumeText,
   grokSnippetIsReduced,
   preExtractResumeFields,
-  sanitizeParsedIdentityFields,
+  sanitizeParsedIdentityFieldsWithAssessment,
   type ResumeFieldExtractOptions,
 } from "@/lib/resume/normalize-resume-text"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
+import type { CandidateNameAssessment } from "@/lib/resume/validate-person-name"
 
 export const GROK_RESUME_MODEL = "grok-4-fast"
 
@@ -93,6 +94,7 @@ ${known ? `Already extracted (prefer keeping unless snippet contradicts):\n${kno
 
 export type GrokParseResumeResult = {
   normalized: NormalizedParsedResume
+  nameAssessment: CandidateNameAssessment
   grokSnippet: string
   grokSnippetReduced: boolean
   aiParseMs: number
@@ -129,20 +131,20 @@ export async function grokParseResume(
   const result = completion.choices?.[0]?.message?.content || ""
   const extracted = extractJsonObjectFromModelText(result)
   const fromGrok = normalizeParsedResume(extracted ?? {})
-  let normalized = sanitizeParsedIdentityFields(
+  let sanitized = sanitizeParsedIdentityFieldsWithAssessment(
     normalizeParsedResume(mergeParsedFields(preExtracted, fromGrok)),
     fullText,
     opts,
   )
 
   // PDF/Grok often miss header location even when city/state are in the text.
-  if (!normalized.city.trim() || !normalized.state.trim()) {
+  if (!sanitized.parsed.city.trim() || !sanitized.parsed.state.trim()) {
     const fromText = extractLocationFromResumeText(fullText)
-    normalized = sanitizeParsedIdentityFields(
+    sanitized = sanitizeParsedIdentityFieldsWithAssessment(
       {
-        ...normalized,
-        city: normalized.city.trim() || fromText.city,
-        state: normalized.state.trim() || fromText.state,
+        ...sanitized.parsed,
+        city: sanitized.parsed.city.trim() || fromText.city,
+        state: sanitized.parsed.state.trim() || fromText.state,
       },
       fullText,
       opts,
@@ -152,7 +154,8 @@ export async function grokParseResume(
   logResumeTiming("process-resume", "grok-response", { aiParseMs })
 
   return {
-    normalized,
+    normalized: sanitized.parsed,
+    nameAssessment: sanitized.nameAssessment,
     grokSnippet,
     grokSnippetReduced,
     aiParseMs,

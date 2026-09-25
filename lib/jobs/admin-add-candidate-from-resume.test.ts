@@ -5,6 +5,19 @@ const extractResumeTextFromUploadMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/resume/grok-parse-resume-cached", () => ({
   grokParseResumeCached: (...args: unknown[]) => grokParseResumeCachedMock(...args),
+  grokParseResumeCachedWithAssessment: async (...args: unknown[]) => {
+    const normalized = await grokParseResumeCachedMock(...args);
+    return {
+      normalized,
+      nameAssessment: {
+        ok: true,
+        needsReview: false,
+        normalized: [normalized?.first_name, normalized?.last_name].filter(Boolean).join(" "),
+        rawExtract: [normalized?.first_name, normalized?.last_name].filter(Boolean).join(" "),
+        reason: null,
+      },
+    };
+  },
 }));
 
 vi.mock("@/lib/jobs/match-analysis/extract-resume-text", () => ({

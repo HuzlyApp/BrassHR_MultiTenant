@@ -20,6 +20,10 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
+import {
+  NAME_NEEDS_REVIEW_BANNER,
+  validateCandidateNameParts,
+} from "@/lib/resume/validate-person-name";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
@@ -209,6 +213,7 @@ export default function AddCandidateModal({
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [nameNeedsReview, setNameNeedsReview] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [jobError, setJobError] = useState<string | null>(null);
@@ -234,6 +239,7 @@ export default function AddCandidateModal({
     setParseState("idle");
     setParsePreview(null);
     setParseError(null);
+    setNameNeedsReview(false);
     setFirstName("");
     setLastName("");
     setEmail("");
@@ -294,6 +300,7 @@ export default function AddCandidateModal({
           error?: string;
           warning?: string | null;
           qualityOk?: boolean;
+          nameNeedsReview?: boolean;
           parsed?: AdminResumeParsePreview;
           extractedText?: string | null;
         };
@@ -306,6 +313,9 @@ export default function AddCandidateModal({
           setLastName(preview.lastName ?? "");
           setEmail(preview.email ?? "");
           setPhone(preview.phone ?? "");
+          setNameNeedsReview(
+            Boolean(preview.nameNeedsReview || payload.nameNeedsReview)
+          );
 
           // Assignment work location always comes from the job worksite, not the résumé.
           let workCityValue = "";
@@ -641,11 +651,13 @@ export default function AddCandidateModal({
       }
     }
 
-    const nameError = validateAddCandidateField("name", {
-      name: [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" "),
-    });
+    const namePartsCheck = validateCandidateNameParts(firstName, lastName);
+    const nameError = namePartsCheck.ok
+      ? null
+      : namePartsCheck.reason;
     const emailError = validateAddCandidateField("email", { email });
     if (nameError || emailError) {
+      setNameNeedsReview(true);
       const message = nameError || emailError || "Fill in the candidate name and email.";
       if (uploadFromFile) setFileError(message);
       else setPasteError(message);
@@ -998,6 +1010,36 @@ export default function AddCandidateModal({
                       <p className="truncate text-xs text-[#64748B]">{parsePreview.jobRole}</p>
                     ) : null}
                   </div>
+                  {(() => {
+                    const nameOk = validateCandidateNameParts(firstName, lastName).ok;
+                    const showNameBanner =
+                      (nameNeedsReview || Boolean(parsePreview?.nameNeedsReview)) && !nameOk;
+                    if (!showNameBanner) return null;
+                    return (
+                    <div
+                      className="mb-4 rounded-lg border border-[#F59E0B]/40 bg-[#FFFBEB] px-3 py-2.5 text-sm text-[#92400E]"
+                      role="status"
+                    >
+                      <p className="font-medium">{NAME_NEEDS_REVIEW_BANNER}</p>
+                      {parsePreview?.nameRawExtract ? (
+                        <p className="mt-1 break-words text-xs text-[#A16207]">
+                          Extracted: {parsePreview.nameRawExtract}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-medium text-[#92400E] underline underline-offset-2 hover:text-[#78350F]"
+                        onClick={() => {
+                          setFirstName("");
+                          setLastName("");
+                        }}
+                        disabled={uploading}
+                      >
+                        Clear and type manually
+                      </button>
+                    </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-first-name">
@@ -1011,6 +1053,7 @@ export default function AddCandidateModal({
                         onChange={(event) => setFirstName(event.target.value)}
                         disabled={uploading}
                         autoComplete="given-name"
+                        required
                       />
                     </div>
                     <div>
@@ -1025,6 +1068,7 @@ export default function AddCandidateModal({
                         onChange={(event) => setLastName(event.target.value)}
                         disabled={uploading}
                         autoComplete="family-name"
+                        required
                       />
                     </div>
                     <div>

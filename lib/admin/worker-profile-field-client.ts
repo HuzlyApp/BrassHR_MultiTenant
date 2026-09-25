@@ -1,3 +1,8 @@
+import {
+  personNameFilterInput,
+  validatePersonName,
+} from "@/lib/resume/validate-person-name"
+
 export type CandidateFieldKind =
   | "person_name"
   | "city"
@@ -13,7 +18,7 @@ export type CandidateFieldKind =
 export function filterCandidateFieldInput(kind: CandidateFieldKind, raw: string): string {
   switch (kind) {
     case "person_name":
-      return raw.replace(/[^a-zA-Z\s'.-]/g, "")
+      return personNameFilterInput(raw)
     case "city":
       return raw.replace(/[^a-zA-Z\s'.-]/g, "")
     case "address":
@@ -88,11 +93,9 @@ export function validateCandidateFieldInput(
   switch (kind) {
     case "person_name": {
       if (!value) return { ok: false, error: "Name is required." }
-      if (/\d/.test(value)) return { ok: false, error: "Name cannot include numbers." }
-      if (!/^[a-zA-Z\s'.-]+$/.test(value)) {
-        return { ok: false, error: "Use letters only." }
-      }
-      return { ok: true, value }
+      const result = validatePersonName(value)
+      if (!result.ok) return { ok: false, error: result.reason }
+      return { ok: true, value: result.normalized }
     }
     case "city": {
       if (!value) return { ok: false, error: "City is required." }

@@ -2,28 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { stripContactFromPersonName } from "@/lib/resume/normalize-resume-text";
+import { validateCandidateNameParts } from "@/lib/resume/validate-person-name";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-function sanitizePersonNamePart(
-  value: string,
-  label: string
-): { ok: true; value: string } | { ok: false; error: string } {
-  const cleaned = stripContactFromPersonName(value);
-  if (!cleaned && label === "First name") {
-    return { ok: false, error: "First name is required." };
-  }
-  if (cleaned && /\d/.test(cleaned)) {
-    return { ok: false, error: `${label} cannot include numbers.` };
-  }
-  if (cleaned && !/^[a-zA-Z\s'.-]+$/.test(cleaned)) {
-    return { ok: false, error: `Use letters only in ${label.toLowerCase()}.` };
-  }
-  return { ok: true, value: cleaned };
-}
 
 /** PATCH — rename the candidate behind a job application (profile + worker stay in sync). */
 export async function PATCH(req: NextRequest, context: RouteContext) {
@@ -49,16 +32,15 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       firstName?: string;
       lastName?: string;
     };
-    const firstParsed = sanitizePersonNamePart(String(body.firstName ?? "").trim(), "First name");
-    if (!firstParsed.ok) {
-      return NextResponse.json({ error: firstParsed.error }, { status: 400 });
+    const firstName = String(body.firstName ?? "").trim();
+    const lastName = String(body.lastName ?? "").trim();
+    if (!firstName) {
+      return NextResponse.json({ error: "First name is required." }, { status: 400 });
     }
-    const lastParsed = sanitizePersonNamePart(String(body.lastName ?? "").trim(), "Last name");
-    if (!lastParsed.ok) {
-      return NextResponse.json({ error: lastParsed.error }, { status: 400 });
+    const nameCheck = validateCandidateNameParts(firstName, lastName);
+    if (!nameCheck.ok) {
+      return NextResponse.json({ error: nameCheck.reason }, { status: 400 });
     }
-    const firstName = firstParsed.value;
-    const lastName = lastParsed.value;
 
     const { data: application, error: appError } = await supabase
       .from("job_applications")

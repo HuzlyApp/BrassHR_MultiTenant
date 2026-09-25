@@ -17,6 +17,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import type { ResumeHistoryItem } from "./ResumeHistoryModal";
 import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
+import { validateCandidateNameParts } from "@/lib/resume/validate-person-name";
 
 /** Mirrors server `AutoQuickMatchResult` without importing server-only modules. */
 export type UpdateResumeAutoQuickMatch = {
@@ -288,8 +289,9 @@ export default function UpdateResumeModal({
 
   async function handleSubmit() {
     if (busy || !canSubmit) return;
-    if (!firstName.trim()) {
-      setErrorMessage("First name is required.");
+    const nameCheck = validateCandidateNameParts(firstName, lastName);
+    if (!nameCheck.ok) {
+      setErrorMessage(nameCheck.reason || "Enter a valid first and last name.");
       setErrorOpen(true);
       return;
     }

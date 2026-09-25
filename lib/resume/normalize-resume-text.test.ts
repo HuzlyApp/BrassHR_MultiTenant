@@ -7,6 +7,7 @@ import {
   preExtractResumeFields,
   repairExtractedResumeText,
   sanitizeParsedIdentityFields,
+  sanitizeParsedIdentityFieldsWithAssessment,
 } from "@/lib/resume/normalize-resume-text"
 
 const GOUTHAM_HEADER = `
@@ -148,7 +149,7 @@ describe("parseNameAndTitle", () => {
 })
 
 describe("sanitizeParsedIdentityFields", () => {
-  it("strips contact details Grok stuffed into last_name and drops SAP module cities", () => {
+  it("keeps polluted header extracts as draft for recruiter review (FSD NAME-001)", () => {
     const cleaned = sanitizeParsedIdentityFields(
       normalizeParsedResume({
         first_name: "Goutham",
@@ -164,14 +165,14 @@ describe("sanitizeParsedIdentityFields", () => {
       { fileName: "Goutham_K_SAP_Consultant.docx" },
     )
 
+    // Do not silently accept stripped junk as the official name.
     expect(cleaned.first_name).toBe("Goutham")
-    expect(cleaned.last_name).toBe("K")
-    expect(cleaned.job_role).toMatch(/SAP Consultant/i)
+    expect(cleaned.last_name).toMatch(/gmail|linkedin|SAP/i)
     expect(cleaned.city).toBe("")
     expect(cleaned.state).toBe("")
   })
 
-  it("strips bare LinkedIn URLs and phone numbers jammed into the name", () => {
+  it("does not strip LinkedIn junk into a silent pass — keeps raw for review", () => {
     const cleaned = sanitizeParsedIdentityFields(
       normalizeParsedResume({
         first_name: "Jane",
@@ -184,8 +185,7 @@ describe("sanitizeParsedIdentityFields", () => {
     )
 
     expect(cleaned.first_name).toBe("Jane")
-    expect(cleaned.last_name).toBe("Doe")
-    expect(cleaned.last_name).not.toMatch(/linkedin|5125550199/i)
+    expect(cleaned.last_name).toMatch(/linkedin|5125550199/i)
   })
 
   it("does not invent a last name from a vanity LinkedIn slug with digit noise", () => {
@@ -202,6 +202,32 @@ describe("sanitizeParsedIdentityFields", () => {
 
     expect(cleaned.first_name).toBe("Goutham")
     expect(cleaned.last_name).toBe("")
+  })
+
+  it("still accepts clean hyphenated and accented names silently", () => {
+    const cleaned = sanitizeParsedIdentityFields(
+      normalizeParsedResume({
+        first_name: "José",
+        last_name: "García",
+        email: "jose@example.com",
+      }),
+    )
+    expect(cleaned.first_name).toBe("José")
+    expect(cleaned.last_name).toBe("García")
+  })
+})
+
+describe("sanitizeParsedIdentityFieldsWithAssessment", () => {
+  it("flags LinkedIn junk for recruiter review", () => {
+    const result = sanitizeParsedIdentityFieldsWithAssessment(
+      normalizeParsedResume({
+        first_name: "John Smith",
+        last_name: "linkedin.com/in/john",
+        email: "john@example.com",
+      }),
+    )
+    expect(result.nameAssessment.needsReview).toBe(true)
+    expect(result.nameAssessment.rawExtract).toMatch(/linkedin/i)
   })
 })
 

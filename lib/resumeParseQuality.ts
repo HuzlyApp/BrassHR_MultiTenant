@@ -1,5 +1,12 @@
 /** Quality gate for ATS / LLM resume extraction — client + server. */
 
+import {
+  assessCandidateName,
+  type CandidateNameAssessment,
+} from "@/lib/resume/validate-person-name"
+
+export type { CandidateNameAssessment }
+
 /** Pull a JSON object from model output (raw JSON or ```json ... ``` fences). */
 export function extractJsonObjectFromModelText(raw: string): Record<string, unknown> | null {
   const trimmed = raw.trim()
@@ -78,6 +85,16 @@ export function sanitizeResumeEmail(email: string): string {
 /** Recruiter add-candidate only needs identity, not a full ATS address profile. */
 export function hasAdminCandidateIdentity(parsed: NormalizedParsedResume): boolean {
   return Boolean(parsed.first_name.trim() && parsed.last_name.trim() && parsed.email.trim())
+}
+
+/** Assess first/last as extracted (call before contact strip for accurate junk detection). */
+export function assessParsedResumeName(
+  parsed: Pick<NormalizedParsedResume, "first_name" | "last_name">,
+): CandidateNameAssessment {
+  return assessCandidateName({
+    firstName: parsed.first_name,
+    lastName: parsed.last_name,
+  })
 }
 
 /** Normalize common parser / storage shapes to snake_case strings. */
@@ -183,7 +200,13 @@ export function evaluateResumeParseQuality(raw: unknown): ResumeParseQualityResu
 }
 
 /** Payload stored for the review step (matches existing localStorage consumers). */
-export function normalizedResumeToStoredJson(n: NormalizedParsedResume): Record<string, string> {
+export function normalizedResumeToStoredJson(
+  n: NormalizedParsedResume,
+  opts?: { nameAssessment?: CandidateNameAssessment },
+): Record<string, string> {
+  const nameAssessment =
+    opts?.nameAssessment ??
+    assessCandidateName({ firstName: n.first_name, lastName: n.last_name })
   return {
     first_name: n.first_name,
     last_name: n.last_name,
@@ -196,5 +219,19 @@ export function normalizedResumeToStoredJson(n: NormalizedParsedResume): Record<
     zipCode: n.zip,
     zip: n.zip,
     job_role: n.job_role,
+    name_needs_review: nameAssessment.needsReview ? "true" : "false",
+    name_raw_extract: nameAssessment.rawExtract,
   }
+}
+
+export function nameNeedsReviewFromStoredJson(
+  stored: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!stored) return false
+  const flag = stored.name_needs_review
+  if (flag === true || flag === "true") return true
+  return assessCandidateName({
+    firstName: String(stored.first_name ?? ""),
+    lastName: String(stored.last_name ?? ""),
+  }).needsReview
 }

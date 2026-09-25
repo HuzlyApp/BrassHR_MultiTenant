@@ -1,5 +1,9 @@
 import { parseCityStateLocation } from "@/lib/location/city-state"
 import { sanitizeResumeEmail, type NormalizedParsedResume } from "@/lib/resumeParseQuality"
+import {
+  assessCandidateName,
+  type CandidateNameAssessment,
+} from "@/lib/resume/validate-person-name"
 
 const EMAIL_RE =
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/
@@ -302,12 +306,23 @@ function dropSoftwareModuleLocation<T extends Pick<NormalizedParsedResume, "city
   return fields
 }
 
+export type SanitizedIdentityResult = {
+  parsed: NormalizedParsedResume
+  /** Assessed on pre-strip first/last so URL/phone/email junk is still detected (FSD NAME-001). */
+  nameAssessment: CandidateNameAssessment
+}
+
 /** Clean polluted Grok/pre-extract identity fields (title/contact in last name, SAP MM/SD as city). */
-export function sanitizeParsedIdentityFields(
+export function sanitizeParsedIdentityFieldsWithAssessment(
   parsed: NormalizedParsedResume,
   resumeText = "",
   opts?: ResumeFieldExtractOptions,
-): NormalizedParsedResume {
+): SanitizedIdentityResult {
+  const nameAssessment = assessCandidateName({
+    firstName: parsed.first_name,
+    lastName: parsed.last_name,
+  })
+
   const header = parseNameAndTitle(
     `${stripContactFromPersonName(parsed.first_name)} ${stripContactFromPersonName(parsed.last_name)}`.trim(),
   )
@@ -321,13 +336,38 @@ export function sanitizeParsedIdentityFields(
       lastNameFromFileName(opts?.fileName ?? "", first_name)
   }
 
-  return dropSoftwareModuleLocation({
-    ...parsed,
-    first_name,
-    last_name,
-    job_role,
-    email: sanitizeResumeEmail(parsed.email),
-  })
+  // Failing names stay as draft pre-fill (raw extract) so recruiters see what was grabbed.
+  if (nameAssessment.needsReview) {
+    const raw = nameAssessment.rawExtract
+    const rawParts = raw.split(/\s+/).filter(Boolean)
+    if (rawParts.length >= 2) {
+      first_name = rawParts[0] ?? raw
+      last_name = rawParts.slice(1).join(" ")
+    } else {
+      first_name = raw
+      last_name = ""
+    }
+  }
+
+  return {
+    parsed: dropSoftwareModuleLocation({
+      ...parsed,
+      first_name,
+      last_name,
+      job_role,
+      email: sanitizeResumeEmail(parsed.email),
+    }),
+    nameAssessment,
+  }
+}
+
+/** Clean polluted Grok/pre-extract identity fields (title/contact in last name, SAP MM/SD as city). */
+export function sanitizeParsedIdentityFields(
+  parsed: NormalizedParsedResume,
+  resumeText = "",
+  opts?: ResumeFieldExtractOptions,
+): NormalizedParsedResume {
+  return sanitizeParsedIdentityFieldsWithAssessment(parsed, resumeText, opts).parsed
 }
 
 function pickRelevantLines(allLines: string[], maxLines: number): string[] {

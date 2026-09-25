@@ -1,4 +1,5 @@
 import { normalizePhoneInput } from "@/lib/phone";
+import { validatePersonName } from "@/lib/resume/validate-person-name";
 
 const EMAIL_RE =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
@@ -50,8 +51,8 @@ export function validateAddCandidateField(
     case "name": {
       const name = String(value.name ?? "").trim();
       if (!name) return "Name is required.";
-      if (name.length < 2) return "Enter at least 2 characters.";
-      if (!/[a-zA-Z]/.test(name)) return "Enter a valid name.";
+      const result = validatePersonName(name);
+      if (!result.ok) return result.reason;
       return null;
     }
     case "email": {

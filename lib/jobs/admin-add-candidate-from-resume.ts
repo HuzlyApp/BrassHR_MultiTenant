@@ -5,10 +5,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import { createAdminJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
-import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
+import { grokParseResumeCachedWithAssessment } from "@/lib/resume/grok-parse-resume-cached";
 import {
   extractLocationFromResumeText,
   preExtractResumeFields,
+  sanitizeParsedIdentityFieldsWithAssessment,
 } from "@/lib/resume/normalize-resume-text";
 import {
   hasAdminCandidateIdentity,
@@ -17,6 +18,11 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
   type NormalizedParsedResume,
 } from "@/lib/resumeParseQuality";
+import type { CandidateNameAssessment } from "@/lib/resume/validate-person-name";
+import {
+  NAME_NEEDS_REVIEW_BANNER,
+  validateCandidateNameParts,
+} from "@/lib/resume/validate-person-name";
 import { resumeTextToPdfBuffer } from "@/lib/resume/resume-text-to-pdf";
 import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
 import {
@@ -154,6 +160,7 @@ export type PreparedResumeCandidate = {
   parsedJson: Record<string, string>;
   qualityOk: boolean;
   qualityMessage: string | null;
+  nameAssessment: CandidateNameAssessment;
 };
 
 export function resolveAdminCandidateIdentity(
@@ -191,20 +198,27 @@ async function parseExtractedResumeText(
   parsed: NormalizedParsedResume;
   qualityOk: boolean;
   qualityMessage: string | null;
+  nameAssessment: CandidateNameAssessment;
 }> {
   const contentError = validateExtractedResumeText(extractedText);
   const preExtracted = preExtractResumeFields(extractedText, { fileName });
-  const fallback = normalizeParsedResume(preExtracted);
+  const fallbackSanitized = sanitizeParsedIdentityFieldsWithAssessment(
+    normalizeParsedResume(preExtracted),
+    extractedText,
+    { fileName },
+  );
 
-  let parsed = fallback;
+  let parsed = fallbackSanitized.parsed;
+  let nameAssessment = fallbackSanitized.nameAssessment;
   if (!contentError) {
     try {
-      parsed = normalizeParsedResume(
-        await grokParseResumeCached(extractedText, { fileName }),
-      );
+      const grok = await grokParseResumeCachedWithAssessment(extractedText, { fileName });
+      parsed = normalizeParsedResume(grok.normalized);
+      nameAssessment = grok.nameAssessment;
     } catch (parseError) {
       console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
-      parsed = fallback;
+      parsed = fallbackSanitized.parsed;
+      nameAssessment = fallbackSanitized.nameAssessment;
     }
   }
 
@@ -219,13 +233,19 @@ async function parseExtractedResumeText(
   }
 
   if (hasAdminCandidateIdentity(parsed)) {
-    return { parsed, qualityOk: true, qualityMessage: null };
+    return {
+      parsed,
+      qualityOk: true,
+      qualityMessage: nameAssessment.needsReview ? NAME_NEEDS_REVIEW_BANNER : null,
+      nameAssessment,
+    };
   }
 
   return {
     parsed,
     qualityOk: false,
     qualityMessage: contentError ?? RESUME_PARSE_FAILED_USER_MESSAGE,
+    nameAssessment,
   };
 }
 
@@ -300,7 +320,7 @@ export async function prepareResumeCandidate(input: {
     throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
   }
 
-  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(
+  const { parsed, qualityOk, qualityMessage, nameAssessment } = await parseExtractedResumeText(
     extractedText,
     resumeFileName,
   );
@@ -312,9 +332,10 @@ export async function prepareResumeCandidate(input: {
     resumeContentType,
     resumeFileType,
     parsed,
-    parsedJson: normalizedResumeToStoredJson(parsed),
+    parsedJson: normalizedResumeToStoredJson(parsed, { nameAssessment }),
     qualityOk,
     qualityMessage,
+    nameAssessment,
   };
 }
 
@@ -343,6 +364,15 @@ export async function adminAddCandidateFromResume(
   const { firstName: resolvedFirstName, lastName: resolvedLastName, fullName, email, phone } =
     resolveAdminCandidateIdentity(parsed, input);
 
+  const nameCheck = validateCandidateNameParts(resolvedFirstName, resolvedLastName);
+  if (!nameCheck.ok) {
+    throw new JobValidationError(
+      nameCheck.reason || NAME_NEEDS_REVIEW_BANNER,
+      { name: nameCheck.reason || "Enter a valid first and last name." },
+      "NAME_INVALID"
+    );
+  }
+
   if (!fullName) {
     throw new JobValidationError(
       "First and last name are required. Fill them in and try again.",
@@ -358,13 +388,24 @@ export async function adminAddCandidateFromResume(
     );
   }
 
-  const parsedJson = normalizedResumeToStoredJson({
-    ...parsed,
-    first_name: resolvedFirstName,
-    last_name: resolvedLastName,
-    email,
-    phone,
-  });
+  const parsedJson = normalizedResumeToStoredJson(
+    {
+      ...parsed,
+      first_name: resolvedFirstName,
+      last_name: resolvedLastName,
+      email,
+      phone,
+    },
+    {
+      nameAssessment: {
+        ok: true,
+        needsReview: false,
+        normalized: nameCheck.normalized,
+        rawExtract: nameCheck.normalized,
+        reason: null,
+      },
+    },
+  );
 
   const uploadBytes =
     !input.resumeFile?.size && input.resumeText?.trim()

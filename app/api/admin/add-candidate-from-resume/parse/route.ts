@@ -30,6 +30,8 @@ export type AdminResumeParsePreview = {
   city: string;
   state: string;
   location: string;
+  nameNeedsReview: boolean;
+  nameRawExtract: string;
 };
 
 /** Parse a resume before the candidate is created, so the recruiter can review the names. */
@@ -59,11 +61,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { parsed, qualityOk, qualityMessage, extractedText } = await prepareResumeCandidate({
-      resumeFile: file,
-      resumeText: resumeText || null,
-      resumeTitle: resumeTitle || null,
-    });
+    const { parsed, qualityOk, qualityMessage, extractedText, nameAssessment } =
+      await prepareResumeCandidate({
+        resumeFile: file,
+        resumeText: resumeText || null,
+        resumeTitle: resumeTitle || null,
+      });
 
     const city = parsed.city.trim();
     const state = parsed.state.trim();
@@ -76,6 +79,8 @@ export async function POST(req: NextRequest) {
       city,
       state,
       location: [city, state].filter(Boolean).join(", "),
+      nameNeedsReview: nameAssessment.needsReview,
+      nameRawExtract: nameAssessment.rawExtract,
     };
 
     return NextResponse.json({
@@ -83,7 +88,8 @@ export async function POST(req: NextRequest) {
       parsed: preview,
       extractedText: extractedText.trim() || null,
       qualityOk,
-      warning: qualityOk ? null : qualityMessage,
+      nameNeedsReview: nameAssessment.needsReview,
+      warning: qualityMessage,
     });
   } catch (error) {
     if (error instanceof JobValidationError) {
