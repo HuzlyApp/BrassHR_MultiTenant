@@ -1,6 +1,9 @@
 import "server-only";
 
 import OpenAI from "openai";
+import { assembleSubmissionResumeVariables } from "@/lib/ai-catalog/assemble-match-variables";
+import { renderPromptTemplate } from "@/lib/ai-catalog/render-prompt";
+import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
 import { extractJsonObjectFromModelText } from "@/lib/resumeParseQuality";
 import { sanitizeResumeForMatchAnalysis } from "./sanitize-resume";
 import type { MatchAnalysisResponse } from "./schema";
@@ -11,40 +14,11 @@ import {
   type SubmissionResume,
   type SubmissionResumeIdentity,
 } from "./submission-resume";
-import { DEFAULT_STEP3_GROK_MODEL, grokReasoningEffort } from "./step-config";
+import { DEFAULT_STEP3_GROK_MODEL, grokReasoningEffort, sanitizeStep3Model } from "./step-config";
 
 const DEFAULT_MODEL = DEFAULT_STEP3_GROK_MODEL;
 const MAX_OUTPUT_TOKENS = 4_000;
 const TIMEOUT_MS = 45_000;
-
-const SYSTEM_PROMPT = `You rewrite a candidate résumé for MSP / client submission.
-
-Return JSON only. No markdown.
-
-Schema:
-{
-  "fullName": "",
-  "headline": "",
-  "email": "",
-  "phone": "",
-  "location": "",
-  "summary": "",
-  "skills": [""],
-  "experience": [{ "title": "", "company": "", "dates": "", "bullets": [""] }],
-  "education": [{ "school": "", "credential": "", "year": "" }],
-  "licenses": [""]
-}
-
-Rules:
-- Optimize wording and order for the target job.
-- Put the most relevant experience first.
-- Use keywords from confirmed requirements only when they already appear in the résumé, Deep Match evidence, or recruiter enrichment (screening answers, call context, verified info, notes).
-- Prefer recruiter-confirmed facts from Steps 2–4 when they clarify wording already supported by the résumé.
-- Never invent employers, titles, dates, licenses, education, tools, or achievements.
-- Do not include protected-class details, SSN, or street address.
-- Keep bullets factual and concise.
-- skills[] must be short labels (max ~80 characters each), not full requirement sentences.
-- If a fact is missing, omit it.`;
 
 function resolveGrokClient(): OpenAI | null {
   const apiKey = process.env.XAI_API_KEY?.trim() || process.env.GROK_API_KEY?.trim();
@@ -117,38 +91,68 @@ export async function generateOptimizedSubmissionResume(args: {
   analysis: MatchAnalysisResponse | null;
   resumeText: string;
   enrichmentNotes?: string | null;
-}): Promise<{ resume: SubmissionResume; usedModel: boolean }> {
+  resolved: ResolvedPromptVersion;
+}): Promise<{ resume: SubmissionResume; usedModel: boolean; model: string | null }> {
   const fallback = buildFallbackSubmissionResume(args);
   const client = resolveGrokClient();
-  if (!client) return { resume: fallback, usedModel: false };
+  if (!client) return { resume: fallback, usedModel: false, model: null };
 
-  const user = buildSubmissionResumeUserPrompt(args);
+  const system = args.resolved.systemPrompt?.trim() ?? "";
+  if (!system) return { resume: fallback, usedModel: false, model: null };
 
+  const user = renderPromptTemplate(
+    args.resolved.userPromptTemplate ?? "",
+    assembleSubmissionResumeVariables({
+      jobTitle: args.identity.jobTitle,
+      candidateName: args.identity.fullName,
+      email: args.identity.email,
+      phone: args.identity.phone,
+      location: args.identity.location,
+      recruiterSummary: args.analysis?.candidate_match?.recruiter_decision_summary,
+      confirmedEvidence: confirmedLines(args.analysis),
+      strengths: args.analysis?.strengths ?? [],
+      enrichmentNotes: args.enrichmentNotes,
+      resumeText: sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, 12_000),
+    }),
+    { required: ["candidate_resume"] }
+  );
+
+  const cfg = args.resolved.modelConfig ?? {};
+  const catalogModel =
+    typeof cfg.model === "string" && cfg.model.trim()
+      ? sanitizeStep3Model(cfg.model, DEFAULT_MODEL)
+      : "";
   const model =
+    catalogModel ||
     process.env.AI_MATCH_STEP5_SUBMISSION_MODEL?.trim() ||
     process.env.AI_MATCH_STEP3_DEEP_GROK_MODEL?.trim() ||
     process.env.XAI_MATCH_DEEP_MODEL?.trim() ||
     process.env.GROK_MATCH_DEEP_MODEL?.trim() ||
     DEFAULT_MODEL;
+  const maxTokens = Number(cfg.base_max_tokens ?? MAX_OUTPUT_TOKENS);
 
   try {
     const response = await client.responses.create({
       model,
-      temperature: 0.2,
-      max_output_tokens: MAX_OUTPUT_TOKENS,
+      temperature: typeof cfg.temperature === "number" ? cfg.temperature : 0.2,
+      max_output_tokens: maxTokens,
       reasoning: { effort: grokReasoningEffort(model) },
       input: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: system },
         { role: "user", content: user },
       ],
     });
     const parsed = parseSubmissionResume(extractJsonObjectFromModelText(extractOutputText(response)));
-    return { resume: mergeSubmissionResume(parsed, fallback), usedModel: Boolean(parsed) };
+    return {
+      resume: mergeSubmissionResume(parsed, fallback),
+      usedModel: Boolean(parsed),
+      model,
+    };
   } catch (error) {
     console.warn("[submission-resume] model rewrite failed, using fallback", {
       model,
       message: error instanceof Error ? error.message : "unknown",
     });
-    return { resume: fallback, usedModel: false };
+    return { resume: fallback, usedModel: false, model };
   }
 }

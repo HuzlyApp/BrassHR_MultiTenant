@@ -3,9 +3,14 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeActivityLog } from "@/lib/audit/activity-log";
+import { PromptNotConfiguredError, PROMPT_NOT_CONFIGURED } from "@/lib/ai-catalog/errors";
+import { industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
+import { recordAiPromptRun } from "@/lib/ai-catalog/record-run";
+import { resolvePromptVersion } from "@/lib/ai-catalog/resolve-prompt";
 import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { isDeepMatchStage } from "./match-stage";
+import { matchProgressionVariantKey } from "./prompt-variant";
 import { matchAnalysisResponseSchema, type MatchAnalysisResponse } from "./schema";
 import { generateOptimizedSubmissionResume } from "./generate-submission-resume";
 import { loadSubmissionEnrichmentNotes } from "./submission-enrichment";
@@ -113,7 +118,7 @@ export async function draftSubmissionResumePack(args: {
       : Promise.resolve({ data: null }),
     supabase
       .from("job_requisitions")
-      .select("title, public_title")
+      .select("title, public_title, industry_key, msp_client, msp_name, job_source_id")
       .eq("id", application.job_requisition_id)
       .eq("tenant_id", tenantId)
       .maybeSingle(),
@@ -135,7 +140,7 @@ export async function draftSubmissionResumePack(args: {
 
   const analysis = parseStoredAnalysis(application.ai_analysis);
   const workerId = application.worker_id ? String(application.worker_id) : null;
-  const [resumeText, enrichmentNotes] = await Promise.all([
+  const [resumeText, enrichmentNotes, tenantRow] = await Promise.all([
     loadSourceResumeText(supabase, tenantId, applicationId, workerId),
     loadSubmissionEnrichmentNotes({
       supabase,
@@ -144,17 +149,111 @@ export async function draftSubmissionResumePack(args: {
       workerId,
       analysis,
     }),
+    supabase
+      .from("tenants")
+      .select("primary_industry_key, industry")
+      .eq("id", tenantId)
+      .maybeSingle()
+      .then((res) => res.data),
   ]);
   if (!resumeText && !analysis) {
     throw new SubmissionResumeError("No résumé text is available to optimize.", 409);
   }
 
-  const { resume, usedModel } = await generateOptimizedSubmissionResume({
+  let clientName =
+    typeof job?.msp_client === "string" && job.msp_client.trim()
+      ? job.msp_client
+      : typeof job?.msp_name === "string" && job.msp_name.trim()
+        ? job.msp_name
+        : null;
+  let sourceKey =
+    typeof job?.msp_name === "string" && job.msp_name.trim() ? job.msp_name : null;
+  if (typeof job?.job_source_id === "string" && job.job_source_id.trim()) {
+    const { data: sourceRow } = await supabase
+      .from("job_sources")
+      .select("name, code")
+      .eq("id", job.job_source_id)
+      .maybeSingle();
+    if (typeof sourceRow?.name === "string" && sourceRow.name.trim()) clientName = sourceRow.name;
+    if (typeof sourceRow?.code === "string" && sourceRow.code.trim()) sourceKey = sourceRow.code;
+  }
+  const jobIndustryKey =
+    typeof job?.industry_key === "string" && job.industry_key.trim() ? String(job.industry_key) : null;
+  const tenantPrimary =
+    typeof tenantRow?.primary_industry_key === "string" && tenantRow.primary_industry_key.trim()
+      ? String(tenantRow.primary_industry_key)
+      : industryKeyFromLegacyLabel(
+          typeof tenantRow?.industry === "string" ? tenantRow.industry : null
+        );
+
+  const startedAt = Date.now();
+  let resolved;
+  try {
+    resolved = await resolvePromptVersion(supabase, {
+      tenantId,
+      featureKey: "candidate_match",
+      variantKey: matchProgressionVariantKey("submission"),
+      industryKey: jobIndustryKey,
+      tenantPrimaryIndustryKey: tenantPrimary,
+      clientName,
+      sourceKey,
+    });
+  } catch (error) {
+    if (error instanceof PromptNotConfiguredError) {
+      await recordAiPromptRun(supabase, {
+        tenantId,
+        featureKey: "candidate_match",
+        variantKey: "submission",
+        verticalKey: null,
+        industryKey: jobIndustryKey ?? tenantPrimary,
+        promptVersionId: null,
+        contentHash: null,
+        entityType: "job_application",
+        entityId: applicationId,
+        inputHash: null,
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        latencyMs: Date.now() - startedAt,
+        creditCost: null,
+        status: "skipped_no_prompt",
+        errorCode: PROMPT_NOT_CONFIGURED,
+        outputReference: null,
+        requestedBy: staffUserId,
+      }).catch(() => undefined);
+      throw new SubmissionResumeError(error.message, 503);
+    }
+    throw error;
+  }
+
+  const { resume, usedModel, model } = await generateOptimizedSubmissionResume({
     identity,
     analysis,
     resumeText,
     enrichmentNotes,
+    resolved,
   });
+  await recordAiPromptRun(supabase, {
+    tenantId,
+    featureKey: "candidate_match",
+    variantKey: resolved.variantKey,
+    verticalKey: resolved.resolvedVerticalKey,
+    industryKey: resolved.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
+    promptVersionId: resolved.promptVersionId,
+    contentHash: resolved.contentHash,
+    entityType: "job_application",
+    entityId: applicationId,
+    inputHash: null,
+    model,
+    inputTokens: null,
+    outputTokens: null,
+    latencyMs: Date.now() - startedAt,
+    creditCost: null,
+    status: usedModel ? "success" : "skipped_no_prompt",
+    errorCode: usedModel ? null : "MODEL_UNAVAILABLE",
+    outputReference: null,
+    requestedBy: staffUserId,
+  }).catch(() => undefined);
   const pdf = await renderSubmissionResumePdf(resume);
   const fileName = submissionResumeFileName(resume.fullName || fullName);
   const extractedText = submissionResumeToPlainText(resume);
