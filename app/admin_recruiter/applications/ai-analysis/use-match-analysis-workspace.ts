@@ -66,7 +66,7 @@ export type MatchAnalysisWorkspacePayload = {
     relatedRequirement: string;
     answer: string;
   }>;
-  /** Step 2 call-pack context required before Follow-Up; included in Deep Match notes. */
+  /** Step 2 call-pack context (optional); included in Deep Match notes when present. */
   callContext?: string;
   screeningUploads?: Array<{
     id: string;
