@@ -23,20 +23,21 @@ export function resolveApplicationApplicantName(row: ApplicationApplicantSource)
   const profile = oneEmbedded(row.applicant_profiles);
   const worker = oneEmbedded(row.worker);
 
-  const fromProfile = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
-  if (fromProfile) return fromProfile;
-
+  // Prefer worker: Match Analysis / profile editors write worker first and sync profile.
   const fromWorker = [worker.first_name, worker.last_name].filter(Boolean).join(" ").trim();
   if (fromWorker) return fromWorker;
 
-  const email = String(profile.email ?? worker.email ?? "").trim();
+  const fromProfile = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
+  if (fromProfile) return fromProfile;
+
+  const email = String(worker.email ?? profile.email ?? "").trim();
   return email || "Applicant";
 }
 
 export function resolveApplicationApplicantEmail(row: ApplicationApplicantSource): string {
   const profile = oneEmbedded(row.applicant_profiles);
   const worker = oneEmbedded(row.worker);
-  return String(profile.email ?? worker.email ?? "").trim();
+  return String(worker.email ?? profile.email ?? "").trim();
 }
 
 export function resolveApplicationApplicantPhone(row: ApplicationApplicantSource): string {

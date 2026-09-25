@@ -575,18 +575,18 @@ function applicationClientName(row: ApplicationRow): string {
   return String(job.msp_name ?? "").trim();
 }
 
-/** Split name for edit fields — the profile is authoritative, the worker row is the fallback. */
+/** Split name for edit fields — worker is authoritative after Match Analysis edits; profile is fallback. */
 function applicantNameParts(row: ApplicationRow): { firstName: string; lastName: string } {
   const profile = one(row.applicant_profiles);
   const worker = one(row.worker ?? null);
-  const profileFirst = String(profile.first_name ?? "").trim();
-  const profileLast = String(profile.last_name ?? "").trim();
-  if (profileFirst || profileLast) {
-    return { firstName: profileFirst, lastName: profileLast };
+  const workerFirst = String(worker.first_name ?? "").trim();
+  const workerLast = String(worker.last_name ?? "").trim();
+  if (workerFirst || workerLast) {
+    return { firstName: workerFirst, lastName: workerLast };
   }
   return {
-    firstName: String(worker.first_name ?? "").trim(),
-    lastName: String(worker.last_name ?? "").trim(),
+    firstName: String(profile.first_name ?? "").trim(),
+    lastName: String(profile.last_name ?? "").trim(),
   };
 }
 

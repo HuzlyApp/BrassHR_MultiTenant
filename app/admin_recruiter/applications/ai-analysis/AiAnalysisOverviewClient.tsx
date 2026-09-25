@@ -82,16 +82,15 @@ import {
   canAdvanceMatchProgression,
   canRunDeepMatch,
   canSelectMatchProgressionStep,
-  displayFitBand,
   fitBandFromDeepMatchResult,
   fitBandLabel,
   fitBandTagClassName,
+  listingDisplayFitBand,
   matchProgressionInitialIndex,
   matchProgressionFollowUpNeedsConfirm,
   matchProgressionStepRequiresDeepConfirm,
   matchProgressionPrimaryAction,
   matchProgressionStageFromIndex,
-  quickMatchFitBand,
   type QuickMatchFitBand,
 } from "@/lib/jobs/match-analysis/progression";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "@/lib/jobs/match-analysis/quick-route";
@@ -650,6 +649,8 @@ export function AiAnalysisOverviewClient({
     savingText,
     resumes,
     viewResume,
+    downloadSubmissionDocx,
+    improvementSummary,
     runAnalyze,
     saveScreeningAnswers,
     uploadScreeningReply,
@@ -870,14 +871,22 @@ export function AiAnalysisOverviewClient({
   const parkedInTalentPool =
     app?.recruiter_decision === "do_not_pursue" ||
     (statusSystemKey ?? app?.status_system_key) === "rejected";
-  const fitBand = storedRoute
-    ? fitBandFromQuickRoute(storedRoute)
-    : quickMatchFitBand(outcomeCounts);
-  const displayedFitBand = displayFitBand({
-    fitBand,
-    stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
-    hasDeepMatch,
-  });
+  // Same checklist Fit as the job candidates list — do not prefer a stale quick_route
+  // (e.g. stored LOW_MATCH while Conf/Verify counts still read as Review).
+  const displayedFitBand: QuickMatchFitBand =
+    listingDisplayFitBand({
+      analyzed: isAnalyzed,
+      stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+      counts: {
+        confirmed: outcomeCounts.confirmed,
+        verify: outcomeCounts.verify,
+        notMet: outcomeCounts.notMet,
+        mandatory: outcomeCounts.mandatory,
+        blocking: outcomeCounts.blocking,
+      },
+    }) ??
+    (storedRoute ? fitBandFromQuickRoute(storedRoute) : "review");
+  const fitBand = displayedFitBand;
   // Steps 1–3: show Low / Review / Strong. Step 4+ (Deep Match): show actual match %.
   const matchLabel = hasDeepMatch
     ? app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Match"
@@ -940,7 +949,35 @@ export function AiAnalysisOverviewClient({
     const packs = resumes.filter((row) => isSubmissionResumeFileName(row.fileName));
     return packs[packs.length - 1] ?? null;
   }, [resumes]);
-  const hasSubmissionResume = Boolean(latestSubmissionResume);
+  const latestSubmissionDocx = useMemo(() => {
+    const packs = resumes.filter((row) => /_submission_resume\.docx$/i.test(row.fileName));
+    return packs[packs.length - 1] ?? null;
+  }, [resumes]);
+  const latestSubmissionPdf = useMemo(() => {
+    const packs = resumes.filter((row) => /_submission_resume\.pdf$/i.test(row.fileName));
+    return packs[packs.length - 1] ?? null;
+  }, [resumes]);
+  const latestOriginalResume = useMemo(() => {
+    const originals = resumes.filter((row) => !isSubmissionResumeFileName(row.fileName));
+    return originals[originals.length - 1] ?? null;
+  }, [resumes]);
+  const hasSubmissionResume = Boolean(latestSubmissionDocx || latestSubmissionPdf || latestSubmissionResume);
+  const originalPreviewHref =
+    workerId && latestOriginalResume
+      ? adminWorkerResumePreviewHref({
+          workerId,
+          resumeId: latestOriginalResume.id,
+          applicationId,
+        })
+      : null;
+  const optimizedPreviewHref =
+    workerId && (latestSubmissionPdf || latestSubmissionResume)
+      ? adminWorkerResumePreviewHref({
+          workerId,
+          resumeId: (latestSubmissionPdf || latestSubmissionResume)!.id,
+          applicationId,
+        })
+      : null;
   const primaryAction = matchProgressionPrimaryAction(viewedStep, { hasSubmissionResume });
   const canRunPaidDeep = canRunDeepMatch({
     isAnalyzed,
@@ -1505,43 +1542,206 @@ export function AiAnalysisOverviewClient({
               <SectionHeaderBlock>
                 <SectionTitle>Optimized submission résumé</SectionTitle>
                 <p className="mt-1 text-sm text-[#667085]">
-                  Job-tailored PDF for the MSP / client portal. This is not the original upload.
+                  Editable Word deliverable for the MSP / client portal, with a PDF preview for comparison.
+                  Only job-relevant, evidence-supported details are included.
                 </p>
               </SectionHeaderBlock>
-              {latestSubmissionResume ? (
-                <div className="mt-4 flex flex-col gap-3">
+              {hasSubmissionResume ? (
+                <div className="mt-4 flex flex-col gap-4">
                   <div className="flex items-start gap-3 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 py-3">
                     <BrandedFileTypeIcon type="pdf" className="mt-0.5 h-7 w-7 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void viewResume(latestSubmissionResume.id)}
-                          className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
-                        >
-                          {latestSubmissionResume.fileName}
-                        </button>
+                        <p className="m-0 block max-w-full truncate text-sm font-semibold text-[color:var(--brand-primary)]">
+                          {(latestSubmissionDocx || latestSubmissionResume)?.fileName ||
+                            "Optimized submission résumé"}
+                        </p>
                         <span className="shrink-0 rounded-md bg-[color:var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                           Optimized
                         </span>
                       </div>
-                      {latestSubmissionResume.uploadedAtLabel || latestSubmissionResume.uploadedAt ? (
+                      {(latestSubmissionDocx || latestSubmissionResume)?.uploadedAtLabel ||
+                      (latestSubmissionDocx || latestSubmissionResume)?.uploadedAt ? (
                         <p className="mt-0.5 text-xs text-[#667085]">
                           Created{" "}
-                          {latestSubmissionResume.uploadedAtLabel ||
-                            formatWhen(latestSubmissionResume.uploadedAt)}
+                          {(latestSubmissionDocx || latestSubmissionResume)?.uploadedAtLabel ||
+                            formatWhen((latestSubmissionDocx || latestSubmissionResume)?.uploadedAt)}
                         </p>
                       ) : null}
                     </div>
                   </div>
+
+                  {(originalPreviewHref || optimizedPreviewHref) && workerId ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="overflow-hidden rounded-lg border border-[#E4E7EC] bg-[#F9FAFB]">
+                        <div className="flex items-center justify-between border-b border-[#E4E7EC] px-3 py-2">
+                          <p className="m-0 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Original
+                          </p>
+                          {latestOriginalResume ? (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-[color:var(--brand-primary)] hover:underline"
+                              onClick={() => void viewResume(latestOriginalResume.id)}
+                            >
+                              Open
+                            </button>
+                          ) : null}
+                        </div>
+                        {originalPreviewHref ? (
+                          <iframe
+                            title="Original résumé preview"
+                            src={originalPreviewHref}
+                            className="h-[420px] w-full bg-white"
+                          />
+                        ) : (
+                          <p className="m-0 px-3 py-8 text-center text-sm text-[#667085]">
+                            No original résumé on file.
+                          </p>
+                        )}
+                      </div>
+                      <div className="overflow-hidden rounded-lg border border-[#E4E7EC] bg-[#F9FAFB]">
+                        <div className="flex items-center justify-between border-b border-[#E4E7EC] px-3 py-2">
+                          <p className="m-0 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Optimized preview
+                          </p>
+                          {latestSubmissionPdf || latestSubmissionResume ? (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-[color:var(--brand-primary)] hover:underline"
+                              onClick={() =>
+                                void viewResume((latestSubmissionPdf || latestSubmissionResume)!.id)
+                              }
+                            >
+                              Open
+                            </button>
+                          ) : null}
+                        </div>
+                        {optimizedPreviewHref ? (
+                          <iframe
+                            title="Optimized résumé PDF preview"
+                            src={optimizedPreviewHref}
+                            className="h-[420px] w-full bg-white"
+                          />
+                        ) : (
+                          <p className="m-0 px-3 py-8 text-center text-sm text-[#667085]">
+                            Draft an optimized résumé to preview.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {improvementSummary ? (
+                    <div className="rounded-lg border border-[#E4E7EC] bg-white px-4 py-3">
+                      <p className="m-0 text-sm font-semibold text-[#101828]">Improvement summary</p>
+                      <p className="mt-1 text-sm leading-5 text-[#475467]">{improvementSummary.overall}</p>
+                      <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Clarity
+                          </dt>
+                          <dd className="m-0 mt-0.5 text-sm text-[#344054]">{improvementSummary.clarity}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Relevance
+                          </dt>
+                          <dd className="m-0 mt-0.5 text-sm text-[#344054]">
+                            {improvementSummary.relevance}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Formatting
+                          </dt>
+                          <dd className="m-0 mt-0.5 text-sm text-[#344054]">
+                            {improvementSummary.formatting}
+                          </dd>
+                        </div>
+                      </dl>
+                      {improvementSummary.skillEvidenceNote ? (
+                        <p
+                          className={`mt-3 text-sm ${
+                            improvementSummary.skillEvidenceQuality === "keyword_stuffing"
+                              ? "font-medium text-[#B42318]"
+                              : "text-[#475467]"
+                          }`}
+                        >
+                          {improvementSummary.skillEvidenceNote}
+                        </p>
+                      ) : null}
+                      {(improvementSummary.added.length > 0 ||
+                        improvementSummary.removed.length > 0 ||
+                        improvementSummary.needsVerification.length > 0) && (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          {improvementSummary.added.length > 0 ? (
+                            <div>
+                              <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                                Added / highlighted
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-[#344054]">
+                                {improvementSummary.added.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {improvementSummary.removed.length > 0 ? (
+                            <div>
+                              <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                                Removed / trimmed
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-[#344054]">
+                                {improvementSummary.removed.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {improvementSummary.needsVerification.length > 0 ? (
+                            <div>
+                              <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                                Needs verification
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-[#344054]">
+                                {improvementSummary.needsVerification.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className={PRIMARY_BTN}
-                      onClick={() => void viewResume(latestSubmissionResume.id)}
-                    >
-                      View PDF
-                    </button>
+                    {latestSubmissionDocx ? (
+                      <button
+                        type="button"
+                        className={PRIMARY_BTN}
+                        onClick={() =>
+                          void downloadSubmissionDocx(
+                            latestSubmissionDocx.id,
+                            latestSubmissionDocx.fileName
+                          )
+                        }
+                      >
+                        Download .docx
+                      </button>
+                    ) : null}
+                    {(latestSubmissionPdf || latestSubmissionResume) && (
+                      <button
+                        type="button"
+                        className={OUTLINE_BTN}
+                        onClick={() =>
+                          void viewResume((latestSubmissionPdf || latestSubmissionResume)!.id)
+                        }
+                      >
+                        View PDF
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={OUTLINE_BTN}
@@ -1564,7 +1764,8 @@ export function AiAnalysisOverviewClient({
               ) : (
                 <div className="mt-4">
                   <p className="text-sm text-[#667085]">
-                    No optimized résumé yet. Draft one from Deep Match evidence, then upload that file to the portal.
+                    No optimized résumé yet. Draft one from Deep Match evidence and screening follow-up,
+                    then download the Word file for the portal.
                   </p>
                   <button
                     type="button"
@@ -1795,7 +1996,11 @@ export function AiAnalysisOverviewClient({
             {isAnalyzed ? (
               <p className="mt-4 rounded-lg border border-[#FEDF89] bg-[#FFFAEB] px-3 py-2 text-xs leading-5 text-[#B54708]">
                 {FLOW_DIAMOND_COPY}
-                {fitBand === "low" ? " This applicant is Low match." : fitBand === "strong" ? " This applicant is Strong." : " This applicant is Review."}
+                {statusFitBand === "low"
+                  ? " This applicant is Low match."
+                  : statusFitBand === "strong"
+                    ? " This applicant is Strong."
+                    : " This applicant is Review."}
               </p>
             ) : null}
           </section>

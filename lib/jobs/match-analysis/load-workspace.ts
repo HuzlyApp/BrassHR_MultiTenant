@@ -21,6 +21,7 @@ import {
 } from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { jobRequirementsSourceFingerprint } from "./build-job-requirements";
 
 function displayName(first: string | null | undefined, last: string | null | undefined, email?: string | null) {
   const name = `${first ?? ""} ${last ?? ""}`.trim();
@@ -49,7 +50,9 @@ export async function loadMatchAnalysisWorkspace(
   const jobPromise = jobId
     ? supabase
         .from("job_requisitions")
-        .select("id, public_title, location, facility, facility_name")
+        .select(
+          "id, public_title, location, facility, facility_name, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, specialty"
+        )
         .eq("id", jobId)
         .eq("tenant_id", tenantId)
         .maybeSingle()
@@ -207,6 +210,38 @@ export async function loadMatchAnalysisWorkspace(
       : null;
   const stepModels = getMatchStepModels();
   const jobRow = jobResult.data;
+  const liveJobFingerprint = jobRow
+    ? jobRequirementsSourceFingerprint({
+        public_title: typeof jobRow.public_title === "string" ? jobRow.public_title : null,
+        public_description:
+          typeof jobRow.public_description === "string" ? jobRow.public_description : null,
+        qualifications: typeof jobRow.qualifications === "string" ? jobRow.qualifications : null,
+        responsibilities:
+          typeof jobRow.responsibilities === "string" ? jobRow.responsibilities : null,
+        special_requirements:
+          typeof jobRow.special_requirements === "string" ? jobRow.special_requirements : null,
+        required_credentials: jobRow.required_credentials,
+        years_of_experience:
+          typeof jobRow.years_of_experience === "string" ? jobRow.years_of_experience : null,
+        years_experience_required:
+          typeof jobRow.years_experience_required === "number"
+            ? jobRow.years_experience_required
+            : null,
+        location: typeof jobRow.location === "string" ? jobRow.location : null,
+        specialty: typeof jobRow.specialty === "string" ? jobRow.specialty : null,
+      })
+    : null;
+  const storedFingerprint =
+    analysis && typeof analysis.job_requirements_fingerprint === "string"
+      ? analysis.job_requirements_fingerprint
+      : null;
+  const analysisStaleDueToJobUpdate = Boolean(
+    application.ai_match_status === "ANALYZED" &&
+      liveJobFingerprint &&
+      storedFingerprint &&
+      storedFingerprint !== liveJobFingerprint
+  );
+  const effectiveAnalysis = analysisStaleDueToJobUpdate ? null : analysis;
   const jobTitleFromRequisition = jobRow
     ? publicJobDisplayTitle({
         public_title: typeof jobRow.public_title === "string" ? jobRow.public_title : null,
@@ -216,17 +251,30 @@ export async function loadMatchAnalysisWorkspace(
     (jobTitleFromRequisition && jobTitleFromRequisition !== "Untitled job"
       ? jobTitleFromRequisition
       : "") ||
-    analysis?.job?.job_title?.trim() ||
+    effectiveAnalysis?.job?.job_title?.trim() ||
     "";
 
   return {
     application: {
       ...application,
+      ai_analysis: effectiveAnalysis,
+      ai_match_status: analysisStaleDueToJobUpdate ? "READY" : application.ai_match_status,
+      ai_match_score: analysisStaleDueToJobUpdate ? null : application.ai_match_score,
+      ai_match_category: analysisStaleDueToJobUpdate ? null : application.ai_match_category,
+      ai_match_action: analysisStaleDueToJobUpdate ? null : application.ai_match_action,
+      ai_match_readiness: analysisStaleDueToJobUpdate ? null : application.ai_match_readiness,
+      ai_match_display_category: analysisStaleDueToJobUpdate
+        ? null
+        : application.ai_match_display_category,
+      ai_analysis_error: analysisStaleDueToJobUpdate
+        ? "Job description changed since this analysis. Re-run match analysis."
+        : application.ai_analysis_error,
       ai_analysis_model: application.ai_analysis_model || getMatchAnalysisModelName(),
-      ai_match_stage: application.ai_match_stage ?? null,
+      ai_match_stage: analysisStaleDueToJobUpdate ? null : application.ai_match_stage ?? null,
       status_name: statusName,
       status_system_key: statusSystemKey,
     },
+    analysisStaleDueToJobUpdate,
     job: jobId
       ? {
           id: jobId,

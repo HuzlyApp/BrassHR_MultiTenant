@@ -73,6 +73,8 @@ import {
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { embeddedRelationName } from "@/lib/jobs/profession-text";
 import { resolveProfessionIdForSave } from "@/lib/jobs/resolve-profession";
+import { jobRequirementsSourceFieldsChanged } from "@/lib/jobs/match-analysis/build-job-requirements";
+import { invalidateMatchCachesForJobDescriptionChange } from "@/lib/jobs/match-analysis/invalidate-on-job-change";
 
 type DbClient = SupabaseClient;
 
@@ -558,10 +560,14 @@ export async function saveJobRequisition(
 ) {
   input.professionId = await resolveProfessionIdForSave(supabase, tenantId, input);
 
+  let existingJobForMatchInvalidation: Record<string, unknown> | null = null;
+
   if (options.jobId) {
     const { data: existingJob, error: existingJobError } = await supabase
       .from("job_requisitions")
-      .select("status, workflow_assignment_mode")
+      .select(
+        "status, workflow_assignment_mode, public_title, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty"
+      )
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -571,6 +577,7 @@ export async function saveJobRequisition(
         throw existingJobError;
       }
     }
+    existingJobForMatchInvalidation = existingJob as Record<string, unknown> | null;
 
     if (isLiveJobRequisitionStatus(String(existingJob?.status ?? ""))) {
       const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
@@ -698,6 +705,28 @@ export async function saveJobRequisition(
     }
     if (error) throwJobWriteError(error);
     const savedJobId = String(data.id);
+
+    if (
+      jobRequirementsSourceFieldsChanged(existingJobForMatchInvalidation, {
+        public_title: jobRow.public_title,
+        public_description: jobRow.public_description,
+        qualifications: jobRow.qualifications,
+        responsibilities: jobRow.responsibilities,
+        special_requirements: jobRow.special_requirements,
+        required_credentials: jobRow.required_credentials,
+        years_of_experience: jobRow.years_of_experience,
+        years_experience_required: jobRow.years_experience_required,
+        location: jobRow.location,
+        specialty: existingJobForMatchInvalidation?.specialty ?? null,
+      })
+    ) {
+      await invalidateMatchCachesForJobDescriptionChange({
+        supabase,
+        tenantId,
+        jobRequisitionId: savedJobId,
+      });
+    }
+
     const screeningQuestions =
       options.screeningQuestions !== undefined
         ? await syncJobScreeningQuestions(supabase, {

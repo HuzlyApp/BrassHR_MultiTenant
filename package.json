@@ -40,6 +40,7 @@
     "@xyflow/react": "^12.10.2",
     "axios": "^1.13.6",
     "clsx": "^2.1.1",
+    "docx": "^9.7.2",
     "emoji-picker-react": "^4.19.1",
     "framer-motion": "^12.35.0",
     "groq-sdk": "^1.1.1",

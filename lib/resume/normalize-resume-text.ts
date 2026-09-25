@@ -7,7 +7,14 @@ const EMAIL_RE =
 const PHONE_RE =
   /(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/
 
+/** Bare 10–11 digit phone sequences (no separators) that often jam into name fields. */
+const BARE_PHONE_RE = /(?<!\d)(?:\+?1)?\d{10}(?!\d)/
+
 const URL_RE = /https?:\/\/\S+/i
+
+/** LinkedIn / www URLs without a protocol, and linkedin.com/in/slug fragments. */
+const LINKEDIN_OR_WWW_RE =
+  /(?:(?:https?:\/\/)?(?:www\.)?linkedin\.com\/(?:in|pub)\/[A-Za-z0-9._%-]+\/?|(?:www\.)[A-Za-z0-9.-]+\.[A-Za-z]{2,}\/\S*)/i
 
 const ZIP_RE = /\b\d{5}(?:-\d{4})?\b/
 
@@ -159,9 +166,21 @@ function replaceEvery(re: RegExp, value: string, replacement: string): string {
   return value.replace(new RegExp(re.source, flags), replacement)
 }
 
-/** Remove emails, phones, URLs, and pipe separators from a person-name field. */
+/** Remove emails, phones, URLs, LinkedIn slugs, and pipe separators from a person-name field. */
 export function stripContactFromPersonName(value: string): string {
-  return replaceEvery(PHONE_RE, replaceEvery(URL_RE, replaceEvery(EMAIL_RE, value, " "), " "), " ")
+  return replaceEvery(
+    BARE_PHONE_RE,
+    replaceEvery(
+      PHONE_RE,
+      replaceEvery(
+        LINKEDIN_OR_WWW_RE,
+        replaceEvery(URL_RE, replaceEvery(EMAIL_RE, value, " "), " "),
+        " "
+      ),
+      " "
+    ),
+    " "
+  )
     .replace(/\|/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -202,15 +221,20 @@ function lastNameFromLinkedIn(text: string, firstName: string): string {
   if (!first) return ""
   const match = text.match(/linkedin\.com\/in\/([A-Za-z0-9._-]+)/i)
   if (!match?.[1]) return ""
-  const parts = match[1].split(/[-_.]+/).filter(Boolean)
+  const slug = match[1]
+  // Vanity handles with long digit tails are not reliable last-name sources.
+  if (/\d{4,}/.test(slug)) return ""
+  const parts = slug.split(/[-_.]+/).filter(Boolean)
   while (parts.length && /\d/.test(parts[parts.length - 1]!)) {
     parts.pop()
   }
   const remaining = parts.filter(
     (part) => part.toLowerCase() !== first && !part.toLowerCase().includes(first),
   )
-  if (remaining.length === 0 || remaining.length > 3) return ""
-  return remaining.map(titleCaseNameToken).join(" ")
+  // Require at least one alphabetic token of length >= 2 (skip single-letter noise from handles).
+  const nameLike = remaining.filter((part) => /^[A-Za-z]{2,}$/.test(part))
+  if (nameLike.length === 0 || nameLike.length > 3) return ""
+  return nameLike.map(titleCaseNameToken).join(" ")
 }
 
 function lastNameFromFileName(fileName: string, firstName: string): string {

@@ -15,7 +15,10 @@ import { matchAnalysisResponseSchema, type MatchAnalysisResponse } from "./schem
 import { generateOptimizedSubmissionResume } from "./generate-submission-resume";
 import { loadSubmissionEnrichmentNotes } from "./submission-enrichment";
 import { isSubmissionResumeFileName, submissionResumeFileName, submissionResumeToPlainText } from "./submission-resume";
+import { renderSubmissionResumeDocx } from "./submission-resume-docx";
+import type { SubmissionImprovementSummary } from "./submission-resume-improvement";
 import { renderSubmissionResumePdf } from "./submission-resume-pdf";
+import { resolveSubmissionResumeIdentity } from "./resolve-submission-identity";
 
 export class SubmissionResumeError extends Error {
   readonly status: number;
@@ -28,11 +31,17 @@ export class SubmissionResumeError extends Error {
 }
 
 export type DraftSubmissionResumeResult = {
+  /** Editable Word deliverable (primary download). */
+  docx: Buffer;
+  /** PDF preview of the same optimized content. */
   pdf: Buffer;
   fileName: string;
+  previewFileName: string;
   resumeId: string;
+  previewResumeId: string;
   stage: "submission";
   usedModel: boolean;
+  improvementSummary: SubmissionImprovementSummary;
 };
 
 function parseStoredAnalysis(value: unknown): MatchAnalysisResponse | null {
@@ -72,6 +81,53 @@ async function loadSourceResumeText(
     rows.find((row) => !isSubmissionResumeFileName(String(row.original_file_name || row.file_name || ""))) ??
     rows[0];
   return String(preferred?.extracted_text ?? "").trim();
+}
+
+async function insertSubmissionResumeRow(args: {
+  supabase: SupabaseClient;
+  workerId: string;
+  tenantId: string;
+  applicationId: string;
+  staffUserId: string | null;
+  storagePath: string;
+  fileName: string;
+  contentType: string;
+  byteLength: number;
+  extractedText: string;
+  parsedPayload: unknown;
+  now: string;
+}): Promise<string> {
+  const { data: inserted, error: insertError } = await args.supabase
+    .from("worker_resumes")
+    .insert({
+      worker_id: args.workerId,
+      tenant_id: args.tenantId,
+      file_url: args.storagePath,
+      storage_path: args.storagePath,
+      original_file_name: args.fileName,
+      file_name: args.fileName,
+      file_type: args.contentType,
+      file_size_bytes: args.byteLength,
+      parsed_data: sanitizePostgresJson(args.parsedPayload),
+      parsing_status: "completed",
+      parse_status: "completed",
+      parsed_at: args.now,
+      uploaded_at: args.now,
+      text_length: args.extractedText.length,
+      extracted_text: stripNullBytes(args.extractedText),
+      parse_started_at: args.now,
+      parse_completed_at: args.now,
+      parse_error: null,
+      parsed_json: sanitizePostgresJson(args.parsedPayload),
+      job_application_id: args.applicationId,
+      uploaded_by_user_id: args.staffUserId,
+    })
+    .select("id")
+    .single();
+  if (insertError || !inserted?.id) {
+    throw new SubmissionResumeError(insertError?.message || "Failed to save the submission résumé.", 500);
+  }
+  return String(inserted.id);
 }
 
 export async function draftSubmissionResumePack(args: {
@@ -124,19 +180,11 @@ export async function draftSubmissionResumePack(args: {
       .maybeSingle(),
   ]);
 
-  const firstName = String(worker?.first_name || profile?.first_name || "").trim();
-  const lastName = String(worker?.last_name || profile?.last_name || "").trim();
-  const fullName = `${firstName} ${lastName}`.trim() || "Candidate";
-  const location =
-    String(profile?.city_state_zip || "").trim() ||
-    [worker?.city, worker?.state].map((part) => String(part || "").trim()).filter(Boolean).join(", ");
-  const identity = {
-    fullName,
-    email: String(profile?.email || worker?.email || "").trim(),
-    phone: String(profile?.phone || worker?.phone || "").trim(),
-    location,
+  const identity = resolveSubmissionResumeIdentity({
+    worker,
+    profile,
     jobTitle: String(job?.public_title || job?.title || "").trim() || "this assignment",
-  };
+  });
 
   const analysis = parseStoredAnalysis(application.ai_analysis);
   const workerId = application.worker_id ? String(application.worker_id) : null;
@@ -226,7 +274,7 @@ export async function draftSubmissionResumePack(args: {
     throw error;
   }
 
-  const { resume, usedModel, model } = await generateOptimizedSubmissionResume({
+  const { resume, improvementSummary, usedModel, model } = await generateOptimizedSubmissionResume({
     identity,
     analysis,
     resumeText,
@@ -254,17 +302,33 @@ export async function draftSubmissionResumePack(args: {
     outputReference: null,
     requestedBy: staffUserId,
   }).catch(() => undefined);
-  const pdf = await renderSubmissionResumePdf(resume);
-  const fileName = submissionResumeFileName(resume.fullName || fullName);
-  const extractedText = submissionResumeToPlainText(resume);
-  const storagePath = `submission-resumes/${tenantId}/${applicationId}/${randomUUID()}.pdf`;
 
-  const { error: uploadError } = await supabase.storage.from(WORKER_RESUMES_BUCKET).upload(storagePath, pdf, {
-    contentType: "application/pdf",
-    upsert: false,
-  });
-  if (uploadError) {
-    throw new SubmissionResumeError(uploadError.message || "Failed to store the submission résumé.", 502);
+  const [docx, pdf] = await Promise.all([
+    renderSubmissionResumeDocx(resume),
+    renderSubmissionResumePdf(resume),
+  ]);
+  const fileName = submissionResumeFileName(resume.fullName || fullName, ".docx");
+  const previewFileName = submissionResumeFileName(resume.fullName || fullName, ".pdf");
+  const extractedText = submissionResumeToPlainText(resume);
+  const parsedPayload = { ...resume, improvementSummary };
+  const docxPath = `submission-resumes/${tenantId}/${applicationId}/${randomUUID()}.docx`;
+  const pdfPath = `submission-resumes/${tenantId}/${applicationId}/${randomUUID()}.pdf`;
+
+  const [{ error: docxUploadError }, { error: pdfUploadError }] = await Promise.all([
+    supabase.storage.from(WORKER_RESUMES_BUCKET).upload(docxPath, docx, {
+      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      upsert: false,
+    }),
+    supabase.storage.from(WORKER_RESUMES_BUCKET).upload(pdfPath, pdf, {
+      contentType: "application/pdf",
+      upsert: false,
+    }),
+  ]);
+  if (docxUploadError) {
+    throw new SubmissionResumeError(docxUploadError.message || "Failed to store the submission résumé.", 502);
+  }
+  if (pdfUploadError) {
+    throw new SubmissionResumeError(pdfUploadError.message || "Failed to store the submission résumé preview.", 502);
   }
 
   const now = new Date().toISOString();
@@ -272,36 +336,34 @@ export async function draftSubmissionResumePack(args: {
     throw new SubmissionResumeError("This application has no candidate record to attach the résumé to.", 409);
   }
 
-  const { data: inserted, error: insertError } = await supabase
-    .from("worker_resumes")
-    .insert({
-      worker_id: workerId,
-      tenant_id: tenantId,
-      file_url: storagePath,
-      storage_path: storagePath,
-      original_file_name: fileName,
-      file_name: fileName,
-      file_type: "application/pdf",
-      file_size_bytes: pdf.byteLength,
-      parsed_data: sanitizePostgresJson(resume),
-      parsing_status: "completed",
-      parse_status: "completed",
-      parsed_at: now,
-      uploaded_at: now,
-      text_length: extractedText.length,
-      extracted_text: stripNullBytes(extractedText),
-      parse_started_at: now,
-      parse_completed_at: now,
-      parse_error: null,
-      parsed_json: sanitizePostgresJson(resume),
-      job_application_id: applicationId,
-      uploaded_by_user_id: staffUserId,
-    })
-    .select("id")
-    .single();
-  if (insertError || !inserted?.id) {
-    throw new SubmissionResumeError(insertError?.message || "Failed to save the submission résumé.", 500);
-  }
+  const resumeId = await insertSubmissionResumeRow({
+    supabase,
+    workerId,
+    tenantId,
+    applicationId,
+    staffUserId,
+    storagePath: docxPath,
+    fileName,
+    contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    byteLength: docx.byteLength,
+    extractedText,
+    parsedPayload,
+    now,
+  });
+  const previewResumeId = await insertSubmissionResumeRow({
+    supabase,
+    workerId,
+    tenantId,
+    applicationId,
+    staffUserId,
+    storagePath: pdfPath,
+    fileName: previewFileName,
+    contentType: "application/pdf",
+    byteLength: pdf.byteLength,
+    extractedText,
+    parsedPayload,
+    now,
+  });
 
   if (application.ai_match_stage !== "submission") {
     const { error: stageError } = await supabase
@@ -321,14 +383,25 @@ export async function draftSubmissionResumePack(args: {
     entityType: "job_application",
     entityId: applicationId,
     tenantId,
-    metadata: { resumeId: inserted.id, fileName, usedModel },
+    metadata: {
+      resumeId,
+      previewResumeId,
+      fileName,
+      previewFileName,
+      usedModel,
+      skillEvidenceQuality: improvementSummary.skillEvidenceQuality,
+    },
   });
 
   return {
+    docx,
     pdf,
     fileName,
-    resumeId: String(inserted.id),
+    previewFileName,
+    resumeId,
+    previewResumeId,
     stage: "submission",
     usedModel,
+    improvementSummary,
   };
 }

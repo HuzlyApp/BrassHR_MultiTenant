@@ -109,6 +109,14 @@ describe("match progression steps", () => {
     expect(
       listingDisplayFitBand({
         analyzed: true,
+        stage: "follow_up",
+        // John Carter–style: Conf 2 / Verify 3 / Not Met 0 → Review (not Low)
+        counts: { confirmed: 2, verify: 3, notMet: 0, mandatory: 5, blocking: 0 },
+      })
+    ).toBe("review");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
         stage: "deep",
         counts: { confirmed: 3, verify: 3, notMet: 0 },
       })

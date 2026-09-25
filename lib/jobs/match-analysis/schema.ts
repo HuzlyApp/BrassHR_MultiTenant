@@ -216,6 +216,8 @@ export type QuickMatchResponse = z.infer<typeof quickMatchResponseSchema>;
 
 export const matchAnalysisResponseSchema = z.object({
   analysis_version: z.string().default("1.0"),
+  /** Fingerprint of JD source fields at analysis time; used to detect stale results. */
+  job_requirements_fingerprint: z.string().max(128).optional(),
   job: z
     .object({
       job_id: z.string().default(""),
@@ -347,6 +349,8 @@ export const structuredJobRequirementsSchema = z.object({
   requiredYearsExperience: z.string().max(100).nullable().optional(),
   specialty: z.string().max(200).nullable().optional(),
   location: z.string().max(300).nullable().optional(),
+  /** Hash of JD source fields; cache is ignored when this no longer matches the live job. */
+  sourceFingerprint: z.string().max(128).optional(),
 });
 
 export type StructuredJobRequirements = z.infer<typeof structuredJobRequirementsSchema>;

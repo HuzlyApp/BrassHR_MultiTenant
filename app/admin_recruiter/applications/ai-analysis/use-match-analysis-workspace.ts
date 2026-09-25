@@ -20,6 +20,11 @@ import {
 import type { VerificationNote, VerificationNoteDraft } from "@/lib/jobs/match-analysis/verification-notes";
 import { summarizeRequirementNotes } from "@/lib/jobs/match-analysis/verification-notes";
 import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
+import {
+  candidateProfileApiUrl,
+  invalidateStaffDetailCache,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 
 export type ScreeningQuestionView = {
   id: string;
@@ -133,7 +138,43 @@ export type UploadedResumeItem = {
   fileIconType?: "pdf" | "jpeg";
   uploadedAt?: string;
   uploadedAtLabel?: string;
+  improvementSummary?: unknown;
 };
+
+export type SubmissionImprovementSummaryView = {
+  clarity: string;
+  relevance: string;
+  formatting: string;
+  added: string[];
+  removed: string[];
+  needsVerification: string[];
+  skillEvidenceQuality: "strong" | "adequate" | "keyword_stuffing";
+  skillEvidenceNote: string;
+  overall: string;
+};
+
+function asImprovementSummaryView(value: unknown): SubmissionImprovementSummaryView | null {
+  if (!value || typeof value !== "object") return null;
+  const parsed = value as Partial<SubmissionImprovementSummaryView>;
+  return {
+    clarity: String(parsed.clarity ?? ""),
+    relevance: String(parsed.relevance ?? ""),
+    formatting: String(parsed.formatting ?? ""),
+    added: Array.isArray(parsed.added) ? parsed.added.map(String) : [],
+    removed: Array.isArray(parsed.removed) ? parsed.removed.map(String) : [],
+    needsVerification: Array.isArray(parsed.needsVerification)
+      ? parsed.needsVerification.map(String)
+      : [],
+    skillEvidenceQuality:
+      parsed.skillEvidenceQuality === "keyword_stuffing" ||
+      parsed.skillEvidenceQuality === "strong" ||
+      parsed.skillEvidenceQuality === "adequate"
+        ? parsed.skillEvidenceQuality
+        : "adequate",
+    skillEvidenceNote: String(parsed.skillEvidenceNote ?? ""),
+    overall: String(parsed.overall ?? ""),
+  };
+}
 
 export type CandidateInfoState = {
   firstName: string;
@@ -244,6 +285,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [resumes, setResumes] = useState<UploadedResumeItem[]>([]);
   const [uploadingScreening, setUploadingScreening] = useState(false);
   const [draftingSubmissionResume, setDraftingSubmissionResume] = useState(false);
+  const [improvementSummary, setImprovementSummary] =
+    useState<SubmissionImprovementSummaryView | null>(null);
 
   const applyWorkspacePayload = useCallback((
     payload: MatchAnalysisWorkspacePayload,
@@ -294,6 +337,14 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       return aTime - bTime;
     });
     setResumes(rows);
+    const withSummary = [...rows]
+      .reverse()
+      .find(
+        (row) =>
+          /_submission_resume\.(pdf|docx)$/i.test(row.fileName) && row.improvementSummary
+      );
+    const parsed = asImprovementSummaryView(withSummary?.improvementSummary);
+    if (parsed) setImprovementSummary(parsed);
   }, [applicationId]);
 
   const load = useCallback(async (opts?: { preserveLocalAnswers?: boolean; silent?: boolean }) => {
@@ -780,6 +831,26 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     return plain?.[1]?.trim() || null;
   }
 
+  function parseImprovementSummaryHeader(header: string | null): SubmissionImprovementSummaryView | null {
+    if (!header?.trim()) return null;
+    try {
+      return asImprovementSummaryView(JSON.parse(decodeURIComponent(header)));
+    } catch {
+      return null;
+    }
+  }
+
+  function triggerBlobDownload(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function draftSubmissionResume(): Promise<boolean> {
     setDraftingSubmissionResume(true);
     try {
@@ -791,19 +862,14 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(json.error || "Could not draft the submission résumé.");
       }
+      const summary = parseImprovementSummaryHeader(res.headers.get("X-Improvement-Summary"));
+      if (summary) setImprovementSummary(summary);
       const blob = await res.blob();
       const fileName =
         fileNameFromDisposition(res.headers.get("Content-Disposition")) ||
-        "submission-resume.pdf";
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      toast.success("Optimized submission résumé downloaded.");
+        "submission-resume.docx";
+      triggerBlobDownload(blob, fileName);
+      toast.success("Optimized submission résumé (.docx) downloaded.");
       await Promise.all([load({ silent: true }), loadResumes()]);
       return true;
     } catch (error) {
@@ -811,6 +877,30 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       return false;
     } finally {
       setDraftingSubmissionResume(false);
+    }
+  }
+
+  async function downloadSubmissionDocx(resumeId: string, preferredName?: string) {
+    try {
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
+        { credentials: "include", cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !json.url) {
+        throw new Error(json.error || "Could not download the Word résumé.");
+      }
+      const fileRes = await fetch(json.url);
+      if (!fileRes.ok) throw new Error("Could not download the Word résumé.");
+      const blob = await fileRes.blob();
+      const fileName = preferredName?.endsWith(".docx")
+        ? preferredName
+        : preferredName
+          ? `${preferredName}.docx`
+          : "submission-resume.docx";
+      triggerBlobDownload(blob, fileName);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not download the Word résumé.");
     }
   }
 
@@ -935,6 +1025,9 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Failed to save ${field}`);
       }
+      invalidateStaffDetailCache(workerProfileApiUrl(workerId));
+      invalidateStaffDetailCache(candidateProfileApiUrl(workerId));
+      invalidateStaffDetailCache(`/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}`);
       toast.success("Candidate details saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save details");
@@ -1052,6 +1145,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     savingText,
     resumes,
     viewResume,
+    downloadSubmissionDocx,
+    improvementSummary,
     load,
     runAnalyze,
     toggleVerified,

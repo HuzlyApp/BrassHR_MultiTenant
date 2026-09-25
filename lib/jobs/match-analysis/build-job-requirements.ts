@@ -1,8 +1,25 @@
+import { createHash } from "node:crypto";
 import { htmlToPlainText } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   structuredJobRequirementsSchema,
   type StructuredJobRequirements,
 } from "./schema";
+
+/** Job columns that feed match analysis / structured requirements. */
+export const JOB_REQUIREMENTS_SOURCE_FIELDS = [
+  "public_title",
+  "public_description",
+  "qualifications",
+  "responsibilities",
+  "special_requirements",
+  "required_credentials",
+  "years_of_experience",
+  "years_experience_required",
+  "location",
+  "specialty",
+] as const;
+
+export type JobRequirementsSourceField = (typeof JOB_REQUIREMENTS_SOURCE_FIELDS)[number];
 
 export type JobRequisitionForRequirements = {
   id?: string | null;
@@ -219,17 +236,100 @@ function cachedHasRequirementLists(data: StructuredJobRequirements): boolean {
   );
 }
 
+function normalizeFingerprintPart(value: unknown): string {
+  if (value == null) return "";
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(value).trim();
+}
+
+/**
+ * Stable fingerprint of the job text that drives matching.
+ * Used to invalidate structured_requirements cache and stale analysis snapshots.
+ */
+export function jobRequirementsSourceFingerprint(
+  job: Pick<
+    JobRequisitionForRequirements,
+    | "public_title"
+    | "public_description"
+    | "qualifications"
+    | "responsibilities"
+    | "special_requirements"
+    | "required_credentials"
+    | "years_of_experience"
+    | "years_experience_required"
+    | "location"
+    | "specialty"
+  >
+): string {
+  const payload = [
+    normalizeFingerprintPart(job.public_title),
+    toPlainText(job.public_description),
+    toPlainText(job.qualifications),
+    toPlainText(job.responsibilities),
+    toPlainText(job.special_requirements),
+    normalizeFingerprintPart(job.required_credentials),
+    normalizeFingerprintPart(job.years_of_experience),
+    normalizeFingerprintPart(job.years_experience_required),
+    normalizeFingerprintPart(job.location),
+    normalizeFingerprintPart(job.specialty),
+  ].join("\n---\n");
+  return createHash("sha256").update(payload, "utf8").digest("hex");
+}
+
+export function jobRequirementsSourceFieldsChanged(
+  before: Record<string, unknown> | null | undefined,
+  after: Record<string, unknown>
+): boolean {
+  if (!before) return false;
+  const beforeFp = jobRequirementsSourceFingerprint({
+    public_title: before.public_title as string | null | undefined,
+    public_description: before.public_description as string | null | undefined,
+    qualifications: before.qualifications as string | null | undefined,
+    responsibilities: before.responsibilities as string | null | undefined,
+    special_requirements: before.special_requirements as string | null | undefined,
+    required_credentials: before.required_credentials,
+    years_of_experience: before.years_of_experience as string | null | undefined,
+    years_experience_required: before.years_experience_required as number | null | undefined,
+    location: before.location as string | null | undefined,
+    specialty: before.specialty as string | null | undefined,
+  });
+  const afterFp = jobRequirementsSourceFingerprint({
+    public_title: after.public_title as string | null | undefined,
+    public_description: after.public_description as string | null | undefined,
+    qualifications: after.qualifications as string | null | undefined,
+    responsibilities: after.responsibilities as string | null | undefined,
+    special_requirements: after.special_requirements as string | null | undefined,
+    required_credentials: after.required_credentials,
+    years_of_experience: after.years_of_experience as string | null | undefined,
+    years_experience_required: after.years_experience_required as number | null | undefined,
+    location: after.location as string | null | undefined,
+    specialty: after.specialty as string | null | undefined,
+  });
+  return beforeFp !== afterFp;
+}
+
 /**
  * Build structured requirement lists from a job requisition.
  * Prefer cached structured_requirements only when they already include
- * required or preferred qualification lists. Location / years alone are not enough —
+ * required or preferred qualification lists AND the source fingerprint still
+ * matches the live job description. Location / years alone are not enough —
  * those can be filled while the actual quals still live in the HTML description.
  */
 export function buildStructuredJobRequirements(
   job: JobRequisitionForRequirements
 ): StructuredJobRequirements {
+  const fingerprint = jobRequirementsSourceFingerprint(job);
   const cached = structuredJobRequirementsSchema.safeParse(job.structured_requirements);
-  if (cached.success && cachedHasRequirementLists(cached.data)) {
+  if (
+    cached.success &&
+    cachedHasRequirementLists(cached.data) &&
+    cached.data.sourceFingerprint === fingerprint
+  ) {
     return cached.data;
   }
 
@@ -267,6 +367,7 @@ export function buildStructuredJobRequirements(
     requiredYearsExperience: years,
     specialty: specialty || null,
     location: job.location?.trim() || null,
+    sourceFingerprint: fingerprint,
   });
 }
 

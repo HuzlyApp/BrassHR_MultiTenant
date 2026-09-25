@@ -14,6 +14,11 @@ import {
   type SubmissionResume,
   type SubmissionResumeIdentity,
 } from "./submission-resume";
+import { applySkillEvidenceFilter } from "./submission-resume-evidence";
+import {
+  buildSubmissionImprovementSummary,
+  type SubmissionImprovementSummary,
+} from "./submission-resume-improvement";
 import { DEFAULT_STEP3_GROK_MODEL, grokReasoningEffort, sanitizeStep3Model } from "./step-config";
 
 const DEFAULT_MODEL = DEFAULT_STEP3_GROK_MODEL;
@@ -86,19 +91,69 @@ export function buildSubmissionResumeUserPrompt(args: {
     .join("\n\n");
 }
 
+function finalizeSubmissionResume(args: {
+  resume: SubmissionResume;
+  resumeText: string;
+  enrichmentNotes?: string | null;
+  confirmedEvidence: string[];
+  modelSummary?: unknown;
+}): {
+  resume: SubmissionResume;
+  improvementSummary: SubmissionImprovementSummary;
+} {
+  const { resume, evidence } = applySkillEvidenceFilter(args.resume, {
+    resumeText: args.resumeText,
+    enrichmentNotes: args.enrichmentNotes,
+    confirmedEvidence: args.confirmedEvidence,
+  });
+  const improvementSummary = buildSubmissionImprovementSummary({
+    modelSummary: args.modelSummary,
+    originalResumeText: args.resumeText,
+    optimized: resume,
+    enrichmentNotes: args.enrichmentNotes,
+    skillQuality: evidence.quality,
+    skillNote: evidence.qualityNote,
+    removedSkills: evidence.removedSkills,
+  });
+  return { resume, improvementSummary };
+}
+
 export async function generateOptimizedSubmissionResume(args: {
   identity: SubmissionResumeIdentity;
   analysis: MatchAnalysisResponse | null;
   resumeText: string;
   enrichmentNotes?: string | null;
   resolved: ResolvedPromptVersion;
-}): Promise<{ resume: SubmissionResume; usedModel: boolean; model: string | null }> {
+}): Promise<{
+  resume: SubmissionResume;
+  improvementSummary: SubmissionImprovementSummary;
+  usedModel: boolean;
+  model: string | null;
+}> {
   const fallback = buildFallbackSubmissionResume(args);
+  const confirmedEvidence = confirmedLines(args.analysis);
+  const sanitizedResume = sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, 12_000);
   const client = resolveGrokClient();
-  if (!client) return { resume: fallback, usedModel: false, model: null };
+  if (!client) {
+    const finalized = finalizeSubmissionResume({
+      resume: fallback,
+      resumeText: sanitizedResume,
+      enrichmentNotes: args.enrichmentNotes,
+      confirmedEvidence,
+    });
+    return { ...finalized, usedModel: false, model: null };
+  }
 
   const system = args.resolved.systemPrompt?.trim() ?? "";
-  if (!system) return { resume: fallback, usedModel: false, model: null };
+  if (!system) {
+    const finalized = finalizeSubmissionResume({
+      resume: fallback,
+      resumeText: sanitizedResume,
+      enrichmentNotes: args.enrichmentNotes,
+      confirmedEvidence,
+    });
+    return { ...finalized, usedModel: false, model: null };
+  }
 
   const user = renderPromptTemplate(
     args.resolved.userPromptTemplate ?? "",
@@ -109,10 +164,10 @@ export async function generateOptimizedSubmissionResume(args: {
       phone: args.identity.phone,
       location: args.identity.location,
       recruiterSummary: args.analysis?.candidate_match?.recruiter_decision_summary,
-      confirmedEvidence: confirmedLines(args.analysis),
+      confirmedEvidence,
       strengths: args.analysis?.strengths ?? [],
       enrichmentNotes: args.enrichmentNotes,
-      resumeText: sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, 12_000),
+      resumeText: sanitizedResume,
     }),
     { required: ["candidate_resume"] }
   );
@@ -142,9 +197,22 @@ export async function generateOptimizedSubmissionResume(args: {
         { role: "user", content: user },
       ],
     });
-    const parsed = parseSubmissionResume(extractJsonObjectFromModelText(extractOutputText(response)));
+    const raw = extractJsonObjectFromModelText(extractOutputText(response));
+    const parsed = parseSubmissionResume(raw);
+    const modelSummary =
+      raw && typeof raw === "object" && raw !== null && "improvementSummary" in raw
+        ? (raw as { improvementSummary?: unknown }).improvementSummary
+        : undefined;
+    const merged = mergeSubmissionResume(parsed, fallback);
+    const finalized = finalizeSubmissionResume({
+      resume: merged,
+      resumeText: sanitizedResume,
+      enrichmentNotes: args.enrichmentNotes,
+      confirmedEvidence,
+      modelSummary,
+    });
     return {
-      resume: mergeSubmissionResume(parsed, fallback),
+      ...finalized,
       usedModel: Boolean(parsed),
       model,
     };
@@ -153,6 +221,12 @@ export async function generateOptimizedSubmissionResume(args: {
       model,
       message: error instanceof Error ? error.message : "unknown",
     });
-    return { resume: fallback, usedModel: false, model };
+    const finalized = finalizeSubmissionResume({
+      resume: fallback,
+      resumeText: sanitizedResume,
+      enrichmentNotes: args.enrichmentNotes,
+      confirmedEvidence,
+    });
+    return { ...finalized, usedModel: false, model };
   }
 }

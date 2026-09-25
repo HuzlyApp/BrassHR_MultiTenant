@@ -12,6 +12,9 @@ export const maxDuration = 120;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+const DOCX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 export async function POST(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
@@ -38,15 +41,17 @@ export async function POST(_req: NextRequest, context: RouteContext) {
       applicationId: id.trim(),
       staffUserId: auth.devBypass ? null : auth.userId,
     });
-    const bytes = Uint8Array.from(result.pdf);
+    const bytes = Uint8Array.from(result.docx);
     return new NextResponse(bytes, {
       status: 200,
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": DOCX_CONTENT_TYPE,
         "Content-Disposition": `attachment; filename="${result.fileName.replace(/"/g, "")}"`,
         "Cache-Control": "no-store",
         "X-Resume-Id": result.resumeId,
+        "X-Preview-Resume-Id": result.previewResumeId,
         "X-Match-Stage": result.stage,
+        "X-Improvement-Summary": encodeURIComponent(JSON.stringify(result.improvementSummary)),
       },
     });
   } catch (error) {

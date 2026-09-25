@@ -5,6 +5,7 @@ import {
   buildFullJobDescriptionText,
   buildStructuredJobRequirements,
   jobMetaFromRequisition,
+  jobRequirementsSourceFingerprint,
   type JobRequisitionForRequirements,
 } from "./build-job-requirements";
 import {
@@ -923,7 +924,12 @@ export async function runMatchAnalysisForApplication(args: {
     emit("validating", "Validating and rescoring", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "validating");
 
-    const analysis = modelResult.analysis;
+    const analysis: MatchAnalysisResponse = {
+      ...modelResult.analysis,
+      job_requirements_fingerprint:
+        structured.sourceFingerprint ??
+        jobRequirementsSourceFingerprint(job as JobRequisitionForRequirements),
+    };
 
     emit("saving", "Saving analysis results", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "saving");

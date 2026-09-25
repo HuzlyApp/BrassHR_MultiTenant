@@ -3,6 +3,8 @@ import {
   buildFullJobDescriptionText,
   buildStructuredJobRequirements,
   extractQualificationSectionsFromDescription,
+  jobRequirementsSourceFingerprint,
+  jobRequirementsSourceFieldsChanged,
 } from "./build-job-requirements";
 import { jobProfileFromWorkspace } from "../candidate-import-match";
 import { buildMatchAnalysisUserPrompt } from "./prompts";
@@ -66,20 +68,57 @@ describe("buildStructuredJobRequirements", () => {
     expect(structured.location).toBe("Richardson, Texas");
   });
 
-  it("keeps a cache that already has required or preferred lists", () => {
+  it("keeps a cache that already has required or preferred lists when fingerprint matches", () => {
+    const job = {
+      public_title: "IT Project Manager",
+      public_description: ZIPSTAFF_IT_PM_HTML,
+      qualifications: null as string | null,
+      responsibilities: null as string | null,
+      special_requirements: null as string | null,
+      required_credentials: [] as string[],
+      years_of_experience: "7 yrs",
+      years_experience_required: 7,
+      location: "Richardson, Texas",
+      specialty: null as string | null,
+    };
+    const fingerprint = jobRequirementsSourceFingerprint(job);
+    const structured = buildStructuredJobRequirements({
+      ...job,
+      structured_requirements: {
+        ...EMPTY_CACHE,
+        mandatoryRequirements: ["Cached mandatory"],
+        preferredRequirements: ["Cached preferred"],
+        sourceFingerprint: fingerprint,
+      },
+    });
+
+    expect(structured.mandatoryRequirements).toEqual(["Cached mandatory"]);
+    expect(structured.preferredRequirements).toEqual(["Cached preferred"]);
+  });
+
+  it("ignores cached requirement lists when the job description fingerprint changed", () => {
     const structured = buildStructuredJobRequirements({
       public_title: "IT Project Manager",
       public_description: ZIPSTAFF_IT_PM_HTML,
       qualifications: null,
       structured_requirements: {
         ...EMPTY_CACHE,
-        mandatoryRequirements: ["Cached mandatory"],
-        preferredRequirements: ["Cached preferred"],
+        mandatoryRequirements: ["Stale mandatory from old JD"],
+        preferredRequirements: ["Stale preferred"],
+        sourceFingerprint: "outdated-fingerprint",
       },
     });
 
-    expect(structured.mandatoryRequirements).toEqual(["Cached mandatory"]);
-    expect(structured.preferredRequirements).toEqual(["Cached preferred"]);
+    expect(structured.mandatoryRequirements).not.toContain("Stale mandatory from old JD");
+    expect(structured.mandatoryRequirements.length).toBe(6);
+    expect(structured.preferredRequirements.length).toBe(3);
+    expect(structured.sourceFingerprint).toBe(
+      jobRequirementsSourceFingerprint({
+        public_title: "IT Project Manager",
+        public_description: ZIPSTAFF_IT_PM_HTML,
+        qualifications: null,
+      })
+    );
   });
 
   it("still uses the dedicated qualifications field when present", () => {
@@ -177,5 +216,35 @@ describe("buildFullJobDescriptionText", () => {
     expect(text).toContain("Required Qualifications");
     expect(text).toContain("Preferred Qualifications");
     expect(text).not.toMatch(/<\/?(p|ul|li|strong)>/i);
+  });
+});
+
+describe("jobRequirementsSourceFingerprint / fieldsChanged", () => {
+  it("changes when the public description is edited", () => {
+    const before = {
+      public_title: "IT Project Manager",
+      public_description: ZIPSTAFF_IT_PM_HTML,
+      qualifications: null,
+      responsibilities: null,
+      special_requirements: null,
+      required_credentials: [],
+      years_of_experience: "7 yrs",
+      years_experience_required: 7,
+      location: "Richardson, Texas",
+      specialty: null,
+    };
+    const after = {
+      ...before,
+      public_description: ZIPSTAFF_IT_PM_HTML.replace(
+        "5+ years",
+        "8+ years of hands-on"
+      ),
+    };
+
+    expect(jobRequirementsSourceFingerprint(before)).not.toBe(
+      jobRequirementsSourceFingerprint(after)
+    );
+    expect(jobRequirementsSourceFieldsChanged(before, after)).toBe(true);
+    expect(jobRequirementsSourceFieldsChanged(before, before)).toBe(false);
   });
 });

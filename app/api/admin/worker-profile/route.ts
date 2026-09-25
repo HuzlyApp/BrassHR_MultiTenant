@@ -10,6 +10,7 @@ import {
   type ReferenceFieldValue,
   type WorkerProfileFieldKey,
 } from "@/lib/admin/worker-profile-field-update"
+import { syncApplicantProfileFromWorkerField } from "@/lib/admin/sync-applicant-profile-from-worker"
 import { LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents"
 import { writeActivityLog } from "@/lib/audit/activity-log"
 import {
@@ -1284,6 +1285,18 @@ export async function PATCH(req: NextRequest) {
 
     if (!updated?.id) {
       return NextResponse.json({ error: "Update failed" }, { status: 500 })
+    }
+
+    try {
+      await syncApplicantProfileFromWorkerField({
+        supabase,
+        tenantId,
+        workerId,
+        field: field as WorkerProfileFieldKey,
+        dbValue: normalized.dbValue,
+      })
+    } catch (syncErr) {
+      console.warn("[admin/worker-profile] applicant_profiles sync failed", syncErr)
     }
 
     const userIdForLegacy =
