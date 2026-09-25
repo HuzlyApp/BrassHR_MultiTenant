@@ -1,14 +1,23 @@
 import { extractJsonObjectFromModelText } from "@/lib/resumeParseQuality";
 import {
+  EVIDENCE_SOURCES,
   MATCH_CATEGORY_LABELS,
+  REQUIREMENT_OUTCOMES,
+  REQUIREMENT_STATUSES,
   analyzeMatchResponseSchema,
   matchAnalysisResponseSchema,
+  quickMatchResponseSchema,
   type AnalyzeMatchResponse,
+  type EvidenceSource,
   type MatchAnalysisResponse,
+  type QuickEvidenceSource,
+  type QuickMatchResponse,
+  type QuickRoute,
   type RequirementItem,
   type RequirementOutcome,
   type RequirementStatus,
 } from "./schema";
+import { recomputeQuickMatchMetrics } from "./quick-route";
 import type { z } from "zod";
 
 export type ParseMatchAnalysisResult =
@@ -85,6 +94,123 @@ function expandLeanRequirement(
   };
 }
 
+function mapQuickEvidenceSource(source: QuickEvidenceSource | undefined): EvidenceSource {
+  if (source === "RECRUITER_NOTE") return "RECRUITER_NOTE";
+  if (source === "NONE" || !source) return "NONE";
+  return "RESUME";
+}
+
+function quickOutcomeFromStatus(status: RequirementStatus): RequirementOutcome {
+  switch (status) {
+    case "CONFIRMED":
+      return "MET";
+    case "PARTIAL":
+      return "VERIFY";
+    case "NOT_FOUND":
+      return "NOT_MET";
+    case "CONFLICTING":
+      return "CONFLICT";
+    case "NOT_APPLICABLE":
+    default:
+      return "NOT_APPLICABLE";
+  }
+}
+
+function routeDisplay(route: QuickRoute): {
+  category: MatchAnalysisResponse["candidate_match"]["match_category"];
+  action: MatchAnalysisResponse["candidate_match"]["recommended_action"];
+  display: string;
+} {
+  if (route === "STRONG") {
+    return { category: "STRONG_MATCH", action: "PRIORITIZE_AND_CALL", display: "Strong" };
+  }
+  if (route === "LOW_MATCH") {
+    return { category: "NOT_A_MATCH", action: "KEEP_AS_POSSIBLE", display: "Low match" };
+  }
+  return { category: "POSSIBLE_MATCH", action: "CALL_AND_VERIFY", display: "Review" };
+}
+
+function expandQuickMatchRequirement(
+  item: QuickMatchResponse["mandatory_requirements"][number],
+  requirementType: RequirementItem["requirement_type"]
+): RequirementItem {
+  const evidence = item.evidence?.trim() ?? "";
+  const source = mapQuickEvidenceSource(item.evidence_source);
+  return {
+    requirement: item.requirement,
+    requirement_type: requirementType,
+    status: item.status,
+    requirement_outcome: quickOutcomeFromStatus(item.status),
+    candidate_evidence: evidence,
+    evidence_source: source === "NONE" && evidence ? "RESUME" : source,
+    impact: "",
+    verification_required: item.status !== "CONFIRMED" && item.status !== "NOT_APPLICABLE",
+    confidence: item.status === "CONFIRMED" ? 80 : item.status === "PARTIAL" ? 50 : 20,
+  };
+}
+
+export function expandQuickMatchToFull(raw: QuickMatchResponse): MatchAnalysisResponse {
+  const metrics = recomputeQuickMatchMetrics(raw);
+  const display = routeDisplay(metrics.quick_route);
+  const blocking = raw.blocking_requirements.filter(Boolean);
+  const itemsToVerify = raw.items_to_verify.filter(Boolean);
+  const extracted = raw.extracted_resume;
+
+  return matchAnalysisResponseSchema.parse({
+    analysis_version: "1.0",
+    candidate_match: {
+      recommended_overall_match_score: 0,
+      match_category: display.category,
+      display_category: display.display,
+      confidence_score: 0,
+      mandatory_requirement_override: metrics.quick_route === "LOW_MATCH" && blocking.length > 0,
+      recommended_action: display.action,
+      recruiter_decision_summary: "",
+    },
+    experience_analysis: {
+      total_professional_experience_years: extracted.years_estimated,
+      relevant_specialty_experience_years: null,
+      recent_relevant_experience_years: null,
+      travel_experience_confirmed: false,
+      required_work_setting_experience_confirmed: false,
+      is_estimated: extracted.years_estimated != null,
+      experience_calculation_notes: [
+        extracted.headline,
+        extracted.education,
+        ...extracted.recent_titles,
+      ]
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 20),
+    },
+    mandatory_requirements: raw.mandatory_requirements.map((item) =>
+      expandQuickMatchRequirement(item, "MANDATORY")
+    ),
+    preferred_requirements: raw.preferred_requirements.map((item) =>
+      expandQuickMatchRequirement(item, "PREFERRED")
+    ),
+    strengths: [],
+    gaps_and_risks: [],
+    screening_questions: [],
+    submission_readiness: {
+      ready_to_submit: false,
+      readiness_status: "INSUFFICIENT_INFORMATION",
+      items_to_verify_before_submission: itemsToVerify,
+      documents_or_credentials_needed: [],
+      blocking_requirements: blocking,
+    },
+    quick_match: {
+      step: "quick_match",
+      quick_route: metrics.quick_route,
+      extracted_resume: extracted,
+      counts: metrics.counts,
+      mand_met: metrics.mand_met,
+      pref_met: metrics.pref_met,
+      weighted: metrics.weighted,
+    },
+  });
+}
+
 export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnalysisResponse {
   const blocking = lean.blocking_requirements.filter(Boolean);
   const itemsToVerify = lean.items_to_verify.filter(Boolean);
@@ -114,7 +240,8 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
     candidate_match: {
       recommended_overall_match_score: lean.recommended_overall_match_score,
       match_category: lean.match_category,
-      display_category: lean.display_category.trim() || MATCH_CATEGORY_LABELS[lean.match_category],
+      display_category:
+        (lean.display_category ?? "").trim() || MATCH_CATEGORY_LABELS[lean.match_category],
       confidence_score: 0,
       mandatory_requirement_override: knockout,
       recommended_action: lean.recommended_action,
@@ -161,6 +288,10 @@ export function expandAnalyzeMatchToFull(lean: AnalyzeMatchResponse): MatchAnaly
   });
 }
 
+function looksLikeQuickMatchOutput(obj: Record<string, unknown>): boolean {
+  return obj.step === "quick_match" || typeof obj.quick_route === "string";
+}
+
 function looksLikeLeanAnalyzeOutput(obj: Record<string, unknown>): boolean {
   const hasNestedCandidateMatch =
     obj.candidate_match != null && typeof obj.candidate_match === "object";
@@ -171,6 +302,156 @@ function looksLikeLeanAnalyzeOutput(obj: Record<string, unknown>): boolean {
     typeof obj.recommendation === "string" ||
     typeof obj.recommended_overall_match_score === "number"
   );
+}
+
+function normalizeEnumToken(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function parseRequirementStatus(value: unknown): RequirementStatus {
+  const token = normalizeEnumToken(value);
+  if ((REQUIREMENT_STATUSES as readonly string[]).includes(token)) {
+    return token as RequirementStatus;
+  }
+  if (token === "MET" || token === "CONFIRMED_MATCH") return "CONFIRMED";
+  if (token === "CONFLICT" || token === "CONFLICTS") return "CONFLICTING";
+  if (token === "MISSING" || token === "ABSENT") return "NOT_FOUND";
+  if (token === "NA" || token === "N_A" || token === "NOT_APPLICABLE") return "NOT_APPLICABLE";
+  return "NOT_FOUND";
+}
+
+function parseRequirementOutcome(
+  value: unknown,
+  status: RequirementStatus
+): RequirementOutcome {
+  const token = normalizeEnumToken(value);
+  if ((REQUIREMENT_OUTCOMES as readonly string[]).includes(token)) {
+    return token as RequirementOutcome;
+  }
+  return outcomeFromStatus(status);
+}
+
+function parseEvidenceSource(value: unknown, hasEvidence: boolean): EvidenceSource {
+  const token = normalizeEnumToken(value);
+  if ((EVIDENCE_SOURCES as readonly string[]).includes(token)) {
+    return token as EvidenceSource;
+  }
+  return hasEvidence ? "RESUME" : "NONE";
+}
+
+function coerceConfidence(value: unknown, status: RequirementStatus): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.min(100, value));
+  }
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value.trim().replace(/%$/, ""));
+    if (Number.isFinite(n)) return Math.max(0, Math.min(100, n));
+  }
+  if (status === "CONFIRMED") return 80;
+  if (status === "PARTIAL") return 50;
+  if (status === "CONFLICTING") return 30;
+  if (status === "NOT_APPLICABLE") return 0;
+  return 20;
+}
+
+function coerceRequirementRow(
+  item: unknown,
+  fallbackType: RequirementItem["requirement_type"]
+): Record<string, unknown> | unknown {
+  if (!item || typeof item !== "object") return item;
+  const row = item as Record<string, unknown>;
+  const evidence =
+    typeof row.candidate_evidence === "string"
+      ? row.candidate_evidence
+      : typeof row.evidence === "string"
+        ? row.evidence
+        : "";
+  const status = parseRequirementStatus(row.status);
+  const typeToken = normalizeEnumToken(row.requirement_type);
+  const requirementType =
+    typeToken === "PREFERRED" || typeToken === "MANDATORY"
+      ? (typeToken as RequirementItem["requirement_type"])
+      : fallbackType;
+  return {
+    ...row,
+    requirement: String(row.requirement ?? "").trim() || String(row.name ?? "").trim(),
+    requirement_type: requirementType,
+    status,
+    requirement_outcome: parseRequirementOutcome(row.requirement_outcome, status),
+    candidate_evidence: evidence,
+    evidence_source: parseEvidenceSource(row.evidence_source, Boolean(evidence.trim())),
+    impact: typeof row.impact === "string" ? row.impact : "",
+    verification_required:
+      typeof row.verification_required === "boolean"
+        ? row.verification_required
+        : status !== "CONFIRMED" && status !== "NOT_APPLICABLE",
+    confidence: coerceConfidence(row.confidence, status),
+  };
+}
+
+function coerceScreeningQuestions(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  const out: Array<Record<string, unknown>> = [];
+  for (const item of value) {
+    if (out.length >= 5) break;
+    if (typeof item === "string") {
+      const question = item.trim();
+      if (!question) continue;
+      out.push({
+        priority: out.length + 1,
+        question,
+        reason: "",
+        related_requirement: "",
+      });
+      continue;
+    }
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const question =
+      typeof row.question === "string"
+        ? row.question.trim()
+        : typeof row.text === "string"
+          ? row.text.trim()
+          : "";
+    if (!question) continue;
+    const priorityRaw = Number(row.priority);
+    out.push({
+      priority: Number.isFinite(priorityRaw) ? Math.max(1, Math.min(5, Math.round(priorityRaw))) : out.length + 1,
+      question,
+      reason: typeof row.reason === "string" ? row.reason : "",
+      related_requirement:
+        typeof row.related_requirement === "string"
+          ? row.related_requirement
+          : typeof row.relatedRequirement === "string"
+            ? row.relatedRequirement
+            : "",
+    });
+  }
+  return out;
+}
+
+/** Normalize full Deep Match payloads before Zod validation. */
+export function coerceFullMatchShape(obj: Record<string, unknown>): Record<string, unknown> {
+  const normalized = { ...obj };
+
+  if (Array.isArray(normalized.mandatory_requirements)) {
+    normalized.mandatory_requirements = normalized.mandatory_requirements.map((item) =>
+      coerceRequirementRow(item, "MANDATORY")
+    );
+  }
+  if (Array.isArray(normalized.preferred_requirements)) {
+    normalized.preferred_requirements = normalized.preferred_requirements.map((item) =>
+      coerceRequirementRow(item, "PREFERRED")
+    );
+  }
+  if (normalized.screening_questions != null) {
+    normalized.screening_questions = coerceScreeningQuestions(normalized.screening_questions);
+  }
+
+  return normalized;
 }
 
 function mapRecommendationLabel(value: unknown): {
@@ -280,6 +561,19 @@ export function parseAndValidateMatchAnalysis(rawText: string): ParseMatchAnalys
     };
   }
 
+  if (looksLikeQuickMatchOutput(rawObject)) {
+    const quickParsed = quickMatchResponseSchema.safeParse(rawObject);
+    if (!quickParsed.success) {
+      return {
+        ok: false,
+        errors: formatZodErrors(quickParsed.error),
+        rawText,
+        rawObject,
+      };
+    }
+    return { ok: true, data: expandQuickMatchToFull(quickParsed.data), rawObject };
+  }
+
   if (looksLikeLeanAnalyzeOutput(rawObject)) {
     const coerced = coerceLeanAnalyzeShape(rawObject);
     const leanParsed = analyzeMatchResponseSchema.safeParse(coerced);
@@ -294,42 +588,8 @@ export function parseAndValidateMatchAnalysis(rawText: string): ParseMatchAnalys
     return { ok: true, data: expandAnalyzeMatchToFull(leanParsed.data), rawObject };
   }
 
-  // Coerce requirement_type if model omitted it based on array membership
-  const normalized = { ...rawObject } as Record<string, unknown>;
-  if (Array.isArray(normalized.mandatory_requirements)) {
-    normalized.mandatory_requirements = normalized.mandatory_requirements.map((item) => {
-      if (!item || typeof item !== "object") return item;
-      const row = item as Record<string, unknown>;
-      const evidence =
-        typeof row.candidate_evidence === "string"
-          ? row.candidate_evidence
-          : typeof row.evidence === "string"
-            ? row.evidence
-            : "";
-      return {
-        requirement_type: "MANDATORY",
-        ...row,
-        candidate_evidence: evidence,
-      };
-    });
-  }
-  if (Array.isArray(normalized.preferred_requirements)) {
-    normalized.preferred_requirements = normalized.preferred_requirements.map((item) => {
-      if (!item || typeof item !== "object") return item;
-      const row = item as Record<string, unknown>;
-      const evidence =
-        typeof row.candidate_evidence === "string"
-          ? row.candidate_evidence
-          : typeof row.evidence === "string"
-            ? row.evidence
-            : "";
-      return {
-        requirement_type: "PREFERRED",
-        ...row,
-        candidate_evidence: evidence,
-      };
-    });
-  }
+  // Coerce Deep Match / full schema quirks (string screening Qs, missing outcomes, NaN confidence).
+  const normalized = coerceFullMatchShape({ ...rawObject } as Record<string, unknown>);
 
   const parsed = matchAnalysisResponseSchema.safeParse(normalized);
   if (!parsed.success) {

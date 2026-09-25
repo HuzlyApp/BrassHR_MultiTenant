@@ -27,6 +27,7 @@ import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-previ
 import { parseCityStateLocation } from "@/lib/location/city-state";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 
 type ResumeTab = "files" | "paste";
 
@@ -183,6 +184,7 @@ export default function AddCandidateModal({
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const primaryColor = branding.primaryHex || "#BC8B41";
   const secondaryColor = branding.secondaryHex || "#012352";
+  const [analysisProvider] = useMatchAnalysisProvider();
 
   const [activeTab, setActiveTab] = useState<ResumeTab>("files");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -674,6 +676,7 @@ export default function AddCandidateModal({
       const stateToSubmit = selectedStateCode || workState.trim();
       if (stateToSubmit) form.set("workState", stateToSubmit);
       form.set("relocateToJobSite", relocateToJobSite ? "true" : "false");
+      form.set("analysisProvider", analysisProvider);
 
       const response = await fetch("/api/admin/add-candidate-from-resume", {
         method: "POST",

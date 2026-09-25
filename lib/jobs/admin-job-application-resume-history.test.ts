@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/jobs/match-analysis/ensure-application-resume", () => ({
+  ensureApplicationResumeFromWorker: vi.fn(async () => null),
+}));
+
 import {
   loadAdminJobApplicationResumeHistory,
   selectResumesForJobHistory,
@@ -110,6 +115,17 @@ describe("loadAdminJobApplicationResumeHistory", () => {
                       file_url: "worker-1/ResumeHaileySparks.pdf",
                       job_application_id: applicationId,
                     },
+                    {
+                      id: "resume-3",
+                      original_file_name: "Shawnda_Watkins_submission_resume.pdf",
+                      file_name: "Shawnda_Watkins_submission_resume.pdf",
+                      file_type: "application/pdf",
+                      uploaded_at: "2026-08-13T12:00:00.000Z",
+                      uploaded_by_user_id: staffUserId,
+                      storage_path: "submission-resumes/tenant-1/app-1/pack.pdf",
+                      file_url: "submission-resumes/tenant-1/app-1/pack.pdf",
+                      job_application_id: applicationId,
+                    },
                   ],
                   error: null,
                 })
@@ -137,13 +153,14 @@ describe("loadAdminJobApplicationResumeHistory", () => {
     );
 
     expect(result?.jobTitle).toBe("Certified Nursing Assistant (CNA)");
-    expect(result?.resumes).toHaveLength(2);
+    expect(result?.resumes).toHaveLength(3);
     expect(result?.resumes[0]?.fileName).toBe("Shawnda_Watkins_resume.pdf");
     expect(result?.resumes[0]?.fileIconType).toBe("pdf");
     expect(result?.resumes[0]?.uploadedByName).toBe("Shawnda Watkins");
     expect(result?.resumes[0]?.uploadedByType).toBe("worker");
     expect(result?.resumes[1]?.uploadedByName).toBe("Test User");
     expect(result?.resumes[1]?.uploadedByType).toBe("staff");
+    expect(result?.resumes[2]?.fileName).toBe("Shawnda_Watkins_submission_resume.pdf");
   });
 });
 

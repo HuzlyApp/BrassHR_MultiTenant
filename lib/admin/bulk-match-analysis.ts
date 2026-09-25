@@ -1,3 +1,5 @@
+import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+
 export const MATCH_ANALYSIS_BULK_CHUNK = 25;
 
 export type BulkMatchAnalysisItem = {
@@ -12,6 +14,8 @@ export type BulkMatchAnalysisItem = {
     analysis?: { candidate_match?: { display_category?: string } } | null;
     requirementCounts?: { confirmed: number; verify: number; notMet: number } | null;
     analyzedAt?: string | null;
+    stage?: string | null;
+    ai_match_stage?: string | null;
   };
 };
 
@@ -67,7 +71,7 @@ export async function postBulkMatchAnalysis(
   let analyzed = 0;
   let needsReview = 0;
   let failed = 0;
-  const analysisProvider = options?.analysisProvider === "grok" ? "grok" : "gemini";
+  const analysisProvider = parseAnalysisProvider(options?.analysisProvider);
 
   for (let offset = 0; offset < uniqueIds.length; offset += MATCH_ANALYSIS_BULK_CHUNK) {
     const chunk = uniqueIds.slice(offset, offset + MATCH_ANALYSIS_BULK_CHUNK);

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { createAdminJobApplication, bulkDeleteJobApplications, parseBulkDeleteIds } from "@/lib/jobs/service";
+import { createAdminJobApplication, bulkDeleteJobApplications, deleteOrphanWorkersAfterApplicationDelete, parseBulkDeleteIds } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     const ascending = req.nextUrl.searchParams.get("sortDir") === "asc";
     const PAGE_SIZE = 1000;
 
-    const applicationSelect = `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, internal_requisition_number, source_type, msp_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
+    const applicationSelect = `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, internal_requisition_number, source_type, msp_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
     function buildListQuery() {
       let query = db
@@ -462,12 +462,22 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "At least one application id is required" }, { status: 400 });
     }
 
-    const { deletedIds } = await bulkDeleteJobApplications(supabase, tenantId, ids);
+    const { deletedIds, workerIds } = await bulkDeleteJobApplications(supabase, tenantId, ids);
     if (!deletedIds.length) {
       return NextResponse.json({ error: "No candidates were deleted" }, { status: 404 });
     }
 
-    return NextResponse.json({ deletedIds, count: deletedIds.length });
+    const { deletedWorkerIds } = await deleteOrphanWorkersAfterApplicationDelete(
+      supabase,
+      tenantId,
+      workerIds
+    );
+
+    return NextResponse.json({
+      deletedIds,
+      deletedWorkerIds,
+      count: deletedIds.length,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: formatApiError(error, "Failed to delete candidates") },

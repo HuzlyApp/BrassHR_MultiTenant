@@ -145,8 +145,9 @@ function evaluateRemoteStates(
   ctx: EvaluateContext
 ): ServiceAreaDecision {
   const normalized = normalizeRemoteStates(states);
+  // Empty list = All States (nationwide). Platform holds still apply per applicant state at apply time.
   if (!normalized.length) {
-    return deny("remote_unscoped", action, null, null);
+    return ok();
   }
   for (const state of normalized) {
     const decision = evaluateSingleLocation(
@@ -177,7 +178,8 @@ export function evaluateServiceArea(
     if (action === "publish_job" || action === "add_location") {
       return evaluateRemoteStates(states ?? [], action, ctx);
     }
-    if (!normalizeStateCode(location.state) && !normalizeRemoteStates(location.remoteAllowedStates).length) {
+    // Apply / attach: empty remote allow-list means nationwide. Applicant must still provide a location.
+    if (!normalizeStateCode(location.state) && !String(location.city ?? "").trim()) {
       return deny("remote_unscoped", action, null, null);
     }
     if (normalizeStateCode(location.state) || String(location.city ?? "").trim()) {

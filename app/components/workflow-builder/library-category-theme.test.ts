@@ -237,6 +237,28 @@ describe("library-category-theme", () => {
     ).toBe(false);
   });
 
+  it("shows Submission and Approvals with Figma steps", () => {
+    const preHire = filterStepLibraryByPhase(library, "pre_hire");
+    const ids = preHire.map((category) => category.id);
+
+    expect(ids.indexOf("submission")).toBeGreaterThan(ids.indexOf("interview"));
+    expect(ids.indexOf("screening-compliance")).toBeGreaterThan(ids.indexOf("submission"));
+    expect(ids.indexOf("approval-decision")).toBeGreaterThan(ids.indexOf("offer-agreement"));
+
+    const submission = preHire.find((category) => category.id === "submission");
+    expect(submission?.label).toBe("Submission");
+    expect(submission?.steps.map((step) => ({ id: step.id, label: step.label }))).toEqual([
+      { id: "release-to-client", label: "Release to Client" },
+    ]);
+
+    const approvals = preHire.find((category) => category.id === "approval-decision");
+    expect(approvals?.label).toBe("Approvals");
+    expect(approvals?.steps.map((step) => ({ id: step.id, label: step.label }))).toEqual([
+      { id: "manager-facility-approval", label: "Manager / Facility Approval" },
+      { id: "hr-final-approval", label: "HR Final Approval" },
+    ]);
+  });
+
   it("shows Compliance with Adverse Action Process", () => {
     const preHire = filterStepLibraryByPhase(library, "pre_hire");
     const compliance = preHire.find((category) => category.id === "screening-compliance");

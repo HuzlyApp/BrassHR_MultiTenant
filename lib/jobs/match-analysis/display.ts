@@ -108,6 +108,43 @@ export function formatMatchScore(score: number | null | undefined): string {
   return `${Math.round(Number(score))}%`;
 }
 
+/** Human-readable Deep Match model name, e.g. Gemini 3.1 Pro or Grok 4.3. */
+export function formatMatchModelLabel(model: string | null | undefined): string {
+  const raw = model?.trim() ?? "";
+  if (!raw) return "Gemini";
+  const lower = raw.toLowerCase();
+
+  if (lower.startsWith("gemini")) {
+    const rest = raw
+      .replace(/^gemini[-_]?/i, "")
+      .replace(/-preview$/i, "")
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((part) => {
+        const token = part.toLowerCase();
+        if (/^\d/.test(token)) return part;
+        if (token === "pro") return "Pro";
+        if (token === "flash") return "Flash";
+        if (token === "lite") return "Lite";
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .join(" ");
+    return rest ? `Gemini ${rest}` : "Gemini";
+  }
+
+  if (lower.startsWith("grok")) {
+    const rest = raw.replace(/^grok[-_]?/i, "").replace(/-/g, " ").trim();
+    if (!rest) return "Grok";
+    const pretty = rest
+      .split(/\s+/)
+      .map((part) => (part.toLowerCase() === "fast" ? "Fast" : part))
+      .join(" ");
+    return `Grok ${pretty}`;
+  }
+
+  return raw;
+}
+
 /** Higher = stronger qualification/relevance for secondary ranking when Match % ties. */
 export function matchCategoryRelevanceRank(category: string | null | undefined): number {
   switch (category) {

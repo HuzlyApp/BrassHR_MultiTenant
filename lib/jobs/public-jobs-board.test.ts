@@ -2,15 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   buildJobsBoardHref,
   buildPublicJobsApiSearchParams,
+  buildPublicJobsKeywordOrFilters,
+  buildPublicJobsLocationOrFilter,
   descriptionHasSection,
+  formatPostedDateDetail,
   formatPublicJobDescriptionHtml,
   formatPublicJobPay,
+  formatPublicJobPayParts,
   formatWorkplaceType,
   hasActiveJobsBoardFilters,
   jobCardSummary,
   parseJobsBoardSearchParams,
   resolveSelectedJobToken,
   selectedJobApplyHref,
+  sortPublicBoardJobs,
+  type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
 
 describe("jobs board URL state", () => {
@@ -89,6 +95,12 @@ describe("selected job resolution", () => {
     expect(resolveSelectedJobToken(jobs, "null")).toBe("a");
     expect(resolveSelectedJobToken([], "a")).toBeNull();
   });
+
+  it("can skip falling back to the first job for mobile list-first visits", () => {
+    expect(resolveSelectedJobToken(jobs, null, { fallbackToFirst: false })).toBeNull();
+    expect(resolveSelectedJobToken(jobs, "deleted", { fallbackToFirst: false })).toBeNull();
+    expect(resolveSelectedJobToken(jobs, "b", { fallbackToFirst: false })).toBe("b");
+  });
 });
 
 describe("job card summary sanitization", () => {
@@ -162,7 +174,19 @@ describe("job meta formatting", () => {
         pay_rate_period: "Hourly",
         show_pay_by: "Range",
       })
-    ).toBe("$45 – $55 per hour");
+    ).toBe("$45 - $55 per hour");
+  });
+
+  it("formats Figma-style pay parts and posted detail", () => {
+    expect(
+      formatPublicJobPayParts({
+        pay_rate_min: 35,
+        pay_rate_max: 67,
+        pay_rate_period: "Hourly",
+        show_pay_by: "Range",
+      })
+    ).toEqual({ amount: "$35 - $67", unit: "/ hr" });
+    expect(formatPostedDateDetail("2026-09-02T12:00:00.000Z")).toMatch(/^Posted: September 2, 2026$/);
   });
 
   it("returns workplace type when present", () => {
@@ -175,5 +199,113 @@ describe("job meta formatting", () => {
       "/apply?tenant=zipstaff&job_token=rn-2"
     );
     expect(selectedJobApplyHref("zipstaff", { public_job_token: "rn-2", workflow_id: null })).toBeNull();
+  });
+});
+
+describe("sortPublicBoardJobs", () => {
+  const olderPublished: PublicBoardJob = {
+    public_job_token: "older",
+    public_title: "ACI MTS Implementation Consultant",
+    public_description: "Short",
+    location: "Edison, NJ",
+    schedule: null,
+    employment_type: "W2",
+    published_at: "2026-09-18T12:00:00.000Z",
+    updated_at: "2026-09-18T12:00:00.000Z",
+    professions: null,
+    specialties: null,
+  };
+  const newerUpdated: PublicBoardJob = {
+    public_job_token: "newer",
+    public_title: "Senior EDP Business Analyst",
+    public_description: "Business analyst for EDP systems with long description content here",
+    location: "Freeport, ME",
+    location_type: "Remote",
+    schedule: null,
+    employment_type: "W2",
+    pay_rate_min: 41,
+    pay_rate_max: 42,
+    workflow_id: "wf-1",
+    published_at: "2026-09-17T12:00:00.000Z",
+    updated_at: "2026-09-21T12:00:00.000Z",
+    professions: null,
+    specialties: null,
+  };
+  const titleMatch: PublicBoardJob = {
+    ...olderPublished,
+    public_job_token: "match",
+    public_title: "EDP Lead Analyst",
+    public_description: "EDP specialist role",
+    workflow_id: "wf-2",
+    published_at: "2026-09-10T12:00:00.000Z",
+    updated_at: "2026-09-10T12:00:00.000Z",
+  };
+
+  it("sorts Most recent by latest of published_at and updated_at", () => {
+    const sorted = sortPublicBoardJobs([olderPublished, newerUpdated], "recent", "");
+    expect(sorted.map((job) => job.public_job_token)).toEqual(["newer", "older"]);
+  });
+
+  it("sorts Most relevant by keyword match, then activity", () => {
+    const sorted = sortPublicBoardJobs(
+      [olderPublished, newerUpdated, titleMatch],
+      "relevant",
+      "EDP"
+    );
+    expect(sorted.map((job) => job.public_job_token)).toEqual(["match", "newer", "older"]);
+  });
+
+  it("ranks Most relevant without a keyword using posting quality signals", () => {
+    const sparseRecent: PublicBoardJob = {
+      ...olderPublished,
+      public_job_token: "sparse",
+      public_title: "Temp",
+      public_description: "",
+      employment_type: "W2",
+      published_at: "2026-09-22T12:00:00.000Z",
+      updated_at: "2026-09-22T12:00:00.000Z",
+    };
+    const sorted = sortPublicBoardJobs([sparseRecent, newerUpdated], "relevant", "");
+    expect(sorted.map((job) => job.public_job_token)).toEqual(["newer", "sparse"]);
+  });
+
+  it("boosts location matches when sorting Most relevant", () => {
+    const sorted = sortPublicBoardJobs(
+      [olderPublished, newerUpdated],
+      "relevant",
+      "",
+      "Remote"
+    );
+    expect(sorted[0]?.public_job_token).toBe("newer");
+  });
+});
+
+describe("public jobs search filter builders", () => {
+  it("builds keyword or-filters with one phrase filter per comma tag", () => {
+    const filters = buildPublicJobsKeywordOrFilters("Senior Oracle,Remote");
+    expect(filters).toHaveLength(2);
+    expect(filters[0]).toContain('public_title.ilike."%Senior Oracle%"');
+    expect(filters[0]).toContain("location_type.ilike.");
+    expect(filters[1]).toContain('public_title.ilike."%Remote%"');
+  });
+
+  it("treats a single unspaced query as one phrase tag", () => {
+    const filters = buildPublicJobsKeywordOrFilters("Oracle DBA");
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toContain('public_title.ilike."%Oracle DBA%"');
+  });
+
+  it("builds location or-filter that matches remote workplace type", () => {
+    const filter = buildPublicJobsLocationOrFilter("remote");
+    expect(filter).toContain('location_type.eq."Remote"');
+    expect(filter).toContain('and(location_type.is.null,schedule.eq."Remote")');
+    expect(filter).toContain('and(location_type.is.null,location.ilike."%Remote%")');
+    expect(filter).not.toContain('location.ilike."%remote%"');
+  });
+
+  it("builds city location search without workplace exact-match branches", () => {
+    const filter = buildPublicJobsLocationOrFilter("Blue Bell");
+    expect(filter).toContain('location.ilike."%Blue Bell%"');
+    expect(filter).not.toContain("location_type.eq.");
   });
 });

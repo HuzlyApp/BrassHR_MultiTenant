@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Candidate Match worker prompt source", () => {
-  it("does not hard-code the Candidate Match system prompt body", () => {
+  it("keeps the Quick Match body in prompts.ts, not inlined in the worker", () => {
     const service = readFileSync("lib/jobs/match-analysis/service.ts", "utf8");
     const pipeline = readFileSync("lib/jobs/match-analysis/pipeline.ts", "utf8");
-    expect(service).not.toContain("You are an expert staffing matching analyst");
-    expect(pipeline).not.toContain("You are an expert staffing matching analyst");
-    expect(service).toContain("resolved.systemPrompt");
+    expect(service).not.toContain("You extract and classify a candidate against a JD");
+    expect(pipeline).not.toContain("You extract and classify a candidate against a JD");
+    expect(service).toContain("ANALYZE_SYSTEM_PROMPT");
+    expect(service).toMatch(/resolved\?\.systemPrompt/);
     expect(pipeline).toContain("resolvePromptVersion");
   });
 

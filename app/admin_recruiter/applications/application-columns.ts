@@ -3,6 +3,7 @@ export type ApplicationColumnId =
   | "contact"
   | "clientName"
   | "matches"
+  | "fit"
   | "conf"
   | "verify"
   | "notMet"
@@ -23,6 +24,7 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
   { id: "contact", label: "Contact" },
   { id: "clientName", label: "Client Name" },
   { id: "matches", label: "Match %" },
+  { id: "fit", label: "Fit" },
   { id: "conf", label: "Conf." },
   { id: "verify", label: "Verify" },
   { id: "notMet", label: "Not Met" },
@@ -48,7 +50,7 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
   "contact",
   "clientName",
-  "matches",
+  "fit",
   "conf",
   "verify",
   "notMet",
@@ -60,7 +62,7 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "actions",
 ];
 
-const STORAGE_KEY = "nexus-job-applications-list-columns-v4";
+const STORAGE_KEY = "nexus-job-applications-list-columns-v6";
 
 function insertAfter(
   order: ApplicationColumnId[],
@@ -87,8 +89,9 @@ function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationC
   let next = [...order];
   next = insertAfter(next, "contact", "candidates");
   next = insertAfter(next, "clientName", "contact");
-  next = insertAfter(next, "matches", "clientName");
-  next = insertAfter(next, "conf", "matches");
+  // Match % is optional — not force-added; recruiters can enable it via Edit Columns.
+  next = insertAfter(next, "fit", "clientName");
+  next = insertAfter(next, "conf", "fit");
   next = insertAfter(next, "verify", "conf");
   next = insertAfter(next, "notMet", "verify");
   next = insertAfter(next, "currentStage", "notMet");
@@ -143,6 +146,7 @@ export function applicationColumnLabel(id: ApplicationColumnId): string {
 /** Name stays left; Location left-aligned; remaining list columns centered. */
 const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "matches",
+  "fit",
   "conf",
   "verify",
   "notMet",
@@ -163,12 +167,13 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   if (colId === "contact") return "min-w-[200px]";
   if (colId === "clientName") return "min-w-[140px] whitespace-nowrap";
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
+  if (colId === "fit") return `min-w-[88px] whitespace-nowrap${center}`;
   if (colId === "conf" || colId === "verify" || colId === "notMet") {
     return `min-w-[72px] whitespace-nowrap${center}`;
   }
   if (colId === "location") return "min-w-[120px] whitespace-nowrap";
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`;
-  if (colId === "currentStage") return "min-w-[170px]";
+  if (colId === "currentStage") return "min-w-[170px] max-w-[220px]";
   if (colId === "interest") return `min-w-[132px] whitespace-nowrap${center}`;
   if (colId === "email") return `min-w-[180px]${center}`;
   if (colId === "workflow") return `min-w-[140px]${center}`;

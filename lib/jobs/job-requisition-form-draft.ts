@@ -1,6 +1,10 @@
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import type { JobRequisitionInput, PlacementType } from "@/lib/jobs/types";
-import type { JobFormStep, JobFormUiState } from "@/app/admin_recruiter/jobs/job-form-shared";
+import {
+  defaultJobFormUiState,
+  type JobFormStep,
+  type JobFormUiState,
+} from "@/app/admin_recruiter/jobs/job-form-shared";
 
 /** In-progress job requisition form so legal pages can return without losing data. */
 
@@ -25,6 +29,19 @@ function canUseSessionStorage(): boolean {
   return typeof window !== "undefined" && typeof sessionStorage !== "undefined";
 }
 
+function normalizeDraftUi(
+  raw: Partial<JobFormUiState> | undefined,
+  job: JobRequisitionInput
+): JobFormUiState {
+  const base = defaultJobFormUiState();
+  const merged = { ...base, ...(raw ?? {}) };
+  if (merged.remoteStatesScope !== "all" && merged.remoteStatesScope !== "restrict") {
+    merged.remoteStatesScope =
+      (job.remoteAllowedStates?.length ?? 0) > 0 ? "restrict" : "all";
+  }
+  return merged;
+}
+
 export function readJobRequisitionFormDraft(
   jobId: string | null
 ): JobRequisitionFormDraft | null {
@@ -39,11 +56,13 @@ export function readJobRequisitionFormDraft(
     const currentJobId = jobId?.trim() || null;
     if (draftJobId !== currentJobId) return null;
 
+    const job = parsed.job as JobRequisitionInput;
+
     return {
       jobId: draftJobId,
       step: parsed.step ?? "setup",
-      job: parsed.job as JobRequisitionInput,
-      ui: (parsed.ui ?? {}) as JobFormUiState,
+      job,
+      ui: normalizeDraftUi(parsed.ui, job),
       mspSourcedByClient:
         typeof parsed.mspSourcedByClient === "boolean" ? parsed.mspSourcedByClient : null,
       mspPlacementType: parsed.mspPlacementType ?? null,

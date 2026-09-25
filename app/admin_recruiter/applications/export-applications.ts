@@ -16,6 +16,7 @@ import {
   applicationCurrentStageMeta,
   applicationStatusLabel,
 } from "@/lib/jobs/application-status";
+import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 
 export type ApplicationExportRow = ApplicationApplicantSource & {
   id: string;
@@ -24,6 +25,8 @@ export type ApplicationExportRow = ApplicationApplicantSource & {
   created_at: string;
   submitted_at?: string | null;
   ai_match_score?: number | null;
+  ai_match_status?: string | null;
+  ai_match_stage?: string | null;
   ai_match_display_category?: string | null;
   ai_requirement_counts?: { confirmed: number; verify: number; notMet: number } | null;
   assignedRecruiter?: { name: string } | null;
@@ -60,6 +63,18 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
       },
     },
     { header: "Match %", value: (row) => matchPercent(row) },
+    {
+      header: "Fit",
+      value: (row) => {
+        const band = listingDisplayFitBand({
+          analyzed: row.ai_match_status === "ANALYZED",
+          stage: row.ai_match_stage,
+          counts: row.ai_requirement_counts,
+        });
+        if (!band) return "";
+        return band === "strong" ? "Strong" : band === "low" ? "Low" : "Review";
+      },
+    },
     {
       header: "Conf.",
       value: (row) =>

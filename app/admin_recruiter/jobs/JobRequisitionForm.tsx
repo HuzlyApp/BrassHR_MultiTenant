@@ -9,6 +9,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import { isLiveJobRequisitionStatus } from "@/lib/jobs/job-status";
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
 import {
   jobRequiresWorkflow,
   placementTypeFromApiRow,
@@ -18,6 +19,7 @@ import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import { showsRemoteAllowedStatesField } from "./RemoteAllowedStatesField";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -423,7 +425,26 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   function updateUi(patch: Partial<JobFormUiState>) {
-    setUi((current) => ({ ...current, ...patch }));
+    const clearsRemote =
+      "jobLocationType" in patch &&
+      patch.jobLocationType != null &&
+      !showsRemoteAllowedStatesField(patch.jobLocationType);
+
+    setUi((current) => ({
+      ...current,
+      ...patch,
+      ...(clearsRemote ? { remoteStatesScope: "all" as const } : {}),
+    }));
+    if (clearsRemote) {
+      setJob((current) => ({ ...current, remoteAllowedStates: [] }));
+    }
+    if ("jobLocationType" in patch) {
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next.remoteAllowedStates;
+        return next;
+      });
+    }
   }
 
   function buildPayloadJob(): JobRequisitionInput {
@@ -434,9 +455,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const errors: Record<string, string> = {};
     const isMsp = current.sourceType === "MSP";
     const isMspEor = isMsp && current.placementType === "Recruit_and_EOR";
+    const isRemote = isRemoteJobLocationType(current.jobLocationType ?? current.schedule);
 
     const location = current.location?.trim() || current.facility?.trim() || "";
-    if (!location) {
+    if (isRemote) {
+      if (ui.remoteStatesScope === "restrict" && !current.remoteAllowedStates?.length) {
+        errors.remoteAllowedStates =
+          "Select at least one state, or switch back to All States.";
+      }
+    } else if (!location) {
       errors.location = "Location is required.";
     }
 
@@ -527,13 +554,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (stepErrors.publicDescription) {
           setStep("description");
         } else if (
-          stepErrors.location ||
-          stepErrors.shiftType ||
-          stepErrors.sourceJobTitle ||
-          stepErrors.publicTitle ||
-          stepErrors.professionId ||
-          stepErrors.employmentType ||
-          stepErrors.workflowId
+          !(stepErrors.remoteAllowedStates && step === "review") &&
+          (stepErrors.location ||
+            stepErrors.remoteAllowedStates ||
+            stepErrors.shiftType ||
+            stepErrors.sourceJobTitle ||
+            stepErrors.publicTitle ||
+            stepErrors.professionId ||
+            stepErrors.employmentType ||
+            stepErrors.workflowId)
         ) {
           setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
         }
@@ -569,6 +598,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           }
         }
         setFieldErrors(payload.fieldErrors ?? {});
+        const apiFieldErrors = (payload.fieldErrors ?? {}) as Record<string, string>;
+        if (
+          !(apiFieldErrors.remoteAllowedStates && step === "review") &&
+          (apiFieldErrors.remoteAllowedStates ||
+            apiFieldErrors.location ||
+            apiFieldErrors.shiftType ||
+            apiFieldErrors.sourceJobTitle ||
+            apiFieldErrors.publicTitle ||
+            apiFieldErrors.professionId ||
+            apiFieldErrors.employmentType)
+        ) {
+          setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
+        }
         throw new Error(readServiceAreaApiMessage(payload, "Failed to save job"));
       }
       if (payload.job?.id) {
@@ -690,7 +732,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   function handleNext() {
     if (step === "requisition") {
       const errors = {
-        ...validateRequisitionStep(job),
+        ...validateRequisitionStep(buildPayloadJob()),
         ...validateWorkflowAssignment(),
       };
       if (Object.keys(errors).length > 0) {
@@ -965,6 +1007,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 professionName={professionLabel}
                 onEditField={setReviewEditField}
                 brandVars={brandVars}
+                fieldErrors={fieldErrors}
               />
             ) : null}
           </div>
@@ -1039,6 +1082,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         onUpdate={({ job: nextJob, ui: nextUi }) => {
           setJob(nextJob);
           setUi(nextUi);
+          setFieldErrors((current) => {
+            const next = { ...current };
+            delete next.remoteAllowedStates;
+            delete next.location;
+            return next;
+          });
+          setMessage("");
           setReviewEditField(null);
         }}
       />

@@ -26,6 +26,11 @@ import {
 } from "@/lib/resume/validate-resume-upload";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import {
+  runAutoQuickMatchForApplication,
+  type AutoQuickMatchResult,
+} from "@/lib/jobs/match-analysis/auto-quick-match";
+import type { AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
@@ -44,6 +49,8 @@ export type AdminAddCandidateFromResumeInput = {
   workState?: string | null;
   workPostalCode?: string | null;
   relocateToJobSite?: boolean;
+  /** Grok (default) or Gemini — used for Step 1 auto Quick Match. */
+  analysisProvider?: AnalysisProvider;
 };
 
 export type AdminAddCandidateFromResumeResult = {
@@ -51,6 +58,7 @@ export type AdminAddCandidateFromResumeResult = {
   applicantProfileId: string;
   jobTitle: string;
   candidateName: string;
+  autoQuickMatch: AutoQuickMatchResult | null;
 };
 
 function sanitizeFileName(name: string): string {
@@ -423,10 +431,25 @@ export async function adminAddCandidateFromResume(
     });
   }
 
+  const applicationId = String(result.application?.id ?? "").trim();
+  let autoQuickMatch: AutoQuickMatchResult | null = null;
+  if (applicationId) {
+    // Await Step 1 so Vercel does not kill fire-and-forget work, and the UI can show fit.
+    autoQuickMatch = await runAutoQuickMatchForApplication({
+      supabase,
+      tenantId: input.tenantId,
+      jobApplicationId: applicationId,
+      analyzedByUserId: input.staffUserId ?? null,
+      analysisProvider: input.analysisProvider,
+      reason: "admin_add_candidate_from_resume",
+    });
+  }
+
   return {
-    applicationId: String(result.application?.id ?? ""),
+    applicationId,
     applicantProfileId: result.applicantProfileId,
     jobTitle: result.jobTitle,
     candidateName: fullName,
+    autoQuickMatch,
   };
 }

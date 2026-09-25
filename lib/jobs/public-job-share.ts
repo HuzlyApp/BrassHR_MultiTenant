@@ -63,15 +63,52 @@ export function publicJobPlatformShareUrl(
 
 export type ShareOrCopyPublicJobResult = "shared" | "copied" | "aborted" | "unavailable";
 
-export async function copyPublicJobShareUrl(url: string): Promise<boolean> {
-  const value = url.trim();
-  if (!value || typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-    return false;
+function copyPublicJobShareUrlViaDom(url: string): boolean {
+  if (typeof document === "undefined") return false;
+  const textarea = document.createElement("textarea");
+  textarea.value = url;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
   }
-  await navigator.clipboard.writeText(value);
-  return true;
+  document.body.removeChild(textarea);
+  return ok;
 }
 
+export async function copyPublicJobShareUrl(url: string): Promise<boolean> {
+  const value = url.trim();
+  if (!value || typeof navigator === "undefined") {
+    return false;
+  }
+
+  // Clipboard API is often blocked in cross-origin iframes without clipboard-write.
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // Fall through to the DOM copy path used in embeds.
+    }
+  }
+
+  return copyPublicJobShareUrlViaDom(value);
+}
+
+/**
+ * Share via Web Share API when allowed, otherwise copy the URL.
+ * Cross-origin embeds (e.g. WordPress iframe) need allow="web-share; clipboard-write"
+ * on the parent iframe or navigator.share will reject with NotAllowedError.
+ */
 export async function shareOrCopyPublicJobUrl(input: {
   url: string;
   title: string;
@@ -86,10 +123,15 @@ export async function shareOrCopyPublicJobUrl(input: {
       return "shared";
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return "aborted";
+      // NotAllowedError in third-party iframes without allow="web-share" — fall back to copy.
     }
   }
 
-  return (await copyPublicJobShareUrl(url)) ? "copied" : "unavailable";
+  try {
+    return (await copyPublicJobShareUrl(url)) ? "copied" : "unavailable";
+  } catch {
+    return "unavailable";
+  }
 }
 
 function schemaEmploymentType(value?: string | null): string | null {

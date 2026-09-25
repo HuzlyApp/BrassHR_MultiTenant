@@ -8,7 +8,7 @@ import {
 } from "@/lib/jobs/application-applicant-display";
 
 export const CANDIDATE_LIST_SEARCH_PLACEHOLDER =
-  "Search name, email, phone, job code, job role, location…";
+  "Search name, email, phone, job code, MSP Source Job ID, job role, location…";
 
 function oneEmbedded(value: EmbeddedRecord): Record<string, unknown> {
   if (!value) return {};
@@ -21,6 +21,18 @@ export function normalizeCandidateSearchQuery(query: string): { text: string; di
     text: trimmed.toLowerCase(),
     digits: trimmed.replace(/\D/g, ""),
   };
+}
+
+/**
+ * True when the query is meant as a phone (or numeric) lookup.
+ * Emails and mixed alphanumeric strings must not fall through to phone-digit matching —
+ * e.g. `singh.ca.1237@gmail.com` extracts `1237`, which can falsely match `(512) 373-…`.
+ */
+export function isPhoneLikeSearchQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed || trimmed.includes("@")) return false;
+  const withoutPhoneFmt = trimmed.replace(/[\s().+\-_/]/g, "");
+  return /^\d{3,}$/.test(withoutPhoneFmt);
 }
 
 function normalizeSearchComparable(value: string): string {
@@ -105,7 +117,7 @@ export function matchesCandidateListSearch(row: CandidateListSearchRow, query: s
     return true;
   }
 
-  if (digits) {
+  if (digits && isPhoneLikeSearchQuery(query)) {
     return includesDigits(row.phone, digits) || includesDigits(row.reference ?? "", digits);
   }
 
@@ -124,6 +136,11 @@ export function resolveApplicationJobCode(row: ApplicationListSearchRow): string
   if (code) return code;
   const jobId = String(row.job_requisition_id ?? "").trim();
   return jobId ? jobId.slice(0, 8).toUpperCase() : "";
+}
+
+export function resolveApplicationSourceJobId(row: ApplicationListSearchRow): string {
+  const job = oneEmbedded(row.job_requisitions);
+  return String(job.external_requisition_id ?? "").trim();
 }
 
 export function resolveApplicationJobLocation(row: ApplicationListSearchRow): string {
@@ -145,6 +162,7 @@ export function collectApplicationListSearchFields(row: ApplicationListSearchRow
     resolveApplicationApplicantEmail(row),
     resolveApplicationApplicantPhone(row),
     resolveApplicationJobCode(row),
+    resolveApplicationSourceJobId(row),
     resolveApplicationJobLocation(row),
     resolveApplicationApplicantLocation(row),
     jobTitle,
@@ -161,7 +179,7 @@ export function matchesApplicationListSearch(row: ApplicationListSearchRow, quer
     return true;
   }
 
-  if (digits) {
+  if (digits && isPhoneLikeSearchQuery(query)) {
     return includesDigits(resolveApplicationApplicantPhone(row), digits);
   }
 

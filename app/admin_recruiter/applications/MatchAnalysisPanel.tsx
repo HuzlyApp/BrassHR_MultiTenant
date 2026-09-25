@@ -469,3 +469,26 @@ export function RequirementOutcomeCountCell(props: {
         : "text-[#DC2626]";
   return <span className={`text-sm font-semibold tabular-nums ${color}`}>{display}</span>;
 }
+
+export function FitBandCell(props: {
+  analyzed: boolean;
+  band: "strong" | "review" | "low" | null;
+}) {
+  if (!props.analyzed || !props.band) {
+    return <span className="text-sm text-[#94A3B8]">—</span>;
+  }
+  const label = props.band === "strong" ? "Strong" : props.band === "low" ? "Low" : "Review";
+  const className =
+    props.band === "strong"
+      ? "bg-[#00B135] text-white"
+      : props.band === "low"
+        ? "bg-[#FEE2E2] text-[#991B1B]"
+        : "bg-[#FEF9C3] text-[#854D0E]";
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${className}`}
+    >
+      {label}
+    </span>
+  );
+}

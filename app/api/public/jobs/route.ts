@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       pageSize: Number(req.nextUrl.searchParams.get("pageSize") || 12),
     });
 
-    const [professions, specialties] = await Promise.all([
+    const [professions, specialties, usedFilterIds] = await Promise.all([
       supabase
         .from("professions")
         .select("id, name")
@@ -57,14 +57,33 @@ export async function GET(req: NextRequest) {
         .or(`tenant_id.is.null,tenant_id.eq.${tenant.id}`)
         .eq("is_active", true)
         .order("name"),
+      supabase
+        .from("job_requisitions")
+        .select("profession_id, specialty_id")
+        .eq("tenant_id", tenant.id)
+        .in("status", ["open", "published"])
+        .not("public_job_token", "is", null)
+        .neq("public_job_token", ""),
     ]);
+
+    const usedProfessionIds = new Set(
+      (usedFilterIds.data ?? [])
+        .map((row) => (row.profession_id ? String(row.profession_id) : ""))
+        .filter(Boolean)
+    );
+    const usedSpecialtyIds = new Set(
+      (usedFilterIds.data ?? [])
+        .map((row) => (row.specialty_id ? String(row.specialty_id) : ""))
+        .filter(Boolean)
+    );
 
     return NextResponse.json({
       ...result,
       tenant,
       filters: {
-        professions: professions.data ?? [],
-        specialties: specialties.data ?? [],
+        // Only offer profession/specialty values that can return board results.
+        professions: (professions.data ?? []).filter((item) => usedProfessionIds.has(String(item.id))),
+        specialties: (specialties.data ?? []).filter((item) => usedSpecialtyIds.has(String(item.id))),
         employmentTypes: EMPLOYMENT_TYPES,
       },
     });
