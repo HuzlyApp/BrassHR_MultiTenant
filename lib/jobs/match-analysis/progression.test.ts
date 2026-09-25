@@ -14,6 +14,7 @@ import {
   quickMatchFitBand,
   displayFitBand,
   listingDisplayFitBand,
+  fitBandFromDeepMatchResult,
   fitBandLabel,
 } from "./progression";
 
@@ -82,6 +83,19 @@ describe("match progression steps", () => {
     expect(displayFitBand({ fitBand: "low", stage: "deep" })).toBe("low");
     expect(displayFitBand({ fitBand: "strong", stage: "quick" })).toBe("strong");
     expect(fitBandLabel("review")).toBe("Review");
+  });
+
+  it("maps Deep Match category / label / score onto Strong Review Low", () => {
+    expect(fitBandFromDeepMatchResult({ category: "WEAK_MATCH" })).toBe("low");
+    expect(fitBandFromDeepMatchResult({ category: "NOT_A_MATCH" })).toBe("low");
+    expect(fitBandFromDeepMatchResult({ category: "STRONG_MATCH" })).toBe("strong");
+    expect(fitBandFromDeepMatchResult({ category: "GOOD_MATCH" })).toBe("strong");
+    expect(fitBandFromDeepMatchResult({ category: "POSSIBLE_MATCH" })).toBe("review");
+    expect(fitBandFromDeepMatchResult({ displayCategory: "Weak Match" })).toBe("low");
+    expect(fitBandFromDeepMatchResult({ displayCategory: "59% Weak Match" })).toBe("low");
+    expect(fitBandFromDeepMatchResult({ score: 59 })).toBe("low");
+    expect(fitBandFromDeepMatchResult({ score: 82 })).toBe("strong");
+    expect(fitBandFromDeepMatchResult({ score: 65 })).toBe("review");
   });
 
   it("lists Fit from checklist counts and promotes Review at Deep Match", () => {
@@ -214,8 +228,8 @@ describe("match progression steps", () => {
     expect(matchProgressionPrimaryAction(0)?.label).toBe("Continue to Verifications");
     expect(matchProgressionPrimaryAction(1)?.label).toBe("Continue to Follow-up");
     expect(matchProgressionPrimaryAction(2)).toBeNull();
-    expect(matchProgressionPrimaryAction(3)?.label).toBe("Draft submission résumé");
-    expect(matchProgressionPrimaryAction(4)?.label).toBe("Draft submission résumé");
+    expect(matchProgressionPrimaryAction(3)).toBeNull();
+    expect(matchProgressionPrimaryAction(4)).toBeNull();
     expect(matchProgressionPrimaryAction(4, { hasSubmissionResume: true })?.label).toBe(
       "Email MSP / upload portal"
     );
