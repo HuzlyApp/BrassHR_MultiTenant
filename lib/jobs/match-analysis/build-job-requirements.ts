@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 import { htmlToPlainText } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   structuredJobRequirementsSchema,
   type StructuredJobRequirements,
 } from "./schema";
+import { sha256Hex } from "./sha256-hex";
 
 /** Job columns that feed match analysis / structured requirements. */
 export const JOB_REQUIREMENTS_SOURCE_FIELDS = [
@@ -278,7 +278,7 @@ export function jobRequirementsSourceFingerprint(
     normalizeFingerprintPart(job.location),
     normalizeFingerprintPart(job.specialty),
   ].join("\n---\n");
-  return createHash("sha256").update(payload, "utf8").digest("hex");
+  return sha256Hex(payload);
 }
 
 export function jobRequirementsSourceFieldsChanged(
