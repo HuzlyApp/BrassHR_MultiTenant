@@ -382,7 +382,12 @@ export function parseListingRequirementCounts(
   const verify = Number(record.verify);
   const notMet = Number(record.notMet);
   if (![confirmed, verify, notMet].every(Number.isFinite)) return null;
-  return { confirmed, verify, notMet };
+  const counts: ListingRequirementOutcomeCounts = { confirmed, verify, notMet };
+  const mandatory = record.mandatory == null ? NaN : Number(record.mandatory);
+  const blocking = record.blocking == null ? NaN : Number(record.blocking);
+  if (Number.isFinite(mandatory)) counts.mandatory = mandatory;
+  if (Number.isFinite(blocking)) counts.blocking = blocking;
+  return counts;
 }
 
 export function requirementCountsFromAnalyzePayload(payload: {

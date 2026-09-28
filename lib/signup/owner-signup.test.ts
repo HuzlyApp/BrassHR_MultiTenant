@@ -69,6 +69,16 @@ describe("validateOwnerSignupDetails", () => {
   it("accepts valid address details", () => {
     expect(validateOwnerSignupDetails(validBase)).toBeNull();
   });
+
+  it("rejects first or last names longer than 50 characters", () => {
+    expect(validateOwnerSignupDetails({ ...validBase, firstName: "a".repeat(50) })).toBeNull();
+    expect(validateOwnerSignupDetails({ ...validBase, firstName: "a".repeat(51) })).toBe(
+      "First name must be 50 characters or fewer."
+    );
+    expect(validateOwnerSignupDetails({ ...validBase, lastName: "a".repeat(51) })).toBe(
+      "Last name must be 50 characters or fewer."
+    );
+  });
 });
 
 describe("signupAddress1ValidationMessage", () => {

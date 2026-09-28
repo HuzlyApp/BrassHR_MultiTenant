@@ -55,6 +55,25 @@ describe("validateStep1Form address verification", () => {
   })
 })
 
+describe("validateStep1Form name length", () => {
+  it("accepts names of exactly 50 characters", () => {
+    const name = "a".repeat(50)
+    expect(validateStep1Form({ ...completeForm, firstName: name, lastName: name })).toBeNull()
+  })
+
+  it("rejects a first name longer than 50 characters", () => {
+    const issue = validateStep1Form({ ...completeForm, firstName: "a".repeat(51) })
+    expect(issue?.code).toBe("NAME")
+    expect(issue?.message).toBe("First name must be 50 characters or fewer.")
+  })
+
+  it("rejects a last name longer than 50 characters", () => {
+    const issue = validateStep1Form({ ...completeForm, lastName: "a".repeat(51) })
+    expect(issue?.code).toBe("NAME")
+    expect(issue?.message).toBe("Last name must be 50 characters or fewer.")
+  })
+})
+
 describe("validateStep1Form ZIP and state", () => {
   it("accepts a California ZIP when state is California", () => {
     expect(validateStep1Form(completeForm, { addressVerified: true })).toBeNull()

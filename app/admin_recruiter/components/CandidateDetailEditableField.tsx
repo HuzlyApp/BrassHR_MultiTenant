@@ -9,6 +9,7 @@ import {
   validateCandidateFieldInput,
 } from "@/lib/admin/worker-profile-field-client";
 import { PROFILE_FIELD_OPEN_EDIT_EVENT } from "@/lib/admin/candidate-profile-sections";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 
 type CandidateDetailEditableFieldProps = {
   label: string;
@@ -144,7 +145,9 @@ export default function CandidateDetailEditableField({
                         ? 14
                         : fieldKind === "zip"
                           ? 10
-                          : undefined
+                          : fieldKind === "person_name"
+                            ? PERSON_NAME_MAX_LENGTH
+                            : undefined
                 }
                 className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
                   saveError ? "border-red-400" : "border-[#D1D5DB]"

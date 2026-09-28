@@ -1,6 +1,7 @@
 import type { CandidateRow } from "@/app/admin_recruiter/candidates/types";
 import { resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title";
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
+import { fitBandSortRank, listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 
 export const CANDIDATE_LIST_SORTABLE_COLUMNS = [
   "name",
@@ -11,6 +12,7 @@ export const CANDIDATE_LIST_SORTABLE_COLUMNS = [
   "jobRole",
   "matchJob",
   "jobMatch",
+  "fit",
   "conf",
   "verify",
   "notMet",
@@ -54,6 +56,7 @@ export function defaultCandidateListSortDirection(
   column: CandidateListSortColumn
 ): CandidateListSortDirection {
   return column === "jobMatch" ||
+    column === "fit" ||
     column === "createdDate" ||
     column === "dateOfBirth" ||
     column === "conf" ||
@@ -132,6 +135,14 @@ function requirementCount(
   return value == null ? null : Number(value);
 }
 
+function candidateFitBand(row: CandidateRow) {
+  return listingDisplayFitBand({
+    analyzed: row.aiMatchStatus === "ANALYZED",
+    stage: row.aiMatchStage,
+    counts: row.aiRequirementCounts,
+  });
+}
+
 function compareNumericNullLast(
   aValue: number | null,
   bValue: number | null,
@@ -203,6 +214,12 @@ function compareColumn(
     }
     case "jobMatch":
       return compareMatchScore(a, b) * directionMultiplier;
+    case "fit":
+      return compareNumericNullLast(
+        fitBandSortRank(candidateFitBand(a)),
+        fitBandSortRank(candidateFitBand(b)),
+        directionMultiplier
+      );
     case "conf":
       return compareNumericNullLast(
         requirementCount(a, "confirmed"),

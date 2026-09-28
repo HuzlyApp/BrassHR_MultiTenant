@@ -1,6 +1,7 @@
 import "server-only"
 
 import { LICENSE_TYPES, type LicenseType } from "@/lib/applicant-portal/documents"
+import { validatePersonName } from "@/lib/person-name"
 
 export type WorkerProfileFieldKey =
   | "first_name"
@@ -89,13 +90,13 @@ export function normalizeWorkerFieldValue(
 
   switch (field) {
     case "first_name":
-    case "last_name":
+    case "last_name": {
       if (!value) return { ok: false, error: "This field cannot be empty." }
-      if (/\d/.test(value)) return { ok: false, error: "Name cannot include numbers." }
-      if (!/^[a-zA-Z\s'.-]+$/.test(value)) {
-        return { ok: false, error: "Use letters only." }
-      }
-      return { ok: true, dbValue: value }
+      const name = validatePersonName(value, {
+        label: field === "first_name" ? "First name" : "Last name",
+      })
+      return name.ok ? { ok: true, dbValue: name.value } : { ok: false, error: name.error }
+    }
 
     case "address1":
       if (!value) return { ok: false, error: "This field cannot be empty." }

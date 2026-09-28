@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { stripContactFromPersonName } from "@/lib/resume/normalize-resume-text";
+import { validatePersonName } from "@/lib/person-name";
 
 export const runtime = "nodejs";
 
@@ -12,17 +12,9 @@ function sanitizePersonNamePart(
   value: string,
   label: string
 ): { ok: true; value: string } | { ok: false; error: string } {
-  const cleaned = stripContactFromPersonName(value);
-  if (!cleaned && label === "First name") {
-    return { ok: false, error: "First name is required." };
-  }
-  if (cleaned && /\d/.test(cleaned)) {
-    return { ok: false, error: `${label} cannot include numbers.` };
-  }
-  if (cleaned && !/^[a-zA-Z\s'.-]+$/.test(cleaned)) {
-    return { ok: false, error: `Use letters only in ${label.toLowerCase()}.` };
-  }
-  return { ok: true, value: cleaned };
+  if (!value.trim() && label === "Last name") return { ok: true, value: "" };
+  const name = validatePersonName(value, { label });
+  return name.ok ? { ok: true, value: name.value } : { ok: false, error: name.error };
 }
 
 /** PATCH — rename the candidate behind a job application (profile + worker stay in sync). */

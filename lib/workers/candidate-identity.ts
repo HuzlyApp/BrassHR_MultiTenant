@@ -484,6 +484,7 @@ export function collapseWorkersToCandidateProfiles(
             ai_match_score: bestMatchSibling.ai_match_score,
             ai_match_category: bestMatchSibling.ai_match_category,
             ai_match_display_category: bestMatchSibling.ai_match_display_category,
+            ai_match_stage: bestMatchSibling.ai_match_stage,
             ai_requirement_counts: bestMatchSibling.ai_requirement_counts,
           }
         : {}),

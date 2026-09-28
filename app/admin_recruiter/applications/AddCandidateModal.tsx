@@ -10,7 +10,10 @@ import {
   type DragEvent,
 } from "react";
 import { Check, Loader2, X } from "lucide-react";
-import type { AdminResumeParsePreview } from "@/app/api/admin/add-candidate-from-resume/parse/route";
+import type {
+  AdminResumeNameReview,
+  AdminResumeParsePreview,
+} from "@/app/api/admin/add-candidate-from-resume/parse/route";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import SuccessModal from "@/app/components/SuccessModal";
@@ -20,6 +23,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
+import { PERSON_NAME_MAX_LENGTH, validatePersonName } from "@/lib/person-name";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
@@ -237,10 +241,26 @@ export default function AddCandidateModal({
   const [dragActive, setDragActive] = useState(false);
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
+  const [nameReview, setNameReview] = useState<AdminResumeNameReview | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [jobError, setJobError] = useState<string | null>(null);
+
+  const firstNameCheck = useMemo(
+    () => validatePersonName(firstName, { label: "First name" }),
+    [firstName]
+  );
+  const lastNameCheck = useMemo(
+    () => validatePersonName(lastName, { label: "Last name" }),
+    [lastName]
+  );
+  const namesValid = firstNameCheck.ok && lastNameCheck.ok;
+  const nameNeedsReview = Boolean(nameReview?.needsReview && nameReview.rawExtract);
+  const firstNameError =
+    !firstNameCheck.ok && (firstName.trim() || nameNeedsReview) ? firstNameCheck.error : null;
+  const lastNameError =
+    !lastNameCheck.ok && (lastName.trim() || nameNeedsReview) ? lastNameCheck.error : null;
 
   const showJobPicker = Boolean(jobOptions?.length) && !jobId.trim();
   const effectiveJobId = (jobId.trim() || selectedJobId).trim();
@@ -261,6 +281,7 @@ export default function AddCandidateModal({
     parseRequestRef.current += 1;
     setParseState("idle");
     setParsePreview(null);
+    setNameReview(null);
     setParseError(null);
     setFirstName("");
     setLastName("");
@@ -466,6 +487,7 @@ export default function AddCandidateModal({
       parseRequestRef.current = requestId;
       setParseState("parsing");
       setParsePreview(null);
+      setNameReview(null);
       setParseError(null);
       setFirstName("");
       setLastName("");
@@ -491,11 +513,13 @@ export default function AddCandidateModal({
           warning?: string | null;
           qualityOk?: boolean;
           parsed?: AdminResumeParsePreview;
+          nameReview?: AdminResumeNameReview;
           extractedText?: string | null;
         };
         if (parseRequestRef.current !== requestId) return;
 
         const preview = payload.parsed ?? null;
+        setNameReview(payload.nameReview ?? null);
         if (preview) {
           setParsePreview(preview);
           setFirstName(preview.firstName ?? "");
@@ -671,9 +695,8 @@ export default function AddCandidateModal({
       }
     }
 
-    const nameError = validateAddCandidateField("name", {
-      name: [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" "),
-    });
+    const nameError =
+      (!firstNameCheck.ok && firstNameCheck.error) || (!lastNameCheck.ok && lastNameCheck.error) || null;
     const emailError = validateAddCandidateField("email", { email });
     if (nameError || emailError) {
       const message = nameError || emailError || "Fill in the candidate name and email.";
@@ -698,8 +721,8 @@ export default function AddCandidateModal({
         form.set("resumeText", resumeText.trim());
         if (resumeTitle.trim()) form.set("resumeTitle", resumeTitle.trim());
       }
-      if (firstName.trim()) form.set("firstName", firstName.trim());
-      if (lastName.trim()) form.set("lastName", lastName.trim());
+      if (firstNameCheck.ok) form.set("firstName", firstNameCheck.value);
+      if (lastNameCheck.ok) form.set("lastName", lastNameCheck.value);
       if (email.trim()) form.set("email", email.trim());
       if (phone.trim()) form.set("phone", phone.trim());
       if (workCity.trim()) form.set("workCity", workCity.trim());
@@ -774,6 +797,7 @@ export default function AddCandidateModal({
     parseState !== "parsing" &&
     hasResumeSource &&
     hasIdentity &&
+    namesValid &&
     Boolean(effectiveJobId) &&
     Boolean(workLocation) &&
     !workLocationPreview.loading &&
@@ -1067,34 +1091,72 @@ export default function AddCandidateModal({
                       <p className="truncate text-xs text-[#64748B]">{parsePreview.jobRole}</p>
                     ) : null}
                   </div>
+                  {nameNeedsReview && nameReview ? (
+                    <div
+                      role="alert"
+                      className="mb-4 rounded-lg border border-[#FCD34D] bg-[#FFFBEB] px-3 py-2.5 text-xs text-[#92400E]"
+                    >
+                      <p className="font-medium">{nameReview.message}</p>
+                      <p className="mt-1 break-all">
+                        Extracted from resume: <span className="font-mono">{nameReview.rawExtract}</span>
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-2 font-medium text-[#92400E] underline underline-offset-2 disabled:opacity-50"
+                        onClick={() => {
+                          setFirstName("");
+                          setLastName("");
+                        }}
+                        disabled={uploading}
+                      >
+                        Clear and type manually
+                      </button>
+                    </div>
+                  ) : null}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-first-name">
-                        First name
+                        First name <span className="text-[#B91C1C]">*</span>
                       </label>
                       <input
                         id="add-candidate-first-name"
-                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        className={`${FIELD_INPUT_CLASS} h-10 ${firstNameError ? "border-[#F87171]" : ""}`}
                         placeholder="First name"
                         value={firstName}
                         onChange={(event) => setFirstName(event.target.value)}
+                        maxLength={PERSON_NAME_MAX_LENGTH}
                         disabled={uploading}
                         autoComplete="given-name"
+                        aria-invalid={Boolean(firstNameError)}
+                        aria-describedby={firstNameError ? "add-candidate-first-name-error" : undefined}
                       />
+                      {firstNameError ? (
+                        <p id="add-candidate-first-name-error" className="mt-1 text-xs text-[#B91C1C]">
+                          {firstNameError}
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-last-name">
-                        Last name
+                        Last name <span className="text-[#B91C1C]">*</span>
                       </label>
                       <input
                         id="add-candidate-last-name"
-                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        className={`${FIELD_INPUT_CLASS} h-10 ${lastNameError ? "border-[#F87171]" : ""}`}
                         placeholder="Last name"
                         value={lastName}
                         onChange={(event) => setLastName(event.target.value)}
+                        maxLength={PERSON_NAME_MAX_LENGTH}
                         disabled={uploading}
                         autoComplete="family-name"
+                        aria-invalid={Boolean(lastNameError)}
+                        aria-describedby={lastNameError ? "add-candidate-last-name-error" : undefined}
                       />
+                      {lastNameError ? (
+                        <p id="add-candidate-last-name-error" className="mt-1 text-xs text-[#B91C1C]">
+                          {lastNameError}
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-email">
