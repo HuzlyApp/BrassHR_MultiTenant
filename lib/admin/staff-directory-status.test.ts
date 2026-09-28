@@ -34,6 +34,15 @@ describe("staff invite validation", () => {
       error: "Enter a valid email address.",
     });
   });
+
+  it("rejects names longer than 50 characters", () => {
+    expect(
+      validateInviteStaffInput({ firstName: "a".repeat(51), lastName: "L", email: "a@b.com" })
+    ).toEqual({ error: "First name must be 50 characters or fewer." });
+    expect(
+      validateInviteStaffInput({ firstName: "A", lastName: "a".repeat(51), email: "a@b.com" })
+    ).toEqual({ error: "Last name must be 50 characters or fewer." });
+  });
 });
 
 describe("staff directory status", () => {

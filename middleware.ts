@@ -584,6 +584,20 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  /** Public jobs board / job posts — stamp tenant for SSR branding + public APIs. */
+  if (pathname === "/jobs" || pathname.startsWith("/jobs/")) {
+    const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
+    if (tenantSlug) {
+      const outgoing = NextResponse.next({
+        request: { headers: withTenantSlugHeader(request, tenantSlug) },
+      });
+      response.cookies.getAll().forEach((cookie) => {
+        outgoing.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      return outgoing;
+    }
+  }
+
   return response;
 }
 

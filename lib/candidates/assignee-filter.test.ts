@@ -23,6 +23,20 @@ describe("candidateMatchesAssigneeFilter", () => {
     expect(candidateMatchesAssigneeFilter("", UNASSIGNED_ASSIGNEE_FILTER)).toBe(true);
     expect(candidateMatchesAssigneeFilter("user-1", UNASSIGNED_ASSIGNEE_FILTER)).toBe(false);
   });
+
+  it("matches any per-job assignee id", () => {
+    expect(candidateMatchesAssigneeFilter(null, "user-2", ["user-1", "user-2"])).toBe(true);
+    expect(candidateMatchesAssigneeFilter(null, "user-3", ["user-1", "user-2"])).toBe(false);
+  });
+
+  it("treats all jobs unassigned when filtering unassigned with job assignees", () => {
+    expect(candidateMatchesAssigneeFilter("user-1", UNASSIGNED_ASSIGNEE_FILTER, [null, ""])).toBe(
+      true
+    );
+    expect(
+      candidateMatchesAssigneeFilter(null, UNASSIGNED_ASSIGNEE_FILTER, [null, "user-1"])
+    ).toBe(false);
+  });
 });
 
 describe("buildAssigneeFilterOptions", () => {

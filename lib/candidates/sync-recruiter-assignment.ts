@@ -3,9 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Sb = SupabaseClient;
 
 /**
- * Keep worker-level and application-level assignee in sync.
- * - Old candidates list reads `worker.assigned_recruiter_user_id`
- * - All candidates (applications) list reads `job_applications.assigned_recruiter_user_id`
+ * Keep worker-level and application-level assignee independent.
+ * - Candidates list can show per-job assignees from `job_applications`
+ * - Worker assignee is only set by explicit Assign/Claim on the candidate
+ * - Assigning one application must not auto-assign the candidate's other jobs
  */
 
 export async function updateWorkerAssignee(
@@ -46,7 +47,10 @@ export async function updateAllApplicationsAssigneeForWorker(
   return { error: error?.message ?? null };
 }
 
-/** Assign/unassign from old candidates screen: worker + all of their applications. */
+/**
+ * Assign/unassign from candidates screen: update worker only.
+ * Job applications stay unassigned until assigned per application (or claimed).
+ */
 export async function syncAssigneeFromWorker(
   supabase: Sb,
   params: {
@@ -55,12 +59,13 @@ export async function syncAssigneeFromWorker(
     assignedRecruiterUserId: string | null;
   }
 ): Promise<{ error: string | null }> {
-  const workerResult = await updateWorkerAssignee(supabase, params);
-  if (workerResult.error) return workerResult;
-  return updateAllApplicationsAssigneeForWorker(supabase, params);
+  return updateWorkerAssignee(supabase, params);
 }
 
-/** Assign/unassign from applications screen: that application + linked worker. */
+/**
+ * Assign/unassign on one application only.
+ * Does not copy the assignee onto the candidate's other job applications.
+ */
 export async function syncAssigneeFromApplication(
   supabase: Sb,
   params: {
@@ -93,33 +98,6 @@ export async function syncAssigneeFromApplication(
 
   const workerId =
     typeof data.worker_id === "string" && data.worker_id.trim() ? data.worker_id.trim() : null;
-  if (workerId) {
-    const workerResult = await updateWorkerAssignee(supabase, {
-      tenantId: params.tenantId,
-      workerId,
-      assignedRecruiterUserId: params.assignedRecruiterUserId,
-    });
-    if (workerResult.error) {
-      return {
-        error: workerResult.error,
-        workerId,
-        assignedRecruiterUserId: data.assigned_recruiter_user_id ?? null,
-      };
-    }
-    // Keep every application for this candidate on the same assignee.
-    const appsResult = await updateAllApplicationsAssigneeForWorker(supabase, {
-      tenantId: params.tenantId,
-      workerId,
-      assignedRecruiterUserId: params.assignedRecruiterUserId,
-    });
-    if (appsResult.error) {
-      return {
-        error: appsResult.error,
-        workerId,
-        assignedRecruiterUserId: data.assigned_recruiter_user_id ?? null,
-      };
-    }
-  }
 
   return {
     error: null,

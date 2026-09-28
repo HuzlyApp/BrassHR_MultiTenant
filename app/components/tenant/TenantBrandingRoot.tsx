@@ -17,7 +17,8 @@ import {
 
 /** Default branding for routes without an explicit tenant context. */
 export default function TenantBrandingRoot({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<TenantBranding>(defaultTenantBranding);
+  // Keep SSR/client first paint identical — never read window/localStorage in useState.
+  const [branding, setBranding] = useState<TenantBranding>(() => defaultTenantBranding());
 
   useEffect(() => {
     let alive = true;
@@ -37,7 +38,8 @@ export default function TenantBrandingRoot({ children }: { children: ReactNode }
       if (!cached) {
         if (recruiterAuthEntry && tenantPortal) {
           // Tenant admin login — wait for API; login layout paints the shell.
-        } else if (!tenantPortal || recruiterAuthEntry) {
+        } else {
+          // Tenant careers/jobs surfaces: never leave platform Brass HR gold while loading.
           setBranding(brandingFallbackForSlug(resolved.slug));
         }
       }

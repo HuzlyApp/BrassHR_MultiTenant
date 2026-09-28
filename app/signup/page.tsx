@@ -9,6 +9,7 @@ import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField
 import { ArrowLeft, Check, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
 import {
@@ -192,6 +193,7 @@ function TextField({
   required,
   type = "text",
   error,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -200,6 +202,7 @@ function TextField({
   required?: boolean;
   type?: "text" | "email";
   error?: string | null;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -209,6 +212,7 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        maxLength={maxLength}
         style={signupInputTypographyStyle}
         className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] ${
           error
@@ -424,12 +428,6 @@ export default function SignupPage() {
 
         const names = (data ?? []).map((row) => String(row.city_name));
         setCityOptions(names);
-        setForm((prev) => {
-          if (prev.city && names.length > 0 && !names.includes(prev.city)) {
-            return { ...prev, city: "" };
-          }
-          return prev;
-        });
       } catch {
         if (active) setCityOptions([]);
       } finally {
@@ -940,6 +938,7 @@ export default function SignupPage() {
                   value={form.firstName}
                   onChange={(value) => update("firstName", value)}
                   placeholder="First Name"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                 />
               </div>
               <div className="min-w-0">
@@ -949,6 +948,7 @@ export default function SignupPage() {
                   value={form.lastName}
                   onChange={(value) => update("lastName", value)}
                   placeholder="Last Name"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                 />
               </div>
               <div className="min-w-0" onBlur={() => setTouchedEmail(true)}>
@@ -1029,35 +1029,26 @@ export default function SignupPage() {
                 />
               </div>
               <div className="min-w-0">
-                {form.state && cityOptions.length === 0 && !citiesLoading ? (
-                  <TextField
-                    label="City"
-                    required
-                    value={form.city}
-                    onChange={(value) => update("city", value)}
-                    placeholder="Enter your city"
-                  />
-                ) : (
-                  <SearchableSelectField
-                    label="City"
-                    required
-                    compact
-                    disabled={!form.state}
-                    loading={citiesLoading}
-                    value={form.city}
-                    onChange={(value) => update("city", value)}
-                    placeholder={
-                      !form.state
-                        ? "Select state first"
-                        : citiesLoading
-                          ? "Loading…"
-                          : "Search city"
-                    }
-                    searchPlaceholder="Type to search cities"
-                    options={effectiveCityOptions}
-                    emptyMessage="No cities found. Try another search."
-                  />
-                )}
+                <SearchableSelectField
+                  label="City"
+                  required
+                  compact
+                  allowCustom
+                  disabled={!form.state}
+                  loading={citiesLoading}
+                  value={form.city}
+                  onChange={(value) => update("city", value)}
+                  placeholder={
+                    !form.state
+                      ? "Select state first"
+                      : citiesLoading
+                        ? "Loading…"
+                        : "Search or enter city"
+                  }
+                  searchPlaceholder="Type any city"
+                  options={effectiveCityOptions}
+                  emptyMessage="Type a city name and press Enter."
+                />
               </div>
               <div className="signup-location-zip min-w-0 min-[600px]:col-span-2 lg:col-span-1" onBlur={() => setTouchedZip(true)}>
                 <TextField

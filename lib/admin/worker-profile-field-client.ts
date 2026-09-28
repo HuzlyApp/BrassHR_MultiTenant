@@ -1,3 +1,5 @@
+import { filterPersonNameInput, validatePersonName } from "@/lib/person-name"
+
 export type CandidateFieldKind =
   | "person_name"
   | "city"
@@ -13,7 +15,7 @@ export type CandidateFieldKind =
 export function filterCandidateFieldInput(kind: CandidateFieldKind, raw: string): string {
   switch (kind) {
     case "person_name":
-      return raw.replace(/[^a-zA-Z\s'.-]/g, "")
+      return filterPersonNameInput(raw)
     case "city":
       return raw.replace(/[^a-zA-Z\s'.-]/g, "")
     case "address":
@@ -87,12 +89,8 @@ export function validateCandidateFieldInput(
 
   switch (kind) {
     case "person_name": {
-      if (!value) return { ok: false, error: "Name is required." }
-      if (/\d/.test(value)) return { ok: false, error: "Name cannot include numbers." }
-      if (!/^[a-zA-Z\s'.-]+$/.test(value)) {
-        return { ok: false, error: "Use letters only." }
-      }
-      return { ok: true, value }
+      const name = validatePersonName(value)
+      return name.ok ? { ok: true, value: name.value } : { ok: false, error: name.error }
     }
     case "city": {
       if (!value) return { ok: false, error: "City is required." }

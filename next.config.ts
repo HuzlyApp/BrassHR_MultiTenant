@@ -61,6 +61,34 @@ const legacyOnboardingRedirects = [
   },
 ];
 
+/** CSP frame-ancestors for the public jobs board (WordPress / third-party iframes). */
+function getPublicJobsFrameAncestors(): string {
+  const raw = process.env.PUBLIC_JOBS_FRAME_ANCESTORS?.trim();
+  if (!raw) return "*";
+  return raw
+    .split(/[\s,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildAppContentSecurityPolicy(frameAncestors: string): string {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    `frame-ancestors ${frameAncestors}`,
+    "object-src 'none'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    // Firma embed loads pdf.js via data:/blob: workers and Google Fonts for field labels.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://api.firma.dev https://app.firma.dev",
+    "worker-src 'self' blob: data: https://api.firma.dev https://app.firma.dev",
+    "connect-src 'self' https: wss: blob:",
+    "frame-src 'self' https://app.firma.dev https://api.firma.dev",
+  ].join("; ");
+}
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: getSupabaseImageRemotePatterns(),
@@ -69,27 +97,26 @@ const nextConfig: NextConfig = {
     return legacyOnboardingRedirects;
   },
   async headers() {
-    const securityHeaders = [
+    const baseSecurityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      { key: "X-Frame-Options", value: "SAMEORIGIN" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+    ];
+    const securityHeaders = [
+      ...baseSecurityHeaders,
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
       {
         key: "Content-Security-Policy",
-        value: [
-          "default-src 'self'",
-          "base-uri 'self'",
-          "frame-ancestors 'self'",
-          "object-src 'none'",
-          "img-src 'self' data: blob: https:",
-          "font-src 'self' data: https://fonts.gstatic.com",
-          // Firma embed loads pdf.js via data:/blob: workers and Google Fonts for field labels.
-          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://api.firma.dev https://app.firma.dev",
-          "worker-src 'self' blob: data: https://api.firma.dev https://app.firma.dev",
-          "connect-src 'self' https: wss: blob:",
-          "frame-src 'self' https://app.firma.dev https://api.firma.dev",
-        ].join("; "),
+        value: buildAppContentSecurityPolicy("'self'"),
+      },
+    ];
+    // Public jobs board must be embeddable (WordPress, iframe testers). Do not send
+    // X-Frame-Options here — SAMEORIGIN would still block cross-origin parents.
+    const publicJobsEmbedHeaders = [
+      ...baseSecurityHeaders,
+      {
+        key: "Content-Security-Policy",
+        value: buildAppContentSecurityPolicy(getPublicJobsFrameAncestors()),
       },
     ];
     return [
@@ -123,7 +150,16 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:path*",
+        source: "/jobs",
+        headers: publicJobsEmbedHeaders,
+      },
+      {
+        source: "/jobs/:path*",
+        headers: publicJobsEmbedHeaders,
+      },
+      {
+        // Exclude /jobs so SAMEORIGIN / frame-ancestors 'self' do not merge onto embed routes.
+        source: "/:path((?!jobs(?:/.*)?$).*)",
         headers: securityHeaders,
       },
     ];
