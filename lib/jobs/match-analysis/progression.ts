@@ -120,6 +120,62 @@ export function displayFitBand(args: {
   return args.fitBand;
 }
 
+/**
+ * After Deep Match, map the scored category (or label/score) onto Strong / Review / Low
+ * so the overview badge matches the ring (e.g. Weak Match → Low), not the Quick Match route.
+ */
+export function fitBandFromDeepMatchResult(args: {
+  category?: string | null;
+  displayCategory?: string | null;
+  score?: number | null;
+}): QuickMatchFitBand {
+  const category = String(args.category ?? "").trim().toUpperCase();
+  if (
+    category === "STRONG_MATCH" ||
+    category === "GOOD_MATCH"
+  ) {
+    return "strong";
+  }
+  if (category === "POSSIBLE_MATCH" || category === "NEEDS_MORE_INFORMATION") {
+    return "review";
+  }
+  if (
+    category === "WEAK_MATCH" ||
+    category === "NOT_A_MATCH" ||
+    category === "NOT_CURRENTLY_SUBMITTABLE"
+  ) {
+    return "low";
+  }
+
+  const label = String(args.displayCategory ?? "").trim().toLowerCase();
+  if (label) {
+    if (
+      label.includes("not a match") ||
+      label.includes("weak") ||
+      label.includes("low") ||
+      label.includes("do not") ||
+      label.includes("hold")
+    ) {
+      return "low";
+    }
+    if (label.includes("strong") || label.includes("good") || label.includes("best")) {
+      return "strong";
+    }
+    if (label.includes("possible") || label.includes("review") || label.includes("needs")) {
+      return "review";
+    }
+  }
+
+  const score = Number(args.score);
+  if (Number.isFinite(score)) {
+    if (score >= 75) return "strong";
+    if (score >= 60) return "review";
+    return "low";
+  }
+
+  return "review";
+}
+
 /** Listing Fit uses the same checklist band as overview when mandatory/blocking are present. */
 export function listingDisplayFitBand(args: {
   analyzed: boolean;
@@ -266,10 +322,10 @@ export function matchProgressionPrimaryAction(
 ): MatchProgressionPrimaryAction | null {
   if (viewedIndex <= 0) return { kind: "advance", label: "Continue to Verifications", nextIndex: 1 };
   if (viewedIndex === 1) return { kind: "advance", label: "Continue to Follow-up", nextIndex: 2 };
-  if (viewedIndex === 2) return null;
-  if (viewedIndex === 3) return { kind: "draft", label: "Draft submission résumé" };
+  // Steps 4–5: draft lives in the Submission section only — not the overview header.
+  if (viewedIndex === 2 || viewedIndex === 3) return null;
   if (viewedIndex >= 4) {
-    if (!opts?.hasSubmissionResume) return { kind: "draft", label: "Draft submission résumé" };
+    if (!opts?.hasSubmissionResume) return null;
     return { kind: "msp", label: "Email MSP / upload portal" };
   }
   return null;

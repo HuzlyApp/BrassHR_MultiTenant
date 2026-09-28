@@ -170,6 +170,39 @@ describe("sanitizeParsedIdentityFields", () => {
     expect(cleaned.city).toBe("")
     expect(cleaned.state).toBe("")
   })
+
+  it("strips bare LinkedIn URLs and phone numbers jammed into the name", () => {
+    const cleaned = sanitizeParsedIdentityFields(
+      normalizeParsedResume({
+        first_name: "Jane",
+        last_name: "Doe linkedin.com/in/jane-doe-12345 5125550199",
+        email: "jane@example.com",
+        phone: "",
+        job_role: "",
+      }),
+      "Jane Doe linkedin.com/in/jane-doe-12345 5125550199\njane@example.com",
+    )
+
+    expect(cleaned.first_name).toBe("Jane")
+    expect(cleaned.last_name).toBe("Doe")
+    expect(cleaned.last_name).not.toMatch(/linkedin|5125550199/i)
+  })
+
+  it("does not invent a last name from a vanity LinkedIn slug with digit noise", () => {
+    const cleaned = sanitizeParsedIdentityFields(
+      normalizeParsedResume({
+        first_name: "Goutham",
+        last_name: "",
+        email: "kgouthamk81@gmail.com",
+        phone: "9752078020",
+        job_role: "Sr SAP Consultant",
+      }),
+      GOUTHAM_HEADER,
+    )
+
+    expect(cleaned.first_name).toBe("Goutham")
+    expect(cleaned.last_name).toBe("")
+  })
 })
 
 describe("buildGrokResumeSnippet", () => {

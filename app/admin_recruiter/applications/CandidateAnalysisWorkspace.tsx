@@ -24,6 +24,11 @@ import {
 import { QualificationChecklist } from "./QualificationChecklist";
 import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
 import {
+  candidateProfileApiUrl,
+  invalidateStaffDetailCache,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
+import {
   MatchAnalysisModelSelect,
   useMatchAnalysisProvider,
 } from "./MatchAnalysisModelSelect";
@@ -403,6 +408,9 @@ export function CandidateAnalysisWorkspace({
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Failed to save ${field}`);
       }
+      invalidateStaffDetailCache(workerProfileApiUrl(workerId));
+      invalidateStaffDetailCache(candidateProfileApiUrl(workerId));
+      invalidateStaffDetailCache(`/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}`);
       toast.success("Candidate details saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save details");

@@ -141,12 +141,31 @@ function experienceFromTitles(
   ];
 }
 
-export function submissionResumeFileName(fullName: string): string {
+export function submissionResumeFileName(
+  fullName: string,
+  ext: ".pdf" | ".docx" = ".pdf"
+): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   const first = sanitizeResumeNamePart(parts[0] ?? "");
   const last = sanitizeResumeNamePart(parts.slice(1).join(" "));
   const base = [first, last].filter(Boolean).join("_") || "candidate";
-  return `${base}_submission_resume.pdf`;
+  return `${base}_submission_resume${ext}`;
+}
+
+/** Prefer short skill/product labels; drop long requirement sentences from fallback dumps. */
+export function shortSkillLabels(items: string[], max = 16): string[] {
+  return cleanList(
+    items.filter((item) => {
+      const text = String(item ?? "").trim();
+      if (!text) return false;
+      if (text.length > 60) return false;
+      if (/\b(must|required|ability to|years of)\b/i.test(text) && text.split(/\s+/).length > 8) {
+        return false;
+      }
+      return true;
+    }),
+    max
+  );
 }
 
 export function parseSubmissionResume(value: unknown): SubmissionResume | null {
@@ -196,14 +215,11 @@ export function buildFallbackSubmissionResume(args: {
     phone: identity.phone,
     location: identity.location,
     summary,
-    skills: cleanList(
-      [
-        ...confirmedRequirementLines(analysis),
-        ...(extracted?.named_products_in_jobs ?? []),
-        ...(extracted?.recent_titles ?? []),
-      ],
-      16
-    ),
+    skills: shortSkillLabels([
+      ...confirmedRequirementLines(analysis),
+      ...(extracted?.named_products_in_jobs ?? []),
+      ...(extracted?.recent_titles ?? []),
+    ]),
     experience: experienceFromTitles(analysis, resumeText),
     education: educationFromAnalysis(analysis),
     licenses: [],

@@ -5,11 +5,20 @@ import {
 } from "@/lib/jobs/application-applicant-display";
 
 describe("resolveApplicationApplicantName", () => {
-  it("prefers applicant profile name", () => {
+  it("prefers worker name over stale applicant profile name", () => {
     expect(
       resolveApplicationApplicantName({
         applicant_profiles: { first_name: "Jane", last_name: "Doe", email: "jane@example.com" },
         worker: { first_name: "Worker", last_name: "Name", email: "worker@example.com" },
+      })
+    ).toBe("Worker Name");
+  });
+
+  it("falls back to profile name when worker name is missing", () => {
+    expect(
+      resolveApplicationApplicantName({
+        applicant_profiles: { first_name: "Jane", last_name: "Doe", email: "jane@example.com" },
+        worker: { first_name: null, last_name: null, email: "worker@example.com" },
       })
     ).toBe("Jane Doe");
   });
@@ -34,11 +43,20 @@ describe("resolveApplicationApplicantName", () => {
 });
 
 describe("resolveApplicationApplicantEmail", () => {
-  it("prefers applicant profile email", () => {
+  it("prefers worker email over stale profile email", () => {
     expect(
       resolveApplicationApplicantEmail({
         applicant_profiles: { email: "profile@example.com" },
         worker: { email: "worker@example.com" },
+      })
+    ).toBe("worker@example.com");
+  });
+
+  it("falls back to profile email when worker email is missing", () => {
+    expect(
+      resolveApplicationApplicantEmail({
+        applicant_profiles: { email: "profile@example.com" },
+        worker: { email: null },
       })
     ).toBe("profile@example.com");
   });

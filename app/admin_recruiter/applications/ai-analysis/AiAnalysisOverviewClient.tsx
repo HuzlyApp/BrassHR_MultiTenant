@@ -82,15 +82,15 @@ import {
   canAdvanceMatchProgression,
   canRunDeepMatch,
   canSelectMatchProgressionStep,
-  displayFitBand,
+  fitBandFromDeepMatchResult,
   fitBandLabel,
   fitBandTagClassName,
+  listingDisplayFitBand,
   matchProgressionInitialIndex,
   matchProgressionFollowUpNeedsConfirm,
   matchProgressionStepRequiresDeepConfirm,
   matchProgressionPrimaryAction,
   matchProgressionStageFromIndex,
-  quickMatchFitBand,
   type QuickMatchFitBand,
 } from "@/lib/jobs/match-analysis/progression";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "@/lib/jobs/match-analysis/quick-route";
@@ -630,6 +630,8 @@ export function AiAnalysisOverviewClient({
     busyVerificationNoteId,
     recommendedAnswers,
     updateRecommendedAnswer,
+    callContext,
+    updateCallContext,
     savingAnswers,
     decision,
     decisionNote,
@@ -647,6 +649,8 @@ export function AiAnalysisOverviewClient({
     savingText,
     resumes,
     viewResume,
+    downloadSubmissionDocx,
+    improvementSummary,
     runAnalyze,
     saveScreeningAnswers,
     uploadScreeningReply,
@@ -867,20 +871,36 @@ export function AiAnalysisOverviewClient({
   const parkedInTalentPool =
     app?.recruiter_decision === "do_not_pursue" ||
     (statusSystemKey ?? app?.status_system_key) === "rejected";
-  const fitBand = storedRoute
-    ? fitBandFromQuickRoute(storedRoute)
-    : quickMatchFitBand(outcomeCounts);
-  const displayedFitBand = displayFitBand({
-    fitBand,
-    stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
-    hasDeepMatch,
-  });
+  // Same checklist Fit as the job candidates list — do not prefer a stale quick_route
+  // (e.g. stored LOW_MATCH while Conf/Verify counts still read as Review).
+  const displayedFitBand: QuickMatchFitBand =
+    listingDisplayFitBand({
+      analyzed: isAnalyzed,
+      stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+      counts: {
+        confirmed: outcomeCounts.confirmed,
+        verify: outcomeCounts.verify,
+        notMet: outcomeCounts.notMet,
+        mandatory: outcomeCounts.mandatory,
+        blocking: outcomeCounts.blocking,
+      },
+    }) ??
+    (storedRoute ? fitBandFromQuickRoute(storedRoute) : "review");
+  const fitBand = displayedFitBand;
   // Steps 1–3: show Low / Review / Strong. Step 4+ (Deep Match): show actual match %.
   const matchLabel = hasDeepMatch
     ? app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Match"
     : isAnalyzed
       ? fitBandLabel(displayedFitBand)
       : "Not analyzed";
+  // After Deep Match, badge follows scored result (e.g. Weak Match → Low), not Quick Match Strong.
+  const statusFitBand = hasDeepMatch
+    ? fitBandFromDeepMatchResult({
+        category: app?.ai_match_category,
+        displayCategory: app?.ai_match_display_category || matchLabel,
+        score: matchScore,
+      })
+    : displayedFitBand;
   const candidateName = `${info.firstName} ${info.lastName}`.trim() || "Candidate";
   const jobTitle =
     data?.job?.title?.trim() ||
@@ -929,7 +949,35 @@ export function AiAnalysisOverviewClient({
     const packs = resumes.filter((row) => isSubmissionResumeFileName(row.fileName));
     return packs[packs.length - 1] ?? null;
   }, [resumes]);
-  const hasSubmissionResume = Boolean(latestSubmissionResume);
+  const latestSubmissionDocx = useMemo(() => {
+    const packs = resumes.filter((row) => /_submission_resume\.docx$/i.test(row.fileName));
+    return packs[packs.length - 1] ?? null;
+  }, [resumes]);
+  const latestSubmissionPdf = useMemo(() => {
+    const packs = resumes.filter((row) => /_submission_resume\.pdf$/i.test(row.fileName));
+    return packs[packs.length - 1] ?? null;
+  }, [resumes]);
+  const latestOriginalResume = useMemo(() => {
+    const originals = resumes.filter((row) => !isSubmissionResumeFileName(row.fileName));
+    return originals[originals.length - 1] ?? null;
+  }, [resumes]);
+  const hasSubmissionResume = Boolean(latestSubmissionDocx || latestSubmissionPdf || latestSubmissionResume);
+  const originalPreviewHref =
+    workerId && latestOriginalResume
+      ? adminWorkerResumePreviewHref({
+          workerId,
+          resumeId: latestOriginalResume.id,
+          applicationId,
+        })
+      : null;
+  const optimizedPreviewHref =
+    workerId && (latestSubmissionPdf || latestSubmissionResume)
+      ? adminWorkerResumePreviewHref({
+          workerId,
+          resumeId: (latestSubmissionPdf || latestSubmissionResume)!.id,
+          applicationId,
+        })
+      : null;
   const primaryAction = matchProgressionPrimaryAction(viewedStep, { hasSubmissionResume });
   const canRunPaidDeep = canRunDeepMatch({
     isAnalyzed,
@@ -1027,6 +1075,8 @@ export function AiAnalysisOverviewClient({
     if (followUpAdvancing) return;
     setFollowUpAdvancing(true);
     try {
+      const saved = await saveScreeningAnswers({ silent: true });
+      if (!saved) return;
       await advanceMatchProgress("follow_up");
       setConfirmFollowUpOpen(false);
       setUserPickedStep(true);
@@ -1284,13 +1334,6 @@ export function AiAnalysisOverviewClient({
               >
                 AI Analysis Overview
               </h1>
-              {isAnalyzed ? (
-                <span
-                  className={`ml-auto inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(displayedFitBand)}`}
-                >
-                  {fitBandLabel(displayedFitBand)}
-                </span>
-              ) : null}
             </div>
             <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
               <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
@@ -1298,17 +1341,24 @@ export function AiAnalysisOverviewClient({
                   percent={matchScore == null ? null : Math.round(matchScore)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
-                  fitBand={isAnalyzed ? displayedFitBand : null}
+                  fitBand={isAnalyzed ? statusFitBand : null}
                 />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   {jobTitle ? (
                     <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
                   ) : null}
-                  <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                     {confidencePercent != null && confidencePercent > 0 ? (
                       <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
                         Confidence {confidencePercent}%
+                      </span>
+                    ) : null}
+                    {isAnalyzed ? (
+                      <span
+                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(statusFitBand)}`}
+                      >
+                        {fitBandLabel(statusFitBand)}
                       </span>
                     ) : null}
                   </div>
@@ -1492,43 +1542,206 @@ export function AiAnalysisOverviewClient({
               <SectionHeaderBlock>
                 <SectionTitle>Optimized submission résumé</SectionTitle>
                 <p className="mt-1 text-sm text-[#667085]">
-                  Job-tailored PDF for the MSP / client portal. This is not the original upload.
+                  Editable Word deliverable for the MSP / client portal, with a PDF preview for comparison.
+                  Only job-relevant, evidence-supported details are included.
                 </p>
               </SectionHeaderBlock>
-              {latestSubmissionResume ? (
-                <div className="mt-4 flex flex-col gap-3">
+              {hasSubmissionResume ? (
+                <div className="mt-4 flex flex-col gap-4">
                   <div className="flex items-start gap-3 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 py-3">
                     <BrandedFileTypeIcon type="pdf" className="mt-0.5 h-7 w-7 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void viewResume(latestSubmissionResume.id)}
-                          className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
-                        >
-                          {latestSubmissionResume.fileName}
-                        </button>
+                        <p className="m-0 block max-w-full truncate text-sm font-semibold text-[color:var(--brand-primary)]">
+                          {(latestSubmissionDocx || latestSubmissionResume)?.fileName ||
+                            "Optimized submission résumé"}
+                        </p>
                         <span className="shrink-0 rounded-md bg-[color:var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                           Optimized
                         </span>
                       </div>
-                      {latestSubmissionResume.uploadedAtLabel || latestSubmissionResume.uploadedAt ? (
+                      {(latestSubmissionDocx || latestSubmissionResume)?.uploadedAtLabel ||
+                      (latestSubmissionDocx || latestSubmissionResume)?.uploadedAt ? (
                         <p className="mt-0.5 text-xs text-[#667085]">
                           Created{" "}
-                          {latestSubmissionResume.uploadedAtLabel ||
-                            formatWhen(latestSubmissionResume.uploadedAt)}
+                          {(latestSubmissionDocx || latestSubmissionResume)?.uploadedAtLabel ||
+                            formatWhen((latestSubmissionDocx || latestSubmissionResume)?.uploadedAt)}
                         </p>
                       ) : null}
                     </div>
                   </div>
+
+                  {(originalPreviewHref || optimizedPreviewHref) && workerId ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="overflow-hidden rounded-lg border border-[#E4E7EC] bg-[#F9FAFB]">
+                        <div className="flex items-center justify-between border-b border-[#E4E7EC] px-3 py-2">
+                          <p className="m-0 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Original
+                          </p>
+                          {latestOriginalResume ? (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-[color:var(--brand-primary)] hover:underline"
+                              onClick={() => void viewResume(latestOriginalResume.id)}
+                            >
+                              Open
+                            </button>
+                          ) : null}
+                        </div>
+                        {originalPreviewHref ? (
+                          <iframe
+                            title="Original résumé preview"
+                            src={originalPreviewHref}
+                            className="h-[420px] w-full bg-white"
+                          />
+                        ) : (
+                          <p className="m-0 px-3 py-8 text-center text-sm text-[#667085]">
+                            No original résumé on file.
+                          </p>
+                        )}
+                      </div>
+                      <div className="overflow-hidden rounded-lg border border-[#E4E7EC] bg-[#F9FAFB]">
+                        <div className="flex items-center justify-between border-b border-[#E4E7EC] px-3 py-2">
+                          <p className="m-0 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Optimized preview
+                          </p>
+                          {latestSubmissionPdf || latestSubmissionResume ? (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-[color:var(--brand-primary)] hover:underline"
+                              onClick={() =>
+                                void viewResume((latestSubmissionPdf || latestSubmissionResume)!.id)
+                              }
+                            >
+                              Open
+                            </button>
+                          ) : null}
+                        </div>
+                        {optimizedPreviewHref ? (
+                          <iframe
+                            title="Optimized résumé PDF preview"
+                            src={optimizedPreviewHref}
+                            className="h-[420px] w-full bg-white"
+                          />
+                        ) : (
+                          <p className="m-0 px-3 py-8 text-center text-sm text-[#667085]">
+                            Draft an optimized résumé to preview.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {improvementSummary ? (
+                    <div className="rounded-lg border border-[#E4E7EC] bg-white px-4 py-3">
+                      <p className="m-0 text-sm font-semibold text-[#101828]">Improvement summary</p>
+                      <p className="mt-1 text-sm leading-5 text-[#475467]">{improvementSummary.overall}</p>
+                      <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Clarity
+                          </dt>
+                          <dd className="m-0 mt-0.5 text-sm text-[#344054]">{improvementSummary.clarity}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Relevance
+                          </dt>
+                          <dd className="m-0 mt-0.5 text-sm text-[#344054]">
+                            {improvementSummary.relevance}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Formatting
+                          </dt>
+                          <dd className="m-0 mt-0.5 text-sm text-[#344054]">
+                            {improvementSummary.formatting}
+                          </dd>
+                        </div>
+                      </dl>
+                      {improvementSummary.skillEvidenceNote ? (
+                        <p
+                          className={`mt-3 text-sm ${
+                            improvementSummary.skillEvidenceQuality === "keyword_stuffing"
+                              ? "font-medium text-[#B42318]"
+                              : "text-[#475467]"
+                          }`}
+                        >
+                          {improvementSummary.skillEvidenceNote}
+                        </p>
+                      ) : null}
+                      {(improvementSummary.added.length > 0 ||
+                        improvementSummary.removed.length > 0 ||
+                        improvementSummary.needsVerification.length > 0) && (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          {improvementSummary.added.length > 0 ? (
+                            <div>
+                              <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                                Added / highlighted
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-[#344054]">
+                                {improvementSummary.added.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {improvementSummary.removed.length > 0 ? (
+                            <div>
+                              <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                                Removed / trimmed
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-[#344054]">
+                                {improvementSummary.removed.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {improvementSummary.needsVerification.length > 0 ? (
+                            <div>
+                              <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                                Needs verification
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-[#344054]">
+                                {improvementSummary.needsVerification.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className={PRIMARY_BTN}
-                      onClick={() => void viewResume(latestSubmissionResume.id)}
-                    >
-                      View PDF
-                    </button>
+                    {latestSubmissionDocx ? (
+                      <button
+                        type="button"
+                        className={PRIMARY_BTN}
+                        onClick={() =>
+                          void downloadSubmissionDocx(
+                            latestSubmissionDocx.id,
+                            latestSubmissionDocx.fileName
+                          )
+                        }
+                      >
+                        Download .docx
+                      </button>
+                    ) : null}
+                    {(latestSubmissionPdf || latestSubmissionResume) && (
+                      <button
+                        type="button"
+                        className={OUTLINE_BTN}
+                        onClick={() =>
+                          void viewResume((latestSubmissionPdf || latestSubmissionResume)!.id)
+                        }
+                      >
+                        View PDF
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={OUTLINE_BTN}
@@ -1551,7 +1764,8 @@ export function AiAnalysisOverviewClient({
               ) : (
                 <div className="mt-4">
                   <p className="text-sm text-[#667085]">
-                    No optimized résumé yet. Draft one from Deep Match evidence, then upload that file to the portal.
+                    No optimized résumé yet. Draft one from Deep Match evidence and screening follow-up,
+                    then download the Word file for the portal.
                   </p>
                   <button
                     type="button"
@@ -1782,7 +1996,11 @@ export function AiAnalysisOverviewClient({
             {isAnalyzed ? (
               <p className="mt-4 rounded-lg border border-[#FEDF89] bg-[#FFFAEB] px-3 py-2 text-xs leading-5 text-[#B54708]">
                 {FLOW_DIAMOND_COPY}
-                {fitBand === "low" ? " This applicant is Low match." : fitBand === "strong" ? " This applicant is Strong." : " This applicant is Review."}
+                {statusFitBand === "low"
+                  ? " This applicant is Low match."
+                  : statusFitBand === "strong"
+                    ? " This applicant is Strong."
+                    : " This applicant is Review."}
               </p>
             ) : null}
           </section>
@@ -1898,6 +2116,24 @@ export function AiAnalysisOverviewClient({
                             <span className="font-medium text-[#475467]">Related:</span> {item.relatedRequirement}
                           </p>
                         ) : null}
+                        <label className="mt-3 block">
+                          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                            Candidate answer
+                          </span>
+                          <textarea
+                            value={recommendedAnswers[item.key] ?? ""}
+                            onChange={(event) =>
+                              updateRecommendedAnswer(item.key, event.target.value)
+                            }
+                            onBlur={(event) => {
+                              if (event.target.value.trim() === (item.answer ?? "").trim()) return;
+                              void saveScreeningAnswers();
+                            }}
+                            rows={3}
+                            placeholder="Record the candidate’s answer from the call…"
+                            className={`${AREA} min-h-[5.5rem] resize-y`}
+                          />
+                        </label>
                       </div>
                     </div>
                   </article>
@@ -1909,6 +2145,33 @@ export function AiAnalysisOverviewClient({
                     : "No screening questions yet. Open the Verifications step to generate the call pack."}
                 </p>
               )}
+            </div>
+
+            <div className="mt-4 rounded-[12px] border border-[#E5E7EB] bg-[#FCFCFD] p-4">
+              <label className="block">
+                <textarea
+                  value={callContext}
+                  onChange={(event) => updateCallContext(event.target.value)}
+                  onBlur={(event) => {
+                    if (event.target.value.trim() === (data?.callContext ?? "").trim()) return;
+                    void saveScreeningAnswers();
+                  }}
+                  rows={4}
+                  placeholder="Tone, availability, red flags, client-fit notes, anything the model should use next…"
+                  className={`${AREA} min-h-[6.5rem] resize-y`}
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className={OUTLINE_BTN}
+                disabled={savingAnswers}
+                onClick={() => void saveScreeningAnswers()}
+              >
+                {savingAnswers ? "Saving…" : "Save screening answers"}
+              </button>
             </div>
           </section>
 

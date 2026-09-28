@@ -108,9 +108,13 @@ function analysisFixture(): MatchAnalysisResponse {
 }
 
 describe("submission résumé pack", () => {
-  it("names the exported file as a submission résumé PDF", () => {
+  it("names the exported file as a submission résumé PDF or DOCX", () => {
     expect(submissionResumeFileName("Maya Ellison")).toBe("Maya_Ellison_submission_resume.pdf");
+    expect(submissionResumeFileName("Maya Ellison", ".docx")).toBe(
+      "Maya_Ellison_submission_resume.docx"
+    );
     expect(isSubmissionResumeFileName("Maya_Ellison_submission_resume.pdf")).toBe(true);
+    expect(isSubmissionResumeFileName("Maya_Ellison_submission_resume.docx")).toBe(true);
     expect(isSubmissionResumeFileName("Maya_Ellison_resume.pdf")).toBe(false);
   });
 
@@ -130,7 +134,11 @@ describe("submission résumé pack", () => {
     expect(resume.fullName).toBe("Maya Ellison");
     expect(resume.headline).toContain("Lead Test Professional");
     expect(resume.summary).toContain("Illinois City");
-    expect(resume.skills.some((item) => item.toLowerCase().includes("illinois city"))).toBe(true);
+    // Long requirement sentences are excluded from skills[] (anti-stuffing).
+    expect(resume.skills.every((item) => item.length <= 60)).toBe(true);
+    expect(resume.skills).toEqual(
+      expect.arrayContaining(["Lead Test Professional", "Test Coordinator"])
+    );
     expect(resume.experience[0]?.title).toBe("Lead Test Professional");
     expect(submissionResumeToPlainText(resume)).toContain("PROFESSIONAL SUMMARY");
   });

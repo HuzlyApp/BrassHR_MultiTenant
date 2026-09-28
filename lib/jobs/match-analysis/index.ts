@@ -86,7 +86,10 @@ export {
   buildStructuredJobRequirements,
   buildFullJobDescriptionText,
   jobMetaFromRequisition,
+  jobRequirementsSourceFingerprint,
+  jobRequirementsSourceFieldsChanged,
 } from "./build-job-requirements";
+export { invalidateMatchCachesForJobDescriptionChange } from "./invalidate-on-job-change";
 export { resolveResumeTextForMatch } from "./extract-resume-text";
 export {
   generateMatchAnalysis,
