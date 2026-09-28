@@ -187,14 +187,14 @@ function formatAppliedMeta(iso: string | null | undefined): string {
   const dayDiff = Math.round((startOfToday.getTime() - startOfThatDay.getTime()) / 86400000);
   if (dayDiff === 0) return "Applied today";
   if (dayDiff === 1) return "Applied yesterday";
-  return `Applied ${date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`;
+  return `Applied ${date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" })}`;
 }
 
 function formatActivityDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" });
 }
 
 export default function JobCandidateReviewClient() {
@@ -346,7 +346,7 @@ export default function JobCandidateReviewClient() {
     if (!raw) return null;
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) return null;
-    return `Applied on ${date.toLocaleDateString(undefined, {
+    return `Applied on ${date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       month: "long",
       day: "numeric",
     })}`;

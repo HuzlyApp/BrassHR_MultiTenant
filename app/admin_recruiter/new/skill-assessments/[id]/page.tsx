@@ -92,7 +92,7 @@ function formatDate(value: unknown): string {
   if (!text) return "N/A";
   const date = new Date(text);
   if (Number.isNaN(date.getTime())) return text;
-  return date.toLocaleDateString("en-US");
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York" });
 }
 
 function drawSectionTitle(doc: jsPDF, y: number, text: string): number {

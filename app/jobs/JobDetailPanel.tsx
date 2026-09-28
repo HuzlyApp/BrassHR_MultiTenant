@@ -11,6 +11,7 @@ import {
   JOB_POSTING_METADATA_CLASS,
   JOB_POSTING_SECTION_HEADING_CLASS,
 } from "@/app/admin_recruiter/jobs/job-posting-typography";
+import { formatEastern } from "@/lib/datetime/eastern";
 import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
   absolutePublicJobShareUrl,
@@ -419,7 +420,7 @@ export function JobDetailPanel({
               {job.schedule ? <li>Schedule: {job.schedule}</li> : null}
               {job.application_deadline ? (
                 <li>
-                  Apply by {new Date(`${job.application_deadline}T00:00:00`).toLocaleDateString()}
+                  Apply by {formatEastern(job.application_deadline, { month: "long", day: "numeric", year: "numeric" })}
                 </li>
               ) : null}
             </ul>

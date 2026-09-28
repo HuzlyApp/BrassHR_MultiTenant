@@ -507,7 +507,7 @@ export function MailComposePanel({
   );
 
   const savedLabel = draftSavedAt
-    ? `Saved ${new Date(draftSavedAt).toLocaleTimeString("en-US", {
+    ? `Saved ${new Date(draftSavedAt).toLocaleTimeString("en-US", { timeZone: "America/New_York", 
         hour: "numeric",
         minute: "2-digit",
       })}`

@@ -524,7 +524,7 @@ export function formatJobLocationLine(
 export function formatPostedDate(iso: string | null | undefined, updatedIso?: string | null): string | null {
   const resolved = resolvePostedDate(iso, updatedIso);
   if (!resolved) return null;
-  return `${resolved.label} ${resolved.date.toLocaleDateString(undefined, {
+  return `${resolved.label} ${resolved.date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -535,7 +535,7 @@ export function formatPostedDate(iso: string | null | undefined, updatedIso?: st
 export function formatPostedDateDetail(iso: string | null | undefined, updatedIso?: string | null): string | null {
   const resolved = resolvePostedDate(iso, updatedIso);
   if (!resolved) return null;
-  return `${resolved.label}: ${resolved.date.toLocaleDateString("en-US", {
+  return `${resolved.label}: ${resolved.date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "long",
     day: "numeric",
     year: "numeric",

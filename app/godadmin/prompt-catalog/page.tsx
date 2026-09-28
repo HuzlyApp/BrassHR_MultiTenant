@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { formatEastern } from "@/lib/datetime/eastern";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type IndustryRow = {
@@ -220,7 +221,13 @@ export default function PromptCatalogPage() {
                   <td className="py-2 pr-4">{row.version_number}</td>
                   <td className="py-2 pr-4">{row.status}</td>
                   <td className="py-2 pr-4 text-xs text-slate-500">
-                    {row.effective_from ? new Date(row.effective_from).toLocaleDateString() : "—"}
+                    {row.effective_from
+                      ? formatEastern(row.effective_from, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "—"}
                   </td>
                   <td className="py-2 font-mono text-xs">{row.content_hash?.slice(0, 16)}</td>
                 </tr>
@@ -402,7 +409,7 @@ export default function PromptCatalogPage() {
             <tbody>
               {runs.map((row) => (
                 <tr key={row.id} className="border-t border-slate-100">
-                  <td className="py-2 pr-4">{new Date(row.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-4">{formatEastern(row.created_at)}</td>
                   <td className="py-2 pr-4 font-mono text-xs">{row.industry_key}</td>
                   <td className="py-2 pr-4 font-mono text-xs">{row.vertical_key}</td>
                   <td className="py-2 pr-4">{row.status}</td>

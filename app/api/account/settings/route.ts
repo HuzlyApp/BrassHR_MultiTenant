@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { EASTERN_TIME_ZONE } from "@/lib/datetime/eastern"
 import { isActiveReferenceTimezone } from "@/lib/account/reference-timezones"
 import { fetchAccountData, syncAccountChecklist } from "@/lib/account/fetch-account-data"
 import { formatApiError } from "@/lib/api/format-api-error"
@@ -31,11 +32,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = (await req.json()) as PreferencesBody
-    const timezone = body.timezone?.trim()
-
-    if (!timezone) {
-      return NextResponse.json({ error: "Select a timezone" }, { status: 400 })
-    }
+    const timezone = EASTERN_TIME_ZONE
 
     const timezoneAllowed = await isActiveReferenceTimezone(supabase, timezone)
     if (!timezoneAllowed) {

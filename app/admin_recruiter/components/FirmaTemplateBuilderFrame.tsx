@@ -636,7 +636,7 @@ export default function FirmaTemplateBuilderFrame({
             : expired
               ? "Session expired"
               : session
-                ? `Session expires ${new Date(session.expires_at).toLocaleString()}`
+                ? `Session expires ${new Date(session.expires_at).toLocaleString("en-US", { timeZone: "America/New_York" })}`
                 : "E-signature session"}
         </div>
         <div className="flex flex-wrap gap-2">

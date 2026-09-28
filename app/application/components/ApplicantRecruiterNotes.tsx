@@ -11,7 +11,7 @@ type Props = {
 function formatNoteDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "numeric",
     year: "numeric",

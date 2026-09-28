@@ -85,19 +85,19 @@ function formatAssignedDate(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric", year: "numeric" });
 }
 
 function formatAssignedDateTime(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const datePart = date.toLocaleDateString("en-US", {
+  const datePart = date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "numeric",
     year: "numeric",
   });
-  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const timePart = date.toLocaleTimeString("en-US", { timeZone: "America/New_York",  hour: "numeric", minute: "2-digit" });
   return `Assigned on ${datePart} at ${timePart}`;
 }
 

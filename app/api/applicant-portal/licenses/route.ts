@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   documentStatusLabel,
+  formatDateOnly,
   LEGACY_DOCUMENT_KEY_BY_LICENSE_TYPE,
   LICENSE_TYPE_LABELS,
   licenseUrgency,
@@ -40,7 +41,7 @@ function serializeLicense(row: LicenseRow) {
     licenseTypeLabel: LICENSE_TYPE_LABELS[row.license_type] ?? row.license_type,
     licenseNumber: row.license_number,
     expiresAt: row.expires_at,
-    expiresAtLabel: row.expires_at ? new Date(row.expires_at).toLocaleDateString() : null,
+    expiresAtLabel: row.expires_at ? formatDateOnly(row.expires_at) : null,
     status,
     statusLabel: documentStatusLabel(status),
     urgency: licenseUrgency(row.expires_at, status),

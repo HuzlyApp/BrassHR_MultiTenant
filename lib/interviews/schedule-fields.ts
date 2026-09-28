@@ -1,31 +1,34 @@
-/** Local calendar date `YYYY-MM-DD` from a Date (browser/admin timezone). */
+import {
+  EASTERN_TIME_ZONE,
+  easternDateString,
+  easternTimeString,
+  easternWallClockToDate,
+} from "@/lib/datetime/eastern";
+
+/** Eastern calendar date `YYYY-MM-DD`. */
 export function localDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return easternDateString(date);
 }
 
-/** Local time `HH:MM:SS` from a Date. */
+/** Eastern time `HH:MM:SS`. */
 export function localTimeString(date: Date): string {
-  const h = String(date.getHours()).padStart(2, "0");
-  const m = String(date.getMinutes()).padStart(2, "0");
-  const s = String(date.getSeconds()).padStart(2, "0");
-  return `${h}:${m}:${s}`;
+  return easternTimeString(date);
 }
 
-/** Parse `scheduled_date` + `start_time` / `end_time` as local wall-clock (modal timezone). */
+/** Parse `scheduled_date` + `start_time` / `end_time` as Eastern wall-clock. */
 export function combineLocalDateAndTime(date: string, time: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
   const normalized = time.length === 5 ? `${time}:00` : time;
-  return new Date(`${date}T${normalized}`);
+  const [hour, minute, second] = normalized.split(":").map(Number);
+  return easternWallClockToDate(year, month, day, hour || 0, minute || 0, second || 0);
 }
 
-export function isoToScheduleFields(startsAt: Date, endsAt: Date, timezone: string) {
+export function isoToScheduleFields(startsAt: Date, endsAt: Date, _timezone?: string) {
   return {
     scheduled_date: localDateString(startsAt),
     start_time: localTimeString(startsAt),
     end_time: localTimeString(endsAt),
-    timezone,
+    timezone: EASTERN_TIME_ZONE,
   };
 }
 

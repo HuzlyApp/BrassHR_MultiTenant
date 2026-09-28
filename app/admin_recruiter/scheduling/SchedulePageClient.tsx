@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
+import {
+  addEasternDays,
+  easternDateString,
+  easternWallClockToDate,
+  getEasternParts,
+  startOfEasternDay,
+  startOfEasternWeek,
+} from "@/lib/datetime/eastern";
 import type { ShiftCalendarEvent, ShiftCalendarFilterOptions, ShiftCalendarStatus } from "@/lib/shifts/types";
 
 type ViewMode = "month" | "week";
@@ -44,31 +52,24 @@ const EMPTY_FILTER_OPTIONS: ShiftCalendarFilterOptions = {
 };
 
 function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfEasternDay(date);
 }
 
 function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
+  return addEasternDays(date, days);
 }
 
 function getWeekStart(date: Date): Date {
-  const d = startOfDay(date);
-  return addDays(d, -d.getDay());
+  return startOfEasternWeek(date);
 }
 
 function formatDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return easternDateString(date);
 }
 
 function parseDateKey(key: string): Date {
-  return new Date(`${key}T00:00:00`);
+  const [year, month, day] = key.split("-").map(Number);
+  return easternWallClockToDate(year, month, day, 0, 0, 0);
 }
 
 function formatHourRange(startHour: number, endHour: number): string {
@@ -100,7 +101,7 @@ function MiniMonthCalendar({
   const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const todayKey = formatDateKey(new Date());
   const selectedKey = formatDateKey(anchorDate);
-  const monthTitle = anchorDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthTitle = anchorDate.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", year: "numeric" });
 
   return (
     <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
@@ -287,7 +288,8 @@ function ShiftWeekCalendar({
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const todayKey = formatDateKey(new Date());
   const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowParts = getEasternParts(now);
+  const nowMinutes = nowParts.hour * 60 + nowParts.minute;
   const todayInWeek = weekDays.some((day) => formatDateKey(day) === todayKey);
 
   return (
@@ -307,7 +309,7 @@ function ShiftWeekCalendar({
               className="flex flex-col items-center border-r border-[#E5E7EB] px-2 py-3 last:border-r-0"
             >
               <p className="text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
-                {day.toLocaleDateString("en-US", { weekday: "short" })}
+                {day.toLocaleDateString("en-US", { timeZone: "America/New_York",  weekday: "short" })}
               </p>
               <span
                 className={`mt-1 inline-flex h-6 items-center justify-center rounded px-2 py-1 text-xs font-semibold leading-none ${
@@ -488,7 +490,7 @@ export default function SchedulePageClient() {
     return map;
   }, [filteredEvents]);
 
-  const monthTitle = anchorDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthTitle = anchorDate.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", year: "numeric" });
   const allRolesSelected =
     filterOptions.jobRoles.length > 0 && selectedRoles.size === filterOptions.jobRoles.length;
   const allStatusesSelected =
