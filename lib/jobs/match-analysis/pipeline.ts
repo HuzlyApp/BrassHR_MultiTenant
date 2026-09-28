@@ -48,6 +48,7 @@ import {
   applicationMatchScorePatch,
   matchStageFromMode,
   parseMatchStage,
+  type MatchStage,
 } from "./match-stage";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
 import {
@@ -86,6 +87,8 @@ export type RunMatchAnalysisResult = {
   model: string | null;
   requirementCounts: { confirmed: number; verify: number; notMet: number } | null;
   analyzedAt?: string | null;
+  /** Persisted `ai_match_stage`; absent when the run did not write a stage. */
+  stage?: MatchStage | null;
 };
 
 async function setProgress(
@@ -447,6 +450,7 @@ async function runCallPackQuestionsForApplication(args: {
       model: generated.model,
       requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []),
       analyzedAt,
+      stage: nextStage,
     };
   } catch (error) {
     const message =
@@ -1029,6 +1033,7 @@ export async function runMatchAnalysisForApplication(args: {
       model: modelResult.model,
       requirementCounts: listingRequirementOutcomeCounts(persistedRequirements),
       analyzedAt,
+      stage,
     };
   } catch (error) {
     const message =
