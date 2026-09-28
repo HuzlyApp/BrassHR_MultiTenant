@@ -69,12 +69,12 @@ function formatDateTimeParts(iso: string): { dateLine: string; timeLine: string 
     return { dateLine: "—", timeLine: "—" };
   }
   return {
-    dateLine: d.toLocaleDateString(undefined, {
+    dateLine: d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     }),
-    timeLine: d.toLocaleTimeString(undefined, {
+    timeLine: d.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
       hour: "numeric",
       minute: "2-digit",
     }),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   documentStatusLabel,
+  formatDateOnly,
   LICENSE_TYPE_LABELS,
   licenseUrgency,
   type LicenseType,
@@ -40,7 +41,7 @@ function serializeLicense(row: LicenseRow) {
     licenseTypeLabel: LICENSE_TYPE_LABELS[row.license_type] ?? row.license_type,
     licenseNumber: row.license_number,
     expiresAt: row.expires_at,
-    expiresAtLabel: row.expires_at ? new Date(row.expires_at).toLocaleDateString() : null,
+    expiresAtLabel: row.expires_at ? formatDateOnly(row.expires_at) : null,
     status,
     statusLabel: documentStatusLabel(status),
     urgency: licenseUrgency(row.expires_at, status),

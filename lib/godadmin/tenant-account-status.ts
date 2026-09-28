@@ -21,7 +21,7 @@ export function formatTenantConsoleTimestamp(iso: string | null | undefined): st
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString("en-US", { timeZone: "America/New_York", 
     year: "numeric",
     month: "short",
     day: "numeric",

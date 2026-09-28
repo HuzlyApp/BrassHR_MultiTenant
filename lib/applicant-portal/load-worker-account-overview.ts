@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applicantDisplayName } from "@/lib/applicant-portal";
-import { documentStatusLabel } from "@/lib/applicant-portal/documents";
+import { documentStatusLabel, formatDateOnly } from "@/lib/applicant-portal/documents";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
 import { computeWorkerProfileCompletionPercent } from "@/lib/applicant-portal/worker-profile-completion";
 import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
@@ -107,7 +107,7 @@ function formatHireDate(iso: string | null): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric", year: "numeric" });
 }
 
 function oneJoin<T>(value: T | T[] | null | undefined): T | null {
@@ -210,7 +210,7 @@ function mapHiredJobs(rows: HiredApplicationRow[]): WorkerAccountHiredJob[] {
 function formatUploadedLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "Uploaded recently";
-  return `Uploaded ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+  return `Uploaded ${date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function sumAttendanceHours(logs: AttendanceRow[]): number {
@@ -490,15 +490,7 @@ export async function loadWorkerAccountOverview(
     .slice(0, 5);
 
   const certifications = (licensesRes.data ?? []).map((row) => {
-    const expiresAt = row.expires_at ? new Date(String(row.expires_at)) : null;
-    const expiresLabel =
-      expiresAt && !Number.isNaN(expiresAt.getTime())
-        ? expiresAt.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })
-        : null;
+    const expiresLabel = row.expires_at ? formatDateOnly(String(row.expires_at)) : null;
 
     return {
       id: String(row.id),

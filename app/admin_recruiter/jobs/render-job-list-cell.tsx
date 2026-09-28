@@ -470,7 +470,7 @@ function formatPostedDate(iso: string | null): { relative: string; absolute: str
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return { relative: "—", absolute: "—" }
 
-  const absolute = date.toLocaleDateString("en-US", {
+  const absolute = date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -491,7 +491,7 @@ function formatDateShort(iso: string | null): string {
   if (!iso) return "—"
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "numeric",
     year: "numeric",

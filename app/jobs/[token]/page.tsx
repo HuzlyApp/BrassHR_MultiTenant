@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { PublicJobShareControls } from "@/app/jobs/PublicJobShareControls";
+import { formatEastern } from "@/lib/datetime/eastern";
 import { formatStoredJobDescriptionHtml, JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
@@ -267,7 +268,7 @@ export default async function PublicJobDetailPage({
           )}
           {job.application_deadline ? (
             <p className="mt-3 text-xs text-slate-500">
-              Apply by {new Date(`${job.application_deadline}T00:00:00`).toLocaleDateString()}
+              Apply by {formatEastern(job.application_deadline, { month: "long", day: "numeric", year: "numeric" })}
             </p>
           ) : null}
           <PublicJobShareControls
