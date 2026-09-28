@@ -21,11 +21,13 @@ import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCand
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import { locationFromFreeText, normalizeStateCode } from "@/lib/service-area/normalize";
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 
 type ResumeTab = "files" | "paste";
 
@@ -96,6 +98,8 @@ type AddCandidateModalProps = {
   onClose: () => void;
   jobId?: string;
   jobTitle?: string | null;
+  /** Optional job worksite text used when the job record has no usable location. */
+  jobLocation?: string | null;
   /** When set, shows a job picker as the first field (used on All candidates). */
   jobOptions?: AddCandidateJobOption[];
   onSuccess?: () => void;
@@ -163,8 +167,12 @@ function ResumeTabBar({
 }
 
 function buildResumeTitle(firstName: string, lastName: string): string {
-  const title = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
-  return title ? `${title} Resume` : "";
+  if (!firstName.trim() && !lastName.trim()) return "";
+  return buildWorkerResumeFileName({
+    firstName,
+    lastName,
+    originalFileName: "resume.pdf",
+  }).replace(/\.pdf$/i, "");
 }
 
 function ParseStatusBadge({ state }: { state: ParseState }) {
@@ -191,6 +199,7 @@ export default function AddCandidateModal({
   onClose,
   jobId = "",
   jobTitle,
+  jobLocation = null,
   jobOptions,
   onSuccess,
 }: AddCandidateModalProps) {
@@ -198,6 +207,7 @@ export default function AddCandidateModal({
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const primaryColor = branding.primaryHex || "#BC8B41";
   const secondaryColor = branding.secondaryHex || "#012352";
+  const [analysisProvider] = useMatchAnalysisProvider();
 
   const [activeTab, setActiveTab] = useState<ResumeTab>("files");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -244,6 +254,8 @@ export default function AddCandidateModal({
   const parseRequestRef = useRef(0);
   const modalBodyRef = useRef<HTMLDivElement>(null);
   const workLocationAlertRef = useRef<HTMLParagraphElement>(null);
+  /** Last worksite loaded from the job, restored for each new candidate. */
+  const jobWorkLocationRef = useRef<ReturnType<typeof workLocationFromJob> | null>(null);
 
   const resetParse = useCallback(() => {
     parseRequestRef.current += 1;
@@ -256,26 +268,33 @@ export default function AddCandidateModal({
     setPhone("");
   }, []);
 
-  const resetForm = useCallback(() => {
-    setActiveTab("files");
+  const resetCandidateEntry = useCallback(() => {
     setResumeFile(null);
     setResumeTitle("");
     setResumeText("");
     setFileError(null);
     setPasteError(null);
     setDragActive(false);
-    setSelectedJobId("");
-    setJobError(null);
-    setWorkCity("");
-    setWorkState("");
-    setWorkPostalCode("");
+    const jobLocationDefaults = jobWorkLocationRef.current;
+    setWorkCity(jobLocationDefaults?.city ?? "");
+    setWorkState(jobLocationDefaults?.stateName ?? "");
+    setWorkPostalCode(jobLocationDefaults?.postalCode ?? "");
     setRelocateToJobSite(false);
     resetParse();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetParse]);
 
+  const resetForm = useCallback(() => {
+    setActiveTab("files");
+    setSelectedJobId("");
+    setJobError(null);
+    jobWorkLocationRef.current = null;
+    resetCandidateEntry();
+  }, [resetCandidateEntry]);
+
   const applyJobWorkLocation = useCallback((job: JobLocationSource) => {
     const next = workLocationFromJob(job);
+    jobWorkLocationRef.current = next;
     setWorkCity(next.city);
     setWorkState(next.stateName);
     setWorkPostalCode(next.postalCode);
@@ -361,6 +380,7 @@ export default function AddCandidateModal({
   useEffect(() => {
     if (!open || !effectiveJobId) {
       if (!effectiveJobId) {
+        jobWorkLocationRef.current = null;
         setWorkCity("");
         setWorkState("");
         setWorkPostalCode("");
@@ -381,11 +401,19 @@ export default function AddCandidateModal({
           job?: JobLocationSource;
         };
         if (!active) return;
+        const fallbackLocation = String(jobLocation ?? "").trim();
         if (response.ok && payload.job) {
-          applyJobWorkLocation(payload.job);
+          applyJobWorkLocation({
+            ...payload.job,
+            location: payload.job.location || fallbackLocation || null,
+          });
+        } else if (fallbackLocation) {
+          applyJobWorkLocation({ location: fallbackLocation });
         }
       } catch {
         // Keep manual entry available if job location cannot be loaded.
+        const fallbackLocation = String(jobLocation ?? "").trim();
+        if (active && fallbackLocation) applyJobWorkLocation({ location: fallbackLocation });
       } finally {
         if (active) setJobLocationLoading(false);
       }
@@ -394,7 +422,7 @@ export default function AddCandidateModal({
     return () => {
       active = false;
     };
-  }, [open, effectiveJobId, applyJobWorkLocation]);
+  }, [open, effectiveJobId, jobLocation, applyJobWorkLocation]);
 
   const effectiveCityOptions = useMemo(() => {
     const current = workCity.trim();
@@ -476,7 +504,7 @@ export default function AddCandidateModal({
           setPhone(preview.phone ?? "");
           const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
           if (autoTitle) setResumeTitle(autoTitle);
-          const extracted = payload.extractedText?.trim();
+          const extracted = payload.extractedText?.trim() || source.text?.trim() || "";
           if (source.file && extracted) {
             setResumeText(extracted);
           } else if (source.text?.trim()) {
@@ -678,6 +706,7 @@ export default function AddCandidateModal({
       if (resolvedWorkStateCode) form.set("workState", resolvedWorkStateCode);
       if (workPostalCode.trim()) form.set("workPostalCode", workPostalCode.trim());
       form.set("relocateToJobSite", relocateToJobSite ? "true" : "false");
+      form.set("analysisProvider", analysisProvider);
 
       const response = await fetch("/api/admin/add-candidate-from-resume", {
         method: "POST",
@@ -691,6 +720,7 @@ export default function AddCandidateModal({
       const candidateName =
         typeof payload.candidateName === "string" ? payload.candidateName.trim() : "";
       setSuccessCandidateName(candidateName);
+      resetCandidateEntry();
       setSuccessOpen(true);
     } catch (uploadError) {
       setErrorMessage(
@@ -702,10 +732,16 @@ export default function AddCandidateModal({
     }
   }
 
-  function handleSuccessClose() {
+  function handleSuccessDismiss() {
     setSuccessOpen(false);
     resetForm();
     onClose();
+    onSuccess?.();
+  }
+
+  function handleAddAnother() {
+    setSuccessOpen(false);
+    resetCandidateEntry();
     onSuccess?.();
   }
 
@@ -1244,7 +1280,7 @@ export default function AddCandidateModal({
 
       <SuccessModal
         open={successOpen}
-        onClose={handleSuccessClose}
+        onClose={handleSuccessDismiss}
         title="Success!"
         message={
           successCandidateName
@@ -1252,8 +1288,8 @@ export default function AddCandidateModal({
             : "Candidate was added successfully."
         }
         size="large"
-        actionLabel="Close"
-        onAction={handleSuccessClose}
+        actionLabel="Add another"
+        onAction={handleAddAnother}
       />
 
       <ErrorModal

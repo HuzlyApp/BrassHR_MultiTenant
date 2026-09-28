@@ -61,32 +61,59 @@ export function applicationStatusLabel(status: string): string {
   return APPLICATION_STATUS_OPTIONS.find((option) => option.id === normalized)?.label ?? normalized;
 }
 
-export function applicationCurrentStageMeta(status: string): {
+export function applicationCurrentStageMeta(
+  status: string,
+  displayName?: string | null
+): {
   label: string;
   subtitle: string;
   progress: number;
   barColor: string;
 } {
+  const named = displayName?.trim() || "";
+  let meta: { label: string; subtitle: string; progress: number; barColor: string };
   switch (normalizeApplicationStatus(status)) {
     case "new":
-      return { label: "Reviewing", subtitle: "New application", progress: 15, barColor: "#3B82F6" };
+      meta = { label: "Reviewing", subtitle: "New application", progress: 15, barColor: "#3B82F6" };
+      break;
     case "reviewing":
-      return { label: "Reviewing", subtitle: "Initial Screening", progress: 25, barColor: "#3B82F6" };
+      meta = { label: "Reviewing", subtitle: "Initial Screening", progress: 25, barColor: "#3B82F6" };
+      break;
     case "shortlisted":
-      return { label: "Shortlisted", subtitle: "Skills Assessment", progress: 45, barColor: "#F59E0B" };
+      meta = { label: "Shortlisted", subtitle: "Skills Assessment", progress: 45, barColor: "#F59E0B" };
+      break;
     case "interviewing":
-      return { label: "Interviewing", subtitle: "HR Interview", progress: 70, barColor: "#8B5CF6" };
+      meta = { label: "Interviewing", subtitle: "HR Interview", progress: 70, barColor: "#8B5CF6" };
+      break;
     case "hired":
-      return { label: "Hired", subtitle: "Offer accepted", progress: 100, barColor: "#14B8A6" };
+      // system_key "hired" is the client-selection status, not an employment hire.
+      meta = {
+        label: applicationStatusLabel("hired"),
+        subtitle: "Client selected",
+        progress: 100,
+        barColor: "#14B8A6",
+      };
+      break;
     case "undecided":
-      return { label: "Undecided", subtitle: "Keep as possible", progress: 40, barColor: "#64748B" };
+      meta = { label: "Undecided", subtitle: "Keep as possible", progress: 40, barColor: "#64748B" };
+      break;
     case "rejected":
-      return { label: "Rejected", subtitle: "Not pursuing", progress: 15, barColor: "#EF4444" };
+      meta = { label: "Rejected", subtitle: "Not pursuing", progress: 15, barColor: "#EF4444" };
+      break;
     case "archived":
-      return { label: "Archived", subtitle: "Closed", progress: 100, barColor: "#94A3B8" };
+      meta = { label: "Archived", subtitle: "Closed", progress: 100, barColor: "#94A3B8" };
+      break;
     default:
-      return { label: "Reviewing", subtitle: "Initial Screening", progress: 25, barColor: "#3B82F6" };
+      meta = { label: "Reviewing", subtitle: "Initial Screening", progress: 25, barColor: "#3B82F6" };
   }
+
+  if (!named) return meta;
+  const namedLower = named.toLowerCase();
+  const hidePipelineSubtitle =
+    normalizeApplicationStatus(status) === "hired" ||
+    namedLower === meta.label.toLowerCase() ||
+    namedLower === meta.subtitle.toLowerCase();
+  return { ...meta, label: named, subtitle: hidePipelineSubtitle ? "" : meta.subtitle };
 }
 
 /** Colored status dot — same pattern as jobs list / job details status UI. */

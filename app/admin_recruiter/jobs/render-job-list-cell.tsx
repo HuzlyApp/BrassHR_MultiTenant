@@ -92,6 +92,8 @@ function JobCandidateMetric({
 export type JobListRow = {
   id: string
   internal_requisition_number: string | null
+  /** MSP Source Job ID / Internal Reference (job form externalRequisitionId). */
+  external_requisition_id?: string | null
   public_title: string | null
   public_job_token?: string | null
   employment_type: string
@@ -310,6 +312,11 @@ export function jobDisplayId(job: JobListRow): string {
   return job.internal_requisition_number?.trim() || job.id.slice(0, 8).toUpperCase()
 }
 
+/** MSP Source Job ID (Internal Reference / Source Job ID on the job form). */
+export function jobSourceJobId(job: JobListRow): string {
+  return job.external_requisition_id?.trim() || ""
+}
+
 function toNumberOrNull(value: unknown): number | null {
   if (value == null || value === "") return null
   const n = Number(value)
@@ -406,6 +413,8 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
       return jobListDisplayTitle(job).toLowerCase()
     // case "jobId":
     //   return jobDisplayId(job).toLowerCase()
+    case "sourceJobId":
+      return jobSourceJobId(job).toLowerCase()
     case "contractGroup":
       return jobContractGroup(job).toLowerCase()
     case "candidates":
@@ -535,6 +544,10 @@ export function renderJobListCell(
       )
     // case "jobId":
     //   return <span className="text-sm text-[#475569]">{jobDisplayId(job)}</span>
+    case "sourceJobId": {
+      const sourceId = jobSourceJobId(job)
+      return <span className="text-sm text-[#475569]">{sourceId || "—"}</span>
+    }
     case "contractGroup": {
       const group = jobContractGroup(job)
       return <span className="text-sm text-[#475569]">{group || "—"}</span>

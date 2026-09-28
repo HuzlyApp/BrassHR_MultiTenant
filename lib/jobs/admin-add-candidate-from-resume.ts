@@ -6,7 +6,10 @@ import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-r
 import { createAdminJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
-import { preExtractResumeFields } from "@/lib/resume/normalize-resume-text";
+import {
+  extractLocationFromResumeText,
+  preExtractResumeFields,
+} from "@/lib/resume/normalize-resume-text";
 import {
   hasAdminCandidateIdentity,
   normalizeParsedResume,
@@ -22,6 +25,12 @@ import {
   validateResumeUploadFile,
 } from "@/lib/resume/validate-resume-upload";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import {
+  runAutoQuickMatchForApplication,
+  type AutoQuickMatchResult,
+} from "@/lib/jobs/match-analysis/auto-quick-match";
+import type { AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
@@ -40,6 +49,8 @@ export type AdminAddCandidateFromResumeInput = {
   workState?: string | null;
   workPostalCode?: string | null;
   relocateToJobSite?: boolean;
+  /** Grok (default) or Gemini — used for Step 1 auto Quick Match. */
+  analysisProvider?: AnalysisProvider;
 };
 
 export type AdminAddCandidateFromResumeResult = {
@@ -47,6 +58,7 @@ export type AdminAddCandidateFromResumeResult = {
   applicantProfileId: string;
   jobTitle: string;
   candidateName: string;
+  autoQuickMatch: AutoQuickMatchResult | null;
 };
 
 function sanitizeFileName(name: string): string {
@@ -172,22 +184,38 @@ export function resolveAdminCandidateIdentity(
   };
 }
 
-async function parseExtractedResumeText(extractedText: string): Promise<{
+async function parseExtractedResumeText(
+  extractedText: string,
+  fileName?: string | null,
+): Promise<{
   parsed: NormalizedParsedResume;
   qualityOk: boolean;
   qualityMessage: string | null;
 }> {
   const contentError = validateExtractedResumeText(extractedText);
-  const fallback = normalizeParsedResume(preExtractResumeFields(extractedText));
+  const preExtracted = preExtractResumeFields(extractedText, { fileName });
+  const fallback = normalizeParsedResume(preExtracted);
 
   let parsed = fallback;
   if (!contentError) {
     try {
-      parsed = normalizeParsedResume(await grokParseResumeCached(extractedText));
+      parsed = normalizeParsedResume(
+        await grokParseResumeCached(extractedText, { fileName }),
+      );
     } catch (parseError) {
       console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
       parsed = fallback;
     }
+  }
+
+  // Cached Grok results can omit city/state even when the text has them — always backfill.
+  if (!parsed.city.trim() || !parsed.state.trim()) {
+    const fromText = extractLocationFromResumeText(extractedText);
+    parsed = normalizeParsedResume({
+      ...parsed,
+      city: parsed.city.trim() || fromText.city || preExtracted.city || "",
+      state: parsed.state.trim() || fromText.state || preExtracted.state || "",
+    });
   }
 
   if (hasAdminCandidateIdentity(parsed)) {
@@ -272,7 +300,10 @@ export async function prepareResumeCandidate(input: {
     throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
   }
 
-  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(extractedText);
+  const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(
+    extractedText,
+    resumeFileName,
+  );
 
   return {
     extractedText,
@@ -340,11 +371,17 @@ export async function adminAddCandidateFromResume(
       ? await resumeTextToPdfBuffer(extractedText)
       : resumeBytes;
 
+  const namedFile = buildWorkerResumeFileName({
+    firstName: resolvedFirstName,
+    lastName: resolvedLastName,
+    originalFileName: resumeFileName,
+  });
+
   const uploaded = await uploadResumeBytes(
     supabase,
     input.tenantId,
     uploadBytes,
-    resumeFileName,
+    namedFile,
     resumeContentType
   );
 
@@ -394,10 +431,25 @@ export async function adminAddCandidateFromResume(
     });
   }
 
+  const applicationId = String(result.application?.id ?? "").trim();
+  let autoQuickMatch: AutoQuickMatchResult | null = null;
+  if (applicationId) {
+    // Await Step 1 so Vercel does not kill fire-and-forget work, and the UI can show fit.
+    autoQuickMatch = await runAutoQuickMatchForApplication({
+      supabase,
+      tenantId: input.tenantId,
+      jobApplicationId: applicationId,
+      analyzedByUserId: input.staffUserId ?? null,
+      analysisProvider: input.analysisProvider,
+      reason: "admin_add_candidate_from_resume",
+    });
+  }
+
   return {
-    applicationId: String(result.application?.id ?? ""),
+    applicationId,
     applicantProfileId: result.applicantProfileId,
     jobTitle: result.jobTitle,
     candidateName: fullName,
+    autoQuickMatch,
   };
 }

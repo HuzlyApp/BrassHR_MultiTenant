@@ -11,7 +11,13 @@ describe("persistWorkerResumeRecord", () => {
             select: () => ({
               eq: () => ({
                 maybeSingle: async () => ({
-                  data: { id: "w1", tenant_id: "t1", user_id: "u1" },
+                  data: {
+                    id: "w1",
+                    tenant_id: "t1",
+                    user_id: "u1",
+                    first_name: "Almog",
+                    last_name: "Arazi",
+                  },
                   error: null,
                 }),
               }),
@@ -42,6 +48,7 @@ describe("persistWorkerResumeRecord", () => {
     expect(resumeId).toBe("r1")
     expect(inserted?.extracted_text).toBe("Almog Arazi\nEngineer")
     expect(inserted?.parsed_data).toEqual({ text: "Almog Arazi" })
-    expect(inserted?.original_file_name).toBe("Almog.pdf")
+    expect(inserted?.original_file_name).toBe("Almog_Arazi_resume.pdf")
+    expect(inserted?.file_name).toBe("Almog_Arazi_resume.pdf")
   })
 })

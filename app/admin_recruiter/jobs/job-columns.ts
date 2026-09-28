@@ -1,6 +1,7 @@
 export type JobColumnId =
   | "jobTitle"
   | "jobId"
+  | "sourceJobId"
   | "contractGroup"
   | "candidates"
   | "datePosted"
@@ -22,6 +23,7 @@ export type JobColumnId =
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
+  { id: "sourceJobId", label: "MSP Source Job ID" },
   { id: "contractGroup", label: "MSP/Client" },
   { id: "candidates", label: "Applicants" },
   { id: "datePosted", label: "Date Posted" },
@@ -45,6 +47,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
 export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobTitle",
   "contractGroup",
+  "sourceJobId",
   "location",
   "placementType",
   "candidates",
@@ -109,6 +112,7 @@ const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v8-figma-defaults"
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
   // Default MSP/Client after Location for All / MSP / Hot layouts.
   { id: "contractGroup", after: "location" },
+  { id: "sourceJobId", after: "contractGroup" },
 ]
 
 export function loadJobColumnOrder(): JobColumnId[] {
@@ -171,6 +175,7 @@ export function isCenterAlignedJobColumn(colId: JobColumnId): boolean {
 }
 
 const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
+  "sourceJobId",
   "contractGroup",
   "candidates",
   "datePosted",
@@ -199,6 +204,8 @@ export function jobListColumnClassName(colId: JobColumnId): string {
       return `min-w-[260px]${nowrap}`
     // case "jobId":
     //   return `min-w-[100px]${nowrap}${center}`
+    case "sourceJobId":
+      return `min-w-[150px]${nowrap}${center}`
     case "contractGroup":
       return `min-w-[150px]${nowrap}${center}`
     case "candidates":

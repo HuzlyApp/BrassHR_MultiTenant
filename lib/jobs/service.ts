@@ -71,6 +71,10 @@ import {
   type JobRequisitionPatchInput,
 } from "@/lib/jobs/job-requisition-patch";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
+import { embeddedRelationName } from "@/lib/jobs/profession-text";
+import { resolveProfessionIdForSave } from "@/lib/jobs/resolve-profession";
+import { jobRequirementsSourceFieldsChanged } from "@/lib/jobs/match-analysis/build-job-requirements";
+import { invalidateMatchCachesForJobDescriptionChange } from "@/lib/jobs/match-analysis/invalidate-on-job-change";
 
 type DbClient = SupabaseClient;
 
@@ -554,10 +558,16 @@ export async function saveJobRequisition(
     screeningQuestions?: JobScreeningQuestionInput[];
   } & JobWorkflowAssignmentOptions
 ) {
+  input.professionId = await resolveProfessionIdForSave(supabase, tenantId, input);
+
+  let existingJobForMatchInvalidation: Record<string, unknown> | null = null;
+
   if (options.jobId) {
     const { data: existingJob, error: existingJobError } = await supabase
       .from("job_requisitions")
-      .select("status, workflow_assignment_mode")
+      .select(
+        "status, workflow_assignment_mode, public_title, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty"
+      )
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -567,6 +577,7 @@ export async function saveJobRequisition(
         throw existingJobError;
       }
     }
+    existingJobForMatchInvalidation = existingJob as Record<string, unknown> | null;
 
     if (isLiveJobRequisitionStatus(String(existingJob?.status ?? ""))) {
       const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
@@ -694,6 +705,28 @@ export async function saveJobRequisition(
     }
     if (error) throwJobWriteError(error);
     const savedJobId = String(data.id);
+
+    if (
+      jobRequirementsSourceFieldsChanged(existingJobForMatchInvalidation, {
+        public_title: jobRow.public_title,
+        public_description: jobRow.public_description,
+        qualifications: jobRow.qualifications,
+        responsibilities: jobRow.responsibilities,
+        special_requirements: jobRow.special_requirements,
+        required_credentials: jobRow.required_credentials,
+        years_of_experience: jobRow.years_of_experience,
+        years_experience_required: jobRow.years_experience_required,
+        location: jobRow.location,
+        specialty: existingJobForMatchInvalidation?.specialty ?? null,
+      })
+    ) {
+      await invalidateMatchCachesForJobDescriptionChange({
+        supabase,
+        tenantId,
+        jobRequisitionId: savedJobId,
+      });
+    }
+
     const screeningQuestions =
       options.screeningQuestions !== undefined
         ? await syncJobScreeningQuestions(supabase, {
@@ -923,6 +956,7 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
       row.eor_type === "Tenant" || row.eor_type === "MSP" ? row.eor_type : null,
     mspClient: row.msp_client ? String(row.msp_client) : null,
     professionId: String(row.profession_id ?? ""),
+    profession: embeddedRelationName(row.professions) || null,
     specialtyId: row.specialty_id ? String(row.specialty_id) : null,
     employmentType: (row.employment_type as EmploymentType) || "W2",
     employerOfRecord: row.employer_of_record ? String(row.employer_of_record) : null,
@@ -1289,7 +1323,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, show_pay_by, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, industry_key, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key, name), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
+      "id, internal_requisition_number, external_requisition_id, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, show_pay_by, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, industry_key, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key, name), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });

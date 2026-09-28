@@ -57,10 +57,10 @@ export default function StepsSettingsPanel({
     <aside
       className={
         compactMode
-          ? `flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9] fixed inset-y-0 right-0 z-50 shadow-xl transition-transform duration-200 ${
+          ? `flex h-full min-h-0 w-[388px] shrink-0 flex-col border-l bg-[#ECF1F9] fixed inset-y-0 right-0 z-50 shadow-xl transition-transform duration-200 ${
               panelOpen ? "translate-x-0" : "pointer-events-none translate-x-full"
             }`
-          : "flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9]"
+          : "flex h-full min-h-0 w-[388px] shrink-0 flex-col border-l bg-[#ECF1F9]"
       }
       style={{ borderColor: CARD_BORDER }}
       aria-hidden={!panelOpen ? true : undefined}
@@ -80,7 +80,7 @@ export default function StepsSettingsPanel({
             <PanelRightClose size={16} color={TEXT_SECONDARY} />
           </button>
         ) : null}
-        <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
+        <h2 className="text-[16.8px] font-bold leading-5 text-black">
           Steps Settings
         </h2>
       </div>

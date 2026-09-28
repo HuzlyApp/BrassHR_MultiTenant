@@ -15,14 +15,14 @@ import {
 } from "@/lib/resume/validate-resume-upload";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { runAutoQuickMatchForApplication } from "@/lib/jobs/match-analysis/auto-quick-match";
+import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 
 export const runtime = "nodejs";
+export const maxDuration = 180;
 
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
-
-function sanitizeFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
-}
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
@@ -65,6 +65,7 @@ export async function POST(
 
     // Present when replacing an existing resume rather than adding a new one.
     const replacedResumeId = String(form.get("resumeId") ?? "").trim();
+    const analysisProvider = parseAnalysisProvider(form.get("analysisProvider"));
 
     const formatError = validateResumeUploadFile({
       name: file.name,
@@ -139,10 +140,12 @@ export async function POST(
 
     let resumeOwnerId: string | null = null;
     let workerUserId: string | null = null;
+    let workerFirstName: string | null = null;
+    let workerLastName: string | null = null;
     if (workerId) {
       const { data: worker, error: workerError } = await supabase
         .from("worker")
-        .select("id, user_id, tenant_id")
+        .select("id, user_id, tenant_id, first_name, last_name")
         .eq("id", workerId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
@@ -153,6 +156,14 @@ export async function POST(
           ? String(worker.user_id).trim()
           : null;
       resumeOwnerId = workerUserId || workerId;
+      workerFirstName =
+        worker?.first_name != null && String(worker.first_name).trim()
+          ? String(worker.first_name).trim()
+          : null;
+      workerLastName =
+        worker?.last_name != null && String(worker.last_name).trim()
+          ? String(worker.last_name).trim()
+          : null;
 
       if (!replacedResumeId) {
         await assertResumeUploadWithinLimit(supabase, {
@@ -164,7 +175,11 @@ export async function POST(
       }
     }
 
-    const safeName = sanitizeFileName(file.name || "resume.pdf");
+    const safeName = buildWorkerResumeFileName({
+      firstName: workerFirstName,
+      lastName: workerLastName,
+      originalFileName: file.name || "resume.pdf",
+    });
     const objectPath = workerId
       ? `${resumeUploadFolder(workerId, Boolean(replacedResumeId))}/${randomUUID()}-${safeName}`
       : `admin-candidates/${tenantId}/${randomUUID()}/${safeName}`;
@@ -239,12 +254,23 @@ export async function POST(
       .eq("id", applicationId);
     if (matchResetError) throw matchResetError;
 
+    // Step 1 Quick Match runs automatically after résumé attach; manual Re-run remains available.
+    const autoQuickMatch = await runAutoQuickMatchForApplication({
+      supabase,
+      tenantId,
+      jobApplicationId: applicationId,
+      analyzedByUserId: auth.userId,
+      analysisProvider,
+      reason: "admin_resume_upload",
+    });
+
     return NextResponse.json({
       ok: true,
       path: objectPath,
       fileName: safeName,
       applicationId,
       workerId,
+      autoQuickMatch,
     });
   } catch (error) {
     console.error("[admin/job-applications/resume]", error);

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import pdfParse from "pdf-parse";
-import mammoth from "mammoth";
+import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import type { ApplicantWorkerRow } from "@/lib/applicant-portal";
 import { resolveStaffProfilePhotoUrl } from "@/lib/account/staff-profile-photo";
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
@@ -25,6 +24,8 @@ import {
 } from "@/lib/resume/validate-resume-upload";
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { scheduleAutoQuickMatchForApplication } from "@/lib/jobs/match-analysis/auto-quick-match";
 
 export type WorkerAppliedJobOption = {
   applicationId: string;
@@ -171,36 +172,17 @@ async function assertJobApplicationForWorker(
 }
 
 async function extractResumeText(buffer: Buffer, file: Pick<File, "name" | "type">): Promise<string> {
-  const lower = file.name.toLowerCase();
-  const mime = (file.type || "").toLowerCase();
-
-  if (mime === "application/pdf" || lower.endsWith(".pdf")) {
-    const pdf = await pdfParse(buffer);
-    return pdf.text;
-  }
-
-  if (
-    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    lower.endsWith(".docx")
-  ) {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  }
-
-  if (mime === "application/msword" || lower.endsWith(".doc")) {
-    throw new Error("Legacy .doc files are not supported. Please save your resume as .docx or PDF.");
-  }
-
-  throw new Error("Only PDF, DOC, and DOCX resumes are supported");
+  return extractResumeTextFromUpload(buffer, file.name);
 }
 
 async function uploadResumeBuffer(
   supabase: SupabaseClient,
   folder: string,
   file: File,
-  buffer: Buffer
+  buffer: Buffer,
+  storedFileName: string
 ): Promise<string> {
-  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`;
+  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(storedFileName)}`;
   const { error } = await supabase.storage.from(WORKER_RESUMES_BUCKET).upload(objectPath, buffer, {
     contentType: file.type || "application/octet-stream",
     upsert: false,
@@ -249,9 +231,14 @@ async function storeResumeFromFile(
   if (contentError) throw new ResumeUploadValidationError(contentError);
 
   const fileType = resolveResumeFileType(file);
+  const storedFileName = buildWorkerResumeFileName({
+    firstName: applicant.first_name,
+    lastName: applicant.last_name,
+    originalFileName: file.name,
+  });
   const baseFolder = userId.trim() || applicant.id;
   const folder = resumeUploadFolder(baseFolder, mode === "update");
-  const objectPath = await uploadResumeBuffer(supabase, folder, file, buffer);
+  const objectPath = await uploadResumeBuffer(supabase, folder, file, buffer, storedFileName);
   const textLength = text.trim().length;
 
   const persistedId = await persistWorkerResumeRecord(
@@ -259,7 +246,7 @@ async function storeResumeFromFile(
     applicant.id,
     {
       fileUrl: objectPath,
-      originalFileName: file.name,
+      originalFileName: storedFileName,
       parsedData: { text },
       parsingStatus: "pending",
       textLength,
@@ -278,6 +265,44 @@ async function storeResumeFromFile(
   if (!persistedId) throw new Error("Could not save resume record.");
 
   await syncWorkerPrimaryResumePath(supabase, applicant.id, applicant.user_id);
+
+  let jobApplicationId = options?.jobApplicationId?.trim() || "";
+  if (!jobApplicationId && mode === "update" && options?.resumeId?.trim()) {
+    const { data: existing } = await supabase
+      .from("worker_resumes")
+      .select("job_application_id")
+      .eq("id", options.resumeId.trim())
+      .maybeSingle();
+    jobApplicationId =
+      typeof existing?.job_application_id === "string" ? existing.job_application_id.trim() : "";
+  }
+
+  if (jobApplicationId) {
+    await supabase
+      .from("job_applications")
+      .update({
+        ai_match_status: "READY",
+        ai_match_score: null,
+        ai_match_category: null,
+        ai_match_action: null,
+        ai_match_readiness: null,
+        ai_match_display_category: null,
+        ai_analyzed_at: null,
+        ai_analysis_error: null,
+        ai_analysis_progress: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobApplicationId)
+      .eq("tenant_id", applicant.tenant_id);
+
+    scheduleAutoQuickMatchForApplication({
+      supabase,
+      tenantId: applicant.tenant_id,
+      jobApplicationId,
+      analyzedByUserId: userId,
+      reason: mode === "update" ? "applicant_portal_resume_reupload" : "applicant_portal_resume_upload",
+    });
+  }
 
   return { resumeId: persistedId, parseStatus: "pending" };
 }
@@ -506,10 +531,16 @@ async function enrichResumeUploaders(
 
   return items.map((item) => {
     const uploaderId = uploaderByResumeId.get(item.id) ?? null;
+    const originalFileName = buildWorkerResumeFileName({
+      firstName: worker?.first_name as string | null | undefined,
+      lastName: worker?.last_name as string | null | undefined,
+      originalFileName: item.originalFileName,
+    });
 
     if (uploaderId && workerUserId && uploaderId === workerUserId) {
       return {
         ...item,
+        originalFileName,
         uploadedByName: workerDisplayName,
         uploadedByPhotoUrl: workerPhotoUrl,
         uploadedByRoleLabel: "Worker",
@@ -519,6 +550,7 @@ async function enrichResumeUploaders(
     if (uploaderId) {
       return {
         ...item,
+        originalFileName,
         uploadedByName: staffNamesById.get(uploaderId) || "Recruiter",
         uploadedByPhotoUrl: staffPhotosById.get(uploaderId) ?? null,
         uploadedByRoleLabel: "Admin",
@@ -527,6 +559,7 @@ async function enrichResumeUploaders(
 
     return {
       ...item,
+      originalFileName,
       uploadedByName: workerDisplayName,
       uploadedByPhotoUrl: workerPhotoUrl,
       uploadedByRoleLabel: "Worker",

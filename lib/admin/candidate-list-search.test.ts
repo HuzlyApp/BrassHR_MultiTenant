@@ -5,6 +5,7 @@ import {
   matchesCandidateListSearch,
   resolveApplicationJobCode,
   resolveApplicationJobLocation,
+  resolveApplicationSourceJobId,
 } from "@/lib/admin/candidate-list-search";
 
 describe("isPhoneLikeSearchQuery", () => {
@@ -106,6 +107,18 @@ describe("matchesApplicationListSearch", () => {
     expect(resolveApplicationJobLocation(row)).toBe("Austin, TX");
   });
 
+  it("resolves MSP Source Job ID separately from internal job code", () => {
+    const withSource = {
+      ...row,
+      job_requisitions: {
+        ...row.job_requisitions,
+        external_requisition_id: "122ZO3892",
+      },
+    };
+    expect(resolveApplicationJobCode(withSource)).toBe("REQ-7788");
+    expect(resolveApplicationSourceJobId(withSource)).toBe("122ZO3892");
+  });
+
   it("matches by applicant and job fields", () => {
     expect(matchesApplicationListSearch(row, "pat kim")).toBe(true);
     expect(matchesApplicationListSearch(row, "pat.kim@clinic.org")).toBe(true);
@@ -113,6 +126,41 @@ describe("matchesApplicationListSearch", () => {
     expect(matchesApplicationListSearch(row, "req-7788")).toBe(true);
     expect(matchesApplicationListSearch(row, "austin")).toBe(true);
     expect(matchesApplicationListSearch(row, "systems engineer")).toBe(true);
+    expect(
+      matchesApplicationListSearch(
+        {
+          ...row,
+          job_requisitions: {
+            ...row.job_requisitions,
+            external_requisition_id: "122ZO3892",
+          },
+        },
+        "122ZO"
+      )
+    ).toBe(true);
+  });
+
+  it("does not match email query digits against an unrelated phone", () => {
+    // Regression: singh.ca.1237@gmail.com → digits 1237 ⊆ 5123736681 (area 512 + exchange 373)
+    const gontiRow = {
+      id: "app-gonti",
+      job_requisition_id: "job-req-uuid-1",
+      applicant_profiles: {
+        first_name: "Gonti",
+        last_name: "V C Rao",
+        email: "gontivorao@gmail.com",
+        phone: "+1 (512) 373-6681",
+      },
+      job_requisitions: {
+        public_title: "Information Security Platform Engineer",
+        internal_requisition_number: "REQ-1",
+        location: "Austin, TX",
+      },
+    };
+
+    expect(matchesApplicationListSearch(gontiRow, "singh.ca.1237@gmail.com")).toBe(false);
+    expect(matchesApplicationListSearch(gontiRow, "gontivorao@gmail.com")).toBe(true);
+    expect(matchesApplicationListSearch(gontiRow, "512373")).toBe(true);
   });
 
   it("does not match email query digits against an unrelated phone", () => {

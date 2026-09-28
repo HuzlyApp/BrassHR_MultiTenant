@@ -109,8 +109,8 @@ export function JobsAdvancedSearchBar({
             ref={chipRef}
             embedded
             values={draftTags}
-            placeholder="Search by job title, skills, experience, location..."
-            aria-label="Search by job title, skills, experience, location, and profession"
+            placeholder="Search by job title, MSP Source Job ID, skills, location..."
+            aria-label="Search by job title, MSP Source Job ID, skills, experience, location, and profession"
             onChange={setDraftTags}
             onDraftTextChange={setDraftText}
             onEnterSubmit={(nextTags) => {

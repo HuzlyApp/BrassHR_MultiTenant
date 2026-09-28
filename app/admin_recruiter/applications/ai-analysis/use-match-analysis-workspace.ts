@@ -2,16 +2,29 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import type { AnalysisMode, AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+import type {
+  AnalysisMode,
+  AnalysisProvider,
+  MatchAnalysisResponse,
+  ReadinessStatus,
+} from "@/lib/jobs/match-analysis/schema";
 import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
 import {
   RECRUITER_DECISIONS,
+  CALL_CONTEXT_QUESTION_KEY,
+  CALL_CONTEXT_QUESTION_TEXT,
   type QualificationRequirement,
   type RecruiterDecision,
   type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
 import type { VerificationNote, VerificationNoteDraft } from "@/lib/jobs/match-analysis/verification-notes";
 import { summarizeRequirementNotes } from "@/lib/jobs/match-analysis/verification-notes";
+import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
+import {
+  candidateProfileApiUrl,
+  invalidateStaffDetailCache,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 
 export type ScreeningQuestionView = {
   id: string;
@@ -31,6 +44,7 @@ export type MatchAnalysisWorkspacePayload = {
     ai_match_category: string | null;
     ai_match_action: string | null;
     ai_match_display_category: string | null;
+    ai_match_stage?: string | null;
     ai_analysis: Record<string, unknown> | null;
     ai_analysis_error: string | null;
     ai_analysis_version: number | null;
@@ -39,7 +53,14 @@ export type MatchAnalysisWorkspacePayload = {
     recruiter_decision: string | null;
     recruiter_decision_note: string | null;
     recruiter_decision_at: string | null;
+    status_name?: string | null;
+    status_system_key?: string | null;
   };
+  job?: {
+    id: string;
+    title: string | null;
+    location?: string | null;
+  } | null;
   requirements: QualificationRequirement[];
   screeningQuestions?: ScreeningQuestionView[];
   recommendedQuestions?: Array<{
@@ -50,6 +71,22 @@ export type MatchAnalysisWorkspacePayload = {
     relatedRequirement: string;
     answer: string;
   }>;
+  /** Step 2 call-pack context (optional); included in Deep Match notes when present. */
+  callContext?: string;
+  screeningUploads?: Array<{
+    id: string;
+    questionKey: string | null;
+    fileName: string;
+    mimeType: string | null;
+    extractedText: string | null;
+    createdAt: string;
+  }>;
+  matchProgression?: {
+    stage?: string | null;
+    callPackUnlocked?: boolean;
+    requireDeepConfirm?: boolean;
+    deepModel?: string;
+  };
   verifiedInformation?: Array<{
     id: string;
     category: string;
@@ -76,6 +113,7 @@ export type MatchAnalysisWorkspacePayload = {
     display_category: string | null;
     model: string | null;
     analyzed_at: string;
+    analysis?: MatchAnalysisResponse | null;
   }>;
   extractedResume?: { text: string; fileName: string | null } | null;
   assignedRecruiter?: { id: string; name: string } | null;
@@ -100,7 +138,43 @@ export type UploadedResumeItem = {
   fileIconType?: "pdf" | "jpeg";
   uploadedAt?: string;
   uploadedAtLabel?: string;
+  improvementSummary?: unknown;
 };
+
+export type SubmissionImprovementSummaryView = {
+  clarity: string;
+  relevance: string;
+  formatting: string;
+  added: string[];
+  removed: string[];
+  needsVerification: string[];
+  skillEvidenceQuality: "strong" | "adequate" | "keyword_stuffing";
+  skillEvidenceNote: string;
+  overall: string;
+};
+
+function asImprovementSummaryView(value: unknown): SubmissionImprovementSummaryView | null {
+  if (!value || typeof value !== "object") return null;
+  const parsed = value as Partial<SubmissionImprovementSummaryView>;
+  return {
+    clarity: String(parsed.clarity ?? ""),
+    relevance: String(parsed.relevance ?? ""),
+    formatting: String(parsed.formatting ?? ""),
+    added: Array.isArray(parsed.added) ? parsed.added.map(String) : [],
+    removed: Array.isArray(parsed.removed) ? parsed.removed.map(String) : [],
+    needsVerification: Array.isArray(parsed.needsVerification)
+      ? parsed.needsVerification.map(String)
+      : [],
+    skillEvidenceQuality:
+      parsed.skillEvidenceQuality === "keyword_stuffing" ||
+      parsed.skillEvidenceQuality === "strong" ||
+      parsed.skillEvidenceQuality === "adequate"
+        ? parsed.skillEvidenceQuality
+        : "adequate",
+    skillEvidenceNote: String(parsed.skillEvidenceNote ?? ""),
+    overall: String(parsed.overall ?? ""),
+  };
+}
 
 export type CandidateInfoState = {
   firstName: string;
@@ -115,11 +189,14 @@ export type MatchAnalysisParsed = {
   candidate_match?: {
     recruiter_decision_summary?: string;
     confidence_score?: number;
+    display_category?: string | null;
+    match_category?: string | null;
   };
   job?: { job_title?: string };
   strengths?: string[];
   gaps_and_risks?: string[];
   submission_readiness?: {
+    readiness_status?: ReadinessStatus;
     items_to_verify_before_submission?: string[];
     blocking_requirements?: string[];
   };
@@ -132,6 +209,20 @@ export type MatchAnalysisParsed = {
   };
   experience_analysis?: {
     experience_calculation_notes?: string[];
+  };
+  quick_match?: {
+    step?: "quick_match";
+    quick_route?: "STRONG" | "REVIEW" | "LOW_MATCH";
+    mand_met?: number;
+    pref_met?: number;
+    weighted?: number;
+    extracted_resume?: {
+      headline?: string;
+      years_estimated?: number | null;
+      recent_titles?: string[];
+      named_products_in_jobs?: string[];
+      education?: string;
+    };
   };
 };
 
@@ -153,15 +244,23 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [busyVerificationNoteId, setBusyVerificationNoteId] = useState<string | null>(null);
   const [jobAnswers, setJobAnswers] = useState<Record<string, string>>({});
   const [recommendedAnswers, setRecommendedAnswers] = useState<Record<string, string>>({});
+  const [callContext, setCallContext] = useState("");
   const [savingAnswers, setSavingAnswers] = useState(false);
   const recommendedAnswersRef = useRef(recommendedAnswers);
   recommendedAnswersRef.current = recommendedAnswers;
+  const callContextRef = useRef(callContext);
+  callContextRef.current = callContext;
   const jobAnswersRef = useRef(jobAnswers);
   jobAnswersRef.current = jobAnswers;
 
   function updateRecommendedAnswer(key: string, value: string) {
     recommendedAnswersRef.current = { ...recommendedAnswersRef.current, [key]: value };
     setRecommendedAnswers(recommendedAnswersRef.current);
+  }
+
+  function updateCallContext(value: string) {
+    callContextRef.current = value;
+    setCallContext(value);
   }
   const [decision, setDecision] = useState<RecruiterDecision | "">("");
   const [decisionNote, setDecisionNote] = useState("");
@@ -184,7 +283,10 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [extractedDraft, setExtractedDraft] = useState("");
   const [savingText, setSavingText] = useState(false);
   const [resumes, setResumes] = useState<UploadedResumeItem[]>([]);
-  const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
+  const [uploadingScreening, setUploadingScreening] = useState(false);
+  const [draftingSubmissionResume, setDraftingSubmissionResume] = useState(false);
+  const [improvementSummary, setImprovementSummary] =
+    useState<SubmissionImprovementSummaryView | null>(null);
 
   const applyWorkspacePayload = useCallback((
     payload: MatchAnalysisWorkspacePayload,
@@ -202,6 +304,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         (opts?.preserveLocalAnswers ? recommendedAnswersRef.current[item.key] ?? "" : "");
     }
     setRecommendedAnswers(rec);
+    const nextContext =
+      payload.callContext ||
+      (opts?.preserveLocalAnswers ? callContextRef.current : "");
+    callContextRef.current = nextContext;
+    setCallContext(nextContext);
     const jobs: Record<string, string> = {};
     for (const item of payload.screeningQuestions ?? []) {
       jobs[item.id] = item.answered
@@ -230,6 +337,14 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       return aTime - bTime;
     });
     setResumes(rows);
+    const withSummary = [...rows]
+      .reverse()
+      .find(
+        (row) =>
+          /_submission_resume\.(pdf|docx)$/i.test(row.fileName) && row.improvementSummary
+      );
+    const parsed = asImprovementSummaryView(withSummary?.improvementSummary);
+    if (parsed) setImprovementSummary(parsed);
   }, [applicationId]);
 
   const load = useCallback(async (opts?: { preserveLocalAnswers?: boolean; silent?: boolean }) => {
@@ -336,8 +451,12 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         json.status === "NEEDS_REVIEW"
           ? "Needs résumé text before analysis"
           : mode === "deep"
-            ? "Deeper match analysis complete"
-            : "Match analysis complete"
+            ? "Deep Match complete"
+            : mode === "call_pack"
+              ? "Verifications screening questions ready"
+              : mode === "follow_up"
+                ? "Follow-up screening questions refreshed"
+                : "Quick Match complete"
       );
       await Promise.all([load(), loadResumes()]);
       return true;
@@ -559,11 +678,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     });
   }
 
-  async function saveScreeningAnswers() {
+  async function saveScreeningAnswers(opts?: { silent?: boolean }): Promise<boolean> {
     setSavingAnswers(true);
     try {
       const currentRecommended = recommendedAnswersRef.current;
       const currentJob = jobAnswersRef.current;
+      const currentContext = callContextRef.current;
+      const questions = data?.recommendedQuestions ?? [];
       const res = await fetch(`/api/admin/job-applications/${applicationId}/screening-answers`, {
         method: "POST",
         credentials: "include",
@@ -572,12 +693,20 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           jobAnswers: Object.entries(currentJob)
             .filter(([, answer]) => String(answer ?? "").trim() !== "")
             .map(([questionId, answer]) => ({ questionId, answer })),
-          recommendedAnswers: (data?.recommendedQuestions ?? []).map((item) => ({
-            key: item.key,
-            question: item.question,
-            priority: item.priority,
-            answer: currentRecommended[item.key] ?? "",
-          })),
+          callContext: currentContext,
+          recommendedAnswers: [
+            ...questions.map((item) => ({
+              key: item.key,
+              question: item.question,
+              priority: item.priority,
+              answer: currentRecommended[item.key] ?? "",
+            })),
+            {
+              key: CALL_CONTEXT_QUESTION_KEY,
+              question: CALL_CONTEXT_QUESTION_TEXT,
+              answer: currentContext,
+            },
+          ],
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -585,30 +714,89 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       const saved = Array.isArray(json.recommendedAnswers)
         ? (json.recommendedAnswers as Array<{ key: string; answer: string }>)
         : [];
-      if (saved.length) {
-        setRecommendedAnswers((current) => {
-          const next = { ...current };
-          for (const item of saved) next[item.key] = item.answer ?? next[item.key] ?? "";
-          return next;
-        });
-        setData((current) => {
-          if (!current) return current;
-          const byKey = new Map(saved.map((item) => [item.key, item.answer ?? ""]));
-          return {
-            ...current,
-            recommendedQuestions: (current.recommendedQuestions ?? []).map((item) => ({
-              ...item,
-              answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
-            })),
-          };
-        });
+      if (!saved.length) {
+        throw new Error("Nothing was saved to job_application_ai_screening_answers");
       }
-      toast.success("Screening notes saved");
+      setRecommendedAnswers((current) => {
+        const next = { ...current };
+        for (const item of saved) {
+          if (item.key === CALL_CONTEXT_QUESTION_KEY) continue;
+          next[item.key] = item.answer ?? next[item.key] ?? "";
+        }
+        return next;
+      });
+      const savedContext = saved.find((item) => item.key === CALL_CONTEXT_QUESTION_KEY);
+      if (savedContext) {
+        callContextRef.current = savedContext.answer ?? "";
+        setCallContext(callContextRef.current);
+      } else {
+        callContextRef.current = currentContext;
+        setCallContext(currentContext);
+      }
+      setData((current) => {
+        if (!current) return current;
+        const byKey = new Map(saved.map((item) => [item.key, item.answer ?? ""]));
+        return {
+          ...current,
+          callContext: byKey.get(CALL_CONTEXT_QUESTION_KEY) ?? currentContext,
+          recommendedQuestions: (current.recommendedQuestions ?? []).map((item) => ({
+            ...item,
+            answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
+          })),
+        };
+      });
+      if (!opts?.silent) {
+        const count = typeof json.savedCount === "number" ? json.savedCount : saved.length;
+        toast.success(`Saved ${count} screening answer${count === 1 ? "" : "s"} to Supabase`);
+      }
       await load({ preserveLocalAnswers: true, silent: true });
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save screening notes");
+      return false;
     } finally {
       setSavingAnswers(false);
+    }
+  }
+
+  async function uploadScreeningReply(file: File, questionKey?: string) {
+    setUploadingScreening(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (questionKey) form.append("questionKey", questionKey);
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis/screening-uploads`,
+        { method: "POST", credentials: "include", body: form }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        extractedText?: string;
+        uploads?: MatchAnalysisWorkspacePayload["screeningUploads"];
+      };
+      if (!res.ok) throw new Error(json.error || "Failed to upload reply");
+      if (json.extractedText?.trim()) {
+        const text = json.extractedText.trim();
+        const key = questionKey || data?.recommendedQuestions?.[0]?.key;
+        if (key) {
+          const next = `${recommendedAnswersRef.current[key] ?? ""}\n\n${text}`.trim();
+          recommendedAnswersRef.current = { ...recommendedAnswersRef.current, [key]: next };
+          setRecommendedAnswers(recommendedAnswersRef.current);
+        }
+      }
+      setData((current) =>
+        current
+          ? { ...current, screeningUploads: json.uploads ?? current.screeningUploads }
+          : current
+      );
+      toast.success("Reply uploaded");
+      await load({ preserveLocalAnswers: true, silent: true });
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload reply");
+      return false;
+    } finally {
+      setUploadingScreening(false);
     }
   }
 
@@ -631,6 +819,145 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to record decision");
+    } finally {
+      setSavingDecision(false);
+    }
+  }
+
+  function fileNameFromDisposition(header: string | null): string | null {
+    const quoted = header?.match(/filename="([^"]+)"/i);
+    if (quoted?.[1]) return quoted[1];
+    const plain = header?.match(/filename=([^;]+)/i);
+    return plain?.[1]?.trim() || null;
+  }
+
+  function parseImprovementSummaryHeader(header: string | null): SubmissionImprovementSummaryView | null {
+    if (!header?.trim()) return null;
+    try {
+      return asImprovementSummaryView(JSON.parse(decodeURIComponent(header)));
+    } catch {
+      return null;
+    }
+  }
+
+  function triggerBlobDownload(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function draftSubmissionResume(): Promise<boolean> {
+    setDraftingSubmissionResume(true);
+    try {
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis/submission-resume`,
+        { method: "POST", credentials: "include" }
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error || "Could not draft the submission résumé.");
+      }
+      const summary = parseImprovementSummaryHeader(res.headers.get("X-Improvement-Summary"));
+      if (summary) setImprovementSummary(summary);
+      const blob = await res.blob();
+      const fileName =
+        fileNameFromDisposition(res.headers.get("Content-Disposition")) ||
+        "submission-resume.docx";
+      triggerBlobDownload(blob, fileName);
+      toast.success("Optimized submission résumé (.docx) downloaded.");
+      await Promise.all([load({ silent: true }), loadResumes()]);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not draft the submission résumé.");
+      return false;
+    } finally {
+      setDraftingSubmissionResume(false);
+    }
+  }
+
+  async function downloadSubmissionDocx(resumeId: string, preferredName?: string) {
+    try {
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
+        { credentials: "include", cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !json.url) {
+        throw new Error(json.error || "Could not download the Word résumé.");
+      }
+      const fileRes = await fetch(json.url);
+      if (!fileRes.ok) throw new Error("Could not download the Word résumé.");
+      const blob = await fileRes.blob();
+      const fileName = preferredName?.endsWith(".docx")
+        ? preferredName
+        : preferredName
+          ? `${preferredName}.docx`
+          : "submission-resume.docx";
+      triggerBlobDownload(blob, fileName);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not download the Word résumé.");
+    }
+  }
+
+  async function advanceMatchProgress(
+    progressStage: "call_pack" | "follow_up" | "submission",
+    opts?: { analysisProvider?: AnalysisProvider }
+  ) {
+    const res = await fetch(
+      `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+      {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          progressStage,
+          ...(opts?.analysisProvider ? { analysisProvider: opts.analysisProvider } : {}),
+        }),
+      }
+    );
+    const json = (await res.json().catch(() => ({}))) as { error?: string; stage?: string };
+    if (!res.ok) throw new Error(json.error || "Could not advance this step.");
+    await load({ silent: true });
+    return json.stage ?? progressStage;
+  }
+
+  async function sendToTalentPool() {
+    setSavingDecision(true);
+    try {
+      const decisionRes = await fetch(`/api/admin/job-applications/${applicationId}/decision`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision: "do_not_pursue",
+          note: "Not a fit · Talent Pool",
+        }),
+      });
+      const decisionJson = await decisionRes.json().catch(() => ({}));
+      if (!decisionRes.ok) throw new Error(decisionJson.error || "Could not record Talent Pool.");
+      const statusRes = await fetch(`/api/admin/job-applications/${applicationId}/status`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "rejected",
+          note: "Not a fit · Talent Pool",
+        }),
+      });
+      const statusJson = await statusRes.json().catch(() => ({}));
+      if (!statusRes.ok) throw new Error(statusJson.error || "Could not set Not a Fit.");
+      setDecision("do_not_pursue");
+      toast.success("Moved to Talent Pool. Later AI steps will not run.");
+      await load();
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not move to Talent Pool.");
+      return false;
     } finally {
       setSavingDecision(false);
     }
@@ -698,6 +1025,9 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Failed to save ${field}`);
       }
+      invalidateStaffDetailCache(workerProfileApiUrl(workerId));
+      invalidateStaffDetailCache(candidateProfileApiUrl(workerId));
+      invalidateStaffDetailCache(`/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}`);
       toast.success("Candidate details saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save details");
@@ -735,26 +1065,19 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   }
 
   async function viewResume(resumeId: string) {
-    setOpeningResumeId(resumeId);
-    try {
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
-        { cache: "no-store", credentials: "include" }
-      );
-      const payload = (await response.json().catch(() => ({}))) as {
-        url?: string;
-        error?: string;
-      };
-      const url = payload.url?.trim() ?? "";
-      if (!response.ok || !url) {
-        throw new Error(payload.error || "Could not open resume.");
-      }
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not open resume.");
-    } finally {
-      setOpeningResumeId(null);
+    if (!workerId) {
+      toast.error("Could not open resume.");
+      return;
     }
+    window.open(
+      adminWorkerResumePreviewHref({
+        workerId,
+        resumeId,
+        applicationId,
+      }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   async function saveExtractedText() {
@@ -796,6 +1119,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     recommendedAnswers,
     setRecommendedAnswers,
     updateRecommendedAnswer,
+    callContext,
+    updateCallContext,
     savingAnswers,
     decision,
     setDecision,
@@ -819,8 +1144,9 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     setExtractedDraft,
     savingText,
     resumes,
-    openingResumeId,
     viewResume,
+    downloadSubmissionDocx,
+    improvementSummary,
     load,
     runAnalyze,
     toggleVerified,
@@ -829,7 +1155,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     deleteVerificationNote,
     markNoteSentToCandidate,
     saveScreeningAnswers,
+    uploadScreeningReply,
+    uploadingScreening,
     recordDecision,
+    advanceMatchProgress,
+    draftSubmissionResume,
+    draftingSubmissionResume,
+    sendToTalentPool,
     addVerified,
     saveDetails,
     reextractContact,

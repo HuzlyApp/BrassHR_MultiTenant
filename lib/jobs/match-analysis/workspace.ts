@@ -1,3 +1,35 @@
+/** Reserved AI screening-answer key for Step 2 call-pack context (fed into Deep Match). */
+export const CALL_CONTEXT_QUESTION_KEY = "__call_context__";
+export const CALL_CONTEXT_QUESTION_TEXT = "Call context";
+
+export function isCallContextQuestionKey(key: string | null | undefined): boolean {
+  return String(key ?? "").trim() === CALL_CONTEXT_QUESTION_KEY;
+}
+
+/** Format Step 2 Q&A + call context for Deep Match / AI training prompts. */
+export function formatScreeningPackForAiNotes(args: {
+  questions: Array<{ question: string; answer?: string | null }>;
+  callContext?: string | null;
+}): string {
+  const blocks: string[] = [];
+  const context = String(args.callContext ?? "").trim();
+  if (context) {
+    blocks.push(`Call context:\n${context}`);
+  }
+  const answered = (args.questions ?? [])
+    .map((item) => {
+      const question = String(item.question ?? "").trim();
+      const answer = String(item.answer ?? "").trim();
+      if (!question || !answer) return null;
+      return `Q: ${question}\nA: ${answer}`;
+    })
+    .filter((item): item is string => Boolean(item));
+  if (answered.length) {
+    blocks.push(`Screening call answers:\n${answered.join("\n\n")}`);
+  }
+  return blocks.join("\n\n");
+}
+
 export const RECRUITER_DECISIONS = [
   "proceed_to_screening",
   "needs_verification",
@@ -155,6 +187,19 @@ export function resolveRecommendedScreeningAnswerUpsert(
 } | null {
   const trimmedKey = item.key?.trim() || "";
   const typedQuestion = item.question?.trim() || "";
+  // Persist empty strings (not null) so Save always writes a row the UI can reload.
+  const answerText = String(item.answer ?? "").trim();
+
+  if (isCallContextQuestionKey(trimmedKey) || typedQuestion === CALL_CONTEXT_QUESTION_TEXT) {
+    return {
+      key: CALL_CONTEXT_QUESTION_KEY,
+      question: CALL_CONTEXT_QUESTION_TEXT,
+      reason: null,
+      related_requirement: null,
+      answer_text: answerText,
+    };
+  }
+
   const byKey = analysisQuestions.find(
     (question) => aiScreeningQuestionKey(question.priority, question.question) === trimmedKey
   );
@@ -163,7 +208,6 @@ export function resolveRecommendedScreeningAnswerUpsert(
   );
   const related = byKey ?? byQuestion;
   const question = typedQuestion || related?.question || "";
-  const answerText = String(item.answer ?? "").trim() || null;
   if (!question) {
     if (answerText) {
       throw new Error("Could not resolve which screening question the note belongs to.");
@@ -212,6 +256,38 @@ export function isBlockingRequirement(
   return blockingTexts.some((item) => item.trim().toLowerCase() === text || item.toLowerCase().includes(text));
 }
 
+function checklistStep2Note(
+  req: Pick<QualificationRequirement, "recruiter_note" | "latest_verification_note">
+): string {
+  return (req.latest_verification_note?.noteBody || req.recruiter_note || "").trim();
+}
+
+export function formatChecklistStep2Item(
+  req: Pick<QualificationRequirement, "requirement_text" | "recruiter_note" | "latest_verification_note">
+): string {
+  const text = req.requirement_text.trim();
+  const note = checklistStep2Note(req);
+  return note ? `${text} — ${note}` : text;
+}
+
+/** Step 2 (Verifications) checklist panels + AI screening questions (call pack). */
+export function checklistStep2Items(
+  requirements: QualificationRequirement[],
+  blockingTexts: string[] = []
+): { strengths: string[]; verifications: string[] } {
+  const strengths: string[] = [];
+  const verifications: string[] = [];
+  for (const req of requirements) {
+    const display = qualificationDisplayStatus(req, blockingTexts);
+    if (display === "Not Met" || display === "Blocking") continue;
+    const item = formatChecklistStep2Item(req);
+    if (!item) continue;
+    if (display === "Confirmed") strengths.push(item);
+    else verifications.push(item);
+  }
+  return { strengths, verifications };
+}
+
 export type RequirementOutcomeCountRow = Pick<
   QualificationRequirement,
   | "requirement_type"
@@ -235,12 +311,16 @@ export type ListingRequirementOutcomeCounts = {
   confirmed: number;
   verify: number;
   notMet: number;
+  mandatory?: number;
+  blocking?: number;
 };
 
 export const EMPTY_LISTING_REQUIREMENT_COUNTS: ListingRequirementOutcomeCounts = {
   confirmed: 0,
   verify: 0,
   notMet: 0,
+  mandatory: 0,
+  blocking: 0,
 };
 
 /**
@@ -284,7 +364,13 @@ export function listingRequirementOutcomeCounts(
   requirements: RequirementOutcomeCountRow[]
 ): ListingRequirementOutcomeCounts {
   const counts = countQualificationOutcomes(requirements);
-  return { confirmed: counts.confirmed, verify: counts.verify, notMet: counts.notMet };
+  return {
+    confirmed: counts.confirmed,
+    verify: counts.verify,
+    notMet: counts.notMet,
+    mandatory: counts.mandatory,
+    blocking: counts.blocking,
+  };
 }
 
 export function parseListingRequirementCounts(

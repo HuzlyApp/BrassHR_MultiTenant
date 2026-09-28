@@ -13,6 +13,8 @@ import { isUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Import may await Step 1 Quick Match for multiple candidates (same budget as bulk analyze). */
+export const maxDuration = 300;
 
 const SEARCH_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_IMPORT_SEARCH_PER_MINUTE", 60);
 const IMPORT_LIMIT = envRateLimit("RATE_LIMIT_ADMIN_IMPORT_CANDIDATES_PER_HOUR", 80);

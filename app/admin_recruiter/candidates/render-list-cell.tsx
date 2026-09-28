@@ -4,6 +4,7 @@ import { Mail, Phone } from "lucide-react"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
 import { CurrentStageCell } from "@/app/admin_recruiter/components/CurrentStageCell"
 import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
+// import { CandidatePreHireIconLink } from "./CandidatePreHireIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import { prefetchWorkerProfile } from "@/lib/admin/staff-detail-fetch-cache"
 import type { CandidateColumnId } from "./column-config"
@@ -129,6 +130,8 @@ export function renderListCell(
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />
+            {/* Pre-hire / Post-hire icon hidden until the hire journey feature ships. */}
+            {/* <CandidatePreHireIconLink workerId={c.id} candidateName={c.name} /> */}
           </div>
         </div>
       )
@@ -177,6 +180,17 @@ export function renderListCell(
           title={clientName || undefined}
         >
           {clientName || "—"}
+        </span>
+      )
+    }
+    case "sourceJobId": {
+      const sourceJobId = c.applicationSourceJobId?.trim() ?? ""
+      return (
+        <span
+          className="mx-auto block max-w-[200px] truncate text-center text-sm text-[#374151]"
+          title={sourceJobId || undefined}
+        >
+          {sourceJobId || "—"}
         </span>
       )
     }
@@ -301,7 +315,7 @@ export function renderListCell(
       if (!statusKey && !c.progressStatusApplicationId) {
         return <span className="text-sm text-[#94A3B8]">—</span>
       }
-      const stage = applicationCurrentStageMeta(statusKey || "new")
+      const stage = applicationCurrentStageMeta(statusKey || "new", c.progressStatusName)
       return (
         <CurrentStageCell
           label={stage.label}

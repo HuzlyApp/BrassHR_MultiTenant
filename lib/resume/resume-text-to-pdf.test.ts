@@ -5,6 +5,22 @@ describe("sanitizeTextForPdfDrawing", () => {
   it("removes null bytes that break WinAnsi encoding", () => {
     expect(sanitizeTextForPdfDrawing("Almog\u0000 Arazi")).toBe("Almog Arazi");
   });
+
+  it("preserves WinAnsi bullets, smart quotes, and dashes", () => {
+    expect(sanitizeTextForPdfDrawing("• Bachelor’s degree — 3–5 years")).toBe(
+      "• Bachelor’s degree — 3–5 years"
+    );
+  });
+
+  it("folds alternate bullet glyphs to a WinAnsi bullet", () => {
+    expect(sanitizeTextForPdfDrawing("● Led team\n▪ Shipped product")).toBe(
+      "• Led team\n• Shipped product"
+    );
+  });
+
+  it("still replaces unsupported glyphs with ?", () => {
+    expect(sanitizeTextForPdfDrawing("smile 🙂")).toBe("smile ?");
+  });
 });
 
 describe("resumeTextToPdfBuffer", () => {

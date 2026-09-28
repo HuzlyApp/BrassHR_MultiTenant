@@ -9,6 +9,8 @@ export type WorkerApplicationStatusSummary = {
   jobTitle: string | null;
   /** MSP end client (msp_name); null for non-MSP or empty. */
   clientName: string | null;
+  /** MSP Source Job ID (external_requisition_id). */
+  sourceJobId: string | null;
   ambiguous: boolean;
 };
 
@@ -28,11 +30,13 @@ type AppRow = {
         public_title: string | null;
         source_type?: string | null;
         msp_name?: string | null;
+        external_requisition_id?: string | null;
       }
     | {
         public_title: string | null;
         source_type?: string | null;
         msp_name?: string | null;
+        external_requisition_id?: string | null;
       }[]
     | null;
 };
@@ -56,6 +60,7 @@ function clientNameFromJob(job: {
 function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSummary {
   const status = one(row.application_statuses);
   const job = one(row.job_requisitions);
+  const sourceJobId = job?.external_requisition_id?.trim() || "";
   return {
     applicationId: row.id,
     statusId: status?.id ?? row.status_id,
@@ -63,6 +68,7 @@ function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSumm
     systemKey: status?.system_key ?? row.status,
     jobTitle: job?.public_title ?? null,
     clientName: clientNameFromJob(job),
+    sourceJobId: sourceJobId || null,
     ambiguous,
   };
 }
@@ -83,7 +89,7 @@ export async function getApplicationStatusSummariesForWorkers(
     let query = supabase
       .from("job_applications")
       .select(
-        "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name)"
+        "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
       )
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")')

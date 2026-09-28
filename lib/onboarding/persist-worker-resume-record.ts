@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
 import type { ResumeUploaderRole } from "@/lib/resume/resume-upload-limit";
 import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 
 export type WorkerResumeParsingStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -33,13 +34,21 @@ export type PersistWorkerResumeRecordOptions = {
   resumeId?: string;
 };
 
+const WORKER_RESUME_SELECT = "id, tenant_id, user_id, first_name, last_name";
+
 async function resolveWorkerForResume(
   supabase: SupabaseClient,
   applicantId: string
-): Promise<{ workerId: string; tenantId: string; userId: string | null } | null> {
+): Promise<{
+  workerId: string;
+  tenantId: string;
+  userId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+} | null> {
   const byUser = await supabase
     .from("worker")
-    .select("id, tenant_id, user_id")
+    .select(WORKER_RESUME_SELECT)
     .eq("user_id", applicantId)
     .maybeSingle();
   if (byUser.error) throw byUser.error;
@@ -48,7 +57,7 @@ async function resolveWorkerForResume(
   if (!worker?.id) {
     const byId = await supabase
       .from("worker")
-      .select("id, tenant_id, user_id")
+      .select(WORKER_RESUME_SELECT)
       .eq("id", applicantId)
       .maybeSingle();
     if (byId.error) throw byId.error;
@@ -60,28 +69,35 @@ async function resolveWorkerForResume(
     workerId: String(worker.id),
     tenantId: String(worker.tenant_id),
     userId: worker.user_id != null ? String(worker.user_id) : null,
+    firstName: worker.first_name != null ? String(worker.first_name) : null,
+    lastName: worker.last_name != null ? String(worker.last_name) : null,
   };
 }
 
 function buildResumeRow(
   workerId: string,
   tenantId: string,
-  opts: PersistWorkerResumeRecordOpts
+  opts: PersistWorkerResumeRecordOpts,
+  workerNames?: { firstName: string | null; lastName: string | null }
 ) {
   const parsingStatus = opts.parsingStatus ?? (opts.parsedData ? "completed" : "pending");
   const now = new Date().toISOString();
+  const original = opts.originalFileName?.trim()
+    ? stripNullBytes(opts.originalFileName.trim())
+    : null;
+  const fileName = buildWorkerResumeFileName({
+    firstName: workerNames?.firstName,
+    lastName: workerNames?.lastName,
+    originalFileName: original,
+  });
 
   return {
     worker_id: workerId,
     tenant_id: tenantId,
     file_url: opts.fileUrl.trim(),
     storage_path: opts.fileUrl.trim(),
-    original_file_name: opts.originalFileName?.trim()
-      ? stripNullBytes(opts.originalFileName.trim())
-      : null,
-    file_name: opts.originalFileName?.trim()
-      ? stripNullBytes(opts.originalFileName.trim())
-      : null,
+    original_file_name: fileName,
+    file_name: fileName,
     file_type: opts.fileType ?? null,
     file_size_bytes: opts.fileSizeBytes ?? null,
     parsed_data: sanitizePostgresJson(opts.parsedData ?? {}),
@@ -114,7 +130,10 @@ export async function persistWorkerResumeRecord(
   if (!worker) return null;
 
   const mode = recordOptions?.mode ?? "insert";
-  const row = buildResumeRow(worker.workerId, worker.tenantId, opts);
+  const row = buildResumeRow(worker.workerId, worker.tenantId, opts, {
+    firstName: worker.firstName,
+    lastName: worker.lastName,
+  });
 
   if (mode === "insert" && opts.enforceUploadLimit !== false) {
     await assertResumeUploadWithinLimit(supabase, {

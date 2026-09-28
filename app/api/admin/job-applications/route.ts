@@ -10,6 +10,7 @@ import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { isUuid } from "@/lib/validation/uuid";
 import { JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER } from "@/lib/jobs/application-status";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { buildWorkerResumeFileName, splitFullName } from "@/lib/resume/worker-resume-file-name";
 import {
   listingCountsForAnalyzedApplication,
   loadRequirementOutcomeCountsByApplication,
@@ -27,10 +28,6 @@ const ALLOWED_RESUME_MIME = new Set([
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
-
-function sanitizeFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
-}
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof JobValidationError) return error.message;
@@ -67,7 +64,7 @@ export async function GET(req: NextRequest) {
     const ascending = req.nextUrl.searchParams.get("sortDir") === "asc";
     const PAGE_SIZE = 1000;
 
-    const applicationSelect = `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, internal_requisition_number, source_type, msp_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
+    const applicationSelect = `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, internal_requisition_number, source_type, msp_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
     function buildListQuery() {
       let query = db
@@ -351,7 +348,12 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const safeName = sanitizeFileName(resumeFile.name || "resume.pdf");
+      const { firstName, lastName } = splitFullName(name);
+      const safeName = buildWorkerResumeFileName({
+        firstName,
+        lastName,
+        originalFileName: resumeFile.name || "resume.pdf",
+      });
       resumePath = `admin-candidates/${tenantId}/${randomUUID()}/${safeName}`;
       resumeFileName = safeName;
       const bytes = Buffer.from(await resumeFile.arrayBuffer());

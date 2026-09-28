@@ -172,7 +172,7 @@ export function WorkerAccountApplicationsTab({
       header.join(","),
       ...filtered.map((row) => {
         const applied = formatApplicationDate(row.appliedAt);
-        const stage = applicationCurrentStageMeta(row.status);
+        const stage = applicationCurrentStageMeta(row.status, row.statusName);
         return [
           csvEscape(row.jobTitle),
           csvEscape(row.companyName),
@@ -277,7 +277,7 @@ export function WorkerAccountApplicationsTab({
             <tbody>
               {filtered.map((row, index) => {
                 const applied = formatApplicationDate(row.appliedAt);
-                const stage = applicationCurrentStageMeta(row.status);
+                const stage = applicationCurrentStageMeta(row.status, row.statusName);
                 const note = row.statusNote?.trim() || stage.subtitle;
                 return (
                   <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">

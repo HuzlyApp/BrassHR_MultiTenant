@@ -81,6 +81,37 @@ describe("shareOrCopyPublicJobUrl", () => {
       copyPublicJobShareUrl("https://zipstaff.brasshr.com/jobs/rn-1?tenant=zipstaff")
     ).resolves.toBe(true);
   });
+
+  it("falls back to copy when Web Share is blocked in an iframe", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const share = vi.fn().mockRejectedValue(new DOMException("Permission denied", "NotAllowedError"));
+    vi.stubGlobal("navigator", { share, clipboard: { writeText } });
+    await expect(
+      shareOrCopyPublicJobUrl({
+        url: "https://zipstaff.brasshr.com/jobs/rn-1?tenant=zipstaff",
+        title: "Travel RN",
+      })
+    ).resolves.toBe("copied");
+    expect(share).toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalled();
+  });
+
+  it("returns unavailable when both share and clipboard are blocked", async () => {
+    const writeText = vi.fn().mockRejectedValue(new DOMException("Permission denied", "NotAllowedError"));
+    const share = vi.fn().mockRejectedValue(new DOMException("Permission denied", "NotAllowedError"));
+    vi.stubGlobal("navigator", { share, clipboard: { writeText } });
+    vi.stubGlobal("document", {
+      createElement: () => {
+        throw new Error("DOM copy unavailable");
+      },
+    });
+    await expect(
+      shareOrCopyPublicJobUrl({
+        url: "https://zipstaff.brasshr.com/jobs/rn-1?tenant=zipstaff",
+        title: "Travel RN",
+      })
+    ).resolves.toBe("unavailable");
+  });
 });
 
 describe("JobPosting JSON-LD", () => {
