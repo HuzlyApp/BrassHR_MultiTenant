@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildSubmissionResumeUserPrompt } from "./generate-submission-resume";
+import {
+  buildSubmissionResumeUserPrompt,
+  SUBMISSION_RESUME_SOURCE_CHARS,
+} from "./generate-submission-resume";
 import { formatVerifiedInfoForSubmission } from "./submission-enrichment";
 import type { MatchAnalysisResponse } from "./schema";
 
@@ -155,5 +158,26 @@ describe("Step 5 submission résumé enrichment", () => {
     });
 
     expect(prompt).not.toContain("Recruiter enrichment");
+  });
+
+  it("sends a long source résumé through instead of cutting it at 12,000 characters", () => {
+    const resumeText = `EARLY ROLE marker ${"detail ".repeat(3_000)} LATER ROLE still on the source.`;
+    expect(resumeText.length).toBeGreaterThan(12_000);
+    expect(resumeText.length).toBeLessThan(SUBMISSION_RESUME_SOURCE_CHARS);
+
+    const prompt = buildSubmissionResumeUserPrompt({
+      identity: {
+        fullName: "Jordan Hale",
+        email: "",
+        phone: "",
+        location: "",
+        jobTitle: "Observability Architect",
+      },
+      analysis: null,
+      resumeText,
+    });
+
+    expect(prompt).toContain("EARLY ROLE marker");
+    expect(prompt).toContain("LATER ROLE still on the source.");
   });
 });

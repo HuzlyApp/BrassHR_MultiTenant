@@ -29,6 +29,7 @@ function optimizedFixture(overrides?: Partial<SubmissionResume>): SubmissionResu
     email: "annie@example.com",
     phone: "555-0100",
     location: "Prosper, TX",
+    linkedin: "",
     summary: "IT project coordinator with Agile delivery experience.",
     skills: [
       "Agile",
@@ -61,6 +62,7 @@ function optimizedFixture(overrides?: Partial<SubmissionResume>): SubmissionResu
       {
         title: "IT Project Coordinator",
         company: "Acme Health",
+        location: "",
         dates: "2019–2024",
         bullets: [
           "Led cross-functional Agile delivery for EHR integrations using Jira and MS Project",
