@@ -926,6 +926,7 @@ export async function GET(req: Request) {
                       ai_match_score: match.score,
                       ai_match_category: match.category,
                       ai_match_display_category: match.displayCategory,
+                      ai_match_stage: match.stage,
                       ai_requirement_counts: listingCountsForAnalyzedApplication(
                         requirementCountsByApplication,
                         match.applicationId,

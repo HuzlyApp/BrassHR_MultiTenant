@@ -155,10 +155,13 @@ type WorkerProfile = {
   ai_match_score?: number | null;
   ai_match_category?: string | null;
   ai_match_display_category?: string | null;
+  ai_match_stage?: string | null;
   ai_requirement_counts?: {
     confirmed?: number | null;
     verify?: number | null;
     notMet?: number | null;
+    mandatory?: number | null;
+    blocking?: number | null;
   } | null;
 };
 
@@ -250,6 +253,7 @@ function mapWorkerMatchFields(item: WorkerProfile) {
     aiMatchScore: item.ai_match_score ?? null,
     aiMatchCategory: item.ai_match_category ?? null,
     aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+    aiMatchStage: item.ai_match_stage ?? null,
     aiRequirementCounts: parseListingRequirementCounts(item.ai_requirement_counts),
   };
 }
@@ -908,6 +912,7 @@ export default function CandidatesPage() {
                 aiMatchCategory: payload.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiMatchStage: payload.stage ?? payload.ai_match_stage ?? row.aiMatchStage,
                 aiRequirementCounts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.aiRequirementCounts,
               }
@@ -979,6 +984,7 @@ export default function CandidatesPage() {
                 aiMatchCategory: result.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiMatchStage: result.stage ?? result.ai_match_stage ?? row.aiMatchStage,
                 aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
               };
             })
@@ -1071,6 +1077,7 @@ export default function CandidatesPage() {
             aiMatchScore: match.score ?? null,
             aiMatchCategory: match.category ?? null,
             aiMatchDisplayCategory: match.displayCategory ?? null,
+            aiMatchStage: "quick",
             aiRequirementCounts: match.requirementCounts ?? null,
           };
         }
@@ -1080,6 +1087,7 @@ export default function CandidatesPage() {
           aiMatchScore: null,
           aiMatchCategory: null,
           aiMatchDisplayCategory: null,
+          aiMatchStage: null,
           aiRequirementCounts: null,
         };
       })

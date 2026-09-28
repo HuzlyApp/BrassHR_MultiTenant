@@ -12,7 +12,12 @@ import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 import { CandidateProgressStatusCell } from "./CandidateProgressStatusCell"
 import type { ApplicationStatusOption } from "../applications/ApplicationStatusUi"
-import { MatchScoreCell, RequirementOutcomeCountCell } from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
+import {
+  FitBandCell,
+  MatchScoreCell,
+  RequirementOutcomeCountCell,
+} from "@/app/admin_recruiter/applications/MatchAnalysisPanel"
+import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression"
 import { getCandidateJobTitleOptions, resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema"
@@ -283,6 +288,19 @@ export function renderListCell(
           displayCategory={c.aiMatchDisplayCategory}
           analyzing={Boolean(applicationId && matchAnalyzingApplicationIds?.has(applicationId))}
           onAnalyze={onAnalyzeMatch ? (mode) => onAnalyzeMatch(applicationId, mode) : undefined}
+        />
+      )
+    }
+    case "fit": {
+      const analyzed = c.aiMatchStatus === "ANALYZED"
+      return (
+        <FitBandCell
+          analyzed={analyzed}
+          band={listingDisplayFitBand({
+            analyzed,
+            stage: c.aiMatchStage,
+            counts: c.aiRequirementCounts,
+          })}
         />
       )
     }

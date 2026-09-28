@@ -9,6 +9,7 @@ export type CandidateColumnId =
   | "jobRole"
   | "matchJob"
   | "jobMatch"
+  | "fit"
   | "conf"
   | "verify"
   | "notMet"
@@ -53,6 +54,7 @@ export const CANDIDATE_COLUMN_OPTIONS: { id: CandidateColumnId; label: string }[
   { id: "jobRole", label: "Job Role" },
   { id: "matchJob", label: "Applied jobs" },
   { id: "jobMatch", label: "Match Score" },
+  { id: "fit", label: "Fit" },
   { id: "conf", label: "Conf." },
   { id: "verify", label: "Verify" },
   { id: "notMet", label: "Not Met" },
@@ -93,12 +95,23 @@ export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "clientName",
   "matchJob",
   "progressStatus",
-  "jobMatch",
+  "fit",
   "currentStage",
   "createdDate",
 ]
 
-const STORAGE_KEY = "nexus-candidates-list-columns-v7"
+const STORAGE_KEY = "nexus-candidates-list-columns-v8"
+const LEGACY_STORAGE_KEY = "nexus-candidates-list-columns-v7"
+
+/** v7 layouts defaulted to Match Score; carry them over with Fit in that slot instead. */
+function readLegacyColumnOrder(): unknown {
+  const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
+  if (!raw) return null
+  const parsed = JSON.parse(raw) as unknown
+  if (!Array.isArray(parsed)) return null
+  const hasFit = parsed.includes("fit")
+  return parsed.flatMap((id) => (id === "jobMatch" ? (hasFit ? [] : ["fit"]) : [id]))
+}
 
 /** Ensure saved column layouts include the current default columns. */
 function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateColumnId[] {
@@ -115,8 +128,9 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
   insertAfter("contact", "clientName")
   insertAfter("clientName", "matchJob")
   insertAfter("matchJob", "progressStatus")
-  insertAfter("progressStatus", "jobMatch")
-  insertAfter("jobMatch", "currentStage")
+  // Match Score is optional — not force-added; recruiters can enable it via Edit Columns.
+  insertAfter("progressStatus", "fit")
+  insertAfter("fit", "currentStage")
   insertAfter("currentStage", "createdDate")
 
   return next
@@ -126,8 +140,8 @@ export function loadColumnOrder(): CandidateColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_CANDIDATE_COLUMNS]
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return [...DEFAULT_CANDIDATE_COLUMNS]
-    const parsed = JSON.parse(raw) as unknown
+    const parsed = raw ? (JSON.parse(raw) as unknown) : readLegacyColumnOrder()
+    if (parsed == null) return [...DEFAULT_CANDIDATE_COLUMNS]
     if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_CANDIDATE_COLUMNS]
     const allowed = new Set(CANDIDATE_COLUMN_OPTIONS.map((c) => c.id))
     const cleaned = parsed.filter((id): id is CandidateColumnId => typeof id === "string" && allowed.has(id as CandidateColumnId))
@@ -159,7 +173,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"
-  if (colId === "jobMatch") return "min-w-[88px] whitespace-nowrap"
+  if (colId === "jobMatch" || colId === "fit") return "min-w-[88px] whitespace-nowrap"
   if (colId === "conf" || colId === "verify" || colId === "notMet") {
     return "min-w-[72px] whitespace-nowrap"
   }

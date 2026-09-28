@@ -51,9 +51,12 @@ export type CandidateRow = {
   aiMatchScore?: number | null
   aiMatchCategory?: string | null
   aiMatchDisplayCategory?: string | null
+  aiMatchStage?: string | null
   aiRequirementCounts?: {
     confirmed: number
     verify: number
     notMet: number
+    mandatory?: number
+    blocking?: number
   } | null
 }

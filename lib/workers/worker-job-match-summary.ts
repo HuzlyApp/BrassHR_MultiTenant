@@ -8,6 +8,7 @@ export type WorkerJobMatchSummary = {
   score: number | null;
   category: string | null;
   displayCategory: string | null;
+  stage: string | null;
 };
 
 type MatchAppRow = {
@@ -17,6 +18,7 @@ type MatchAppRow = {
   ai_match_score: number | null;
   ai_match_category: string | null;
   ai_match_display_category: string | null;
+  ai_match_stage?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
 };
@@ -42,6 +44,7 @@ function toSummary(row: MatchAppRow): WorkerJobMatchSummary {
     score: row.ai_match_score,
     category: row.ai_match_category,
     displayCategory: row.ai_match_display_category,
+    stage: row.ai_match_stage ?? null,
   };
 }
 
@@ -115,7 +118,7 @@ export async function getWorkerJobMatchSummaries(
     let query = supabase
       .from("job_applications")
       .select(
-        "id, worker_id, ai_match_status, ai_match_score, ai_match_category, ai_match_display_category, updated_at, created_at"
+        "id, worker_id, ai_match_status, ai_match_score, ai_match_category, ai_match_display_category, ai_match_stage, updated_at, created_at"
       )
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")');
