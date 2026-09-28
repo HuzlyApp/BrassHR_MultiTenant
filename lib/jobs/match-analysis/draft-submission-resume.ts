@@ -307,8 +307,8 @@ export async function draftSubmissionResumePack(args: {
     renderSubmissionResumeDocx(resume),
     renderSubmissionResumePdf(resume),
   ]);
-  const fileName = submissionResumeFileName(resume.fullName || fullName, ".docx");
-  const previewFileName = submissionResumeFileName(resume.fullName || fullName, ".pdf");
+  const fileName = submissionResumeFileName(resume.fullName || identity.fullName, ".docx");
+  const previewFileName = submissionResumeFileName(resume.fullName || identity.fullName, ".pdf");
   const extractedText = submissionResumeToPlainText(resume);
   const parsedPayload = { ...resume, improvementSummary };
   const docxPath = `submission-resumes/${tenantId}/${applicationId}/${randomUUID()}.docx`;
