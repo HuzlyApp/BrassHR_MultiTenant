@@ -110,12 +110,8 @@ export function isKnownNyOutsideNyc(city: string | null | undefined): boolean {
 }
 
 /**
- * Onsite/hybrid city that cannot be classified as a real worksite.
- * Restricted whole states skip this (the hold applies regardless of city quality).
- * Empty city is handled as incomplete elsewhere so remote state-only eval can run.
- *
- * NY stays allowlisted (NYC hold vs known upstate). Other allowed states accept any
- * plausible city name — major-city lists are for signup seeds, not worksite gates.
+ * City-quality helper only. Phase 1 publish/apply gating is state-only
+ * (CA / IL / CT / NYC holds) and does not call this.
  */
 export function isUnverifiableWorkCity(input: {
   city?: string | null;
@@ -130,5 +126,6 @@ export function isUnverifiableWorkCity(input: {
     if (isKnownNyOutsideNyc(city)) return false;
     return true;
   }
-  return !isPlausibleCityName(city);
+  if (isKnownUsCity(city, state)) return false;
+  return true;
 }

@@ -19,6 +19,7 @@ import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name"
 import {
   APPLICANT_ACTION_ROW,
   APPLICANT_BTN_BACK,
@@ -343,6 +344,7 @@ export default function ReferencesPage() {
                     <input
                       value={r.first}
                       onChange={(e) => update(index, "first", e.target.value)}
+                      maxLength={PERSON_NAME_MAX_LENGTH}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                     />
                   </div>
@@ -351,6 +353,7 @@ export default function ReferencesPage() {
                     <input
                       value={r.last}
                       onChange={(e) => update(index, "last", e.target.value)}
+                      maxLength={PERSON_NAME_MAX_LENGTH}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                     />
                   </div>

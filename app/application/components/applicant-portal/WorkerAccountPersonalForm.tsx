@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountActions, useWorkerAccountOverview } from "./WorkerAccountContext";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
@@ -48,12 +49,14 @@ function Field({
   onChange,
   required,
   error,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   error?: string;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -64,6 +67,7 @@ function Field({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        maxLength={maxLength}
         className={`h-10 w-full rounded-lg border px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] ${
           error ? "border-red-300" : "border-[#D1D5DB]"
         }`}
@@ -163,6 +167,7 @@ export function WorkerAccountPersonalForm() {
             onChange={(value) => setProfile((current) => ({ ...current, firstName: value }))}
             required
             error={fieldErrors.firstName}
+            maxLength={PERSON_NAME_MAX_LENGTH}
           />
           <Field
             label="Last name"
@@ -170,6 +175,7 @@ export function WorkerAccountPersonalForm() {
             onChange={(value) => setProfile((current) => ({ ...current, lastName: value }))}
             required
             error={fieldErrors.lastName}
+            maxLength={PERSON_NAME_MAX_LENGTH}
           />
           <Field
             label="Email"

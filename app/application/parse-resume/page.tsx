@@ -2,6 +2,7 @@
 
 import Image from "next/image"
 import { useState } from "react"
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name"
 
 export default function ParseResume() {
 
@@ -75,11 +76,13 @@ Review resume details
 
 <input
 placeholder="First Name"
+maxLength={PERSON_NAME_MAX_LENGTH}
 className="border rounded-lg p-2 w-full"
 />
 
 <input
 placeholder="Last Name"
+maxLength={PERSON_NAME_MAX_LENGTH}
 className="border rounded-lg p-2 w-full"
 />
 

@@ -1,5 +1,6 @@
 /** Shared step-1 review validation (client + API). */
 
+import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name"
 import { getStateCodeFromName } from "@/lib/us-state-names"
 import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state"
 
@@ -75,7 +76,7 @@ function allRequiredTrimmedNonEmpty(b: Step1FormFields): boolean {
 }
 
 export type Step1ValidationIssue = {
-  code: "INCOMPLETE" | "ZIP" | "EMAIL" | "PHONE" | "ADDRESS"
+  code: "INCOMPLETE" | "NAME" | "ZIP" | "EMAIL" | "PHONE" | "ADDRESS"
   message: string
 }
 
@@ -93,6 +94,12 @@ export function validateStep1Form(
 ): Step1ValidationIssue | null {
   if (!allRequiredTrimmedNonEmpty(b)) {
     return { code: "INCOMPLETE", message: STEP1_INCOMPLETE_MESSAGE }
+  }
+  if (isPersonNameTooLong(b.firstName)) {
+    return { code: "NAME", message: personNameTooLongMessage("First name") }
+  }
+  if (isPersonNameTooLong(b.lastName)) {
+    return { code: "NAME", message: personNameTooLongMessage("Last name") }
   }
   if (options?.addressVerified === false) {
     return { code: "ADDRESS", message: STEP1_ADDRESS_NOT_VERIFIED_MESSAGE }

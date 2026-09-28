@@ -23,6 +23,7 @@ BEGIN
     JOIN public.ai_variant v ON v.id = t.variant_id
     WHERE f.key = 'candidate_match'
       AND v.key = 'submission'
+      AND t.tenant_id IS NULL
       AND pv.is_current = true
   LOOP
     next_num := src.version_number + 1;

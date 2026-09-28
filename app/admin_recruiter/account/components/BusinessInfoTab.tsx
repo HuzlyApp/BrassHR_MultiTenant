@@ -206,8 +206,6 @@ export default function BusinessInfoTab() {
   }, [effectiveStateOptions, state, stateOptions]);
 
   const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
-  const cityOptionsUnavailable =
-    Boolean(displayStateValue) && !citiesLoading && effectiveCityOptions.length === 0;
 
   const formInput = useMemo(
     () => ({
@@ -242,11 +240,9 @@ export default function BusinessInfoTab() {
       stateCode: selectedStateCode || undefined,
       stateName: displayStateValue || state || undefined,
       allowedStateNames: effectiveStateOptions.length > 0 ? effectiveStateOptions : stateOptions,
-      allowedCityNames: effectiveCityOptions.length > 0 ? effectiveCityOptions : undefined,
     }),
     [
       displayStateValue,
-      effectiveCityOptions,
       effectiveStateOptions,
       selectedStateCode,
       state,
@@ -498,23 +494,24 @@ export default function BusinessInfoTab() {
               <SearchableSelectField
                 label="City"
                 required
-                disabled={!displayStateValue || stateOptionsUnavailable || cityOptionsUnavailable}
+                allowCustom
+                disabled={!displayStateValue || stateOptionsUnavailable}
                 loading={citiesLoading}
                 value={city}
                 onChange={(value) => updateField("city", value, setCity)}
                 placeholder={
-                  stateOptionsUnavailable || cityOptionsUnavailable
-                    ? "No cities found"
+                  stateOptionsUnavailable
+                    ? "No states found"
                     : !displayStateValue
                       ? "Select state first"
                       : citiesLoading
                         ? "Loading…"
-                        : "Search city"
+                        : "Search or enter city"
                 }
-                searchPlaceholder="Type to search cities"
+                searchPlaceholder="Type any city"
                 options={effectiveCityOptions}
                 error={submitAttempted ? fieldErrors.city : null}
-                emptyMessage="No cities found. Try another search."
+                emptyMessage="Type a city name and press Enter."
               />
             </div>
 

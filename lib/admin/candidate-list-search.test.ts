@@ -162,4 +162,27 @@ describe("matchesApplicationListSearch", () => {
     expect(matchesApplicationListSearch(gontiRow, "gontivorao@gmail.com")).toBe(true);
     expect(matchesApplicationListSearch(gontiRow, "512373")).toBe(true);
   });
+
+  it("does not match email query digits against an unrelated phone", () => {
+    // Regression: singh.ca.1237@gmail.com → digits 1237 ⊆ 5123736681 (area 512 + exchange 373)
+    const gontiRow = {
+      id: "app-gonti",
+      job_requisition_id: "job-req-uuid-1",
+      applicant_profiles: {
+        first_name: "Gonti",
+        last_name: "V C Rao",
+        email: "gontivorao@gmail.com",
+        phone: "+1 (512) 373-6681",
+      },
+      job_requisitions: {
+        public_title: "Information Security Platform Engineer",
+        internal_requisition_number: "REQ-1",
+        location: "Austin, TX",
+      },
+    };
+
+    expect(matchesApplicationListSearch(gontiRow, "singh.ca.1237@gmail.com")).toBe(false);
+    expect(matchesApplicationListSearch(gontiRow, "gontivorao@gmail.com")).toBe(true);
+    expect(matchesApplicationListSearch(gontiRow, "512373")).toBe(true);
+  });
 });

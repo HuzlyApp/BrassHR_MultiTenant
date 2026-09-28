@@ -28,6 +28,7 @@ import {
   step1ZipInlineMessage,
   validateStep1Form,
 } from "@/lib/onboardingStep1Validation"
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name"
 import ValidatedAddressField from "@/app/components/onboarding/ValidatedAddressField"
 // import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 import { buildAddressQuery, shouldValidateAddressQuery } from "@/lib/mapbox/address-validation"
@@ -124,6 +125,7 @@ type EditableInputProps = {
   iconSlot?: ReactNode
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"]
   disabled?: boolean
+  maxLength?: number
 }
 
 function EditableInput({
@@ -137,6 +139,7 @@ function EditableInput({
   iconSlot,
   inputMode,
   disabled,
+  maxLength,
 }: EditableInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -161,6 +164,7 @@ function EditableInput({
           placeholder={placeholder}
           inputMode={inputMode}
           disabled={disabled}
+          maxLength={maxLength}
         />
         <button
           type="button"
@@ -1060,6 +1064,7 @@ function Step1ReviewContent() {
                   onChange={(value) => handleChange("firstName", value)}
                   className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white font-medium pr-10 ${focusBorderClass}`}
                   placeholder="First Name"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                 />
                 <EditableInput
                   label="Last Name"
@@ -1068,6 +1073,7 @@ function Step1ReviewContent() {
                   onChange={(value) => handleChange("lastName", value)}
                   className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
                   placeholder="Last Name"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                 />
               </div>
 

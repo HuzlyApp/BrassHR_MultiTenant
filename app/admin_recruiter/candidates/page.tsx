@@ -130,6 +130,12 @@ type WorkerProfile = {
   assigned_recruiter_user_id?: string | null;
   assigned_recruiter_name?: string | null;
   assigned_recruiter_photo_url?: string | null;
+  application_job_assignees?: Array<{
+    application_id?: string | null;
+    job_title?: string | null;
+    assigned_recruiter_user_id?: string | null;
+    assigned_recruiter_name?: string | null;
+  }> | null;
   application_id?: string | null;
   application_status_id?: string | null;
   application_status_name?: string | null;
@@ -139,16 +145,23 @@ type WorkerProfile = {
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
   application_client_name?: string | null;
+  application_applied_jobs?: Array<{
+    job_id?: string | null;
+    title?: string | null;
+  }> | null;
   application_source_job_id?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
   ai_match_category?: string | null;
   ai_match_display_category?: string | null;
+  ai_match_stage?: string | null;
   ai_requirement_counts?: {
     confirmed?: number | null;
     verify?: number | null;
     notMet?: number | null;
+    mandatory?: number | null;
+    blocking?: number | null;
   } | null;
 };
 
@@ -240,6 +253,7 @@ function mapWorkerMatchFields(item: WorkerProfile) {
     aiMatchScore: item.ai_match_score ?? null,
     aiMatchCategory: item.ai_match_category ?? null,
     aiMatchDisplayCategory: item.ai_match_display_category ?? null,
+    aiMatchStage: item.ai_match_stage ?? null,
     aiRequirementCounts: parseListingRequirementCounts(item.ai_requirement_counts),
   };
 }
@@ -429,6 +443,16 @@ export default function CandidatesPage() {
       applicationJobTitlesText: item.application_job_titles_text ?? null,
       applicationSearchText: item.application_search_text ?? null,
       applicationClientName: item.application_client_name ?? null,
+      appliedJobs: Array.isArray(item.application_applied_jobs)
+        ? item.application_applied_jobs
+            .map((entry) => {
+              const jobId = String(entry?.job_id ?? "").trim();
+              const title = String(entry?.title ?? "").trim();
+              if (!jobId || !title) return null;
+              return { jobId, title };
+            })
+            .filter((entry): entry is { jobId: string; title: string } => Boolean(entry))
+        : [],
       applicationSourceJobId: item.application_source_job_id ?? null,
       email,
       phone,
@@ -449,6 +473,28 @@ export default function CandidatesPage() {
       assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
       assignedRecruiterName: item.assigned_recruiter_name ?? null,
       assignedRecruiterPhotoUrl: item.assigned_recruiter_photo_url ?? null,
+      jobAssignees: Array.isArray(item.application_job_assignees)
+        ? item.application_job_assignees
+            .map((entry) => {
+              const applicationId = String(entry?.application_id ?? "").trim();
+              const jobTitle = String(entry?.job_title ?? "").trim();
+              if (!applicationId || !jobTitle) return null;
+              return {
+                applicationId,
+                jobTitle,
+                assignedRecruiterUserId:
+                  String(entry?.assigned_recruiter_user_id ?? "").trim() || null,
+                assignedRecruiterName:
+                  String(entry?.assigned_recruiter_name ?? "").trim() || null,
+              };
+            })
+            .filter(
+              (
+                entry
+              ): entry is NonNullable<CandidateRow["jobAssignees"]>[number] =>
+                Boolean(entry)
+            )
+        : [],
       ...mapWorkerMatchFields(item),
     };
   }, []);
@@ -603,10 +649,21 @@ export default function CandidatesPage() {
   const assigneeOptions = useMemo(
     () =>
       buildAssigneeFilterOptions(
-        candidates.map((row) => ({
-          id: row.assignedRecruiterUserId,
-          name: row.assignedRecruiterName,
-        }))
+        candidates.flatMap((row) => {
+          const fromJobs = (row.jobAssignees ?? [])
+            .map((entry) => ({
+              id: entry.assignedRecruiterUserId,
+              name: entry.assignedRecruiterName,
+            }))
+            .filter((entry) => Boolean(entry.id));
+          if (fromJobs.length > 0) return fromJobs;
+          return [
+            {
+              id: row.assignedRecruiterUserId,
+              name: row.assignedRecruiterName,
+            },
+          ];
+        })
       ),
     [candidates]
   );
@@ -632,7 +689,11 @@ export default function CandidatesPage() {
         const wanted = clientNameFilter.trim().toLowerCase();
         if ((row.applicationClientName ?? "").trim().toLowerCase() !== wanted) return false;
       }
-      return candidateMatchesAssigneeFilter(row.assignedRecruiterUserId, assigneeFilter);
+      return candidateMatchesAssigneeFilter(
+        row.assignedRecruiterUserId,
+        assigneeFilter,
+        (row.jobAssignees ?? []).map((entry) => entry.assignedRecruiterUserId)
+      );
     });
   }, [
     candidates,
@@ -851,6 +912,7 @@ export default function CandidatesPage() {
                 aiMatchCategory: payload.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   payload.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiMatchStage: payload.stage ?? payload.ai_match_stage ?? row.aiMatchStage,
                 aiRequirementCounts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.aiRequirementCounts,
               }
@@ -922,6 +984,7 @@ export default function CandidatesPage() {
                 aiMatchCategory: result.category ?? row.aiMatchCategory,
                 aiMatchDisplayCategory:
                   result.analysis?.candidate_match?.display_category ?? row.aiMatchDisplayCategory,
+                aiMatchStage: result.stage ?? result.ai_match_stage ?? row.aiMatchStage,
                 aiRequirementCounts: result.requirementCounts ?? row.aiRequirementCounts,
               };
             })
@@ -1014,6 +1077,7 @@ export default function CandidatesPage() {
             aiMatchScore: match.score ?? null,
             aiMatchCategory: match.category ?? null,
             aiMatchDisplayCategory: match.displayCategory ?? null,
+            aiMatchStage: "quick",
             aiRequirementCounts: match.requirementCounts ?? null,
           };
         }
@@ -1023,6 +1087,7 @@ export default function CandidatesPage() {
           aiMatchScore: null,
           aiMatchCategory: null,
           aiMatchDisplayCategory: null,
+          aiMatchStage: null,
           aiRequirementCounts: null,
         };
       })

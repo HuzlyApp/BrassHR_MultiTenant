@@ -68,7 +68,7 @@ describe("listPublicJobs", () => {
     const { client, notCalls, neqCalls, orCalls } = createListClient();
     await listPublicJobs(client as never, "tenant-zipstaff", { locationType: "Remote, Hybrid" });
     expect(notCalls).toContainEqual(["public_job_token", "is", null]);
-    expect(neqCalls).toContainEqual(["public_job_token", ""]);
+    expect(neqCalls).not.toContainEqual(["public_job_token", ""]);
     expect(orCalls.some((filters) => filters.includes('location_type.eq."Remote, Hybrid"'))).toBe(
       true
     );

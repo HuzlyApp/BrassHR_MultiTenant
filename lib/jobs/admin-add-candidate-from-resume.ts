@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import { createAdminJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
+import { validatePersonName } from "@/lib/person-name";
 import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
 import {
   extractLocationFromResumeText,
@@ -340,16 +341,27 @@ export async function adminAddCandidateFromResume(
     resumeTitle: input.resumeTitle,
   });
 
-  const { firstName: resolvedFirstName, lastName: resolvedLastName, fullName, email, phone } =
-    resolveAdminCandidateIdentity(parsed, input);
+  const identity = resolveAdminCandidateIdentity(parsed, input);
+  const { email, phone } = identity;
 
-  if (!fullName) {
+  if (!identity.fullName) {
     throw new JobValidationError(
       "First and last name are required. Fill them in and try again.",
       { name: "Name is required." },
       "NAME_REQUIRED"
     );
   }
+  const firstNameCheck = validatePersonName(identity.firstName, { label: "First name" });
+  const lastNameCheck = validatePersonName(identity.lastName, { label: "Last name" });
+  if (!firstNameCheck.ok) {
+    throw new JobValidationError(firstNameCheck.error, { name: firstNameCheck.error }, "NAME_NEEDS_REVIEW");
+  }
+  if (!lastNameCheck.ok) {
+    throw new JobValidationError(lastNameCheck.error, { name: lastNameCheck.error }, "NAME_NEEDS_REVIEW");
+  }
+  const resolvedFirstName = firstNameCheck.value;
+  const resolvedLastName = lastNameCheck.value;
+  const fullName = [resolvedFirstName, resolvedLastName].join(" ");
   if (!email) {
     throw new JobValidationError(
       "Email is required. Fill it in and try again.",
