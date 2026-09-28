@@ -22,8 +22,11 @@ import {
 import { DEFAULT_STEP3_GROK_MODEL, grokReasoningEffort, sanitizeStep3Model } from "./step-config";
 
 const DEFAULT_MODEL = DEFAULT_STEP3_GROK_MODEL;
-const MAX_OUTPUT_TOKENS = 4_000;
-const TIMEOUT_MS = 45_000;
+/** A 2–4 page résumé as JSON, plus Grok reasoning tokens, does not fit in 4k. */
+const MAX_OUTPUT_TOKENS = 16_000;
+/** Keep the source the model is told to preserve. 12k chars cut off later jobs. */
+export const SUBMISSION_RESUME_SOURCE_CHARS = 48_000;
+const TIMEOUT_MS = 90_000;
 
 function resolveGrokClient(): OpenAI | null {
   const apiKey = process.env.XAI_API_KEY?.trim() || process.env.GROK_API_KEY?.trim();
@@ -85,7 +88,7 @@ export function buildSubmissionResumeUserPrompt(args: {
     enrichment
       ? `Recruiter enrichment from Verifications / Follow-Up / Deep Match:\n${enrichment}`
       : "",
-    `Original résumé:\n${sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, 12_000) || "(no résumé text)"}`,
+    `Original résumé:\n${sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, SUBMISSION_RESUME_SOURCE_CHARS) || "(no résumé text)"}`,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -132,7 +135,7 @@ export async function generateOptimizedSubmissionResume(args: {
 }> {
   const fallback = buildFallbackSubmissionResume(args);
   const confirmedEvidence = confirmedLines(args.analysis);
-  const sanitizedResume = sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, 12_000);
+  const sanitizedResume = sanitizeResumeForMatchAnalysis(args.resumeText).slice(0, SUBMISSION_RESUME_SOURCE_CHARS);
   const client = resolveGrokClient();
   if (!client) {
     const finalized = finalizeSubmissionResume({
@@ -184,7 +187,11 @@ export async function generateOptimizedSubmissionResume(args: {
     process.env.XAI_MATCH_DEEP_MODEL?.trim() ||
     process.env.GROK_MATCH_DEEP_MODEL?.trim() ||
     DEFAULT_MODEL;
-  const maxTokens = Number(cfg.base_max_tokens ?? MAX_OUTPUT_TOKENS);
+  const configuredMax = Number(cfg.base_max_tokens);
+  const maxTokens =
+    Number.isFinite(configuredMax) && configuredMax >= MAX_OUTPUT_TOKENS
+      ? configuredMax
+      : MAX_OUTPUT_TOKENS;
 
   try {
     const response = await client.responses.create({
