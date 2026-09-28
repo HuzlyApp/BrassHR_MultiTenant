@@ -35,6 +35,30 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
     label: "Application & Profile",
     steps: [
       {
+        id: "collect-extra-files",
+        label: "Collect Extra Files",
+        iconKey: "collect-extra-files",
+        description: "Request additional files from the candidate during intake.",
+        stepType: "document_upload",
+        defaultPhase: "pre_hire",
+      },
+      {
+        id: "collect-references",
+        label: "Collect References",
+        iconKey: "collect-references",
+        description: "Ask the candidate to provide professional references.",
+        stepType: "references",
+        defaultPhase: "pre_hire",
+      },
+      {
+        id: "custom-form",
+        label: "Custom Form",
+        iconKey: "custom-form",
+        description: "Add a custom intake form for this workflow.",
+        stepType: "custom_question",
+        defaultPhase: "pre_hire",
+      },
+      {
         id: "resume-basic-profile",
         label: "Resume & Basic Profile",
         iconKey: "resume-basic-profile",
@@ -336,27 +360,20 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
   },
   {
     id: "communication-notification",
-    label: "Communication & Notification Steps",
+    label: "Welcome & Complete",
     steps: [
       {
         id: "welcome-email",
-        label: "Welcome Email",
+        label: "Send Message",
         iconKey: "welcome-email",
-        description: "Send a welcome email to the applicant.",
-        stepType: "custom_question",
-      },
-      {
-        id: "status-update-notification",
-        label: "Status Update Email / Notification",
-        iconKey: "status-update-notification",
-        description: "Notify the applicant of a status change.",
+        description: "Send a welcome or onboarding message to the new hire.",
         stepType: "custom_question",
       },
       {
         id: "manager-welcome-call",
-        label: "Manager Welcome Call",
+        label: "Welcome Call",
         iconKey: "manager-welcome-call",
-        description: "Schedule or track a manager welcome call.",
+        description: "Schedule or track a welcome call.",
         stepType: "custom_question",
       },
       {
@@ -367,10 +384,17 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
         stepType: "custom_question",
       },
       {
-        id: "reminder-follow-up-notification",
-        label: "Reminder / Follow-up Notification",
-        iconKey: "reminder-follow-up-notification",
-        description: "Send a reminder or follow-up notification.",
+        id: "buddy-mentor-assignment",
+        label: "Buddy / Mentor Assignment",
+        iconKey: "buddy-mentor-assignment",
+        description: "Assign a buddy or mentor to the new hire.",
+        stepType: "custom_question",
+      },
+      {
+        id: "completion-milestone",
+        label: "Onboarding Complete",
+        iconKey: "completion-milestone",
+        description: "Mark onboarding complete.",
         stepType: "custom_question",
       },
     ],
@@ -384,13 +408,6 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
         label: "Badge / Equipment Issuance",
         iconKey: "badge-equipment-issuance",
         description: "Track badge or equipment issuance.",
-        stepType: "custom_question",
-      },
-      {
-        id: "buddy-mentor-assignment",
-        label: "Buddy / Mentor Assignment",
-        iconKey: "buddy-mentor-assignment",
-        description: "Assign a buddy or mentor to the new hire.",
         stepType: "custom_question",
       },
       {
@@ -421,13 +438,6 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
     label: "Custom & Flexible Steps",
     steps: [
       {
-        id: "custom-form",
-        label: "Custom Form",
-        iconKey: "custom-form",
-        description: "Add a custom form step.",
-        stepType: "custom_question",
-      },
-      {
         id: "manual-task-hr-action",
         label: "Manual Task / HR Action",
         iconKey: "manual-task-hr-action",
@@ -453,13 +463,6 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
         label: "Parallel Step Group",
         iconKey: "parallel-step-group",
         description: "Group parallel steps in the flow.",
-        stepType: "custom_question",
-      },
-      {
-        id: "completion-milestone",
-        label: "Completion / Milestone",
-        iconKey: "completion-milestone",
-        description: "Mark a completion or milestone in the flow.",
         stepType: "custom_question",
       },
     ],

@@ -251,21 +251,7 @@ export function QualificationChecklist(props: {
                     </span>
                   </td>
                   <td className="py-2.5 text-xs text-[#475569]">
-                    <div className="flex flex-col gap-1">
-                      <span>{recruiterActionLabel(req)}</span>
-                      {needsNotes ? (
-                        <button
-                          type="button"
-                          className="w-fit text-left font-semibold text-[color:var(--brand-primary)] hover:underline"
-                          onClick={() => {
-                            setOpenId(req.id);
-                            setNoteCreateSignal({ id: req.id, n: Date.now(), prefill: "pending" });
-                          }}
-                        >
-                          Add Note
-                        </button>
-                      ) : null}
-                    </div>
+                    {recruiterActionLabel(req)}
                   </td>
                 </tr>
               );

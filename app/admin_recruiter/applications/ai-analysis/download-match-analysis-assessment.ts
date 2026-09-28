@@ -163,12 +163,17 @@ export function downloadMatchAnalysisAssessment(input: DownloadMatchAnalysisAsse
     writeParagraph("No previous analysis versions.");
   } else {
     for (const item of input.analysisHistory) {
-      const label =
+      const routeLabel =
         item.display_category ||
         formatMatchCategory(item.category) ||
-        "Not analyzed";
+        null;
+      const scoreLabel =
+        item.score != null && Number.isFinite(Number(item.score))
+          ? formatMatchScore(item.score)
+          : null;
+      const label = routeLabel || "Not analyzed";
       writeParagraph(
-        `Version ${item.version}: ${formatMatchScore(item.score)} — ${label} — ${formatWhen(item.analyzed_at)}${item.model ? ` · ${item.model}` : ""}`,
+        `Version ${item.version}: ${[scoreLabel, label].filter(Boolean).join(" — ")} — ${formatWhen(item.analyzed_at)}${item.model ? ` · ${item.model}` : ""}`,
         16
       );
     }

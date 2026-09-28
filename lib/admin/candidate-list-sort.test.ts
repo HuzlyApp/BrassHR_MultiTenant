@@ -108,7 +108,7 @@ describe("sortCandidateRows", () => {
       row({ id: "3", name: "Bob" }),
     ];
     const sorted = sortCandidateRows(stages, { column: "currentStage", direction: "asc" });
-    expect(sorted.map((item) => item.id)).toEqual(["1", "2", "3"]);
+    expect(sorted.map((item) => item.id)).toEqual(["2", "1", "3"]);
   });
 
   it("sorts evaluation analyzed first when descending", () => {

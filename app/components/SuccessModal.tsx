@@ -162,7 +162,6 @@ export default function SuccessModal({
               type="button"
               onClick={() => {
                 onAction();
-                onClose();
               }}
               className={actionButtonClass}
               style={{ background: gradients.button }}

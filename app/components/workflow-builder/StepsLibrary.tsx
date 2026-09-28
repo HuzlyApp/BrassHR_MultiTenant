@@ -1,9 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, MoreHorizontal, PanelLeftClose, Plus, Search } from "lucide-react";
-import { CARD_BORDER, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
+import { ChevronDown, FileText, PanelLeftClose, Plus, Search } from "lucide-react";
+import { CARD_BORDER, GOLD, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
 import { filterStepLibrary } from "./filter-step-library";
+import { resolveHireLibraryIconPath } from "./hire-library-icons";
+import {
+  filterStepLibraryByPhase,
+  isCustomStepsCategory,
+  LIBRARY_THEME_COLORS,
+  resolveCategoryDisplayLabel,
+  resolveCategoryThemeColor,
+  resolveStepThemeColor,
+  sortLibraryCategoriesForDisplay,
+  withAlpha,
+  type LibraryHirePhase,
+} from "./library-category-theme";
 import type { StepCategory, StepDefinition } from "./types";
 import { writeWorkflowStepDragData } from "./workflow-step-drag";
 
@@ -18,6 +30,11 @@ type StepsLibraryProps = {
   onPanelClose?: () => void;
 };
 
+const LIBRARY_TABS: Array<{ id: LibraryHirePhase; label: string }> = [
+  { id: "pre_hire", label: "Pre-hire" },
+  { id: "post_hire", label: "Post-hire" },
+];
+
 export default function StepsLibrary({
   categories,
   title = "Steps Library",
@@ -28,14 +45,16 @@ export default function StepsLibrary({
   onPanelClose,
 }: StepsLibraryProps) {
   const [localSearch, setLocalSearch] = useState("");
+  const [activePhase, setActivePhase] = useState<LibraryHirePhase>("pre_hire");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const effectiveSearch = searchTerm || localSearch;
 
-  const filtered = useMemo(
-    () => filterStepLibrary(categories, effectiveSearch),
-    [effectiveSearch, categories]
-  );
+  const filtered = useMemo(() => {
+    const byPhase = filterStepLibraryByPhase(categories, activePhase);
+    const searched = filterStepLibrary(byPhase, effectiveSearch);
+    return sortLibraryCategoriesForDisplay(searched, activePhase);
+  }, [activePhase, categories, effectiveSearch]);
 
   if (!compactMode && !panelOpen) {
     return null;
@@ -45,19 +64,47 @@ export default function StepsLibrary({
     <aside
       className={
         compactMode
-          ? `flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9] fixed inset-y-0 left-0 z-50 shadow-xl transition-transform duration-200 ${
+          ? `flex h-full min-h-0 w-[340px] shrink-0 flex-col border-r bg-[#ECF1F9] fixed inset-y-0 left-0 z-50 shadow-xl transition-transform duration-200 ${
               panelOpen ? "translate-x-0" : "pointer-events-none -translate-x-full"
             }`
-          : "flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9]"
+          : "flex h-full min-h-0 w-[340px] shrink-0 flex-col border-r bg-[#ECF1F9]"
       }
       style={{ borderColor: CARD_BORDER }}
       aria-hidden={!panelOpen ? true : undefined}
     >
+      <div className="shrink-0 border-b px-4 pt-3" style={{ borderColor: CARD_BORDER }}>
+        <div className="flex items-center gap-5">
+          {LIBRARY_TABS.map((tab) => {
+            const active = activePhase === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActivePhase(tab.id)}
+                className={`relative pb-2.5 text-sm font-semibold transition ${
+                  active ? "text-[#BC8B41]" : "text-[#667085] hover:text-[#344054]"
+                }`}
+                aria-pressed={active}
+              >
+                {tab.label}
+                {active ? (
+                  <span
+                    className="absolute inset-x-0 bottom-0 h-0.5 rounded-full"
+                    style={{ backgroundColor: GOLD }}
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div
         className="flex shrink-0 items-center justify-between border-b px-4 py-3"
         style={{ borderColor: CARD_BORDER }}
       >
-        <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
+        <h2 className="text-[16.8px] font-bold leading-5 text-black">
           {title}
         </h2>
         {onPanelClose ? (
@@ -94,43 +141,70 @@ export default function StepsLibrary({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">
         {filtered.length === 0 ? (
           <p className="px-2 py-8 text-center text-xs" style={{ color: TEXT_SECONDARY }}>
-            No steps found{effectiveSearch.trim() ? ` for "${effectiveSearch.trim()}"` : ""}
+            No {activePhase === "pre_hire" ? "pre-hire" : "post-hire"} steps found
+            {effectiveSearch.trim() ? ` for "${effectiveSearch.trim()}"` : ""}
           </p>
         ) : (
           filtered.map((cat) => {
             const isCollapsed = collapsed[cat.id] ?? false;
+            const customStepsCategory = isCustomStepsCategory(cat.id);
+            const categoryColor = resolveCategoryThemeColor(cat.id, cat.label);
+            const categoryLabel = resolveCategoryDisplayLabel(cat.id, cat.label);
+
             return (
-              <section key={cat.id} className="mb-4 last:mb-0">
-                <header className="mb-1.5 flex items-center justify-between px-1.5">
+              <section
+                key={cat.id}
+                className="mb-3 overflow-hidden rounded-lg border last:mb-0"
+                style={
+                  customStepsCategory
+                    ? { borderColor: CARD_BORDER, backgroundColor: "#FFFFFF" }
+                    : {
+                        borderColor: withAlpha(categoryColor, 0.35),
+                        backgroundColor: withAlpha(categoryColor, 0.06),
+                      }
+                }
+              >
+                <header
+                  className="flex items-center justify-between border-b px-2.5 py-2"
+                  style={
+                    customStepsCategory
+                      ? { borderColor: CARD_BORDER, backgroundColor: "#FFFFFF" }
+                      : {
+                          borderColor: withAlpha(categoryColor, 0.2),
+                          backgroundColor: withAlpha(categoryColor, 0.1),
+                        }
+                  }
+                >
                   <button
                     type="button"
                     onClick={() => setCollapsed((c) => ({ ...c, [cat.id]: !isCollapsed }))}
-                    className="flex items-center gap-1 text-[13px] font-semibold leading-5 text-left"
-                    style={{ color: TEXT_PRIMARY }}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left font-[Inter,sans-serif] text-[12px] font-semibold leading-4"
+                    style={{ color: "#000000" }}
                   >
                     <ChevronDown
                       size={14}
+                      className="shrink-0"
                       style={{
                         transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
                         transition: "transform 0.15s",
                       }}
                     />
-                    {cat.label}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-0.5 transition hover:bg-[#f2f4f7]"
-                    aria-label="Category options"
-                  >
-                    <MoreHorizontal size={14} color="#98a2b3" />
+                    <span className="truncate">{categoryLabel}</span>
                   </button>
                 </header>
 
                 {!isCollapsed ? (
-                  <ul className="flex flex-col gap-1.5">
+                  <ul
+                    className={`flex flex-col gap-1.5 p-2 ${customStepsCategory ? "bg-white" : ""}`}
+                  >
                     {cat.steps.map((step) => (
                       <li key={step.id}>
-                        <StepLibraryItem step={step} readOnly={readOnly} />
+                        <StepLibraryItem
+                          step={step}
+                          categoryId={cat.id}
+                          categoryLabel={cat.label}
+                          readOnly={readOnly}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -144,7 +218,23 @@ export default function StepsLibrary({
   );
 }
 
-function StepLibraryItem({ step, readOnly = false }: { step: StepDefinition; readOnly?: boolean }) {
+function StepLibraryItem({
+  step,
+  categoryId,
+  categoryLabel,
+  readOnly = false,
+}: {
+  step: StepDefinition;
+  categoryId: string;
+  categoryLabel: string;
+  readOnly?: boolean;
+}) {
+  const customStep = isCustomStepsCategory(categoryId);
+  const themeColor = customStep
+    ? LIBRARY_THEME_COLORS.slate
+    : resolveStepThemeColor(step, categoryId, categoryLabel);
+  const iconPath = resolveHireLibraryIconPath(step.id, step.iconKey);
+
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) {
       e.preventDefault();
@@ -158,24 +248,36 @@ function StepLibraryItem({ step, readOnly = false }: { step: StepDefinition; rea
       draggable={!readOnly}
       onDragStart={handleDragStart}
       className={`group flex items-center gap-2 rounded-lg border bg-white px-2 py-2 transition ${
-        readOnly ? "cursor-default opacity-70" : "cursor-grab hover:border-[#BC8B41] hover:bg-[#faf6ef] active:cursor-grabbing"
+        readOnly
+          ? "cursor-default opacity-70"
+          : "cursor-grab hover:shadow-sm active:cursor-grabbing"
       }`}
-      style={{ borderColor: CARD_BORDER }}
+      style={{ borderColor: customStep ? CARD_BORDER : withAlpha(themeColor, 0.35) }}
     >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white">
-        {step.icon}
+      <span
+        className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-md"
+        style={{ backgroundColor: customStep ? LIBRARY_THEME_COLORS.slate : themeColor }}
+      >
+        {iconPath ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={iconPath} alt="" className="h-5 w-5 object-contain brightness-0 invert" />
+        ) : (
+          <FileText size={20} className="text-white" strokeWidth={2} />
+        )}
       </span>
       <span
-        className="flex-1 truncate text-xs font-medium leading-5"
-        style={{ color: TEXT_PRIMARY }}
+        className="min-w-0 flex-1 whitespace-normal break-words font-[Inter,sans-serif] text-[12px] font-semibold leading-4"
+        style={{ color: "#374151" }}
       >
         {step.label}
       </span>
-      <Plus
-        size={14}
-        className="opacity-0 transition-opacity group-hover:opacity-100"
-        color="#BC8B41"
-      />
+      <span
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full opacity-100 transition group-hover:scale-105"
+        style={{ backgroundColor: themeColor }}
+        aria-hidden
+      >
+        <Plus size={12} className="text-white" strokeWidth={2.5} />
+      </span>
     </div>
   );
 }

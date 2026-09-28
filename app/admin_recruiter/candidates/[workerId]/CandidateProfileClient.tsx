@@ -44,10 +44,8 @@ import {
   type CandidateProfileTabId,
   type ProfileActivityRangeId,
 } from "./candidate-profile-ui";
-import {
-  fetchStaffDetailJson,
-  candidateProfileApiUrl,
-} from "@/lib/admin/staff-detail-fetch-cache";
+import { fetchStaffDetailJson, candidateProfileApiUrl } from "@/lib/admin/staff-detail-fetch-cache";
+import { adminWorkerResumePreviewHref } from "@/lib/resume/worker-resume-file-name";
 import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
@@ -475,7 +473,6 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
   const [profile, setProfile] = useState<CandidateProfilePayload | null>(null);
   const [workTypeFilter, setWorkTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
   const loadedWorkerIdRef = useRef<string | null>(null);
 
   const backHref = profileCandidatesBackHref({ from, jobId, workerId });
@@ -545,21 +542,16 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
     });
   }, [applications, statusFilter, workTypeFilter]);
 
-  async function openResume(applicationId: string, resumeId: string) {
-    setOpeningResumeId(resumeId);
-    try {
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
-        { cache: "no-store" }
-      );
-      const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!response.ok || !payload.url) throw new Error(payload.error || "Could not open resume.");
-      window.open(payload.url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not open resume.");
-    } finally {
-      setOpeningResumeId(null);
-    }
+  function openResume(applicationId: string, resumeId: string) {
+    window.open(
+      adminWorkerResumePreviewHref({
+        workerId,
+        resumeId,
+        applicationId,
+      }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   function exportApplications() {
@@ -570,7 +562,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
         { header: "Company", value: (row) => row.companyName },
         { header: "Work Type", value: (row) => row.workType },
         { header: "Application Date", value: (row) => formatProfileApplicationDate(row.appliedAt).absolute },
-        { header: "Current Stage", value: (row) => applicationCurrentStageMeta(row.status).label },
+        { header: "Current Stage", value: (row) => applicationCurrentStageMeta(row.status, row.statusName).label },
         { header: "Status", value: (row) => row.statusName },
         { header: "Resume", value: (row) => row.resume?.fileName || "" },
       ],
@@ -841,7 +833,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                   <tbody>
                     {filteredApplications.map((row) => {
                       const applied = formatProfileApplicationDate(row.appliedAt);
-                      const stage = applicationCurrentStageMeta(row.status);
+                      const stage = applicationCurrentStageMeta(row.status, row.statusName);
                       return (
                         <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">
                           <td className="px-5 py-4 align-top">
@@ -902,7 +894,6 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                               <button
                                 type="button"
                                 onClick={() => void openResume(row.id, row.resume!.id)}
-                                disabled={openingResumeId === row.resume.id}
                                 className="flex min-w-0 cursor-pointer items-start gap-2 text-left"
                               >
                                 <BrandedFileTypeIcon

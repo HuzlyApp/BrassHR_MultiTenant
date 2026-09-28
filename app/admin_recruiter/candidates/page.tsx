@@ -149,6 +149,7 @@ type WorkerProfile = {
     job_id?: string | null;
     title?: string | null;
   }> | null;
+  application_source_job_id?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -448,6 +449,7 @@ export default function CandidatesPage() {
             })
             .filter((entry): entry is { jobId: string; title: string } => Boolean(entry))
         : [],
+      applicationSourceJobId: item.application_source_job_id ?? null,
       email,
       phone,
       address: [item.address1, item.city, item.state].filter(Boolean).join(", "),
@@ -1026,10 +1028,32 @@ export default function CandidatesPage() {
 
   function handleResumeUpdated(
     applicationId: string,
-    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+    result: {
+      resumeUploaded: boolean;
+      firstName: string;
+      lastName: string;
+      autoQuickMatch?: {
+        status: string;
+        error: string | null;
+        score: number | null;
+        category: string | null;
+        displayCategory?: string | null;
+        requirementCounts?: {
+          confirmed: number;
+          verify: number;
+          notMet: number;
+        } | null;
+      } | null;
+    }
   ) {
     const nextName =
       [result.firstName, result.lastName].filter(Boolean).join(" ").trim() || "Candidate";
+    const match = result.resumeUploaded ? result.autoQuickMatch : null;
+    const matchOk = match?.status === "ANALYZED";
+    const matchFailed = Boolean(
+      result.resumeUploaded && match && match.status !== "ANALYZED"
+    );
+
     setCandidates((current) =>
       current.map((row) => {
         if (resolveCandidateApplicationId(row) !== applicationId) return row;
@@ -1040,9 +1064,19 @@ export default function CandidatesPage() {
           name: nextName,
         };
         if (!result.resumeUploaded) return renamed;
+        if (matchOk && match) {
+          return {
+            ...renamed,
+            aiMatchStatus: match.status,
+            aiMatchScore: match.score ?? null,
+            aiMatchCategory: match.category ?? null,
+            aiMatchDisplayCategory: match.displayCategory ?? null,
+            aiRequirementCounts: match.requirementCounts ?? null,
+          };
+        }
         return {
           ...renamed,
-          aiMatchStatus: "ANALYZING",
+          aiMatchStatus: matchFailed ? "FAILED" : "READY",
           aiMatchScore: null,
           aiMatchCategory: null,
           aiMatchDisplayCategory: null,
@@ -1056,40 +1090,16 @@ export default function CandidatesPage() {
         duration: ACTION_TOAST_DURATION_MS,
       });
       setResumeSuccessOpen(true);
-      void (async () => {
-        try {
-          const matchResponse = await fetch(
-            `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({}),
-            }
-          );
-          const matchPayload = await matchResponse.json().catch(() => ({}));
-          if (!matchResponse.ok) return;
-          setCandidates((current) =>
-            current.map((row) =>
-              resolveCandidateApplicationId(row) === applicationId
-                ? {
-                    ...row,
-                    aiMatchStatus: matchPayload.status ?? row.aiMatchStatus,
-                    aiMatchScore: matchPayload.score ?? row.aiMatchScore,
-                    aiMatchCategory: matchPayload.category ?? row.aiMatchCategory,
-                    aiMatchDisplayCategory:
-                      matchPayload.analysis?.candidate_match?.display_category ??
-                      row.aiMatchDisplayCategory,
-                    aiRequirementCounts:
-                      requirementCountsFromAnalyzePayload(matchPayload) ?? row.aiRequirementCounts,
-                  }
-                : row
-            )
-          );
-        } catch {
-          // Keep analyzing state; user can re-run from the list.
-        }
-      })();
+      if (matchOk) {
+        toast.success(`${nextName}: Quick Match complete`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      } else if (matchFailed) {
+        toast.error(
+          match?.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
     } else {
       toast.success(`${nextName}: candidate details updated`, {
         duration: ACTION_TOAST_DURATION_MS,

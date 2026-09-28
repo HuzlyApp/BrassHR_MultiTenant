@@ -26,6 +26,7 @@ describe("jobMatchesTextSearch", () => {
     source_type: "MSP",
     public_title: "Fallback Title",
     source_job_title: "CNA Travel",
+    external_requisition_id: "122ZO3892",
     location: "Texas City, TX",
     msp_name: "new csp",
     msp_client: "Acme Health",
@@ -36,11 +37,12 @@ describe("jobMatchesTextSearch", () => {
     expect(jobMatchesTextSearch(job, "")).toBe(true);
   });
 
-  it("matches title location msp client or profession", () => {
+  it("matches title location msp client source job id or profession", () => {
     expect(jobMatchesTextSearch(job, "CNA")).toBe(true);
     expect(jobMatchesTextSearch(job, "texas")).toBe(true);
     expect(jobMatchesTextSearch(job, "new csp")).toBe(true);
     expect(jobMatchesTextSearch(job, "Acme")).toBe(true);
+    expect(jobMatchesTextSearch(job, "122ZO")).toBe(true);
     expect(jobMatchesTextSearch(job, "Nursing")).toBe(true);
     expect(jobMatchesTextSearch(job, "dentist")).toBe(false);
   });
@@ -87,6 +89,7 @@ describe("jobMatchesDashboardSearchTags", () => {
   const job = {
     source_type: "Internal",
     public_title: "Registered Nurse",
+    external_requisition_id: "MSP-9911",
     location: "Dallas, TX",
     professions: { name: "Nursing" },
     tags: ["Travel"],
@@ -98,10 +101,11 @@ describe("jobMatchesDashboardSearchTags", () => {
     expect(jobMatchesDashboardSearchTags(job, [])).toBe(true);
   });
 
-  it("matches title skills experience location and profession tags with AND", () => {
+  it("matches title skills experience location source job id and profession tags with AND", () => {
     expect(jobMatchesDashboardSearchTags(job, ["Dallas"])).toBe(true);
     expect(jobMatchesDashboardSearchTags(job, ["Nursing", "Travel"])).toBe(true);
     expect(jobMatchesDashboardSearchTags(job, ["ICU experience"])).toBe(true);
+    expect(jobMatchesDashboardSearchTags(job, ["MSP-9911"])).toBe(true);
     expect(jobMatchesDashboardSearchTags(job, ["Dallas", "dentist"])).toBe(false);
   });
 });

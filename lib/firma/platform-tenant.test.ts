@@ -75,7 +75,7 @@ describe("ensurePlatformTenantWithFirmaWorkspace", () => {
             maybeSingle: async () => ({
               data: {
                 id: "tenant-braas-hr",
-                name: "Braas HR",
+                name: "Brass HR",
                 slug: "braas-hr",
                 subdomain: "braas-hr",
               },

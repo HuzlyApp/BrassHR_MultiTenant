@@ -14,6 +14,7 @@ import {
   jobListDisplayTitle,
   jobLocation,
   jobPlacementType,
+  jobSourceJobId,
   jobStatusSortLabel,
   newApplicantCount,
   type JobListRow,
@@ -36,6 +37,10 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
 > = {
   jobTitle: { header: "Job Title", value: (row) => jobListDisplayTitle(row) },
   // jobId: { header: "Job Id", value: (row) => jobDisplayId(row) }, // Job ID hidden for now
+  sourceJobId: {
+    header: "MSP Source Job ID",
+    value: (row) => jobSourceJobId(row),
+  },
   contractGroup: {
     header: "MSP/Client",
     value: (row) => jobContractGroup(row),

@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadWorkerNotesForWorkerId } from "@/lib/worker-notes";
 import { loadApplicationScreeningContext } from "@/lib/jobs/screening-questions";
 import { pickResumeForApplication } from "./pick-resume-for-application";
+import { ensureApplicationResumeFromWorker } from "./ensure-application-resume";
 import { getMatchAnalysisModelName } from "./service";
+import { getMatchStepModels } from "./step-config";
+import { isMatchCallPackStatus } from "./call-pack-status";
+import { listScreeningUploads } from "./screening-uploads";
 import {
   loadVerificationNoteAuditForApplication,
   loadVerificationNotesForApplication,
@@ -13,8 +17,11 @@ import {
   aiScreeningQuestionKey,
   matchSavedAiScreeningAnswer,
   normalizeAnalysisScreeningQuestions,
+  CALL_CONTEXT_QUESTION_KEY,
 } from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
+import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { jobRequirementsSourceFingerprint } from "./build-job-requirements";
 
 function displayName(first: string | null | undefined, last: string | null | undefined, email?: string | null) {
   const name = `${first ?? ""} ${last ?? ""}`.trim();
@@ -29,7 +36,7 @@ export async function loadMatchAnalysisWorkspace(
   const { data: application, error } = await supabase
     .from("job_applications")
     .select(
-      "id, tenant_id, job_requisition_id, worker_id, status, status_id, created_at, updated_at, submitted_at, created_by_staff_user_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analysis, ai_analyzed_at, ai_analyzed_by, ai_analysis_error, ai_analysis_progress, ai_analysis_version, ai_analysis_model, recruiter_decision, recruiter_decision_note, recruiter_decision_at, recruiter_decision_by"
+      "id, tenant_id, job_requisition_id, worker_id, status, status_id, created_at, updated_at, submitted_at, created_by_staff_user_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analysis, ai_analyzed_at, ai_analyzed_by, ai_analysis_error, ai_analysis_progress, ai_analysis_version, ai_analysis_model, recruiter_decision, recruiter_decision_note, recruiter_decision_at, recruiter_decision_by, application_statuses(id, name, system_key)"
     )
     .eq("id", applicationId)
     .eq("tenant_id", tenantId)
@@ -39,6 +46,18 @@ export async function loadMatchAnalysisWorkspace(
 
   const analysis = (application.ai_analysis ?? null) as MatchAnalysisResponse | null;
 
+  const jobId = String(application.job_requisition_id ?? "").trim();
+  const jobPromise = jobId
+    ? supabase
+        .from("job_requisitions")
+        .select(
+          "id, public_title, location, facility, facility_name, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, specialty"
+        )
+        .eq("id", jobId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
   const [
     requirementsResult,
     screening,
@@ -47,6 +66,8 @@ export async function loadMatchAnalysisWorkspace(
     history,
     verificationNotes,
     verificationNoteAudit,
+    screeningUploads,
+    jobResult,
   ] = await Promise.all([
     supabase
       .from("job_application_match_requirements")
@@ -82,11 +103,13 @@ export async function loadMatchAnalysisWorkspace(
       .select("id, question_key, question_text, reason, related_requirement, answer_text, updated_at")
       .eq("tenant_id", tenantId)
       .eq("application_id", applicationId),
-    loadAnalysisHistory(supabase, tenantId, applicationId, false).catch(() => []),
+    loadAnalysisHistory(supabase, tenantId, applicationId, true).catch(() => []),
     loadVerificationNotesForApplication(supabase, tenantId, applicationId).catch(() => []),
     loadVerificationNoteAuditForApplication(supabase, tenantId, applicationId, {
       limit: 100,
     }).catch(() => []),
+    listScreeningUploads(supabase, tenantId, applicationId).catch(() => []),
+    jobPromise,
   ]);
 
   const verificationNoteSummaries = summarizeRequirementNotes(verificationNotes);
@@ -126,6 +149,8 @@ export async function loadMatchAnalysisWorkspace(
   const aiAnswersByKey = new Map(
     (aiAnswersResult.data ?? []).map((row) => [String(row.question_key), row])
   );
+  const callContext =
+    String(aiAnswersByKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
   const recommendedQuestions = normalizeAnalysisScreeningQuestions(
     analysis?.screening_questions
   ).map((question) => {
@@ -151,18 +176,116 @@ export async function loadMatchAnalysisWorkspace(
     .order("uploaded_at", { ascending: false })
     .limit(5);
   const preferred = pickResumeForApplication(resumeRow, applicationId);
-  if (preferred?.extracted_text) {
+  if (preferred?.extracted_text || preferred?.original_file_name || preferred?.file_name) {
     extractedResume = {
-      text: String(preferred.extracted_text),
+      text: String(preferred.extracted_text ?? ""),
       fileName: String(preferred.original_file_name || preferred.file_name || "Resume"),
     };
+  } else {
+    // Imported / talent-pool candidates: attach the worker's existing résumé to this job.
+    const ensured = await ensureApplicationResumeFromWorker({
+      supabase,
+      tenantId,
+      applicationId,
+      workerId:
+        typeof application.worker_id === "string" ? application.worker_id : null,
+    });
+    if (ensured) {
+      extractedResume = { text: ensured.text, fileName: ensured.fileName };
+    }
   }
+
+  const statusRel = Array.isArray(application.application_statuses)
+    ? application.application_statuses[0]
+    : application.application_statuses;
+  const statusName =
+    statusRel && typeof statusRel === "object" && typeof (statusRel as { name?: unknown }).name === "string"
+      ? String((statusRel as { name: string }).name)
+      : String(application.status ?? "");
+  const statusSystemKey =
+    statusRel &&
+    typeof statusRel === "object" &&
+    typeof (statusRel as { system_key?: unknown }).system_key === "string"
+      ? String((statusRel as { system_key: string }).system_key)
+      : null;
+  const stepModels = getMatchStepModels();
+  const jobRow = jobResult.data;
+  const liveJobFingerprint = jobRow
+    ? jobRequirementsSourceFingerprint({
+        public_title: typeof jobRow.public_title === "string" ? jobRow.public_title : null,
+        public_description:
+          typeof jobRow.public_description === "string" ? jobRow.public_description : null,
+        qualifications: typeof jobRow.qualifications === "string" ? jobRow.qualifications : null,
+        responsibilities:
+          typeof jobRow.responsibilities === "string" ? jobRow.responsibilities : null,
+        special_requirements:
+          typeof jobRow.special_requirements === "string" ? jobRow.special_requirements : null,
+        required_credentials: jobRow.required_credentials,
+        years_of_experience:
+          typeof jobRow.years_of_experience === "string" ? jobRow.years_of_experience : null,
+        years_experience_required:
+          typeof jobRow.years_experience_required === "number"
+            ? jobRow.years_experience_required
+            : null,
+        location: typeof jobRow.location === "string" ? jobRow.location : null,
+        specialty: typeof jobRow.specialty === "string" ? jobRow.specialty : null,
+      })
+    : null;
+  const storedFingerprint =
+    analysis && typeof analysis.job_requirements_fingerprint === "string"
+      ? analysis.job_requirements_fingerprint
+      : null;
+  const analysisStaleDueToJobUpdate = Boolean(
+    application.ai_match_status === "ANALYZED" &&
+      liveJobFingerprint &&
+      storedFingerprint &&
+      storedFingerprint !== liveJobFingerprint
+  );
+  const effectiveAnalysis = analysisStaleDueToJobUpdate ? null : analysis;
+  const jobTitleFromRequisition = jobRow
+    ? publicJobDisplayTitle({
+        public_title: typeof jobRow.public_title === "string" ? jobRow.public_title : null,
+      })
+    : "";
+  const jobTitle =
+    (jobTitleFromRequisition && jobTitleFromRequisition !== "Untitled job"
+      ? jobTitleFromRequisition
+      : "") ||
+    effectiveAnalysis?.job?.job_title?.trim() ||
+    "";
 
   return {
     application: {
       ...application,
+      ai_analysis: effectiveAnalysis,
+      ai_match_status: analysisStaleDueToJobUpdate ? "READY" : application.ai_match_status,
+      ai_match_score: analysisStaleDueToJobUpdate ? null : application.ai_match_score,
+      ai_match_category: analysisStaleDueToJobUpdate ? null : application.ai_match_category,
+      ai_match_action: analysisStaleDueToJobUpdate ? null : application.ai_match_action,
+      ai_match_readiness: analysisStaleDueToJobUpdate ? null : application.ai_match_readiness,
+      ai_match_display_category: analysisStaleDueToJobUpdate
+        ? null
+        : application.ai_match_display_category,
+      ai_analysis_error: analysisStaleDueToJobUpdate
+        ? "Job description changed since this analysis. Re-run match analysis."
+        : application.ai_analysis_error,
       ai_analysis_model: application.ai_analysis_model || getMatchAnalysisModelName(),
+      ai_match_stage: analysisStaleDueToJobUpdate ? null : application.ai_match_stage ?? null,
+      status_name: statusName,
+      status_system_key: statusSystemKey,
     },
+    analysisStaleDueToJobUpdate,
+    job: jobId
+      ? {
+          id: jobId,
+          title: jobTitle || null,
+          location:
+            (typeof jobRow?.location === "string" && jobRow.location.trim()) ||
+            (typeof jobRow?.facility_name === "string" && jobRow.facility_name.trim()) ||
+            (typeof jobRow?.facility === "string" && jobRow.facility.trim()) ||
+            null,
+        }
+      : null,
     requirements: (requirementsResult.data ?? []).map((row) => {
       const summary = verificationNoteSummaries.get(String(row.id));
       return {
@@ -176,6 +299,8 @@ export async function loadMatchAnalysisWorkspace(
     screeningQuestions: screening.questions,
     screeningAssessment: screening.assessment,
     recommendedQuestions,
+    callContext,
+    screeningUploads,
     verifiedInformation: (verifiedResult.data ?? []).map((row) => ({
       id: String(row.id),
       category: String(row.category),
@@ -202,5 +327,14 @@ export async function loadMatchAnalysisWorkspace(
       ? usersById.get(String(application.recruiter_decision_by))?.name ?? null
       : null,
     modelName: application.ai_analysis_model || getMatchAnalysisModelName(),
+    matchProgression: {
+      stage: application.ai_match_stage ?? null,
+      callPackUnlocked: isMatchCallPackStatus({
+        statusName,
+        systemKey: statusSystemKey,
+      }),
+      requireDeepConfirm: stepModels.requireRecruiterConfirm,
+      deepModel: stepModels.step3Deep,
+    },
   };
 }

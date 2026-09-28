@@ -64,6 +64,7 @@ import {
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
+// import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -108,7 +109,7 @@ import {
   type ApplicationStatusOption,
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
-import { MatchScoreCell, RequirementOutcomeCountCell } from "./MatchAnalysisPanel";
+import { MatchScoreCell, RequirementOutcomeCountCell, FitBandCell } from "./MatchAnalysisPanel";
 import UpdateResumeModal from "./UpdateResumeModal";
 import {
   AssignRecruiterModal,
@@ -118,6 +119,7 @@ import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
 } from "@/lib/jobs/match-analysis/workspace";
+import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 import {
@@ -156,6 +158,7 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  ai_match_stage?: string | null;
   ai_analyzed_at?: string | null;
   ai_requirement_counts?: ListingRequirementOutcomeCounts | null;
   assigned_recruiter_user_id?: string | null;
@@ -412,6 +415,10 @@ function rowStatusName(row: ApplicationRow, options: ApplicationStatusOption[]):
   );
 }
 
+function rowCurrentStage(row: ApplicationRow, options: ApplicationStatusOption[]) {
+  return applicationCurrentStageMeta(row.status, rowStatusName(row, options));
+}
+
 function rowStatusDotColor(row: ApplicationRow, options: ApplicationStatusOption[]): string | null {
   const joined = oneStatusJoin(row.application_statuses);
   const fromJoin = typeof joined?.color === "string" ? joined.color.trim() : "";
@@ -568,18 +575,18 @@ function applicationClientName(row: ApplicationRow): string {
   return String(job.msp_name ?? "").trim();
 }
 
-/** Split name for edit fields — the profile is authoritative, the worker row is the fallback. */
+/** Split name for edit fields — worker is authoritative after Match Analysis edits; profile is fallback. */
 function applicantNameParts(row: ApplicationRow): { firstName: string; lastName: string } {
   const profile = one(row.applicant_profiles);
   const worker = one(row.worker ?? null);
-  const profileFirst = String(profile.first_name ?? "").trim();
-  const profileLast = String(profile.last_name ?? "").trim();
-  if (profileFirst || profileLast) {
-    return { firstName: profileFirst, lastName: profileLast };
+  const workerFirst = String(worker.first_name ?? "").trim();
+  const workerLast = String(worker.last_name ?? "").trim();
+  if (workerFirst || workerLast) {
+    return { firstName: workerFirst, lastName: workerLast };
   }
   return {
-    firstName: String(worker.first_name ?? "").trim(),
-    lastName: String(worker.last_name ?? "").trim(),
+    firstName: String(profile.first_name ?? "").trim(),
+    lastName: String(profile.last_name ?? "").trim(),
   };
 }
 
@@ -1180,12 +1187,12 @@ export default function JobApplicationsPage() {
   const listingStageOptions = useMemo(() => {
     const labels = new Set<string>();
     for (const row of rows) {
-      labels.add(applicationCurrentStageMeta(row.status).label);
+      labels.add(rowCurrentStage(row, statusOptions).label);
     }
     return Array.from(labels)
       .sort((a, b) => a.localeCompare(b))
       .map((label) => ({ value: label, label }));
-  }, [rows]);
+  }, [rows, statusOptions]);
 
   const workflowOptions = useMemo(() => {
     const labels = new Set<string>();
@@ -1432,7 +1439,7 @@ export default function JobApplicationsPage() {
     }
     if (listingStageFilter) {
       next = next.filter(
-        (row) => applicationCurrentStageMeta(row.status).label === listingStageFilter
+        (row) => rowCurrentStage(row, statusOptions).label === listingStageFilter
       );
     }
     if (evaluationFilter === "analyzed") {
@@ -1694,8 +1701,29 @@ export default function JobApplicationsPage() {
 
   function handleResumeUpdated(
     applicationId: string,
-    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+    result: {
+      resumeUploaded: boolean;
+      firstName: string;
+      lastName: string;
+      autoQuickMatch?: {
+        status: string;
+        error: string | null;
+        score: number | null;
+        category: string | null;
+        action: string | null;
+        readiness: string | null;
+        displayCategory?: string | null;
+        stage?: string | null;
+        requirementCounts?: ListingRequirementOutcomeCounts | null;
+      } | null;
+    }
   ) {
+    const match = result.resumeUploaded ? result.autoQuickMatch : null;
+    const matchOk = match?.status === "ANALYZED";
+    const matchFailed = Boolean(
+      result.resumeUploaded && match && match.status !== "ANALYZED"
+    );
+
     setRows((current) =>
       current.map((row) => {
         if (row.id !== applicationId) return row;
@@ -1712,14 +1740,28 @@ export default function JobApplicationsPage() {
         } as ApplicationRow;
 
         if (!result.resumeUploaded) return renamed;
+        if (matchOk && match) {
+          return {
+            ...renamed,
+            ai_match_status: match.status,
+            ai_match_score: match.score ?? null,
+            ai_match_category: match.category ?? null,
+            ai_match_action: match.action ?? null,
+            ai_match_readiness: match.readiness ?? null,
+            ai_match_display_category: match.displayCategory ?? null,
+            ai_match_stage: match.stage ?? "quick",
+            ai_requirement_counts: match.requirementCounts ?? null,
+          };
+        }
         return {
           ...renamed,
-          ai_match_status: "ANALYZING",
+          ai_match_status: matchFailed ? "FAILED" : "READY",
           ai_match_score: null,
           ai_match_category: null,
           ai_match_action: null,
           ai_match_readiness: null,
           ai_match_display_category: null,
+          ai_match_stage: null,
           ai_requirement_counts: null,
         };
       })
@@ -1732,47 +1774,21 @@ export default function JobApplicationsPage() {
         duration: ACTION_TOAST_DURATION_MS,
       });
       setResumeSuccessOpen(true);
+      if (matchOk) {
+        toast.success(`${candidateLabel}: Quick Match complete`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      } else if (matchFailed) {
+        toast.error(
+          match?.error?.trim() ||
+            "Quick Match did not finish — use Re-run Quick Match to try again."
+        );
+      }
     } else {
       toast.success(`${candidateLabel}: candidate details updated`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
     }
-
-    if (!result.resumeUploaded) return;
-
-    void (async () => {
-      try {
-        const matchResponse = await fetch(
-          `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }
-        );
-        const matchPayload = await matchResponse.json().catch(() => ({}));
-        if (!matchResponse.ok) return;
-        setRows((current) =>
-          current.map((row) =>
-            row.id === applicationId
-              ? {
-                  ...row,
-                  ai_match_status: matchPayload.status ?? "ANALYZED",
-                  ai_match_score: matchPayload.score ?? null,
-                  ai_match_category: matchPayload.category ?? null,
-                  ai_match_action: matchPayload.action ?? null,
-                  ai_match_readiness: matchPayload.readiness ?? null,
-                  ai_match_display_category: matchPayload.displayCategory ?? null,
-                  ai_requirement_counts: requirementCountsFromAnalyzePayload(matchPayload),
-                }
-              : row
-          )
-        );
-      } catch {
-        /* upload already succeeded */
-      }
-    })();
   }
 
   function beginArchiveCandidate(applicationId: string) {
@@ -2053,6 +2069,7 @@ export default function JobApplicationsPage() {
       ai_match_readiness: result.readiness ?? row.ai_match_readiness,
       ai_match_display_category:
         result.analysis?.candidate_match?.display_category ?? row.ai_match_display_category,
+      ai_match_stage: result.stage ?? result.ai_match_stage ?? row.ai_match_stage,
       ai_requirement_counts: result.requirementCounts ?? row.ai_requirement_counts,
       ai_analyzed_at:
         result.status === "ANALYZED"
@@ -2152,6 +2169,7 @@ export default function JobApplicationsPage() {
                 ai_match_display_category:
                   payload.analysis?.candidate_match?.display_category ??
                   row.ai_match_display_category,
+                ai_match_stage: payload.stage ?? payload.ai_match_stage ?? row.ai_match_stage,
                 ai_requirement_counts:
                   requirementCountsFromAnalyzePayload(payload) ?? row.ai_requirement_counts,
                 ai_analyzed_at:
@@ -2220,6 +2238,8 @@ export default function JobApplicationsPage() {
                 jobId={jobId || undefined}
                 from="applications"
               />
+              {/* Pre-hire / Post-hire icon hidden until the hire journey feature ships. */}
+              {/* <CandidatePreHireIconLink workerId={workerId} candidateName={name} /> */}
             </div>
           </div>
         );
@@ -2243,9 +2263,17 @@ export default function JobApplicationsPage() {
       }
       case "clientName": {
         const clientName = applicationClientName(row);
+        if (!clientName) {
+          return (
+            <span className="block w-full text-center text-sm leading-5 text-[#0F172A]">—</span>
+          );
+        }
         return (
-          <span className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]" title={clientName || undefined}>
-            {clientName || "—"}
+          <span
+            className="block max-w-[200px] truncate text-sm leading-5 text-[#0F172A]"
+            title={clientName}
+          >
+            {clientName}
           </span>
         );
       }
@@ -2256,6 +2284,17 @@ export default function JobApplicationsPage() {
             score={row.ai_match_score}
             analyzing={matchAnalyzingId === row.id || bulkAnalyzingIds.has(row.id)}
             onAnalyze={(mode) => void runMatchAnalyze(row.id, mode)}
+          />
+        );
+      case "fit":
+        return (
+          <FitBandCell
+            analyzed={row.ai_match_status === "ANALYZED"}
+            band={listingDisplayFitBand({
+              analyzed: row.ai_match_status === "ANALYZED",
+              stage: row.ai_match_stage,
+              counts: row.ai_requirement_counts,
+            })}
           />
         );
       case "conf":
@@ -2289,7 +2328,7 @@ export default function JobApplicationsPage() {
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "currentStage": {
-        const stage = applicationCurrentStageMeta(row.status);
+        const stage = rowCurrentStage(row, statusOptions);
         return (
           <CurrentStageCell
             label={stage.label}
@@ -3206,6 +3245,7 @@ export default function JobApplicationsPage() {
         onClose={() => setAddCandidateOpen(false)}
         jobId={jobId}
         jobTitle={jobTitle}
+        jobLocation={jobLocation !== "—" ? jobLocation : null}
         onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
       />
 

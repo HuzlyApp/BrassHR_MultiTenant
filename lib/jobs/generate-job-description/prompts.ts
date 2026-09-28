@@ -155,7 +155,7 @@ ${
 - HTML lists are mandatory for Key Responsibilities, Required Qualifications, Preferred Qualifications, Work Location and Schedule, and Benefits:
   use <ul><li>Item</li><li>Next item</li></ul>. Never join items with "•" on one line. Each point must be its own <li> on its own row.
 - Work Location and Schedule example:
-  <ul><li>Location: Dallas, TX</li><li>Schedule: Days</li><li>Duration: 8 weeks</li></ul>
+  <ul><li>Location: Dallas, TX</li><li>Schedule: Days</li><li>Duration: 6 months</li></ul>
 - Do not invent missing MSP source details.
 `
     : `

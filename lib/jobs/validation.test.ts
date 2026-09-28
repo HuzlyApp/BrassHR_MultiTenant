@@ -45,6 +45,19 @@ describe("job requisition validation", () => {
     expect(jobValidationHttpStatus(error)).toBe(400);
   });
 
+  it("accepts a typed profession when no catalog id is selected", () => {
+    const errors = validatePublishableJob(
+      {
+        ...validJob,
+        professionId: null,
+        profession: "Software Engineer",
+        shiftType: "Full-time",
+      },
+      "11111111-1111-4111-8111-111111111111"
+    );
+    expect(errors.professionId).toBeUndefined();
+  });
+
   it("requires public fields and a workflow before publishing Internal jobs", () => {
     const errors = validatePublishableJob(
       { ...validJob, publicTitle: "", publicDescription: "", location: "" },

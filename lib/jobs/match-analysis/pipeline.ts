@@ -5,11 +5,14 @@ import {
   buildFullJobDescriptionText,
   buildStructuredJobRequirements,
   jobMetaFromRequisition,
+  jobRequirementsSourceFingerprint,
   type JobRequisitionForRequirements,
 } from "./build-job-requirements";
 import {
   generateMatchAnalysis,
+  generateFollowUpQuestions,
   MatchAnalysisGenerationError,
+  matchAnalysisErrorCode,
 } from "./service";
 import { resolvePromptVersion } from "@/lib/ai-catalog/resolve-prompt";
 import { PromptNotConfiguredError, PROMPT_NOT_CONFIGURED } from "@/lib/ai-catalog/errors";
@@ -30,8 +33,40 @@ import type {
   MatchAnalysisResponse,
   PipelineProgressStep,
 } from "./schema";
-import { ANALYSIS_PROVIDER_LABELS, parseAnalysisProvider } from "./schema";
-import { listingRequirementOutcomeCounts } from "./workspace";
+import { ANALYSIS_PROVIDER_LABELS, parseAnalysisMode, parseAnalysisProvider } from "./schema";
+import {
+  countQualificationOutcomes,
+  listingRequirementOutcomeCounts,
+  CALL_CONTEXT_QUESTION_KEY,
+  formatScreeningPackForAiNotes,
+  isCallContextQuestionKey,
+  normalizeAnalysisScreeningQuestions,
+  aiScreeningQuestionKey,
+  matchSavedAiScreeningAnswer,
+} from "./workspace";
+import {
+  applicationMatchScorePatch,
+  matchStageFromMode,
+  parseMatchStage,
+} from "./match-stage";
+import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
+import {
+  DEEP_MATCH_BLOCKED_LOW_FIT,
+  canAdvanceMatchProgression,
+  canRunDeepMatch,
+  deepMatchBlockReason,
+  matchProgressionIndexFromStage,
+  matchProgressionStageFromIndex,
+  quickMatchFitBand,
+} from "./progression";
+import { loadVerificationNotesForApplication } from "./verification-notes-service";
+import { summarizeRequirementNotes } from "./verification-notes";
+import {
+  checklistFollowUpRows,
+  mergeFollowUpQuestions,
+} from "./follow-up-questions";
+import { matchProgressionVariantKey } from "./prompt-variant";
+import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
 
 export type MatchAnalysisProgressEvent = {
   step: PipelineProgressStep;
@@ -71,6 +106,386 @@ async function setProgress(
   });
 }
 
+export const FOLLOW_UP_BLOCKED_NOT_READY =
+  "Run Quick Match before Verifications screening questions.";
+/** @deprecated Use FOLLOW_UP_BLOCKED_NOT_READY — same gate for Step 2 call pack. */
+export const CALL_PACK_BLOCKED_NOT_READY = FOLLOW_UP_BLOCKED_NOT_READY;
+
+async function failedAnalysis(
+  error: string,
+  extra?: Partial<RunMatchAnalysisResult>
+): Promise<RunMatchAnalysisResult> {
+  return {
+    status: "FAILED",
+    analysis: null,
+    score: null,
+    category: null,
+    action: null,
+    readiness: null,
+    error,
+    repaired: false,
+    model: null,
+    requirementCounts: extra?.requirementCounts ?? null,
+    ...extra,
+  };
+}
+
+async function runCallPackQuestionsForApplication(args: {
+  supabase: SupabaseClient;
+  tenantId: string;
+  jobApplicationId: string;
+  analyzedByUserId?: string | null;
+  analysisProvider: AnalysisProvider;
+  /** call_pack = Verifications; follow_up = Follow-up enrichment re-run. */
+  progressMode: Extract<AnalysisMode, "call_pack" | "follow_up">;
+  application: {
+    ai_match_status?: string | null;
+    ai_match_stage?: string | null;
+    ai_analysis?: unknown;
+    recruiter_decision?: string | null;
+    job_requisition_id?: string | null;
+  };
+  jobTitle: string;
+  onProgress?: (event: MatchAnalysisProgressEvent) => void;
+}): Promise<RunMatchAnalysisResult> {
+  const {
+    supabase,
+    tenantId,
+    jobApplicationId,
+    analyzedByUserId,
+    analysisProvider,
+    progressMode,
+    application,
+    jobTitle,
+    onProgress,
+  } = args;
+  const emit = (step: PipelineProgressStep, message: string, status?: AiMatchPipelineStatus) => {
+    onProgress?.({ step, message, status });
+  };
+  const stepLabel = progressMode === "follow_up" ? "Follow-up" : "Verifications";
+  const targetIndex = progressMode === "follow_up" ? 2 : 1;
+
+  if (String(application.ai_match_status ?? "").toUpperCase() !== "ANALYZED") {
+    return failedAnalysis("Run Quick Match before Verifications screening questions.");
+  }
+  const currentIndex = matchProgressionIndexFromStage(application.ai_match_stage);
+  // First Verifications unlock from Quick Match (index 0). Re-runs allowed after
+  // Verifications/Follow-up/Deep without blocking or regressing ai_match_stage.
+  if (progressMode === "follow_up" && currentIndex < 2) {
+    return failedAnalysis("Continue to Follow-up from the stepper before re-running Follow-up.");
+  }
+
+  const { data: requirementRows, error: reqError } = await supabase
+    .from("job_application_match_requirements")
+    .select(
+      "id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified, recruiter_note"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("job_application_id", jobApplicationId)
+    .order("sort_order", { ascending: true });
+  if (reqError) throw reqError;
+
+  const counts = countQualificationOutcomes(requirementRows ?? []);
+  const storedRoute = quickRouteFromAnalysis(application.ai_analysis);
+  const fitBand = storedRoute
+    ? fitBandFromQuickRoute(storedRoute)
+    : quickMatchFitBand({
+        mandatory: counts.mandatory,
+        confirmed: counts.confirmed,
+        notMet: counts.notMet,
+        blocking: counts.blocking,
+      });
+  const parked = application.recruiter_decision === "do_not_pursue";
+  if (
+    !canAdvanceMatchProgression({
+      isAnalyzed: true,
+      fitBand,
+      parkedInTalentPool: parked,
+    })
+  ) {
+    return failedAnalysis(
+      parked ? "This candidate is in Talent Pool." : DEEP_MATCH_BLOCKED_LOW_FIT,
+      { requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []) }
+    );
+  }
+
+  const notes = await loadVerificationNotesForApplication(supabase, tenantId, jobApplicationId);
+  const summaries = summarizeRequirementNotes(notes);
+  const existingAnalysis =
+    application.ai_analysis &&
+    typeof application.ai_analysis === "object" &&
+    !Array.isArray(application.ai_analysis)
+      ? (application.ai_analysis as Record<string, unknown>)
+      : null;
+  if (!existingAnalysis) {
+    return failedAnalysis("Run Quick Match before Verifications screening questions.");
+  }
+  const blockingTexts = Array.isArray(
+    (existingAnalysis.submission_readiness as { blocking_requirements?: unknown } | undefined)
+      ?.blocking_requirements
+  )
+    ? (
+        (existingAnalysis.submission_readiness as { blocking_requirements: unknown[] })
+          .blocking_requirements
+      )
+        .map((item) => String(item ?? "").trim())
+        .filter(Boolean)
+    : [];
+
+  const checklist = checklistFollowUpRows(
+    (requirementRows ?? []).map((row) => {
+      const summary = summaries.get(String(row.id));
+      return {
+        requirement_text: String(row.requirement_text ?? ""),
+        requirement_type: String(row.requirement_type ?? ""),
+        status: String(row.status ?? ""),
+        requirement_outcome: String(row.requirement_outcome ?? ""),
+        verification_required: Boolean(row.verification_required),
+        recruiter_verified: Boolean(row.recruiter_verified),
+        recruiter_note: (row.recruiter_note as string | null) ?? null,
+        latest_verification_note: summary?.latestNote
+          ? {
+              id: summary.latestNote.id,
+              noteBody: summary.latestNote.noteBody,
+              candidateQuestion: summary.latestNote.candidateQuestion,
+              dueDate: summary.latestNote.dueDate,
+              verificationStatus: summary.latestNote.verificationStatus,
+              candidateResponse: summary.latestNote.candidateResponse,
+              createdByName: summary.latestNote.createdByName,
+              updatedByName: summary.latestNote.updatedByName,
+              createdAt: summary.latestNote.createdAt,
+              updatedAt: summary.latestNote.updatedAt,
+            }
+          : null,
+      };
+    }),
+    blockingTexts
+  );
+
+  emit(
+    "analyzing",
+    `Writing ${stepLabel} screening questions (catalog prompt)`,
+    "ANALYZING"
+  );
+  await updateApplicationMatchFields({
+    supabase,
+    tenantId,
+    jobApplicationId,
+    patch: {
+      ai_match_status: "ANALYZING",
+      ai_analysis_progress: "analyzing",
+      ai_analysis_error: null,
+    },
+  });
+
+  const startedAt = Date.now();
+  let jobIndustryKey: string | null = null;
+  let tenantPrimary: string | null = null;
+  let clientName: string | null = null;
+  let sourceKey: string | null = null;
+  if (application.job_requisition_id) {
+    const { data: jobRow } = await supabase
+      .from("job_requisitions")
+      .select("industry_key, msp_client, msp_name, job_source_id")
+      .eq("id", application.job_requisition_id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    jobIndustryKey =
+      typeof jobRow?.industry_key === "string" && jobRow.industry_key.trim()
+        ? String(jobRow.industry_key)
+        : null;
+    clientName =
+      typeof jobRow?.msp_client === "string" && jobRow.msp_client.trim()
+        ? jobRow.msp_client
+        : typeof jobRow?.msp_name === "string" && jobRow.msp_name.trim()
+          ? jobRow.msp_name
+          : null;
+    sourceKey =
+      typeof jobRow?.msp_name === "string" && jobRow.msp_name.trim() ? jobRow.msp_name : null;
+    if (typeof jobRow?.job_source_id === "string" && jobRow.job_source_id.trim()) {
+      const { data: sourceRow } = await supabase
+        .from("job_sources")
+        .select("name, code")
+        .eq("id", jobRow.job_source_id)
+        .maybeSingle();
+      if (typeof sourceRow?.name === "string" && sourceRow.name.trim()) clientName = sourceRow.name;
+      if (typeof sourceRow?.code === "string" && sourceRow.code.trim()) sourceKey = sourceRow.code;
+    }
+  }
+  const { data: tenantRow } = await supabase
+    .from("tenants")
+    .select("primary_industry_key, industry")
+    .eq("id", tenantId)
+    .maybeSingle();
+  tenantPrimary =
+    typeof tenantRow?.primary_industry_key === "string" && tenantRow.primary_industry_key.trim()
+      ? String(tenantRow.primary_industry_key)
+      : industryKeyFromLegacyLabel(
+          typeof tenantRow?.industry === "string" ? tenantRow.industry : null
+        );
+
+  const variantKey = matchProgressionVariantKey(progressMode);
+  let resolved: ResolvedPromptVersion;
+  try {
+    resolved = await resolvePromptVersion(supabase, {
+      tenantId,
+      featureKey: "candidate_match",
+      variantKey,
+      industryKey: jobIndustryKey,
+      tenantPrimaryIndustryKey: tenantPrimary,
+      clientName,
+      sourceKey,
+    });
+  } catch (error) {
+    if (error instanceof PromptNotConfiguredError) {
+      await recordAiPromptRun(supabase, {
+        tenantId,
+        featureKey: "candidate_match",
+        variantKey,
+        verticalKey: null,
+        industryKey: jobIndustryKey ?? tenantPrimary,
+        promptVersionId: null,
+        contentHash: null,
+        entityType: "job_application",
+        entityId: jobApplicationId,
+        inputHash: null,
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        latencyMs: Date.now() - startedAt,
+        creditCost: null,
+        status: "skipped_no_prompt",
+        errorCode: PROMPT_NOT_CONFIGURED,
+        outputReference: null,
+        requestedBy: analyzedByUserId ?? null,
+      }).catch(() => undefined);
+      emit("failed", error.message, "FAILED");
+      await updateApplicationMatchFields({
+        supabase,
+        tenantId,
+        jobApplicationId,
+        patch: {
+          ai_match_status: "FAILED",
+          ai_analysis_progress: "failed",
+          ai_analysis_error: error.message.slice(0, 2000),
+        },
+      });
+      return failedAnalysis(PROMPT_NOT_CONFIGURED, {
+        requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []),
+      });
+    }
+    throw error;
+  }
+
+  try {
+    const generated = await generateFollowUpQuestions(
+      { jobTitle, checklist },
+      resolved,
+      analysisProvider
+    );
+    const merged = mergeFollowUpQuestions(existingAnalysis, generated.questions);
+    const previousVersion = await snapshotCurrentAnalysisVersion({
+      supabase,
+      tenantId,
+      applicationId: jobApplicationId,
+      analyzedBy: analyzedByUserId ?? null,
+    });
+    const analyzedAt = new Date().toISOString();
+    // Never move stage backward when re-running Verifications after Follow-up / Deep.
+    const nextStage =
+      currentIndex > targetIndex
+        ? (parseMatchStage(application.ai_match_stage) ??
+          matchProgressionStageFromIndex(targetIndex))
+        : matchProgressionStageFromIndex(Math.max(currentIndex, targetIndex));
+    await updateApplicationMatchFields({
+      supabase,
+      tenantId,
+      jobApplicationId,
+      patch: {
+        ai_match_status: "ANALYZED",
+        ai_match_stage: nextStage,
+        ai_analysis: merged,
+        ai_analyzed_at: analyzedAt,
+        ai_analyzed_by: analyzedByUserId ?? null,
+        ai_analysis_model: generated.model,
+        ai_analysis_version: previousVersion + 1,
+        ai_analysis_error: null,
+        ai_analysis_progress: "completed",
+      },
+    });
+    await recordAiPromptRun(supabase, {
+      tenantId,
+      featureKey: "candidate_match",
+      variantKey: resolved.variantKey,
+      verticalKey: resolved.resolvedVerticalKey,
+      industryKey: resolved.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
+      promptVersionId: resolved.promptVersionId,
+      contentHash: resolved.contentHash,
+      entityType: "job_application",
+      entityId: jobApplicationId,
+      inputHash: null,
+      model: generated.model,
+      inputTokens: null,
+      outputTokens: null,
+      latencyMs: Date.now() - startedAt,
+      creditCost: null,
+      status: "success",
+      errorCode: null,
+      outputReference: null,
+      requestedBy: analyzedByUserId ?? null,
+    }).catch(() => undefined);
+    emit("completed", `${stepLabel} screening questions ready`, "ANALYZED");
+    return {
+      status: "ANALYZED",
+      analysis: merged as unknown as MatchAnalysisResponse,
+      score: null,
+      category: null,
+      action: null,
+      readiness: null,
+      error: null,
+      repaired: generated.repaired,
+      model: generated.model,
+      requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []),
+      analyzedAt,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not write Verifications screening questions.";
+    await recordAiPromptRun(supabase, {
+      tenantId,
+      featureKey: "candidate_match",
+      variantKey: resolved.variantKey,
+      verticalKey: resolved.resolvedVerticalKey,
+      industryKey: resolved.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
+      promptVersionId: resolved.promptVersionId,
+      contentHash: resolved.contentHash,
+      entityType: "job_application",
+      entityId: jobApplicationId,
+      inputHash: null,
+      model: null,
+      inputTokens: null,
+      outputTokens: null,
+      latencyMs: Date.now() - startedAt,
+      creditCost: null,
+      status: "failed",
+      errorCode: matchAnalysisErrorCode(error) ?? "UNKNOWN",
+      outputReference: null,
+      requestedBy: analyzedByUserId ?? null,
+    }).catch(() => undefined);
+    await updateApplicationMatchFields({
+      supabase,
+      tenantId,
+      jobApplicationId,
+      patch: {
+        ai_match_status: "ANALYZED",
+        ai_analysis_progress: "failed",
+        ai_analysis_error: message.slice(0, 2000),
+      },
+    });
+    throw error;
+  }
+}
+
 /**
  * End-to-end match analysis for one job application.
  */
@@ -96,7 +511,7 @@ export async function runMatchAnalysisForApplication(args: {
     analyzedByUserId,
     onProgress,
   } = args;
-  const analysisMode: AnalysisMode = args.analysisMode === "deep" ? "deep" : "analyze";
+  const analysisMode = parseAnalysisMode(args.analysisMode);
   const analysisProvider = parseAnalysisProvider(args.analysisProvider);
   const providerLabel = ANALYSIS_PROVIDER_LABELS[analysisProvider];
 
@@ -107,7 +522,7 @@ export async function runMatchAnalysisForApplication(args: {
   const { data: application, error: appError } = await supabase
     .from("job_applications")
     .select(
-      "id, tenant_id, job_requisition_id, worker_id, applicant_profile_id, ai_match_status"
+      "id, tenant_id, job_requisition_id, worker_id, applicant_profile_id, ai_match_status, ai_match_stage, ai_analysis, recruiter_decision"
     )
     .eq("id", jobApplicationId)
     .eq("tenant_id", tenantId)
@@ -167,6 +582,24 @@ export async function runMatchAnalysisForApplication(args: {
       model: null,
       requirementCounts: null,
     };
+  }
+
+  if (analysisMode === "call_pack" || analysisMode === "follow_up") {
+    const jobTitle =
+      typeof job.public_title === "string" && job.public_title.trim()
+        ? job.public_title
+        : "Job";
+    return runCallPackQuestionsForApplication({
+      supabase,
+      tenantId,
+      jobApplicationId,
+      analyzedByUserId,
+      analysisProvider,
+      progressMode: analysisMode,
+      application,
+      jobTitle,
+      onProgress,
+    });
   }
 
   emit("preparing", "Preparing résumé and job requirements", "ANALYZING");
@@ -242,6 +675,37 @@ export async function runMatchAnalysisForApplication(args: {
         .join("\n---\n");
     }
 
+    {
+      const { data: screeningRows } = await supabase
+        .from("job_application_ai_screening_answers")
+        .select("question_key, question_text, answer_text")
+        .eq("tenant_id", tenantId)
+        .eq("application_id", jobApplicationId);
+      const byKey = new Map(
+        (screeningRows ?? []).map((row) => [String(row.question_key), row])
+      );
+      const callContext =
+        String(byKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
+      const analysisQuestions = normalizeAnalysisScreeningQuestions(
+        (application.ai_analysis as MatchAnalysisResponse | null)?.screening_questions
+      );
+      const packQuestions = analysisQuestions.map((question) => {
+        const key = aiScreeningQuestionKey(question.priority, question.question);
+        const saved = matchSavedAiScreeningAnswer(byKey, key, question.question);
+        return {
+          question: question.question,
+          answer: isCallContextQuestionKey(key) ? "" : saved?.answer_text ?? "",
+        };
+      });
+      const packNotes = formatScreeningPackForAiNotes({
+        questions: packQuestions,
+        callContext,
+      });
+      if (packNotes) {
+        notes = notes ? `${notes}\n\n${packNotes}` : packNotes;
+      }
+    }
+
     let verified = verifiedRecruiterInfo ?? null;
     if (!verified) {
       const { data: verifiedRows } = await supabase
@@ -264,11 +728,67 @@ export async function runMatchAnalysisForApplication(args: {
     });
     const nextVersion = previousVersion + 1;
 
+    if (analysisMode === "deep") {
+      const { data: existingReqs } = await supabase
+        .from("job_application_match_requirements")
+        .select(
+          "requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
+        )
+        .eq("tenant_id", tenantId)
+        .eq("job_application_id", jobApplicationId);
+      const counts = countQualificationOutcomes(existingReqs ?? []);
+      const storedRoute = quickRouteFromAnalysis(application.ai_analysis);
+      const fitBand = storedRoute
+        ? fitBandFromQuickRoute(storedRoute)
+        : quickMatchFitBand({
+            mandatory: counts.mandatory,
+            confirmed: counts.confirmed,
+            notMet: counts.notMet,
+            blocking: counts.blocking,
+          });
+      const unlockedIndex = matchProgressionIndexFromStage(application.ai_match_stage);
+      const blocked = deepMatchBlockReason({
+        isAnalyzed: true,
+        fitBand,
+        unlockedIndex,
+      });
+      if (blocked || !canRunDeepMatch({ isAnalyzed: true, fitBand, unlockedIndex })) {
+        const message = blocked || DEEP_MATCH_BLOCKED_LOW_FIT;
+        emit("failed", message, "FAILED");
+        await updateApplicationMatchFields({
+          supabase,
+          tenantId,
+          jobApplicationId,
+          patch: {
+            ai_match_status: application.ai_match_status ?? "ANALYZED",
+            ai_analysis_progress: "failed",
+            ai_analysis_error: message,
+          },
+        });
+        return {
+          status: "FAILED",
+          analysis: null,
+          score: null,
+          category: null,
+          action: null,
+          readiness: null,
+          error: message,
+          repaired: false,
+          model: null,
+          requirementCounts: {
+            confirmed: counts.confirmed,
+            verify: counts.verify,
+            notMet: counts.notMet,
+          },
+        };
+      }
+    }
+
     emit(
       "analyzing",
       analysisMode === "deep"
-        ? `Running deeper ${providerLabel} match analysis`
-        : `Running ${providerLabel} match analysis`,
+        ? `Running Deep Match (${providerLabel})`
+        : `Running Quick Match (${providerLabel})`,
       "ANALYZING"
     );
     await setProgress(supabase, tenantId, jobApplicationId, "analyzing");
@@ -317,12 +837,13 @@ export async function runMatchAnalysisForApplication(args: {
       }
     }
 
-    let resolved;
+    const variantKey = matchProgressionVariantKey(analysisMode);
+    let resolved: ResolvedPromptVersion;
     try {
       resolved = await resolvePromptVersion(supabase, {
         tenantId,
         featureKey: "candidate_match",
-        variantKey: analysisMode === "deep" ? "deep" : "default",
+        variantKey,
         industryKey: jobIndustryKey,
         tenantPrimaryIndustryKey: tenantPrimary,
         clientName,
@@ -333,7 +854,7 @@ export async function runMatchAnalysisForApplication(args: {
         await recordAiPromptRun(supabase, {
           tenantId,
           featureKey: "candidate_match",
-          variantKey: analysisMode === "deep" ? "deep" : "default",
+          variantKey,
           verticalKey: null,
           industryKey: jobIndustryKey ?? tenantPrimary,
           promptVersionId: null,
@@ -403,7 +924,12 @@ export async function runMatchAnalysisForApplication(args: {
     emit("validating", "Validating and rescoring", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "validating");
 
-    const analysis = modelResult.analysis;
+    const analysis: MatchAnalysisResponse = {
+      ...modelResult.analysis,
+      job_requirements_fingerprint:
+        structured.sourceFingerprint ??
+        jobRequirementsSourceFingerprint(job as JobRequisitionForRequirements),
+    };
 
     emit("saving", "Saving analysis results", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "saving");
@@ -416,6 +942,10 @@ export async function runMatchAnalysisForApplication(args: {
     });
 
     const analyzedAt = new Date().toISOString();
+    const stage = matchStageFromMode(analysisMode);
+    const scorePatch = applicationMatchScorePatch({ stage, analysis });
+    const persistedScore =
+      stage === "deep" ? analysis.candidate_match.recommended_overall_match_score : null;
 
     await updateApplicationMatchFields({
       supabase,
@@ -423,13 +953,7 @@ export async function runMatchAnalysisForApplication(args: {
       jobApplicationId,
       patch: {
         ai_match_status: "ANALYZED",
-        ai_match_score: analysis.candidate_match.recommended_overall_match_score,
-        ai_match_category: analysis.candidate_match.match_category,
-        ai_match_action: analysis.candidate_match.recommended_action,
-        ai_match_readiness: analysis.submission_readiness.readiness_status,
-        ai_match_display_category:
-          analysis.candidate_match.display_category ||
-          analysis.candidate_match.match_category,
+        ...scorePatch,
         ai_analysis_raw: modelResult.rawObject,
         ai_analysis: analysis,
         ai_analyzed_at: analyzedAt,
@@ -447,12 +971,14 @@ export async function runMatchAnalysisForApplication(args: {
         application_id: jobApplicationId,
         version: nextVersion,
         analysis,
-        score: analysis.candidate_match.recommended_overall_match_score,
-        category: analysis.candidate_match.match_category,
-        recommended_action: analysis.candidate_match.recommended_action,
+        score: persistedScore,
+        category: analysis.candidate_match.match_category || null,
+        recommended_action:
+          stage === "deep" ? analysis.candidate_match.recommended_action : null,
         display_category:
-          analysis.candidate_match.display_category ||
-          analysis.candidate_match.match_category,
+          analysis.candidate_match.display_category?.trim() ||
+          analysis.candidate_match.match_category ||
+          null,
         model: modelResult.model,
         analyzed_by: analyzedByUserId ?? null,
         analyzed_at: analyzedAt,
@@ -467,7 +993,7 @@ export async function runMatchAnalysisForApplication(args: {
       featureKey: "candidate_match",
       variantKey: resolved.variantKey,
       verticalKey: resolved.resolvedVerticalKey,
-      industryKey: resolved.requestedIndustryKey,
+      industryKey: resolved.requestedIndustryKey ?? jobIndustryKey ?? tenantPrimary,
       promptVersionId: resolved.promptVersionId,
       contentHash: resolved.contentHash,
       entityType: "job_application",
@@ -493,10 +1019,11 @@ export async function runMatchAnalysisForApplication(args: {
     return {
       status: "ANALYZED",
       analysis,
-      score: analysis.candidate_match.recommended_overall_match_score,
-      category: analysis.candidate_match.match_category,
-      action: analysis.candidate_match.recommended_action,
-      readiness: analysis.submission_readiness.readiness_status,
+      score: persistedScore,
+      category: stage === "deep" ? analysis.candidate_match.match_category : null,
+      action: stage === "deep" ? analysis.candidate_match.recommended_action : null,
+      readiness:
+        stage === "deep" ? analysis.submission_readiness.readiness_status : null,
       error: null,
       repaired: modelResult.repaired,
       model: modelResult.model,
@@ -515,7 +1042,7 @@ export async function runMatchAnalysisForApplication(args: {
     await recordAiPromptRun(supabase, {
       tenantId,
       featureKey: "candidate_match",
-      variantKey: analysisMode === "deep" ? "deep" : "default",
+      variantKey: matchProgressionVariantKey(analysisMode),
       verticalKey: null,
       industryKey: null,
       promptVersionId: null,
@@ -529,8 +1056,7 @@ export async function runMatchAnalysisForApplication(args: {
       latencyMs: null,
       creditCost: null,
       status: "failed",
-      errorCode:
-        error instanceof MatchAnalysisGenerationError ? error.code : "UNKNOWN",
+      errorCode: matchAnalysisErrorCode(error),
       outputReference: null,
       requestedBy: analyzedByUserId ?? null,
     }).catch(() => undefined);

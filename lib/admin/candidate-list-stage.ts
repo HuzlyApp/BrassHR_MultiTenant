@@ -3,8 +3,12 @@ import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 
 /** Pipeline stage label for a candidate row (same source as Applications list). */
 export function candidateCurrentStageLabel(candidate: CandidateRow): string {
-  const raw = candidate.statusKey ?? candidate.status ?? "";
-  return applicationCurrentStageMeta(raw).label;
+  const raw =
+    candidate.progressStatusKey?.trim() ||
+    candidate.statusKey?.trim() ||
+    candidate.status ||
+    "";
+  return applicationCurrentStageMeta(raw, candidate.progressStatusName).label;
 }
 
 export function candidateMatchesStageFilter(candidate: CandidateRow, stageLabel: string): boolean {

@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   aiScreeningQuestionKey,
+  CALL_CONTEXT_QUESTION_KEY,
+  CALL_CONTEXT_QUESTION_TEXT,
   countQualificationOutcomes,
   filterQualificationRequirements,
   formatRecruiterDecision,
+  formatScreeningPackForAiNotes,
   groupRequirementOutcomeCountsByApplication,
   isRecruiterDecision,
   matchSavedAiScreeningAnswer,
   normalizeAnalysisScreeningQuestions,
   qualificationDisplayStatus,
   resolveRecommendedScreeningAnswerUpsert,
+  checklistStep2Items,
   type QualificationRequirement,
 } from "./workspace";
 
@@ -119,8 +123,8 @@ describe("candidate analysis workspace helpers", () => {
       { ...rows[3], job_application_id: "app-2" },
     ])).toEqual(
       new Map([
-        ["app-1", { confirmed: 2, verify: 0, notMet: 0 }],
-        ["app-2", { confirmed: 0, verify: 2, notMet: 0 }],
+        ["app-1", { confirmed: 2, verify: 0, notMet: 0, mandatory: 2, blocking: 0 }],
+        ["app-2", { confirmed: 0, verify: 2, notMet: 0, mandatory: 2, blocking: 0 }],
       ])
     );
   });
@@ -183,5 +187,89 @@ describe("candidate analysis workspace helpers", () => {
     expect(() =>
       resolveRecommendedScreeningAnswerUpsert({ answer: "Candidate said yes" }, [])
     ).toThrow(/resolve which screening question/i);
+  });
+
+  it("upserts call context with the reserved screening key", () => {
+    const resolved = resolveRecommendedScreeningAnswerUpsert(
+      {
+        key: CALL_CONTEXT_QUESTION_KEY,
+        question: CALL_CONTEXT_QUESTION_TEXT,
+        answer: " Strong communicator; available Monday. ",
+      },
+      []
+    );
+    expect(resolved).toEqual({
+      key: CALL_CONTEXT_QUESTION_KEY,
+      question: CALL_CONTEXT_QUESTION_TEXT,
+      reason: null,
+      related_requirement: null,
+      answer_text: "Strong communicator; available Monday.",
+    });
+  });
+
+  it("persists empty screening answers as empty strings for Save", () => {
+    const questions = normalizeAnalysisScreeningQuestions([
+      { priority: 1, question: "Earliest start date?", reason: "Availability" },
+    ]);
+    const resolved = resolveRecommendedScreeningAnswerUpsert(
+      {
+        key: aiScreeningQuestionKey(1, "Earliest start date?"),
+        question: "Earliest start date?",
+        answer: "   ",
+      },
+      questions
+    );
+    expect(resolved?.answer_text).toBe("");
+  });
+
+  it("formats screening pack answers and context for Deep Match notes", () => {
+    expect(
+      formatScreeningPackForAiNotes({
+        callContext: "Open to travel.",
+        questions: [
+          { question: "Earliest start?", answer: "Next Monday" },
+          { question: "Open to contracts?", answer: "" },
+        ],
+      })
+    ).toBe(
+      "Call context:\nOpen to travel.\n\nScreening call answers:\nQ: Earliest start?\nA: Next Monday"
+    );
+  });
+
+  it("builds step 2 lists from Qualification Checklist outcomes and notes", () => {
+    const items = checklistStep2Items([
+      req({
+        id: "c1",
+        requirement_text: "Active RN license",
+        recruiter_verified: true,
+        recruiter_note: "Verified in Nursys",
+      }),
+      req({
+        id: "v1",
+        requirement_text: "BLS",
+        requirement_outcome: "VERIFY",
+        latest_verification_note: {
+          id: "n1",
+          noteBody: "Ask for card photo",
+          candidateQuestion: null,
+          dueDate: null,
+          verificationStatus: "pending",
+          candidateResponse: null,
+          createdByName: "Recruiter",
+          updatedByName: null,
+          createdAt: "2026-09-01T00:00:00.000Z",
+          updatedAt: "2026-09-01T00:00:00.000Z",
+        },
+      }),
+      req({
+        id: "n1",
+        requirement_text: "Night shift",
+        requirement_outcome: "NOT_MET",
+        status: "NOT_FOUND",
+        verification_required: false,
+      }),
+    ]);
+    expect(items.strengths).toEqual(["Active RN license — Verified in Nursys"]);
+    expect(items.verifications).toEqual(["BLS — Ask for card photo"]);
   });
 });

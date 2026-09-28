@@ -24,6 +24,11 @@ import {
 import { QualificationChecklist } from "./QualificationChecklist";
 import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
 import {
+  candidateProfileApiUrl,
+  invalidateStaffDetailCache,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
+import {
   MatchAnalysisModelSelect,
   useMatchAnalysisProvider,
 } from "./MatchAnalysisModelSelect";
@@ -80,6 +85,10 @@ type WorkspacePayload = {
     display_category: string | null;
     model: string | null;
     analyzed_at: string;
+    analysis?: {
+      quick_match?: { quick_route?: string | null } | null;
+      candidate_match?: { display_category?: string | null } | null;
+    } | null;
   }>;
   extractedResume?: { text: string; fileName: string | null } | null;
   assignedRecruiter?: { id: string; name: string } | null;
@@ -227,7 +236,7 @@ export function CandidateAnalysisWorkspace({
 
   const blocking = analysis?.submission_readiness?.blocking_requirements ?? [];
   const verifyItems = analysis?.submission_readiness?.items_to_verify_before_submission ?? [];
-  const modelLabel = data?.modelName || data?.application.ai_analysis_model || "Grok";
+  const modelLabel = data?.modelName || data?.application.ai_analysis_model || "Gemini";
   const app = data?.application;
   const status = app?.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";
@@ -399,6 +408,9 @@ export function CandidateAnalysisWorkspace({
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Failed to save ${field}`);
       }
+      invalidateStaffDetailCache(workerProfileApiUrl(workerId));
+      invalidateStaffDetailCache(candidateProfileApiUrl(workerId));
+      invalidateStaffDetailCache(`/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}`);
       toast.success("Candidate details saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save details");
@@ -740,12 +752,34 @@ export function CandidateAnalysisWorkspace({
         <h3 className="text-sm font-semibold text-[#0F172A]">Analysis history</h3>
         {(data?.analysisHistory ?? []).length ? (
           <ul className="mt-3 space-y-2">
-            {data?.analysisHistory?.map((item) => (
+            {data?.analysisHistory?.map((item) => {
+              const route = item.analysis?.quick_match?.quick_route;
+              const statusLabel =
+                item.display_category?.trim() ||
+                item.analysis?.candidate_match?.display_category?.trim() ||
+                (route === "STRONG"
+                  ? "Strong"
+                  : route === "LOW_MATCH"
+                    ? "Low match"
+                    : route === "REVIEW"
+                      ? "Review"
+                      : null) ||
+                formatMatchCategory(item.category) ||
+                "Not analyzed";
+              const scoreLabel =
+                item.score != null && Number.isFinite(Number(item.score))
+                  ? formatMatchScore(item.score)
+                  : null;
+              return (
               <li key={item.id} className="rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm">
-                <p className="font-medium text-[#0F172A]">Version {item.version} · {formatMatchScore(item.score)} · {item.display_category || formatMatchCategory(item.category)}</p>
+                <p className="font-medium text-[#0F172A]">
+                  Version {item.version}
+                  {scoreLabel ? ` · ${scoreLabel}` : ""} · {statusLabel}
+                </p>
                 <p className="text-xs text-[#94A3B8]">{formatWhen(item.analyzed_at)}{item.model ? ` · ${item.model}` : ""}</p>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <p className="mt-2 text-sm text-[#64748B]">No previous analysis versions.</p>

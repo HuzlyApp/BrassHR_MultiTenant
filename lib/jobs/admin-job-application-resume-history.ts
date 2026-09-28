@@ -6,6 +6,8 @@ import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-prof
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { isReuploadedResumePath } from "@/lib/resume/resume-reupload-path";
 import { countResumeUploadsForRole } from "@/lib/resume/resume-upload-limit";
+import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
+import { ensureApplicationResumeFromWorker } from "@/lib/jobs/match-analysis/ensure-application-resume";
 
 export type AdminJobApplicationResumeHistoryItem = {
   id: string;
@@ -18,6 +20,7 @@ export type AdminJobApplicationResumeHistoryItem = {
   uploadedByType: "worker" | "staff" | "unknown";
   parsingStatus: "pending" | "processing" | "completed" | "failed";
   isReuploaded: boolean;
+  improvementSummary?: unknown;
 };
 export type AdminJobApplicationResumeHistoryResult = {
   jobTitle: string;
@@ -70,6 +73,7 @@ export type ResumeHistorySourceRow = {
   job_application_id?: string | null;
   parsing_status?: string | null;
   parse_status?: string | null;
+  parsed_json?: unknown;
 };
 
 function resolveHistoryParsingStatus(
@@ -180,6 +184,19 @@ export async function loadAdminJobApplicationResumeHistory(
     };
   }
 
+  // Import / talent-pool: attach existing worker résumé before listing history.
+  await ensureApplicationResumeFromWorker({
+    supabase,
+    tenantId,
+    applicationId,
+    workerId,
+  }).catch((error) => {
+    console.warn(
+      "[resume-history] ensure application resume failed:",
+      error instanceof Error ? error.message : error
+    );
+  });
+
   const { data: worker, error: workerError } = await supabase
     .from("worker")
     .select("id, user_id, first_name, last_name, profile_photo")
@@ -222,7 +239,7 @@ export async function loadAdminJobApplicationResumeHistory(
   let resumeQuery = supabase
     .from("worker_resumes")
     .select(
-      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id, parsing_status, parse_status"
+      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id, parsing_status, parse_status, parsed_json"
     )
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: true });
@@ -278,10 +295,14 @@ export async function loadAdminJobApplicationResumeHistory(
     let uploadedByType: AdminJobApplicationResumeHistoryItem["uploadedByType"] = "unknown";
     let uploadedByName = "Unknown";
     let uploadedByPhotoUrl: string | null = null;
-    const fileName =
-      row.original_file_name?.trim() ||
-      row.file_name?.trim() ||
-      "Resume.pdf";
+    const fileName = buildWorkerResumeFileName({
+      firstName: worker?.first_name as string | null | undefined,
+      lastName: worker?.last_name as string | null | undefined,
+      originalFileName:
+        row.original_file_name?.trim() ||
+        row.file_name?.trim() ||
+        "Resume.pdf",
+    });
 
     if (uploaderId && workerUserId && uploaderId === workerUserId) {
       uploadedByType = "worker";
@@ -308,6 +329,13 @@ export async function loadAdminJobApplicationResumeHistory(
       uploadedByType,
       parsingStatus: resolveHistoryParsingStatus(row),
       isReuploaded: isReuploadedResumePath(row.storage_path, row.file_url),
+      improvementSummary:
+        row.parsed_json &&
+        typeof row.parsed_json === "object" &&
+        row.parsed_json !== null &&
+        "improvementSummary" in row.parsed_json
+          ? (row.parsed_json as { improvementSummary?: unknown }).improvementSummary
+          : undefined,
     };
   });
 

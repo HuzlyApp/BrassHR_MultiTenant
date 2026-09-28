@@ -67,12 +67,22 @@ export const PIPELINE_PROGRESS_STEPS = [
   "failed",
 ] as const;
 
-export const ANALYSIS_MODES = ["analyze", "deep"] as const;
+export const ANALYSIS_MODES = ["analyze", "call_pack", "follow_up", "deep"] as const;
 export const ANALYSIS_PROVIDERS = ["grok", "gemini"] as const;
 export const DEFAULT_ANALYSIS_PROVIDER = "grok" as const;
+export const QUICK_ROUTES = ["STRONG", "REVIEW", "LOW_MATCH"] as const;
+export const QUICK_EVIDENCE_SOURCES = [
+  "JOB_BULLET",
+  "SUMMARY",
+  "SKILLS_LIST",
+  "RECRUITER_NOTE",
+  "NONE",
+] as const;
 
 export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
 export type AnalysisProvider = (typeof ANALYSIS_PROVIDERS)[number];
+export type QuickRoute = (typeof QUICK_ROUTES)[number];
+export type QuickEvidenceSource = (typeof QUICK_EVIDENCE_SOURCES)[number];
 
 export const ANALYSIS_PROVIDER_LABELS: Record<AnalysisProvider, string> = {
   grok: "Grok",
@@ -81,6 +91,14 @@ export const ANALYSIS_PROVIDER_LABELS: Record<AnalysisProvider, string> = {
 
 export function parseAnalysisProvider(value: unknown): AnalysisProvider {
   return value === "gemini" ? "gemini" : DEFAULT_ANALYSIS_PROVIDER;
+}
+
+export function parseAnalysisMode(value: unknown): AnalysisMode {
+  if (value === "deep") return "deep";
+  if (value === "call_pack") return "call_pack";
+  /** @deprecated Prefer call_pack — screening questions now generate at Step 2. */
+  if (value === "follow_up") return "follow_up";
+  return "analyze";
 }
 
 export type MatchCategory = (typeof MATCH_CATEGORIES)[number];
@@ -132,6 +150,7 @@ export const analyzeMatchResponseSchema = z.object({
   recommended_overall_match_score: clampedScore.default(0),
   match_category: z.enum(MATCH_CATEGORIES),
   recommended_action: z.enum(RECOMMENDED_ACTIONS),
+  display_category: z.string().max(200).default(""),
   mandatory_requirements: z.array(analyzeRequirementItemSchema).max(60).default([]),
   preferred_requirements: z.array(analyzeRequirementItemSchema).max(60).default([]),
   strengths: z.array(z.string().max(1000)).max(5).default([]),
@@ -140,12 +159,65 @@ export const analyzeMatchResponseSchema = z.object({
   screening_questions: z.array(z.string().max(1000)).max(4).default([]),
   items_to_verify: z.array(z.string().max(1000)).max(30).default([]),
   blocking_requirements: z.array(z.string().max(1000)).max(30).default([]),
+  hard_knockout: z.boolean().optional().default(false),
+  potential_score_after_verification: clampedScore.nullable().optional(),
 });
 
 export type AnalyzeMatchResponse = z.infer<typeof analyzeMatchResponseSchema>;
 
+const unitInterval = z.coerce.number().min(0).max(1);
+
+export const quickMatchRequirementSchema = z.object({
+  requirement: z.string().trim().min(1).max(2000),
+  status: z.enum(REQUIREMENT_STATUSES),
+  evidence: z.string().max(4000).default(""),
+  evidence_source: z.enum(QUICK_EVIDENCE_SOURCES).optional(),
+});
+
+export const quickMatchExtractedResumeSchema = z.object({
+  headline: z.string().max(500).default(""),
+  years_estimated: optionalYears.default(null),
+  recent_titles: z.array(z.string().max(200)).max(20).default([]),
+  named_products_in_jobs: z.array(z.string().max(200)).max(40).default([]),
+  education: z.string().max(1000).default(""),
+});
+
+export const quickMatchCountsSchema = z.object({
+  confirmed: z.coerce.number().int().min(0).default(0),
+  partial: z.coerce.number().int().min(0).default(0),
+  not_found: z.coerce.number().int().min(0).default(0),
+  conflicting: z.coerce.number().int().min(0).default(0),
+  preferred_confirmed: z.coerce.number().int().min(0).default(0),
+  preferred_total: z.coerce.number().int().min(0).default(0),
+});
+
+/** Step 1 Quick Match model output. Route fields are recomputed in-app. */
+export const quickMatchResponseSchema = z.object({
+  step: z.literal("quick_match").optional().default("quick_match"),
+  quick_route: z.enum(QUICK_ROUTES).optional(),
+  extracted_resume: quickMatchExtractedResumeSchema.default({
+    headline: "",
+    years_estimated: null,
+    recent_titles: [],
+    named_products_in_jobs: [],
+    education: "",
+  }),
+  mandatory_requirements: z.array(quickMatchRequirementSchema).max(60).default([]),
+  preferred_requirements: z.array(quickMatchRequirementSchema).max(60).default([]),
+  counts: quickMatchCountsSchema.optional(),
+  mand_met: unitInterval.optional(),
+  pref_met: unitInterval.optional(),
+  weighted: unitInterval.optional(),
+  blocking_requirements: z.array(z.string().max(1000)).max(30).default([]),
+  items_to_verify: z.array(z.string().max(1000)).max(30).default([]),
+});
+
+export type QuickMatchResponse = z.infer<typeof quickMatchResponseSchema>;
+
 export const matchAnalysisResponseSchema = z.object({
   analysis_version: z.string().default("1.0"),
+  /** Fingerprint of JD source fields at analysis time; used to detect stale results. */
+  job_requirements_fingerprint: z.string().max(128).optional(),
   job: z
     .object({
       job_id: z.string().default(""),
@@ -252,6 +324,17 @@ export const matchAnalysisResponseSchema = z.object({
       resume_conflicts: [],
       missing_information: [],
     }),
+  quick_match: z
+    .object({
+      step: z.literal("quick_match"),
+      quick_route: z.enum(QUICK_ROUTES),
+      extracted_resume: quickMatchExtractedResumeSchema,
+      counts: quickMatchCountsSchema,
+      mand_met: unitInterval,
+      pref_met: unitInterval,
+      weighted: unitInterval,
+    })
+    .optional(),
 });
 
 export type RequirementItem = z.infer<typeof requirementItemSchema>;
@@ -266,6 +349,8 @@ export const structuredJobRequirementsSchema = z.object({
   requiredYearsExperience: z.string().max(100).nullable().optional(),
   specialty: z.string().max(200).nullable().optional(),
   location: z.string().max(300).nullable().optional(),
+  /** Hash of JD source fields; cache is ignored when this no longer matches the live job. */
+  sourceFingerprint: z.string().max(128).optional(),
 });
 
 export type StructuredJobRequirements = z.infer<typeof structuredJobRequirementsSchema>;

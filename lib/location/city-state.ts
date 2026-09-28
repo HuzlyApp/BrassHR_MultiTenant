@@ -202,6 +202,48 @@ export function formatCityState(raw: string | null | undefined): string {
   return parseCityStateLocation(raw).display;
 }
 
+/** Map a resume parse preview onto the add-candidate work city/state fields. */
+export function workLocationFromResumePreview(
+  preview:
+    | {
+        city?: string | null;
+        state?: string | null;
+        location?: string | null;
+      }
+    | null
+    | undefined
+): { city: string; state: string } {
+  if (!preview) return { city: "", state: "" };
+
+  const cityRaw = String(preview.city ?? "").trim();
+  const stateRaw = String(preview.state ?? "").trim();
+  const locationRaw = String(preview.location ?? "").trim();
+  const combined = [cityRaw, stateRaw].filter(Boolean).join(", ");
+
+  // Try richest strings first so a partial city/state pair does not hide a fuller location.
+  const candidates = [locationRaw, combined, cityRaw, stateRaw].filter(Boolean);
+  let city = "";
+  let stateCode = "";
+
+  for (const raw of candidates) {
+    const parsed = parseCityStateLocation(raw);
+    if (!city && parsed.city) city = parsed.city;
+    if (!stateCode && parsed.stateCode) stateCode = parsed.stateCode;
+    if (city && stateCode) break;
+  }
+
+  if (!city && cityRaw && !resolveState(cityRaw)) {
+    city = titleCaseCity(cleanLocationPart(cityRaw));
+  }
+
+  if (!stateCode && stateRaw) {
+    const resolved = resolveState(stateRaw);
+    if (resolved) stateCode = resolved.code;
+  }
+
+  return { city, state: stateCode };
+}
+
 export function cityStateMatchKey(raw: string | null | undefined): string {
   return parseCityStateLocation(raw).key;
 }

@@ -123,6 +123,29 @@ describe("prepareResumeCandidate", () => {
     expect(result.parsed.phone).toContain("404");
   });
 
+  it("does not use a jammed resume header as the candidate last name when Grok is unavailable", async () => {
+    grokParseResumeCachedMock.mockRejectedValue(new Error("xAI unavailable"));
+
+    const result = await prepareResumeCandidate({
+      resumeText: `
+Goutham Sr SAP Consultant kgouthamk81@gmail.com| 9752078020 | https://www.linkedin.com/in/kgoutham-k-391b78435/
+
+Professional Summary
+Served as a Senior SAP Consultant delivering SAP ECC and S/4HANA enhancements.
+
+Experience
+Senior SAP Consultant — Healthcare enterprise — 2020–Present
+`.trim(),
+      resumeTitle: "Goutham_K_SAP_Consultant",
+    });
+
+    expect(result.parsed.first_name).toBe("Goutham");
+    expect(result.parsed.last_name).toBe("K");
+    expect(result.parsed.email).toBe("kgouthamk81@gmail.com");
+    expect(result.parsed.last_name).not.toMatch(/gmail|linkedin|Consultant/i);
+    expect(result.qualityOk).toBe(true);
+  });
+
   it("does not throw when extracted file text is unreadable — recruiter can fill details", async () => {
     extractResumeTextFromUploadMock.mockResolvedValue("abc");
     const file = new File([new Uint8Array([1, 2, 3])], "Resume.pdf", {
