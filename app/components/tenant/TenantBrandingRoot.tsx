@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import { isRecruiterAuthPath } from "@/lib/tenant/auth-entry-paths";
 import { readCachedTenantBranding, writeCachedTenantBranding } from "@/lib/tenant/client-branding-cache";
+import { fetchTenantBranding } from "@/lib/tenant/fetch-tenant-branding";
 import {
   buildTenantBrandingApiUrl,
   resolveTenantSlugForClient,
@@ -45,11 +46,7 @@ export default function TenantBrandingRoot({ children }: { children: ReactNode }
       }
 
       try {
-        const res = await fetch(buildTenantBrandingApiUrl(resolved), {
-          cache: "no-store",
-          signal: AbortSignal.timeout(12_000),
-        });
-        const payload = (await res.json().catch(() => ({}))) as { branding?: TenantBranding };
+        const payload = await fetchTenantBranding(buildTenantBrandingApiUrl(resolved));
         if (alive && payload.branding) {
           setBranding(payload.branding);
           writeCachedTenantBranding(payload.branding);

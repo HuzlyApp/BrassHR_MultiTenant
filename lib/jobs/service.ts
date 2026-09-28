@@ -20,10 +20,6 @@ import {
 } from "@/lib/jobs/validation";
 import { parseIndustryKey, InvalidIndustryKeyError, industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import {
-  tallyApplicationMetrics,
-  type JobListApplicationMetricRow,
-} from "@/lib/jobs/job-list-application-metrics";
-import {
   formatDateOnlyUtc,
   isJobRequisitionOpen,
   normalizeJobToken,
@@ -1323,7 +1319,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, external_requisition_id, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, show_pay_by, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, industry_key, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(status, status_id, application_statuses!status_id(system_key, name), ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at)"
+      "id, internal_requisition_number, external_requisition_id, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, is_hot, tags, assigned_recruiter_user_id, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, show_pay_by, commission_percent, commission_fixed_amount, qualifications, public_description, responsibilities, special_requirements, required_credentials, industry_key, professions(name), specialties(name), onboarding_flows!workflow_id(name)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -1339,10 +1335,41 @@ export async function listInternalJobs(
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
   if (filters.createdBy) query = query.eq("created_by", filters.createdBy);
 
-  const { data, error } = await query;
+  const metricsQuery = supabase.rpc("job_list_application_metrics", {
+    p_tenant_id: tenantId,
+  });
+  const [{ data, error }, metricsResult] = await Promise.all([query, metricsQuery]);
   if (error) throw error;
+  if (metricsResult.error) throw metricsResult.error;
   const jobs = data ?? [];
   if (!jobs.length) return jobs;
+
+  const metricsByJob = new Map<
+    string,
+    {
+      applicant_count?: number;
+      new_count?: number;
+      in_process_count?: number;
+      analyzed_count?: number;
+      strong_count?: number;
+      ready_count?: number;
+      hired_count?: number;
+      in_process_redirect_tab?: string | null;
+    }
+  >();
+  for (const row of metricsResult.data ?? []) {
+    const jobId = String((row as { job_requisition_id?: string }).job_requisition_id ?? "");
+    if (jobId) metricsByJob.set(jobId, row as {
+      applicant_count?: number;
+      new_count?: number;
+      in_process_count?: number;
+      analyzed_count?: number;
+      strong_count?: number;
+      ready_count?: number;
+      hired_count?: number;
+      in_process_redirect_tab?: string | null;
+    });
+  }
 
   const creatorIds = jobs
     .map((job) => (job as { created_by?: string | null }).created_by)
@@ -1350,10 +1377,7 @@ export async function listInternalJobs(
   const creatorsById = await loadStaffUsersByIds(supabase, tenantId, creatorIds);
 
   return jobs.map((job) => {
-    const nested = Array.isArray(job.job_applications)
-      ? (job.job_applications as JobListApplicationMetricRow[])
-      : [];
-    const metrics = tallyApplicationMetrics(nested);
+    const metrics = metricsByJob.get(String(job.id));
     const createdByUserId = (job as { created_by?: string | null }).created_by;
     return {
       ...job,
@@ -1362,14 +1386,14 @@ export async function listInternalJobs(
       tags: normalizeJobTags((job as { tags?: unknown }).tags),
       assigned_recruiter_user_id:
         (job as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ?? null,
-      job_applications: [{ count: metrics.applicantCount }],
-      new_application_count: metrics.newCount,
-      in_process_application_count: metrics.inProcessCount,
-      in_process_redirect_tab: metrics.inProcessRedirectTab,
-      analyzed_application_count: metrics.analyzedCount,
-      strong_match_count: metrics.strongCount,
-      ready_to_submit_count: metrics.readyCount,
-      hired_application_count: metrics.hiredCount,
+      job_applications: [{ count: Number(metrics?.applicant_count ?? 0) }],
+      new_application_count: Number(metrics?.new_count ?? 0),
+      in_process_application_count: Number(metrics?.in_process_count ?? 0),
+      in_process_redirect_tab: metrics?.in_process_redirect_tab ?? null,
+      analyzed_application_count: Number(metrics?.analyzed_count ?? 0),
+      strong_match_count: Number(metrics?.strong_count ?? 0),
+      ready_to_submit_count: Number(metrics?.ready_count ?? 0),
+      hired_application_count: Number(metrics?.hired_count ?? 0),
       createdBy: createdByUserId
         ? creatorsById.get(String(createdByUserId)) ?? null
         : null,

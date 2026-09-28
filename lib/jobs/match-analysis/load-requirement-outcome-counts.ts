@@ -8,8 +8,8 @@ import {
   type RequirementOutcomeCountRow,
 } from "./workspace";
 
-/** Keep each `.in()` batch small so requirement rows stay under PostgREST's ~1000-row cap. */
-const APPLICATION_ID_CHUNK = 40;
+/** One `.in()` stays exact in JS. Larger lists use the grouped RPC. */
+const APPLICATION_ID_CHUNK = 70;
 /** Page size for requirement-row reads (PostgREST default max_rows is 1000). */
 const REQUIREMENT_ROW_PAGE = 1000;
 
@@ -27,6 +27,34 @@ export async function loadRequirementOutcomeCountsByApplication(
   applicationIds: string[]
 ): Promise<Map<string, ListingRequirementOutcomeCounts>> {
   const unique = [...new Set(applicationIds.map((id) => id.trim()).filter(Boolean))];
+  if (unique.length > APPLICATION_ID_CHUNK) {
+    const { data, error } = await supabase.rpc("job_application_requirement_counts", {
+      p_tenant_id: tenantId,
+      p_application_ids: unique,
+    });
+    if (error) throw error;
+    const grouped = new Map<string, ListingRequirementOutcomeCounts>();
+    for (const row of (data ?? []) as Array<{
+      job_application_id?: string;
+      confirmed?: number;
+      verify?: number;
+      not_met?: number;
+      mandatory?: number;
+      blocking?: number;
+    }>) {
+      const id = String(row.job_application_id ?? "").trim();
+      if (!id) continue;
+      grouped.set(id, {
+        confirmed: Number(row.confirmed ?? 0),
+        verify: Number(row.verify ?? 0),
+        notMet: Number(row.not_met ?? 0),
+        mandatory: Number(row.mandatory ?? 0),
+        blocking: Number(row.blocking ?? 0),
+      });
+    }
+    return grouped;
+  }
+
   const allRows: RequirementCountQueryRow[] = [];
 
   for (let offset = 0; offset < unique.length; offset += APPLICATION_ID_CHUNK) {
