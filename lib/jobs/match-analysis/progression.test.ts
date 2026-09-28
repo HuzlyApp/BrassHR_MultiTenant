@@ -12,6 +12,7 @@ import {
   matchProgressionFollowUpNeedsConfirm,
   matchProgressionStepRequiresDeepConfirm,
   quickMatchFitBand,
+  fitBandForMatchGate,
   displayFitBand,
   listingDisplayFitBand,
   fitBandFromDeepMatchResult,
@@ -145,6 +146,21 @@ describe("match progression steps", () => {
     expect(listingDisplayFitBand({ analyzed: false, stage: "quick", counts: { confirmed: 6 } })).toBe(
       null
     );
+  });
+
+  it("lets a Strong checklist override a stored Low match route", () => {
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 8, confirmed: 13, notMet: 0, blocking: 0 },
+        storedRoute: "LOW_MATCH",
+      })
+    ).toBe("strong");
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 0, confirmed: 0, notMet: 0, blocking: 0 },
+        storedRoute: "LOW_MATCH",
+      })
+    ).toBe("low");
   });
 
   it("allows Verifications for low fit but blocks Deep Match and Talent Pool", () => {

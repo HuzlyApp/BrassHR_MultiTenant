@@ -194,6 +194,36 @@ describe("submission résumé pack", () => {
     expect(fallback.skills.every((item) => item.length <= 80)).toBe(true);
   });
 
+  it("keeps a multi-page work history instead of rejecting it", () => {
+    const bullets = Array.from({ length: 12 }, (_, index) => `Source bullet ${index + 1} with a real metric.`);
+    const experience = Array.from({ length: 12 }, (_, index) => ({
+      title: `Role ${index + 1}`,
+      company: `Employer ${index + 1}`,
+      location: "Austin, TX",
+      dates: `${2010 + index}–${2011 + index}`,
+      bullets,
+    }));
+
+    const parsed = parseSubmissionResume({
+      fullName: "Jordan Hale",
+      headline: "Observability Architect",
+      summary: "Kept from the source résumé.",
+      skills: Array.from({ length: 18 }, (_, index) => `Tool ${index + 1}`),
+      experience,
+      education: [],
+      licenses: [],
+    });
+
+    expect(parsed).not.toBeNull();
+    expect(parsed!.experience).toHaveLength(12);
+    expect(parsed!.experience[0]?.bullets).toHaveLength(12);
+    expect(parsed!.experience[11]?.company).toBe("Employer 12");
+    expect(parsed!.skills).toHaveLength(18);
+    expect(parsed!.experience[0]?.location).toBe("Austin, TX");
+    expect(submissionResumeToPlainText(parsed!)).toContain("PROFESSIONAL EXPERIENCE");
+    expect(submissionResumeToPlainText(parsed!)).not.toContain("RELEVANT EXPERIENCE");
+  });
+
   it("keeps identity from the fallback when the model omits contact fields", () => {
     const fallback = buildFallbackSubmissionResume({
       identity: {
