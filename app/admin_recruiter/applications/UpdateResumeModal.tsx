@@ -15,6 +15,7 @@ import ErrorModal from "@/app/components/ErrorModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
+import { PERSON_NAME_MAX_LENGTH, validatePersonName } from "@/lib/person-name";
 import type { ResumeHistoryItem } from "./ResumeHistoryModal";
 import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
 
@@ -288,7 +289,16 @@ export default function UpdateResumeModal({
 
   async function handleSubmit() {
     if (busy || !canSubmit) return;
-    if (!firstName.trim()) {
+    if (nameChanged) {
+      const firstCheck = validatePersonName(firstName, { label: "First name" });
+      const lastCheck = lastName.trim() ? validatePersonName(lastName, { label: "Last name" }) : null;
+      const nameError = !firstCheck.ok ? firstCheck.error : lastCheck && !lastCheck.ok ? lastCheck.error : null;
+      if (nameError) {
+        setErrorMessage(nameError);
+        setErrorOpen(true);
+        return;
+      }
+    } else if (!firstName.trim()) {
       setErrorMessage("First name is required.");
       setErrorOpen(true);
       return;
@@ -491,6 +501,7 @@ export default function UpdateResumeModal({
                       placeholder="First name"
                       value={firstName}
                       onChange={(event) => setFirstName(event.target.value)}
+                      maxLength={PERSON_NAME_MAX_LENGTH}
                       disabled={busy}
                       autoComplete="given-name"
                     />
@@ -505,6 +516,7 @@ export default function UpdateResumeModal({
                       placeholder="Last name"
                       value={lastName}
                       onChange={(event) => setLastName(event.target.value)}
+                      maxLength={PERSON_NAME_MAX_LENGTH}
                       disabled={busy}
                       autoComplete="family-name"
                     />

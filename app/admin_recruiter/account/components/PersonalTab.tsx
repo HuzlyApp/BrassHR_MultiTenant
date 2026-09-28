@@ -9,6 +9,11 @@ import {
   filterCandidateFieldInput,
   validateCandidateFieldInput,
 } from "@/lib/admin/worker-profile-field-client";
+import {
+  isPersonNameTooLong,
+  PERSON_NAME_MAX_LENGTH,
+  personNameTooLongMessage,
+} from "@/lib/person-name";
 import { formatPhoneNumber } from "@/lib/phone";
 import { isValidStep1Zip5, step1ZipStateMessage } from "@/lib/onboardingStep1Validation";
 import {
@@ -82,6 +87,14 @@ export default function PersonalTab() {
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
+
+    if (isPersonNameTooLong(firstName) || isPersonNameTooLong(lastName)) {
+      setSaveError(
+        personNameTooLongMessage(isPersonNameTooLong(firstName) ? "First name" : "Last name")
+      );
+      setSaving(false);
+      return;
+    }
 
     const nextPhoneError = phone.trim()
       ? phoneValidationMessage(phone, { required: false })
@@ -231,6 +244,7 @@ export default function PersonalTab() {
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
+                maxLength={PERSON_NAME_MAX_LENGTH}
                 className={FIELD}
               />
             </label>
@@ -240,6 +254,7 @@ export default function PersonalTab() {
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                maxLength={PERSON_NAME_MAX_LENGTH}
                 className={FIELD}
               />
             </label>

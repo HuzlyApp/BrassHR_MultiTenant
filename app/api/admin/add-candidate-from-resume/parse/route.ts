@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { prepareResumeCandidate } from "@/lib/jobs/admin-add-candidate-from-resume";
 import { JobValidationError } from "@/lib/jobs/types";
+import { NAME_NEEDS_REVIEW_MESSAGE, reviewParsedCandidateName } from "@/lib/person-name";
 import { enforceRateLimit, envRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
@@ -30,6 +31,14 @@ export type AdminResumeParsePreview = {
   city: string;
   state: string;
   location: string;
+};
+
+export type AdminResumeNameReview = {
+  needsReview: boolean;
+  message: string | null;
+  rawExtract: string;
+  firstNameError: string | null;
+  lastNameError: string | null;
 };
 
 /** Parse a resume before the candidate is created, so the recruiter can review the names. */
@@ -67,9 +76,17 @@ export async function POST(req: NextRequest) {
 
     const city = parsed.city.trim();
     const state = parsed.state.trim();
+    const review = reviewParsedCandidateName(parsed.first_name, parsed.last_name);
+    const nameReview: AdminResumeNameReview = {
+      needsReview: review.needsReview,
+      message: review.needsReview ? NAME_NEEDS_REVIEW_MESSAGE : null,
+      rawExtract: review.rawExtract,
+      firstNameError: review.firstNameError,
+      lastNameError: review.lastNameError,
+    };
     const preview: AdminResumeParsePreview = {
-      firstName: parsed.first_name,
-      lastName: parsed.last_name,
+      firstName: review.firstName,
+      lastName: review.lastName,
       email: parsed.email,
       phone: parsed.phone,
       jobRole: parsed.job_role,
@@ -81,6 +98,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       parsed: preview,
+      nameReview,
       extractedText: extractedText.trim() || null,
       qualityOk,
       warning: qualityOk ? null : qualityMessage,

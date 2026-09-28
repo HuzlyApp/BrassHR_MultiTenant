@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Check, MoreHorizontal, UserPlus, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import type { StaffAccountStatus, StaffConsoleRole, StaffDirectoryRow } from "@/lib/admin/staff-directory-types";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 
 const STATUS_STYLES: Record<StaffAccountStatus, string> = {
   pending: "bg-[#FEF3C7] text-[#92400E]",
@@ -461,6 +462,7 @@ export default function AdminConsolePanel() {
                   required
                   value={firstName}
                   onChange={(event) => setFirstName(event.target.value)}
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                   className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm outline-none focus:border-[#012352]"
                 />
               </label>
@@ -470,6 +472,7 @@ export default function AdminConsolePanel() {
                   required
                   value={lastName}
                   onChange={(event) => setLastName(event.target.value)}
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                   className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm outline-none focus:border-[#012352]"
                 />
               </label>

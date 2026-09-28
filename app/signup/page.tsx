@@ -9,6 +9,7 @@ import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField
 import { ArrowLeft, Check, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
 import {
@@ -192,6 +193,7 @@ function TextField({
   required,
   type = "text",
   error,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -200,6 +202,7 @@ function TextField({
   required?: boolean;
   type?: "text" | "email";
   error?: string | null;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -209,6 +212,7 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        maxLength={maxLength}
         style={signupInputTypographyStyle}
         className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] ${
           error
@@ -934,6 +938,7 @@ export default function SignupPage() {
                   value={form.firstName}
                   onChange={(value) => update("firstName", value)}
                   placeholder="First Name"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                 />
               </div>
               <div className="min-w-0">
@@ -943,6 +948,7 @@ export default function SignupPage() {
                   value={form.lastName}
                   onChange={(value) => update("lastName", value)}
                   placeholder="Last Name"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
                 />
               </div>
               <div className="min-w-0" onBlur={() => setTouchedEmail(true)}>

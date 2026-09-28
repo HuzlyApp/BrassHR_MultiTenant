@@ -1,3 +1,5 @@
+import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name";
+
 export type ApplicantProfileInput = {
   first_name: string;
   last_name: string;
@@ -29,7 +31,9 @@ export function validateApplicantProfileInput(
   const zip = input.zip?.trim() ?? "";
 
   if (!first_name) errors.first_name = "First name is required.";
+  else if (isPersonNameTooLong(first_name)) errors.first_name = personNameTooLongMessage("First name");
   if (!last_name) errors.last_name = "Last name is required.";
+  else if (isPersonNameTooLong(last_name)) errors.last_name = personNameTooLongMessage("Last name");
   if (!email) errors.email = "Email is required.";
   else if (!EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
   if (!phone) errors.phone = "Phone number is required.";

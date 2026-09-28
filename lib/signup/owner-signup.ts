@@ -1,3 +1,4 @@
+import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
 
 function isGarbageAddressText(value: string): boolean {
@@ -98,7 +99,9 @@ export function validateOwnerSignupDetails(
   payload: Partial<OwnerSignupPayload>
 ): string | null {
   if (!payload.firstName) return "First name is required.";
+  if (isPersonNameTooLong(payload.firstName)) return personNameTooLongMessage("First name");
   if (!payload.lastName) return "Last name is required.";
+  if (isPersonNameTooLong(payload.lastName)) return personNameTooLongMessage("Last name");
   if (!payload.workEmail?.includes("@")) return "A valid work email is required.";
   if (!payload.jobTitle) return "Job title is required.";
   if (!payload.city) return "City is required.";

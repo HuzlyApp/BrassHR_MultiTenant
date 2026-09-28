@@ -79,7 +79,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
     const result = await adminAddCandidateFromResume(supabase, {
       tenantId,
       jobRequisitionId,
