@@ -17,7 +17,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 // import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
-import { workerSignInHref } from "@/lib/auth/worker-sign-in";
+import { fetchTenantBranding } from "@/lib/tenant/fetch-tenant-branding";
 import {
   persistOnboardingSlugCookie,
 } from "@/lib/tenant/client-onboarding-slug";
@@ -68,7 +68,6 @@ export default function Home() {
   const [brand, setBrand] = useState<TenantBranding>(() =>
     brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
   );
-  const [brandLoaded, setBrandLoaded] = useState(false);
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
   const [tenantNotFound, setTenantNotFound] = useState(false);
   const [startingApplication, setStartingApplication] = useState(false);
@@ -128,6 +127,7 @@ export default function Home() {
         resolved.slug && isTenantApplicantPortalSlug(resolved.slug)
           ? resolved.slug.trim().toLowerCase()
           : null;
+      const brandingPromise = fetchTenantBranding(buildTenantBrandingApiUrl(resolved));
 
       if (applicantPortalSlug) {
         persistOnboardingSlugCookie(applicantPortalSlug);
@@ -157,12 +157,7 @@ export default function Home() {
       const brandingSlug = applicantPortalSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
 
       try {
-        const brandingUrl = buildTenantBrandingApiUrl(resolved);
-        const res = await fetch(brandingUrl, {
-          cache: "no-store",
-          signal: AbortSignal.timeout(12_000),
-        });
-        const payload = (await res.json()) as { branding?: TenantBranding; tenantFound?: boolean };
+        const payload = await brandingPromise;
         if (alive && payload.tenantFound === false) {
           setActiveTenantSlug(null);
           setBrand(brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG));
@@ -173,28 +168,12 @@ export default function Home() {
         }
       } catch {
         if (alive) setBrand(brandingFallbackForSlug(brandingSlug));
-      } finally {
-        if (alive) setBrandLoaded(true);
       }
     })();
-    const safetyTimer = window.setTimeout(() => {
-      if (alive) setBrandLoaded(true);
-    }, 15_000);
     return () => {
       alive = false;
-      window.clearTimeout(safetyTimer);
     };
   }, []);
-
-  if (!brandLoaded) {
-    return (
-      <TenantBrandingProvider branding={brand}>
-        <div className="flex min-h-screen items-center justify-center bg-white">
-          <p className="text-sm text-slate-500">Loading…</p>
-        </div>
-      </TenantBrandingProvider>
-    );
-  }
 
   const shell: CSSProperties = {
     ...brandingToCssVars(brand),
