@@ -170,12 +170,12 @@ function formatDateTime(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const date = d.toLocaleDateString("en-US", {
+  const date = d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  const time = d.toLocaleTimeString("en-US", {
+  const time = d.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -187,7 +187,7 @@ function formatDateShort(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

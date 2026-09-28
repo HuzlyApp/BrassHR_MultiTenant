@@ -44,7 +44,7 @@ function formatDate(iso: string | null) {
   if (!iso) return "N/A";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "N/A";
-  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "2-digit", year: "numeric" });
 }
 
 function formatPhone(phone: string | null) {

@@ -85,7 +85,7 @@ function initials(name: string): string {
 function formatWeekdayDate(isoDate: string): string {
   const date = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     weekday: "long",
     day: "numeric",
     month: "long",

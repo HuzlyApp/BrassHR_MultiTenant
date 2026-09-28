@@ -499,7 +499,7 @@ function formatRelativeTime(iso: string): string {
   if (Number.isNaN(date.getTime())) return "—";
   const days = Math.floor(Math.max(0, Date.now() - date.getTime()) / 86400000);
   if (days >= 7) {
-    return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" });
   }
   return formatTimeAgo(iso);
 }
@@ -510,7 +510,7 @@ function formatApplicationDate(iso: string | null | undefined): { relative: stri
   if (Number.isNaN(date.getTime())) return { relative: "—", absolute: "" };
   return {
     relative: formatTimeAgo(iso),
-    absolute: date.toLocaleDateString(undefined, {
+    absolute: date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -522,7 +522,7 @@ function formatActivity(row: ApplicationRow): string {
   const when = row.updated_at || row.submitted_at || row.created_at;
   const relative = formatRelativeTime(when);
   if (row.status === "submitted" || row.status === "new") return `New Applicant • ${relative}`;
-  return `${relative} • ${new Date(when).toLocaleDateString(undefined, {
+  return `${relative} • ${new Date(when).toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "long",
     day: "numeric",
     year: "numeric",

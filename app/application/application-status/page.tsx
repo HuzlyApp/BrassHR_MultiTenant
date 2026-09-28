@@ -22,13 +22,13 @@ type ApplicationStatusResponse = {
 function formatSubmittedDate(value: string | null | undefined): string {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) {
-    return new Date().toLocaleDateString(undefined, {
+    return new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", 
       month: "numeric",
       day: "numeric",
       year: "numeric",
     });
   }
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "numeric",
     day: "numeric",
     year: "numeric",

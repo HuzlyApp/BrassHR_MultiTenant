@@ -30,7 +30,7 @@ type WorkerAccountDocumentsViewProps = {
 function formatUploadedDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric", year: "numeric" });
 }
 
 export function WorkerAccountDocumentsView({ workerId }: WorkerAccountDocumentsViewProps) {
