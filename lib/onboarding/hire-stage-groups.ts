@@ -420,17 +420,13 @@ export function hireStageProgressMeta(groups: HireStageGroup[]): {
 
 /**
  * Steps where recruiters can open Schedule Interview from the Pre-Hire board.
- * Includes Interview stage library keys (Interview/Qualification, Internal Select, etc.).
+ * Only steps that book time with the candidate qualify. Internal decisions that
+ * merely sit in the Interview stage (Internal Select, Client Review, Candidate
+ * Selection) are completed through the staff step modal instead.
  */
 export function isInterviewScheduleStep(step: CandidateWorkflowStepView): boolean {
   if (isCompleteStatus(step.displayStatus)) return false;
-  const haystack = stepHaystack(step);
-  return (
-    /interview/.test(haystack) ||
-    /internal.?select/.test(haystack) ||
-    /candidate.?selection/.test(haystack) ||
-    /client.?review/.test(haystack)
-  );
+  return /interview/.test(stepHaystack(step));
 }
 
 /** Show Schedule Interview while the Interview stage is the active Pre-Hire stage. */

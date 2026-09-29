@@ -80,9 +80,13 @@ describe("groupStepsIntoHireStages", () => {
     expect(groups[1]?.status).toBe("current");
     expect(groups[2]?.status).toBe("locked");
     expect(isInterviewScheduleStep(groups[1]!.steps[0]!)).toBe(true);
-    expect(isInterviewScheduleStep(groups[1]!.steps[1]!)).toBe(true);
     expect(shouldShowInterviewScheduleAction(groups[1]!, groups[1]!.steps[0]!)).toBe(true);
     expect(shouldShowInterviewScheduleAction(groups[2]!, groups[2]!.steps[0]!)).toBe(false);
+
+    // Internal Select is a recruiter decision, not a meeting to book.
+    expect(groups[1]!.steps[1]!.title).toBe("Internal Select");
+    expect(isInterviewScheduleStep(groups[1]!.steps[1]!)).toBe(false);
+    expect(shouldShowInterviewScheduleAction(groups[1]!, groups[1]!.steps[1]!)).toBe(false);
 
     const meta = hireStageProgressMeta(groups);
     expect(meta.percent).toBeGreaterThan(0);
