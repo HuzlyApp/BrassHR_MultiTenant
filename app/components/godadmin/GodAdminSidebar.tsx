@@ -10,6 +10,11 @@ const NAV_ITEMS = [
     matchPrefixes: ["/godadmin/tenants"],
   },
   {
+    label: "Industry Prompts",
+    href: "/godadmin/industry-prompts",
+    matchPrefixes: ["/godadmin/industry-prompts"],
+  },
+  {
     label: "Prompt Catalog",
     href: "/godadmin/prompt-catalog",
     matchPrefixes: ["/godadmin/prompt-catalog"],
