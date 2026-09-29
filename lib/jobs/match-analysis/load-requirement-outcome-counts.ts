@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseQuickRoute } from "./quick-route";
+import type { QuickRoute } from "./schema";
 import {
   EMPTY_LISTING_REQUIREMENT_COUNTS,
   groupRequirementOutcomeCountsByApplication,
@@ -17,8 +19,37 @@ type RequirementCountQueryRow = RequirementOutcomeCountRow & {
   job_application_id: string;
 };
 
+async function loadQuickRoutesByApplication(
+  supabase: SupabaseClient,
+  tenantId: string,
+  applicationIds: string[]
+): Promise<Map<string, QuickRoute>> {
+  const chunks: string[][] = [];
+  for (let offset = 0; offset < applicationIds.length; offset += APPLICATION_ID_CHUNK) {
+    chunks.push(applicationIds.slice(offset, offset + APPLICATION_ID_CHUNK));
+  }
+  const pages = await Promise.all(
+    chunks.map(async (chunk) => {
+      const { data, error } = await supabase
+        .from("job_applications")
+        .select("id, quick_route:ai_analysis->quick_match->>quick_route")
+        .eq("tenant_id", tenantId)
+        .eq("ai_match_status", "ANALYZED")
+        .in("id", chunk);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; quick_route: unknown }>;
+    })
+  );
+  const routes = new Map<string, QuickRoute>();
+  for (const row of pages.flat()) {
+    const route = parseQuickRoute(row.quick_route);
+    if (route) routes.set(String(row.id), route);
+  }
+  return routes;
+}
+
 /**
- * Load Conf / Verify / Not Met aggregates for listing screens.
+ * Load Conf / Verify / Not Met aggregates for listing screens, plus the stored Quick Match route.
  * Pages past the PostgREST 1000-row cap so limit=100 listings are not silently truncated.
  */
 export async function loadRequirementOutcomeCountsByApplication(
@@ -27,6 +58,22 @@ export async function loadRequirementOutcomeCountsByApplication(
   applicationIds: string[]
 ): Promise<Map<string, ListingRequirementOutcomeCounts>> {
   const unique = [...new Set(applicationIds.map((id) => id.trim()).filter(Boolean))];
+  if (!unique.length) return new Map();
+  const [grouped, routes] = await Promise.all([
+    loadOutcomeCounts(supabase, tenantId, unique),
+    loadQuickRoutesByApplication(supabase, tenantId, unique),
+  ]);
+  for (const [id, quickRoute] of routes) {
+    grouped.set(id, { ...(grouped.get(id) ?? EMPTY_LISTING_REQUIREMENT_COUNTS), quickRoute });
+  }
+  return grouped;
+}
+
+async function loadOutcomeCounts(
+  supabase: SupabaseClient,
+  tenantId: string,
+  unique: string[]
+): Promise<Map<string, ListingRequirementOutcomeCounts>> {
   if (unique.length > APPLICATION_ID_CHUNK) {
     const { data, error } = await supabase.rpc("job_application_requirement_counts", {
       p_tenant_id: tenantId,

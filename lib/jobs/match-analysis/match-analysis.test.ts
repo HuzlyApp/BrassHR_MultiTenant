@@ -138,9 +138,10 @@ describe("parseAndValidateMatchAnalysis", () => {
     );
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
-      expect(parsed.data.quick_match?.quick_route).toBe("REVIEW");
+      // Nothing confirmed and weighted 0.50 → LOW_MATCH, not the model's STRONG.
+      expect(parsed.data.quick_match?.quick_route).toBe("LOW_MATCH");
       expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(0);
-      expect(parsed.data.candidate_match.display_category).toBe("Review");
+      expect(parsed.data.candidate_match.display_category).toBe("Low match");
       expect(parsed.data.screening_questions).toEqual([]);
       expect(parsed.data.strengths).toEqual([]);
       expect(parsed.data.mandatory_requirements[0].evidence_source).toBe("RESUME");
