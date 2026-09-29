@@ -172,7 +172,10 @@ export async function loadCandidateListApplicationBundle(
     }
 
     const result = await query.order("updated_at", { ascending: false });
-    return { data: (result.data ?? []) as BundleAppRow[], error: result.error };
+    return {
+      data: (result.data ?? []) as unknown as BundleAppRow[],
+      error: result.error,
+    };
   });
   if (error) throw error;
 
