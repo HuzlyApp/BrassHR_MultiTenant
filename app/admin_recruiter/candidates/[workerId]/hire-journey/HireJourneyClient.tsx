@@ -57,10 +57,13 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     if (!workerId) return;
-    setLoading(true);
-    setError(null);
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [profileRes, phaseRes] = await Promise.all([
         fetch(`/api/admin/candidates/${encodeURIComponent(workerId)}/profile`, {
@@ -88,10 +91,14 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
       setProfile(profileJson);
       setView(phaseJson);
     } catch (err) {
+      if (silent) {
+        console.warn("[hire-journey] background refresh failed", err);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Failed to load hire journey");
       setView(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [workerId]);
 
@@ -179,6 +186,7 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
               applicationId={primaryApplication?.id}
               jobTitle={primaryApplication?.jobTitle}
               onScheduled={() => void load()}
+              onWorkflowChanged={() => void load({ silent: true })}
             />
           )
         ) : (
@@ -196,6 +204,7 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
             applicationId={primaryApplication?.id}
             jobTitle={primaryApplication?.jobTitle}
             onScheduled={() => void load()}
+            onWorkflowChanged={() => void load({ silent: true })}
             onRequestPostHireTab={() => selectTab("post_hire")}
           />
         )}

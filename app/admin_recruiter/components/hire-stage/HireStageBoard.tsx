@@ -51,6 +51,7 @@ export function HireStageBoard({
   applicationId,
   jobTitle,
   onScheduled,
+  onWorkflowChanged,
 }: {
   workerId?: string;
   lifecycle: HireStageLifecycle;
@@ -70,6 +71,8 @@ export function HireStageBoard({
   applicationId?: string | null;
   jobTitle?: string | null;
   onScheduled?: () => void;
+  /** Called after staff change a step's status so the journey can refresh without unmounting. */
+  onWorkflowChanged?: () => void;
 }) {
   const stages = useMemo(() => groupStepsIntoHireStages(steps, lifecycle), [steps, lifecycle]);
   const progressMeta = useMemo(() => hireStageProgressMeta(stages), [stages]);
@@ -101,28 +104,41 @@ export function HireStageBoard({
       ? "Post-Hire is locked until hire activation completes."
       : null;
 
-  async function openStep(step: CandidateWorkflowStepView) {
+  async function fetchInspection(stepId: string, options?: { silent?: boolean }) {
     if (!workerId) return;
-    setOpenStepId(step.id);
-    setInspection(null);
-    setInspectionError(null);
-    setInspectionLoading(true);
+    if (!options?.silent) {
+      setInspection(null);
+      setInspectionError(null);
+      setInspectionLoading(true);
+    }
     try {
       const res = await fetch(
-        `/api/admin/candidates/${encodeURIComponent(workerId)}/workflow-steps/${encodeURIComponent(step.id)}`,
+        `/api/admin/candidates/${encodeURIComponent(workerId)}/workflow-steps/${encodeURIComponent(stepId)}`,
         { cache: "no-store" }
       );
       const json = (await res.json()) as WorkflowStepInspection & { error?: string };
       if (!res.ok) {
-        setInspectionError(json.error || "Failed to load step details.");
+        if (!options?.silent) setInspectionError(json.error || "Failed to load step details.");
         return;
       }
       setInspection(json);
     } catch (err) {
-      setInspectionError(err instanceof Error ? err.message : "Failed to load step details.");
+      if (!options?.silent) {
+        setInspectionError(err instanceof Error ? err.message : "Failed to load step details.");
+      }
     } finally {
-      setInspectionLoading(false);
+      if (!options?.silent) setInspectionLoading(false);
     }
+  }
+
+  function openStep(step: CandidateWorkflowStepView) {
+    setOpenStepId(step.id);
+    void fetchInspection(step.id);
+  }
+
+  async function handleStepUpdated() {
+    onWorkflowChanged?.();
+    if (openStepId) await fetchInspection(openStepId, { silent: true });
   }
 
   async function handleSchedule(payload: ScheduleInterviewPayload) {
@@ -204,7 +220,7 @@ export function HireStageBoard({
             <HireStageAccordion
               stages={stages}
               lifecycle={lifecycle}
-              onInspectStep={(step) => void openStep(step)}
+              onInspectStep={openStep}
               onScheduleInterview={
                 lifecycle === "pre_hire" ? () => setScheduleOpen(true) : undefined
               }
@@ -240,6 +256,8 @@ export function HireStageBoard({
         loading={inspectionLoading}
         error={inspectionError}
         inspection={inspection}
+        workerId={workerId}
+        onStepUpdated={handleStepUpdated}
       />
 
       {workerId ? (

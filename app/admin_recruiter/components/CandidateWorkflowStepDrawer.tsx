@@ -2,9 +2,23 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { WorkflowStepInspection } from "@/lib/onboarding/candidate-workflow-step-inspection";
 import { displayStatusLabel } from "@/lib/onboarding/assigned-workflow-steps";
+import {
+  staffActionLabel,
+  staffActionResultMessage,
+  type StaffStepAction,
+  type StaffStepEmailResult,
+} from "@/lib/onboarding/staff-step-review-shared";
 import { lifecyclePhaseLabel } from "@/lib/onboarding/workflow-phase-groups";
+import WorkflowStepStaffActionModal from "./WorkflowStepStaffActionModal";
+
+const ACTION_BUTTON_CLASS: Record<StaffStepAction, string> = {
+  complete: "bg-[color:var(--brand-primary)] text-white hover:opacity-90",
+  reject: "border border-red-300 text-red-700 hover:bg-red-50",
+  reopen: "border border-slate-300 text-slate-700 hover:bg-slate-50",
+};
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
@@ -53,14 +67,68 @@ export default function CandidateWorkflowStepDrawer({
   loading,
   error,
   inspection,
+  workerId,
+  onStepUpdated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading?: boolean;
   error?: string | null;
   inspection: WorkflowStepInspection | null;
+  /** Enables complete / reject / reopen for staff-owned steps. */
+  workerId?: string;
+  onStepUpdated?: () => void | Promise<void>;
 }) {
   const title = inspection?.step.title ?? "Step details";
+  const stepId = inspection?.step.id ?? null;
+  const [pendingAction, setPendingAction] = useState<StaffStepAction | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "warning"; message: string } | null>(null);
+
+  useEffect(() => {
+    setPendingAction(null);
+    setActionError(null);
+    setNotice(null);
+  }, [stepId, open]);
+
+  const staffAction = inspection?.staffAction;
+  const canAct = Boolean(workerId && staffAction?.allowed && staffAction.actions.length);
+
+  async function submitAction(input: { note: string; notifyCandidate: boolean }) {
+    if (!workerId || !stepId || !pendingAction) return;
+    const action = pendingAction;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/candidates/${encodeURIComponent(workerId)}/workflow-steps/${encodeURIComponent(stepId)}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            note: input.note || null,
+            notifyCandidate: input.notifyCandidate,
+            clientOrigin: window.location.origin,
+          }),
+        }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        email?: StaffStepEmailResult | null;
+      };
+      if (!res.ok) throw new Error(json.error || "Failed to update this step.");
+      setPendingAction(null);
+      setNotice(staffActionResultMessage(action, json.email ?? null));
+      await onStepUpdated?.();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update this step.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -74,7 +142,9 @@ export default function CandidateWorkflowStepDrawer({
             <div className="min-w-0">
               <Dialog.Title className="truncate text-lg font-semibold text-[#111827]">{title}</Dialog.Title>
               <Dialog.Description id="workflow-step-inspection-desc" className="mt-0.5 text-xs text-slate-500">
-                Read-only submission for this candidate workflow step.
+                {staffAction?.allowed
+                  ? `Internal step owned by ${staffAction.ownerLabel ?? "your team"}. Complete it here to unlock the candidate's next step.`
+                  : "Read-only submission for this candidate workflow step."}
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -86,6 +156,18 @@ export default function CandidateWorkflowStepDrawer({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            {notice ? (
+              <div
+                role="status"
+                className={`mb-4 rounded-md border px-3 py-2 text-sm ${
+                  notice.tone === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                    : "border-amber-200 bg-amber-50 text-amber-900"
+                }`}
+              >
+                {notice.message}
+              </div>
+            ) : null}
             {loading ? (
               <p className="text-sm text-slate-600">Loading step details…</p>
             ) : error ? (
@@ -322,8 +404,43 @@ export default function CandidateWorkflowStepDrawer({
               </div>
             )}
           </div>
+
+          {canAct && !loading && !error && staffAction ? (
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-3">
+              <p className="text-xs text-slate-500">
+                Owner: <span className="font-medium text-slate-700">{staffAction.ownerLabel ?? "Internal team"}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {staffAction.actions.map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    onClick={() => {
+                      setActionError(null);
+                      setPendingAction(action);
+                    }}
+                    disabled={submitting}
+                    className={`rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-50 ${ACTION_BUTTON_CLASS[action]}`}
+                  >
+                    {staffActionLabel(action)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Dialog.Content>
       </Dialog.Portal>
+      <WorkflowStepStaffActionModal
+        action={pendingAction}
+        stepTitle={title}
+        submitting={submitting}
+        error={actionError}
+        onCancel={() => {
+          setPendingAction(null);
+          setActionError(null);
+        }}
+        onConfirm={(input) => void submitAction(input)}
+      />
     </Dialog.Root>
   );
 }

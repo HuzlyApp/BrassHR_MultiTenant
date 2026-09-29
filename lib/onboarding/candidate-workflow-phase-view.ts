@@ -18,7 +18,6 @@ import {
 import {
   type CandidateWorkflowAssignmentView,
   type MappedAssignedStep,
-  type ProgressRowInput,
   buildPhaseAssignment,
   countsFromAssignedSteps,
   enrichAssignedStepsDisplayFromEvidence,
@@ -26,6 +25,12 @@ import {
   resolveAssignmentSource,
   sanitizeTagsForClient,
 } from "@/lib/onboarding/assigned-workflow-steps";
+import {
+  SCOPED_STEP_PROGRESS_SELECT,
+  type ScopedProgressRow,
+  loadApplicationProgressIds,
+  pickStepProgressRows,
+} from "@/lib/onboarding/scoped-step-progress";
 
 export type { CandidateWorkflowAssignmentView } from "@/lib/onboarding/assigned-workflow-steps";
 
@@ -136,7 +141,7 @@ export async function loadCandidateWorkflowPhaseView(
     loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: false }),
     supabase
       .from("worker_onboarding_step_progress")
-      .select("onboarding_step_id, status, completed_at, created_at, updated_at, data")
+      .select(SCOPED_STEP_PROGRESS_SELECT)
       .eq("tenant_id", tenantId)
       .eq("worker_id", workerId),
     supabase.from("workflow_mappings").select("workflow_id").eq("tenant_id", tenantId).eq("is_active", true),
@@ -181,13 +186,6 @@ export async function loadCandidateWorkflowPhaseView(
     conversionStatus: asText(workerRow.conversion_status),
   });
 
-  const progressByStepId = new Map<string, ProgressRowInput>();
-  for (const row of (progressRes.data ?? []) as ProgressRowInput[]) {
-    const id = asText(row.onboarding_step_id);
-    if (!id) continue;
-    progressByStepId.set(id, row);
-  }
-
   const instanceIds = instances.map((row) => asText(row.id)).filter((id): id is string => Boolean(id));
   let stepRecords: Array<Record<string, unknown>> = [];
   if (instanceIds.length) {
@@ -209,6 +207,21 @@ export async function loadCandidateWorkflowPhaseView(
     null;
   const activeInstanceId = asText(activeInstance?.id);
   const activeRecords = stepRecords.filter((row) => asText(row.workflow_instance_id) === activeInstanceId);
+  const activeApplicationId =
+    asText(activeInstance?.application_id) ??
+    asText(
+      applications.find(
+        (row) => activeInstanceId && asText(row.applicant_workflow_instance_id) === activeInstanceId
+      )?.id
+    );
+  const progressByStepId = pickStepProgressRows(
+    (progressRes.data ?? []) as ScopedProgressRow[],
+    await loadApplicationProgressIds(supabase, {
+      tenantId,
+      workerId,
+      applicationId: activeApplicationId,
+    })
+  );
 
   const tenantSteps = (config?.steps ?? []).filter((step) => step.is_enabled);
   const latestResume = ((resumeRes.data ?? []) as Array<Record<string, unknown>>)[0] ?? null;

@@ -1,0 +1,242 @@
+import { describe, expect, it } from "vitest";
+import { projectCandidateOnboardingConfig } from "@/lib/onboarding/candidate-onboarding-projection";
+import { pickStepProgressRows } from "@/lib/onboarding/scoped-step-progress";
+import {
+  allowedStaffActions,
+  completionOwnerLabel,
+  readStaffStepReview,
+  staffActionResultMessage,
+  staffActionTargetStatus,
+} from "@/lib/onboarding/staff-step-review-shared";
+import {
+  resolveStaffStepEligibility,
+  resolveUnlockedApplicantStep,
+} from "@/lib/onboarding/staff-workflow-step-review";
+import type {
+  OnboardingStepStatus,
+  OnboardingStepType,
+  TenantOnboardingConfig,
+  TenantOnboardingStep,
+  WorkerOnboardingProgressPayload,
+} from "@/lib/onboarding/types";
+
+function step(params: {
+  id: string;
+  title: string;
+  libraryId: string;
+  owner: string;
+  stepType: OnboardingStepType;
+  sort: number;
+  required?: boolean;
+}): TenantOnboardingStep {
+  return {
+    id: params.id,
+    step_key: params.id,
+    title: params.title,
+    description: null,
+    step_type: params.stepType,
+    sort_order: params.sort,
+    is_required: params.required ?? true,
+    is_enabled: true,
+    metadata: {
+      workflow_step_id: params.libraryId,
+      workflow_settings: { phase: "pre_hire", completionOwner: params.owner, clientPerforms: true },
+    },
+  };
+}
+
+const resume = step({
+  id: "resume",
+  title: "Upload Resume",
+  libraryId: "resume-basic-profile",
+  owner: "applicant",
+  stepType: "resume_upload",
+  sort: 10,
+});
+const references = step({
+  id: "references",
+  title: "Collect References",
+  libraryId: "references-collection",
+  owner: "applicant",
+  stepType: "references",
+  sort: 20,
+});
+const screening = step({
+  id: "screening",
+  title: "Recruiter Screening",
+  libraryId: "recruiter-screening",
+  owner: "recruiter_or_hr",
+  stepType: "custom_question",
+  sort: 30,
+});
+const skills = step({
+  id: "skills",
+  title: "Skill Assessment",
+  libraryId: "skill-qualification-assessment",
+  owner: "applicant",
+  stepType: "skill_assessment",
+  sort: 40,
+});
+
+function config(steps: TenantOnboardingStep[]): TenantOnboardingConfig {
+  return projectCandidateOnboardingConfig({
+    configId: "cfg-1",
+    tenantId: "tenant-1",
+    version: 1,
+    steps,
+    requiredDocuments: [],
+    skillAssessments: [],
+  });
+}
+
+function progress(rows: Record<string, OnboardingStepStatus>): WorkerOnboardingProgressPayload {
+  return {
+    progressId: "prog-1",
+    status: "in_progress",
+    steps: Object.entries(rows).map(([id, status]) => ({
+      onboarding_step_id: id,
+      step_key: id,
+      status,
+      completed_at: status === "completed" ? "2026-09-29T00:00:00Z" : null,
+      data: {},
+    })),
+  };
+}
+
+describe("staff workflow step review rules", () => {
+  it("labels completion owners for the drawer", () => {
+    expect(completionOwnerLabel("recruiter_or_hr")).toBe("Recruiter / HR");
+    expect(completionOwnerLabel("hr_admin")).toBe("HR Admin");
+    expect(completionOwnerLabel("manager_or_facility")).toBe("Manager / Facility");
+    expect(completionOwnerLabel("")).toBe("Internal team");
+  });
+
+  it("only offers transitions that change the status", () => {
+    expect(allowedStaffActions("pending")).toEqual(["complete", "reject"]);
+    expect(allowedStaffActions("in_progress")).toEqual(["complete", "reject"]);
+    expect(allowedStaffActions("failed")).toEqual(["complete", "reopen"]);
+    expect(allowedStaffActions("completed")).toEqual(["reopen"]);
+    expect(staffActionTargetStatus("complete")).toBe("completed");
+    expect(staffActionTargetStatus("reject")).toBe("failed");
+    expect(staffActionTargetStatus("reopen")).toBe("pending");
+  });
+
+  it("allows staff actions only on internal steps linked to a tenant step", () => {
+    expect(resolveStaffStepEligibility(screening, "pending")).toEqual({
+      allowed: true,
+      ownerLabel: "Recruiter / HR",
+      actions: ["complete", "reject"],
+      reason: null,
+    });
+    expect(resolveStaffStepEligibility(references, "pending").allowed).toBe(false);
+    expect(resolveStaffStepEligibility(null, "pending").allowed).toBe(false);
+  });
+
+  it("reads the stored staff review and ignores malformed data", () => {
+    expect(
+      readStaffStepReview({
+        staff_review: {
+          decision: "complete",
+          note: "Phone screen passed",
+          reviewed_by_user_id: "user-1",
+          reviewed_by_name: "Jane Recruiter",
+          reviewed_at: "2026-09-29T10:00:00Z",
+        },
+      })
+    ).toEqual({
+      decision: "complete",
+      note: "Phone screen passed",
+      reviewedByUserId: "user-1",
+      reviewedByName: "Jane Recruiter",
+      reviewedAt: "2026-09-29T10:00:00Z",
+    });
+    expect(readStaffStepReview({ staff_review: { decision: "approve" } })).toBeNull();
+    expect(readStaffStepReview(null)).toBeNull();
+  });
+
+  it("emails the candidate's newly unlocked step after Recruiter Screening is completed", () => {
+    const cfg = config([resume, references, screening, skills]);
+    expect(cfg.steps.map((s) => s.id)).toEqual(["resume", "references", "skills"]);
+
+    const unlocked = resolveUnlockedApplicantStep({
+      config: cfg,
+      progress: progress({ resume: "completed", references: "completed", screening: "completed", skills: "pending" }),
+      completedStepId: "screening",
+    });
+    expect(unlocked.step?.id).toBe("skills");
+    expect(unlocked.reason).toBeNull();
+  });
+
+  it("does not email when the candidate is still working on an earlier step", () => {
+    const next = resolveUnlockedApplicantStep({
+      config: config([resume, references, screening, skills]),
+      progress: progress({ resume: "completed", references: "pending", screening: "completed", skills: "pending" }),
+      completedStepId: "screening",
+    });
+    expect(next).toEqual({ step: null, reason: "NO_NEW_CANDIDATE_STEP" });
+  });
+
+  it("does not email when the next step is not something the candidate fills in", () => {
+    const next = resolveUnlockedApplicantStep({
+      config: config([resume, references, screening]),
+      progress: progress({ resume: "completed", references: "completed", screening: "completed" }),
+      completedStepId: "screening",
+    });
+    expect(next).toEqual({ step: null, reason: "NO_NEW_CANDIDATE_STEP" });
+  });
+
+  it("does not email when a second internal step still blocks the candidate", () => {
+    const verification = step({
+      id: "verification",
+      title: "Reference Verification",
+      libraryId: "reference-verification",
+      owner: "recruiter_or_hr",
+      stepType: "custom_question",
+      sort: 35,
+    });
+    const next = resolveUnlockedApplicantStep({
+      config: config([resume, references, screening, verification, skills]),
+      progress: progress({
+        resume: "completed",
+        references: "completed",
+        screening: "completed",
+        verification: "pending",
+        skills: "pending",
+      }),
+      completedStepId: "screening",
+    });
+    expect(next).toEqual({ step: null, reason: "WAITING_ON_INTERNAL_STEP" });
+  });
+
+  it("explains the email outcome after completing a step", () => {
+    expect(staffActionResultMessage("complete", { sent: true, skipped: false, nextStepTitle: "Skill Assessment" }).message).toContain(
+      '"Skill Assessment"'
+    );
+    expect(
+      staffActionResultMessage("complete", { sent: false, skipped: true, reason: "WAITING_ON_INTERNAL_STEP" }).message
+    ).toContain("another internal step");
+    expect(
+      staffActionResultMessage("complete", { sent: false, skipped: true, reason: "NO_NEW_CANDIDATE_STEP" }).message
+    ).toContain("didn't unlock a new step");
+    expect(
+      staffActionResultMessage("complete", { sent: false, skipped: true, reason: "RESEND_NOT_CONFIGURED" }).tone
+    ).toBe("warning");
+    expect(staffActionResultMessage("reject", null).message).toContain("rejected");
+  });
+});
+
+describe("scoped step progress", () => {
+  it("prefers the application's progress rows over other applications", () => {
+    const rows = [
+      { onboarding_step_id: "screening", status: "completed", updated_at: "2026-09-29T10:00:00Z", worker_onboarding_progress_id: "app-a" },
+      { onboarding_step_id: "screening", status: "pending", updated_at: "2026-09-30T10:00:00Z", worker_onboarding_progress_id: "app-b" },
+      { onboarding_step_id: "resume", status: "completed", updated_at: "2026-09-01T10:00:00Z", worker_onboarding_progress_id: "app-b" },
+    ];
+    const scoped = pickStepProgressRows(rows, new Set(["app-a"]));
+    expect(scoped.get("screening")?.status).toBe("completed");
+    expect(scoped.get("resume")?.status).toBe("completed");
+
+    const unscoped = pickStepProgressRows(rows, new Set());
+    expect(unscoped.get("screening")?.status).toBe("pending");
+  });
+});

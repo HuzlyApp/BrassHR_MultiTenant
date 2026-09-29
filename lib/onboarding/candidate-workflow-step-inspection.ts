@@ -8,11 +8,23 @@ import {
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
   STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE,
   displayStatusLabel,
-  mapAssignedStepRecords,
   mapProgressToDisplayStatus,
   parseAssignedStepPhase,
   type MappedAssignedStep,
 } from "@/lib/onboarding/assigned-workflow-steps";
+import {
+  loadScopedStepProgress,
+  resolveInstanceApplicationId,
+} from "@/lib/onboarding/scoped-step-progress";
+import {
+  readStaffStepReview,
+  type StaffStepActionEligibility,
+  type StaffStepReview,
+} from "@/lib/onboarding/staff-step-review-shared";
+import {
+  mapInstanceStepRecord,
+  resolveStaffStepEligibility,
+} from "@/lib/onboarding/staff-workflow-step-review";
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 import {
   WORKER_REQUIRED_FILES_BUCKET,
@@ -70,6 +82,9 @@ export type WorkflowStepInspection = {
   approvedOrRejectedBy: string | null;
   notes: string | null;
   emptyState: string | null;
+  /** Whether staff can complete / reject / reopen this step from the drawer. */
+  staffAction: StaffStepActionEligibility;
+  staffReview: StaffStepReview | null;
   documents: InspectableDocument[];
   form: {
     questions: Array<{
@@ -236,7 +251,7 @@ export async function loadCandidateWorkflowStepInspection(
   const { data: instance, error: instanceError } = await supabase
     .from("applicant_workflow_instances")
     .select(
-      "id, worker_id, workflow_name, workflow_version, started_at, created_at, tenant_id"
+      "id, worker_id, workflow_name, workflow_version, started_at, created_at, tenant_id, application_id"
     )
     .eq("id", record.workflow_instance_id)
     .eq("tenant_id", tenantId)
@@ -262,44 +277,25 @@ export async function loadCandidateWorkflowStepInspection(
     };
   }
 
-  const [config, progressRes] = await Promise.all([
+  const applicationId = await resolveInstanceApplicationId(supabase, {
+    tenantId,
+    instanceId: String(instance.id),
+    instanceApplicationId: asText(instance.application_id),
+  });
+  const [config, progressByStepId] = await Promise.all([
     loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: false }),
-    supabase
-      .from("worker_onboarding_step_progress")
-      .select("onboarding_step_id, status, completed_at, created_at, updated_at, data")
-      .eq("tenant_id", tenantId)
-      .eq("worker_id", workerId),
+    loadScopedStepProgress(supabase, { tenantId, workerId, applicationId }),
   ]);
+  const tenantSteps = (config?.steps ?? []).filter((step) => step.is_enabled);
 
-  const progressByStepId = new Map(
-    ((progressRes.data ?? []) as Array<Record<string, unknown>>).map((row) => [
-      String(row.onboarding_step_id ?? ""),
-      row,
-    ])
-  );
-  const mapped = mapAssignedStepRecords({
-    records: [
-      {
-        id: String(record.id),
-        snapshot_step_id: String(record.snapshot_step_id ?? ""),
-        title: String(record.title ?? "Step"),
-        step_type: String(record.step_type ?? "custom-step"),
-        is_required: record.is_required !== false,
-        status: asText(record.status),
-        position: typeof record.position === "number" ? record.position : 0,
-        phase: asText(record.phase),
-        settings:
-          record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
-            ? (record.settings as Record<string, unknown>)
-            : {},
-        completed_at: asText(record.completed_at),
-        created_at: asText(record.created_at),
-      },
-    ],
-    tenantSteps: (config?.steps ?? []).filter((step) => step.is_enabled),
+  const mapped = await mapInstanceStepRecord(supabase, {
+    tenantId,
+    instanceId: String(instance.id),
+    recordId: String(record.id),
+    tenantSteps,
     progressByStepId,
     assignedAt: asText(instance.started_at) ?? asText(instance.created_at),
-  })[0];
+  });
 
   if (!mapped) {
     return { ok: false, status: 404, error: "Workflow step not found" };
@@ -310,6 +306,13 @@ export async function loadCandidateWorkflowStepInspection(
     progress?.data && typeof progress.data === "object" && !Array.isArray(progress.data)
       ? (progress.data as Record<string, unknown>)
       : {};
+  const tenantStep = mapped.tenantStepId
+    ? tenantSteps.find((step) => step.id === mapped.tenantStepId) ?? null
+    : null;
+  const staffAction = resolveStaffStepEligibility(tenantStep, mapped.status);
+  const staffReview = readStaffStepReview(progressData);
+  const staffDecision =
+    staffReview && staffReview.decision !== "reopen" ? staffReview : null;
   const kind = inspectionKindForStep({
     stepType: mapped.stepType,
     onboardingType: mapped.onboardingType || workflowStepIdToOnboardingType(mapped.stepType),
@@ -573,7 +576,11 @@ export async function loadCandidateWorkflowStepInspection(
 
   let emptyState: string | null = null;
   if (mapped.unmatched) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
-  else if (
+  else if (staffAction.allowed) {
+    if (mapped.status === "pending" || mapped.status === "in_progress") {
+      emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to complete this step. The candidate can't continue past it until then.`;
+    }
+  } else if (
     (kind === "upload" || kind === "resume") &&
     documents.length === 0 &&
     (mapped.status === "completed" || mapped.displayStatus === "completed")
@@ -602,11 +609,20 @@ export async function loadCandidateWorkflowStepInspection(
     startedAt: asText(progress?.created_at),
     submittedAt: asText(progress?.updated_at),
     completedAt: asText(progress?.completed_at) ?? mapped.completedAt,
-    approvedOrRejectedAt: latestDoc?.approvedOrRejectedAt ?? null,
-    completedBy: progress ? "Applicant" : null,
-    approvedOrRejectedBy: latestDoc?.reviewedBy ?? null,
-    notes: latestDoc?.reviewNotes ?? asText(progressData.reason),
+    approvedOrRejectedAt: latestDoc?.approvedOrRejectedAt ?? staffDecision?.reviewedAt ?? null,
+    completedBy:
+      staffDecision?.decision === "complete"
+        ? staffDecision.reviewedByName ?? staffAction.ownerLabel
+        : staffAction.allowed
+          ? null
+          : progress
+            ? "Applicant"
+            : null,
+    approvedOrRejectedBy: latestDoc?.reviewedBy ?? staffDecision?.reviewedByName ?? null,
+    notes: latestDoc?.reviewNotes ?? staffReview?.note ?? asText(progressData.reason),
     emptyState,
+    staffAction,
+    staffReview,
     documents,
     form,
     assessment,

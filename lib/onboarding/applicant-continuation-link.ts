@@ -20,7 +20,8 @@ export type ContinuationReason =
   | "resume_continuation"
   | "welcome"
   | "manual_notification"
-  | "placement_accepted";
+  | "placement_accepted"
+  | "step_ready";
 
 type WorkerContinuationRow = {
   id: string;
@@ -117,7 +118,12 @@ export async function resolveApplicantContinuationTarget(
   }
   config = config ? applyApplicantConfigFilters(config, { activePhase }) : config;
   const enabled = getEnabledTenantSteps(config);
-  const progress = await ensureWorkerOnboardingProgress(supabase, params.workerId, params.tenantId);
+  const progress = await ensureWorkerOnboardingProgress(
+    supabase,
+    params.workerId,
+    params.tenantId,
+    params.applicationId ?? phaseRecord?.applicationId ?? null
+  );
   const byStep = new Map(progress.steps.map((step) => [step.onboarding_step_id, step]));
   const naturalFrontier = computeMaxAllowedStepIndexFromProgress(enabled, progress);
   const { farthestReachedIndex } = resolveApplicantNavBoundaries(
