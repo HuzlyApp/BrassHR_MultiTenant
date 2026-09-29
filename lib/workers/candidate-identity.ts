@@ -174,13 +174,14 @@ export async function findIdentitySiblingWorkerIds(
         [...phoneNameKeys].map((key) => key.split(":")[0]).filter((phone) => phone.length >= 10)
       ),
     ];
-    for (const last10 of phones) {
+    if (phones.length > 0) {
+      const orFilter = phones.map((last10) => `phone.ilike.%${last10}%`).join(",");
       const { data, error } = await supabase
         .from("worker")
         .select("id, phone, first_name, last_name, email")
         .eq("tenant_id", tenantId)
-        .ilike("phone", `%${last10}%`)
-        .limit(40);
+        .or(orFilter)
+        .limit(Math.min(phones.length * 40, 1000));
       if (error) throw error;
       for (const row of data ?? []) {
         const id = String((row as { id?: string }).id ?? "").trim();

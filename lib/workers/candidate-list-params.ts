@@ -13,7 +13,7 @@ import type { WorkerStatus } from "@/lib/workers/workers-status-types";
  * - `q` free-text ORs across name, email, phone, job title/role, apps, resume, profile skills.
  * - `skills` (comma-separated) ANDs: every skill must appear in profile skills and/or resume text.
  * - When both `q` and `skills` are set, results must match BOTH (AND between the two fields).
- * - Search runs only via `list_candidate_ids_page`; never silently fall back to an unfiltered page.
+ * - Search runs only via `list_candidate_ids_page` (one paged RPC); never scan the tenant in the app.
  */
 
 export const DEFAULT_CANDIDATES_PAGE_SIZE = 15;
@@ -246,6 +246,7 @@ export function toListCandidateIdsRpcArgs(params: CandidateListQueryParams, tena
     p_progress_status_id: params.progressStatusId || null,
     p_job_title: params.jobTitle || null,
     p_skills: params.skills.length ? params.skills : null,
+    p_assignee: params.assignee || null,
   };
 }
 

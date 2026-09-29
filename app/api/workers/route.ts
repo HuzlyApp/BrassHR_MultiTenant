@@ -39,7 +39,6 @@ import {
   pickWorkerJobMatchSummaryPreferringRequirementCounts,
   type WorkerJobMatchSummary,
 } from "@/lib/workers/worker-job-match-summary";
-import { getApplicationSearchTextByWorker } from "@/lib/workers/worker-application-search-index";
 import { statusOrFilter } from "@/lib/workers/workers-status-filter";
 import {
   listingCountsForAnalyzedApplication,
@@ -567,7 +566,6 @@ export async function GET(req: Request) {
               matchBundle,
               appliedJobsByWorker,
               jobAssigneesByWorker,
-              searchTextByWorker,
             ] = await Promise.all([
               getApplicationStatusSummariesForWorkers(supabase, {
                 tenantId: tenantIdForApps,
@@ -583,10 +581,6 @@ export async function GET(req: Request) {
                 workerIds: workerIdsForApps,
               }),
               getApplicationJobAssigneesByWorker(supabase, {
-                tenantId: tenantIdForApps,
-                workerIds: workerIdsForApps,
-              }),
-              getApplicationSearchTextByWorker(supabase, {
                 tenantId: tenantIdForApps,
                 workerIds: workerIdsForApps,
               }),
@@ -850,8 +844,7 @@ export async function GET(req: Request) {
               const applicationJobTitlesText = joinApplicationJobTitles(jobTitles);
               const primaryJobTitle =
                 summary?.jobTitle?.trim() || jobTitles?.find((title) => title.trim()) || null;
-              const applicationSearchText = id ? searchTextByWorker.get(id) : undefined;
-              const resolvedSearchText = applicationSearchText || applicationJobTitlesText || undefined;
+              const resolvedSearchText = applicationJobTitlesText || undefined;
               const directAssigneeId =
                 typeof row.assigned_recruiter_user_id === "string"
                   ? row.assigned_recruiter_user_id.trim()

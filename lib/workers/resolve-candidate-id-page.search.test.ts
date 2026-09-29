@@ -90,18 +90,16 @@ describe("resolveCandidateIdPage search", () => {
         p_tenant_id: "tenant-a",
         p_search: "Jane Doe",
         p_skills: ["ICU", "BLS"],
-        p_limit: 500,
+        p_limit: 25,
         p_offset: 0,
+        p_assignee: null,
       })
     );
   });
 
-  it("dedupes matching worker rows into unique candidate profiles before paging", async () => {
+  it("trusts the database page of unique candidate profiles", async () => {
     rpc.mockResolvedValue({
-      data: [
-        { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", total_count: 2 },
-        { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", total_count: 2 },
-      ],
+      data: [{ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", total_count: 1 }],
       error: null,
     });
     mockIdentityRows([
@@ -193,28 +191,11 @@ describe("resolveCandidateIdPage search", () => {
     expect(rpc.mock.calls[0][1].p_tenant_id).toBe("tenant-b");
   });
 
-  it("applies unique-profile offset after fetching matching worker ids", async () => {
+  it("passes limit and offset through so the database pages unique profiles", async () => {
     rpc.mockResolvedValue({
-      data: [
-        { id: "11111111-1111-1111-1111-111111111111", total_count: 2 },
-        { id: "22222222-2222-2222-2222-222222222222", total_count: 2 },
-      ],
+      data: [{ id: "22222222-2222-2222-2222-222222222222", total_count: 2 }],
       error: null,
     });
-    mockIdentityRows([
-      {
-        id: "11111111-1111-1111-1111-111111111111",
-        email: "a@example.com",
-        first_name: "A",
-        last_name: "One",
-      },
-      {
-        id: "22222222-2222-2222-2222-222222222222",
-        email: "b@example.com",
-        first_name: "B",
-        last_name: "Two",
-      },
-    ]);
     const page = await resolveCandidateIdPage(
       supabase(),
       "tenant-a",
@@ -224,7 +205,9 @@ describe("resolveCandidateIdPage search", () => {
     );
     expect(page.total).toBe(2);
     expect(page.ids).toEqual(["22222222-2222-2222-2222-222222222222"]);
-    expect(rpc.mock.calls[0][1].p_offset).toBe(0);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0][1].p_offset).toBe(1);
+    expect(rpc.mock.calls[0][1].p_limit).toBe(25);
     expect(rpc.mock.calls[0][1].p_search).toBe("nurse");
     expect(rpc.mock.calls[0][1].p_skills).toEqual(["ICU"]);
   });
@@ -320,58 +303,12 @@ describe("resolveCandidateIdPage search", () => {
     expect(page.total).toBe(1);
   });
 
-  it("filters assignee against the RPC candidate universe instead of replacing it", async () => {
+  it("sends the assignee filter to the paging RPC instead of scanning worker ids", async () => {
     const assignee = "018d5c8a-7e3f-7c4a-8b2d-1a2b3c4d5e6f";
     const assignedId = "11111111-1111-4111-8111-111111111111";
-    const otherId = "22222222-2222-4222-8222-222222222222";
     rpc.mockResolvedValue({
-      data: [
-        { id: assignedId, total_count: 2 },
-        { id: otherId, total_count: 2 },
-      ],
+      data: [{ id: assignedId, total_count: 1 }],
       error: null,
-    });
-    from.mockImplementation((table: string) => {
-      let columns = "";
-      const builder: Record<string, unknown> = {};
-      builder.select = vi.fn((cols: string) => {
-        columns = cols;
-        return builder;
-      });
-      builder.eq = vi.fn(() => builder);
-      builder.in = vi.fn(() => builder);
-      builder.not = vi.fn(() => builder);
-      builder.order = vi.fn(() => builder);
-      builder.range = vi.fn(() => builder);
-      (builder as { then?: unknown }).then = (
-        onFulfilled: (value: unknown) => unknown,
-        onRejected?: (reason: unknown) => unknown
-      ) => {
-        if (table === "job_applications") {
-          return Promise.resolve({ data: [], error: null }).then(onFulfilled, onRejected);
-        }
-        if (columns.includes("assigned_recruiter_user_id")) {
-          return Promise.resolve({
-            data: [
-              { id: assignedId, assigned_recruiter_user_id: assignee },
-              { id: otherId, assigned_recruiter_user_id: null },
-            ],
-            error: null,
-          }).then(onFulfilled, onRejected);
-        }
-        return Promise.resolve({
-          data: [
-            {
-              id: assignedId,
-              email: "assigned@example.com",
-              first_name: "Ann",
-              last_name: "Signed",
-            },
-          ],
-          error: null,
-        }).then(onFulfilled, onRejected);
-      };
-      return builder;
     });
 
     const page = await resolveCandidateIdPage(
@@ -382,13 +319,18 @@ describe("resolveCandidateIdPage search", () => {
       )
     );
 
+    expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith(
       "list_candidate_ids_page",
       expect.objectContaining({
         p_tenant_id: "tenant-a",
         p_search: null,
+        p_assignee: assignee,
+        p_limit: 25,
+        p_offset: 0,
       })
     );
+    expect(from).not.toHaveBeenCalled();
     expect(page.usedRpc).toBe(true);
     expect(page.ids).toEqual([assignedId]);
     expect(page.total).toBe(1);
