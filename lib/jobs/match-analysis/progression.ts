@@ -11,7 +11,6 @@ import type { MatchStage } from "./match-stage";
 import { parseMatchStage } from "./match-stage";
 import { fitBandFromQuickRoute } from "./quick-route";
 import type { QuickRoute } from "./schema";
-import type { QualificationOutcomeCounts } from "./workspace";
 
 export const MATCH_PROGRESSION_STEPS = [
   {
@@ -98,20 +97,61 @@ export function matchProgressionStageFromIndex(index: number): MatchStage {
   return MATCH_PROGRESSION_STEPS[index]?.stage ?? "quick";
 }
 
-export function quickMatchFitBand(
-  counts: Pick<QualificationOutcomeCounts, "mandatory" | "confirmed" | "notMet" | "blocking">
-): QuickMatchFitBand {
+type FitCountInput = {
+  mandatory: number;
+  confirmed: number;
+  notMet: number;
+  blocking: number;
+  /** Confirmed mandatory rows only. Preferred confirmations must not be included. */
+  mandatoryConfirmed?: number | null;
+  verify?: number | null;
+};
+
+function mandatoryConfirmedCount(counts: FitCountInput): number | null {
+  if (counts.mandatoryConfirmed == null || Number.isNaN(Number(counts.mandatoryConfirmed))) {
+    return null;
+  }
+  return Number(counts.mandatoryConfirmed);
+}
+
+/** Every mandatory row is confirmed, so a stored LOW_MATCH no longer describes the checklist. */
+function checklistFullyConfirmed(counts: FitCountInput): boolean {
+  if (counts.mandatory <= 0 || counts.notMet !== 0 || counts.blocking !== 0) return false;
+  const mandatoryConfirmed = mandatoryConfirmedCount(counts);
+  if (mandatoryConfirmed != null) return mandatoryConfirmed >= counts.mandatory;
+  if ((counts.verify ?? 0) > 0) return false;
+  return counts.confirmed >= counts.mandatory;
+}
+
+export function quickMatchFitBand(counts: FitCountInput): QuickMatchFitBand {
   if (counts.blocking > 0 || counts.notMet >= 2) return "low";
   if (counts.notMet === 0 && counts.blocking === 0 && counts.mandatory > 0) {
-    const confirmedShare = counts.confirmed / Math.max(counts.mandatory, 1);
-    if (confirmedShare >= 0.7) return "strong";
+    const mandatoryConfirmed = mandatoryConfirmedCount(counts);
+    if (
+      mandatoryConfirmed == null &&
+      counts.confirmed > counts.mandatory &&
+      (counts.verify ?? 0) > 0
+    ) {
+      return "review";
+    }
+    const confirmedForShare = mandatoryConfirmed ?? counts.confirmed;
+    if (confirmedForShare / Math.max(counts.mandatory, 1) >= 0.7) return "strong";
   }
   return "review";
 }
 
-/** A stored Quick Match LOW_MATCH turns a Review checklist into Low. A Strong checklist still wins. */
-function applyQuickRouteLow(band: QuickMatchFitBand, route: QuickRoute | null | undefined): QuickMatchFitBand {
-  return band === "review" && route === "LOW_MATCH" ? "low" : band;
+/**
+ * A stored Quick Match LOW_MATCH forces Low.
+ * It stays Strong only when every mandatory row is now confirmed.
+ */
+function applyQuickRouteLow(
+  band: QuickMatchFitBand,
+  route: QuickRoute | null | undefined,
+  counts: FitCountInput
+): QuickMatchFitBand {
+  if (route !== "LOW_MATCH" || band === "low") return band;
+  if (band === "strong" && checklistFullyConfirmed(counts)) return "strong";
+  return "low";
 }
 
 /**
@@ -120,7 +160,7 @@ function applyQuickRouteLow(band: QuickMatchFitBand, route: QuickRoute | null | 
  * except LOW_MATCH, which also downgrades a Review checklist.
  */
 export function fitBandForMatchGate(args: {
-  counts: Pick<QualificationOutcomeCounts, "mandatory" | "confirmed" | "notMet" | "blocking">;
+  counts: FitCountInput;
   storedRoute?: QuickRoute | null;
 }): QuickMatchFitBand {
   const hasChecklist =
@@ -128,21 +168,44 @@ export function fitBandForMatchGate(args: {
     args.counts.confirmed > 0 ||
     args.counts.notMet > 0 ||
     args.counts.blocking > 0;
-  if (hasChecklist) return applyQuickRouteLow(quickMatchFitBand(args.counts), args.storedRoute);
+  if (hasChecklist) {
+    return applyQuickRouteLow(quickMatchFitBand(args.counts), args.storedRoute, args.counts);
+  }
   if (args.storedRoute) return fitBandFromQuickRoute(args.storedRoute);
   return "review";
 }
 
-/** Review becomes Strong once the recruiter reaches Deep Match (step 4). Low stays Low. */
+function hasDeepMatchSignal(args: {
+  category?: string | null;
+  displayCategory?: string | null;
+  score?: number | null;
+}): boolean {
+  if (String(args.category ?? "").trim()) return true;
+  if (String(args.displayCategory ?? "").trim()) return true;
+  return args.score != null && Number.isFinite(Number(args.score));
+}
+
+/**
+ * Deep Match uses the scored category when one exists.
+ * Reaching Deep Match does not turn a Review checklist into Strong.
+ */
 export function displayFitBand(args: {
   fitBand: QuickMatchFitBand;
   stage?: string | null;
   hasDeepMatch?: boolean;
+  category?: string | null;
+  displayCategory?: string | null;
+  score?: number | null;
 }): QuickMatchFitBand {
-  if (args.fitBand === "low") return "low";
   const atDeep =
     Boolean(args.hasDeepMatch) || args.stage === "deep" || args.stage === "submission";
-  if (args.fitBand === "review" && atDeep) return "strong";
+  if (atDeep && hasDeepMatchSignal(args)) {
+    return fitBandFromDeepMatchResult({
+      category: args.category,
+      displayCategory: args.displayCategory,
+      score: args.score,
+    });
+  }
   return args.fitBand;
 }
 
@@ -209,12 +272,16 @@ export function fitBandFromDeepMatchResult(args: {
 export function listingDisplayFitBand(args: {
   analyzed: boolean;
   stage?: string | null;
+  category?: string | null;
+  displayCategory?: string | null;
+  score?: number | null;
   counts?: {
     confirmed?: number | null;
     verify?: number | null;
     notMet?: number | null;
     mandatory?: number | null;
     blocking?: number | null;
+    mandatoryConfirmed?: number | null;
     quickRoute?: QuickRoute | null;
   } | null;
 }): QuickMatchFitBand | null {
@@ -230,19 +297,44 @@ export function listingDisplayFitBand(args: {
     args.counts?.blocking == null || Number.isNaN(Number(args.counts.blocking))
       ? null
       : Number(args.counts.blocking);
+  const mandatoryConfirmed =
+    args.counts?.mandatoryConfirmed == null || Number.isNaN(Number(args.counts.mandatoryConfirmed))
+      ? null
+      : Number(args.counts.mandatoryConfirmed);
 
   let band: QuickMatchFitBand;
   if (mandatory != null && blocking != null) {
-    band = quickMatchFitBand({ mandatory, confirmed, notMet, blocking });
+    band = quickMatchFitBand({
+      mandatory,
+      confirmed,
+      notMet,
+      blocking,
+      mandatoryConfirmed,
+      verify,
+    });
   } else {
     const total = confirmed + verify + notMet;
     band = "review";
     if (notMet >= 2) band = "low";
-    else if (notMet === 0 && total > 0 && confirmed / total >= 0.7) band = "strong";
+    else if (notMet === 0 && verify === 0 && total > 0 && confirmed / total >= 0.7) band = "strong";
   }
+  const fitCounts: FitCountInput = {
+    mandatory: mandatory ?? 0,
+    confirmed,
+    notMet,
+    blocking: blocking ?? 0,
+    mandatoryConfirmed,
+    verify,
+  };
   const atDeep = args.stage === "deep" || args.stage === "submission";
-  if (!atDeep) band = applyQuickRouteLow(band, args.counts?.quickRoute);
-  return displayFitBand({ fitBand: band, stage: args.stage });
+  if (!atDeep) band = applyQuickRouteLow(band, args.counts?.quickRoute, fitCounts);
+  return displayFitBand({
+    fitBand: band,
+    stage: args.stage,
+    category: args.category,
+    displayCategory: args.displayCategory,
+    score: args.score,
+  });
 }
 
 export function fitBandLabel(band: QuickMatchFitBand): string {

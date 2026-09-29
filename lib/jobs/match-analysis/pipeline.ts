@@ -929,6 +929,8 @@ export async function runMatchAnalysisForApplication(args: {
       job_requirements_fingerprint:
         structured.sourceFingerprint ??
         jobRequirementsSourceFingerprint(job as JobRequisitionForRequirements),
+      prompt_content_hash: resolved.contentHash,
+      prompt_variant_key: resolved.variantKey,
     };
 
     emit("saving", "Saving analysis results", "ANALYZING");

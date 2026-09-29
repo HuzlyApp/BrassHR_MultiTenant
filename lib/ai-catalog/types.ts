@@ -74,9 +74,16 @@ export type PromptResolveRequest = {
   asOf?: Date;
 };
 
+export type CurrentPromptStamp = {
+  id: string;
+  contentHash: string;
+};
+
 export type PromptResolveSnapshot = {
   industryToPack: Record<string, AiPackKey>;
   publishedPacks: Set<string>;
+  /** Published master id + content hash, keyed `feature:variant:vertical`. */
+  currentVersions?: Map<string, CurrentPromptStamp>;
   bindings: TenantBindingSnapshot[];
   clientGates: ClientGateSnapshot[];
 };

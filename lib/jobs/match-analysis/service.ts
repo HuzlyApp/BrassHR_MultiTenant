@@ -531,6 +531,13 @@ export async function generateMatchAnalysis(
   if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
   }
+  console.info("[match-analysis] prompt", {
+    promptVersionId: resolved.promptVersionId,
+    contentHash: resolved.contentHash.slice(0, 12),
+    variant: resolved.variantKey,
+    vertical: resolved.resolvedVerticalKey,
+    source: resolved.source,
+  });
 
   const userPrompt = renderPromptTemplate(
     resolved.userPromptTemplate ?? "",

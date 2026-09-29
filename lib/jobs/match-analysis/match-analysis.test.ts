@@ -149,6 +149,39 @@ describe("parseAndValidateMatchAnalysis", () => {
     }
   });
 
+  it("rejects an unknown requirement status instead of saving it as Verify or Strong", () => {
+    const parsed = parseAndValidateMatchAnalysis(
+      JSON.stringify({
+        step: "quick_match",
+        quick_route: "STRONG",
+        mandatory_requirements: [{ requirement: "Java", status: "YES", evidence: "maybe" }],
+        preferred_requirements: [],
+        blocking_requirements: [],
+      })
+    );
+    expect(parsed.ok).toBe(false);
+
+    const deep = parseAndValidateMatchAnalysis(
+      JSON.stringify({
+        ...baseAnalysis(),
+        mandatory_requirements: [
+          {
+            requirement: "Java",
+            requirement_type: "MANDATORY",
+            status: "STRONG",
+            requirement_outcome: "MET",
+            candidate_evidence: "n/a",
+            evidence_source: "RESUME",
+            impact: "",
+            verification_required: false,
+            confidence: 90,
+          },
+        ],
+      })
+    );
+    expect(deep.ok).toBe(false);
+  });
+
   it("returns validation errors for invalid category", () => {
     const bad = {
       ...baseAnalysis(),

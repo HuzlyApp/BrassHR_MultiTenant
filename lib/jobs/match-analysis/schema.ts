@@ -218,6 +218,9 @@ export const matchAnalysisResponseSchema = z.object({
   analysis_version: z.string().default("1.0"),
   /** Fingerprint of JD source fields at analysis time; used to detect stale results. */
   job_requirements_fingerprint: z.string().max(128).optional(),
+  /** Catalog content hash sent for this run. A later publish makes the saved result stale. */
+  prompt_content_hash: z.string().max(128).optional(),
+  prompt_variant_key: z.string().max(64).optional(),
   job: z
     .object({
       job_id: z.string().default(""),

@@ -25,6 +25,7 @@ export type ApplicationExportRow = ApplicationApplicantSource & {
   created_at: string;
   submitted_at?: string | null;
   ai_match_score?: number | null;
+  ai_match_category?: string | null;
   ai_match_status?: string | null;
   ai_match_stage?: string | null;
   ai_match_display_category?: string | null;
@@ -69,6 +70,9 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
         const band = listingDisplayFitBand({
           analyzed: row.ai_match_status === "ANALYZED",
           stage: row.ai_match_stage,
+          category: row.ai_match_category,
+          displayCategory: row.ai_match_display_category,
+          score: row.ai_match_score,
           counts: row.ai_requirement_counts,
         });
         if (!band) return "";

@@ -12,6 +12,8 @@ import {
   applyIndustryPriority,
   applyTenantBinding,
   bindingFor,
+  cachedPromptIsCurrent,
+  currentPromptStampKey,
   matchingClientGate,
   planPromptResolution,
   selectIndustryKey,
@@ -57,7 +59,7 @@ async function loadSnapshot(
     supabase.from("industry_catalog").select("key, ai_vertical_key").eq("is_active", true),
     supabase
       .from("ai_current_prompt_version")
-      .select("feature_key, variant_key, vertical_key, tenant_id"),
+      .select("id, content_hash, feature_key, variant_key, vertical_key, tenant_id"),
     supabase
       .from("tenant_ai_binding")
       .select(
@@ -83,9 +85,21 @@ async function loadSnapshot(
   }
 
   const publishedPacks = new Set<string>();
+  const currentVersions = new Map<string, { id: string; contentHash: string }>();
   for (const row of versions.data ?? []) {
     if (row.tenant_id) continue;
-    publishedPacks.add(`${row.feature_key}:${row.variant_key}:${row.vertical_key}`);
+    const featureKey = String(row.feature_key ?? "");
+    const variantKey = String(row.variant_key ?? "");
+    const verticalKey = String(row.vertical_key ?? "");
+    publishedPacks.add(`${featureKey}:${variantKey}:${verticalKey}`);
+    const id = String(row.id ?? "");
+    const contentHash = String(row.content_hash ?? "");
+    if (id && contentHash) {
+      currentVersions.set(currentPromptStampKey(featureKey, variantKey, verticalKey), {
+        id,
+        contentHash,
+      });
+    }
   }
 
   const bindingRows: TenantBindingSnapshot[] = (bindings.data ?? []).map((row) => {
@@ -117,7 +131,7 @@ async function loadSnapshot(
     priority: Number(row.priority ?? 0),
   }));
 
-  return { industryToPack, publishedPacks, bindings: bindingRows, clientGates };
+  return { industryToPack, publishedPacks, currentVersions, bindings: bindingRows, clientGates };
 }
 
 async function loadVersionById(
@@ -246,8 +260,36 @@ export async function resolvePromptVersion(
     { ...request, variantKey: plan.variantKey, industryKey: plan.requestedIndustryKey },
     plan.resolvedVerticalKey
   );
+  const plannedBinding = bindingFor(
+    snapshot,
+    request.tenantId,
+    request.featureKey,
+    plan.variantKey,
+    plan.resolvedVerticalKey
+  );
+  const plannedStamp =
+    snapshot.currentVersions?.get(
+      currentPromptStampKey(request.featureKey, plan.variantKey, plan.resolvedVerticalKey)
+    ) ?? null;
+  const fallbackStamp =
+    plan.resolvedVerticalKey === "global"
+      ? plannedStamp
+      : snapshot.currentVersions?.get(
+          currentPromptStampKey(request.featureKey, plan.variantKey, "global")
+        ) ?? null;
   const cached = await readResolvedPromptCache(cacheKey);
-  if (cached) return cached;
+  if (
+    cached &&
+    cachedPromptIsCurrent({
+      cached,
+      plannedVerticalKey: plan.resolvedVerticalKey,
+      plannedStamp,
+      fallbackStamp,
+      binding: plannedBinding,
+    })
+  ) {
+    return cached;
+  }
 
   const packsToTry: AiPackKey[] = [plan.resolvedVerticalKey, ...plan.fallbackPacks];
   const uniquePacks = [...new Set(packsToTry)];
