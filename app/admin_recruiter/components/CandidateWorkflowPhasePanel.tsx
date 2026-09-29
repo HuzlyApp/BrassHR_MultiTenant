@@ -3,7 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import WorkflowPhaseBadge from "./WorkflowPhaseBadge";
-import CandidateWorkflowStepDrawer from "./CandidateWorkflowStepDrawer";
+import CandidateWorkflowStepModal from "./CandidateWorkflowStepModal";
 import type {
   CandidateWorkflowAssignmentView,
   CandidateWorkflowDocumentView,
@@ -300,7 +300,7 @@ export default function CandidateWorkflowPhasePanel({
         )}
       </section>
 
-      <CandidateWorkflowStepDrawer
+      <CandidateWorkflowStepModal
         open={openStepId != null}
         onOpenChange={(open) => {
           if (!open) {

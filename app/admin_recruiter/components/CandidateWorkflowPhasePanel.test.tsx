@@ -7,7 +7,7 @@ import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workf
 import { POST_HIRE_UNASSIGNED_MESSAGE } from "@/lib/onboarding/assigned-workflow-steps";
 import { countsForPhase } from "@/lib/onboarding/workflow-phase-groups";
 
-vi.mock("@/app/admin_recruiter/components/CandidateWorkflowStepDrawer", () => ({
+vi.mock("@/app/admin_recruiter/components/CandidateWorkflowStepModal", () => ({
   default: () => null,
 }));
 

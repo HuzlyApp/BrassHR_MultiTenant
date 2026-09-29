@@ -2,7 +2,9 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars, readableTextOnBrand } from "@/lib/tenant/tenant-branding";
 import {
   STAFF_REVIEW_NOTE_MAX_LENGTH,
   type StaffStepAction,
@@ -17,7 +19,7 @@ const COPY: Record<
     description:
       "This marks the step as completed by you. If it was the only thing blocking the candidate, their next application step unlocks.",
     confirm: "Mark complete",
-    confirmClass: "bg-[color:var(--brand-primary)] text-white hover:opacity-90",
+    confirmClass: "shadow-sm hover:brightness-[0.97]",
   },
   reject: {
     title: (step) => `Reject ${step}?`,
@@ -50,8 +52,20 @@ export default function WorkflowStepStaffActionModal({
   onCancel: () => void;
   onConfirm: (input: { note: string; notifyCandidate: boolean }) => void;
 }) {
+  const branding = useTenantBranding();
   const [note, setNote] = useState("");
   const [notifyCandidate, setNotifyCandidate] = useState(true);
+
+  // Portal content sits outside the branding wrapper, so re-declare the tenant palette here.
+  const brandStyle = useMemo(
+    () => ({
+      ...brandingToCssVars(branding),
+      "--step-modal-cta": `linear-gradient(90deg, ${branding.primaryHex} 0%, color-mix(in srgb, ${branding.primaryHex} 74%, white) 100%)`,
+      "--step-modal-on-primary": readableTextOnBrand(branding.primaryHex),
+      "--step-modal-on-secondary": readableTextOnBrand(branding.secondaryHex),
+    }) as React.CSSProperties,
+    [branding]
+  );
 
   useEffect(() => {
     if (!action) return;
@@ -73,7 +87,8 @@ export default function WorkflowStepStaffActionModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[110] bg-black/40" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[111] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-5 shadow-xl outline-none"
+          style={brandStyle}
+          className="fixed left-1/2 top-1/2 z-[111] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-2xl outline-none"
           aria-describedby="workflow-step-staff-action-desc"
         >
           {copy ? (
@@ -85,12 +100,19 @@ export default function WorkflowStepStaffActionModal({
               }}
             >
               <div className="flex items-start justify-between gap-3">
-                <Dialog.Title className="text-base font-semibold text-[#111827]">
+                <Dialog.Title
+                  className="text-base font-semibold"
+                  style={{ color: "var(--brand-secondary)" }}
+                >
                   {copy.title(stepTitle)}
                 </Dialog.Title>
                 <Dialog.Close
                   disabled={submitting}
-                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                  style={{
+                    backgroundColor: "var(--brand-secondary)",
+                    color: "var(--step-modal-on-secondary)",
+                  }}
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-full shadow-sm transition hover:brightness-110 disabled:opacity-50"
                   aria-label="Cancel"
                 >
                   <X className="h-4 w-4" aria-hidden />
@@ -148,14 +170,22 @@ export default function WorkflowStepStaffActionModal({
                   type="button"
                   onClick={onCancel}
                   disabled={submitting}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className={`rounded-md px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${copy.confirmClass}`}
+                  style={
+                    action === "complete"
+                      ? {
+                          background: "var(--step-modal-cta)",
+                          color: "var(--step-modal-on-primary)",
+                        }
+                      : undefined
+                  }
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${copy.confirmClass}`}
                 >
                   {submitting ? "Saving…" : copy.confirm}
                 </button>

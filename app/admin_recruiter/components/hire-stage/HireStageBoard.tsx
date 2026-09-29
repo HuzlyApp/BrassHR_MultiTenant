@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import CandidateWorkflowStepDrawer from "@/app/admin_recruiter/components/CandidateWorkflowStepDrawer";
+import CandidateWorkflowStepModal from "@/app/admin_recruiter/components/CandidateWorkflowStepModal";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
 import {
   invitationSuccessMessage,
@@ -244,7 +244,7 @@ export function HireStageBoard({
         </div>
       </div>
 
-      <CandidateWorkflowStepDrawer
+      <CandidateWorkflowStepModal
         open={Boolean(openStepId)}
         onOpenChange={(open) => {
           if (!open) {
