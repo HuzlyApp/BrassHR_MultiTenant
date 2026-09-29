@@ -12,38 +12,44 @@ import {
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 import { logPerf, createPerfTimer } from "@/lib/perf";
 import { normalizeTenantId } from "@/lib/godadmin/view-as-tenant";
-import { VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
+import {
+  ONBOARDING_TENANT_SLUG_COOKIE,
+  VIEW_AS_TENANT_COOKIE,
+} from "@/lib/tenant/constants";
 
-type CachedStaffScopePayload = StaffTenantScope & { viewAsKey: string };
+type CachedStaffScopePayload = StaffTenantScope & { scopeKey: string };
 
-async function readViewAsKeyForCache(): Promise<string> {
+async function readScopeKeyForCache(): Promise<string> {
   const jar = await cookies();
-  return normalizeTenantId(jar.get(VIEW_AS_TENANT_COOKIE)?.value) ?? "none";
+  const viewAs = normalizeTenantId(jar.get(VIEW_AS_TENANT_COOKIE)?.value) ?? "none";
+  const hostSlug =
+    jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase() || "none";
+  return `${viewAs}:${hostSlug}`;
 }
 
 async function resolveStaffTenantScopeWithCache(authUser: User): Promise<StaffTenantScope> {
   const timer = createPerfTimer();
-  const viewAsKey = await readViewAsKeyForCache();
-  const cacheKey = buildCacheKey("staff_scope", ["user", authUser.id, "viewAs", viewAsKey], {
-    v: 1,
+  const scopeKey = await readScopeKeyForCache();
+  const cacheKey = buildCacheKey("staff_scope", ["user", authUser.id, "scope", scopeKey], {
+    v: 2,
   });
 
   const cached = await getOrSetCache(
     cacheKey,
     async (): Promise<CachedStaffScopePayload> => {
       const scope = await resolveStaffTenantScope(authUser);
-      return { ...scope, viewAsKey };
+      return { ...scope, scopeKey };
     },
     CACHE_TTL_SECONDS.searchResults,
   );
 
-  const { viewAsKey: _vk, ...scope } = cached;
+  const { scopeKey: _sk, ...scope } = cached;
   logPerf("tenant.resolve", {
     totalMs: timer.elapsedMs(),
     userId: authUser.id,
     mode: scope.mode,
     tenantId: scope.mode === "scoped" ? scope.tenantId : null,
-    viewAsKey,
+    scopeKey,
   });
   return scope;
 }
