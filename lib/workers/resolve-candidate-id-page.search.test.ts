@@ -92,7 +92,6 @@ describe("resolveCandidateIdPage search", () => {
         p_skills: ["ICU", "BLS"],
         p_limit: 25,
         p_offset: 0,
-        p_assignee: null,
       })
     );
   });

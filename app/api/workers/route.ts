@@ -4,25 +4,37 @@ import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import type { WorkerApplicationStatusSummary } from "@/lib/jobs/application-statuses/attach-worker-application-status";
+import { getApplicationAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
-  getApplicationStatusSummariesForWorkers,
-  type WorkerApplicationStatusSummary,
-} from "@/lib/jobs/application-statuses/attach-worker-application-status";
+  listingCountsForAnalyzedApplication,
+  loadRequirementOutcomeCountsByApplication,
+} from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
-import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
+import {
+  candidatePhoneNameKey,
+  collapseWorkersToCandidateProfiles,
+  findIdentitySiblingWorkerIds,
+} from "@/lib/workers/candidate-identity";
+import { loadCandidateListApplicationBundle } from "@/lib/workers/candidate-list-application-bundle";
+import {
+  CandidateSearchUnavailableError,
+  resolveCandidateIdPage,
+} from "@/lib/workers/resolve-candidate-id-page";
+import {
+  candidateListRequiresServerSearch,
+  parseCandidateListQueryParams,
+} from "@/lib/workers/candidate-list-params";
 import {
   isApprovedPendingConversion,
   shouldExcludeFromApprovedCandidates,
   shouldExcludeFromCandidateLists,
 } from "@/lib/workers/candidate-conversion-filter";
 import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
-import type { WorkerStatus } from "@/lib/workers/workers-status-types";
-import { getAppliedJobCountsByWorker } from "@/lib/workers/applied-job-count";
+import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
 import {
-  getApplicationAppliedJobsByWorker,
-  getApplicationJobAssigneesByWorker,
   joinApplicationJobTitles,
   mergeWorkerAppliedJobs,
   mergeWorkerJobAssigneeEntries,
@@ -30,29 +42,11 @@ import {
   type WorkerJobAssigneeEntry,
 } from "@/lib/workers/worker-application-job-titles";
 import {
-  candidatePhoneNameKey,
-  collapseWorkersToCandidateProfiles,
-  findIdentitySiblingWorkerIds,
-} from "@/lib/workers/candidate-identity";
-import {
-  getWorkerJobMatchSummaries,
   pickWorkerJobMatchSummaryPreferringRequirementCounts,
   type WorkerJobMatchSummary,
 } from "@/lib/workers/worker-job-match-summary";
 import { statusOrFilter } from "@/lib/workers/workers-status-filter";
-import {
-  listingCountsForAnalyzedApplication,
-  loadRequirementOutcomeCountsByApplication,
-} from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
-import { getApplicationAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
-import {
-  candidateListRequiresServerSearch,
-  parseCandidateListQueryParams,
-} from "@/lib/workers/candidate-list-params";
-import {
-  CandidateSearchUnavailableError,
-  resolveCandidateIdPage,
-} from "@/lib/workers/resolve-candidate-id-page";
+import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 
 type SbErr = { message: string; code?: string };
 type ContactLookupRow = {
@@ -173,6 +167,10 @@ export async function GET(req: Request) {
     const queryLimit = limit;
     const queryOffset = offset;
     const requestStarted = Date.now();
+    const phases: Record<string, number> = {};
+    const markPhase = (name: string, startedAt: number) => {
+      phases[name] = Date.now() - startedAt;
+    };
 
     const url = getSupabaseUrl();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -254,11 +252,13 @@ export async function GET(req: Request) {
       // Never fall back to an unfiltered page while search/filters are active.
       if (tenantIdForRpc || requiresServerSearch) {
         try {
+          const idPageStarted = Date.now();
           const idPage = await resolveCandidateIdPage(supabase, tenantIdForRpc, {
             ...listParams,
             status,
             excludeConverted: needsConversionFilter,
           });
+          markPhase("idPageMs", idPageStarted);
           // resolveCandidateIdPage already returns unique candidate-profile IDs + total.
           usedServerPage = true;
           count = idPage.total;
@@ -267,8 +267,11 @@ export async function GET(req: Request) {
           } else if (idPage.ids.length === 0) {
             data = [];
           } else {
+            const hydrateStarted = Date.now();
+            let hydrateAttempts = 0;
             outerRpc: for (const baseCols of baseColsOptions) {
               for (const a of attempts) {
+                hydrateAttempts += 1;
                 const select = `${baseCols}, ${a.extra}`;
                 const res = await supabase
                   .from("worker")
@@ -293,6 +296,8 @@ export async function GET(req: Request) {
                 if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outerRpc;
               }
             }
+            markPhase("hydrateMs", hydrateStarted);
+            phases.hydrateAttempts = hydrateAttempts;
           }
         } catch (rpcErr) {
           if (rpcErr instanceof CandidateSearchUnavailableError || requiresServerSearch) {
@@ -444,51 +449,48 @@ export async function GET(req: Request) {
           );
 
           let usersById = new Map<string, ContactLookupRow>();
-          if (userIds.length > 0) {
-            const { data: usersData, error: usersError } = await queryInChunks(
-              userIds,
-              async (chunk) => {
-                const result = await supabase
-                  .from("users")
-                  .select("id, email, phone")
-                  .in("id", chunk);
-                return {
-                  data: (result.data ?? []) as ContactLookupRow[],
-                  error: result.error,
-                };
-              }
-            );
-            if (usersError) {
-              console.warn("Failed to load users contact data:", usersError);
-            } else {
-              usersById = new Map(
-                usersData.filter((u) => Boolean(u.id)).map((u) => [String(u.id), u])
-              );
-            }
-          }
-
           let applicantsById = new Map<string, ContactLookupRow>();
-          if (workerIds.length > 0) {
-            const { data: applicantsData, error: applicantsError } = await queryInChunks(
-              workerIds,
-              async (chunk) => {
-                const result = await supabase
-                  .from("applicants")
-                  .select("id, email, phone")
-                  .in("id", chunk);
-                return {
-                  data: (result.data ?? []) as ContactLookupRow[],
-                  error: result.error,
-                };
-              }
+          const [usersResult, applicantsResult] = await Promise.all([
+            userIds.length > 0
+              ? queryInChunks(userIds, async (chunk) => {
+                  const result = await supabase
+                    .from("users")
+                    .select("id, email, phone")
+                    .in("id", chunk);
+                  return {
+                    data: (result.data ?? []) as ContactLookupRow[],
+                    error: result.error,
+                  };
+                })
+              : Promise.resolve({ data: [] as ContactLookupRow[], error: null }),
+            workerIds.length > 0
+              ? queryInChunks(workerIds, async (chunk) => {
+                  const result = await supabase
+                    .from("applicants")
+                    .select("id, email, phone")
+                    .in("id", chunk);
+                  return {
+                    data: (result.data ?? []) as ContactLookupRow[],
+                    error: result.error,
+                  };
+                })
+              : Promise.resolve({ data: [] as ContactLookupRow[], error: null }),
+          ]);
+          if (usersResult.error) {
+            console.warn("Failed to load users contact data:", usersResult.error);
+          } else {
+            usersById = new Map(
+              usersResult.data.filter((u) => Boolean(u.id)).map((u) => [String(u.id), u])
             );
-            if (applicantsError) {
-              console.warn("Failed to load applicants contact data:", applicantsError);
-            } else {
-              applicantsById = new Map(
-                applicantsData.filter((a) => Boolean(a.id)).map((a) => [String(a.id), a])
-              );
-            }
+          }
+          if (applicantsResult.error) {
+            console.warn("Failed to load applicants contact data:", applicantsResult.error);
+          } else {
+            applicantsById = new Map(
+              applicantsResult.data
+                .filter((a) => Boolean(a.id))
+                .map((a) => [String(a.id), a])
+            );
           }
 
           return rows.map((row) => {
@@ -506,85 +508,91 @@ export async function GET(req: Request) {
           });
         };
 
-        const enriched = await withContacts();
-        let withPhotos: Record<string, unknown>[] = headOnly ? [] : enriched;
-        if (!headOnly && includePhotoUrls) {
-          try {
-            withPhotos = await attachWorkerProfilePhotoUrls(
-              supabase,
-              enriched as Record<string, unknown>[]
-            );
-          } catch (photoErr) {
-            console.warn("[api/workers] failed to attach profile photo urls", photoErr);
-            withPhotos = (enriched as Record<string, unknown>[]).map((row) => ({
-              ...row,
-              profile_photo_url: null,
-            }));
-          }
-        } else if (!headOnly) {
-          withPhotos = (enriched as Record<string, unknown>[]).map((row) => ({
-            ...row,
-            profile_photo_url:
-              typeof row.profile_photo === "string" && row.profile_photo.startsWith("http")
-                ? row.profile_photo
-                : null,
-          }));
-        }
+        const contactsStarted = Date.now();
+        const siblingsStarted = Date.now();
+        const pageRows = headOnly ? [] : (paged as Array<Record<string, unknown>>);
+        const tenantIdForApps =
+          tenantScope.mode === "scoped"
+            ? tenantScope.tenantId
+            : typeof pageRows[0]?.tenant_id === "string"
+              ? String(pageRows[0].tenant_id)
+              : null;
+        const pageWorkerIds = pageRows
+          .map((row) => (typeof row.id === "string" ? row.id : ""))
+          .filter(Boolean);
 
-        let workersOut: Record<string, unknown>[] = headOnly ? [] : withPhotos;
-
-        if (!headOnly && workersOut.length > 0) {
-          try {
-            const tenantIdForApps =
-              tenantScope.mode === "scoped"
-                ? tenantScope.tenantId
-                : typeof workersOut[0]?.tenant_id === "string"
-                  ? workersOut[0].tenant_id
-                  : null;
-            const workerIds = workersOut
-              .map((row) => (typeof row.id === "string" ? row.id : ""))
-              .filter(Boolean);
-            let workerIdsForApps = workerIds;
-            try {
-              workerIdsForApps = await findIdentitySiblingWorkerIds(
+        const [enriched, siblingIds] = await Promise.all([
+          withContacts(),
+          !headOnly && pageWorkerIds.length > 0
+            ? findIdentitySiblingWorkerIds(
                 supabase,
                 tenantIdForApps,
-                workersOut.map((row) => ({
+                pageRows.map((row) => ({
                   id: typeof row.id === "string" ? row.id : null,
                   email: typeof row.email === "string" ? row.email : null,
                   phone: typeof row.phone === "string" ? row.phone : null,
                   first_name: typeof row.first_name === "string" ? row.first_name : null,
                   last_name: typeof row.last_name === "string" ? row.last_name : null,
                 }))
-              );
-            } catch (siblingErr) {
-              console.warn("[api/workers] identity sibling expansion failed", siblingErr);
-            }
-            const [
+              ).catch((siblingErr) => {
+                console.warn("[api/workers] identity sibling expansion failed", siblingErr);
+                return pageWorkerIds;
+              })
+            : Promise.resolve(pageWorkerIds),
+        ]);
+        markPhase("contactsMs", contactsStarted);
+        markPhase("siblingsMs", siblingsStarted);
+
+        let withPhotos: Record<string, unknown>[] = headOnly ? [] : enriched;
+        const photosStarted = Date.now();
+        const attachStarted = Date.now();
+        const [photoRows, applicationBundle] = await Promise.all([
+          !headOnly && includePhotoUrls
+            ? attachWorkerProfilePhotoUrls(supabase, enriched as Record<string, unknown>[]).catch(
+                (photoErr) => {
+                  console.warn("[api/workers] failed to attach profile photo urls", photoErr);
+                  return (enriched as Record<string, unknown>[]).map((row) => ({
+                    ...row,
+                    profile_photo_url: null,
+                  }));
+                }
+              )
+            : Promise.resolve(
+                headOnly
+                  ? []
+                  : (enriched as Record<string, unknown>[]).map((row) => ({
+                      ...row,
+                      profile_photo_url:
+                        typeof row.profile_photo === "string" &&
+                        row.profile_photo.startsWith("http")
+                          ? row.profile_photo
+                          : null,
+                    }))
+              ),
+          !headOnly && siblingIds.length > 0
+            ? loadCandidateListApplicationBundle(supabase, {
+                tenantId: tenantIdForApps,
+                workerIds: siblingIds,
+              })
+            : Promise.resolve(null),
+        ]);
+        if (!headOnly && includePhotoUrls) markPhase("photosMs", photosStarted);
+        markPhase("attachBundleMs", attachStarted);
+        withPhotos = photoRows;
+
+        let workersOut: Record<string, unknown>[] = headOnly ? [] : withPhotos;
+
+        if (!headOnly && workersOut.length > 0 && applicationBundle) {
+          try {
+            const enrichStarted = Date.now();
+            const workerIdsForApps = siblingIds;
+            const {
               summaries,
               appliedJobCounts,
               matchBundle,
               appliedJobsByWorker,
               jobAssigneesByWorker,
-            ] = await Promise.all([
-              getApplicationStatusSummariesForWorkers(supabase, {
-                tenantId: tenantIdForApps,
-                workerIds: workerIdsForApps,
-              }),
-              getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIdsForApps),
-              getWorkerJobMatchSummaries(supabase, {
-                tenantId: tenantIdForApps,
-                workerIds: workerIdsForApps,
-              }),
-              getApplicationAppliedJobsByWorker(supabase, {
-                tenantId: tenantIdForApps,
-                workerIds: workerIdsForApps,
-              }),
-              getApplicationJobAssigneesByWorker(supabase, {
-                tenantId: tenantIdForApps,
-                workerIds: workerIdsForApps,
-              }),
-            ]);
+            } = applicationBundle;
             const jobTitlesByWorker = new Map<string, string[]>(
               [...appliedJobsByWorker.entries()].map(([workerId, jobs]) => [
                 workerId,
@@ -607,26 +615,88 @@ export async function GET(req: Request) {
               string,
               { confirmed: number; verify: number; notMet: number }
             >();
-            if (tenantIdForApps && matchApplicationIds.length > 0) {
-              try {
-                requirementCountsByApplication = await loadRequirementOutcomeCountsByApplication(
-                  supabase,
-                  tenantIdForApps,
-                  matchApplicationIds
+
+            const workersMissingAssignee = workersOut
+              .map((row) => {
+                const id = typeof row.id === "string" ? row.id.trim() : "";
+                const assigneeId =
+                  typeof row.assigned_recruiter_user_id === "string"
+                    ? row.assigned_recruiter_user_id.trim()
+                    : "";
+                return !assigneeId && id ? id : "";
+              })
+              .filter(Boolean);
+
+            const postAttachStarted = Date.now();
+            const [requirementCountsResult, siblingRowsResult, applicationAssigneeFallback] =
+              await Promise.all([
+                tenantIdForApps && matchApplicationIds.length > 0
+                  ? loadRequirementOutcomeCountsByApplication(
+                      supabase,
+                      tenantIdForApps,
+                      matchApplicationIds
+                    ).catch((countsErr) => {
+                      console.warn("[api/workers] failed to attach requirement counts", countsErr);
+                      return null;
+                    })
+                  : Promise.resolve(null),
+                workerIdsForApps.length > 0
+                  ? queryInChunks(workerIdsForApps, async (chunk) => {
+                      let query = supabase
+                        .from("worker")
+                        .select("id, email, phone, first_name, last_name")
+                        .in("id", chunk);
+                      if (tenantIdForApps) query = query.eq("tenant_id", tenantIdForApps);
+                      const result = await query;
+                      return {
+                        data: (result.data ?? []) as Array<{
+                          id?: string;
+                          email?: string | null;
+                          phone?: string | null;
+                          first_name?: string | null;
+                          last_name?: string | null;
+                        }>,
+                        error: result.error,
+                      };
+                    }).catch((rollupErr) => {
+                      console.warn("[api/workers] identity job-title rollup failed", rollupErr);
+                      return { data: [] as Array<{
+                        id?: string;
+                        email?: string | null;
+                        phone?: string | null;
+                        first_name?: string | null;
+                        last_name?: string | null;
+                      }>, error: null };
+                    })
+                  : Promise.resolve({ data: [] as Array<{
+                      id?: string;
+                      email?: string | null;
+                      phone?: string | null;
+                      first_name?: string | null;
+                      last_name?: string | null;
+                    }>, error: null }),
+                tenantIdForApps && workersMissingAssignee.length > 0
+                  ? getApplicationAssigneeFallbackByWorker(
+                      supabase,
+                      tenantIdForApps,
+                      workersMissingAssignee
+                    )
+                  : Promise.resolve(new Map<string, string>()),
+              ]);
+            markPhase("postAttachParallelMs", postAttachStarted);
+
+            if (requirementCountsResult) {
+              requirementCountsByApplication = requirementCountsResult;
+              markPhase("requirementCountsMs", postAttachStarted);
+              const refined = new Map(matchSummaries);
+              for (const [workerId, apps] of matchBundle.appsByWorker) {
+                const next = pickWorkerJobMatchSummaryPreferringRequirementCounts(
+                  apps,
+                  requirementCountsByApplication
                 );
-                // Prefer analyzed apps that actually have checklist rows when scores compete.
-                const refined = new Map(matchSummaries);
-                for (const [workerId, apps] of matchBundle.appsByWorker) {
-                  const next = pickWorkerJobMatchSummaryPreferringRequirementCounts(
-                    apps,
-                    requirementCountsByApplication
-                  );
-                  if (next) refined.set(workerId, next);
-                }
-                matchSummaries = refined;
-              } catch (countsErr) {
-                console.warn("[api/workers] failed to attach requirement counts", countsErr);
+                if (next) refined.set(workerId, next);
               }
+              matchSummaries = refined;
             }
 
             // Roll up applied-job titles/counts/status/match across identity siblings (including off-page duplicates).
@@ -642,31 +712,8 @@ export async function GET(req: Request) {
             const summaryByEmail = new Map<string, WorkerApplicationStatusSummary>();
             const matchByPhoneName = new Map<string, WorkerJobMatchSummary>();
             const matchByEmail = new Map<string, WorkerJobMatchSummary>();
-            if (workerIdsForApps.length > 0) {
-              try {
-                const { data: siblingRows, error: siblingFetchErr } = await queryInChunks(
-                  workerIdsForApps,
-                  async (chunk) => {
-                    let query = supabase
-                      .from("worker")
-                      .select("id, email, phone, first_name, last_name")
-                      .in("id", chunk);
-                    if (tenantIdForApps) query = query.eq("tenant_id", tenantIdForApps);
-                    const result = await query;
-                    return {
-                      data: (result.data ?? []) as Array<{
-                        id?: string;
-                        email?: string | null;
-                        phone?: string | null;
-                        first_name?: string | null;
-                        last_name?: string | null;
-                      }>,
-                      error: result.error,
-                    };
-                  }
-                );
-                if (siblingFetchErr) throw siblingFetchErr;
-                for (const row of siblingRows) {
+            if (!siblingRowsResult.error) {
+              for (const row of siblingRowsResult.data) {
                   const id = String(row.id ?? "").trim();
                   if (!id) continue;
                   const phoneKey = candidatePhoneNameKey(row);
@@ -742,29 +789,9 @@ export async function GET(req: Request) {
                     if (summary) preferSummary(summaryByEmail, emailNorm, summary);
                     if (match) preferMatch(matchByEmail, emailNorm, match);
                   }
-                }
-              } catch (rollupErr) {
-                console.warn("[api/workers] identity job-title rollup failed", rollupErr);
               }
             }
-            const workersMissingAssignee = workersOut
-              .map((row) => {
-                const id = typeof row.id === "string" ? row.id.trim() : "";
-                const assigneeId =
-                  typeof row.assigned_recruiter_user_id === "string"
-                    ? row.assigned_recruiter_user_id.trim()
-                    : "";
-                return !assigneeId && id ? id : "";
-              })
-              .filter(Boolean);
-            const applicationAssigneeFallback =
-              tenantIdForApps && workersMissingAssignee.length > 0
-                ? await getApplicationAssigneeFallbackByWorker(
-                    supabase,
-                    tenantIdForApps,
-                    workersMissingAssignee
-                  )
-                : new Map<string, string>();
+
             const assigneeIds = [
               ...new Set(
                 [
@@ -782,10 +809,12 @@ export async function GET(req: Request) {
                 ].filter(Boolean)
               ),
             ];
+            const assigneesStarted = Date.now();
             const assigneesById =
               tenantIdForApps && assigneeIds.length > 0
                 ? await loadStaffUsersByIds(supabase, tenantIdForApps, assigneeIds)
                 : new Map();
+            markPhase("assigneesMs", assigneesStarted);
             const resolveJobAssignees = (
               entries: WorkerJobAssigneeEntry[] | undefined
             ): Array<{
@@ -944,6 +973,7 @@ export async function GET(req: Request) {
             } else {
               hasMore = !headOnly && queryOffset + workersOut.length < total;
             }
+            markPhase("enrichTotalMs", enrichStarted);
           } catch (attachErr) {
             console.warn("[api/workers] failed to attach application statuses", attachErr);
           }
@@ -957,6 +987,9 @@ export async function GET(req: Request) {
           workers: workersOut,
           timingMs: Date.now() - requestStarted,
           serverPaged: usedServerPage,
+          ...(process.env.PERF_LOG === "true" || process.env.NODE_ENV !== "production"
+            ? { phases }
+            : {}),
         });
       }
 

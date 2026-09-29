@@ -27,6 +27,13 @@ export async function resolveUniqueCandidateIdPage(
     ({ data, error } = await supabase.rpc("list_candidate_ids_page", rpcArgs));
   }
   if (error || !Array.isArray(data)) {
+    if (error) {
+      console.warn(
+        "[candidates] list_candidate_ids_page failed",
+        error.message,
+        (error as { code?: string }).code ?? ""
+      );
+    }
     return { ids: [], total: 0, usedRpc: false };
   }
 

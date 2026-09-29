@@ -226,7 +226,9 @@ export function toListCandidateIdsRpcArgs(params: CandidateListQueryParams, tena
     .replace(/_/g, "")
     .toLowerCase();
 
-  return {
+  // Omit null optional params so PostgREST can match older RPC signatures
+  // that predate p_assignee / similar additions (extra keys → schema-cache miss).
+  const args: Record<string, unknown> = {
     p_tenant_id: tenantId,
     p_pipeline_status: params.status,
     p_exclude_converted: params.excludeConverted,
@@ -246,8 +248,11 @@ export function toListCandidateIdsRpcArgs(params: CandidateListQueryParams, tena
     p_progress_status_id: params.progressStatusId || null,
     p_job_title: params.jobTitle || null,
     p_skills: params.skills.length ? params.skills : null,
-    p_assignee: params.assignee || null,
   };
+  if (params.assignee) {
+    args.p_assignee = params.assignee;
+  }
+  return args;
 }
 
 export function buildCandidatesListUrl(
