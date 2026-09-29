@@ -17,6 +17,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 // import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
+import { workerSignInHref } from "@/lib/auth/worker-sign-in";
 import { fetchTenantBranding } from "@/lib/tenant/fetch-tenant-branding";
 import {
   persistOnboardingSlugCookie,
