@@ -38,9 +38,9 @@ function textParagraph(
       new TextRun({
         text,
         bold: opts?.bold,
-        size: opts?.size ?? 20,
+        size: opts?.size ?? 22,
         color: opts?.color ?? SLATE,
-        font: "Calibri",
+        font: "Tahoma",
       }),
     ],
   });
@@ -54,9 +54,9 @@ function sectionTitle(title: string): Paragraph {
       new TextRun({
         text: title,
         bold: true,
-        size: 21,
+        size: 22,
         color: NAVY,
-        font: "Calibri",
+        font: "Tahoma",
       }),
     ],
   });
@@ -69,9 +69,9 @@ function bulletParagraph(text: string): Paragraph {
     children: [
       new TextRun({
         text: `•  ${text}`,
-        size: 20,
+        size: 22,
         color: SLATE,
-        font: "Calibri",
+        font: "Tahoma",
       }),
     ],
   });
@@ -91,7 +91,7 @@ export async function renderSubmissionResumeDocx(resume: SubmissionResume): Prom
           bold: true,
           size: 36,
           color: NAVY,
-          font: "Calibri",
+          font: "Tahoma",
         }),
       ],
     })
@@ -101,7 +101,9 @@ export async function renderSubmissionResumeDocx(resume: SubmissionResume): Prom
     children.push(textParagraph(resume.headline, { size: 22, color: SLATE, spacingAfter: 60 }));
   }
 
-  const contact = [resume.location, resume.email, resume.phone].filter(Boolean).join("   ·   ");
+  const contact = [resume.location, resume.email, resume.phone, resume.linkedin]
+    .filter(Boolean)
+    .join("   ·   ");
   if (contact) {
     children.push(textParagraph(contact, { size: 18, color: MUTED, spacingAfter: 160 }));
   }
@@ -117,14 +119,15 @@ export async function renderSubmissionResumeDocx(resume: SubmissionResume): Prom
   }
 
   if (resume.experience.length) {
-    children.push(sectionTitle("Relevant experience"));
+    children.push(sectionTitle("Professional experience"));
     for (const job of resume.experience) {
       const heading = [job.title, job.company].filter(Boolean).join("  —  ");
       if (heading) {
-        children.push(textParagraph(heading, { bold: true, size: 21, color: NAVY, spacingAfter: 40 }));
+        children.push(textParagraph(heading, { bold: true, size: 22, color: NAVY, spacingAfter: 40 }));
       }
-      if (job.dates) {
-        children.push(textParagraph(job.dates, { size: 18, color: MUTED, spacingAfter: 60 }));
+      const meta = [job.location, job.dates].filter(Boolean).join("  ·  ");
+      if (meta) {
+        children.push(textParagraph(meta, { size: 22, color: MUTED, spacingAfter: 60 }));
       }
       for (const bullet of job.bullets) {
         if (bullet.trim()) children.push(bulletParagraph(bullet.trim()));
@@ -153,6 +156,7 @@ export async function renderSubmissionResumeDocx(resume: SubmissionResume): Prom
       {
         properties: {
           page: {
+            size: { width: 12240, height: 15840 },
             margin: { top: 720, right: 720, bottom: 720, left: 720 },
           },
         },

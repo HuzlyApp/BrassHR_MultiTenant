@@ -309,7 +309,7 @@ function formatWhen(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     month: "numeric",
     day: "numeric",
     year: "numeric",
@@ -323,7 +323,7 @@ function formatHistoryWhen(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -1985,7 +1985,7 @@ export function AiAnalysisOverviewClient({
                   })}
                   {!filteredRequirements.length ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-sm text-[#667085]">
+                      <td colSpan={4} className="py-8 text-center text-sm text-[#667085]">
                         No requirements match this filter.
                       </td>
                     </tr>

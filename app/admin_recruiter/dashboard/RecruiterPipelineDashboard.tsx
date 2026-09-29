@@ -24,7 +24,7 @@ function formatDate(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+  return d.toLocaleDateString("en-US", { timeZone: "America/New_York",  year: "numeric", month: "short", day: "2-digit" });
 }
 
 /** Worker pipeline stats — available for reuse outside the main dashboard. */

@@ -523,7 +523,7 @@ export default function NewApplicantActivitiesPage() {
                                   </p>
                                   <p className="text-xs text-[#6B7280]">
                                     {entry.created_at
-                                      ? new Date(entry.created_at).toLocaleString()
+                                      ? new Date(entry.created_at).toLocaleString("en-US", { timeZone: "America/New_York" })
                                       : "—"}
                                   </p>
                                 </div>
@@ -568,13 +568,13 @@ export default function NewApplicantActivitiesPage() {
                                     </div>
                                     <div className="mt-0.5 text-[11px] text-[#6B7280]">
                                       {relativeTimeLabel(row.call_at)} •{" "}
-                                      {new Date(row.call_at).toLocaleDateString("en-US", {
+                                      {new Date(row.call_at).toLocaleDateString("en-US", { timeZone: "America/New_York", 
                                         month: "2-digit",
                                         day: "2-digit",
                                         year: "numeric",
                                       })}{" "}
                                       •{" "}
-                                      {new Date(row.call_at).toLocaleTimeString("en-US", {
+                                      {new Date(row.call_at).toLocaleTimeString("en-US", { timeZone: "America/New_York", 
                                         hour: "numeric",
                                         minute: "2-digit",
                                       })}

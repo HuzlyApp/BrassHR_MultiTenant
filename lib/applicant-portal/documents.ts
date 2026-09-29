@@ -1,3 +1,5 @@
+import { formatEastern } from "@/lib/datetime/eastern";
+
 export const LICENSE_TYPES = [
   "nursing_license",
   "drivers_license",
@@ -68,12 +70,5 @@ export function licenseUrgency(
 }
 
 export function formatDateOnly(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatEastern(value, { month: "short", day: "numeric", year: "numeric" }, "—");
 }

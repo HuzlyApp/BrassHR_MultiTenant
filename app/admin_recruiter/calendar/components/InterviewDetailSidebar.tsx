@@ -98,7 +98,7 @@ export function InterviewDetailSidebar({
             <DetailRow label="Job" value={interview.jobTitle} />
             <DetailRow label="Date" value={dateLabel} />
             <DetailRow label="Time" value={timeLabel} />
-            <DetailRow label="Timezone" value={interview.timezone} />
+            <DetailRow label="Timezone" value="Eastern Time" />
             <DetailRow label="Status" value={interview.status} />
             <DetailRow label="Meeting type" value={MEETING_TYPE_LABEL[interview.meetingType]} />
             <DetailRow

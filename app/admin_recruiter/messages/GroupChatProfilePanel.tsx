@@ -16,7 +16,7 @@ type WorkerOption = {
 function formatCreatedDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "numeric",
     day: "numeric",
     year: "numeric",

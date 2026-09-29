@@ -9,6 +9,8 @@
 
 import type { MatchStage } from "./match-stage";
 import { parseMatchStage } from "./match-stage";
+import { fitBandFromQuickRoute } from "./quick-route";
+import type { QuickRoute } from "./schema";
 import type { QualificationOutcomeCounts } from "./workspace";
 
 export const MATCH_PROGRESSION_STEPS = [
@@ -104,6 +106,24 @@ export function quickMatchFitBand(
     const confirmedShare = counts.confirmed / Math.max(counts.mandatory, 1);
     if (confirmedShare >= 0.7) return "strong";
   }
+  return "review";
+}
+
+/**
+ * Deep Match uses the live checklist, same as the overview ring.
+ * A stored Quick Match route applies only when no requirement rows have been scored.
+ */
+export function fitBandForMatchGate(args: {
+  counts: Pick<QualificationOutcomeCounts, "mandatory" | "confirmed" | "notMet" | "blocking">;
+  storedRoute?: QuickRoute | null;
+}): QuickMatchFitBand {
+  const hasChecklist =
+    args.counts.mandatory > 0 ||
+    args.counts.confirmed > 0 ||
+    args.counts.notMet > 0 ||
+    args.counts.blocking > 0;
+  if (hasChecklist) return quickMatchFitBand(args.counts);
+  if (args.storedRoute) return fitBandFromQuickRoute(args.storedRoute);
   return "review";
 }
 

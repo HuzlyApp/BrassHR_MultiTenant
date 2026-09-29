@@ -56,6 +56,7 @@ export {
   matchProgressionPrimaryAction,
   matchProgressionStageFromIndex,
   quickMatchFitBand,
+  fitBandForMatchGate,
   type MatchProgressionStep,
   type MatchProgressionStepId,
   type QuickMatchFitBand,

@@ -8,6 +8,7 @@ import {
   applicantDisplayName,
   interviewOrdinalTitle,
 } from "@/lib/interviews/format";
+import { easternDateString, easternHour, formatEastern } from "@/lib/datetime/eastern";
 import { localDateString, localTimeString, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 
 export const runtime = "nodejs";
@@ -47,10 +48,13 @@ function parseDateParam(value: string | null): string {
 }
 
 function formatTime12h(time: string): string {
-  const normalized = time.length === 5 ? `${time}:00` : time;
-  const date = new Date(`1970-01-01T${normalized}`);
-  if (Number.isNaN(date.getTime())) return time;
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const match = /^(\d{1,2}):(\d{2})/.exec(time.trim());
+  if (!match) return time;
+  let hour = Number(match[1]);
+  const minute = match[2];
+  const suffix = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${suffix}`;
 }
 
 function formatShiftTimeRange(title: string | null): string {
@@ -64,13 +68,13 @@ function formatShiftTimeRange(title: string | null): string {
 function formatHumanDate(isoDate: string): string {
   const date = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" });
 }
 
 function formatWeekdayDate(isoDate: string): string {
   const date = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 function relativeTimeLabel(iso: string | null): string {
@@ -85,15 +89,20 @@ function relativeTimeLabel(iso: string | null): string {
   return `${days}d`;
 }
 
+function calendarDayDiff(fromKey: string, toKey: string): number {
+  const [fromYear, fromMonth, fromDay] = fromKey.split("-").map(Number);
+  const [toYear, toMonth, toDay] = toKey.split("-").map(Number);
+  const from = Date.UTC(fromYear, fromMonth - 1, fromDay);
+  const to = Date.UTC(toYear, toMonth - 1, toDay);
+  return Math.round((to - from) / 86400000);
+}
+
 function daysUntilLabel(iso: string | null): string {
   if (!iso) return "—";
   const target = new Date(iso);
   if (Number.isNaN(target.getTime())) return "—";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const formatted = target.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const diff = calendarDayDiff(easternDateString(new Date()), easternDateString(target));
+  const formatted = formatEastern(target, { day: "2-digit", month: "short", year: "numeric" });
   if (diff > 0) return `${formatted} (In ${diff} day${diff === 1 ? "" : "s"})`;
   if (diff === 0) return `${formatted} (Today)`;
   return formatted;
@@ -341,7 +350,7 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
     }));
 
     return {
-      greeting: greetingForHour(new Date().getHours()),
+      greeting: greetingForHour(easternHour(new Date())),
       userName: profileName,
       selectedDate,
       selectedDateLabel: formatWeekdayDate(selectedDate),

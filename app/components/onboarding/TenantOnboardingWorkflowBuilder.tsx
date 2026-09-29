@@ -1087,7 +1087,7 @@ export default function TenantOnboardingWorkflowBuilder({
         { label: "Tenant", value: tenantName || "Unknown tenant" },
         { label: "Tenant slug", value: tenantSlug ?? "Not set" },
         { label: "Status", value: publishStatus },
-        { label: "Last saved", value: updatedAt ? new Date(updatedAt).toLocaleString() : "Not saved yet" },
+        { label: "Last saved", value: updatedAt ? new Date(updatedAt).toLocaleString("en-US", { timeZone: "America/New_York" }) : "Not saved yet" },
       ],
     }),
     [flowTitle, publishStatus, stepLibrary, templateLists, tenantId, tenantName, tenantSlug, updatedAt]

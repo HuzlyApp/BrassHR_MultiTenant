@@ -16,7 +16,7 @@ const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
 function formatMessageTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "numeric",
     hour: "numeric",

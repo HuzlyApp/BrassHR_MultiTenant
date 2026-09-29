@@ -58,7 +58,7 @@ export function filterSkillsByEvidence(args: {
   confirmedEvidence?: string[];
   maxSkills?: number;
 }): SkillEvidenceResult {
-  const maxSkills = args.maxSkills ?? 16;
+  const maxSkills = args.maxSkills ?? 40;
   const corpus = normalizeEvidenceCorpus([
     args.resumeText,
     ...(args.experienceBullets ?? []),
@@ -112,6 +112,7 @@ export function applySkillEvidenceFilter(
   const experienceBullets = resume.experience.flatMap((job) => [
     job.title,
     job.company,
+    job.location,
     job.dates,
     ...job.bullets,
   ]);
