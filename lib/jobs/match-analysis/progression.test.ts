@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEEP_MATCH_BLOCKED_LOW_FIT,
   DEEP_MATCH_BLOCKED_NOT_READY,
+  DEEP_MATCH_BLOCKED_TALENT_POOL,
   MATCH_PROGRESSION_STEPS,
   canAdvanceMatchProgression,
   canRunDeepMatch,
@@ -148,6 +148,62 @@ describe("match progression steps", () => {
     );
   });
 
+  it("shows Low for a stored Quick Match LOW_MATCH when the checklist reads Review", () => {
+    const reviewCounts = { confirmed: 2, verify: 3, notMet: 0, mandatory: 5, blocking: 0 };
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("low");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "follow_up",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("low");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: { ...reviewCounts, quickRoute: "REVIEW" },
+      })
+    ).toBe("review");
+    // Deep Match result governs after step 4.
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "deep",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("strong");
+    // A recruiter-verified Strong checklist still wins.
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "follow_up",
+        counts: { confirmed: 5, verify: 0, notMet: 0, mandatory: 5, blocking: 0, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("strong");
+  });
+
+  it("blocks Deep Match for a stored LOW_MATCH when the checklist reads Review", () => {
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 5, confirmed: 2, notMet: 0, blocking: 0 },
+        storedRoute: "LOW_MATCH",
+      })
+    ).toBe("low");
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 5, confirmed: 2, notMet: 0, blocking: 0 },
+        storedRoute: "REVIEW",
+      })
+    ).toBe("review");
+  });
+
   it("lets a Strong checklist override a stored Low match route", () => {
     expect(
       fitBandForMatchGate({
@@ -163,7 +219,7 @@ describe("match progression steps", () => {
     ).toBe("low");
   });
 
-  it("allows Verifications for low fit but blocks Deep Match and Talent Pool", () => {
+  it("allows Verifications and Deep Match for low fit but blocks Talent Pool", () => {
     expect(
       canAdvanceMatchProgression({ isAnalyzed: true, fitBand: "review" })
     ).toBe(true);
@@ -177,41 +233,18 @@ describe("match progression steps", () => {
         parkedInTalentPool: true,
       })
     ).toBe(false);
+    expect(canRunDeepMatch({ isAnalyzed: true, unlockedIndex: 1 })).toBe(false);
+    expect(canRunDeepMatch({ isAnalyzed: true, unlockedIndex: 2 })).toBe(true);
     expect(
-      canRunDeepMatch({
-        isAnalyzed: true,
-        fitBand: "review",
-        unlockedIndex: 1,
-      })
+      canRunDeepMatch({ isAnalyzed: true, unlockedIndex: 2, parkedInTalentPool: true })
     ).toBe(false);
+    expect(deepMatchBlockReason({ isAnalyzed: true, unlockedIndex: 2 })).toBeNull();
     expect(
-      canRunDeepMatch({
-        isAnalyzed: true,
-        fitBand: "review",
-        unlockedIndex: 2,
-      })
-    ).toBe(true);
-    expect(
-      canRunDeepMatch({
-        isAnalyzed: true,
-        fitBand: "low",
-        unlockedIndex: 2,
-      })
-    ).toBe(false);
-    expect(
-      deepMatchBlockReason({
-        isAnalyzed: true,
-        fitBand: "low",
-        unlockedIndex: 2,
-      })
-    ).toBe(DEEP_MATCH_BLOCKED_LOW_FIT);
-    expect(
-      deepMatchBlockReason({
-        isAnalyzed: true,
-        fitBand: "review",
-        unlockedIndex: 0,
-      })
-    ).toBe(DEEP_MATCH_BLOCKED_NOT_READY);
+      deepMatchBlockReason({ isAnalyzed: true, unlockedIndex: 2, parkedInTalentPool: true })
+    ).toBe(DEEP_MATCH_BLOCKED_TALENT_POOL);
+    expect(deepMatchBlockReason({ isAnalyzed: true, unlockedIndex: 0 })).toBe(
+      DEEP_MATCH_BLOCKED_NOT_READY
+    );
   });
 
   it("lets the recruiter open the next step only when they can advance", () => {

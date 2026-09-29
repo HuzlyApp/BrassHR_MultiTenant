@@ -3,8 +3,8 @@
  * Visual order: Quick Match → Verifications → Follow-Up → Deep Match → Submission.
  *
  * Later paid steps do not unlock from application status. The recruiter must
- * push the candidate forward through Verifications and Follow-Up. Deep Match
- * stays blocked for low fit; Talent Pool exits skip later paid AI.
+ * push the candidate forward through Verifications and Follow-Up. Any fit band
+ * (including low) may run Deep Match; Talent Pool exits skip later paid AI.
  */
 
 import type { MatchStage } from "./match-stage";
@@ -74,13 +74,13 @@ export type MatchProgressionState = {
 };
 
 export const MATCH_PROGRESSION_INTRO =
-  "Recruiter steps. Use the step bar to open Verifications and Follow-up (including low match). Deep Match asks you to confirm the paid run before that step opens and stays blocked for low fit. A Talent Pool exit skips later paid AI — it does not fill the ring.";
+  "Recruiter steps. Use the step bar to open Verifications and Follow-up (including low match). Deep Match asks you to confirm the paid run before that step opens, including for low match. A Talent Pool exit skips later paid AI — it does not fill the ring.";
 
 export const FLOW_DIAMOND_COPY =
-  "LOW_MATCH if any skill blocker or weighted < 0.40. STRONG if no blocker, weighted ≥ 0.70, mand_met ≥ 0.60, and confirmed/M ≥ 0.50. Else REVIEW. Do not run Deep Match on LOW_MATCH.";
+  "LOW_MATCH if any skill blocker, core seat not confirmed, weighted ≤ 0.50, confirmed = 0, or not found ≥ 2. STRONG if no blocker, weighted ≥ 0.70, mand_met ≥ 0.60, and confirmed/M ≥ 0.50. Else REVIEW.";
 
-export const DEEP_MATCH_BLOCKED_LOW_FIT =
-  "Low match — do not run Deep Match. Move this candidate to Talent Pool.";
+export const DEEP_MATCH_BLOCKED_TALENT_POOL =
+  "This candidate is in Talent Pool. Deep Match is skipped for Talent Pool exits.";
 
 export const DEEP_MATCH_BLOCKED_NOT_READY =
   "Finish Verifications and Follow-Up before Run Deep Match.";
@@ -109,9 +109,15 @@ export function quickMatchFitBand(
   return "review";
 }
 
+/** A stored Quick Match LOW_MATCH turns a Review checklist into Low. A Strong checklist still wins. */
+function applyQuickRouteLow(band: QuickMatchFitBand, route: QuickRoute | null | undefined): QuickMatchFitBand {
+  return band === "review" && route === "LOW_MATCH" ? "low" : band;
+}
+
 /**
  * Deep Match uses the live checklist, same as the overview ring.
- * A stored Quick Match route applies only when no requirement rows have been scored.
+ * A stored Quick Match route applies only when no requirement rows have been scored,
+ * except LOW_MATCH, which also downgrades a Review checklist.
  */
 export function fitBandForMatchGate(args: {
   counts: Pick<QualificationOutcomeCounts, "mandatory" | "confirmed" | "notMet" | "blocking">;
@@ -122,7 +128,7 @@ export function fitBandForMatchGate(args: {
     args.counts.confirmed > 0 ||
     args.counts.notMet > 0 ||
     args.counts.blocking > 0;
-  if (hasChecklist) return quickMatchFitBand(args.counts);
+  if (hasChecklist) return applyQuickRouteLow(quickMatchFitBand(args.counts), args.storedRoute);
   if (args.storedRoute) return fitBandFromQuickRoute(args.storedRoute);
   return "review";
 }
@@ -196,7 +202,10 @@ export function fitBandFromDeepMatchResult(args: {
   return "review";
 }
 
-/** Listing Fit uses the same checklist band as overview when mandatory/blocking are present. */
+/**
+ * Listing Fit uses the same checklist band as overview when mandatory/blocking are present.
+ * Before Deep Match, a stored Quick Match LOW_MATCH turns a Review checklist into Low.
+ */
 export function listingDisplayFitBand(args: {
   analyzed: boolean;
   stage?: string | null;
@@ -206,6 +215,7 @@ export function listingDisplayFitBand(args: {
     notMet?: number | null;
     mandatory?: number | null;
     blocking?: number | null;
+    quickRoute?: QuickRoute | null;
   } | null;
 }): QuickMatchFitBand | null {
   if (!args.analyzed) return null;
@@ -230,6 +240,8 @@ export function listingDisplayFitBand(args: {
     if (notMet >= 2) band = "low";
     else if (notMet === 0 && total > 0 && confirmed / total >= 0.7) band = "strong";
   }
+  const atDeep = args.stage === "deep" || args.stage === "submission";
+  if (!atDeep) band = applyQuickRouteLow(band, args.counts?.quickRoute);
   return displayFitBand({ fitBand: band, stage: args.stage });
 }
 
@@ -259,31 +271,28 @@ export function canAdvanceMatchProgression(args: {
 }): boolean {
   if (args.parkedInTalentPool) return false;
   if (!args.isAnalyzed) return false;
-  // Low fit may still open Verifications / Follow-up; Deep Match stays gated separately.
+  // Low fit may still open Verifications / Follow-up.
   return true;
 }
 
+/** Any fit band, including low, may run Deep Match once Follow-Up is unlocked. */
 export function canRunDeepMatch(args: {
   isAnalyzed: boolean;
-  fitBand: QuickMatchFitBand;
   unlockedIndex: number;
   parkedInTalentPool?: boolean;
 }): boolean {
   if (args.parkedInTalentPool) return false;
   if (!args.isAnalyzed) return false;
-  if (args.fitBand === "low") return false;
   return args.unlockedIndex >= 2;
 }
 
 export function deepMatchBlockReason(args: {
   isAnalyzed: boolean;
-  fitBand: QuickMatchFitBand;
   unlockedIndex: number;
   parkedInTalentPool?: boolean;
 }): string | null {
-  if (args.parkedInTalentPool) return DEEP_MATCH_BLOCKED_LOW_FIT;
+  if (args.parkedInTalentPool) return DEEP_MATCH_BLOCKED_TALENT_POOL;
   if (!args.isAnalyzed) return "Run Quick Match before Deep Match.";
-  if (args.fitBand === "low") return DEEP_MATCH_BLOCKED_LOW_FIT;
   if (args.unlockedIndex < 2) return DEEP_MATCH_BLOCKED_NOT_READY;
   return null;
 }

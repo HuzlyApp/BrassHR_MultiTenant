@@ -37,6 +37,7 @@ import { ANALYSIS_PROVIDER_LABELS, parseAnalysisMode, parseAnalysisProvider } fr
 import {
   countQualificationOutcomes,
   listingRequirementOutcomeCounts,
+  type ListingRequirementOutcomeCounts,
   CALL_CONTEXT_QUESTION_KEY,
   formatScreeningPackForAiNotes,
   isCallContextQuestionKey,
@@ -52,7 +53,8 @@ import {
 } from "./match-stage";
 import { quickRouteFromAnalysis } from "./quick-route";
 import {
-  DEEP_MATCH_BLOCKED_LOW_FIT,
+  DEEP_MATCH_BLOCKED_NOT_READY,
+  DEEP_MATCH_BLOCKED_TALENT_POOL,
   canAdvanceMatchProgression,
   canRunDeepMatch,
   deepMatchBlockReason,
@@ -85,7 +87,7 @@ export type RunMatchAnalysisResult = {
   error: string | null;
   repaired: boolean;
   model: string | null;
-  requirementCounts: { confirmed: number; verify: number; notMet: number } | null;
+  requirementCounts: ListingRequirementOutcomeCounts | null;
   analyzedAt?: string | null;
   /** Persisted `ai_match_stage`; absent when the run did not write a stage. */
   stage?: MatchStage | null;
@@ -202,8 +204,13 @@ async function runCallPackQuestionsForApplication(args: {
     })
   ) {
     return failedAnalysis(
-      parked ? "This candidate is in Talent Pool." : DEEP_MATCH_BLOCKED_LOW_FIT,
-      { requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []) }
+      DEEP_MATCH_BLOCKED_TALENT_POOL,
+      {
+        requirementCounts: listingRequirementOutcomeCounts(
+          requirementRows ?? [],
+          quickRouteFromAnalysis(application.ai_analysis)
+        ),
+      }
     );
   }
 
@@ -369,7 +376,10 @@ async function runCallPackQuestionsForApplication(args: {
         },
       });
       return failedAnalysis(PROMPT_NOT_CONFIGURED, {
-        requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []),
+        requirementCounts: listingRequirementOutcomeCounts(
+          requirementRows ?? [],
+          quickRouteFromAnalysis(application.ai_analysis)
+        ),
       });
     }
     throw error;
@@ -443,7 +453,10 @@ async function runCallPackQuestionsForApplication(args: {
       error: null,
       repaired: generated.repaired,
       model: generated.model,
-      requirementCounts: listingRequirementOutcomeCounts(requirementRows ?? []),
+      requirementCounts: listingRequirementOutcomeCounts(
+        requirementRows ?? [],
+        quickRouteFromAnalysis(merged)
+      ),
       analyzedAt,
       stage: nextStage,
     };
@@ -735,19 +748,13 @@ export async function runMatchAnalysisForApplication(args: {
         )
         .eq("tenant_id", tenantId)
         .eq("job_application_id", jobApplicationId);
-      const counts = countQualificationOutcomes(existingReqs ?? []);
-      const fitBand = fitBandForMatchGate({
-        counts,
-        storedRoute: quickRouteFromAnalysis(application.ai_analysis),
-      });
       const unlockedIndex = matchProgressionIndexFromStage(application.ai_match_stage);
       const blocked = deepMatchBlockReason({
         isAnalyzed: true,
-        fitBand,
         unlockedIndex,
       });
-      if (blocked || !canRunDeepMatch({ isAnalyzed: true, fitBand, unlockedIndex })) {
-        const message = blocked || DEEP_MATCH_BLOCKED_LOW_FIT;
+      if (blocked || !canRunDeepMatch({ isAnalyzed: true, unlockedIndex })) {
+        const message = blocked || DEEP_MATCH_BLOCKED_NOT_READY;
         emit("failed", message, "FAILED");
         await updateApplicationMatchFields({
           supabase,
@@ -769,11 +776,10 @@ export async function runMatchAnalysisForApplication(args: {
           error: message,
           repaired: false,
           model: null,
-          requirementCounts: {
-            confirmed: counts.confirmed,
-            verify: counts.verify,
-            notMet: counts.notMet,
-          },
+          requirementCounts: listingRequirementOutcomeCounts(
+            existingReqs ?? [],
+            quickRouteFromAnalysis(application.ai_analysis)
+          ),
         };
       }
     }
@@ -1021,7 +1027,10 @@ export async function runMatchAnalysisForApplication(args: {
       error: null,
       repaired: modelResult.repaired,
       model: modelResult.model,
-      requirementCounts: listingRequirementOutcomeCounts(persistedRequirements),
+      requirementCounts: listingRequirementOutcomeCounts(
+        persistedRequirements,
+        analysis.quick_match?.quick_route
+      ),
       analyzedAt,
       stage,
     };
