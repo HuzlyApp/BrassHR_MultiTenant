@@ -50,15 +50,15 @@ import {
   parseMatchStage,
   type MatchStage,
 } from "./match-stage";
-import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "./quick-route";
+import { quickRouteFromAnalysis } from "./quick-route";
 import {
   DEEP_MATCH_BLOCKED_LOW_FIT,
   canAdvanceMatchProgression,
   canRunDeepMatch,
   deepMatchBlockReason,
+  fitBandForMatchGate,
   matchProgressionIndexFromStage,
   matchProgressionStageFromIndex,
-  quickMatchFitBand,
 } from "./progression";
 import { loadVerificationNotesForApplication } from "./verification-notes-service";
 import { summarizeRequirementNotes } from "./verification-notes";
@@ -189,15 +189,10 @@ async function runCallPackQuestionsForApplication(args: {
   if (reqError) throw reqError;
 
   const counts = countQualificationOutcomes(requirementRows ?? []);
-  const storedRoute = quickRouteFromAnalysis(application.ai_analysis);
-  const fitBand = storedRoute
-    ? fitBandFromQuickRoute(storedRoute)
-    : quickMatchFitBand({
-        mandatory: counts.mandatory,
-        confirmed: counts.confirmed,
-        notMet: counts.notMet,
-        blocking: counts.blocking,
-      });
+  const fitBand = fitBandForMatchGate({
+    counts,
+    storedRoute: quickRouteFromAnalysis(application.ai_analysis),
+  });
   const parked = application.recruiter_decision === "do_not_pursue";
   if (
     !canAdvanceMatchProgression({
@@ -741,15 +736,10 @@ export async function runMatchAnalysisForApplication(args: {
         .eq("tenant_id", tenantId)
         .eq("job_application_id", jobApplicationId);
       const counts = countQualificationOutcomes(existingReqs ?? []);
-      const storedRoute = quickRouteFromAnalysis(application.ai_analysis);
-      const fitBand = storedRoute
-        ? fitBandFromQuickRoute(storedRoute)
-        : quickMatchFitBand({
-            mandatory: counts.mandatory,
-            confirmed: counts.confirmed,
-            notMet: counts.notMet,
-            blocking: counts.blocking,
-          });
+      const fitBand = fitBandForMatchGate({
+        counts,
+        storedRoute: quickRouteFromAnalysis(application.ai_analysis),
+      });
       const unlockedIndex = matchProgressionIndexFromStage(application.ai_match_stage);
       const blocked = deepMatchBlockReason({
         isAnalyzed: true,

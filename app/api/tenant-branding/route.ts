@@ -13,7 +13,7 @@ import { createPerfTimer, logPerf } from "@/lib/perf";
 export async function GET(req: Request) {
   const routeTimer = createPerfTimer();
   const tenantResponseHeaders = {
-    "Cache-Control": "private, no-store",
+    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
     Vary: "Host",
   };
 

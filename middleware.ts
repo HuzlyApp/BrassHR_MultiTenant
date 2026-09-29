@@ -97,6 +97,19 @@ function isPublicUiPath(pathname: string): boolean {
   return false;
 }
 
+function requestHasBearerToken(request: NextRequest): boolean {
+  return /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
+}
+
+/** Supabase session cookie, or a bearer the route handler will verify itself. */
+function requestHasAuthCredential(request: NextRequest): boolean {
+  if (requestHasBearerToken(request)) return true;
+  return request.cookies.getAll().some((cookie) => {
+    const name = cookie.name;
+    return name.includes("auth-token") || name.startsWith("sb-");
+  });
+}
+
 function isAnonymousAuthUser(user: { is_anonymous?: boolean } | null | undefined): boolean {
   return user?.is_anonymous === true;
 }
@@ -157,9 +170,12 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  const hasAuthCredential = requestHasAuthCredential(request);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = hasAuthCredential
+    ? await supabase.auth.getUser()
+    : { data: { user: null } };
   const isAnonymousUser = isAnonymousAuthUser(user);
 
   /** Idle timeout: end non-anonymous sessions after 2h without activity cookie updates. */
@@ -312,6 +328,11 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       const trialPrepUserId = hasOwnerTrialPreparationCookie(request);
       if (isOwnerTrialPreparationApi(pathname) && trialPrepUserId) {
+        return response;
+      }
+      // Bearer-only callers are verified in the route (requireStaffApiSession),
+      // which reads Authorization. Cookie getUser() does not see that token.
+      if (requestHasBearerToken(request)) {
         return response;
       }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

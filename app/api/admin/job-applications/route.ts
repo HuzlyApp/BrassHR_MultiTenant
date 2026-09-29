@@ -19,6 +19,7 @@ import {
   filterWorkerIdsMatchingSkills,
   parseSkillsFilterParam,
 } from "@/lib/jobs/application-skills-filter";
+import { loadStaffApplicationPage } from "@/lib/admin/load-staff-application-page";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,16 @@ export async function GET(req: NextRequest) {
   try {
     const tenantId = await resolveStaffTenantId(db, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    const listParams = req.nextUrl.searchParams;
+    if (
+      listParams.has("page") ||
+      listParams.get("idsOnly") === "1" ||
+      listParams.get("export") === "1"
+    ) {
+      const body = await loadStaffApplicationPage(db, tenantId, listParams);
+      return NextResponse.json(body);
+    }
 
     const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
     const workerId = req.nextUrl.searchParams.get("workerId")?.trim();

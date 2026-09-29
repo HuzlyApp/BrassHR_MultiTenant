@@ -26,14 +26,14 @@ function formatApplicationDate(iso: string | null | undefined): { relative: stri
   const minutes = Math.floor(diffMs / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  let relative = date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  let relative = date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" });
   if (minutes < 1) relative = "Just now";
   else if (minutes < 60) relative = `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
   else if (hours < 24) relative = `${hours} hour${hours === 1 ? "" : "s"} ago`;
   else if (days < 7) relative = `${days} day${days === 1 ? "" : "s"} ago`;
   return {
     relative,
-    absolute: date.toLocaleDateString(undefined, {
+    absolute: date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       month: "long",
       day: "numeric",
       year: "numeric",

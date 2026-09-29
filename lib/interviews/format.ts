@@ -12,7 +12,12 @@ export function formatInterviewDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function formatInterviewTimeRange(
@@ -23,6 +28,7 @@ export function formatInterviewTimeRange(
   const start = new Date(startsAt);
   if (Number.isNaN(start.getTime())) return "—";
   const startLabel = start.toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -31,6 +37,7 @@ export function formatInterviewTimeRange(
   const end = new Date(endsAt);
   if (Number.isNaN(end.getTime())) return startLabel;
   const endLabel = end.toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,

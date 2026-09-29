@@ -3,6 +3,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { applicantDisplayName } from "@/lib/interviews/format";
 import { buildInterviewCalendarUid } from "@/lib/interviews/ics";
+import { EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
 import { isoToScheduleFields, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 import {
   sendInterviewInvitations,
@@ -102,10 +103,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "End time must be after start time." }, { status: 400 });
     }
 
-    const timezone =
-      typeof body.timezone === "string" && body.timezone.trim()
-        ? body.timezone.trim()
-        : existing.timezone;
+    const timezone = EASTERN_TIME_ZONE;
     const scheduleFields = isoToScheduleFields(startsAt, endsAt, timezone);
     const nextSequence = (existing.calendar_sequence ?? 0) + 1;
 

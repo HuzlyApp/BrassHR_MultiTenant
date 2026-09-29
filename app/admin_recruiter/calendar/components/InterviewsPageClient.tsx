@@ -4,6 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import {
+  EASTERN_TIME_ZONE,
+  addEasternDays,
+  easternHour,
+  startOfEasternDay,
+  startOfEasternWeek,
+} from "@/lib/datetime/eastern";
 import { localDateString } from "@/lib/interviews/schedule-fields";
 import {
   InterviewDetailSidebar,
@@ -41,24 +48,19 @@ const HOUR_LABELS = [
   "6:00 PM",
 ] as const;
 
-/** Local wall-clock hour for each row (must stay in sync with HOUR_LABELS). */
+/** Eastern wall-clock hour for each row (must stay in sync with HOUR_LABELS). */
 const HOUR_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfEasternDay(date);
 }
 
 function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
+  return addEasternDays(date, days);
 }
 
 function getWeekStart(date: Date): Date {
-  const d = startOfDay(date);
-  return addDays(d, -d.getDay());
+  return startOfEasternWeek(date);
 }
 
 function isDateInWeek(date: Date, weekStart: Date): boolean {
@@ -86,7 +88,7 @@ function getDefaultCalendarAnchor(interviews: AdminInterviewItem[]): Date {
 
 function interviewMatchesHourSlot(startsAt: string, slotHour: number): boolean {
   const start = new Date(startsAt);
-  return start.getHours() === slotHour;
+  return easternHour(start) === slotHour;
 }
 
 function TabButton({
@@ -271,7 +273,7 @@ function InterviewListView({
         <div key={dateLabel}>
           {items.map((item) => {
             const dayLabel = dateLabel.split(" ")[0];
-            const dateDisplay = new Date(item.startsAt).toLocaleDateString("en-US", {
+            const dateDisplay = new Date(item.startsAt).toLocaleDateString("en-US", { timeZone: "America/New_York", 
               month: "short",
               day: "numeric",
             });
@@ -388,7 +390,7 @@ function InterviewCalendarView({
                 className="flex flex-col items-center border-r border-[#E5E7EB] px-1.5 py-3 last:border-r-0 min-[850px]:px-2"
               >
                 <p className="text-[9px] font-medium uppercase tracking-wide text-[#64748B] min-[850px]:text-[10px]">
-                  {day.toLocaleDateString("en-US", { weekday: "short" })}
+                  {day.toLocaleDateString("en-US", { timeZone: "America/New_York",  weekday: "short" })}
                 </p>
                 <span
                   className={`mt-1 inline-flex h-6 min-w-[24px] items-center justify-center rounded px-1.5 py-1 text-[11px] font-semibold leading-none min-[850px]:px-2 min-[850px]:text-xs ${
@@ -596,7 +598,7 @@ export default function InterviewsPageClient({
       jobId: interview.jobId,
       startsAt: interview.startsAt,
       endsAt: interview.endsAt || interview.startsAt,
-      timezone: interview.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone: EASTERN_TIME_ZONE,
       title: interview.title,
       meetingType: interview.meetingType || "online",
       meetingLink: interview.meetingLink,
@@ -689,7 +691,7 @@ export default function InterviewsPageClient({
   }
 
   const hasInterviews = interviews.length > 0;
-  const monthTitle = anchorDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthTitle = anchorDate.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", year: "numeric" });
 
   const modalApplicants = useMemo(() => {
     if (workerId && candidateName) {

@@ -1,3 +1,12 @@
+import {
+  addEasternDays,
+  easternDateString,
+  easternHour,
+  easternWallClockToDate,
+  easternWeekdayIndex,
+  endOfEasternDay,
+  startOfEasternDay,
+} from "@/lib/datetime/eastern";
 import type { ApplicantNote, Appointment, AppointmentSlot, AttendanceLog } from "./types";
 import { formatDateOnly, formatTimeRange } from "./format";
 
@@ -33,19 +42,20 @@ const ANNOUNCEMENT_TONES: Array<{
 ];
 
 function startOfDay(date: Date): Date {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
+  return startOfEasternDay(date);
 }
 
 function endOfDay(date: Date): Date {
-  const next = new Date(date);
-  next.setHours(23, 59, 59, 999);
-  return next;
+  return endOfEasternDay(date);
+}
+
+function mondayOffset(date: Date): number {
+  const day = easternWeekdayIndex(date);
+  return day === 0 ? -6 : 1 - day;
 }
 
 export function getGreeting(): string {
-  const hour = new Date().getHours();
+  const hour = easternHour(new Date());
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
@@ -57,15 +67,10 @@ export function getFirstName(fullName: string): string {
 }
 
 export function getWeekRangeLabel(reference = new Date()): string {
-  const day = reference.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const start = new Date(reference);
-  start.setDate(reference.getDate() + mondayOffset);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
+  const { start, end } = getCurrentWeekBounds(reference);
 
   const fmt = (date: Date) =>
-    date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric" });
 
   return `${fmt(start)} – ${fmt(end)}`;
 }
@@ -108,21 +113,12 @@ function hoursBetween(startIso: string | null, endIso: string | null): number {
 }
 
 function isSameCalendarDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return easternDateString(a) === easternDateString(b);
 }
 
 function isInCurrentWeek(date: Date, reference = new Date()): boolean {
-  const day = reference.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const weekStart = startOfDay(new Date(reference));
-  weekStart.setDate(reference.getDate() + mondayOffset);
-  const weekEnd = endOfDay(new Date(weekStart));
-  weekEnd.setDate(weekStart.getDate() + 6);
-  return date >= weekStart && date <= weekEnd;
+  const { start, end } = getCurrentWeekBounds(reference);
+  return date >= start && date <= end;
 }
 
 export function formatDecimalHours(hours: number): string {
@@ -131,7 +127,9 @@ export function formatDecimalHours(hours: number): string {
 
 export function sumAttendanceHours(logs: AttendanceLog[], start: Date, end: Date): number {
   return logs.reduce((total, log) => {
-    const date = new Date(`${log.attendance_date}T12:00:00`);
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(log.attendance_date));
+    if (!match) return total;
+    const date = easternWallClockToDate(Number(match[1]), Number(match[2]), Number(match[3]), 12, 0, 0);
     if (date < startOfDay(start) || date > endOfDay(end)) return total;
     if (log.total_seconds != null) return total + log.total_seconds / 3600;
     if (log.status === "clocked_in" && log.clock_in_at) {
@@ -144,21 +142,15 @@ export function sumAttendanceHours(logs: AttendanceLog[], start: Date, end: Date
 }
 
 export function getCurrentWeekBounds(reference = new Date()) {
-  const day = reference.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const start = startOfDay(new Date(reference));
-  start.setDate(reference.getDate() + mondayOffset);
-  const end = endOfDay(new Date(start));
-  end.setDate(start.getDate() + 6);
+  const start = addEasternDays(startOfDay(reference), mondayOffset(reference));
+  const end = endOfDay(addEasternDays(start, 6));
   return { start, end };
 }
 
 export function getPayPeriodBounds(reference = new Date()) {
   const { start: weekStart } = getCurrentWeekBounds(reference);
-  const start = new Date(weekStart);
-  start.setDate(weekStart.getDate() - 7);
-  const end = endOfDay(new Date(weekStart));
-  end.setDate(weekStart.getDate() + 6);
+  const start = addEasternDays(weekStart, -7);
+  const end = endOfDay(addEasternDays(weekStart, 6));
   return { start, end };
 }
 
@@ -179,8 +171,8 @@ export function getUpcomingShiftSummary(
   const startDate = new Date(window.start);
   const today = new Date();
   const dayLabel = isSameCalendarDay(startDate, today)
-    ? `Today, ${startDate.toLocaleDateString(undefined, { month: "long", day: "numeric" })}`
-    : startDate.toLocaleDateString(undefined, {
+    ? `Today, ${startDate.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric" })}`
+    : startDate.toLocaleDateString("en-US", { timeZone: "America/New_York", 
         weekday: "short",
         month: "long",
         day: "numeric",
@@ -228,9 +220,8 @@ export function buildWeeklyScheduleRows(
   const appointmentDate = window.start ? new Date(window.start) : null;
 
   return Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(weekStart);
-    day.setDate(weekStart.getDate() + index);
-    const dayLabel = day.toLocaleDateString(undefined, {
+    const day = addEasternDays(weekStart, index);
+    const dayLabel = day.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       weekday: "short",
       month: "long",
       day: "numeric",

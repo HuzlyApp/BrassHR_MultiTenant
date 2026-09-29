@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractBareEmailAddress } from "@/lib/email/email-domain";
 import { requireResendConfig } from "@/lib/communication/env";
 import { sendCalendarEmail } from "@/lib/communication/send-calendar-email";
+import { EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import { scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 import {
   buildInterviewIcs,
   formatTimezoneLabel,
@@ -358,10 +360,11 @@ export async function sendInterviewInvitations(args: {
     .filter((row) => row.attendee_type === "interviewer" || row.attendee_type === "organizer")
     .map((row) => String(row.name ?? row.email));
 
-  const { startsAt, endsAt } = {
-    startsAt: `${args.interview.scheduled_date}T${args.interview.start_time}`,
-    endsAt: `${args.interview.scheduled_date}T${args.interview.end_time}`,
-  };
+  const { startsAt, endsAt } = scheduleRowToIso(
+    args.interview.scheduled_date,
+    args.interview.start_time,
+    args.interview.end_time
+  );
   const dateLabel = formatInterviewDate(startsAt);
   const timeLabel = formatInterviewTimeRange(startsAt, endsAt);
   const location =
@@ -378,7 +381,7 @@ export async function sendInterviewInvitations(args: {
     startTime: args.interview.start_time,
     endDate: args.interview.scheduled_date,
     endTime: args.interview.end_time,
-    timezone: args.interview.timezone,
+    timezone: EASTERN_TIME_ZONE,
     summary: args.interview.title,
     description: args.interview.description?.trim() || args.interview.title,
     location,
@@ -413,7 +416,7 @@ export async function sendInterviewInvitations(args: {
       candidateName: args.candidateName,
       dateLabel,
       timeLabel,
-      timezone: args.interview.timezone,
+      timezone: EASTERN_TIME_ZONE,
       meetingLink: args.interview.meeting_link,
       location: args.interview.location,
       interviewerNames,

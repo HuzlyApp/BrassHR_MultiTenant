@@ -5,6 +5,7 @@ import { Calendar, ChevronDown } from "lucide-react";
 import { WorkerBrandedIcon } from "./WorkerBrandedIcon";
 import { WORKER_ICONS } from "./worker-icons";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { easternWallClockToDate } from "@/lib/datetime/eastern";
 import { dayLabel, formatDurationCompact, formatTimeParts } from "./format";
 import type { AttendanceLog } from "./types";
 import {
@@ -45,14 +46,20 @@ type TimelineSegment = {
 
 type BreakInterval = { started_at: string; ended_at: string };
 
+function parseAttendanceDay(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return new Date(value);
+  return easternWallClockToDate(Number(match[1]), Number(match[2]), Number(match[3]), 12, 0, 0);
+}
+
 function formatDateRangeLabel(start: Date, end: Date) {
   const fmt = (date: Date) =>
-    date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+    date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "2-digit" });
   return `${fmt(start)} - ${fmt(end)}`;
 }
 
 function formatHourMark(date: Date) {
-  return date.toLocaleTimeString(undefined, {
+  return date.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
     hour: "numeric",
     minute: "2-digit",
     hour12: false,
@@ -222,7 +229,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
       return formatDateRangeLabel(today, today);
     }
     const dates = logs
-      .map((log) => new Date(log.attendance_date))
+      .map((log) => parseAttendanceDay(log.attendance_date))
       .filter((date) => !Number.isNaN(date.getTime()))
       .sort((a, b) => a.getTime() - b.getTime());
     if (dates.length === 0) {

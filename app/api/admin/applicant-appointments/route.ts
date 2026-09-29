@@ -15,6 +15,7 @@ import {
   type InterviewAttendeeInput,
   type InterviewScheduleRecord,
 } from "@/lib/interviews/send-interview-invitations";
+import { EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
 import { isoToScheduleFields, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 import type { InterviewMeetingType } from "@/lib/interviews/schedule-payload";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
@@ -174,7 +175,7 @@ function buildInterviewItems(
       description: row.description?.trim() || `${title} schedule with ${applicantName}`,
       startsAt,
       endsAt,
-      timezone: row.timezone || "UTC",
+      timezone: EASTERN_TIME_ZONE,
       status: row.status,
       meetingType: parseMeetingTypeValue(row.meeting_type),
       meetingLink: row.meeting_link,
@@ -407,12 +408,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "End time must be after start time." }, { status: 400 });
     }
 
-    const timezone =
-      typeof body.timezone === "string" && body.timezone.trim()
-        ? body.timezone.trim()
-        : typeof Intl !== "undefined"
-          ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : "Asia/Manila";
+    const timezone = EASTERN_TIME_ZONE;
 
     const meetingType = parseMeetingType(body.meetingType);
 

@@ -75,7 +75,9 @@ export async function renderSubmissionResumePdf(resume: SubmissionResume): Promi
     drawLines(wrap(resume.headline, regular, 11, maxWidth), regular, 11, SLATE, 14);
   }
 
-  const contact = [resume.location, resume.email, resume.phone].filter(Boolean).join("   ·   ");
+  const contact = [resume.location, resume.email, resume.phone, resume.linkedin]
+    .filter(Boolean)
+    .join("   ·   ");
   if (contact) {
     drawLines(wrap(contact, regular, 9, maxWidth), regular, 9, MUTED, 12);
   }
@@ -91,14 +93,15 @@ export async function renderSubmissionResumePdf(resume: SubmissionResume): Promi
   }
 
   if (resume.experience.length) {
-    section("Relevant experience");
+    section("Professional experience");
     for (const job of resume.experience) {
       const heading = [job.title, job.company].filter(Boolean).join("  —  ");
       if (heading) {
-        drawLines(wrap(heading, bold, 10.5, maxWidth), bold, 10.5, NAVY, 13);
+        drawLines(wrap(heading, bold, 11, maxWidth), bold, 11, NAVY, 14);
       }
-      if (job.dates) {
-        drawLines(wrap(job.dates, regular, 9, maxWidth), regular, 9, MUTED, 12);
+      const meta = [job.location, job.dates].filter(Boolean).join("  ·  ");
+      if (meta) {
+        drawLines(wrap(meta, regular, 11, maxWidth), regular, 11, MUTED, 14);
       }
       for (const bullet of job.bullets) {
         const wrapped = wrap(`•  ${bullet}`, regular, 10, maxWidth - 10);
