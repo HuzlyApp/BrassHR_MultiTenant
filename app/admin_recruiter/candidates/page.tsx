@@ -48,7 +48,6 @@ import {
 import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
-import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import {
@@ -114,6 +113,13 @@ import {
 
 const ACTION_TOAST_DURATION_MS = 3500;
 const SEARCH_DEBOUNCE_MS = 300;
+
+type JobPickerOption = {
+  id: string;
+  title: string;
+  status: string;
+  clientName: string | null;
+};
 
 function resolveCandidateApplicationId(row: CandidateRow): string {
   return (row.matchApplicationId ?? row.progressStatusApplicationId ?? "").trim();
@@ -351,7 +357,7 @@ export default function CandidatesPage() {
   );
   const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
-  const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
+  const [addCandidateJobs, setAddCandidateJobs] = useState<JobPickerOption[]>([]);
   const [updateResumeApplicationId, setUpdateResumeApplicationId] = useState<string | null>(null);
   const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
   const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
@@ -429,10 +435,10 @@ export default function CandidatesPage() {
 
   const loadAddCandidateJobs = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/jobs", { cache: "no-store" });
+      const response = await fetch("/api/admin/jobs?fields=picker", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
-      setAddCandidateJobs((payload.jobs ?? []) as JobListRow[]);
+      setAddCandidateJobs((payload.jobs ?? []) as JobPickerOption[]);
     } catch {
       setAddCandidateJobs([]);
     }
@@ -447,7 +453,7 @@ export default function CandidatesPage() {
       addCandidateJobs
         .map((job) => ({
           id: job.id,
-          title: jobListDisplayTitle(job),
+          title: job.title,
         }))
         .sort((a, b) => a.title.localeCompare(b.title)),
     [addCandidateJobs]
@@ -732,8 +738,7 @@ export default function CandidatesPage() {
   const clientNameOptions = useMemo(() => {
     const names = new Set(facetOptions.clientNames);
     for (const job of addCandidateJobs) {
-      if (String(job.source_type ?? "").trim().toLowerCase() !== "msp") continue;
-      const clientName = String(job.msp_name ?? "").trim();
+      const clientName = job.clientName?.trim();
       if (clientName) names.add(clientName);
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
