@@ -48,6 +48,14 @@ describe("candidate analysis workspace helpers", () => {
     expect(qualificationDisplayStatus(req({ requirement_outcome: "NOT_MET", status: "NOT_FOUND", verification_required: false }))).toBe(
       "Not Met"
     );
+    expect(qualificationDisplayStatus(req({ requirement_outcome: "NOT_MET", status: "NOT_FOUND", verification_required: true }))).toBe(
+      "Not Met"
+    );
+    expect(
+      qualificationDisplayStatus(
+        req({ requirement_outcome: "NOT_MET", status: "NOT_FOUND", verification_required: true, recruiter_verified: true })
+      )
+    ).toBe("Confirmed");
     expect(qualificationDisplayStatus(req({ requirement_outcome: "CONFLICT", status: "CONFLICTING" }))).toBe(
       "Blocking"
     );
@@ -95,6 +103,12 @@ describe("candidate analysis workspace helpers", () => {
         verification_required: false,
       }),
       req({
+        id: "n2",
+        requirement_outcome: "NOT_MET",
+        status: "NOT_FOUND",
+        verification_required: true,
+      }),
+      req({
         id: "b1",
         requirement_outcome: "CONFLICT",
         status: "CONFLICTING",
@@ -110,11 +124,11 @@ describe("candidate analysis workspace helpers", () => {
     expect(countQualificationOutcomes(rows)).toEqual({
       confirmed: 2,
       verify: 2,
-      notMet: 1,
+      notMet: 2,
       blocking: 1,
-      mandatory: 7,
+      mandatory: 8,
       preferred: 0,
-      total: 7,
+      total: 8,
     });
     expect(groupRequirementOutcomeCountsByApplication([
       { ...rows[0], job_application_id: "app-1" },
