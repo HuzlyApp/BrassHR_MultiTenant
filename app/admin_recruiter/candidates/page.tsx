@@ -113,6 +113,7 @@ import {
 } from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
+const SEARCH_DEBOUNCE_MS = 300;
 
 function resolveCandidateApplicationId(row: CandidateRow): string {
   return (row.matchApplicationId ?? row.progressStatusApplicationId ?? "").trim();
@@ -286,6 +287,7 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
@@ -526,7 +528,7 @@ export default function CandidatesPage() {
     const controller = new AbortController();
     loadAbortRef.current = controller;
     const listUrlState: CandidatesListUrlState = {
-      q: query,
+      q: debouncedQuery,
       skills: skillsFilter,
       jobRole: jobRoleFilter,
       location: locationFilter,
@@ -593,7 +595,7 @@ export default function CandidatesPage() {
         {
           page,
           pageSize,
-          q: query || undefined,
+          q: debouncedQuery || undefined,
           skills: skillTags.length ? skillTags.join(",") : undefined,
           jobRole: jobRoleFilter || undefined,
           location: locationFilter || undefined,
@@ -666,7 +668,7 @@ export default function CandidatesPage() {
     mapWorkerToRow,
     page,
     pageSize,
-    query,
+    debouncedQuery,
     skillsFilter,
     jobRoleFilter,
     locationFilter,
@@ -687,6 +689,7 @@ export default function CandidatesPage() {
     const parsed = parseCandidatesListUrlState(new URLSearchParams(window.location.search));
     applyingUrlRef.current = true;
     setQuery(parsed.q);
+    setDebouncedQuery(parsed.q.trim());
     setSkillsFilter(parsed.skills);
     setJobRoleFilter(parsed.jobRole);
     setLocationFilter(parsed.location);
@@ -709,6 +712,11 @@ export default function CandidatesPage() {
     setHighlightMultiJob(parsed.multiJob);
     setListReady(true);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
     if (!listReady) return;
@@ -797,7 +805,7 @@ export default function CandidatesPage() {
 
   const listUrlState = useMemo<CandidatesListUrlState>(
     () => ({
-      q: query,
+      q: debouncedQuery,
       skills: skillsFilter,
       jobRole: jobRoleFilter,
       location: locationFilter,
@@ -817,7 +825,7 @@ export default function CandidatesPage() {
       multiJob: highlightMultiJob,
     }),
     [
-      query,
+      debouncedQuery,
       skillsFilter,
       jobRoleFilter,
       locationFilter,
@@ -879,6 +887,7 @@ export default function CandidatesPage() {
       const parsed = parseCandidatesListUrlState(new URLSearchParams(window.location.search));
       applyingUrlRef.current = true;
       setQuery(parsed.q);
+      setDebouncedQuery(parsed.q.trim());
       setSkillsFilter(parsed.skills);
       setJobRoleFilter(parsed.jobRole);
       setLocationFilter(parsed.location);
@@ -924,7 +933,7 @@ export default function CandidatesPage() {
       [
         page,
         pageSize,
-        query,
+        debouncedQuery,
         skillsFilter,
         jobRoleFilter,
         statusFilter,
@@ -942,7 +951,7 @@ export default function CandidatesPage() {
     [
       page,
       pageSize,
-      query,
+      debouncedQuery,
       skillsFilter,
       jobRoleFilter,
       statusFilter,
@@ -1565,12 +1574,15 @@ export default function CandidatesPage() {
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
-          setQuery(nextQuery.trim());
+          const trimmed = nextQuery.trim();
+          setQuery(trimmed);
+          setDebouncedQuery(trimmed);
           setSkillsFilter(nextSkills);
           setPage(1);
         }}
         onResetSearch={() => {
           setQuery("");
+          setDebouncedQuery("");
           setSkillsFilter("");
           setJobRoleFilter("");
           setLocationFilter("");
@@ -1658,11 +1670,11 @@ export default function CandidatesPage() {
                 <div>
                   {highlightMultiJob
                     ? "No multi-job applicants match these filters."
-                    : query.trim() || parseSkillsFilterParam(skillsFilter).length
+                    : debouncedQuery || parseSkillsFilterParam(skillsFilter).length
                       ? "No candidates match your search."
                       : "No candidates found."}
                 </div>
-                {query.trim() ||
+                {debouncedQuery ||
                 parseSkillsFilterParam(skillsFilter).length ||
                 advancedSearchContext.active ||
                 highlightMultiJob ? (
@@ -1670,6 +1682,7 @@ export default function CandidatesPage() {
                     type="button"
                     onClick={() => {
                       setQuery("");
+                      setDebouncedQuery("");
                       setSkillsFilter("");
                       setHighlightMultiJob(false);
                       applyAdvancedSearchParams(null);
