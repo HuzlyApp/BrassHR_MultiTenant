@@ -1,4 +1,5 @@
 import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+import type { ListingRequirementOutcomeCounts } from "@/lib/jobs/match-analysis/workspace";
 
 export const MATCH_ANALYSIS_BULK_CHUNK = 25;
 
@@ -12,7 +13,7 @@ export type BulkMatchAnalysisItem = {
     readiness?: string | null;
     error?: string | null;
     analysis?: { candidate_match?: { display_category?: string } } | null;
-    requirementCounts?: { confirmed: number; verify: number; notMet: number } | null;
+    requirementCounts?: ListingRequirementOutcomeCounts | null;
     analyzedAt?: string | null;
     stage?: string | null;
     ai_match_stage?: string | null;

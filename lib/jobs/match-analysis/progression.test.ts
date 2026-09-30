@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { recomputeQuickMatchMetrics } from "./quick-route";
 import {
-  DEEP_MATCH_BLOCKED_LOW_FIT,
   DEEP_MATCH_BLOCKED_NOT_READY,
+  DEEP_MATCH_BLOCKED_TALENT_POOL,
   MATCH_PROGRESSION_STEPS,
   canAdvanceMatchProgression,
   canRunDeepMatch,
@@ -76,11 +77,14 @@ describe("match progression steps", () => {
     ).toBe("low");
   });
 
-  it("promotes Review to Strong once the candidate reaches Deep Match", () => {
+  it("keeps Review at Deep Match unless the scored result is Strong", () => {
     expect(displayFitBand({ fitBand: "review", stage: "follow_up" })).toBe("review");
-    expect(displayFitBand({ fitBand: "review", stage: "deep" })).toBe("strong");
-    expect(displayFitBand({ fitBand: "review", stage: "submission" })).toBe("strong");
-    expect(displayFitBand({ fitBand: "review", hasDeepMatch: true })).toBe("strong");
+    expect(displayFitBand({ fitBand: "review", stage: "deep" })).toBe("review");
+    expect(displayFitBand({ fitBand: "review", stage: "submission" })).toBe("review");
+    expect(displayFitBand({ fitBand: "review", hasDeepMatch: true })).toBe("review");
+    expect(displayFitBand({ fitBand: "review", stage: "deep", score: 66 })).toBe("review");
+    expect(displayFitBand({ fitBand: "review", stage: "deep", score: 91 })).toBe("strong");
+    expect(displayFitBand({ fitBand: "review", stage: "deep", category: "WEAK_MATCH" })).toBe("low");
     expect(displayFitBand({ fitBand: "low", stage: "deep" })).toBe("low");
     expect(displayFitBand({ fitBand: "strong", stage: "quick" })).toBe("strong");
     expect(fitBandLabel("review")).toBe("Review");
@@ -99,7 +103,7 @@ describe("match progression steps", () => {
     expect(fitBandFromDeepMatchResult({ score: 65 })).toBe("review");
   });
 
-  it("lists Fit from checklist counts and promotes Review at Deep Match", () => {
+  it("lists Fit from checklist counts and uses the Deep Match score when one exists", () => {
     expect(
       listingDisplayFitBand({
         analyzed: true,
@@ -119,6 +123,15 @@ describe("match progression steps", () => {
       listingDisplayFitBand({
         analyzed: true,
         stage: "deep",
+        counts: { confirmed: 3, verify: 3, notMet: 0 },
+      })
+    ).toBe("review");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "deep",
+        score: 92,
+        category: "STRONG_MATCH",
         counts: { confirmed: 3, verify: 3, notMet: 0 },
       })
     ).toBe("strong");
@@ -148,13 +161,106 @@ describe("match progression steps", () => {
     );
   });
 
-  it("lets a Strong checklist override a stored Low match route", () => {
+  it("shows Low for a stored Quick Match LOW_MATCH when the checklist reads Review", () => {
+    const reviewCounts = { confirmed: 2, verify: 3, notMet: 0, mandatory: 5, blocking: 0 };
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("low");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "follow_up",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("low");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: { ...reviewCounts, quickRoute: "REVIEW" },
+      })
+    ).toBe("review");
+    // Deep Match score governs after step 4. Review is not promoted to Strong.
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "deep",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("review");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "deep",
+        score: 42,
+        category: "WEAK_MATCH",
+        counts: { ...reviewCounts, quickRoute: "LOW_MATCH" },
+      })
+    ).toBe("low");
+    // Every mandatory row confirmed still wins over a stored Low route.
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "follow_up",
+        counts: {
+          confirmed: 5,
+          verify: 0,
+          notMet: 0,
+          mandatory: 5,
+          mandatoryConfirmed: 5,
+          blocking: 0,
+          quickRoute: "LOW_MATCH",
+        },
+      })
+    ).toBe("strong");
+  });
+
+  it("blocks Deep Match for a stored LOW_MATCH when the checklist reads Review", () => {
     expect(
       fitBandForMatchGate({
-        counts: { mandatory: 8, confirmed: 13, notMet: 0, blocking: 0 },
+        counts: { mandatory: 5, confirmed: 2, notMet: 0, blocking: 0 },
+        storedRoute: "LOW_MATCH",
+      })
+    ).toBe("low");
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 5, confirmed: 2, notMet: 0, blocking: 0 },
+        storedRoute: "REVIEW",
+      })
+    ).toBe("review");
+  });
+
+  it("lets a fully confirmed mandatory checklist override a stored Low match route", () => {
+    expect(
+      fitBandForMatchGate({
+        counts: {
+          mandatory: 8,
+          confirmed: 13,
+          mandatoryConfirmed: 8,
+          verify: 0,
+          notMet: 0,
+          blocking: 0,
+        },
         storedRoute: "LOW_MATCH",
       })
     ).toBe("strong");
+    expect(
+      fitBandForMatchGate({
+        counts: {
+          mandatory: 8,
+          confirmed: 13,
+          mandatoryConfirmed: 5,
+          verify: 3,
+          notMet: 0,
+          blocking: 0,
+        },
+        storedRoute: "LOW_MATCH",
+      })
+    ).toBe("low");
     expect(
       fitBandForMatchGate({
         counts: { mandatory: 0, confirmed: 0, notMet: 0, blocking: 0 },
@@ -163,7 +269,7 @@ describe("match progression steps", () => {
     ).toBe("low");
   });
 
-  it("allows Verifications for low fit but blocks Deep Match and Talent Pool", () => {
+  it("allows Verifications and Deep Match for low fit but blocks Talent Pool", () => {
     expect(
       canAdvanceMatchProgression({ isAnalyzed: true, fitBand: "review" })
     ).toBe(true);
@@ -177,41 +283,18 @@ describe("match progression steps", () => {
         parkedInTalentPool: true,
       })
     ).toBe(false);
+    expect(canRunDeepMatch({ isAnalyzed: true, unlockedIndex: 1 })).toBe(false);
+    expect(canRunDeepMatch({ isAnalyzed: true, unlockedIndex: 2 })).toBe(true);
     expect(
-      canRunDeepMatch({
-        isAnalyzed: true,
-        fitBand: "review",
-        unlockedIndex: 1,
-      })
+      canRunDeepMatch({ isAnalyzed: true, unlockedIndex: 2, parkedInTalentPool: true })
     ).toBe(false);
+    expect(deepMatchBlockReason({ isAnalyzed: true, unlockedIndex: 2 })).toBeNull();
     expect(
-      canRunDeepMatch({
-        isAnalyzed: true,
-        fitBand: "review",
-        unlockedIndex: 2,
-      })
-    ).toBe(true);
-    expect(
-      canRunDeepMatch({
-        isAnalyzed: true,
-        fitBand: "low",
-        unlockedIndex: 2,
-      })
-    ).toBe(false);
-    expect(
-      deepMatchBlockReason({
-        isAnalyzed: true,
-        fitBand: "low",
-        unlockedIndex: 2,
-      })
-    ).toBe(DEEP_MATCH_BLOCKED_LOW_FIT);
-    expect(
-      deepMatchBlockReason({
-        isAnalyzed: true,
-        fitBand: "review",
-        unlockedIndex: 0,
-      })
-    ).toBe(DEEP_MATCH_BLOCKED_NOT_READY);
+      deepMatchBlockReason({ isAnalyzed: true, unlockedIndex: 2, parkedInTalentPool: true })
+    ).toBe(DEEP_MATCH_BLOCKED_TALENT_POOL);
+    expect(deepMatchBlockReason({ isAnalyzed: true, unlockedIndex: 0 })).toBe(
+      DEEP_MATCH_BLOCKED_NOT_READY
+    );
   });
 
   it("lets the recruiter open the next step only when they can advance", () => {
@@ -257,5 +340,100 @@ describe("match progression steps", () => {
     expect(matchProgressionPrimaryAction(4, { hasSubmissionResume: true })?.label).toBe(
       "Email MSP / upload portal"
     );
+  });
+});
+
+describe("representative match bands", () => {
+  function bandFor(route: ReturnType<typeof recomputeQuickMatchMetrics>, mandatoryConfirmed: number) {
+    return listingDisplayFitBand({
+      analyzed: true,
+      stage: "quick",
+      counts: {
+        confirmed: route.counts.confirmed + route.counts.preferred_confirmed,
+        verify: route.counts.partial,
+        notMet: route.counts.not_found + route.counts.conflicting,
+        mandatory: route.counts.confirmed + route.counts.partial + route.counts.not_found + route.counts.conflicting,
+        mandatoryConfirmed,
+        blocking: 0,
+        quickRoute: route.quick_route,
+      },
+    });
+  }
+
+  it("keeps a clear miss Low, a mixed checklist Review, and a covered checklist Strong", () => {
+    const low = recomputeQuickMatchMetrics({
+      mandatory_requirements: [
+        { requirement: "ICU RN, 3+ years", status: "NOT_FOUND", evidence: "" },
+        { requirement: "Active RN license", status: "NOT_FOUND", evidence: "" },
+        { requirement: "BLS", status: "PARTIAL", evidence: "skills list" },
+      ],
+      preferred_requirements: [],
+      blocking_requirements: [],
+    });
+    expect(low.quick_route).toBe("LOW_MATCH");
+    expect(bandFor(low, 0)).toBe("low");
+
+    const moderate = recomputeQuickMatchMetrics({
+      mandatory_requirements: [
+        { requirement: "Java", status: "CONFIRMED", evidence: "Acme 2022" },
+        { requirement: "SQL", status: "CONFIRMED", evidence: "Acme 2023" },
+        { requirement: "Spring", status: "PARTIAL", evidence: "skills list" },
+        { requirement: "Kafka", status: "NOT_FOUND", evidence: "" },
+      ],
+      preferred_requirements: [],
+      blocking_requirements: [],
+    });
+    expect(moderate.quick_route).toBe("REVIEW");
+    expect(bandFor(moderate, 2)).toBe("review");
+
+    const strong = recomputeQuickMatchMetrics({
+      mandatory_requirements: [
+        { requirement: "Java", status: "CONFIRMED", evidence: "Acme 2022" },
+        { requirement: "SQL", status: "CONFIRMED", evidence: "Acme 2023" },
+        { requirement: "Spring", status: "CONFIRMED", evidence: "Acme 2024" },
+        { requirement: "Kafka", status: "PARTIAL", evidence: "skills list" },
+      ],
+      preferred_requirements: [{ requirement: "AWS", status: "CONFIRMED", evidence: "Acme 2024" }],
+      blocking_requirements: [],
+    });
+    expect(strong.quick_route).toBe("STRONG");
+    expect(bandFor(strong, 3)).toBe("strong");
+  });
+
+  it("does not show Strong when the model marked a partial core seat LOW_MATCH", () => {
+    const coreSeat = recomputeQuickMatchMetrics({
+      quick_route: "LOW_MATCH",
+      mandatory_requirements: [
+        { requirement: "Java", status: "CONFIRMED", evidence: "Acme 2022" },
+        { requirement: "SQL", status: "CONFIRMED", evidence: "Acme 2023" },
+        { requirement: "Technical PM of SDKs, 5+ years", status: "PARTIAL", evidence: "PMO 2021" },
+      ],
+      preferred_requirements: [{ requirement: "Writing", status: "CONFIRMED", evidence: "docs" }],
+      blocking_requirements: [],
+    });
+    expect(coreSeat.quick_route).toBe("LOW_MATCH");
+    expect(coreSeat.weighted).toBeGreaterThan(0.7);
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: {
+          confirmed: 6,
+          verify: 1,
+          notMet: 0,
+          mandatory: 6,
+          mandatoryConfirmed: 5,
+          blocking: 0,
+          quickRoute: coreSeat.quick_route,
+        },
+      })
+    ).toBe("low");
+  });
+
+  it("does not treat a label of Verify as Strong", () => {
+    expect(fitBandFromDeepMatchResult({ displayCategory: "Verify" })).toBe("review");
+    expect(fitBandFromDeepMatchResult({ score: 42 })).toBe("low");
+    expect(fitBandFromDeepMatchResult({ score: 66 })).toBe("review");
+    expect(fitBandFromDeepMatchResult({ score: 91 })).toBe("strong");
   });
 });

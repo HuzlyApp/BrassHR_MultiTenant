@@ -138,14 +138,48 @@ describe("parseAndValidateMatchAnalysis", () => {
     );
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
-      expect(parsed.data.quick_match?.quick_route).toBe("REVIEW");
+      // Nothing confirmed and weighted 0.50 → LOW_MATCH, not the model's STRONG.
+      expect(parsed.data.quick_match?.quick_route).toBe("LOW_MATCH");
       expect(parsed.data.candidate_match.recommended_overall_match_score).toBe(0);
-      expect(parsed.data.candidate_match.display_category).toBe("Review");
+      expect(parsed.data.candidate_match.display_category).toBe("Low match");
       expect(parsed.data.screening_questions).toEqual([]);
       expect(parsed.data.strengths).toEqual([]);
       expect(parsed.data.mandatory_requirements[0].evidence_source).toBe("RESUME");
       expect(parsed.data.mandatory_requirements[0].requirement_outcome).toBe("VERIFY");
     }
+  });
+
+  it("rejects an unknown requirement status instead of saving it as Verify or Strong", () => {
+    const parsed = parseAndValidateMatchAnalysis(
+      JSON.stringify({
+        step: "quick_match",
+        quick_route: "STRONG",
+        mandatory_requirements: [{ requirement: "Java", status: "YES", evidence: "maybe" }],
+        preferred_requirements: [],
+        blocking_requirements: [],
+      })
+    );
+    expect(parsed.ok).toBe(false);
+
+    const deep = parseAndValidateMatchAnalysis(
+      JSON.stringify({
+        ...baseAnalysis(),
+        mandatory_requirements: [
+          {
+            requirement: "Java",
+            requirement_type: "MANDATORY",
+            status: "STRONG",
+            requirement_outcome: "MET",
+            candidate_evidence: "n/a",
+            evidence_source: "RESUME",
+            impact: "",
+            verification_required: false,
+            confidence: 90,
+          },
+        ],
+      })
+    );
+    expect(deep.ok).toBe(false);
   });
 
   it("returns validation errors for invalid category", () => {

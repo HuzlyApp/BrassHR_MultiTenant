@@ -77,6 +77,8 @@ import type { VerificationNote } from "@/lib/jobs/match-analysis/verification-no
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { deepMatchSubmitBanner, isDeepMatchStage, publicMatchScore } from "@/lib/jobs/match-analysis/match-stage";
 import {
+  DEEP_MATCH_BLOCKED_NOT_READY,
+  DEEP_MATCH_BLOCKED_TALENT_POOL,
   FLOW_DIAMOND_COPY,
   MATCH_PROGRESSION_STEPS,
   canAdvanceMatchProgression,
@@ -871,18 +873,23 @@ export function AiAnalysisOverviewClient({
   const parkedInTalentPool =
     app?.recruiter_decision === "do_not_pursue" ||
     (statusSystemKey ?? app?.status_system_key) === "rejected";
-  // Same checklist Fit as the job candidates list — do not prefer a stale quick_route
-  // (e.g. stored LOW_MATCH while Conf/Verify counts still read as Review).
+  // Same Fit as the job candidates list: checklist band, with a stored Quick Match
+  // LOW_MATCH forcing Low before Deep Match.
   const displayedFitBand: QuickMatchFitBand =
     listingDisplayFitBand({
       analyzed: isAnalyzed,
       stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+      category: hasDeepMatch ? app?.ai_match_category : null,
+      displayCategory: hasDeepMatch ? app?.ai_match_display_category : null,
+      score: hasDeepMatch ? matchScore : null,
       counts: {
         confirmed: outcomeCounts.confirmed,
         verify: outcomeCounts.verify,
         notMet: outcomeCounts.notMet,
         mandatory: outcomeCounts.mandatory,
+        mandatoryConfirmed: outcomeCounts.mandatoryConfirmed,
         blocking: outcomeCounts.blocking,
+        quickRoute: storedRoute,
       },
     }) ??
     (storedRoute ? fitBandFromQuickRoute(storedRoute) : "review");
@@ -981,7 +988,6 @@ export function AiAnalysisOverviewClient({
   const primaryAction = matchProgressionPrimaryAction(viewedStep, { hasSubmissionResume });
   const canRunPaidDeep = canRunDeepMatch({
     isAnalyzed,
-    fitBand,
     unlockedIndex,
     parkedInTalentPool,
   });
@@ -1010,9 +1016,7 @@ export function AiAnalysisOverviewClient({
   function requestDeepMatchConfirm() {
     if (!canRunPaidDeep) {
       toast.error(
-        parkedInTalentPool || fitBand === "low"
-          ? "Low match — move to Talent Pool. Do not run Deep Match."
-          : "Finish Verifications and Follow-Up before Run Deep Match."
+        parkedInTalentPool ? DEEP_MATCH_BLOCKED_TALENT_POOL : DEEP_MATCH_BLOCKED_NOT_READY
       );
       return;
     }

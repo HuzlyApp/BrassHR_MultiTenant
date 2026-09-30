@@ -90,6 +90,19 @@ import {
 } from "@/lib/workers/candidates-list-fetch";
 import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
 import {
+  candidatesListPath,
+  parseCandidatesListUrlState,
+  serializeCandidatesListUrlState,
+  type CandidatesListUrlState,
+} from "@/lib/workers/candidates-list-url";
+import {
+  invalidateCandidatesListCache,
+  isLatestCandidatesListRequest,
+  nextCandidatesListRequest,
+  readCandidatesListCache,
+  writeCandidatesListCache,
+} from "@/lib/workers/candidates-list-session-cache";
+import {
   buildAssigneeFilterOptions,
   candidateMatchesAssigneeFilter,
 } from "@/lib/candidates/assignee-filter";
@@ -291,6 +304,7 @@ export default function CandidatesPage() {
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [listReady, setListReady] = useState(false);
   const [facetOptions, setFacetOptions] = useState<{
     jobRoles: string[];
     locations: string[];
@@ -344,8 +358,14 @@ export default function CandidatesPage() {
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [interviewError, setInterviewError] = useState<string | null>(null);
-  const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
+  const { userId: currentUserId, displayName: currentUserName, tenantId: currentTenantId } =
+    useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
+  const userIdRef = useRef(currentUserId);
+  const tenantIdRef = useRef(currentTenantId);
+  const applyingUrlRef = useRef(false);
+  userIdRef.current = currentUserId;
+  tenantIdRef.current = currentTenantId;
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -501,14 +521,44 @@ export default function CandidatesPage() {
 
   const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
+    const requestId = nextCandidatesListRequest();
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
-    setLoading(true);
-    setListError(null);
-    // Clear stale rows while a new search/page loads.
-    setCandidates([]);
-    setTotalFromApi(null);
+    const listUrlState: CandidatesListUrlState = {
+      q: query,
+      skills: skillsFilter,
+      jobRole: jobRoleFilter,
+      location: locationFilter,
+      appliedFrom: appliedDateFrom,
+      appliedTo: appliedDateTo,
+      status: statusFilter,
+      progressStatusId: progressStatusFilter,
+      jobTitle: jobFilter,
+      stage: stageFilter,
+      matchScore: matchScoreFilter,
+      clientName: clientNameFilter,
+      assignee: assigneeFilter,
+      sortColumn: listSort.column,
+      sortDir: listSort.direction,
+      page,
+      pageSize,
+      multiJob: highlightMultiJob,
+    };
+    const cacheScope = `${userIdRef.current ?? ""}:${tenantIdRef.current ?? ""}`;
+    const cacheKey = serializeCandidatesListUrlState(listUrlState);
+    const cached = activeSearch ? null : readCandidatesListCache<CandidateRow>(cacheScope, cacheKey);
+    if (cached) {
+      setCandidates(cached.rows);
+      setTotalFromApi(cached.total);
+      setLoading(false);
+      setListError(null);
+    } else {
+      setLoading(true);
+      setListError(null);
+      setCandidates([]);
+      setTotalFromApi(null);
+    }
     try {
       if (activeSearch) {
         const res = await fetch("/api/search-workers", {
@@ -568,6 +618,7 @@ export default function CandidatesPage() {
       setTotalFromApi(total);
 
       const mapped = rows.map(mapWorkerToRow);
+      if (!isLatestCandidatesListRequest(requestId)) return;
       setCandidates(mapped);
       setFacetOptions((prev) => {
         const jobRoles = new Set(prev.jobRoles);
@@ -595,12 +646,16 @@ export default function CandidatesPage() {
           stages: buildCandidateStageOptions([...mapped]),
         };
       });
+      writeCandidatesListCache(cacheScope, cacheKey, mapped, total);
       clearSelectionRef.current();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
+      if (!isLatestCandidatesListRequest(requestId)) return;
       console.error("Failed to fetch workers:", err);
-      setCandidates([]);
-      setTotalFromApi(null);
+      if (!cached) {
+        setCandidates([]);
+        setTotalFromApi(null);
+      }
       setListError(err instanceof Error ? err.message : "Failed to search candidates");
       clearSelectionRef.current();
     } finally {
@@ -624,12 +679,42 @@ export default function CandidatesPage() {
     stageFilter,
     assigneeFilter,
     listSort,
+    clientNameFilter,
+    highlightMultiJob,
   ]);
 
   useEffect(() => {
+    const parsed = parseCandidatesListUrlState(new URLSearchParams(window.location.search));
+    applyingUrlRef.current = true;
+    setQuery(parsed.q);
+    setSkillsFilter(parsed.skills);
+    setJobRoleFilter(parsed.jobRole);
+    setLocationFilter(parsed.location);
+    setAppliedDateFrom(parsed.appliedFrom);
+    setAppliedDateTo(parsed.appliedTo);
+    setStatusFilter(parsed.status);
+    setProgressStatusFilter(parsed.progressStatusId);
+    setJobFilter(parsed.jobTitle);
+    setStageFilter(parsed.stage);
+    setMatchScoreFilter(parsed.matchScore);
+    setClientNameFilter(parsed.clientName);
+    setAssigneeFilter(parsed.assignee);
+    setListSort(
+      parsed.sortColumn
+        ? { column: parsed.sortColumn, direction: parsed.sortDir }
+        : EMPTY_CANDIDATE_LIST_SORT
+    );
+    setPage(parsed.page);
+    setPageSize(parsed.pageSize);
+    setHighlightMultiJob(parsed.multiJob);
+    setListReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!listReady) return;
     void loadCandidates();
     return () => loadAbortRef.current?.abort();
-  }, [loadCandidates]);
+  }, [listReady, loadCandidates]);
 
   const jobRoleOptions = facetOptions.jobRoles;
   const locationOptions = facetOptions.locations;
@@ -710,26 +795,114 @@ export default function CandidatesPage() {
     ? visibleCandidates.length
     : (totalFromApi ?? candidates.length);
 
+  const listUrlState = useMemo<CandidatesListUrlState>(
+    () => ({
+      q: query,
+      skills: skillsFilter,
+      jobRole: jobRoleFilter,
+      location: locationFilter,
+      appliedFrom: appliedDateFrom,
+      appliedTo: appliedDateTo,
+      status: statusFilter,
+      progressStatusId: progressStatusFilter,
+      jobTitle: jobFilter,
+      stage: stageFilter,
+      matchScore: matchScoreFilter,
+      clientName: clientNameFilter,
+      assignee: assigneeFilter,
+      sortColumn: listSort.column,
+      sortDir: listSort.direction,
+      page,
+      pageSize,
+      multiJob: highlightMultiJob,
+    }),
+    [
+      query,
+      skillsFilter,
+      jobRoleFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+      statusFilter,
+      progressStatusFilter,
+      jobFilter,
+      stageFilter,
+      matchScoreFilter,
+      clientNameFilter,
+      assigneeFilter,
+      listSort,
+      page,
+      pageSize,
+      highlightMultiJob,
+    ]
+  );
+  const filterKey = serializeCandidatesListUrlState({ ...listUrlState, page: 1 });
+  const filterKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    setPage(1);
-  }, [
-    query,
-    skillsFilter,
-    jobRoleFilter,
-    statusFilter,
-    progressStatusFilter,
-    jobFilter,
-    stageFilter,
-    matchScoreFilter,
-    clientNameFilter,
-    assigneeFilter,
-    locationFilter,
-    appliedDateFrom,
-    appliedDateTo,
-    pageSize,
-    listSort,
-    highlightMultiJob,
-  ]);
+    if (!listReady) return;
+    if (applyingUrlRef.current) {
+      applyingUrlRef.current = false;
+      filterKeyRef.current = filterKey;
+      return;
+    }
+    if (filterKeyRef.current === null) {
+      filterKeyRef.current = filterKey;
+      return;
+    }
+    if (filterKeyRef.current !== filterKey) {
+      filterKeyRef.current = filterKey;
+      setPage(1);
+    }
+  }, [filterKey, listReady]);
+
+  useEffect(() => {
+    if (!listReady) return;
+    if (!window.location.pathname.endsWith("/admin_recruiter/candidates")) return;
+    const currentSerialized = serializeCandidatesListUrlState(
+      parseCandidatesListUrlState(new URLSearchParams(window.location.search))
+    );
+    const nextSerialized = serializeCandidatesListUrlState(listUrlState);
+    if (currentSerialized === nextSerialized) return;
+    const currentFilters = serializeCandidatesListUrlState({
+      ...parseCandidatesListUrlState(new URLSearchParams(window.location.search)),
+      page: 1,
+    });
+    const nextFilters = serializeCandidatesListUrlState({ ...listUrlState, page: 1 });
+    if (currentFilters !== nextFilters && listUrlState.page !== 1) return;
+    const nextPath = candidatesListPath(listUrlState);
+    window.history.pushState(null, "", nextPath);
+  }, [listReady, listUrlState]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const parsed = parseCandidatesListUrlState(new URLSearchParams(window.location.search));
+      applyingUrlRef.current = true;
+      setQuery(parsed.q);
+      setSkillsFilter(parsed.skills);
+      setJobRoleFilter(parsed.jobRole);
+      setLocationFilter(parsed.location);
+      setAppliedDateFrom(parsed.appliedFrom);
+      setAppliedDateTo(parsed.appliedTo);
+      setStatusFilter(parsed.status);
+      setProgressStatusFilter(parsed.progressStatusId);
+      setJobFilter(parsed.jobTitle);
+      setStageFilter(parsed.stage);
+      setMatchScoreFilter(parsed.matchScore);
+      setClientNameFilter(parsed.clientName);
+      setAssigneeFilter(parsed.assignee);
+      setListSort(
+        parsed.sortColumn
+          ? { column: parsed.sortColumn, direction: parsed.sortDir }
+          : EMPTY_CANDIDATE_LIST_SORT
+      );
+      setPage(parsed.page);
+      setPageSize(parsed.pageSize);
+      setHighlightMultiJob(parsed.multiJob);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const paginated = visibleCandidates;
 
@@ -857,6 +1030,7 @@ export default function CandidatesPage() {
     try {
       const { archived, failed } = await bulkArchiveApplications(applicationIds);
       if (archived > 0) {
+        invalidateCandidatesListCache();
         toast.success(`Archived ${archived} candidate${archived === 1 ? "" : "s"}`, {
           duration: ACTION_TOAST_DURATION_MS,
         });
@@ -1094,6 +1268,7 @@ export default function CandidatesPage() {
     );
 
     if (result.resumeUploaded) {
+      invalidateCandidatesListCache();
       toast.success(`${nextName}: resume updated successfully`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
@@ -1109,6 +1284,7 @@ export default function CandidatesPage() {
         );
       }
     } else {
+      invalidateCandidatesListCache();
       toast.success(`${nextName}: candidate details updated`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
@@ -1250,6 +1426,7 @@ export default function CandidatesPage() {
         )
       );
       toast.success(nextName ? `Assigned to ${nextName}` : "Recruiter unassigned");
+      invalidateCandidatesListCache();
       setAssignRecruiterTarget(null);
     } catch (err) {
       setAssignRecruiterError(err instanceof Error ? err.message : "Failed to assign recruiter");
@@ -1264,6 +1441,7 @@ export default function CandidatesPage() {
     setClaimError(null);
     try {
       const result = await postClaimCandidates(selection.selectedEligibleIds);
+      invalidateCandidatesListCache();
       toast.success(result.summary);
       const claimed = new Set(result.claimed);
       const ownerId = result.recruiter?.id ?? currentUserId;
@@ -1319,6 +1497,7 @@ export default function CandidatesPage() {
         typeof current === "number" ? Math.max(0, current - deletedIds.size) : current
       );
       selection.removeIds(deletedIds);
+      invalidateCandidatesListCache();
       setDeleteConfirmOpen(false);
       const deletedCount =
         typeof payload.count === "number" ? payload.count : deletedIds.size;

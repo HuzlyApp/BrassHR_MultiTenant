@@ -61,6 +61,15 @@ describe("toListCandidateIdsRpcArgs", () => {
     expect(args.p_skills).toEqual(["ACLS"]);
     expect(args.p_limit).toBe(25);
     expect(args.p_exclude_converted).toBe(true);
+    expect(args).not.toHaveProperty("p_assignee");
+  });
+
+  it("includes p_assignee only when set", () => {
+    const params = parseCandidateListQueryParams(
+      new URLSearchParams({ assignee: "unassigned", limit: "25" })
+    );
+    const args = toListCandidateIdsRpcArgs(params, "tenant-1");
+    expect(args.p_assignee).toBe("unassigned");
   });
 });
 

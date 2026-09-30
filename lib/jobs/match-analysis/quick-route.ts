@@ -37,11 +37,15 @@ function averageWeights(rows: Array<{ status: RequirementStatus }>): {
   };
 }
 
+/**
+ * The model may downgrade to LOW_MATCH (e.g. core seat PARTIAL / NOT_FOUND, which the
+ * app cannot see from row statuses). It can never upgrade to STRONG.
+ */
 export function recomputeQuickMatchMetrics(
   input: Pick<
     QuickMatchResponse,
     "mandatory_requirements" | "preferred_requirements" | "blocking_requirements"
-  >
+  > & { quick_route?: QuickRoute }
 ): {
   counts: NonNullable<QuickMatchResponse["counts"]>;
   mand_met: number;
@@ -81,7 +85,13 @@ export function recomputeQuickMatchMetrics(
   const confirmedShare = mand.scored === 0 ? 0 : mand.confirmed / mand.scored;
 
   let quickRoute: QuickRoute = "REVIEW";
-  if (blockers.length > 0 || weighted < 0.4) {
+  if (
+    input.quick_route === "LOW_MATCH" ||
+    blockers.length > 0 ||
+    weighted <= 0.5 ||
+    confirmed === 0 ||
+    notFound >= 2
+  ) {
     quickRoute = "LOW_MATCH";
   } else if (weighted >= 0.7 && mandMet >= 0.6 && confirmedShare >= 0.5) {
     quickRoute = "STRONG";

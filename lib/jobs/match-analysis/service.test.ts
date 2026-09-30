@@ -104,6 +104,34 @@ describe("generateMatchAnalysis", () => {
     expect(result.repaired).toBe(false);
   });
 
+  it("sends the resolved prompt body, including a prompt that was updated after the previous run", async () => {
+    const create = vi.fn(async () => ({
+      output_text: JSON.stringify(LEAN_ANALYSIS),
+    }));
+    __setGrokClientForTests({
+      responses: { create },
+    } as never);
+
+    await generateMatchAnalysis(input, resolved, "grok");
+    await generateMatchAnalysis(
+      input,
+      {
+        ...resolved,
+        promptVersionId: "pv2",
+        contentHash: "hash-v2",
+        systemPrompt: "CORE SEAT updated prompt. Do not invent STRONG.",
+      },
+      "grok"
+    );
+
+    const first = create.mock.calls[0]?.[0] as { input?: Array<{ content?: string }> };
+    const second = create.mock.calls[1]?.[0] as { input?: Array<{ content?: string }> };
+    expect(first.input?.[0]?.content).toContain("You are an analyst.");
+    expect(second.input?.[0]?.content).toContain("CORE SEAT updated prompt");
+    expect(second.input?.[0]?.content).not.toContain("You are an analyst.");
+    expect(second.input?.[1]?.content).toContain("ICU RN in Austin, TX");
+  });
+
   it("calls Gemini when Gemini is selected", async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toContain("/models/gemini-3.5-flash-lite:generateContent");
