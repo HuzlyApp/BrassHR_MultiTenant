@@ -1,4 +1,6 @@
 const INVALIDATED_AT_KEY = "brasshr:candidates-list-invalidated-at";
+const STORAGE_PREFIX = "brasshr:candidates-list:v1:";
+const MAX_SESSION_BYTES = 120_000;
 
 type CacheEntry<T> = {
   scope: string;
@@ -22,31 +24,83 @@ function cacheMapKey(scope: string, key: string): string {
   return `${scope}\n${key}`;
 }
 
+function validScope(scope: string): string | null {
+  const trimmed = scope.trim();
+  if (!trimmed || trimmed.startsWith(":") || trimmed.endsWith(":")) return null;
+  return trimmed;
+}
+
+function hashKey(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function storageKey(scope: string, key: string): string {
+  return `${STORAGE_PREFIX}${scope}:${hashKey(key)}`;
+}
+
+function readSessionEntry<T>(scope: string, key: string): CacheEntry<T> | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(storageKey(scope, key));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CacheEntry<T>;
+    if (parsed.scope !== scope || parsed.key !== key) return null;
+    if (!Array.isArray(parsed.rows) || typeof parsed.total !== "number") return null;
+    if (parsed.storedAt <= readInvalidatedAt()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionEntry(entry: CacheEntry<unknown>): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    const serialized = JSON.stringify(entry);
+    if (serialized.length > MAX_SESSION_BYTES) return;
+    sessionStorage.setItem(storageKey(entry.scope, entry.key), serialized);
+  } catch {
+    /* quota or private mode: memory cache still serves this tab */
+  }
+}
+
 /**
- * Per-tab cache of one candidates list page. Rows are kept in memory only and
- * are keyed by user and tenant so a later session cannot read them.
- * sessionStorage stores only an invalidation timestamp, not candidate rows.
+ * One candidates list page, keyed by user and tenant.
+ * Memory is the fast path. sessionStorage is the reload path: the page paints
+ * those rows immediately and still revalidates. A missing user or tenant, or
+ * a different user/tenant, never reads the stored rows.
  */
 export function readCandidatesListCache<T>(scope: string, key: string): { rows: T[]; total: number } | null {
-  const trimmedScope = scope.trim();
-  if (!trimmedScope || trimmedScope.startsWith(":") || trimmedScope.endsWith(":")) return null;
-  const entry = memory.get(cacheMapKey(trimmedScope, key));
-  if (!entry || entry.scope !== trimmedScope) return null;
-  if (entry.storedAt <= readInvalidatedAt()) return null;
-  return { rows: entry.rows as T[], total: entry.total };
+  const trimmedScope = validScope(scope);
+  if (!trimmedScope) return null;
+  const mapKey = cacheMapKey(trimmedScope, key);
+  const entry = memory.get(mapKey);
+  if (entry && entry.scope === trimmedScope && entry.storedAt > readInvalidatedAt()) {
+    return { rows: entry.rows as T[], total: entry.total };
+  }
+  const stored = readSessionEntry<T>(trimmedScope, key);
+  if (!stored) return null;
+  memory.set(mapKey, stored);
+  return { rows: stored.rows, total: stored.total };
 }
 
 export function writeCandidatesListCache<T>(scope: string, key: string, rows: T[], total: number): void {
-  const trimmedScope = scope.trim();
-  if (!trimmedScope || trimmedScope.startsWith(":") || trimmedScope.endsWith(":")) return;
-  const storedAt = Date.now();
-  memory.set(cacheMapKey(trimmedScope, key), {
+  const trimmedScope = validScope(scope);
+  if (!trimmedScope) return;
+  const entry: CacheEntry<T> = {
     scope: trimmedScope,
     key,
     rows,
     total,
-    storedAt,
-  });
+    storedAt: Date.now(),
+  };
+  memory.set(cacheMapKey(trimmedScope, key), entry);
+  writeSessionEntry(entry);
 }
 
 /** Drop cached lists after a candidate edit so Back does not restore stale rows. */
@@ -55,6 +109,12 @@ export function invalidateCandidatesListCache(): void {
   memoryInvalidatedAt = Date.now();
   if (typeof sessionStorage === "undefined") return;
   sessionStorage.setItem(INVALIDATED_AT_KEY, String(memoryInvalidatedAt));
+  const stale: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const storageName = sessionStorage.key(i);
+    if (storageName?.startsWith(STORAGE_PREFIX)) stale.push(storageName);
+  }
+  for (const storageName of stale) sessionStorage.removeItem(storageName);
 }
 
 export function nextCandidatesListRequest(): number {
@@ -70,5 +130,13 @@ export function resetCandidatesListCacheForTests(): void {
   memory.clear();
   memoryInvalidatedAt = 0;
   latestRequestId = 0;
-  if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(INVALIDATED_AT_KEY);
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem(INVALIDATED_AT_KEY);
+    const stale: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const storageName = sessionStorage.key(i);
+      if (storageName?.startsWith(STORAGE_PREFIX)) stale.push(storageName);
+    }
+    for (const storageName of stale) sessionStorage.removeItem(storageName);
+  }
 }
