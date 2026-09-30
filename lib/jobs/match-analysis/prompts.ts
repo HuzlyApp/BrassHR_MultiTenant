@@ -374,13 +374,14 @@ RULES
 - Generic category words do not support a named product (SIEM ≠ Splunk; ETL ≠ Informatica IDMC). That row is NOT_FOUND unless the product or a named cousin appears.
 - NOT_FOUND if the requirement has no dated, summary, skills, or cousin support.
 - Recruiter notes that confirm a skill the résumé already supports = CONFIRMED.
-- Ignore work auth, citizenship/green card, sponsorship, pay, availability, travel, relocation, onsite/remote, shift, W2/C2C. Do not list them as requirements, blockers, or items_to_verify. Screening covers them later.
+- Ignore work auth, citizenship/green card, sponsorship, pay, availability, travel, relocation, onsite/remote, shift, time zone, W2/C2C, and willingness to work at the JD location. Do not list them as mandatory or preferred rows, blockers, or items_to_verify. Do not use them in mand_met, weighted, or quick_route. Screening covers them later if the résumé is silent.
 - No protected characteristics.
 
 
 EQUIVALENCY
 Related wording can match (CS ≈ Software Engineering) unless the JD forbids it.
 Named products are not equivalents: Kubernetes ≠ GKE; SIEM ≠ Sentinel; CRM ≠ Salesforce; Informatica PowerCenter/IICS ≠ Informatica IDMC; AI/LLM product work ≠ AI-assisted coding. Related = PARTIAL.
+Seat is not equivalent: an adjacent or support role is not the JD seat (e.g. PMO / project coordinator / BSA / ops ≠ technical product owner of SDKs, APIs, or a developer platform). Related program work = PARTIAL at most.
 Do not assume cert equivalency.
 
 
@@ -391,6 +392,11 @@ If the JD names a product in the title or as extensive / required / must have:
 - Cousin/category/competitor = PARTIAL.
 - Product string never appears in jobs, summary, or skills = NOT_FOUND (a cousin in a job is PARTIAL; a cousin only on the skills list is NOT_FOUND).
 
+
+CORE SEAT
+The JD title plus the required years-in-that-seat line is the core. Read the core from this JD's title and years line — the specific seat, not a broader generic version of it (e.g. technical PM of SDKs / APIs ≠ generic TPM; ICU RN ≠ generic RN).
+CONFIRMED only if dated titles or bullets show that seat.
+If core is PARTIAL or NOT_FOUND → LOW_MATCH. Soft rows (writing, influence, degree, generic years in a broader role) cannot save it.
 
 BLOCKERS (skill only — not location or work auth)
 Set blocking_requirements only when:
@@ -404,7 +410,7 @@ CONFIRMED = 1.0, PARTIAL = 0.5, NOT_FOUND = 0.
 mand_met = that average on mandatory rows (skip NOT_APPLICABLE).
 pref_met = that average on preferred rows, or 0 if none.
 weighted = 0.8 * mand_met + 0.2 * pref_met. If no preferred rows, weighted = mand_met.
-- LOW_MATCH if any blocker OR weighted <= 0.50 OR confirmed = 0 OR not_found >= 2
+- LOW_MATCH if any blocker OR core seat is PARTIAL or NOT_FOUND OR weighted <= 0.50 OR confirmed = 0 OR not_found >= 2
 - STRONG if no blocker AND weighted >= 0.70 AND mand_met >= 0.60 AND confirmed / M >= 0.50
 - Else REVIEW
 

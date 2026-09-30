@@ -1,3 +1,6 @@
+import { parseQuickRoute } from "./quick-route";
+import type { QuickRoute } from "./schema";
+
 /** Reserved AI screening-answer key for Step 2 call-pack context (fed into Deep Match). */
 export const CALL_CONTEXT_QUESTION_KEY = "__call_context__";
 export const CALL_CONTEXT_QUESTION_TEXT = "Call context";
@@ -313,6 +316,8 @@ export type ListingRequirementOutcomeCounts = {
   notMet: number;
   mandatory?: number;
   blocking?: number;
+  /** Stored Step 1 route (`ai_analysis.quick_match.quick_route`). LOW_MATCH forces Low before Deep Match. */
+  quickRoute?: QuickRoute | null;
 };
 
 export const EMPTY_LISTING_REQUIREMENT_COUNTS: ListingRequirementOutcomeCounts = {
@@ -361,16 +366,19 @@ export function countQualificationOutcomes(
 }
 
 export function listingRequirementOutcomeCounts(
-  requirements: RequirementOutcomeCountRow[]
+  requirements: RequirementOutcomeCountRow[],
+  quickRoute?: QuickRoute | null
 ): ListingRequirementOutcomeCounts {
   const counts = countQualificationOutcomes(requirements);
-  return {
+  const listing: ListingRequirementOutcomeCounts = {
     confirmed: counts.confirmed,
     verify: counts.verify,
     notMet: counts.notMet,
     mandatory: counts.mandatory,
     blocking: counts.blocking,
   };
+  if (quickRoute) listing.quickRoute = quickRoute;
+  return listing;
 }
 
 export function parseListingRequirementCounts(
@@ -387,6 +395,8 @@ export function parseListingRequirementCounts(
   const blocking = record.blocking == null ? NaN : Number(record.blocking);
   if (Number.isFinite(mandatory)) counts.mandatory = mandatory;
   if (Number.isFinite(blocking)) counts.blocking = blocking;
+  const quickRoute = parseQuickRoute(record.quickRoute);
+  if (quickRoute) counts.quickRoute = quickRoute;
   return counts;
 }
 

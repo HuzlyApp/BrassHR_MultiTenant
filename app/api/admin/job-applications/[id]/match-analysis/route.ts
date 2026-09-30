@@ -13,7 +13,7 @@ import {
 } from "@/lib/jobs/match-analysis";
 import { isDeepMatchStage, parseMatchStage } from "@/lib/jobs/match-analysis/match-stage";
 import {
-  DEEP_MATCH_BLOCKED_LOW_FIT,
+  DEEP_MATCH_BLOCKED_TALENT_POOL,
   DEEP_MATCH_BLOCKED_NOT_READY,
   canAdvanceMatchProgression,
   matchProgressionIndexFromStage,
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if (
       result.status === "FAILED" &&
-      (result.error === DEEP_MATCH_BLOCKED_LOW_FIT ||
+      (result.error === DEEP_MATCH_BLOCKED_TALENT_POOL ||
         result.error === DEEP_MATCH_BLOCKED_NOT_READY ||
         result.error === FOLLOW_UP_BLOCKED_NOT_READY)
     ) {
@@ -257,7 +257,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     })
   ) {
     return NextResponse.json(
-      { error: parked ? "This candidate is in Talent Pool." : DEEP_MATCH_BLOCKED_LOW_FIT },
+      { error: DEEP_MATCH_BLOCKED_TALENT_POOL },
       { status: 409 }
     );
   }
@@ -294,7 +294,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     });
     if (result.status !== "ANALYZED") {
       const status =
-        result.error === DEEP_MATCH_BLOCKED_LOW_FIT ||
+        result.error === DEEP_MATCH_BLOCKED_TALENT_POOL ||
         result.error === FOLLOW_UP_BLOCKED_NOT_READY
           ? 409
           : 502;
