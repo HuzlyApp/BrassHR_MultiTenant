@@ -219,6 +219,32 @@ describe("match progression steps", () => {
     ).toBe("strong");
   });
 
+  it("follows the stored Quick Match route over the checklist before Deep Match", () => {
+    // Checklist 4 conf / 6 mandatory reads Review; stored route is STRONG.
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: { confirmed: 4, verify: 4, notMet: 0, mandatory: 6, blocking: 0, quickRoute: "STRONG" },
+      })
+    ).toBe("strong");
+    // Checklist 6 conf (4 preferred) / 5 mandatory reads Strong; stored route is REVIEW.
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "quick",
+        counts: { confirmed: 6, verify: 5, notMet: 0, mandatory: 5, blocking: 0, quickRoute: "REVIEW" },
+      })
+    ).toBe("review");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "follow_up",
+        counts: { confirmed: 6, verify: 5, notMet: 0, mandatory: 5, blocking: 0, quickRoute: "REVIEW" },
+      })
+    ).toBe("review");
+  });
+
   it("blocks Deep Match for a stored LOW_MATCH when the checklist reads Review", () => {
     expect(
       fitBandForMatchGate({
@@ -234,7 +260,7 @@ describe("match progression steps", () => {
     ).toBe("review");
   });
 
-  it("lets a fully confirmed mandatory checklist override a stored Low match route", () => {
+  it("uses the stored route, lets a fully confirmed checklist override Low, and falls back to the checklist", () => {
     expect(
       fitBandForMatchGate({
         counts: {
@@ -246,6 +272,17 @@ describe("match progression steps", () => {
           blocking: 0,
         },
         storedRoute: "LOW_MATCH",
+      })
+    ).toBe("strong");
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 6, confirmed: 4, notMet: 0, blocking: 0 },
+        storedRoute: "STRONG",
+      })
+    ).toBe("strong");
+    expect(
+      fitBandForMatchGate({
+        counts: { mandatory: 8, confirmed: 13, notMet: 0, blocking: 0 },
       })
     ).toBe("strong");
     expect(

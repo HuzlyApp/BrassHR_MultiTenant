@@ -141,37 +141,29 @@ export function quickMatchFitBand(counts: FitCountInput): QuickMatchFitBand {
 }
 
 /**
- * A stored Quick Match LOW_MATCH forces Low.
- * It stays Strong only when every mandatory row is now confirmed.
+ * The stored Quick Match route decides the band. A stored LOW_MATCH gives way to
+ * Strong only once every mandatory row is confirmed.
  */
-function applyQuickRouteLow(
-  band: QuickMatchFitBand,
-  route: QuickRoute | null | undefined,
-  counts: FitCountInput
-): QuickMatchFitBand {
-  if (route !== "LOW_MATCH" || band === "low") return band;
-  if (band === "strong" && checklistFullyConfirmed(counts)) return "strong";
-  return "low";
+function fitBandFromStoredRoute(route: QuickRoute, counts: FitCountInput): QuickMatchFitBand {
+  if (route === "LOW_MATCH" && checklistFullyConfirmed(counts)) return "strong";
+  return fitBandFromQuickRoute(route);
 }
 
 /**
- * Deep Match uses the live checklist, same as the overview ring.
- * A stored Quick Match route applies only when no requirement rows have been scored,
- * except LOW_MATCH, which also downgrades a Review checklist.
+ * The stored Quick Match route (the one Analysis history shows) is the source of truth.
+ * Checklist counts are only a fallback for analyses saved without a route.
  */
 export function fitBandForMatchGate(args: {
   counts: FitCountInput;
   storedRoute?: QuickRoute | null;
 }): QuickMatchFitBand {
+  if (args.storedRoute) return fitBandFromStoredRoute(args.storedRoute, args.counts);
   const hasChecklist =
     args.counts.mandatory > 0 ||
     args.counts.confirmed > 0 ||
     args.counts.notMet > 0 ||
     args.counts.blocking > 0;
-  if (hasChecklist) {
-    return applyQuickRouteLow(quickMatchFitBand(args.counts), args.storedRoute, args.counts);
-  }
-  if (args.storedRoute) return fitBandFromQuickRoute(args.storedRoute);
+  if (hasChecklist) return quickMatchFitBand(args.counts);
   return "review";
 }
 
@@ -266,8 +258,9 @@ export function fitBandFromDeepMatchResult(args: {
 }
 
 /**
- * Listing Fit uses the same checklist band as overview when mandatory/blocking are present.
- * Before Deep Match, a stored Quick Match LOW_MATCH turns a Review checklist into Low.
+ * Before Deep Match, Fit follows the stored Quick Match route so the overview ring,
+ * candidate lists, and Analysis history agree. Checklist counts are the fallback
+ * when no route was stored, and the band used from Deep Match onward.
  */
 export function listingDisplayFitBand(args: {
   analyzed: boolean;
@@ -327,7 +320,8 @@ export function listingDisplayFitBand(args: {
     verify,
   };
   const atDeep = args.stage === "deep" || args.stage === "submission";
-  if (!atDeep) band = applyQuickRouteLow(band, args.counts?.quickRoute, fitCounts);
+  const quickRoute = args.counts?.quickRoute;
+  if (!atDeep && quickRoute) band = fitBandFromStoredRoute(quickRoute, fitCounts);
   return displayFitBand({
     fitBand: band,
     stage: args.stage,
