@@ -749,11 +749,13 @@ export async function runMatchAnalysisForApplication(args: {
         .eq("tenant_id", tenantId)
         .eq("job_application_id", jobApplicationId);
       const unlockedIndex = matchProgressionIndexFromStage(application.ai_match_stage);
+      const parkedInTalentPool = application.recruiter_decision === "do_not_pursue";
       const blocked = deepMatchBlockReason({
         isAnalyzed: true,
         unlockedIndex,
+        parkedInTalentPool,
       });
-      if (blocked || !canRunDeepMatch({ isAnalyzed: true, unlockedIndex })) {
+      if (blocked || !canRunDeepMatch({ isAnalyzed: true, unlockedIndex, parkedInTalentPool })) {
         const message = blocked || DEEP_MATCH_BLOCKED_NOT_READY;
         emit("failed", message, "FAILED");
         await updateApplicationMatchFields({
