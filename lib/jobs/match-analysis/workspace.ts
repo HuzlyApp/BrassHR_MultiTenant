@@ -298,20 +298,7 @@ export type RequirementOutcomeCountRow = Pick<
   | "requirement_outcome"
   | "verification_required"
   | "recruiter_verified"
-> & { requirement_text?: string | null };
-
-/**
- * Work authorization / sponsorship / citizenship rows are screening items, not skill fit.
- * Keep in sync with the same pattern in the staff list SQL (fit_rank / requirement counts).
- */
-export const WORK_AUTHORIZATION_REQUIREMENT_PATTERN =
-  "authori[sz]ed to work|work authori[sz]ation|legally authori[sz]ed|eligible to work|right to work|work permit|sponsorship|work visa|visa status|visa sponsor|h-?1b|green card|citizen";
-
-const WORK_AUTHORIZATION_REQUIREMENT_RE = new RegExp(WORK_AUTHORIZATION_REQUIREMENT_PATTERN, "i");
-
-export function isWorkAuthorizationRequirement(text: string | null | undefined): boolean {
-  return Boolean(text && WORK_AUTHORIZATION_REQUIREMENT_RE.test(text));
-}
+>;
 
 export type QualificationOutcomeCounts = {
   confirmed: number;
@@ -319,9 +306,7 @@ export type QualificationOutcomeCounts = {
   notMet: number;
   blocking: number;
   mandatory: number;
-  /** Mandatory rows that count toward Fit: not applicable and work authorization rows are excluded. */
-  fitMandatory: number;
-  /** Confirmed rows among `fitMandatory`. Preferred rows are excluded. */
+  /** Mandatory rows whose display status is Confirmed. Preferred rows are excluded. */
   mandatoryConfirmed: number;
   preferred: number;
   total: number;
@@ -333,9 +318,7 @@ export type ListingRequirementOutcomeCounts = {
   notMet: number;
   mandatory?: number;
   blocking?: number;
-  /** Mandatory rows that count toward Fit (no not applicable / work authorization rows). */
-  fitMandatory?: number;
-  /** Confirmed rows among `fitMandatory`. */
+  /** Confirmed mandatory rows only. */
   mandatoryConfirmed?: number;
   /** Stored Step 1 route (`ai_analysis.quick_match.quick_route`). LOW_MATCH forces Low before Deep Match unless every mandatory row is confirmed. */
   quickRoute?: QuickRoute | null;
@@ -347,7 +330,6 @@ export const EMPTY_LISTING_REQUIREMENT_COUNTS: ListingRequirementOutcomeCounts =
   notMet: 0,
   mandatory: 0,
   blocking: 0,
-  fitMandatory: 0,
   mandatoryConfirmed: 0,
 };
 
@@ -366,7 +348,6 @@ export function countQualificationOutcomes(
     notMet: 0,
     blocking: 0,
     mandatory: 0,
-    fitMandatory: 0,
     mandatoryConfirmed: 0,
     preferred: 0,
     total: requirements.length,
@@ -380,14 +361,11 @@ export function countQualificationOutcomes(
     const outcome = String(req.requirement_outcome ?? "").toUpperCase();
     if (outcome === "NOT_APPLICABLE") continue;
 
-    const countsTowardFit = type === "MANDATORY" && !isWorkAuthorizationRequirement(req.requirement_text);
-    if (countsTowardFit) counts.fitMandatory += 1;
-
     const display = qualificationDisplayStatus(req, blockingTexts);
     if (display === "Confirmed") {
       counts.confirmed += 1;
-      if (countsTowardFit) counts.mandatoryConfirmed += 1;
-    } else if (display === "Not Met") counts.notMet += 1;
+      if (type === "MANDATORY") counts.mandatoryConfirmed += 1;
+    }     else if (display === "Not Met") counts.notMet += 1;
     else if (display === "Blocking") counts.blocking += 1;
     else if (display === "Needs Verification") counts.verify += 1;
   }
@@ -406,7 +384,6 @@ export function listingRequirementOutcomeCounts(
     notMet: counts.notMet,
     mandatory: counts.mandatory,
     blocking: counts.blocking,
-    fitMandatory: counts.fitMandatory,
     mandatoryConfirmed: counts.mandatoryConfirmed,
   };
   if (quickRoute) listing.quickRoute = quickRoute;
@@ -427,8 +404,6 @@ export function parseListingRequirementCounts(
   const blocking = record.blocking == null ? NaN : Number(record.blocking);
   if (Number.isFinite(mandatory)) counts.mandatory = mandatory;
   if (Number.isFinite(blocking)) counts.blocking = blocking;
-  const fitMandatory = record.fitMandatory == null ? NaN : Number(record.fitMandatory);
-  if (Number.isFinite(fitMandatory)) counts.fitMandatory = fitMandatory;
   const mandatoryConfirmed = record.mandatoryConfirmed == null ? NaN : Number(record.mandatoryConfirmed);
   if (Number.isFinite(mandatoryConfirmed)) counts.mandatoryConfirmed = mandatoryConfirmed;
   const quickRoute = parseQuickRoute(record.quickRoute);
@@ -439,7 +414,6 @@ export function parseListingRequirementCounts(
 export function requirementCountsFromAnalyzePayload(payload: {
   requirementCounts?: ListingRequirementOutcomeCounts | null;
   requirements?: Array<{
-    requirement_text?: string;
     requirement_type?: string;
     status?: string;
     requirement_outcome?: string;
@@ -451,7 +425,6 @@ export function requirementCountsFromAnalyzePayload(payload: {
   if (Array.isArray(payload.requirements) && payload.requirements.length) {
     return listingRequirementOutcomeCounts(
       payload.requirements.map((row) => ({
-        requirement_text: String(row.requirement_text ?? ""),
         requirement_type: String(row.requirement_type ?? ""),
         status: String(row.status ?? ""),
         requirement_outcome: String(row.requirement_outcome ?? ""),

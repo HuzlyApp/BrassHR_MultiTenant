@@ -88,7 +88,6 @@ async function loadOutcomeCounts(
       not_met?: number;
       mandatory?: number;
       blocking?: number;
-      fit_mandatory?: number;
       mandatory_confirmed?: number;
     }>) {
       const id = String(row.job_application_id ?? "").trim();
@@ -100,9 +99,6 @@ async function loadOutcomeCounts(
         mandatory: Number(row.mandatory ?? 0),
         blocking: Number(row.blocking ?? 0),
       };
-      if (row.fit_mandatory != null && Number.isFinite(Number(row.fit_mandatory))) {
-        counts.fitMandatory = Number(row.fit_mandatory);
-      }
       if (row.mandatory_confirmed != null && Number.isFinite(Number(row.mandatory_confirmed))) {
         counts.mandatoryConfirmed = Number(row.mandatory_confirmed);
       }
@@ -119,7 +115,7 @@ async function loadOutcomeCounts(
       const { data, error } = await supabase
         .from("job_application_match_requirements")
         .select(
-          "job_application_id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
+          "job_application_id, requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
         )
         .eq("tenant_id", tenantId)
         .in("job_application_id", chunk)

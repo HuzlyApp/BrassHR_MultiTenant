@@ -181,7 +181,6 @@ type ApplicationRow = {
 function requirementCountsFromAnalyzePayload(payload: {
   requirementCounts?: ListingRequirementOutcomeCounts | null;
   requirements?: Array<{
-    requirement_text?: string;
     requirement_type?: string;
     status?: string;
     requirement_outcome?: string;
@@ -193,7 +192,6 @@ function requirementCountsFromAnalyzePayload(payload: {
   if (Array.isArray(payload.requirements) && payload.requirements.length) {
     return listingRequirementOutcomeCounts(
       payload.requirements.map((row) => ({
-        requirement_text: String(row.requirement_text ?? ""),
         requirement_type: String(row.requirement_type ?? ""),
         status: String(row.status ?? ""),
         requirement_outcome: String(row.requirement_outcome ?? ""),
