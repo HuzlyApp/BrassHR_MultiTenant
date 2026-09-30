@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
 import {
+  __setClaudeMessagesCreateForTests,
   __setGeminiFetchForTests,
   __setGrokClientForTests,
   generateMatchAnalysis,
   getMatchAnalysisModelName,
+  isClaudeMatchAnalysisAvailable,
 } from "./service";
 
 const LEAN_ANALYSIS = {
@@ -62,9 +64,13 @@ const input = {
 afterEach(() => {
   __setGeminiFetchForTests(null);
   __setGrokClientForTests(null);
+  __setClaudeMessagesCreateForTests(null);
   delete process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_MATCH_MODEL;
   delete process.env.XAI_MATCH_MODEL;
+  delete process.env.CLAUDE_API_KEY;
+  delete process.env.CLAUDE_MODEL_DEFAULT;
+  delete process.env.CLAUDE_MATCH_MODEL;
 });
 
 describe("getMatchAnalysisModelName", () => {
@@ -75,6 +81,18 @@ describe("getMatchAnalysisModelName", () => {
 
   it("returns the Gemini model when Gemini is selected", () => {
     expect(getMatchAnalysisModelName("gemini")).toBe("gemini-3.5-flash-lite");
+  });
+
+  it("returns Claude Haiku when Claude is selected", () => {
+    expect(getMatchAnalysisModelName("claude")).toBe("claude-haiku-4-5-20251001");
+  });
+});
+
+describe("isClaudeMatchAnalysisAvailable", () => {
+  it("is false without CLAUDE_API_KEY and true when set", () => {
+    expect(isClaudeMatchAnalysisAvailable()).toBe(false);
+    process.env.CLAUDE_API_KEY = "test-claude-key";
+    expect(isClaudeMatchAnalysisAvailable()).toBe(true);
   });
 });
 
@@ -293,5 +311,115 @@ describe("generateMatchAnalysis", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(result.model).toBe("gemini-3.1-pro-preview");
+  });
+
+  it("parses Claude tool_use input as JSON", async () => {
+    process.env.CLAUDE_API_KEY = "test-claude-key";
+    const create = vi.fn(async () => ({
+      id: "msg_1",
+      type: "message",
+      role: "assistant",
+      model: "claude-haiku-4-5-20251001",
+      stop_reason: "tool_use",
+      content: [
+        {
+          type: "tool_use",
+          id: "tool_1",
+          name: "submit_analysis_json",
+          input: LEAN_ANALYSIS,
+        },
+      ],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    }));
+    __setClaudeMessagesCreateForTests(create as never);
+
+    const result = await generateMatchAnalysis(input, resolved, "claude");
+
+    expect(create).toHaveBeenCalledOnce();
+    const args = create.mock.calls[0]?.[0] as {
+      model?: string;
+      system?: string;
+      tool_choice?: { type?: string; name?: string };
+    };
+    expect(args.model).toBe("claude-haiku-4-5-20251001");
+    expect(args.system).toContain("You are an analyst.");
+    expect(args.tool_choice).toEqual({ type: "tool", name: "submit_analysis_json" });
+    expect(result.model).toBe("claude-haiku-4-5-20251001");
+    expect(result.analysis.mandatory_requirements).toHaveLength(1);
+  });
+
+  it("retries Claude once on 429", async () => {
+    process.env.CLAUDE_API_KEY = "test-claude-key";
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("rate limited"), { status: 429 }))
+      .mockResolvedValueOnce({
+        id: "msg_2",
+        type: "message",
+        role: "assistant",
+        model: "claude-haiku-4-5-20251001",
+        stop_reason: "tool_use",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool_2",
+            name: "submit_analysis_json",
+            input: LEAN_ANALYSIS,
+          },
+        ],
+        usage: { input_tokens: 10, output_tokens: 20 },
+      });
+    __setClaudeMessagesCreateForTests(create as never);
+
+    const result = await generateMatchAnalysis(input, resolved, "claude");
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(result.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("retries Claude once when stop_reason is max_tokens", async () => {
+    process.env.CLAUDE_API_KEY = "test-claude-key";
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "msg_cut",
+        type: "message",
+        role: "assistant",
+        model: "claude-haiku-4-5-20251001",
+        stop_reason: "max_tokens",
+        content: [{ type: "text", text: '{"partial":' }],
+        usage: { input_tokens: 10, output_tokens: 16000 },
+      })
+      .mockResolvedValueOnce({
+        id: "msg_ok",
+        type: "message",
+        role: "assistant",
+        model: "claude-haiku-4-5-20251001",
+        stop_reason: "tool_use",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool_ok",
+            name: "submit_analysis_json",
+            input: LEAN_ANALYSIS,
+          },
+        ],
+        usage: { input_tokens: 10, output_tokens: 200 },
+      });
+    __setClaudeMessagesCreateForTests(create as never);
+
+    const result = await generateMatchAnalysis(input, resolved, "claude");
+    expect(create).toHaveBeenCalledTimes(2);
+    const second = create.mock.calls[1]?.[0] as { max_tokens?: number };
+    expect((second.max_tokens ?? 0) > 16000).toBe(true);
+    expect(result.analysis.mandatory_requirements).toHaveLength(1);
+  });
+
+  it("fails clearly when Claude key is missing", async () => {
+    delete process.env.CLAUDE_API_KEY;
+    await expect(generateMatchAnalysis(input, resolved, "claude")).rejects.toMatchObject({
+      name: "MatchAnalysisGenerationError",
+      code: "MISSING_CONFIG",
+      message: expect.stringContaining("Claude is temporarily unavailable"),
+    });
   });
 });

@@ -1467,6 +1467,7 @@ export function AiAnalysisOverviewClient({
                     onChange={setAnalysisProvider}
                     disabled={analyzing}
                     className="h-8 shrink-0"
+                    claudeAvailable={data?.claudeAvailable}
                   />
                   <MatchAnalyzeButton
                     variant="primary"

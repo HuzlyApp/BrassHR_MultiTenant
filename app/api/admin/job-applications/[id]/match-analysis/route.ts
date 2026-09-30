@@ -8,6 +8,7 @@ import {
   matchAnalysisErrorCode,
   parseAnalysisMode,
   parseAnalysisProvider,
+  isAnalysisProvider,
   runMatchAnalysisForApplication,
   FOLLOW_UP_BLOCKED_NOT_READY,
 } from "@/lib/jobs/match-analysis";
@@ -93,6 +94,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
       ? (body.verifiedRecruiterInfo as Record<string, unknown>)
       : null;
   const analysisMode = parseAnalysisMode(body?.analysisMode);
+  if (
+    body?.analysisProvider != null &&
+    body.analysisProvider !== "" &&
+    !isAnalysisProvider(body.analysisProvider)
+  ) {
+    return NextResponse.json({ error: "Invalid analysis provider" }, { status: 400 });
+  }
   const analysisProvider = parseAnalysisProvider(body?.analysisProvider);
 
   try {
@@ -281,9 +289,11 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
 
   if (requested === "call_pack") {
-    const analysisProvider = parseAnalysisProvider(
-      (body as { analysisProvider?: unknown }).analysisProvider
-    );
+    const rawProvider = (body as { analysisProvider?: unknown }).analysisProvider;
+    if (rawProvider != null && rawProvider !== "" && !isAnalysisProvider(rawProvider)) {
+      return NextResponse.json({ error: "Invalid analysis provider" }, { status: 400 });
+    }
+    const analysisProvider = parseAnalysisProvider(rawProvider);
     const result = await runMatchAnalysisForApplication({
       supabase,
       tenantId,
