@@ -12,6 +12,7 @@ import {
   matchCategoryBadgeClassName,
   matchScoreBadgeClassName,
 } from "@/lib/jobs/match-analysis/display";
+import { fitBandLabel } from "@/lib/jobs/match-analysis/progression";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import { MatchAnalyzeButton } from "./MatchAnalyzeButton";
 import {
@@ -477,7 +478,7 @@ export function FitBandCell(props: {
   if (!props.analyzed || !props.band) {
     return <span className="text-sm text-[#94A3B8]">—</span>;
   }
-  const label = props.band === "strong" ? "Strong" : props.band === "low" ? "Low" : "Review";
+  const label = fitBandLabel(props.band);
   const className =
     props.band === "strong"
       ? "bg-[#00B135] text-white"

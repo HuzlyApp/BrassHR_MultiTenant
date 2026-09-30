@@ -93,6 +93,8 @@ import {
   matchProgressionStepRequiresDeepConfirm,
   matchProgressionPrimaryAction,
   matchProgressionStageFromIndex,
+  quickRouteLabel,
+  storedMatchLabel,
   type QuickMatchFitBand,
 } from "@/lib/jobs/match-analysis/progression";
 import { fitBandFromQuickRoute, quickRouteFromAnalysis } from "@/lib/jobs/match-analysis/quick-route";
@@ -366,9 +368,7 @@ function historyStatusFromItem(item: {
           ).trim()
         : "";
     const label =
-      item.display_category?.trim() ||
-      fromAnalysis ||
-      (route === "STRONG" ? "Strong" : route === "LOW_MATCH" ? "Low match" : "Review");
+      storedMatchLabel(item.display_category) || storedMatchLabel(fromAnalysis) || quickRouteLabel(route);
     return { label, band };
   }
 
@@ -382,7 +382,7 @@ function historyStatusFromItem(item: {
         : lower.includes("review")
           ? "review"
           : null;
-    return { label: display, band };
+    return { label: storedMatchLabel(display), band };
   }
 
   const categoryLabel = formatMatchCategory(item.category);
@@ -887,6 +887,7 @@ export function AiAnalysisOverviewClient({
         verify: outcomeCounts.verify,
         notMet: outcomeCounts.notMet,
         mandatory: outcomeCounts.mandatory,
+        fitMandatory: outcomeCounts.fitMandatory,
         mandatoryConfirmed: outcomeCounts.mandatoryConfirmed,
         blocking: outcomeCounts.blocking,
         quickRoute: storedRoute,
@@ -894,7 +895,7 @@ export function AiAnalysisOverviewClient({
     }) ??
     (storedRoute ? fitBandFromQuickRoute(storedRoute) : "review");
   const fitBand = displayedFitBand;
-  // Steps 1–3: show Low / Review / Strong. Step 4+ (Deep Match): show actual match %.
+  // Steps 1–3: show Low / Good / Strong. Step 4+ (Deep Match): show actual match %.
   const matchLabel = hasDeepMatch
     ? app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category) || "Match"
     : isAnalyzed
@@ -1163,14 +1164,7 @@ export function AiAnalysisOverviewClient({
       return [];
     }
     const route = quickRouteFromAnalysis(analysis);
-    const quickLabel =
-      route === "STRONG"
-        ? "Strong"
-        : route === "LOW_MATCH"
-          ? "Low match"
-          : route === "REVIEW"
-            ? "Review"
-            : null;
+    const quickLabel = route ? quickRouteLabel(route) : null;
     return [
       {
         id: app.id,

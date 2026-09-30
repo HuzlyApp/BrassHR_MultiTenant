@@ -744,7 +744,7 @@ export async function runMatchAnalysisForApplication(args: {
       const { data: existingReqs } = await supabase
         .from("job_application_match_requirements")
         .select(
-          "requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
+          "requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
         )
         .eq("tenant_id", tenantId)
         .eq("job_application_id", jobApplicationId);

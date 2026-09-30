@@ -16,7 +16,7 @@ import {
   applicationCurrentStageMeta,
   applicationStatusLabel,
 } from "@/lib/jobs/application-status";
-import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
+import { fitBandLabel, listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 
 export type ApplicationExportRow = ApplicationApplicantSource & {
   id: string;
@@ -76,7 +76,7 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
           counts: row.ai_requirement_counts,
         });
         if (!band) return "";
-        return band === "strong" ? "Strong" : band === "low" ? "Low" : "Review";
+        return fitBandLabel(band);
       },
     },
     {

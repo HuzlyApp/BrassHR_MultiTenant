@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
+import { storedMatchLabel } from "@/lib/jobs/match-analysis/progression";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
 import {
   formatMatchCategory,
@@ -755,14 +756,14 @@ export function CandidateAnalysisWorkspace({
             {data?.analysisHistory?.map((item) => {
               const route = item.analysis?.quick_match?.quick_route;
               const statusLabel =
-                item.display_category?.trim() ||
-                item.analysis?.candidate_match?.display_category?.trim() ||
+                storedMatchLabel(item.display_category) ||
+                storedMatchLabel(item.analysis?.candidate_match?.display_category) ||
                 (route === "STRONG"
                   ? "Strong"
                   : route === "LOW_MATCH"
                     ? "Low match"
                     : route === "REVIEW"
-                      ? "Review"
+                      ? "Good"
                       : null) ||
                 formatMatchCategory(item.category) ||
                 "Not analyzed";
