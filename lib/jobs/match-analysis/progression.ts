@@ -19,7 +19,7 @@ export const MATCH_PROGRESSION_STEPS = [
     stepNumber: 1,
     label: "Quick Match",
     subtitle: "Checklist",
-    hint: "Step 1 · Quick Match. Checklist only. Ring empty. Low, review, or strong can continue to Verifications. Talent Pool is optional for low fit.",
+    hint: "Step 1 · Quick Match. Checklist only. Ring empty. Low, good, or strong can continue to Verifications. Talent Pool is optional for low fit.",
     sectionId: "match-step-quick",
   },
   {
@@ -102,10 +102,15 @@ type FitCountInput = {
   confirmed: number;
   notMet: number;
   blocking: number;
-  /** Confirmed mandatory rows only. Preferred confirmations must not be included. */
+  /** Mandatory rows that count toward Fit (no not applicable / work authorization rows). */
+  fitMandatory?: number | null;
+  /** Confirmed rows among `fitMandatory`. Preferred confirmations must not be included. */
   mandatoryConfirmed?: number | null;
   verify?: number | null;
 };
+
+/** Strong allows at most this many Fit mandatory rows that are not confirmed yet. */
+export const STRONG_MAX_OPEN_MANDATORY = 2;
 
 function mandatoryConfirmedCount(counts: FitCountInput): number | null {
   if (counts.mandatoryConfirmed == null || Number.isNaN(Number(counts.mandatoryConfirmed))) {
@@ -114,30 +119,44 @@ function mandatoryConfirmedCount(counts: FitCountInput): number | null {
   return Number(counts.mandatoryConfirmed);
 }
 
-/** Every mandatory row is confirmed, so a stored LOW_MATCH no longer describes the checklist. */
-function checklistFullyConfirmed(counts: FitCountInput): boolean {
-  if (counts.mandatory <= 0 || counts.notMet !== 0 || counts.blocking !== 0) return false;
-  const mandatoryConfirmed = mandatoryConfirmedCount(counts);
-  if (mandatoryConfirmed != null) return mandatoryConfirmed >= counts.mandatory;
-  if ((counts.verify ?? 0) > 0) return false;
-  return counts.confirmed >= counts.mandatory;
+function fitMandatoryCount(counts: FitCountInput): number {
+  if (counts.fitMandatory == null || Number.isNaN(Number(counts.fitMandatory))) {
+    return counts.mandatory;
+  }
+  return Number(counts.fitMandatory);
 }
 
+/** Every Fit mandatory row is confirmed, so a stored LOW_MATCH no longer describes the checklist. */
+function checklistFullyConfirmed(counts: FitCountInput): boolean {
+  const fitMandatory = fitMandatoryCount(counts);
+  if (fitMandatory <= 0 || counts.notMet !== 0 || counts.blocking !== 0) return false;
+  const mandatoryConfirmed = mandatoryConfirmedCount(counts);
+  if (mandatoryConfirmed != null) return mandatoryConfirmed >= fitMandatory;
+  if ((counts.verify ?? 0) > 0) return false;
+  return counts.confirmed >= fitMandatory;
+}
+
+/** No Not Met, at most two open (e.g. Needs Verification) rows, and at least half confirmed. */
+function strongFromOpenRows(confirmed: number, open: number): boolean {
+  return confirmed > 0 && open <= STRONG_MAX_OPEN_MANDATORY && confirmed >= open;
+}
+
+/**
+ * Low: any Blocking row or two or more Not Met.
+ * Strong: no Not Met / Blocking, and every Fit mandatory row is confirmed or at most two are still open.
+ * Good (`review`): everything else.
+ */
 export function quickMatchFitBand(counts: FitCountInput): QuickMatchFitBand {
   if (counts.blocking > 0 || counts.notMet >= 2) return "low";
-  if (counts.notMet === 0 && counts.blocking === 0 && counts.mandatory > 0) {
-    const mandatoryConfirmed = mandatoryConfirmedCount(counts);
-    if (
-      mandatoryConfirmed == null &&
-      counts.confirmed > counts.mandatory &&
-      (counts.verify ?? 0) > 0
-    ) {
-      return "review";
-    }
-    const confirmedForShare = mandatoryConfirmed ?? counts.confirmed;
-    if (confirmedForShare / Math.max(counts.mandatory, 1) >= 0.7) return "strong";
+  if (counts.notMet !== 0 || counts.blocking !== 0) return "review";
+  const fitMandatory = fitMandatoryCount(counts);
+  if (fitMandatory <= 0) return "review";
+  const mandatoryConfirmed = mandatoryConfirmedCount(counts);
+  if (mandatoryConfirmed == null) {
+    const open = counts.verify ?? Math.max(0, fitMandatory - counts.confirmed);
+    return strongFromOpenRows(counts.confirmed, open) ? "strong" : "review";
   }
-  return "review";
+  return strongFromOpenRows(mandatoryConfirmed, fitMandatory - mandatoryConfirmed) ? "strong" : "review";
 }
 
 /**
@@ -281,6 +300,7 @@ export function listingDisplayFitBand(args: {
     notMet?: number | null;
     mandatory?: number | null;
     blocking?: number | null;
+    fitMandatory?: number | null;
     mandatoryConfirmed?: number | null;
     quickRoute?: QuickRoute | null;
   } | null;
@@ -301,6 +321,10 @@ export function listingDisplayFitBand(args: {
     args.counts?.mandatoryConfirmed == null || Number.isNaN(Number(args.counts.mandatoryConfirmed))
       ? null
       : Number(args.counts.mandatoryConfirmed);
+  const fitMandatory =
+    args.counts?.fitMandatory == null || Number.isNaN(Number(args.counts.fitMandatory))
+      ? null
+      : Number(args.counts.fitMandatory);
 
   let band: QuickMatchFitBand;
   if (mandatory != null && blocking != null) {
@@ -309,20 +333,21 @@ export function listingDisplayFitBand(args: {
       confirmed,
       notMet,
       blocking,
+      fitMandatory,
       mandatoryConfirmed,
       verify,
     });
   } else {
-    const total = confirmed + verify + notMet;
     band = "review";
     if (notMet >= 2) band = "low";
-    else if (notMet === 0 && verify === 0 && total > 0 && confirmed / total >= 0.7) band = "strong";
+    else if (notMet === 0 && strongFromOpenRows(confirmed, verify)) band = "strong";
   }
   const fitCounts: FitCountInput = {
     mandatory: mandatory ?? 0,
     confirmed,
     notMet,
     blocking: blocking ?? 0,
+    fitMandatory,
     mandatoryConfirmed,
     verify,
   };
@@ -340,7 +365,20 @@ export function listingDisplayFitBand(args: {
 export function fitBandLabel(band: QuickMatchFitBand): string {
   if (band === "strong") return "Strong";
   if (band === "low") return "Low";
-  return "Review";
+  return "Good";
+}
+
+/** Recruiter-facing label for a stored Step 1 route. */
+export function quickRouteLabel(route: QuickRoute): string {
+  if (route === "STRONG") return "Strong";
+  if (route === "LOW_MATCH") return "Low match";
+  return "Good";
+}
+
+/** Analyses saved before the rename store the middle route as "Review". */
+export function storedMatchLabel(label: string | null | undefined): string {
+  const trimmed = String(label ?? "").trim();
+  return trimmed.toLowerCase() === "review" ? "Good" : trimmed;
 }
 
 export function fitBandTagClassName(band: QuickMatchFitBand): string {

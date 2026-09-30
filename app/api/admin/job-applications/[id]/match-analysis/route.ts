@@ -238,16 +238,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   const { data: existingReqs } = await supabase
     .from("job_application_match_requirements")
-    .select("requirement_type, status, requirement_outcome, verification_required, recruiter_verified")
+    .select(
+      "requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified"
+    )
     .eq("tenant_id", tenantId)
     .eq("job_application_id", id);
-  const counts = countQualificationOutcomes(existingReqs ?? []);
-  const fitBand = quickMatchFitBand({
-    mandatory: counts.mandatory,
-    confirmed: counts.confirmed,
-    notMet: counts.notMet,
-    blocking: counts.blocking,
-  });
+  const fitBand = quickMatchFitBand(countQualificationOutcomes(existingReqs ?? []));
   const parked = application.recruiter_decision === "do_not_pursue";
   if (
     !canAdvanceMatchProgression({

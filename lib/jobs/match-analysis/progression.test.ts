@@ -18,6 +18,7 @@ import {
   listingDisplayFitBand,
   fitBandFromDeepMatchResult,
   fitBandLabel,
+  storedMatchLabel,
 } from "./progression";
 
 describe("match progression steps", () => {
@@ -77,6 +78,44 @@ describe("match progression steps", () => {
     ).toBe("low");
   });
 
+  it("shows Strong when every mandatory row is confirmed or only one or two need verification", () => {
+    const base = { confirmed: 0, notMet: 0, blocking: 0 };
+    expect(quickMatchFitBand({ ...base, mandatory: 5, mandatoryConfirmed: 5 })).toBe("strong");
+    expect(quickMatchFitBand({ ...base, mandatory: 5, mandatoryConfirmed: 4 })).toBe("strong");
+    expect(quickMatchFitBand({ ...base, mandatory: 5, mandatoryConfirmed: 3 })).toBe("strong");
+    expect(quickMatchFitBand({ ...base, mandatory: 5, mandatoryConfirmed: 2 })).toBe("review");
+    // Two open rows still need at least as many confirmed rows.
+    expect(quickMatchFitBand({ ...base, mandatory: 3, mandatoryConfirmed: 1 })).toBe("review");
+    expect(quickMatchFitBand({ ...base, mandatory: 2, mandatoryConfirmed: 0 })).toBe("review");
+    // One Not Met keeps the candidate at Good.
+    expect(
+      quickMatchFitBand({ ...base, mandatory: 5, mandatoryConfirmed: 5, notMet: 1 })
+    ).toBe("review");
+  });
+
+  it("leaves work authorization rows out of the Strong / Good decision", () => {
+    // 8 mandatory rows, 2 of them work authorization; 4 of the other 6 confirmed.
+    expect(
+      quickMatchFitBand({
+        mandatory: 8,
+        fitMandatory: 6,
+        mandatoryConfirmed: 4,
+        confirmed: 4,
+        notMet: 0,
+        blocking: 0,
+      })
+    ).toBe("strong");
+    expect(
+      quickMatchFitBand({
+        mandatory: 8,
+        mandatoryConfirmed: 4,
+        confirmed: 4,
+        notMet: 0,
+        blocking: 0,
+      })
+    ).toBe("review");
+  });
+
   it("keeps Review at Deep Match unless the scored result is Strong", () => {
     expect(displayFitBand({ fitBand: "review", stage: "follow_up" })).toBe("review");
     expect(displayFitBand({ fitBand: "review", stage: "deep" })).toBe("review");
@@ -87,7 +126,12 @@ describe("match progression steps", () => {
     expect(displayFitBand({ fitBand: "review", stage: "deep", category: "WEAK_MATCH" })).toBe("low");
     expect(displayFitBand({ fitBand: "low", stage: "deep" })).toBe("low");
     expect(displayFitBand({ fitBand: "strong", stage: "quick" })).toBe("strong");
-    expect(fitBandLabel("review")).toBe("Review");
+    expect(fitBandLabel("review")).toBe("Good");
+    expect(fitBandLabel("strong")).toBe("Strong");
+    expect(fitBandLabel("low")).toBe("Low");
+    expect(storedMatchLabel(" Review ")).toBe("Good");
+    expect(storedMatchLabel("Low match")).toBe("Low match");
+    expect(storedMatchLabel(null)).toBe("");
   });
 
   it("maps Deep Match category / label / score onto Strong Review Low", () => {
@@ -147,6 +191,13 @@ describe("match progression steps", () => {
         analyzed: true,
         stage: "follow_up",
         counts: { confirmed: 4, verify: 4, notMet: 0, mandatory: 5, blocking: 0 },
+      })
+    ).toBe("review");
+    expect(
+      listingDisplayFitBand({
+        analyzed: true,
+        stage: "follow_up",
+        counts: { confirmed: 4, verify: 2, notMet: 0, mandatory: 6, blocking: 0 },
       })
     ).toBe("strong");
     expect(
