@@ -127,7 +127,7 @@ function routeDisplay(route: QuickRoute): {
   if (route === "LOW_MATCH") {
     return { category: "NOT_A_MATCH", action: "KEEP_AS_POSSIBLE", display: "Low match" };
   }
-  return { category: "POSSIBLE_MATCH", action: "CALL_AND_VERIFY", display: "Good" };
+  return { category: "POSSIBLE_MATCH", action: "CALL_AND_VERIFY", display: "Review" };
 }
 
 function expandQuickMatchRequirement(

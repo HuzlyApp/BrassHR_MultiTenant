@@ -119,7 +119,6 @@ export async function persistMatchRequirements(args: {
       if (error) throw error;
     }
     written.push({
-      requirement_text: item.requirement,
       requirement_type: item.requirement_type,
       status: item.status,
       requirement_outcome: item.requirement_outcome,

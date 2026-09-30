@@ -9,7 +9,6 @@ import {
   formatScreeningPackForAiNotes,
   groupRequirementOutcomeCountsByApplication,
   isRecruiterDecision,
-  isWorkAuthorizationRequirement,
   matchSavedAiScreeningAnswer,
   normalizeAnalysisScreeningQuestions,
   qualificationDisplayStatus,
@@ -114,7 +113,6 @@ describe("candidate analysis workspace helpers", () => {
       notMet: 1,
       blocking: 1,
       mandatory: 7,
-      fitMandatory: 6,
       mandatoryConfirmed: 2,
       preferred: 0,
       total: 7,
@@ -126,46 +124,10 @@ describe("candidate analysis workspace helpers", () => {
       { ...rows[3], job_application_id: "app-2" },
     ])).toEqual(
       new Map([
-        [
-          "app-1",
-          { confirmed: 2, verify: 0, notMet: 0, mandatory: 2, blocking: 0, fitMandatory: 2, mandatoryConfirmed: 2 },
-        ],
-        [
-          "app-2",
-          { confirmed: 0, verify: 2, notMet: 0, mandatory: 2, blocking: 0, fitMandatory: 2, mandatoryConfirmed: 0 },
-        ],
+        ["app-1", { confirmed: 2, verify: 0, notMet: 0, mandatory: 2, blocking: 0, mandatoryConfirmed: 2 }],
+        ["app-2", { confirmed: 0, verify: 2, notMet: 0, mandatory: 2, blocking: 0, mandatoryConfirmed: 0 }],
       ])
     );
-  });
-
-  it("leaves work authorization rows out of the Fit mandatory count", () => {
-    const counts = countQualificationOutcomes([
-      req({
-        id: "c1",
-        requirement_text: "3+ years ICU experience",
-        requirement_outcome: "MET",
-        status: "CONFIRMED",
-        verification_required: false,
-      }),
-      req({
-        id: "wa",
-        requirement_text: "Must be legally authorized to work in the United States",
-        requirement_outcome: "VERIFY",
-        verification_required: true,
-      }),
-      req({
-        id: "visa",
-        requirement_text: "No visa sponsorship available",
-        requirement_outcome: "VERIFY",
-        verification_required: true,
-      }),
-    ]);
-    expect(counts.mandatory).toBe(3);
-    expect(counts.fitMandatory).toBe(1);
-    expect(counts.mandatoryConfirmed).toBe(1);
-    expect(counts.verify).toBe(2);
-    expect(isWorkAuthorizationRequirement("Eligible to work in the U.S.")).toBe(true);
-    expect(isWorkAuthorizationRequirement("Active RN license")).toBe(false);
   });
 
   it("scopes AI screening answer keys by question text", () => {
