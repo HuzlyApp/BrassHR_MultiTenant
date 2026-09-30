@@ -114,6 +114,13 @@ import {
 const ACTION_TOAST_DURATION_MS = 3500;
 const SEARCH_DEBOUNCE_MS = 300;
 
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
 type JobPickerOption = {
   id: string;
   title: string;
@@ -657,7 +664,7 @@ export default function CandidatesPage() {
       writeCandidatesListCache(cacheScope, cacheKey, mapped, total);
       clearSelectionRef.current();
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (isAbortError(err)) return;
       if (!isLatestCandidatesListRequest(requestId)) return;
       console.error("Failed to fetch workers:", err);
       if (!cached) {
@@ -723,12 +730,6 @@ export default function CandidatesPage() {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [query]);
-
-  useEffect(() => {
-    if (!listReady) return;
-    void loadCandidates();
-    return () => loadAbortRef.current?.abort();
-  }, [listReady, loadCandidates]);
 
   const jobRoleOptions = facetOptions.jobRoles;
   const locationOptions = facetOptions.locations;
@@ -850,6 +851,24 @@ export default function CandidatesPage() {
     ]
   );
   const filterKey = serializeCandidatesListUrlState({ ...listUrlState, page: 1 });
+  const listCacheScope =
+    currentUserId && currentTenantId ? `${currentUserId}:${currentTenantId}` : "";
+  const listFetchKey = `${listCacheScope}|${serializeCandidatesListUrlState(listUrlState)}|geo:${
+    advancedSearchContext.active
+      ? `${advancedSearchContext.lat},${advancedSearchContext.lng},${advancedSearchContext.radius},${advancedSearchContext.place}`
+      : ""
+  }`;
+  const loadCandidatesRef = useRef(loadCandidates);
+  loadCandidatesRef.current = loadCandidates;
+  const lastFetchedListKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!listReady) return;
+    if (lastFetchedListKeyRef.current === listFetchKey) return;
+    lastFetchedListKeyRef.current = listFetchKey;
+    void loadCandidatesRef.current();
+    return () => loadAbortRef.current?.abort();
+  }, [listReady, listFetchKey]);
   const filterKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
