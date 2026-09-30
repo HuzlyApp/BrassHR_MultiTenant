@@ -808,4 +808,8 @@ describe("parseAnalysisProvider", () => {
   it("accepts gemini", () => {
     expect(parseAnalysisProvider("gemini")).toBe("gemini");
   });
+
+  it("accepts claude", () => {
+    expect(parseAnalysisProvider("claude")).toBe("claude");
+  });
 });

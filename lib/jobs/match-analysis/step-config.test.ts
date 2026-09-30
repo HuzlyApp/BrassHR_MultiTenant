@@ -89,6 +89,10 @@ describe("match step config", () => {
     expect(deepMatchModelForProvider("gemini")).toBe(DEFAULT_STEP3_MODEL);
   });
 
+  it("defaults Claude Deep Match to Haiku 4.5", () => {
+    expect(deepMatchModelForProvider("claude")).toBe("claude-haiku-4-5-20251001");
+  });
+
   it("maps Grok reasoning effort by model family", () => {
     expect(grokReasoningEffort("grok-4-fast")).toBe("none");
     expect(grokReasoningEffort("grok-4.3")).toBe("none");
