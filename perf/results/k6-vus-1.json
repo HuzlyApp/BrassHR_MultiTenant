@@ -1,0 +1,549 @@
+{
+  "options": {
+    "summaryTrendStats": [
+      "avg",
+      "min",
+      "med",
+      "max",
+      "p(90)",
+      "p(95)",
+      "p(99)"
+    ],
+    "summaryTimeUnit": "",
+    "noColor": true
+  },
+  "state": {
+    "isStdOutTTY": false,
+    "isStdErrTTY": false,
+    "testRunDurationMs": 10415.8924
+  },
+  "metrics": {
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 10415.3654,
+        "med": 10415.3654,
+        "max": 10415.3654,
+        "p(90)": 10415.3654,
+        "p(95)": 10415.3654,
+        "p(99)": 10415.3654,
+        "avg": 10415.3654
+      }
+    },
+    "bytes_workers_page2": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 26780,
+        "p(99)": 26780,
+        "avg": 26780,
+        "min": 26780,
+        "med": 26780,
+        "max": 26780,
+        "p(90)": 26780
+      }
+    },
+    "timing_workers_search_smith": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 2153,
+        "med": 2153,
+        "max": 2153,
+        "p(90)": 2153,
+        "p(95)": 2153,
+        "p(99)": 2153,
+        "avg": 2153
+      }
+    },
+    "bytes_admin_jobs_picker": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 30,
+        "p(95)": 30,
+        "p(99)": 30,
+        "avg": 30,
+        "min": 30,
+        "med": 30,
+        "max": 30
+      }
+    },
+    "dur_candidates_page": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 952.9275,
+        "min": 952.9275,
+        "med": 952.9275,
+        "max": 952.9275,
+        "p(90)": 952.9275,
+        "p(95)": 952.9275,
+        "p(99)": 952.9275
+      }
+    },
+    "http_req_waiting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 2191.59856,
+        "p(95)": 2211.67168,
+        "p(99)": 2227.730176,
+        "avg": 1129.9417444444443,
+        "min": 11.4085,
+        "med": 950.9194,
+        "max": 2231.7448
+      }
+    },
+    "dur_workers_search_smith": {
+      "contains": "time",
+      "values": {
+        "min": 2181.9918,
+        "med": 2181.9918,
+        "max": 2181.9918,
+        "p(90)": 2181.9918,
+        "p(95)": 2181.9918,
+        "p(99)": 2181.9918,
+        "avg": 2181.9918
+      },
+      "type": "trend"
+    },
+    "http_req_blocked": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 1.1575666666666669,
+        "min": 0,
+        "med": 0,
+        "max": 10.4181,
+        "p(90)": 2.083620000000002,
+        "p(95)": 6.250859999999997,
+        "p(99)": 9.584652
+      }
+    },
+    "timing_workers_page2": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 1990,
+        "p(95)": 1990,
+        "p(99)": 1990,
+        "avg": 1990,
+        "min": 1990,
+        "med": 1990,
+        "max": 1990
+      }
+    },
+    "bytes_workers_metrics": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 965,
+        "p(90)": 965,
+        "p(95)": 965,
+        "p(99)": 965,
+        "avg": 965,
+        "min": 965,
+        "med": 965
+      }
+    },
+    "dur_workers_metrics": {
+      "values": {
+        "p(99)": 28.336,
+        "avg": 28.336,
+        "min": 28.336,
+        "med": 28.336,
+        "max": 28.336,
+        "p(90)": 28.336,
+        "p(95)": 28.336
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "vus_max": {
+      "contains": "default",
+      "values": {
+        "min": 1,
+        "max": 1,
+        "value": 1
+      },
+      "type": "gauge"
+    },
+    "bytes_workers_search_smith": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 29057,
+        "min": 29057,
+        "med": 29057,
+        "max": 29057,
+        "p(90)": 29057,
+        "p(95)": 29057,
+        "p(99)": 29057
+      }
+    },
+    "dur_workers_page2": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 2024.7204,
+        "p(95)": 2024.7204,
+        "p(99)": 2024.7204,
+        "avg": 2024.7204,
+        "min": 2024.7204,
+        "med": 2024.7204,
+        "max": 2024.7204
+      }
+    },
+    "timing_workers_filter": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 375,
+        "max": 375,
+        "p(90)": 375,
+        "p(95)": 375,
+        "p(99)": 375,
+        "avg": 375,
+        "min": 375
+      }
+    },
+    "bytes_candidates_page": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 23403,
+        "p(95)": 23403,
+        "p(99)": 23403,
+        "avg": 23403,
+        "min": 23403,
+        "med": 23403,
+        "max": 23403
+      }
+    },
+    "timing_workers_page1": {
+      "contains": "time",
+      "values": {
+        "p(90)": 2187,
+        "p(95)": 2187,
+        "p(99)": 2187,
+        "avg": 2187,
+        "min": 2187,
+        "med": 2187,
+        "max": 2187
+      },
+      "type": "trend"
+    },
+    "timing_workers_search_rare": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 1932,
+        "max": 1932,
+        "p(90)": 1932,
+        "p(95)": 1932,
+        "p(99)": 1932,
+        "avg": 1932,
+        "min": 1932
+      }
+    },
+    "checks": {
+      "contains": "default",
+      "values": {
+        "rate": 0.875,
+        "passes": 7,
+        "fails": 1
+      },
+      "type": "rate"
+    },
+    "dur_admin_jobs_picker": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 367.9234,
+        "med": 367.9234,
+        "max": 367.9234,
+        "p(90)": 367.9234,
+        "p(95)": 367.9234,
+        "p(99)": 367.9234,
+        "avg": 367.9234
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 1367,
+        "rate": 131.2417551471634
+      }
+    },
+    "http_req_sending": {
+      "values": {
+        "min": 0,
+        "med": 0,
+        "max": 0.5262,
+        "p(90)": 0.1052400000000001,
+        "p(95)": 0.31571999999999983,
+        "p(99)": 0.484104,
+        "avg": 0.05846666666666667
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "bytes_workers_search_rare": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 25282,
+        "avg": 25282,
+        "min": 25282,
+        "med": 25282,
+        "max": 25282,
+        "p(90)": 25282,
+        "p(95)": 25282
+      }
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 1.9274280000000001,
+        "avg": 0.6103222222222222,
+        "min": 0,
+        "med": 0.4298,
+        "max": 2.0081,
+        "p(90)": 1.2013800000000003,
+        "p(95)": 1.6047399999999998
+      }
+    },
+    "bytes_workers_filter": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 171,
+        "p(90)": 171,
+        "p(95)": 171,
+        "p(99)": 171,
+        "avg": 171,
+        "min": 171,
+        "med": 171
+      }
+    },
+    "dur_workers_page1": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 2232.9447,
+        "p(90)": 2232.9447,
+        "p(95)": 2232.9447,
+        "p(99)": 2232.9447,
+        "avg": 2232.9447,
+        "min": 2232.9447,
+        "med": 2232.9447
+      }
+    },
+    "http_req_duration": {
+      "contains": "time",
+      "values": {
+        "med": 952.9275,
+        "max": 2232.9447,
+        "p(90)": 2192.1823799999997,
+        "p(95)": 2212.56354,
+        "p(99)": 2228.868468,
+        "avg": 1130.6105333333333,
+        "min": 11.4085
+      },
+      "type": "trend"
+    },
+    "data_received": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 141520,
+        "rate": 13586.929911065517
+      }
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 0,
+        "med": 0,
+        "max": 0,
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0,
+        "avg": 0
+      }
+    },
+    "dur_workers_filter": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 415.8663,
+        "p(95)": 415.8663,
+        "p(99)": 415.8663,
+        "avg": 415.8663,
+        "min": 415.8663,
+        "med": 415.8663,
+        "max": 415.8663
+      }
+    },
+    "http_req_duration{expected_response:true}": {
+      "values": {
+        "avg": 1225.9464249999999,
+        "min": 11.4085,
+        "med": 1456.15185,
+        "max": 2232.9447,
+        "p(90)": 2197.27767,
+        "p(95)": 2215.1111849999998,
+        "p(99)": 2229.377997
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "iterations": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 1,
+        "rate": 0.0960071361720288
+      }
+    },
+    "http_req_failed": {
+      "thresholds": {
+        "rate<1": {
+          "ok": true
+        }
+      },
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "passes": 1,
+        "fails": 8,
+        "rate": 0.1111111111111111
+      }
+    },
+    "dur_workers_search_rare": {
+      "values": {
+        "p(99)": 1959.3762,
+        "avg": 1959.3762,
+        "min": 1959.3762,
+        "med": 1959.3762,
+        "max": 1959.3762,
+        "p(90)": 1959.3762,
+        "p(95)": 1959.3762
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "vus": {
+      "contains": "default",
+      "values": {
+        "value": 1,
+        "min": 1,
+        "max": 1
+      },
+      "type": "gauge"
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 9,
+        "rate": 0.8640642255482592
+      }
+    },
+    "http_req_tls_handshaking": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 0,
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0,
+        "avg": 0,
+        "min": 0,
+        "med": 0
+      }
+    },
+    "bytes_workers_page1": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 26553,
+        "max": 26553,
+        "p(90)": 26553,
+        "p(95)": 26553,
+        "p(99)": 26553,
+        "avg": 26553,
+        "min": 26553
+      }
+    }
+  },
+  "root_group": {
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": [],
+    "checks": [
+        {
+          "passes": 1,
+          "fails": 0,
+          "name": "candidates_page status 200",
+          "path": "::candidates_page status 200",
+          "id": "ac326676120d6eb9324e57c701a6fb8b"
+        },
+        {
+          "path": "::workers_page1 status 200",
+          "id": "a47a4d906bda3d67d5827970b087bb70",
+          "passes": 1,
+          "fails": 0,
+          "name": "workers_page1 status 200"
+        },
+        {
+          "fails": 0,
+          "name": "workers_page2 status 200",
+          "path": "::workers_page2 status 200",
+          "id": "f600fa9cc2559068d6ffd14249e5e2c1",
+          "passes": 1
+        },
+        {
+          "name": "workers_filter status 200",
+          "path": "::workers_filter status 200",
+          "id": "29271267fee7ac55ca82f88675d15eb2",
+          "passes": 1,
+          "fails": 0
+        },
+        {
+          "fails": 0,
+          "name": "workers_search_smith status 200",
+          "path": "::workers_search_smith status 200",
+          "id": "96da5b0ec36467254074b40a1eb36014",
+          "passes": 1
+        },
+        {
+          "name": "workers_search_rare status 200",
+          "path": "::workers_search_rare status 200",
+          "id": "dbb4d0124970ce0faaf92482f93053f6",
+          "passes": 1,
+          "fails": 0
+        },
+        {
+          "name": "workers_metrics status 200",
+          "path": "::workers_metrics status 200",
+          "id": "c4240b18ffc7464e5e75caab70bf66b0",
+          "passes": 1,
+          "fails": 0
+        },
+        {
+          "name": "admin_jobs_picker status 200",
+          "path": "::admin_jobs_picker status 200",
+          "id": "9542e680bc7cd792468ea06273156a64",
+          "passes": 0,
+          "fails": 1
+        }
+      ]
+  }
+}
