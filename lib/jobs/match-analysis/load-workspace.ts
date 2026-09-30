@@ -357,6 +357,7 @@ export async function loadMatchAnalysisWorkspace(
       ? usersById.get(String(application.recruiter_decision_by))?.name ?? null
       : null,
     modelName: application.ai_analysis_model || getMatchAnalysisModelName(),
+    claudeAvailable: Boolean(process.env.CLAUDE_API_KEY?.trim()),
     matchProgression: {
       stage: analysisIsStale ? null : application.ai_match_stage ?? null,
       callPackUnlocked: isMatchCallPackStatus({

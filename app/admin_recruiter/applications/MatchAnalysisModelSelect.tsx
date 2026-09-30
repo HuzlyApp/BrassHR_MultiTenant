@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   ANALYSIS_PROVIDER_LABELS,
   DEFAULT_ANALYSIS_PROVIDER,
+  isAnalysisProvider,
   parseAnalysisProvider,
   type AnalysisProvider,
 } from "@/lib/jobs/match-analysis/schema";
@@ -21,7 +22,7 @@ export function useMatchAnalysisProvider(): [
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) setProviderState(parseAnalysisProvider(stored));
+      if (stored && isAnalysisProvider(stored)) setProviderState(stored);
     } catch {
       /* ignore storage errors */
     }
@@ -40,6 +41,34 @@ export function useMatchAnalysisProvider(): [
   return [provider, setProvider];
 }
 
+function useClaudeProviderAvailable(explicit?: boolean): boolean {
+  const [available, setAvailable] = useState(Boolean(explicit));
+
+  useEffect(() => {
+    if (explicit != null) {
+      setAvailable(explicit);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/admin/match-analysis/providers")
+      .then(async (res) => {
+        if (!res.ok) return;
+        const body = (await res.json().catch(() => null)) as {
+          providers?: { claude?: boolean };
+        } | null;
+        if (!cancelled && body?.providers?.claude) setAvailable(true);
+      })
+      .catch(() => {
+        /* keep hidden when availability cannot be confirmed */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [explicit]);
+
+  return available;
+}
+
 type MatchAnalysisModelSelectProps = {
   value: AnalysisProvider;
   onChange: (provider: AnalysisProvider) => void;
@@ -47,6 +76,8 @@ type MatchAnalysisModelSelectProps = {
   className?: string;
   /** primary matches the AI overview header height */
   variant?: "primary" | "outline";
+  /** When known from a server prop; otherwise fetched once from the providers endpoint. */
+  claudeAvailable?: boolean;
 };
 
 export function MatchAnalysisModelSelect({
@@ -55,8 +86,16 @@ export function MatchAnalysisModelSelect({
   disabled = false,
   className = "",
   variant = "outline",
+  claudeAvailable: claudeAvailableProp,
 }: MatchAnalysisModelSelectProps) {
   const heightClass = variant === "primary" ? "h-8" : "h-[2.375rem]";
+  const claudeAvailable = useClaudeProviderAvailable(claudeAvailableProp);
+
+  useEffect(() => {
+    if (!claudeAvailable && value === "claude") {
+      onChange(DEFAULT_ANALYSIS_PROVIDER);
+    }
+  }, [claudeAvailable, value, onChange]);
 
   return (
     <label className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap ${className}`}>
@@ -71,6 +110,9 @@ export function MatchAnalysisModelSelect({
       >
         <option value="grok">{ANALYSIS_PROVIDER_LABELS.grok}</option>
         <option value="gemini">{ANALYSIS_PROVIDER_LABELS.gemini}</option>
+        {claudeAvailable ? (
+          <option value="claude">{ANALYSIS_PROVIDER_LABELS.claude}</option>
+        ) : null}
       </select>
     </label>
   );
@@ -86,6 +128,7 @@ export function AnalyzeAllButtonGroup({
   buttonClassName,
   title = "Analyze all unanalyzed candidates",
   icon,
+  claudeAvailable,
 }: {
   onAnalyzeAll: () => void;
   analyzeAllLabel?: string;
@@ -96,6 +139,7 @@ export function AnalyzeAllButtonGroup({
   buttonClassName: string;
   title?: string;
   icon?: ReactNode;
+  claudeAvailable?: boolean;
 }) {
   return (
     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
@@ -105,6 +149,7 @@ export function AnalyzeAllButtonGroup({
         onChange={onAnalysisProviderChange}
         disabled={analyzeBusy}
         className="w-full justify-between sm:w-auto"
+        claudeAvailable={claudeAvailable}
       />
       <button
         type="button"
