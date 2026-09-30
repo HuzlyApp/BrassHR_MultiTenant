@@ -339,7 +339,12 @@ function mapApiError(error: unknown, provider?: AnalysisProvider): MatchAnalysis
     provider === "claude" ? CLAUDE_UNAVAILABLE_MESSAGE : MATCH_ANALYSIS_ERROR;
 
   if (status === 401 || status === 403 || code === "invalid_api_key") {
-    return new MatchAnalysisGenerationError("AUTH", unavailable);
+    return new MatchAnalysisGenerationError(
+      "AUTH",
+      provider === "claude"
+        ? "Claude API key is invalid. Check CLAUDE_API_KEY and try again."
+        : unavailable
+    );
   }
   if (status === 429) {
     return new MatchAnalysisGenerationError("RATE_LIMIT", unavailable);
