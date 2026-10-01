@@ -5,6 +5,7 @@ import {
   allowedStaffActions,
   completionOwnerLabel,
   readStaffStepReview,
+  staffActionLabel,
   staffActionResultMessage,
   staffActionTargetStatus,
 } from "@/lib/onboarding/staff-step-review-shared";
@@ -126,10 +127,87 @@ describe("staff workflow step review rules", () => {
       allowed: true,
       ownerLabel: "Recruiter / HR",
       actions: ["complete", "reject"],
+      variant: "default",
       reason: null,
     });
     expect(resolveStaffStepEligibility(references, "pending").allowed).toBe(false);
     expect(resolveStaffStepEligibility(null, "pending").allowed).toBe(false);
+  });
+
+  it("offers Verified / Need to Review / Reject on reference verification, minus the current decision", () => {
+    const verification = step({
+      id: "ref-verify",
+      title: "Reference Verification",
+      libraryId: "reference-verification",
+      owner: "recruiter_or_hr",
+      stepType: "references",
+      sort: 35,
+    });
+    expect(resolveStaffStepEligibility(verification, "pending")).toMatchObject({
+      allowed: true,
+      variant: "verification",
+      actions: ["complete", "needs_review", "reject"],
+    });
+    expect(allowedStaffActions("completed", "verification")).toEqual(["needs_review", "reject"]);
+    expect(allowedStaffActions("in_progress", "verification")).toEqual(["complete", "reject"]);
+    expect(allowedStaffActions("failed", "verification")).toEqual(["complete", "needs_review"]);
+    expect(staffActionTargetStatus("needs_review")).toBe("in_progress");
+  });
+
+  it("lets staff decide Internal Select even when no published tenant step backs it", () => {
+    const record = { stepType: "internal-select", settings: { completionOwner: "recruiter_or_hr" } };
+    expect(resolveStaffStepEligibility(null, "pending", record)).toEqual({
+      allowed: true,
+      ownerLabel: "Recruiter / HR",
+      actions: ["complete", "needs_review", "reject"],
+      variant: "selection",
+      reason: null,
+    });
+    expect(resolveStaffStepEligibility(null, "completed", record).actions).toEqual(["needs_review", "reject"]);
+    expect(staffActionLabel("complete", "selection")).toBe("Selected");
+    expect(staffActionLabel("needs_review", "selection")).toBe("On Hold");
+    expect(staffActionLabel("reject", "selection")).toBe("Not Selected");
+    expect(staffActionLabel("reject", "verification")).toBe("Reject");
+  });
+
+  it("still refuses unlinked candidate-owned steps", () => {
+    expect(
+      resolveStaffStepEligibility(null, "pending", { stepType: "document-upload", settings: { completionOwner: "applicant" } })
+        .allowed
+    ).toBe(false);
+  });
+
+  it("never blocks the candidate on reference verification, even when rejected", () => {
+    const verification = step({
+      id: "ref-verify",
+      title: "Reference Verification",
+      libraryId: "reference-verification",
+      owner: "recruiter_or_hr",
+      stepType: "references",
+      sort: 45,
+    });
+    const extraUpload = step({
+      id: "upload",
+      title: "Upload License",
+      libraryId: "document-upload",
+      owner: "applicant",
+      stepType: "document_upload",
+      sort: 50,
+    });
+    const next = resolveUnlockedApplicantStep({
+      config: config([resume, references, screening, skills, verification, extraUpload]),
+      progress: progress({
+        resume: "completed",
+        references: "completed",
+        screening: "completed",
+        skills: "completed",
+        "ref-verify": "failed",
+        upload: "pending",
+      }),
+      completedStepId: "skills",
+    });
+    expect(next.reason).toBeNull();
+    expect(next.step?.id).toBe("upload");
   });
 
   it("reads the stored staff review and ignores malformed data", () => {
@@ -188,8 +266,8 @@ describe("staff workflow step review rules", () => {
   it("does not email when a second internal step still blocks the candidate", () => {
     const verification = step({
       id: "verification",
-      title: "Reference Verification",
-      libraryId: "reference-verification",
+      title: "OIG / Exclusion Check",
+      libraryId: "oig-exclusion-check",
       owner: "recruiter_or_hr",
       stepType: "custom_question",
       sort: 35,

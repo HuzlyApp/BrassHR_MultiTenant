@@ -185,8 +185,8 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
               activationFailed={Boolean(view?.postHireActivationFailed)}
               applicationId={primaryApplication?.id}
               jobTitle={primaryApplication?.jobTitle}
-              onScheduled={() => void load()}
-              onWorkflowChanged={() => void load({ silent: true })}
+              onScheduled={() => load({ silent: true })}
+              onWorkflowChanged={() => load({ silent: true })}
             />
           )
         ) : (
@@ -203,8 +203,8 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
             profile={sidebarProfile}
             applicationId={primaryApplication?.id}
             jobTitle={primaryApplication?.jobTitle}
-            onScheduled={() => void load()}
-            onWorkflowChanged={() => void load({ silent: true })}
+            onScheduled={() => load({ silent: true })}
+            onWorkflowChanged={() => load({ silent: true })}
             onRequestPostHireTab={() => selectTab("post_hire")}
           />
         )}

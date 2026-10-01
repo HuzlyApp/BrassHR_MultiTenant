@@ -1,5 +1,6 @@
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import type { WorkflowStepDisplayStatus } from "@/lib/onboarding/assigned-workflow-steps";
+import { isInterviewStep } from "@/lib/onboarding/interview-step";
 
 export const PRE_HIRE_FIGMA_STAGES = [
   "Intake",
@@ -359,11 +360,19 @@ export function groupStepsIntoHireStages(
 
   let foundCurrent = false;
   for (const group of groups) {
-    const allComplete =
-      group.steps.length > 0 && group.completedCount === group.steps.length;
-    if (allComplete) {
+    const optionalOpen = group.steps.length - group.completedCount;
+    const requiredDone =
+      group.steps.length > 0 &&
+      group.steps.every((step) => !step.required || isCompleteStatus(step.displayStatus));
+    // Optional steps never hold a stage open, but an optional-only stage can't jump ahead of the current one.
+    if (requiredDone && (optionalOpen === 0 || !foundCurrent)) {
       group.status = "completed";
-      group.summaryLabel = `${group.completedCount} Completed`;
+      group.summaryLabel = [
+        group.completedCount ? `${group.completedCount} Completed` : null,
+        optionalOpen ? `${optionalOpen} Optional` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
       continue;
     }
     if (!foundCurrent) {
@@ -426,15 +435,20 @@ export function hireStageProgressMeta(groups: HireStageGroup[]): {
  */
 export function isInterviewScheduleStep(step: CandidateWorkflowStepView): boolean {
   if (isCompleteStatus(step.displayStatus)) return false;
-  return /interview/.test(stepHaystack(step));
+  if (step.displayStatus === "rejected" || step.displayStatus === "blocked") return false;
+  return isInterviewStep(step);
 }
 
-/** Show Schedule Interview while the Interview stage is the active Pre-Hire stage. */
+/**
+ * Show Schedule Interview on the row while the Interview stage is active and nothing is booked yet.
+ * Follow-up interviews are scheduled from the step modal.
+ */
 export function shouldShowInterviewScheduleAction(
   stage: HireStageGroup,
   step: CandidateWorkflowStepView
 ): boolean {
   if (stage.name.toLowerCase() !== "interview") return false;
   if (stage.status !== "current" && stage.status !== "in_progress") return false;
+  if (step.interview?.latest) return false;
   return isInterviewScheduleStep(step);
 }

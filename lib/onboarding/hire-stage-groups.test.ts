@@ -121,6 +121,67 @@ describe("groupStepsIntoHireStages", () => {
     ]);
   });
 
+  it("unlocks Interview once Screening's required steps are done, even if optional Reference Verification is rejected", () => {
+    const groups = groupStepsIntoHireStages(
+      [
+        step({ id: "sc", title: "Recruiter Screening", stepKey: "recruiter-screening", displayStatus: "completed" }),
+        step({
+          id: "sk",
+          title: "Skill / Qualification Assessment",
+          stepKey: "skill-qualification-assessment",
+          displayStatus: "completed",
+        }),
+        step({
+          id: "rv",
+          title: "Reference Verification",
+          stepKey: "reference-verification",
+          required: false,
+          displayStatus: "blocked",
+        }),
+        step({ id: "iv", title: "Interview / Qualification", stepKey: "interview-qualification" }),
+        step({ id: "bg", title: "Background Check", stepKey: "background-check" }),
+      ],
+      "pre_hire"
+    );
+    expect(groups.map((g) => [g.name, g.status])).toEqual([
+      ["Screening", "completed"],
+      ["Interview", "current"],
+      ["Compliance", "locked"],
+    ]);
+    expect(groups[0]?.summaryLabel).toBe("2 Completed • 1 Optional");
+  });
+
+  it("unlocks Submission once Interview / Qualification is done and only optional Internal Select is left", () => {
+    const groups = groupStepsIntoHireStages(
+      [
+        step({
+          id: "iv",
+          title: "Interview / Qualification",
+          stepKey: "interview-qualification",
+          displayStatus: "completed",
+        }),
+        step({ id: "is", title: "Internal Select", stepKey: "internal-select", required: false }),
+        step({ id: "sub", title: "Sent to Client / MSP", stepKey: "release-to-client" }),
+      ],
+      "pre_hire"
+    );
+    expect(groups.map((g) => [g.name, g.status])).toEqual([
+      ["Interview", "completed"],
+      ["Submission", "current"],
+    ]);
+  });
+
+  it("keeps an optional-only stage behind the current stage locked", () => {
+    const groups = groupStepsIntoHireStages(
+      [
+        step({ id: "iv", title: "Interview / Qualification", stepKey: "interview-qualification" }),
+        step({ id: "rc", title: "Released to Client", stepKey: "client-review", required: false }),
+      ],
+      "pre_hire"
+    );
+    expect(groups.map((g) => g.status)).toEqual(["current", "locked"]);
+  });
+
   it("groups post-hire steps into Figma Payroll / Access / Training / Welcome buckets", () => {
     const groups = groupStepsIntoHireStages(
       [

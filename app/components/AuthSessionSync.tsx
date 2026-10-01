@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import type { Session } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getBrowserSession, isAuthLockContentionError } from "@/lib/auth/browser-session";
 import { idleLogoutRedirectPath } from "@/lib/auth/idle-session";
 import {
   authSyncEventFromAuthChange,
@@ -44,12 +46,23 @@ export default function AuthSessionSync() {
       }
     };
 
-    const applyReconcile = async (source: "remote" | "reload") => {
+    const applyReconcile = async (source: "remote" | "reload", knownSession?: Session | null) => {
       if (cancelled) return;
 
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
+      let session: Session | null;
+      if (knownSession !== undefined) {
+        session = knownSession;
+      } else {
+        try {
+          session = await getBrowserSession();
+        } catch (error) {
+          if (!isAuthLockContentionError(error)) {
+            console.warn("[auth-session-sync] could not read session", error);
+          }
+          return;
+        }
+      }
+      if (cancelled) return;
       const result = reconcileAuthSessionFromStorage(session);
       const path = pathnameRef.current;
 
@@ -115,7 +128,8 @@ export default function AuthSessionSync() {
       if (cancelled) return;
 
       if (event === "INITIAL_SESSION") {
-        void applyReconcile("reload");
+        // This callback runs while auth-js holds its session lock, so reuse its session.
+        void applyReconcile("reload", session);
         return;
       }
 

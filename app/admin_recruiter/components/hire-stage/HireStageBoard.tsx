@@ -70,9 +70,9 @@ export function HireStageBoard({
   onRequestPostHireTab?: () => void;
   applicationId?: string | null;
   jobTitle?: string | null;
-  onScheduled?: () => void;
+  onScheduled?: () => void | Promise<void>;
   /** Called after staff change a step's status so the journey can refresh without unmounting. */
-  onWorkflowChanged?: () => void;
+  onWorkflowChanged?: () => void | Promise<void>;
 }) {
   const stages = useMemo(() => groupStepsIntoHireStages(steps, lifecycle), [steps, lifecycle]);
   const progressMeta = useMemo(() => hireStageProgressMeta(stages), [stages]);
@@ -136,9 +136,23 @@ export function HireStageBoard({
     void fetchInspection(step.id);
   }
 
+  function closeStep() {
+    setOpenStepId(null);
+    setInspection(null);
+    setInspectionError(null);
+  }
+
   async function handleStepUpdated() {
-    onWorkflowChanged?.();
-    if (openStepId) await fetchInspection(openStepId, { silent: true });
+    await Promise.all([
+      onWorkflowChanged?.(),
+      openStepId ? fetchInspection(openStepId, { silent: true }) : null,
+    ]);
+  }
+
+  function openSchedule() {
+    closeStep();
+    setScheduleError(null);
+    setScheduleOpen(true);
   }
 
   async function handleSchedule(payload: ScheduleInterviewPayload) {
@@ -158,7 +172,7 @@ export function HireStageBoard({
       if (!res.ok) throw new Error(json.error || "Failed to schedule interview");
       setScheduleOpen(false);
       setScheduleSuccess(invitationSuccessMessage(json.invitation));
-      onScheduled?.();
+      await onScheduled?.();
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Failed to schedule interview");
     } finally {
@@ -221,9 +235,8 @@ export function HireStageBoard({
               stages={stages}
               lifecycle={lifecycle}
               onInspectStep={openStep}
-              onScheduleInterview={
-                lifecycle === "pre_hire" ? () => setScheduleOpen(true) : undefined
-              }
+              onScheduleInterview={lifecycle === "pre_hire" ? openSchedule : undefined}
+              onRefresh={onWorkflowChanged}
             />
           </div>
 
@@ -247,17 +260,14 @@ export function HireStageBoard({
       <CandidateWorkflowStepModal
         open={Boolean(openStepId)}
         onOpenChange={(open) => {
-          if (!open) {
-            setOpenStepId(null);
-            setInspection(null);
-            setInspectionError(null);
-          }
+          if (!open) closeStep();
         }}
         loading={inspectionLoading}
         error={inspectionError}
         inspection={inspection}
         workerId={workerId}
         onStepUpdated={handleStepUpdated}
+        onScheduleInterview={lifecycle === "pre_hire" && workerId ? openSchedule : undefined}
       />
 
       {workerId ? (

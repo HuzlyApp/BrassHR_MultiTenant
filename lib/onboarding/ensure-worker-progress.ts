@@ -98,7 +98,6 @@ async function ensureWorkerOnboardingProgressUncached(
   }
 
   const enabledSteps = config.steps.filter((s) => s.is_enabled);
-  const stepIds = enabledSteps.map((s) => s.id);
   const stepKeyById = new Map(config.steps.map((s) => [s.id, s.step_key]));
 
   const { data: stepRows, error: srErr } = await supabase
@@ -125,11 +124,12 @@ async function ensureWorkerOnboardingProgressUncached(
     if (bulkErr) throw bulkErr;
   }
 
+  // Not limited to enabled steps: job workflows record progress on steps that a later
+  // publish of another flow disabled, and the applicant stepper resolves them by id.
   const { data: allSteps, error: allErr } = await supabase
     .from("worker_onboarding_step_progress")
     .select("onboarding_step_id, status, completed_at, data")
-    .eq("worker_onboarding_progress_id", progressId)
-    .in("onboarding_step_id", stepIds.length ? stepIds : ["00000000-0000-0000-0000-000000000000"]);
+    .eq("worker_onboarding_progress_id", progressId);
 
   if (allErr) throw allErr;
 

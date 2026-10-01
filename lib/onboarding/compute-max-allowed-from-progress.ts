@@ -1,6 +1,7 @@
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
 import { applicantStepHasNavigableScreen } from "@/lib/onboarding/applicant-step-navigability";
 import { readStepTemplatePhase } from "@/lib/onboarding/workflow-phase";
+import { isUuid } from "@/lib/validation/uuid";
 import type {
   OnboardingStepStatus,
   TenantOnboardingStep,
@@ -73,6 +74,11 @@ export function buildProgressStatusMaps(
 
   return new Map(
     enabledSteps.map((step) => {
+      // Published steps own their progress row by id (republish keeps ids stable). Keys are
+      // shared by unrelated steps across flows, so only placeholder ids may resolve through them.
+      if (isUuid(step.id)) {
+        return [step.id, byStepId.get(step.id) ?? "pending"] as const;
+      }
       const baseKey = step.step_key.replace(/_\d+$/, "");
       const status =
         byStepId.get(step.id) ??

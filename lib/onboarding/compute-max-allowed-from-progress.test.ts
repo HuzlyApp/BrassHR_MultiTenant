@@ -53,6 +53,48 @@ describe("buildProgressStatusMaps", () => {
     const map = buildProgressStatusMaps(steps, progress);
     expect(map.get(license.id)).toBe("completed");
   });
+
+  it("does not give a published step another step's status through a shared key", () => {
+    const base = legacySteps()[0]!;
+    const offer: TenantOnboardingStep = {
+      ...base,
+      id: "cdbc0968-5f43-49dd-87fc-caeb0b47063b",
+      step_key: "custom_question_11",
+      step_type: "custom_question",
+      title: "Offer Accepted",
+    };
+    const ssn: TenantOnboardingStep = {
+      ...base,
+      id: "1e962519-816a-492f-934c-72d39961f4a2",
+      step_key: "document_upload",
+      step_type: "document_upload",
+      title: "SSN / Identity Verification",
+    };
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        {
+          onboarding_step_id: "db479d24-6104-4fa8-8fac-6bc82ecb7b4b",
+          step_key: "custom_question",
+          status: "completed",
+          completed_at: "2026-01-01",
+          data: {},
+        },
+        {
+          onboarding_step_id: "604c7e2f-1a94-4e82-96c7-f16e10865d6c",
+          step_key: "document_upload",
+          status: "completed",
+          completed_at: "2026-01-01",
+          data: {},
+        },
+      ],
+    };
+
+    const map = buildProgressStatusMaps([offer, ssn], progress);
+    expect(map.get(offer.id)).toBe("pending");
+    expect(map.get(ssn.id)).toBe("pending");
+  });
 });
 
 describe("computeMaxAllowedStepIndexFromProgress", () => {

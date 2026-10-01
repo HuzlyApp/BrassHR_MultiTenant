@@ -1,6 +1,6 @@
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 
-export const STAFF_STEP_ACTIONS = ["complete", "reject", "reopen"] as const;
+export const STAFF_STEP_ACTIONS = ["complete", "needs_review", "reject", "reopen"] as const;
 
 export type StaffStepAction = (typeof STAFF_STEP_ACTIONS)[number];
 
@@ -17,6 +17,7 @@ export type StaffStepActionEligibility = {
   allowed: boolean;
   ownerLabel: string | null;
   actions: StaffStepAction[];
+  variant: StaffStepVariant;
   reason: string | null;
 };
 
@@ -55,29 +56,123 @@ export function completionOwnerLabel(owner: string | null | undefined): string {
     .join(" ");
 }
 
+/**
+ * Decision steps offer three outcomes at any time and never block the candidate:
+ * reference verification (Verified / Need to Review / Rejected) and
+ * internal select (Selected / On Hold / Not Selected).
+ */
+export type StaffDecisionVariant = "verification" | "selection";
+/** Interview steps record the interview outcome: Mark Completed or Reject, switchable later. */
+export type StaffStepVariant = "default" | "interview" | StaffDecisionVariant;
+export type StaffDecisionAction = "complete" | "needs_review" | "reject";
+
+export const STAFF_DECISION_ACTIONS: readonly StaffDecisionAction[] = ["complete", "needs_review", "reject"];
+
+const DECISION_COPY: Record<
+  StaffDecisionVariant,
+  { pending: string; labels: Record<StaffDecisionAction, string>; results: Record<StaffDecisionAction, string> }
+> = {
+  verification: {
+    pending: "Need to Verify",
+    labels: { complete: "Verified", needs_review: "Need to Review", reject: "Rejected" },
+    results: {
+      complete: "References marked as verified.",
+      needs_review: "References marked as needing review.",
+      reject: "References rejected. This doesn't block the candidate's next stage.",
+    },
+  },
+  selection: {
+    pending: "Pending Decision",
+    labels: { complete: "Selected", needs_review: "On Hold", reject: "Not Selected" },
+    results: {
+      complete: "Candidate marked as selected to move forward.",
+      needs_review: "Candidate put on hold.",
+      reject: "Candidate marked as not selected. This doesn't block the next stage.",
+    },
+  },
+};
+
+const DECISION_STEP_TYPES: Record<string, StaffDecisionVariant> = {
+  "reference-verification": "verification",
+  "internal-select": "selection",
+};
+
+/** Library id (record `step_type` or tenant `metadata.workflow_step_id`) → decision variant. */
+export function staffStepVariantForLibraryId(libraryId: string | null | undefined): StaffStepVariant {
+  const key = String(libraryId ?? "").trim().toLowerCase().replaceAll("_", "-");
+  if (DECISION_STEP_TYPES[key]) return DECISION_STEP_TYPES[key];
+  return key.includes("interview") ? "interview" : "default";
+}
+
+export function isDecisionVariant(variant: StaffStepVariant): variant is StaffDecisionVariant {
+  return variant === "verification" || variant === "selection";
+}
+
+/** Label for a decision ("Selected") or, with null, the pending state ("Pending Decision"). */
+export function decisionLabel(variant: StaffDecisionVariant, action: StaffDecisionAction | null): string {
+  return action ? DECISION_COPY[variant].labels[action] : DECISION_COPY[variant].pending;
+}
+
+/** Stored progress status → the decision that produced it. */
+export function decisionFromStatus(status: string | null | undefined): StaffDecisionAction | null {
+  const value = String(status ?? "").trim().toLowerCase();
+  if (value === "completed") return "complete";
+  if (value === "in_progress") return "needs_review";
+  if (value === "failed") return "reject";
+  return null;
+}
+
 export function staffActionTargetStatus(action: StaffStepAction): OnboardingStepStatus {
   if (action === "complete") return "completed";
+  if (action === "needs_review") return "in_progress";
   if (action === "reject") return "failed";
   return "pending";
 }
 
-export function allowedStaffActions(status: OnboardingStepStatus | string | null | undefined): StaffStepAction[] {
+export function allowedStaffActions(
+  status: OnboardingStepStatus | string | null | undefined,
+  variant: StaffStepVariant = "default"
+): StaffStepAction[] {
   const value = String(status ?? "pending").trim().toLowerCase();
+  if (isDecisionVariant(variant)) {
+    const current = decisionFromStatus(value);
+    return STAFF_DECISION_ACTIONS.filter((action) => action !== current);
+  }
+  if (variant === "interview") {
+    if (value === "completed") return ["reject"];
+    if (value === "failed") return ["complete"];
+    if (value === "skipped") return ["reopen"];
+    return ["complete", "reject"];
+  }
   if (value === "completed" || value === "skipped") return ["reopen"];
   if (value === "failed") return ["complete", "reopen"];
   return ["complete", "reject"];
 }
 
-export function staffActionLabel(action: StaffStepAction): string {
+export function staffActionLabel(action: StaffStepAction, variant: StaffStepVariant = "default"): string {
+  if (isDecisionVariant(variant) && action !== "reopen") {
+    const label = decisionLabel(variant, action);
+    return variant === "verification" && action === "reject" ? "Reject" : label;
+  }
+  if (variant === "interview" && action === "complete") return "Mark Completed";
   if (action === "complete") return "Mark complete";
+  if (action === "needs_review") return "Need to Review";
   if (action === "reject") return "Reject";
   return "Reopen";
 }
 
 export function staffActionResultMessage(
   action: StaffStepAction,
-  email: StaffStepEmailResult | null
+  email: StaffStepEmailResult | null,
+  variant: StaffStepVariant = "default"
 ): { tone: "success" | "warning"; message: string } {
+  if (isDecisionVariant(variant) && action !== "reopen") {
+    return { tone: "success", message: DECISION_COPY[variant].results[action] };
+  }
+  if (action === "needs_review") return { tone: "success", message: "Step marked as needing review." };
+  if (variant === "interview" && action === "reject") {
+    return { tone: "success", message: "Interview marked as rejected. The candidate stays at the Interview stage." };
+  }
   if (action === "reject") return { tone: "success", message: "Step rejected. The candidate stays blocked at this step." };
   if (action === "reopen") return { tone: "success", message: "Step reopened. It must be completed again before the candidate can continue." };
   if (!email) return { tone: "success", message: "Step completed. No email was sent to the candidate." };

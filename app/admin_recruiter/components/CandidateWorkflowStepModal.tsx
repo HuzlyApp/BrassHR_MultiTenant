@@ -2,6 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
@@ -22,16 +23,28 @@ import type {
   WorkflowStepInspectionKind,
 } from "@/lib/onboarding/candidate-workflow-step-inspection";
 import {
-  displayStatusLabel,
+  stepDisplayStatusLabel,
   type WorkflowStepDisplayStatus,
 } from "@/lib/onboarding/assigned-workflow-steps";
 import {
+  decisionLabel,
+  isDecisionVariant,
   staffActionLabel,
   staffActionResultMessage,
+  staffStepVariantForLibraryId,
   type StaffStepAction,
   type StaffStepEmailResult,
 } from "@/lib/onboarding/staff-step-review-shared";
 import { lifecyclePhaseLabel } from "@/lib/onboarding/workflow-phase-groups";
+import {
+  candidateInterviewStatusLabel,
+  candidateInterviewStatusTone,
+  interviewStepStatus,
+  STEP_PILL_TONE_CLASSES,
+  type CandidateInterview,
+} from "@/lib/onboarding/interview-step";
+import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import SkillAssessmentResults from "./SkillAssessmentResults";
 import WorkflowStepStaffActionModal from "./WorkflowStepStaffActionModal";
 
 const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
@@ -59,6 +72,13 @@ const STATUS_TONE: Record<WorkflowStepDisplayStatus, string> = {
   skipped: "bg-slate-100 text-slate-600 ring-slate-200",
   not_applicable: "bg-slate-100 text-slate-600 ring-slate-200",
   blocked: "bg-red-50 text-red-700 ring-red-200",
+};
+
+/** Decision steps are a staff to-do, so their open states read amber/orange rather than grey/blue. */
+const DECISION_TONE: Partial<Record<WorkflowStepDisplayStatus, WorkflowStepDisplayStatus>> = {
+  not_started: "under_review",
+  in_progress: "needs_revision",
+  blocked: "rejected",
 };
 
 function formatDateTime(value: string | null | undefined): string {
@@ -134,6 +154,91 @@ function Section({
   );
 }
 
+const MEETING_TYPE_LABELS: Record<string, string> = {
+  online: "Online",
+  phone: "Phone",
+  in_person: "In person",
+};
+
+function InterviewCard({
+  interview,
+  total,
+  latest,
+}: {
+  interview: CandidateInterview;
+  total: number;
+  latest: boolean;
+}) {
+  const name =
+    interview.sequence && total > 1 ? `Interview ${interview.sequence} of ${total}` : "Interview";
+  return (
+    <li
+      className={`rounded-lg border px-3 py-3 ${
+        latest ? "border-[color:var(--brand-primary)]/40 bg-white" : "border-slate-200 bg-white"
+      } ${interview.status === "cancelled" ? "opacity-70" : ""}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+            {name}
+            {latest ? (
+              <span
+                className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)",
+                  color: "var(--brand-primary)",
+                }}
+              >
+                Latest
+              </span>
+            ) : null}
+          </p>
+          <p className="mt-0.5 break-words text-xs text-slate-600">{interview.title}</p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+            STEP_PILL_TONE_CLASSES[candidateInterviewStatusTone(interview.status)]
+          }`}
+        >
+          {candidateInterviewStatusLabel(interview.status)}
+        </span>
+      </div>
+      <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Meta label="Date" value={formatInterviewDate(interview.startsAt)} />
+        <Meta
+          label="Time"
+          value={`${formatInterviewTimeRange(interview.startsAt, interview.endsAt)} ET`}
+        />
+        <Meta
+          label="Meeting type"
+          value={interview.meetingType ? MEETING_TYPE_LABELS[interview.meetingType] ?? titleCase(interview.meetingType) : null}
+        />
+        <Meta
+          label="Interviewers"
+          value={interview.interviewers.map((person) => person.name).join(", ") || null}
+        />
+        {interview.location ? <Meta label="Location" value={interview.location} /> : null}
+        <Meta label="Booked" value={formatDateTime(interview.createdAt)} />
+      </dl>
+      {interview.meetingLink ? (
+        <a
+          href={interview.meetingLink}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block break-all text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+        >
+          Join meeting
+        </a>
+      ) : null}
+      {interview.notes ? (
+        <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          {interview.notes}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
 export default function CandidateWorkflowStepModal({
   open,
   onOpenChange,
@@ -142,6 +247,7 @@ export default function CandidateWorkflowStepModal({
   inspection,
   workerId,
   onStepUpdated,
+  onScheduleInterview,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -151,6 +257,8 @@ export default function CandidateWorkflowStepModal({
   /** Enables complete / reject / reopen for staff-owned steps. */
   workerId?: string;
   onStepUpdated?: () => void | Promise<void>;
+  /** Shown on interview steps until the interview outcome is recorded. */
+  onScheduleInterview?: () => void;
 }) {
   const branding = useTenantBranding();
   const title = inspection?.step.title ?? "Step details";
@@ -185,6 +293,30 @@ export default function CandidateWorkflowStepModal({
   const staffReview = inspection?.staffReview ?? null;
   const canAct = Boolean(workerId && staffAction?.allowed && staffAction.actions.length);
   const KindIcon = inspection ? KIND_ICONS[inspection.kind] : Layers;
+  const variant = staffAction?.variant ?? "default";
+  const statusLabel = inspection ? stepDisplayStatusLabel(inspection.step) : "";
+  const interviewState = inspection ? interviewStepStatus(inspection.step) : null;
+  const statusTone = !inspection
+    ? ""
+    : interviewState
+      ? STEP_PILL_TONE_CLASSES[interviewState.tone]
+      : isDecisionVariant(staffStepVariantForLibraryId(inspection.step.stepType))
+        ? STATUS_TONE[DECISION_TONE[inspection.step.displayStatus] ?? inspection.step.displayStatus]
+        : STATUS_TONE[inspection.step.displayStatus];
+  const interviews = inspection?.interviews ?? null;
+  const interviewsNewestFirst = useMemo(
+    () => (interviews ? [...interviews].reverse() : []),
+    [interviews]
+  );
+  const latestInterviewId = inspection?.step.interview?.latest?.id ?? null;
+  const activeInterviewCount = inspection?.step.interview?.count ?? 0;
+  const canSchedule = Boolean(
+    onScheduleInterview &&
+      interviewState &&
+      interviewState.key !== "completed" &&
+      interviewState.key !== "rejected"
+  );
+  const showFooter = !loading && !error && (canSchedule || (canAct && staffAction));
 
   async function submitAction(input: { note: string; notifyCandidate: boolean }) {
     if (!workerId || !stepId || !pendingAction) return;
@@ -212,7 +344,13 @@ export default function CandidateWorkflowStepModal({
       };
       if (!res.ok) throw new Error(json.error || "Failed to update this step.");
       setPendingAction(null);
-      setNotice(staffActionResultMessage(action, json.email ?? null));
+      setNotice(
+        action === "reject" && variant === "default" && inspection && !inspection.step.required
+          ? { tone: "success", message: "Step rejected. It's optional, so it doesn't block the candidate's next stage." }
+          : action === "complete" && variant === "interview" && !json.email
+            ? { tone: "success", message: "Interview marked as completed." }
+          : staffActionResultMessage(action, json.email ?? null, variant)
+      );
       await onStepUpdated?.();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to update this step.");
@@ -270,11 +408,9 @@ export default function CandidateWorkflowStepModal({
             <div className="flex shrink-0 items-center gap-2">
               {inspection ? (
                 <span
-                  className={`hidden rounded-full px-3 py-1 text-xs font-semibold ring-1 sm:inline-block ${
-                    STATUS_TONE[inspection.step.displayStatus]
-                  }`}
+                  className={`hidden rounded-full px-3 py-1 text-xs font-semibold ring-1 sm:inline-block ${statusTone}`}
                 >
-                  {displayStatusLabel(inspection.step.displayStatus)}
+                  {statusLabel}
                 </span>
               ) : null}
               <Dialog.Close
@@ -320,17 +456,34 @@ export default function CandidateWorkflowStepModal({
             ) : (
               <>
                 <span
-                  className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ring-1 sm:hidden ${
-                    STATUS_TONE[inspection.step.displayStatus]
-                  }`}
+                  className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ring-1 sm:hidden ${statusTone}`}
                 >
-                  {displayStatusLabel(inspection.step.displayStatus)}
+                  {statusLabel}
                 </span>
 
                 {inspection.emptyState ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     {inspection.emptyState}
                   </p>
+                ) : null}
+
+                {interviews ? (
+                  <Section title="Interviews" count={activeInterviewCount}>
+                    {interviewsNewestFirst.length ? (
+                      <ul className="space-y-3">
+                        {interviewsNewestFirst.map((interview) => (
+                          <InterviewCard
+                            key={interview.id}
+                            interview={interview}
+                            total={activeInterviewCount}
+                            latest={interview.id === latestInterviewId}
+                          />
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-slate-600">No interviews booked with this candidate yet.</p>
+                    )}
+                  </Section>
                 ) : null}
 
                 <Section title="Overview">
@@ -367,9 +520,20 @@ export default function CandidateWorkflowStepModal({
                 </Section>
 
                 {staffReview ? (
-                  <Section title="Internal review">
+                  <Section title={variant === "interview" ? "Interview outcome" : "Internal review"}>
                     <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <Meta label="Decision" value={titleCase(staffReview.decision)} />
+                      <Meta
+                        label="Decision"
+                        value={
+                          isDecisionVariant(variant) && staffReview.decision !== "reopen"
+                            ? decisionLabel(variant, staffReview.decision)
+                            : staffReview.decision === "complete"
+                              ? "Completed"
+                              : staffReview.decision === "reject"
+                                ? "Rejected"
+                                : titleCase(staffReview.decision)
+                        }
+                      />
                       <Meta label="Reviewed by" value={staffReview.reviewedByName} />
                       <Meta label="Reviewed at" value={formatDateTime(staffReview.reviewedAt)} />
                     </dl>
@@ -456,55 +620,16 @@ export default function CandidateWorkflowStepModal({
                 ) : null}
 
                 {inspection.assessment ? (
-                  <Section title="Skill assessment">
-                    <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <Meta label="Assessment name" value={inspection.assessment.name} />
-                      <Meta
-                        label="Score"
-                        value={
-                          inspection.assessment.score != null
-                            ? String(inspection.assessment.score)
-                            : "—"
-                        }
-                      />
-                      <Meta
-                        label="Passing requirement"
-                        value={inspection.assessment.passingRequirement}
-                      />
-                      <Meta
-                        label="Attempt"
-                        value={
-                          inspection.assessment.attemptNumber != null
-                            ? String(inspection.assessment.attemptNumber)
-                            : "—"
-                        }
-                      />
-                      <Meta label="Started" value={formatDateTime(inspection.assessment.startedAt)} />
-                      <Meta
-                        label="Completed"
-                        value={formatDateTime(inspection.assessment.completedAt)}
-                      />
-                      <Meta label="Review status" value={inspection.assessment.reviewStatus} />
-                    </dl>
-                    {inspection.assessment.responses.length ? (
-                      <ul className="mt-3 space-y-2">
-                        {inspection.assessment.responses.map((response, index) => (
-                          <li
-                            key={`${response.question}-${index}`}
-                            className="rounded-lg bg-slate-50 px-3 py-2"
-                          >
-                            <p className="text-xs font-medium text-slate-600">{response.question}</p>
-                            <p className="whitespace-pre-wrap break-words text-sm text-slate-800">
-                              {formatAnswer(response.answer)}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-2 text-sm text-slate-600">
-                        No assessment responses are available.
-                      </p>
-                    )}
+                  <Section
+                    title="Skill assessment results"
+                    count={inspection.assessment.summary.totalCategories}
+                  >
+                    <SkillAssessmentResults
+                      startedAt={formatDateTime(inspection.assessment.startedAt)}
+                      completedAt={formatDateTime(inspection.assessment.completedAt)}
+                      summary={inspection.assessment.summary}
+                      categories={inspection.assessment.categories}
+                    />
                   </Section>
                 ) : null}
 
@@ -607,16 +732,31 @@ export default function CandidateWorkflowStepModal({
             )}
           </div>
 
-          {canAct && !loading && !error && staffAction ? (
+          {showFooter ? (
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
               <p className="text-xs text-slate-500">
                 Owner:{" "}
                 <span className="font-semibold text-slate-700">
-                  {staffAction.ownerLabel ?? "Internal team"}
+                  {staffAction?.ownerLabel ?? "Internal team"}
                 </span>
               </p>
               <div className="flex flex-wrap gap-2">
-                {staffAction.actions.map((action) => (
+                {canSchedule ? (
+                  <button
+                    type="button"
+                    onClick={onScheduleInterview}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50"
+                    style={{
+                      borderColor: "var(--brand-primary)",
+                      color: "var(--brand-primary)",
+                    }}
+                  >
+                    <CalendarDays className="h-4 w-4" aria-hidden />
+                    {activeInterviewCount > 0 ? "Schedule Another Interview" : "Schedule Interview"}
+                  </button>
+                ) : null}
+                {(canAct ? staffAction?.actions ?? [] : []).map((action) => (
                   <button
                     key={action}
                     type="button"
@@ -638,10 +778,12 @@ export default function CandidateWorkflowStepModal({
                         ? "shadow-sm hover:brightness-[0.97]"
                         : action === "reject"
                           ? "border border-red-300 text-red-700 hover:bg-red-50"
-                          : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                          : action === "needs_review"
+                            ? "border border-amber-300 text-amber-800 hover:bg-amber-50"
+                            : "border border-slate-300 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    {staffActionLabel(action)}
+                    {staffActionLabel(action, variant)}
                   </button>
                 ))}
               </div>
@@ -651,6 +793,8 @@ export default function CandidateWorkflowStepModal({
       </Dialog.Portal>
       <WorkflowStepStaffActionModal
         action={pendingAction}
+        variant={variant}
+        optional={inspection ? !inspection.step.required : false}
         stepTitle={title}
         submitting={submitting}
         error={actionError}

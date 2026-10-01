@@ -4,6 +4,7 @@ import {
   buildProgressStatusMaps,
   computeMaxAllowedStepIndexFromProgress,
 } from "@/lib/onboarding/compute-max-allowed-from-progress";
+import { isTenantStepBlocking } from "@/lib/onboarding/reference-verification";
 import { isWorkerVisibleStep } from "@/lib/onboarding/workflow-settings";
 import type {
   CandidateEngineOrderEntry,
@@ -36,7 +37,7 @@ export function toCandidateEngineOrder(steps: TenantOnboardingStep[]): Candidate
     id: step.id,
     step_key: step.step_key,
     sort_order: step.sort_order,
-    required: step.is_required !== false,
+    required: isTenantStepBlocking(step),
     candidateVisible: isWorkerVisibleStep(step),
   }));
 }

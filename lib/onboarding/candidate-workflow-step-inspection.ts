@@ -31,6 +31,26 @@ import {
   WORKER_RESUMES_BUCKET,
 } from "@/lib/supabase-storage-buckets";
 import type { EmploymentLifecyclePhase } from "@/lib/onboarding/workflow-phase-groups";
+import {
+  buildSkillAssessmentResults,
+  type SkillAnswerRowInput,
+  type SkillAssessmentResultsSummary,
+  type SkillAssessmentRowInput,
+  type SkillCategoryResult,
+} from "@/lib/skill-assessment/admin-results";
+import {
+  loadTenantSkillAssessmentSettings,
+  publishedCatalogForApplicants,
+} from "@/lib/skill-assessment/load-settings";
+import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defaults";
+import { loadCandidateInterviews } from "@/lib/interviews/candidate-interview-history";
+import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import {
+  interviewStepStatus,
+  isInterviewStep,
+  summarizeInterviews,
+  type CandidateInterview,
+} from "@/lib/onboarding/interview-step";
 
 export type WorkflowStepInspectionKind =
   | "resume"
@@ -97,13 +117,10 @@ export type WorkflowStepInspection = {
   } | null;
   assessment: {
     name: string;
-    score: number | null;
-    passingRequirement: string | null;
-    attemptNumber: number | null;
     startedAt: string | null;
     completedAt: string | null;
-    reviewStatus: string | null;
-    responses: Array<{ question: string; answer: unknown }>;
+    summary: SkillAssessmentResultsSummary;
+    categories: SkillCategoryResult[];
   } | null;
   references: Array<{
     id: string;
@@ -140,6 +157,8 @@ export type WorkflowStepInspection = {
     decision: string | null;
     notes: string | null;
   } | null;
+  /** Every interview booked with the candidate, oldest first. Null on non-interview steps. */
+  interviews: CandidateInterview[] | null;
 };
 
 function asText(value: unknown): string | null {
@@ -286,7 +305,7 @@ export async function loadCandidateWorkflowStepInspection(
     loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: false }),
     loadScopedStepProgress(supabase, { tenantId, workerId, applicationId }),
   ]);
-  const tenantSteps = (config?.steps ?? []).filter((step) => step.is_enabled);
+  const tenantSteps = config?.steps ?? [];
 
   const mapped = await mapInstanceStepRecord(supabase, {
     tenantId,
@@ -309,8 +328,16 @@ export async function loadCandidateWorkflowStepInspection(
   const tenantStep = mapped.tenantStepId
     ? tenantSteps.find((step) => step.id === mapped.tenantStepId) ?? null
     : null;
-  const staffAction = resolveStaffStepEligibility(tenantStep, mapped.status);
-  const staffReview = readStaffStepReview(progressData);
+  const recordSettings =
+    record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
+      ? (record.settings as Record<string, unknown>)
+      : {};
+  const staffAction = resolveStaffStepEligibility(tenantStep, mapped.status, {
+    stepType: asText(record.step_type),
+    settings: recordSettings,
+  });
+  const reviewedOnRecord = !tenantStep && staffAction.allowed;
+  const staffReview = readStaffStepReview(reviewedOnRecord ? recordSettings : progressData);
   const staffDecision =
     staffReview && staffReview.decision !== "reopen" ? staffReview : null;
   const kind = inspectionKindForStep({
@@ -421,52 +448,39 @@ export async function loadCandidateWorkflowStepInspection(
 
   let assessment: WorkflowStepInspection["assessment"] = null;
   if (kind === "assessment") {
-    const tenantAssessment = (config?.skillAssessments ?? []).find(
-      (item) => item.onboarding_step_id === mapped.tenantStepId
-    );
-    const { data: skillRows } = await supabase
-      .from("skill_assessments")
-      .select("id, category, answers, completed, created_at")
-      .eq("worker_id", workerId)
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false });
-    const row = ((skillRows ?? []) as Array<Record<string, unknown>>)[0] ?? null;
-    const answers =
-      row?.answers && typeof row.answers === "object" && !Array.isArray(row.answers)
-        ? (row.answers as Record<string, unknown>)
-        : {};
-    const { data: answerRows } = await supabase
-      .from("applicant_skill_assessment_answers")
-      .select("skill_id, answer_value, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("applicant_id", workerId);
-    const questionIds = [...new Set((answerRows ?? []).map((item) => String(item.skill_id ?? "")).filter(Boolean))];
-    const { data: questions } =
-      questionIds.length > 0
-        ? await supabase.from("skill_questions").select("id, question").in("id", questionIds)
-        : { data: [] };
-    const questionById = new Map(
-      ((questions ?? []) as Array<Record<string, unknown>>).map((item) => [
-        String(item.id),
-        asText(item.question) ?? "Question",
-      ])
-    );
-    const responses =
-      (answerRows ?? []).length > 0
-        ? (answerRows ?? []).map((item) => ({
-            question: questionById.get(String(item.skill_id)) ?? "Question",
-            answer: item.answer_value,
-          }))
-        : Object.entries(answers).map(([question, answer]) => ({ question, answer }));
+    const [{ data: skillRows }, { data: answerRows }, catalog] = await Promise.all([
+      supabase
+        .from("skill_assessments")
+        .select("category, answers, completed, created_at")
+        .eq("worker_id", workerId)
+        .eq("tenant_id", tenantId),
+      supabase
+        .from("applicant_skill_assessment_answers")
+        .select("category_id, skill_id, answer_value, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("applicant_id", workerId),
+      loadTenantSkillAssessmentSettings(supabase, tenantId)
+        .then(publishedCatalogForApplicants)
+        .catch(() => createDefaultSkillAssessmentCatalog()),
+    ]);
+    const assessmentRows = (skillRows ?? []) as SkillAssessmentRowInput[];
+    const ratingRows = (answerRows ?? []) as SkillAnswerRowInput[];
+    const results = buildSkillAssessmentResults(catalog, assessmentRows, ratingRows);
+    const timestamps = [...assessmentRows, ...ratingRows]
+      .map((item) => asText(item.created_at))
+      .filter((value): value is string => Boolean(value))
+      .sort();
+    const allCompleted =
+      results.summary.totalCategories > 0 &&
+      results.summary.completedCategories === results.summary.totalCategories;
     assessment = {
-      name: tenantAssessment?.title || mapped.title,
-      score: null,
-      passingRequirement: null,
-      attemptNumber: skillRows?.length ?? (responses.length ? 1 : null),
-      startedAt: asText(row?.created_at),
-      completedAt: row?.completed === true ? asText(progress?.completed_at) : null,
-      reviewStatus: row?.completed === true ? "Completed" : mapped.status,
-      responses,
+      name: mapped.title,
+      startedAt: timestamps[0] ?? null,
+      completedAt: allCompleted
+        ? asText(progress?.completed_at) ?? timestamps[timestamps.length - 1] ?? null
+        : null,
+      summary: results.summary,
+      categories: results.categories,
     };
   }
 
@@ -574,9 +588,40 @@ export async function loadCandidateWorkflowStepInspection(
     };
   }
 
+  let interviews: CandidateInterview[] | null = null;
+  let step = mapped;
+  if (isInterviewStep(mapped)) {
+    interviews = await loadCandidateInterviews(supabase, { tenantId, workerId });
+    step = { ...mapped, interview: summarizeInterviews(interviews) };
+  }
+  const interviewStatus = interviewStepStatus(step);
+
   let emptyState: string | null = null;
-  if (mapped.unmatched) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
-  else if (staffAction.allowed) {
+  if (mapped.unmatched && !reviewedOnRecord) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
+  else if (interviewStatus?.key === "not_scheduled") {
+    emptyState = "No interview scheduled yet. Use Schedule Interview to book one with the candidate.";
+  } else if (interviewStatus?.key === "scheduled" && step.interview?.latest) {
+    const latest = step.interview.latest;
+    emptyState = `${latest.title} is scheduled for ${formatInterviewDate(latest.startsAt)}, ${formatInterviewTimeRange(latest.startsAt, latest.endsAt)} ET. After it takes place, add your notes and mark it Completed or Rejected.`;
+  } else if (interviewStatus?.key === "awaiting_decision") {
+    emptyState = "The interview has taken place. Add your notes and mark it Completed or Rejected.";
+  } else if (staffAction.allowed && staffAction.variant === "selection") {
+    if (mapped.status === "pending") {
+      emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to decide whether to move this candidate forward. This step is optional and doesn't block the next stage.`;
+    } else if (mapped.status === "in_progress") {
+      emptyState = "Candidate is on hold. This doesn't block the next stage.";
+    }
+  } else if (staffAction.allowed && staffAction.variant === "verification") {
+    if (mapped.status === "pending") {
+      emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to verify the references. This step is optional and doesn't block the candidate's next stage.`;
+    } else if (mapped.status === "in_progress") {
+      emptyState = "References are marked as needing review. This doesn't block the candidate's next stage.";
+    }
+  } else if (staffAction.allowed && !mapped.required) {
+    if (mapped.status === "pending" || mapped.status === "in_progress") {
+      emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to complete this step. It's optional, so it doesn't block the candidate's next stage.`;
+    }
+  } else if (staffAction.allowed) {
     if (mapped.status === "pending" || mapped.status === "in_progress") {
       emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to complete this step. The candidate can't continue past it until then.`;
     }
@@ -601,7 +646,7 @@ export async function loadCandidateWorkflowStepInspection(
   return {
     ok: true,
     kind,
-    step: mapped,
+    step,
     workflowName: asText(instance.workflow_name),
     workflowVersion: asText(instance.workflow_version),
     phase,
@@ -630,5 +675,6 @@ export async function loadCandidateWorkflowStepInspection(
     agreement,
     authorization: kind === "background_check" ? authorization : kind === "agreement" ? authorization : authorization,
     finalReview,
+    interviews,
   };
 }

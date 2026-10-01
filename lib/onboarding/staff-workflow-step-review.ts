@@ -34,6 +34,8 @@ import {
   type StaffStepActionEligibility,
   type StaffStepEmailResult,
   type StaffStepReview,
+  staffStepVariantForLibraryId,
+  type StaffStepVariant,
 } from "@/lib/onboarding/staff-step-review-shared";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import type {
@@ -135,15 +137,51 @@ export async function mapInstanceStepRecord(
   return mapped.find((step) => step.id === params.recordId) ?? null;
 }
 
+/** Assigned step record fields used when the step has no published tenant step behind it. */
+export type UnlinkedStepRecord = {
+  stepType: string | null;
+  settings: Record<string, unknown> | null;
+};
+
+export function staffStepVariant(
+  tenantStep: TenantOnboardingStep | null,
+  stepType?: string | null
+): StaffStepVariant {
+  const fromRecord = staffStepVariantForLibraryId(stepType);
+  if (fromRecord !== "default") return fromRecord;
+  return staffStepVariantForLibraryId(asText(tenantStep?.metadata?.workflow_step_id));
+}
+
+/**
+ * Staff-owned steps without a published tenant step (job workflows can contain nodes the tenant
+ * config never published) are reviewed on the assigned step record itself.
+ */
+export function canReviewUnlinkedRecord(record: UnlinkedStepRecord | null | undefined): boolean {
+  if (!record) return false;
+  return !isApplicantCompletionOwner(asText(record.settings?.completionOwner));
+}
+
 export function resolveStaffStepEligibility(
   tenantStep: TenantOnboardingStep | null,
-  currentStatus: OnboardingStepStatus | string | null | undefined
+  currentStatus: OnboardingStepStatus | string | null | undefined,
+  record?: UnlinkedStepRecord | null
 ): StaffStepActionEligibility {
   if (!tenantStep) {
+    if (canReviewUnlinkedRecord(record)) {
+      const variant = staffStepVariant(null, record!.stepType);
+      return {
+        allowed: true,
+        ownerLabel: completionOwnerLabel(asText(record!.settings?.completionOwner)),
+        actions: allowedStaffActions(currentStatus, variant),
+        variant,
+        reason: null,
+      };
+    }
     return {
       allowed: false,
       ownerLabel: null,
       actions: [],
+      variant: "default",
       reason: "This step isn't linked to a stored progress record, so it can't be updated here.",
     };
   }
@@ -152,14 +190,17 @@ export function resolveStaffStepEligibility(
       allowed: false,
       ownerLabel: "Candidate",
       actions: [],
+      variant: "default",
       reason: "The candidate completes this step from their application portal.",
     };
   }
   const owner = getWorkflowSettings(tenantStep).completionOwner;
+  const variant = staffStepVariant(tenantStep, record?.stepType);
   return {
     allowed: true,
     ownerLabel: isApplicantCompletionOwner(owner) ? "Internal team" : completionOwnerLabel(owner),
-    actions: allowedStaffActions(currentStatus),
+    actions: allowedStaffActions(currentStatus, variant),
+    variant,
     reason: null,
   };
 }
@@ -226,7 +267,7 @@ export async function loadStaffStepContext(
       instanceApplicationId: asText(instance.application_id),
     }),
   ]);
-  const tenantSteps = (config?.steps ?? []).filter((step) => step.is_enabled);
+  const tenantSteps = config?.steps ?? [];
 
   const mapped = await mapInstanceStepRecord(supabase, {
     tenantId,
@@ -466,6 +507,112 @@ async function notifyCandidateNextStep(
   }
 }
 
+async function buildStaffReview(
+  supabase: SupabaseClient,
+  params: {
+    action: StaffStepAction;
+    note: string | null;
+    actor: { userId: string | null; email: string | null };
+    now: string;
+  }
+): Promise<StaffStepReview> {
+  return {
+    decision: params.action,
+    note: params.note,
+    reviewedByUserId: params.actor.userId,
+    reviewedByName: await resolveActorName(supabase, params.actor),
+    reviewedAt: params.now,
+  };
+}
+
+/** Writes `staff_review` + capped `staff_review_history` into a progress `data` / record `settings` blob. */
+function withStaffReview(
+  existing: Record<string, unknown>,
+  review: StaffStepReview,
+  previousStatus: string
+): Record<string, unknown> {
+  const stored = {
+    decision: review.decision,
+    note: review.note,
+    reviewed_by_user_id: review.reviewedByUserId,
+    reviewed_by_name: review.reviewedByName,
+    reviewed_at: review.reviewedAt,
+    previous_status: previousStatus,
+    source: "admin_hire_journey",
+  };
+  const history = Array.isArray(existing.staff_review_history)
+    ? (existing.staff_review_history as unknown[])
+    : readStaffStepReview(existing)
+      ? [existing.staff_review]
+      : [];
+  return {
+    ...existing,
+    staff_review: stored,
+    staff_review_history: [...history, stored].slice(-STAFF_REVIEW_HISTORY_LIMIT),
+  };
+}
+
+async function applyRecordOnlyStaffAction(
+  supabase: SupabaseClient,
+  params: {
+    ctx: StaffStepContext;
+    tenantId: string;
+    workerId: string;
+    action: StaffStepAction;
+    note: string | null;
+    actor: { userId: string | null; email: string | null };
+    variant: StaffStepVariant;
+    settings: Record<string, unknown>;
+    request?: Request;
+  }
+): Promise<StaffStepActionResult> {
+  const { ctx, tenantId, action } = params;
+  const currentStatus = asText(ctx.record.status) ?? "pending";
+  if (!allowedStaffActions(currentStatus, params.variant).includes(action)) {
+    return {
+      ok: false,
+      status: 409,
+      code: "INVALID_TRANSITION",
+      error: "This step already has that status. Refresh to see the latest status.",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const nextStatus = staffActionTargetStatus(action);
+  const review = await buildStaffReview(supabase, { action, note: params.note, actor: params.actor, now });
+  const { error } = await supabase
+    .from("applicant_workflow_step_records")
+    .update({
+      status: nextStatus,
+      completed_at: nextStatus === "completed" ? now : null,
+      updated_at: now,
+      settings: withStaffReview(params.settings, review, currentStatus),
+    })
+    .eq("id", String(ctx.record.id))
+    .eq("tenant_id", tenantId);
+  if (error) throw error;
+
+  await writeActivityLog({
+    actorUserId: params.actor.userId,
+    action: `workflow_step.staff_${action}`,
+    entityType: "applicant_workflow_step_record",
+    entityId: String(ctx.record.id),
+    tenantId,
+    metadata: {
+      worker_id: params.workerId,
+      application_id: ctx.applicationId,
+      onboarding_step_id: null,
+      step_title: ctx.mapped.title,
+      previous_status: currentStatus,
+      status: nextStatus,
+      note: params.note,
+    },
+    request: params.request,
+  });
+
+  return { ok: true, status: nextStatus, review, email: null };
+}
+
 export async function applyStaffWorkflowStepAction(
   supabase: SupabaseClient,
   params: {
@@ -494,14 +641,31 @@ export async function applyStaffWorkflowStepAction(
   if (!ctx.ok) return ctx;
 
   const tenantStepId = ctx.mapped.tenantStepId;
-  const initial = resolveStaffStepEligibility(ctx.tenantStep, "pending");
-  if (!initial.allowed || !tenantStepId) {
+  const recordSettings = asObject(ctx.record.settings);
+  const initial = resolveStaffStepEligibility(ctx.tenantStep, "pending", {
+    stepType: asText(ctx.record.step_type),
+    settings: recordSettings,
+  });
+  if (!initial.allowed) {
     return {
       ok: false,
       status: 409,
       code: "STEP_NOT_STAFF_OWNED",
       error: initial.reason ?? "This step can't be updated by staff.",
     };
+  }
+  if (!tenantStepId) {
+    return applyRecordOnlyStaffAction(supabase, {
+      ctx,
+      tenantId,
+      workerId,
+      action,
+      note,
+      actor: params.actor,
+      variant: initial.variant,
+      settings: recordSettings,
+      request: params.request,
+    });
   }
 
   const progress = await ensureWorkerOnboardingProgress(supabase, workerId, tenantId, ctx.applicationId);
@@ -533,7 +697,7 @@ export async function applyStaffWorkflowStepAction(
   }
 
   const currentStatus = asText(row?.status) ?? "pending";
-  if (!allowedStaffActions(currentStatus).includes(action)) {
+  if (!allowedStaffActions(currentStatus, initial.variant).includes(action)) {
     return {
       ok: false,
       status: 409,
@@ -544,28 +708,8 @@ export async function applyStaffWorkflowStepAction(
 
   const now = new Date().toISOString();
   const nextStatus = staffActionTargetStatus(action);
-  const review: StaffStepReview = {
-    decision: action,
-    note,
-    reviewedByUserId: params.actor.userId,
-    reviewedByName: await resolveActorName(supabase, params.actor),
-    reviewedAt: now,
-  };
-  const storedReview = {
-    decision: review.decision,
-    note: review.note,
-    reviewed_by_user_id: review.reviewedByUserId,
-    reviewed_by_name: review.reviewedByName,
-    reviewed_at: review.reviewedAt,
-    previous_status: currentStatus,
-    source: "admin_hire_journey",
-  };
+  const review = await buildStaffReview(supabase, { action, note, actor: params.actor, now });
   const existingData = asObject(row?.data);
-  const history = Array.isArray(existingData.staff_review_history)
-    ? (existingData.staff_review_history as unknown[])
-    : readStaffStepReview(existingData)
-      ? [existingData.staff_review]
-      : [];
 
   const { error: updateError } = await supabase
     .from("worker_onboarding_step_progress")
@@ -573,11 +717,7 @@ export async function applyStaffWorkflowStepAction(
       status: nextStatus,
       completed_at: nextStatus === "completed" ? now : null,
       updated_at: now,
-      data: {
-        ...existingData,
-        staff_review: storedReview,
-        staff_review_history: [...history, storedReview].slice(-STAFF_REVIEW_HISTORY_LIMIT),
-      },
+      data: withStaffReview(existingData, review, currentStatus),
     })
     .eq("worker_onboarding_progress_id", progressId)
     .eq("onboarding_step_id", tenantStepId);

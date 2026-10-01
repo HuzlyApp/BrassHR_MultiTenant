@@ -4,7 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { CalendarDays, ChevronRight, ChevronUp } from "lucide-react";
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
-import { displayStatusLabel } from "@/lib/onboarding/assigned-workflow-steps";
+import {
+  isReferenceVerificationStep,
+  stepDecision,
+  stepDisplayStatusLabel,
+  stepStatusPill,
+} from "@/lib/onboarding/assigned-workflow-steps";
+import { interviewStepStatus, STEP_PILL_TONE_CLASSES } from "@/lib/onboarding/interview-step";
+import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import {
   type HireStageGroup,
   type HireStageLifecycle,
@@ -18,14 +25,14 @@ import {
 } from "./hire-figma-assets";
 import { HireStepTypeIcon } from "./HireStepTypeIcon";
 
-function formatCompletedOn(value: string | null | undefined): string | null {
+function formatCompletedOn(value: string | null | undefined, prefix = "Completed"): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   const yyyy = date.getFullYear();
-  return `Completed on ${mm}/${dd}/${yyyy}`;
+  return `${prefix} on ${mm}/${dd}/${yyyy}`;
 }
 
 function isStepDone(step: CandidateWorkflowStepView): boolean {
@@ -37,6 +44,27 @@ function isStepDone(step: CandidateWorkflowStepView): boolean {
     step.displayStatus === "not_applicable"
   );
 }
+
+/** "Interview 2 of 2 · Thu, Oct 8, 12:00 PM - 12:30 PM ET" while the latest interview awaits an outcome. */
+function interviewSubtitle(step: CandidateWorkflowStepView): string | null {
+  const key = interviewStepStatus(step)?.key;
+  const latest = step.interview?.latest;
+  if (!latest || (key !== "scheduled" && key !== "awaiting_decision")) return null;
+  const count = step.interview?.count ?? 1;
+  const name = count > 1 && latest.sequence ? `Interview ${latest.sequence} of ${count}` : "Interview";
+  return `${name} · ${formatInterviewDate(latest.startsAt)}, ${formatInterviewTimeRange(latest.startsAt, latest.endsAt)} ET`;
+}
+
+function PendingStepIcon({ step }: { step: CandidateWorkflowStepView }) {
+  return step.displayStatus === "under_review" ? (
+    <HireFigmaIcon src={PRE_HIRE_UI_ICONS.pendingClock} width={20} height={20} />
+  ) : (
+    <HireFigmaIcon src={PRE_HIRE_UI_ICONS.taskIncomplete} width={24} height={24} />
+  );
+}
+
+/** Keeps the spin visible even when the refresh returns instantly. */
+const MIN_REFRESH_SPIN_MS = 600;
 
 function StageSummaryText({ summary, locked }: { summary: string; locked: boolean }) {
   if (locked) return <span>{summary}</span>;
@@ -73,14 +101,31 @@ export function HireStageAccordion({
   lifecycle = "pre_hire",
   onInspectStep,
   onScheduleInterview,
+  onRefresh,
 }: {
   stages: HireStageGroup[];
   lifecycle?: HireStageLifecycle;
   onInspectStep: (step: CandidateWorkflowStepView) => void;
   onScheduleInterview?: (step: CandidateWorkflowStepView) => void;
+  /** Reloads the journey; the pending-step icon becomes a refresh button when set. */
+  onRefresh?: () => void | Promise<void>;
 }) {
   const seed = useMemo(() => defaultOpenIds(stages), [stages]);
   const [openIds, setOpenIds] = useState<Set<string>>(seed);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  async function refreshStep(stepId: string) {
+    if (!onRefresh || refreshingId) return;
+    setRefreshingId(stepId);
+    try {
+      await Promise.all([
+        onRefresh(),
+        new Promise((resolve) => setTimeout(resolve, MIN_REFRESH_SPIN_MS)),
+      ]);
+    } finally {
+      setRefreshingId(null);
+    }
+  }
 
   useEffect(() => {
     setOpenIds(defaultOpenIds(stages));
@@ -242,7 +287,23 @@ export function HireStageAccordion({
               >
                 {stage.steps.map((step) => {
                   const done = isStepDone(step);
-                  const completedLabel = formatCompletedOn(step.completedAt);
+                  const pill = stepStatusPill(step);
+                  const rejected = step.displayStatus === "rejected" || step.displayStatus === "blocked";
+                  const settled = done || rejected || stepDecision(step) != null;
+                  const completedLabel = done
+                    ? formatCompletedOn(
+                        step.completedAt,
+                        isReferenceVerificationStep(step) ? "Verified" : "Completed"
+                      )
+                    : null;
+                  const subtitle = [
+                    completedLabel ||
+                      interviewSubtitle(step) ||
+                      (pill ? null : stepDisplayStatusLabel(step)),
+                    step.required ? null : "Optional",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
                   const showSchedule =
                     Boolean(onScheduleInterview) &&
                     shouldShowInterviewScheduleAction(stage, step);
@@ -252,7 +313,7 @@ export function HireStageAccordion({
                       key={step.id}
                       className="mx-4 mb-3 flex items-center gap-3 rounded-xl border bg-white px-3 py-3 last:mb-4 sm:mx-5 sm:px-4"
                       style={{
-                        borderColor: done
+                        borderColor: settled
                           ? "#E8ECF0"
                           : "color-mix(in srgb, var(--brand-primary) 40%, #E8ECF0)",
                       }}
@@ -262,7 +323,7 @@ export function HireStageAccordion({
                         onClick={() => onInspectStep(step)}
                         className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-90"
                       >
-                        <HireStepTypeIcon step={step} done={done} />
+                        <HireStepTypeIcon step={step} done={settled} />
                         <div className="min-w-0 flex-1">
                           <p
                             className="truncate"
@@ -277,10 +338,9 @@ export function HireStageAccordion({
                           >
                             {step.title}
                           </p>
-                          <p className="mt-0.5 text-xs text-[#64748B]">
-                            {completedLabel || displayStatusLabel(step.displayStatus)}
-                            {step.required ? "" : " · Optional"}
-                          </p>
+                          {subtitle ? (
+                            <p className="mt-0.5 text-xs text-[#64748B]">{subtitle}</p>
+                          ) : null}
                         </div>
                       </button>
 
@@ -299,24 +359,35 @@ export function HireStageAccordion({
                         </button>
                       ) : null}
 
-                      {done ? (
+                      {pill ? (
+                        <span
+                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${STEP_PILL_TONE_CLASSES[pill.tone]}`}
+                        >
+                          {pill.label}
+                        </span>
+                      ) : done ? (
                         <HireFigmaIcon
                           src={PRE_HIRE_UI_ICONS.stageCheckFilledGreen}
                           width={20}
                           height={20}
                         />
-                      ) : step.displayStatus === "under_review" ? (
-                        <HireFigmaIcon
-                          src={PRE_HIRE_UI_ICONS.pendingClock}
-                          width={20}
-                          height={20}
-                        />
+                      ) : onRefresh ? (
+                        <button
+                          type="button"
+                          onClick={() => void refreshStep(step.id)}
+                          disabled={refreshingId != null}
+                          title="Refresh status"
+                          aria-label={`Refresh ${step.title} status`}
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 disabled:cursor-wait"
+                        >
+                          <span
+                            className={`inline-flex ${refreshingId === step.id ? "animate-spin" : ""}`}
+                          >
+                            <PendingStepIcon step={step} />
+                          </span>
+                        </button>
                       ) : (
-                        <HireFigmaIcon
-                          src={PRE_HIRE_UI_ICONS.taskIncomplete}
-                          width={24}
-                          height={24}
-                        />
+                        <PendingStepIcon step={step} />
                       )}
                     </div>
                   );

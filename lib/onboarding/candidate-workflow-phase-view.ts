@@ -223,7 +223,7 @@ export async function loadCandidateWorkflowPhaseView(
     })
   );
 
-  const tenantSteps = (config?.steps ?? []).filter((step) => step.is_enabled);
+  const tenantSteps = config?.steps ?? [];
   const latestResume = ((resumeRes.data ?? []) as Array<Record<string, unknown>>)[0] ?? null;
   const hasResumeUpload = Boolean(
     params.resumeUrl?.trim() ||

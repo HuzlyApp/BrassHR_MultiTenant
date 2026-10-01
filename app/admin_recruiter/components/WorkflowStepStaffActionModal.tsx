@@ -8,12 +8,83 @@ import { brandingToCssVars, readableTextOnBrand } from "@/lib/tenant/tenant-bran
 import {
   STAFF_REVIEW_NOTE_MAX_LENGTH,
   type StaffStepAction,
+  type StaffStepVariant,
 } from "@/lib/onboarding/staff-step-review-shared";
 
-const COPY: Record<
-  StaffStepAction,
-  { title: (step: string) => string; description: string; confirm: string; confirmClass: string }
-> = {
+type ActionCopy = { title: (step: string) => string; description: string; confirm: string; confirmClass: string };
+
+const VERIFICATION_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
+  complete: {
+    title: () => "Mark references as verified?",
+    description: "Confirms the candidate's references checked out. This step is optional and never blocks the next stage.",
+    confirm: "Verified",
+    confirmClass: "shadow-sm hover:brightness-[0.97]",
+  },
+  needs_review: {
+    title: () => "Mark references as needing review?",
+    description: "Flags the references for another look. The candidate can still move on to the next stage.",
+    confirm: "Need to Review",
+    confirmClass: "bg-amber-500 text-white hover:bg-amber-600",
+  },
+  reject: {
+    title: () => "Reject references?",
+    description: "Records that the references couldn't be verified. This doesn't block the candidate. Add the reason for the record.",
+    confirm: "Reject",
+    confirmClass: "bg-red-600 text-white hover:bg-red-700",
+  },
+};
+
+const SELECTION_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
+  complete: {
+    title: () => "Select this candidate to move forward?",
+    description: "Records that your team chose to put this candidate forward to the client.",
+    confirm: "Selected",
+    confirmClass: "shadow-sm hover:brightness-[0.97]",
+  },
+  needs_review: {
+    title: () => "Put this candidate on hold?",
+    description: "Use this while your team decides, for example when comparing several candidates for the same job.",
+    confirm: "On Hold",
+    confirmClass: "bg-amber-500 text-white hover:bg-amber-600",
+  },
+  reject: {
+    title: () => "Mark this candidate as not selected?",
+    description: "Records that your team won't put this candidate forward. Add the reason for the record.",
+    confirm: "Not Selected",
+    confirmClass: "bg-red-600 text-white hover:bg-red-700",
+  },
+};
+
+const INTERVIEW_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
+  complete: {
+    title: () => "Mark interview as completed?",
+    description:
+      "Records that the candidate passed the interview and moves them on to the next stage. Add your interview notes for the team.",
+    confirm: "Mark Completed",
+    confirmClass: "shadow-sm hover:brightness-[0.97]",
+  },
+  reject: {
+    title: () => "Reject after interview?",
+    description:
+      "Records that the candidate didn't pass the interview. They stay at the Interview stage. Add the reason for the record.",
+    confirm: "Reject",
+    confirmClass: "bg-red-600 text-white hover:bg-red-700",
+  },
+};
+
+const VARIANT_COPY: Record<Exclude<StaffStepVariant, "default">, Partial<Record<StaffStepAction, ActionCopy>>> = {
+  verification: VERIFICATION_COPY,
+  selection: SELECTION_COPY,
+  interview: INTERVIEW_COPY,
+};
+
+const COPY: Record<StaffStepAction, ActionCopy> = {
+  needs_review: {
+    title: (step) => `Mark ${step} as needing review?`,
+    description: "The step is flagged for another look and stays open.",
+    confirm: "Need to Review",
+    confirmClass: "bg-amber-500 text-white hover:bg-amber-600",
+  },
   complete: {
     title: (step) => `Complete ${step}?`,
     description:
@@ -39,6 +110,8 @@ const COPY: Record<
 
 export default function WorkflowStepStaffActionModal({
   action,
+  variant = "default",
+  optional = false,
   stepTitle,
   submitting,
   error,
@@ -46,6 +119,9 @@ export default function WorkflowStepStaffActionModal({
   onConfirm,
 }: {
   action: StaffStepAction | null;
+  variant?: StaffStepVariant;
+  /** Optional steps never block the candidate, so reject copy must not say they do. */
+  optional?: boolean;
   stepTitle: string;
   submitting: boolean;
   error: string | null;
@@ -73,7 +149,18 @@ export default function WorkflowStepStaffActionModal({
     setNotifyCandidate(true);
   }, [action]);
 
-  const copy = action ? COPY[action] : null;
+  const baseCopy = action
+    ? (variant === "default" ? undefined : VARIANT_COPY[variant][action]) ?? COPY[action]
+    : null;
+  const copy =
+    baseCopy && optional && action === "reject" && variant === "default"
+      ? {
+          ...baseCopy,
+          description:
+            "The step is marked as rejected. It's optional, so the candidate can still move to the next stage. Add the reason for the record.",
+        }
+      : baseCopy;
+  const showNotify = action === "complete" && (variant === "default" || variant === "interview");
   const noteRequired = action === "reject";
   const canSubmit = !submitting && (!noteRequired || note.trim().length > 0);
 
@@ -96,7 +183,7 @@ export default function WorkflowStepStaffActionModal({
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!canSubmit) return;
-                onConfirm({ note: note.trim(), notifyCandidate: action === "complete" && notifyCandidate });
+                onConfirm({ note: note.trim(), notifyCandidate: showNotify && notifyCandidate });
               }}
             >
               <div className="flex items-start justify-between gap-3">
@@ -123,7 +210,11 @@ export default function WorkflowStepStaffActionModal({
               </Dialog.Description>
 
               <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="workflow-step-staff-note">
-                {noteRequired ? "Reason (required)" : "Note (optional)"}
+                {noteRequired
+                  ? "Reason (required)"
+                  : variant === "interview"
+                    ? "Interview notes (optional)"
+                    : "Note (optional)"}
               </label>
               <textarea
                 id="workflow-step-staff-note"
@@ -134,13 +225,17 @@ export default function WorkflowStepStaffActionModal({
                 disabled={submitting}
                 placeholder={
                   noteRequired
-                    ? "Why is this step rejected?"
-                    : "Screening outcome, call summary, or anything the team should know"
+                    ? variant === "interview"
+                      ? "Why didn't the candidate pass the interview?"
+                      : "Why is this step rejected?"
+                    : variant === "interview"
+                      ? "Interview feedback, strengths, concerns, or next steps"
+                      : "Screening outcome, call summary, or anything the team should know"
                 }
                 className="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]"
               />
 
-              {action === "complete" ? (
+              {showNotify ? (
                 <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"

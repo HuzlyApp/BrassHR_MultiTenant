@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  stepDecision,
+  stepDisplayStatusLabel,
   assignmentSourceLabel,
   buildPhaseAssignment,
   enrichAssignedStepsDisplayFromEvidence,
@@ -23,6 +25,56 @@ function tenantStep(
     ...partial,
   };
 }
+
+describe("stepDisplayStatusLabel", () => {
+  it("labels reference verification by staff decision and never shows Not Started", () => {
+    const stepType = "reference-verification";
+    expect(stepDisplayStatusLabel({ stepType, displayStatus: "not_started" })).toBe("Need to Verify");
+    expect(stepDisplayStatusLabel({ stepType, displayStatus: "in_progress" })).toBe("Need to Review");
+    expect(stepDisplayStatusLabel({ stepType, displayStatus: "completed" })).toBe("Verified");
+    expect(stepDisplayStatusLabel({ stepType, displayStatus: "blocked" })).toBe("Rejected");
+  });
+
+  it("reports the staff decision so the Hire Journey row can show a status pill", () => {
+    const stepType = "reference-verification";
+    expect(stepDecision({ stepType, displayStatus: "not_started" })).toBeNull();
+    expect(stepDecision({ stepType, displayStatus: "completed" })).toEqual({ action: "complete", label: "Verified" });
+    expect(stepDecision({ stepType, displayStatus: "in_progress" })).toEqual({
+      action: "needs_review",
+      label: "Need to Review",
+    });
+    expect(stepDecision({ stepType, displayStatus: "blocked" })).toEqual({ action: "reject", label: "Rejected" });
+    expect(stepDecision({ stepType: "screening", displayStatus: "completed" })).toBeNull();
+  });
+
+  it("labels Internal Select as Selected / On Hold / Not Selected and Pending Decision while undecided", () => {
+    const stepType = "internal-select";
+    expect(stepDisplayStatusLabel({ stepType, displayStatus: "not_started" })).toBe("Pending Decision");
+    expect(stepDecision({ stepType, displayStatus: "completed" })?.label).toBe("Selected");
+    expect(stepDecision({ stepType, displayStatus: "in_progress" })?.label).toBe("On Hold");
+    expect(stepDecision({ stepType, displayStatus: "blocked" })?.label).toBe("Not Selected");
+  });
+
+  it("always maps Internal Select and Reference Verification as optional", () => {
+    const records = ["internal-select", "reference-verification", "interview-qualification"].map((type, index) => ({
+      id: `rec-${index}`,
+      snapshot_step_id: `node-${index}`,
+      title: type,
+      step_type: type,
+      is_required: true,
+      position: index,
+    }));
+    const mapped = mapAssignedStepRecords({ records, tenantSteps: [], progressByStepId: new Map(), assignedAt: null });
+    expect(mapped.map((step) => step.required)).toEqual([false, false, true]);
+  });
+
+  it("keeps generic labels for other steps, including candidate reference collection", () => {
+    expect(stepDisplayStatusLabel({ stepType: "references-collection", displayStatus: "not_started" })).toBe(
+      "Not Started"
+    );
+    expect(stepDisplayStatusLabel({ stepType: "screening", displayStatus: "completed" })).toBe("Completed");
+  });
+});
 
 describe("assigned workflow steps", () => {
   it("maps snapshot step-{key} onto the assigned tenant step, not by title", () => {
@@ -82,6 +134,65 @@ describe("assigned workflow steps", () => {
         settings: {},
       },
       [first, second],
+      new Set()
+    );
+    expect(matched).toBeNull();
+  });
+
+  it("links a record to a disabled tenant step by workflow node id and reads its progress", () => {
+    const skill = tenantStep({
+      id: "tenant-skill",
+      step_key: "skill_assessment",
+      title: "Skill / Qualification Assessment",
+      step_type: "skill_assessment",
+      is_enabled: false,
+      metadata: { workflow_node_id: "w2-figma-07", workflow_step_id: "skill-qualification-assessment" },
+    });
+    const [mapped] = mapAssignedStepRecords({
+      records: [
+        {
+          id: "rec-skill",
+          snapshot_step_id: "w2-figma-07",
+          title: "Skill / Qualification Assessment",
+          step_type: "skill-qualification-assessment",
+          is_required: true,
+          position: 4,
+          phase: "pre_hire",
+          status: "pending",
+          settings: {},
+        },
+      ],
+      tenantSteps: [skill],
+      progressByStepId: new Map([
+        ["tenant-skill", { onboarding_step_id: "tenant-skill", status: "in_progress", data: {} }],
+      ]),
+    });
+    expect(mapped?.tenantStepId).toBe("tenant-skill");
+    expect(mapped?.status).toBe("in_progress");
+    expect(mapped?.displayStatus).toBe("in_progress");
+  });
+
+  it("does not fall back to a disabled tenant step by library id", () => {
+    const disabled = tenantStep({
+      id: "tenant-old-bg",
+      step_key: "custom_question_7",
+      title: "Background Check",
+      step_type: "custom_question",
+      is_enabled: false,
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const matched = matchTenantStepForAssignedRecord(
+      {
+        id: "rec-bg",
+        snapshot_step_id: "other-flow-13",
+        title: "Background Check",
+        step_type: "background-check",
+        is_required: true,
+        position: 10,
+        phase: "pre_hire",
+        settings: {},
+      },
+      [disabled],
       new Set()
     );
     expect(matched).toBeNull();
