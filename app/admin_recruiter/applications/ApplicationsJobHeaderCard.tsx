@@ -34,7 +34,7 @@ export function formatJobPostedOn(iso: string | null | undefined): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     year: "numeric",
     month: "long",
     day: "numeric",

@@ -35,14 +35,14 @@ export function formatProfileApplicationDate(iso: string | null | undefined): {
   const minutes = Math.floor(diffMs / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  let relative = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  let relative = date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" });
   if (minutes < 1) relative = "Just now";
   else if (minutes < 60) relative = `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
   else if (hours < 24) relative = `${hours} hour${hours === 1 ? "" : "s"} ago`;
   else if (days < 7) relative = `${days} day${days === 1 ? "" : "s"} ago`;
   return {
     relative,
-    absolute: date.toLocaleDateString("en-US", {
+    absolute: date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -87,7 +87,7 @@ export const AI_CONFIDENCE_SCORE_TOOLTIP =
 export function formatProfileActivityTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return date.toLocaleTimeString("en-US", { timeZone: "America/New_York",  hour: "numeric", minute: "2-digit" });
 }
 
 export function formatProfileActivityRelativeTime(iso: string, now = new Date()): string {
@@ -103,7 +103,7 @@ export function formatProfileActivityRelativeTime(iso: string, now = new Date())
   const days = Math.floor(hours / 24);
   if (days === 1) return "1day ago";
   if (days < 7) return `${days}days ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric" });
 }
 
 export function profileActivityInitial(name: string): string {
@@ -118,7 +118,7 @@ export function formatProfileActivityDay(iso: string, now = new Date()): string 
   const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     weekday: "long",
     month: "long",
     day: "numeric",

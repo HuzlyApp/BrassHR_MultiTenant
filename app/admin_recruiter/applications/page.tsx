@@ -64,7 +64,7 @@ import {
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
-import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
+// import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -132,6 +132,11 @@ import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants"
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
 import { matchesApplicationListSearch } from "@/lib/admin/candidate-list-search";
+import {
+  bestPipelineStatusId,
+  tabCountsFromBuckets,
+  type ApplicationListBucket,
+} from "@/lib/admin/staff-application-list-query";
 
 type ApplicationStatus = string;
 
@@ -494,7 +499,7 @@ function formatRelativeTime(iso: string): string {
   if (Number.isNaN(date.getTime())) return "—";
   const days = Math.floor(Math.max(0, Date.now() - date.getTime()) / 86400000);
   if (days >= 7) {
-    return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", day: "numeric", year: "numeric" });
   }
   return formatTimeAgo(iso);
 }
@@ -505,7 +510,7 @@ function formatApplicationDate(iso: string | null | undefined): { relative: stri
   if (Number.isNaN(date.getTime())) return { relative: "—", absolute: "" };
   return {
     relative: formatTimeAgo(iso),
-    absolute: date.toLocaleDateString(undefined, {
+    absolute: date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -517,7 +522,7 @@ function formatActivity(row: ApplicationRow): string {
   const when = row.updated_at || row.submitted_at || row.created_at;
   const relative = formatRelativeTime(when);
   if (row.status === "submitted" || row.status === "new") return `New Applicant • ${relative}`;
-  return `${relative} • ${new Date(when).toLocaleDateString(undefined, {
+  return `${relative} • ${new Date(when).toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -575,18 +580,18 @@ function applicationClientName(row: ApplicationRow): string {
   return String(job.msp_name ?? "").trim();
 }
 
-/** Split name for edit fields — the profile is authoritative, the worker row is the fallback. */
+/** Split name for edit fields — worker is authoritative after Match Analysis edits; profile is fallback. */
 function applicantNameParts(row: ApplicationRow): { firstName: string; lastName: string } {
   const profile = one(row.applicant_profiles);
   const worker = one(row.worker ?? null);
-  const profileFirst = String(profile.first_name ?? "").trim();
-  const profileLast = String(profile.last_name ?? "").trim();
-  if (profileFirst || profileLast) {
-    return { firstName: profileFirst, lastName: profileLast };
+  const workerFirst = String(worker.first_name ?? "").trim();
+  const workerLast = String(worker.last_name ?? "").trim();
+  if (workerFirst || workerLast) {
+    return { firstName: workerFirst, lastName: workerLast };
   }
   return {
-    firstName: String(worker.first_name ?? "").trim(),
-    lastName: String(worker.last_name ?? "").trim(),
+    firstName: String(profile.first_name ?? "").trim(),
+    lastName: String(profile.last_name ?? "").trim(),
   };
 }
 
@@ -605,6 +610,25 @@ export default function JobApplicationsPage() {
   const jobId = searchParams.get("jobId")?.trim() ?? "";
   const [analysisProvider, setAnalysisProvider] = useMatchAnalysisProvider();
   const [rows, setRows] = useState<ApplicationRow[]>([]);
+  const [listMeta, setListMeta] = useState<{
+    paged: boolean;
+    total: number;
+    buckets: ApplicationListBucket[];
+    locations: string[];
+    workflows: string[];
+    stages: string[];
+    multiJobApplicantCount: number;
+    scopeUnanalyzedCount: number;
+  }>({
+    paged: false,
+    total: 0,
+    buckets: [],
+    locations: [],
+    workflows: [],
+    stages: [],
+    multiJobApplicantCount: 0,
+    scopeUnanalyzedCount: 0,
+  });
   const [job, setJob] = useState<JobHeader | null>(null);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
   const [jobOptions, setJobOptions] = useState<JobOption[]>([]);
@@ -872,12 +896,26 @@ export default function JobApplicationsPage() {
     let cancelled = false;
     async function run() {
       const requestJobId = jobId;
-      // Load all applications for the job. Tab filtering is client-side so every
-      // status tab keeps accurate counts after card redirects (?tab=hired, etc.).
+      const tab = resolveApplicationTabParam(String(activeTab), statusOptions);
       const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+      params.set("tzOffset", String(new Date().getTimezoneOffset()));
+      params.set("sort", listSort.column ?? "evaluation");
+      params.set("sortDir", listSort.direction);
       if (requestJobId) params.set("jobId", requestJobId);
       if (matchScoreFilter) params.set("matchScore", matchScoreFilter);
       if (skillsFilter.length) params.set("skills", skillsFilter.join(","));
+      if (tab !== "all") params.set("tab", tab);
+      if (candidateSearchQuery.trim()) params.set("q", candidateSearchQuery.trim());
+      if (locationFilter) params.set("location", locationFilter);
+      if (listingStatusFilter) params.set("statusId", listingStatusFilter);
+      if (listingJobFilter) params.set("listingJobId", listingJobFilter);
+      if (listingStageFilter) params.set("stage", listingStageFilter);
+      if (evaluationFilter) params.set("evaluation", evaluationFilter);
+      if (workflowFilter) params.set("workflow", workflowFilter);
+      if (dateAppliedFilter) params.set("dateApplied", dateAppliedFilter);
+      if (highlightMultiJobApplicants) params.set("multiJob", "1");
       setLoading(true);
       try {
         const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
@@ -885,16 +923,32 @@ export default function JobApplicationsPage() {
         if (cancelled) return;
         if (!response.ok) throw new Error(payload.error || "Failed to load applications");
         const applications = (payload.applications ?? []) as ApplicationRow[];
-        setRows(
-          requestJobId
-            ? applications.filter((row) => row.job_requisition_id === requestJobId)
-            : applications
-        );
+        setRows(applications);
+        setListMeta({
+          paged: Boolean(payload.paged),
+          total: Number(payload.total ?? applications.length),
+          buckets: Array.isArray(payload.buckets) ? payload.buckets : [],
+          locations: Array.isArray(payload.locations) ? payload.locations.map(String) : [],
+          workflows: Array.isArray(payload.workflows) ? payload.workflows.map(String) : [],
+          stages: Array.isArray(payload.stages) ? payload.stages.map(String) : [],
+          multiJobApplicantCount: Number(payload.multiJobApplicantCount ?? 0),
+          scopeUnanalyzedCount: Number(payload.scopeUnanalyzedCount ?? 0),
+        });
         setError("");
       } catch (loadError) {
         if (cancelled) return;
         setError(loadError instanceof Error ? loadError.message : "Failed to load applications");
         setRows([]);
+        setListMeta({
+          paged: false,
+          total: 0,
+          buckets: [],
+          locations: [],
+          workflows: [],
+          stages: [],
+          multiJobApplicantCount: 0,
+          scopeUnanalyzedCount: 0,
+        });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -903,7 +957,7 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId, applicationsRefreshNonce, matchScoreFilter, skillsFilter]);
+  }, [jobId, applicationsRefreshNonce, matchScoreFilter, skillsFilter, page, pageSize, activeTab, statusOptions, candidateSearchQuery, locationFilter, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, dateAppliedFilter, highlightMultiJobApplicants, listSort]);
 
   function openAddCandidateModal() {
     if (!jobId) {
@@ -1185,6 +1239,9 @@ export default function JobApplicationsPage() {
   );
 
   const listingStageOptions = useMemo(() => {
+    if (listMeta.paged) {
+      return listMeta.stages.map((label) => ({ value: label, label }));
+    }
     const labels = new Set<string>();
     for (const row of rows) {
       labels.add(rowCurrentStage(row, statusOptions).label);
@@ -1192,16 +1249,17 @@ export default function JobApplicationsPage() {
     return Array.from(labels)
       .sort((a, b) => a.localeCompare(b))
       .map((label) => ({ value: label, label }));
-  }, [rows, statusOptions]);
+  }, [rows, statusOptions, listMeta.paged, listMeta.stages]);
 
   const workflowOptions = useMemo(() => {
+    if (listMeta.paged) return listMeta.workflows;
     const labels = new Set<string>();
     for (const row of rows) {
       const name = workflowName(row).trim();
       if (name) labels.add(name);
     }
     return Array.from(labels).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
+  }, [rows, listMeta.paged, listMeta.workflows]);
 
   const editFiltersValue = useMemo(
     (): ApplicationsExtendedFilterValues => ({
@@ -1295,74 +1353,28 @@ export default function JobApplicationsPage() {
   /** When ?tab=closed, jump to the concrete status tab that owns the closed candidates. */
   useEffect(() => {
     if (resolvedActiveTab !== "closed") return;
-    if (!rows.length || !statusOptions.length) return;
-
-    const closedCounts = new Map<string, number>();
-    for (const row of rows) {
-      if (!isClosedPipelineApplication(row)) continue;
-      const statusId =
-        rowStatusId(row) ||
-        statusOptions.find(
-          (option) =>
-            option.systemKey &&
-            option.systemKey === normalizeApplicationStatus(String(row.status ?? ""))
-        )?.id ||
-        "";
-      if (!statusId) continue;
-      closedCounts.set(statusId, (closedCounts.get(statusId) ?? 0) + 1);
-    }
-
-    let bestId = "";
-    let bestCount = 0;
-    for (const [id, count] of closedCounts) {
-      if (count > bestCount) {
-        bestId = id;
-        bestCount = count;
-      }
-    }
+    if (!listMeta.buckets.length || !statusOptions.length) return;
+    const bestId = bestPipelineStatusId(listMeta.buckets, "closed");
     if (!bestId) return;
 
     setActiveTab(bestId);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", bestId);
     router.replace(`${pathname}?${params.toString()}`);
-  }, [resolvedActiveTab, rows, statusOptions, searchParams, router, pathname]);
+  }, [resolvedActiveTab, listMeta.buckets, statusOptions, searchParams, router, pathname]);
 
   /** When ?tab=in_process, jump to the in-process status tab with the most candidates. */
   useEffect(() => {
     if (resolvedActiveTab !== "in_process") return;
-    if (!rows.length || !statusOptions.length) return;
-
-    const inProcessCounts = new Map<string, number>();
-    for (const row of rows) {
-      if (!isInProcessPipelineApplication(row)) continue;
-      const statusId =
-        rowStatusId(row) ||
-        statusOptions.find(
-          (option) =>
-            option.systemKey &&
-            option.systemKey === normalizeApplicationStatus(String(row.status ?? ""))
-        )?.id ||
-        "";
-      if (!statusId) continue;
-      inProcessCounts.set(statusId, (inProcessCounts.get(statusId) ?? 0) + 1);
-    }
-
-    let bestId = "";
-    let bestCount = 0;
-    for (const [id, count] of inProcessCounts) {
-      if (count > bestCount) {
-        bestId = id;
-        bestCount = count;
-      }
-    }
+    if (!listMeta.buckets.length || !statusOptions.length) return;
+    const bestId = bestPipelineStatusId(listMeta.buckets, "in_process");
     if (!bestId) return;
 
     setActiveTab(bestId);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", bestId);
     router.replace(`${pathname}?${params.toString()}`);
-  }, [resolvedActiveTab, rows, statusOptions, searchParams, router, pathname]);
+  }, [resolvedActiveTab, listMeta.buckets, statusOptions, searchParams, router, pathname]);
 
   useLayoutEffect(() => {
     const scroller = statusTabsScrollRef.current;
@@ -1397,6 +1409,7 @@ export default function JobApplicationsPage() {
   );
 
   const tabCounts = useMemo(() => {
+    if (listMeta.paged) return tabCountsFromBuckets(listMeta.buckets, statusOptions);
     const counts: Record<string, number> = { all: 0 };
     for (const option of statusOptions) counts[option.id] = 0;
     for (const row of rows) {
@@ -1417,9 +1430,10 @@ export default function JobApplicationsPage() {
       if (byKey) counts[byKey.id] += 1;
     }
     return counts;
-  }, [rows, statusOptions]);
+  }, [rows, statusOptions, listMeta.paged, listMeta.buckets]);
 
   const baseFilteredRows = useMemo(() => {
+    if (listMeta.paged) return rows;
     let next = rows.filter((row) => matchesTab(row, resolvedActiveTab, statusOptions));
     if (locationFilter) {
       next = next.filter((row) => {
@@ -1461,28 +1475,35 @@ export default function JobApplicationsPage() {
       );
     }
     return sortApplicationRows(next, listSort);
-  }, [rows, resolvedActiveTab, locationFilter, listSort, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+  }, [rows, resolvedActiveTab, locationFilter, listSort, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter, listMeta.paged]);
 
-  const multiJobApplicantCount = useMemo(
-    () =>
-      countUniqueMultiJobApplicants(
-        baseFilteredRows,
-        (row) => Number(row.appliedJobCount ?? 1),
-        (row) => resolveApplicationWorkerId(row) || row.id
-      ),
-    [baseFilteredRows]
-  );
+  const multiJobApplicantCount = useMemo(() => {
+    if (listMeta.paged) return listMeta.multiJobApplicantCount;
+    return countUniqueMultiJobApplicants(
+      baseFilteredRows,
+      (row) => Number(row.appliedJobCount ?? 1),
+      (row) => resolveApplicationWorkerId(row) || row.id
+    );
+  }, [baseFilteredRows, listMeta.paged, listMeta.multiJobApplicantCount]);
 
   const filteredRows = useMemo(() => {
+    if (listMeta.paged) return rows;
     if (!highlightMultiJobApplicants) return baseFilteredRows;
     return baseFilteredRows.filter((row) => Number(row.appliedJobCount ?? 1) > 1);
-  }, [baseFilteredRows, highlightMultiJobApplicants]);
+  }, [baseFilteredRows, highlightMultiJobApplicants, listMeta.paged, rows]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const resultTotal = listMeta.paged ? listMeta.total : filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(resultTotal / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const pageEnd = Math.min(currentPage * pageSize, filteredRows.length);
-  const paginatedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageStart = resultTotal === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = listMeta.paged
+    ? rows.length === 0
+      ? 0
+      : pageStart + rows.length - 1
+    : Math.min(currentPage * pageSize, resultTotal);
+  const paginatedRows = listMeta.paged
+    ? rows
+    : filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const listColumns = ensureActionsLast(
     listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS
@@ -1516,44 +1537,85 @@ export default function JobApplicationsPage() {
       ),
     [rows]
   );
+  const analyzeAllCount = listMeta.paged ? listMeta.scopeUnanalyzedCount : jobAnalyzeIds.length;
+
+  const { analyzeIds: selectedAnalyzeIds, reanalyzeIds: selectedReanalyzeIds } = useMemo(
+    () =>
+      partitionMatchAnalysisTargets(
+        [...selectedIds].map((id) => {
+          const row = rows.find((r) => r.id === id);
+          return { applicationId: id, status: row?.ai_match_status };
+        })
+      ),
+    [selectedIds, rows]
+  );
   const bulkAnalyzeBusy = bulkAnalyzingIds.size > 0;
 
   const exportFilenameBase = jobId ? `job-candidates-${jobId.slice(0, 8)}` : "job-candidates";
 
-  function rowsForExport() {
-    const base =
-      selectedIds.size === 0
-        ? filteredRows
-        : filteredRows.filter((row) => selectedIds.has(row.id));
-    const rowsToExport = base.length > 0 ? base : filteredRows;
-    return rowsToExport.map((row) => ({
+  async function rowsForExport() {
+    if (selectedIds.size > 0) {
+      const selected = rows.filter((row) => selectedIds.has(row.id));
+      const base = selected.length > 0 ? selected : rows;
+      return base.map((row) => ({
+        ...row,
+        statusName: rowStatusName(row, statusOptions),
+      }));
+    }
+
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("export", "1");
+    params.set("tzOffset", String(new Date().getTimezoneOffset()));
+    params.set("sort", listSort.column ?? "evaluation");
+    params.set("sortDir", listSort.direction);
+    if (jobId) params.set("jobId", jobId);
+    if (matchScoreFilter) params.set("matchScore", matchScoreFilter);
+    if (skillsFilter.length) params.set("skills", skillsFilter.join(","));
+    const tab = resolveApplicationTabParam(String(activeTab), statusOptions);
+    if (tab !== "all") params.set("tab", tab);
+    if (candidateSearchQuery.trim()) params.set("q", candidateSearchQuery.trim());
+    if (locationFilter) params.set("location", locationFilter);
+    if (listingStatusFilter) params.set("statusId", listingStatusFilter);
+    if (listingJobFilter) params.set("listingJobId", listingJobFilter);
+    if (listingStageFilter) params.set("stage", listingStageFilter);
+    if (evaluationFilter) params.set("evaluation", evaluationFilter);
+    if (workflowFilter) params.set("workflow", workflowFilter);
+    if (dateAppliedFilter) params.set("dateApplied", dateAppliedFilter);
+    if (highlightMultiJobApplicants) params.set("multiJob", "1");
+    const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Failed to export applications");
+    const applications = (payload.applications ?? []) as ApplicationRow[];
+    return applications.map((row) => ({
       ...row,
-      statusName: rowStatusName(row, statusOptions),
+      statusName: row.statusName || rowStatusName(row, statusOptions),
     }));
   }
 
-  function handleExportApplicationsCsv() {
-    exportApplicationsCsv(rowsForExport(), {
+  async function handleExportApplicationsCsv() {
+    exportApplicationsCsv(await rowsForExport(), {
       includeJob: !jobId,
       filename: `${exportFilenameBase}.csv`,
     });
   }
 
-  function handleExportApplicationsXls() {
-    exportApplicationsXls(rowsForExport(), {
+  async function handleExportApplicationsXls() {
+    exportApplicationsXls(await rowsForExport(), {
       includeJob: !jobId,
       filename: `${exportFilenameBase}.xls`,
     });
   }
 
   const locationOptions = useMemo(() => {
+    if (listMeta.paged) return listMeta.locations;
     const set = new Set<string>();
     for (const row of rows) {
       const loc = applicantLocation(row);
       if (loc) set.add(loc);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
+  }, [rows, listMeta.paged, listMeta.locations]);
 
   function toggleSelectAllVisible() {
     setSelectedIds((current) => {
@@ -2067,10 +2129,19 @@ export default function JobApplicationsPage() {
     };
   }
 
-  async function runBulkMatchAnalyze(ids: string[]) {
+  async function runBulkMatchAnalyze(
+    ids: string[],
+    label: "Analyze" | "Reanalyze" = "Analyze",
+    options?: { emptyMessage?: string }
+  ) {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
     if (!uniqueIds.length) {
-      toast.error("All candidates on this job are already analyzed");
+      toast.error(
+        options?.emptyMessage ??
+          (label === "Reanalyze"
+            ? "None of the selected candidates have been analyzed yet"
+            : "Selected candidates are already analyzed — use Reanalyze")
+      );
       return;
     }
     if (bulkAnalyzeBusy || matchAnalyzingId) return;
@@ -2218,7 +2289,8 @@ export default function JobApplicationsPage() {
                 jobId={jobId || undefined}
                 from="applications"
               />
-              <CandidatePreHireIconLink workerId={workerId} candidateName={name} />
+              {/* Pre-hire / Post-hire icon hidden until the hire journey feature ships. */}
+              {/* <CandidatePreHireIconLink workerId={workerId} candidateName={name} /> */}
             </div>
           </div>
         );
@@ -2792,11 +2864,42 @@ export default function JobApplicationsPage() {
           onHighlightMultiJobChange={setHighlightMultiJobApplicants}
           searching={loading}
           onAnalyzeAll={
-            jobId ? () => void runBulkMatchAnalyze(jobAnalyzeIds) : undefined
+            jobId
+              ? () => {
+                  void (async () => {
+                    const params = new URLSearchParams();
+                    params.set("page", "1");
+                    params.set("idsOnly", "1");
+                    params.set("scopeOnly", "1");
+                    params.set("jobId", jobId);
+                    if (matchScoreFilter) params.set("matchScore", matchScoreFilter);
+                    if (skillsFilter.length) params.set("skills", skillsFilter.join(","));
+                    const response = await fetch(`/api/admin/job-applications?${params}`, {
+                      cache: "no-store",
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) {
+                      toast.error(payload.error || "Failed to load candidates");
+                      return;
+                    }
+                    const { analyzeIds } = partitionMatchAnalysisTargets(
+                      ((payload.ids ?? []) as Array<{ id?: string; aiMatchStatus?: string | null }>).map(
+                        (row) => ({
+                          applicationId: row.id,
+                          status: row.aiMatchStatus,
+                        })
+                      )
+                    );
+                    await runBulkMatchAnalyze(analyzeIds, "Analyze", {
+                      emptyMessage: "All candidates on this job are already analyzed",
+                    });
+                  })();
+                }
+              : undefined
           }
           analyzeAllLabel="Analyze all"
           analyzeBusy={bulkAnalyzeBusy}
-          analyzeDisabled={jobAnalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
+          analyzeDisabled={analyzeAllCount === 0 || Boolean(matchAnalyzingId)}
           analysisProvider={analysisProvider}
           onAnalysisProviderChange={setAnalysisProvider}
         />
@@ -2814,15 +2917,20 @@ export default function JobApplicationsPage() {
           claimBusy={claimBusy}
           archiveBusy={archiveBusy}
           deleteBusy={deleteBusy}
+          analyzeBusy={bulkAnalyzeBusy}
           onArchive={() => void handleBulkArchiveSelected()}
           onDelete={() => {
             setPendingDeleteIds([]);
             setDeleteError(null);
             setDeleteConfirmOpen(true);
           }}
+          onAnalyze={() => void runBulkMatchAnalyze(selectedAnalyzeIds, "Analyze")}
+          onReanalyze={() => void runBulkMatchAnalyze(selectedReanalyzeIds, "Reanalyze")}
+          analyzeDisabled={selectedAnalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
+          reanalyzeDisabled={selectedReanalyzeIds.length === 0 || Boolean(matchAnalyzingId)}
           onExportCsv={handleExportApplicationsCsv}
           onExportXls={handleExportApplicationsXls}
-          exportDisabled={rowsForExport().length === 0}
+          exportDisabled={resultTotal === 0 && selectedIds.size === 0}
           hideClaim
           onClear={() => setSelectedIds(new Set())}
         />
@@ -2936,7 +3044,7 @@ export default function JobApplicationsPage() {
 
         <div className="flex flex-col gap-3 rounded-b-[12px] border-t border-[#E5E7EB] bg-white px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <p className="text-sm text-[#64748B]">
-            Showing {pageStart}-{pageEnd} of {filteredRows.length} results
+            Showing {pageStart}-{pageEnd} of {resultTotal} results
           </p>
 
           <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-end">

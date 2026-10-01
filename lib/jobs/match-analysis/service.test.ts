@@ -31,7 +31,7 @@ const resolved: ResolvedPromptVersion = {
   promptVersionId: "pv1",
   templateId: "t1",
   featureKey: "candidate_match",
-  variantKey: "default",
+  variantKey: "quick",
   requestedIndustryKey: "healthcare",
   resolvedVerticalKey: "healthcare",
   contentHash: "hash",
@@ -95,8 +95,10 @@ describe("generateMatchAnalysis", () => {
 
     expect(create).toHaveBeenCalledOnce();
     const grokArgs = create.mock.calls[0]?.[0] as { input?: Array<{ role?: string; content?: string }> };
-    expect(grokArgs.input?.[0]?.content).toContain("This is Step 1 Quick Match");
-    expect(grokArgs.input?.[0]?.content).not.toContain("You are an analyst.");
+    expect(grokArgs.input?.[0]?.content).toContain("You are an analyst.");
+    expect(grokArgs.input?.[0]?.content).not.toContain("This is Step 1 Quick Match");
+    expect(grokArgs.input?.[1]?.content).toContain("ICU RN in Austin, TX");
+    expect(grokArgs.input?.[1]?.content).toContain("Jane Doe RN");
     expect(result.model).toBe("grok-4-fast");
     expect(result.analysis.mandatory_requirements).toHaveLength(1);
     expect(result.repaired).toBe(false);

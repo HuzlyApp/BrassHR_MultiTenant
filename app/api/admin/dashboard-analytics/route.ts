@@ -9,6 +9,7 @@ import {
 } from "@/lib/dashboard/analytics-counts";
 import { fetchWorkerStatusMetrics } from "@/lib/dashboard/worker-status-metrics";
 import { resolveWorkforceBuckets } from "@/lib/dashboard/workforce-analytics";
+import { addEasternDays, easternDateString } from "@/lib/datetime/eastern";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 
 export const runtime = "nodejs";
@@ -65,16 +66,11 @@ function normalizeStatus(row: WorkerRow): string {
 }
 
 function isoDateOnly(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return easternDateString(date);
 }
 
 function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+  return addEasternDays(date, days);
 }
 
 function pctChange(current: number, previous: number): number | null {
@@ -86,7 +82,7 @@ function comparisonPeriodLabel(now = new Date()): string {
   const end = addDays(now, -7);
   const start = addDays(now, -13);
   const fmt = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    d.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric", year: "numeric" });
   return `vs ${fmt(start)} – ${fmt(end)}`;
 }
 
@@ -107,7 +103,7 @@ function buildDailyTrend(
     const key = isoDateOnly(d);
     points.push({
       date: key,
-      label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase(),
+      label: d.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric" }).toUpperCase(),
       value: counts.get(key) ?? 0,
     });
   }

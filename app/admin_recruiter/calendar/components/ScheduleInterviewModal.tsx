@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDownIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
+import {
+  EASTERN_TIME_LABEL,
+  EASTERN_TIME_ZONE,
+  addEasternDays,
+  easternWallClockToDate,
+  getEasternParts,
+  startOfEasternDay,
+  startOfEasternWeek,
+} from "@/lib/datetime/eastern";
 import { formatSlotLabel } from "@/lib/interviews/format";
-import { COMMON_INTERVIEW_TIMEZONES } from "@/lib/interviews/ics";
 import type { InterviewApplicationOption } from "@/app/api/admin/applicant-appointments/applications/route";
 import type {
   InterviewMeetingType,
@@ -54,20 +62,15 @@ const MEETING_TYPE_OPTIONS: Array<{ value: InterviewMeetingType; label: string }
 ];
 
 function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfEasternDay(date);
 }
 
 function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
+  return addEasternDays(date, days);
 }
 
 function getWeekStart(date: Date): Date {
-  const d = startOfDay(date);
-  return addDays(d, -d.getDay());
+  return startOfEasternWeek(date);
 }
 
 function buildDaySlots(
@@ -75,12 +78,11 @@ function buildDaySlots(
   options?: { includePast?: boolean; keepStartsAt?: Date | null }
 ): { startsAt: Date; endsAt: Date }[] {
   const slots: { startsAt: Date; endsAt: Date }[] = [];
-  const base = startOfDay(day);
+  const parts = getEasternParts(day);
   const keepMs = options?.keepStartsAt?.getTime() ?? null;
   for (let hour = DAY_START_HOUR; hour < DAY_END_HOUR; hour++) {
     for (const minute of [0, 30]) {
-      const startsAt = new Date(base);
-      startsAt.setHours(hour, minute, 0, 0);
+      const startsAt = easternWallClockToDate(parts.year, parts.month, parts.day, hour, minute, 0);
       const endsAt = new Date(startsAt.getTime() + SLOT_MINUTES * 60 * 1000);
       const isKeep = keepMs != null && startsAt.getTime() === keepMs;
       if (options?.includePast || isKeep || startsAt.getTime() > Date.now()) {
@@ -124,9 +126,6 @@ export function ScheduleInterviewModal({
   const [applicantOpen, setApplicantOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [meetingType, setMeetingType] = useState<InterviewMeetingType>("online");
-  const [timezone, setTimezone] = useState(() =>
-    typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
-  );
   const [meetingLink, setMeetingLink] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
@@ -171,10 +170,6 @@ export function ScheduleInterviewModal({
       setTitle(initialValues.title || defaultTitle || "");
       setTitleEdited(true);
       setMeetingType(initialValues.meetingType || "online");
-      setTimezone(
-        initialValues.timezone ||
-          (typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC")
-      );
       setMeetingLink(initialValues.meetingLink ?? "");
       setLocation(initialValues.location ?? "");
       setNotes(initialValues.notes ?? "");
@@ -199,9 +194,6 @@ export function ScheduleInterviewModal({
     setTitle(defaultTitle ?? "");
     setTitleEdited(Boolean(defaultTitle));
     setMeetingType("online");
-    setTimezone(
-      typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
-    );
     setMeetingLink("");
     setLocation("");
     setNotes("");
@@ -317,7 +309,7 @@ export function ScheduleInterviewModal({
       }),
     [selectedDay, isReschedule, initialValues]
   );
-  const monthLabel = selectedDay.toLocaleDateString("en-US", { month: "long" });
+  const monthLabel = selectedDay.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long" });
 
   const selectedInterviewers = useMemo<ScheduleInterviewInterviewer[]>(() => {
     const fromTeam = teamMembers
@@ -350,7 +342,7 @@ export function ScheduleInterviewModal({
       jobId: selectedApplication?.jobId ?? initialValues?.jobId ?? null,
       startsAt: pendingSlot.startsAt.toISOString(),
       endsAt: pendingSlot.endsAt.toISOString(),
-      timezone,
+      timezone: EASTERN_TIME_ZONE,
       title: title.trim() || defaultInterviewTitle(resolvedApplicantName),
       meetingType,
       meetingLink: meetingType === "online" ? meetingLink.trim() || null : null,
@@ -519,25 +511,11 @@ export function ScheduleInterviewModal({
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Timezone</span>
-              <div className="relative">
-                <select
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
-                >
-                  {!COMMON_INTERVIEW_TIMEZONES.includes(timezone as (typeof COMMON_INTERVIEW_TIMEZONES)[number]) ? (
-                    <option value={timezone}>{timezone}</option>
-                  ) : null}
-                  {COMMON_INTERVIEW_TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz}>
-                      {tz}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
-                  <ChevronDownIcon className="size-4 text-[#64748B]" />
-                </span>
-              </div>
+              <input
+                readOnly
+                value={EASTERN_TIME_LABEL}
+                className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3 text-sm text-[#1F2937]"
+              />
             </label>
           </div>
 
@@ -690,7 +668,7 @@ export function ScheduleInterviewModal({
           </div>
 
           <div className="mb-4 flex items-center justify-center gap-2 rounded-lg border border-[#ECF1F9] px-3 py-2.5 text-xs text-[#475569] min-[500px]:px-4 min-[500px]:py-3 min-[500px]:text-sm">
-            <span>{timezone}</span>
+            <span>{EASTERN_TIME_LABEL}</span>
           </div>
 
           <div className="space-y-2.5 min-[500px]:space-y-3">
@@ -705,7 +683,7 @@ export function ScheduleInterviewModal({
                   return (
                     <div key={slot.startsAt.toISOString()} className="flex flex-col gap-2 min-[500px]:flex-row min-[500px]:gap-4">
                       <div className="flex flex-1 items-center justify-center rounded-lg border border-[color:var(--brand-primary,#bc8b41)] px-4 py-3 text-sm font-semibold text-[color:var(--brand-primary,#bc8b41)]">
-                        {slot.startsAt.toLocaleTimeString("en-US", {
+                        {slot.startsAt.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
                           hour: "numeric",
                           minute: "2-digit",
                           hour12: true,

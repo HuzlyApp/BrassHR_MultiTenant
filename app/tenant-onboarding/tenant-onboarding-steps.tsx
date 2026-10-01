@@ -587,20 +587,17 @@ export function BusinessStep({
   }, [businessInfo.state, stateOptions]);
 
   const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
-  const cityOptionsUnavailable = Boolean(businessInfo.state) && !citiesLoading && effectiveCityOptions.length === 0;
 
   const validationContext = useMemo(
     () => ({
       stateCode: selectedStateCode || undefined,
       stateName: displayStateValue || businessInfo.state || undefined,
       allowedStateNames: effectiveStateOptions.length > 0 ? effectiveStateOptions : stateOptions,
-      allowedCityNames: effectiveCityOptions.length > 0 ? effectiveCityOptions : undefined,
       requireEin: true,
     }),
     [
       businessInfo.state,
       displayStateValue,
-      effectiveCityOptions,
       effectiveStateOptions,
       selectedStateCode,
       stateOptions,
@@ -854,24 +851,25 @@ export function BusinessStep({
           <SearchableSelectField
             label="City"
             required
-            disabled={!businessInfo.state || stateOptionsUnavailable || cityOptionsUnavailable}
+            allowCustom
+            disabled={!businessInfo.state || stateOptionsUnavailable}
             loading={citiesLoading}
             value={businessInfo.city}
             onChange={(value) => handleBusinessFieldChange({ city: value })}
             onBlur={() => handleFieldBlur("city")}
             placeholder={
-              stateOptionsUnavailable || cityOptionsUnavailable
-                ? "No cities found"
+              stateOptionsUnavailable
+                ? "No states found"
                 : !businessInfo.state
                   ? "Select state first"
                   : citiesLoading
                     ? "Loading…"
-                    : "Search city"
+                    : "Search or enter city"
             }
-            searchPlaceholder="Type to search cities"
+            searchPlaceholder="Type any city"
             options={effectiveCityOptions}
             error={showFieldError("city")}
-            emptyMessage="No cities found"
+            emptyMessage="Type a city name and press Enter."
           />
         </div>
 

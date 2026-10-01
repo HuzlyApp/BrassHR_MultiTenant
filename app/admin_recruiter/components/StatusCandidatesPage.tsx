@@ -97,6 +97,10 @@ type WorkerProfile = {
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
   application_client_name?: string | null;
+  application_applied_jobs?: Array<{
+    job_id?: string | null;
+    title?: string | null;
+  }> | null;
   application_source_job_id?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
@@ -120,12 +124,12 @@ function formatDateTime(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const date = d.toLocaleDateString("en-US", {
+  const date = d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  const time = d.toLocaleTimeString("en-US", {
+  const time = d.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -137,7 +141,7 @@ function formatDateShort(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -307,6 +311,16 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         applicationJobTitlesText: item.application_job_titles_text ?? null,
         applicationSearchText: item.application_search_text ?? null,
         applicationClientName: item.application_client_name ?? null,
+        appliedJobs: Array.isArray(item.application_applied_jobs)
+          ? item.application_applied_jobs
+              .map((entry) => {
+                const jobId = String(entry?.job_id ?? "").trim();
+                const title = String(entry?.title ?? "").trim();
+                if (!jobId || !title) return null;
+                return { jobId, title };
+              })
+              .filter((entry): entry is { jobId: string; title: string } => Boolean(entry))
+          : [],
         applicationSourceJobId: item.application_source_job_id ?? null,
         email,
         phone,

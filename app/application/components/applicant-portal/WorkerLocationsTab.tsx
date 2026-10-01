@@ -19,7 +19,7 @@ function formatAssignedDate(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "numeric", year: "numeric" });
 }
 
 function WorkerLocationCard({ facility }: { facility: FacilityListItem }) {

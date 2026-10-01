@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import { isRecruiterAuthPath } from "@/lib/tenant/auth-entry-paths";
 import { readCachedTenantBranding, writeCachedTenantBranding } from "@/lib/tenant/client-branding-cache";
+import { fetchTenantBranding } from "@/lib/tenant/fetch-tenant-branding";
 import {
   buildTenantBrandingApiUrl,
   resolveTenantSlugForClient,
@@ -17,7 +18,8 @@ import {
 
 /** Default branding for routes without an explicit tenant context. */
 export default function TenantBrandingRoot({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<TenantBranding>(defaultTenantBranding);
+  // Keep SSR/client first paint identical — never read window/localStorage in useState.
+  const [branding, setBranding] = useState<TenantBranding>(() => defaultTenantBranding());
 
   useEffect(() => {
     let alive = true;
@@ -37,17 +39,14 @@ export default function TenantBrandingRoot({ children }: { children: ReactNode }
       if (!cached) {
         if (recruiterAuthEntry && tenantPortal) {
           // Tenant admin login — wait for API; login layout paints the shell.
-        } else if (!tenantPortal || recruiterAuthEntry) {
+        } else {
+          // Tenant careers/jobs surfaces: never leave platform Brass HR gold while loading.
           setBranding(brandingFallbackForSlug(resolved.slug));
         }
       }
 
       try {
-        const res = await fetch(buildTenantBrandingApiUrl(resolved), {
-          cache: "no-store",
-          signal: AbortSignal.timeout(12_000),
-        });
-        const payload = (await res.json().catch(() => ({}))) as { branding?: TenantBranding };
+        const payload = await fetchTenantBranding(buildTenantBrandingApiUrl(resolved));
         if (alive && payload.branding) {
           setBranding(payload.branding);
           writeCachedTenantBranding(payload.branding);

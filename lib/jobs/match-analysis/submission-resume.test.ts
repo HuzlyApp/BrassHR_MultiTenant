@@ -108,9 +108,13 @@ function analysisFixture(): MatchAnalysisResponse {
 }
 
 describe("submission résumé pack", () => {
-  it("names the exported file as a submission résumé PDF", () => {
+  it("names the exported file as a submission résumé PDF or DOCX", () => {
     expect(submissionResumeFileName("Maya Ellison")).toBe("Maya_Ellison_submission_resume.pdf");
+    expect(submissionResumeFileName("Maya Ellison", ".docx")).toBe(
+      "Maya_Ellison_submission_resume.docx"
+    );
     expect(isSubmissionResumeFileName("Maya_Ellison_submission_resume.pdf")).toBe(true);
+    expect(isSubmissionResumeFileName("Maya_Ellison_submission_resume.docx")).toBe(true);
     expect(isSubmissionResumeFileName("Maya_Ellison_resume.pdf")).toBe(false);
   });
 
@@ -130,7 +134,11 @@ describe("submission résumé pack", () => {
     expect(resume.fullName).toBe("Maya Ellison");
     expect(resume.headline).toContain("Lead Test Professional");
     expect(resume.summary).toContain("Illinois City");
-    expect(resume.skills.some((item) => item.toLowerCase().includes("illinois city"))).toBe(true);
+    // Long requirement sentences are excluded from skills[] (anti-stuffing).
+    expect(resume.skills.every((item) => item.length <= 60)).toBe(true);
+    expect(resume.skills).toEqual(
+      expect.arrayContaining(["Lead Test Professional", "Test Coordinator"])
+    );
     expect(resume.experience[0]?.title).toBe("Lead Test Professional");
     expect(submissionResumeToPlainText(resume)).toContain("PROFESSIONAL SUMMARY");
   });
@@ -184,6 +192,36 @@ describe("submission résumé pack", () => {
       resumeText: "Project manager with delivery ownership.",
     });
     expect(fallback.skills.every((item) => item.length <= 80)).toBe(true);
+  });
+
+  it("keeps a multi-page work history instead of rejecting it", () => {
+    const bullets = Array.from({ length: 12 }, (_, index) => `Source bullet ${index + 1} with a real metric.`);
+    const experience = Array.from({ length: 12 }, (_, index) => ({
+      title: `Role ${index + 1}`,
+      company: `Employer ${index + 1}`,
+      location: "Austin, TX",
+      dates: `${2010 + index}–${2011 + index}`,
+      bullets,
+    }));
+
+    const parsed = parseSubmissionResume({
+      fullName: "Jordan Hale",
+      headline: "Observability Architect",
+      summary: "Kept from the source résumé.",
+      skills: Array.from({ length: 18 }, (_, index) => `Tool ${index + 1}`),
+      experience,
+      education: [],
+      licenses: [],
+    });
+
+    expect(parsed).not.toBeNull();
+    expect(parsed!.experience).toHaveLength(12);
+    expect(parsed!.experience[0]?.bullets).toHaveLength(12);
+    expect(parsed!.experience[11]?.company).toBe("Employer 12");
+    expect(parsed!.skills).toHaveLength(18);
+    expect(parsed!.experience[0]?.location).toBe("Austin, TX");
+    expect(submissionResumeToPlainText(parsed!)).toContain("PROFESSIONAL EXPERIENCE");
+    expect(submissionResumeToPlainText(parsed!)).not.toContain("RELEVANT EXPERIENCE");
   });
 
   it("keeps identity from the fallback when the model omits contact fields", () => {

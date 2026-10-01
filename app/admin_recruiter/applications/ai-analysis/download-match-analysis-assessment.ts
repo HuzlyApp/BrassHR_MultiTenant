@@ -42,7 +42,7 @@ function formatWhen(iso: string | null | undefined): string {
   if (!iso?.trim()) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     day: "numeric",
     month: "long",
     year: "numeric",

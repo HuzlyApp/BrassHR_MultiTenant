@@ -17,13 +17,22 @@ export function isUnassignedAssigneeFilter(value: string): boolean {
 
 export function candidateMatchesAssigneeFilter(
   assignedRecruiterUserId: string | null | undefined,
-  assigneeFilter: string
+  assigneeFilter: string,
+  jobAssigneeUserIds?: Array<string | null | undefined>
 ): boolean {
   const wanted = assigneeFilter.trim();
   if (!wanted) return true;
-  const current = assignedRecruiterUserId?.trim() || "";
-  if (isUnassignedAssigneeFilter(wanted)) return !current;
-  return current === wanted;
+  const ids = [
+    assignedRecruiterUserId?.trim() || "",
+    ...(jobAssigneeUserIds ?? []).map((id) => id?.trim() || ""),
+  ].filter(Boolean);
+  if (isUnassignedAssigneeFilter(wanted)) {
+    if ((jobAssigneeUserIds ?? []).length > 0) {
+      return (jobAssigneeUserIds ?? []).every((id) => !id?.trim());
+    }
+    return ids.length === 0;
+  }
+  return ids.includes(wanted);
 }
 
 export function buildAssigneeFilterOptions(rows: Array<{ id?: string | null; name?: string | null }>): {

@@ -70,7 +70,7 @@ export function formatConversionDate(iso: string | null | undefined): string | n
   if (!iso?.trim()) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "2-digit",
     year: "numeric",

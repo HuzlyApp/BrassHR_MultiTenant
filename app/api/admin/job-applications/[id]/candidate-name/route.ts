@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { validatePersonName } from "@/lib/person-name";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+function sanitizePersonNamePart(
+  value: string,
+  label: string
+): { ok: true; value: string } | { ok: false; error: string } {
+  if (!value.trim() && label === "Last name") return { ok: true, value: "" };
+  const name = validatePersonName(value, { label });
+  return name.ok ? { ok: true, value: name.value } : { ok: false, error: name.error };
+}
 
 /** PATCH — rename the candidate behind a job application (profile + worker stay in sync). */
 export async function PATCH(req: NextRequest, context: RouteContext) {
@@ -31,11 +41,16 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       firstName?: string;
       lastName?: string;
     };
-    const firstName = String(body.firstName ?? "").trim();
-    const lastName = String(body.lastName ?? "").trim();
-    if (!firstName) {
-      return NextResponse.json({ error: "First name is required." }, { status: 400 });
+    const firstParsed = sanitizePersonNamePart(String(body.firstName ?? "").trim(), "First name");
+    if (!firstParsed.ok) {
+      return NextResponse.json({ error: firstParsed.error }, { status: 400 });
     }
+    const lastParsed = sanitizePersonNamePart(String(body.lastName ?? "").trim(), "Last name");
+    if (!lastParsed.ok) {
+      return NextResponse.json({ error: lastParsed.error }, { status: 400 });
+    }
+    const firstName = firstParsed.value;
+    const lastName = lastParsed.value;
 
     const { data: application, error: appError } = await supabase
       .from("job_applications")

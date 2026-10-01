@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Eye, Upload, ChevronDown } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
+import { formatEastern } from "@/lib/datetime/eastern";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerResumeSubmittedSection } from "./WorkerResumeSubmittedSection";
@@ -578,7 +579,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                       {doc.originalFileName || doc.title}
                     </p>
                     <p className="mt-0.5 text-xs text-[#64748B]">
-                      {doc.title} · {new Date(doc.uploadedAt).toLocaleDateString()}
+                      {doc.title} · {formatEastern(doc.uploadedAt, { month: "short", day: "numeric", year: "numeric" })}
                     </p>
                     {doc.uploadedByName ? (
                       <p className="mt-1 text-xs text-[#64748B]">

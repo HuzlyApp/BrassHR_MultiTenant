@@ -194,7 +194,7 @@ function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("en-US", { timeZone: "America/New_York",  year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 function formatRelative(iso: string | null | undefined) {
@@ -214,12 +214,12 @@ function formatDateTimeLabel(iso: string | null | undefined) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const datePart = d.toLocaleDateString(undefined, {
+  const datePart = d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
   });
-  const timePart = d.toLocaleTimeString(undefined, {
+  const timePart = d.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
     hour: "numeric",
     minute: "2-digit",
   });

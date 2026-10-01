@@ -9,7 +9,15 @@ export const AI_FEATURE_KEYS = [
 ] as const;
 export type AiFeatureKey = (typeof AI_FEATURE_KEYS)[number];
 
-export const AI_VARIANT_KEYS = ["default", "deep", "client_gate"] as const;
+export const AI_VARIANT_KEYS = [
+  "default",
+  "quick",
+  "call_pack",
+  "follow_up",
+  "deep",
+  "submission",
+  "client_gate",
+] as const;
 export type AiVariantKey = (typeof AI_VARIANT_KEYS)[number];
 
 export const AI_PROMPT_STATUSES = ["draft", "published", "retired"] as const;

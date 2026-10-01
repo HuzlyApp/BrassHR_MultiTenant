@@ -2,6 +2,7 @@ import {
   COMPANY_SIZE_OPTIONS,
   INDUSTRY_OPTIONS,
 } from "@/app/tenant-onboarding/constants";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state";
 
 export type BusinessInfoInput = {
@@ -26,7 +27,7 @@ export type BusinessInfoValidationContext = {
   stateCode?: string;
   /** Full state name for user-facing ZIP errors. */
   stateName?: string;
-  /** When non-empty, city must be one of these names (dropdown mode). */
+  /** Unused for gating. City may be any valid name in an allowed state. */
   allowedCityNames?: string[];
   /** When true, state must appear in this list (state name). */
   allowedStateNames?: string[];
@@ -164,8 +165,12 @@ export function stateValidationMessage(
   const value = state.trim();
   const required = context?.requireAllFields !== false;
   if (!value) return required ? "State is required." : null;
-  if (context?.allowedStateNames?.length && !context.allowedStateNames.includes(value)) {
-    return "Select a valid state.";
+  if (context?.allowedStateNames?.length) {
+    const code = getStateCodeFromName(value);
+    const listed = context.allowedStateNames.some(
+      (name) => name === value || Boolean(code && getStateCodeFromName(name) === code)
+    );
+    if (!listed) return "Select a valid state.";
   }
   return null;
 }
@@ -177,9 +182,6 @@ export function cityValidationMessage(
   const value = city.trim();
   const required = context?.requireAllFields !== false;
   if (!value) return required ? "City is required." : null;
-  if (context?.allowedCityNames?.length && !context.allowedCityNames.includes(value)) {
-    return "Select a valid city for the selected state.";
-  }
   if (!/^[a-zA-Z][a-zA-Z\s.'-]{1,}$/.test(value)) {
     return "Enter a valid city name.";
   }

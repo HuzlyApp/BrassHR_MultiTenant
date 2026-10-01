@@ -27,7 +27,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/app/components/tenant/TenantBrandingContext", () => ({
-  useTenantBranding: () => ({ companyName: "ZipStaff", primaryHex: "#0D9488" }),
+  useTenantBranding: () => ({ slug: "zipstaff", companyName: "ZipStaff", primaryHex: "#0D9488" }),
 }));
 
 vi.mock("@/lib/tenant/resolve-tenant-context", () => ({

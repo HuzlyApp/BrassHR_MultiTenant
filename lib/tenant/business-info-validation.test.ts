@@ -51,12 +51,21 @@ describe("validateBusinessInfoForm", () => {
     expect(errors.zipCode).toMatch(/California/i);
   });
 
-  it("rejects cities outside the allowed list", () => {
-    const errors = validateBusinessInfoForm(validInput, {
-      stateCode: "CA",
-      allowedCityNames: ["San Francisco"],
-    });
-    expect(errors.city).toBeTruthy();
+  it("accepts any valid city name, including cities not on the seed list", () => {
+    const errors = validateBusinessInfoForm(
+      { ...validInput, state: "Texas", city: "Longview" },
+      { stateCode: "TX", stateName: "Texas", allowedStateNames: ["Texas"] }
+    );
+    expect(errors.city).toBeUndefined();
+  });
+
+  it("accepts TX as well as Texas", () => {
+    const errors = validateBusinessInfoForm(
+      { ...validInput, state: "TX", city: "Longview", zipCode: "75601" },
+      { stateCode: "TX", stateName: "Texas", allowedStateNames: ["Texas"] }
+    );
+    expect(errors.state).toBeUndefined();
+    expect(errors.city).toBeUndefined();
   });
 
   it("rejects invalid EIN formatting when provided", () => {

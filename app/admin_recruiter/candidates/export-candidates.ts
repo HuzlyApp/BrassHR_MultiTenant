@@ -7,6 +7,7 @@ import {
 import { getCandidateJobTitleOptions } from "@/lib/admin/candidate-match-job-title";
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 import { formatMatchScore } from "@/lib/jobs/match-analysis/display";
+import { fitBandLabel, listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 import {
   columnLabel,
   DEFAULT_CANDIDATE_COLUMNS,
@@ -52,6 +53,17 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   jobMatch: {
     header: columnLabel("jobMatch"),
     value: (row) => formatMatchScore(row.aiMatchScore),
+  },
+  fit: {
+    header: columnLabel("fit"),
+    value: (row) => {
+      const band = listingDisplayFitBand({
+        analyzed: row.aiMatchStatus === "ANALYZED",
+        stage: row.aiMatchStage,
+        counts: row.aiRequirementCounts,
+      });
+      return band ? fitBandLabel(band) : "—";
+    },
   },
   conf: {
     header: columnLabel("conf"),
@@ -108,6 +120,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   },
   firstName: { header: columnLabel("firstName"), value: (row) => row.firstName || "—" },
   lastName: { header: columnLabel("lastName"), value: (row) => row.lastName || "—" },
+  assignee: {
+    header: columnLabel("assignee"),
+    value: (row) => row.assignedRecruiterName?.trim() || "Not assign yet",
+  },
 };
 
 function flattenBuilders(ids: CandidateColumnId[]): ExportColumn<CandidateRow>[] {

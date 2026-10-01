@@ -15,11 +15,11 @@ import {
   listingCountsForAnalyzedApplication,
   loadRequirementOutcomeCountsByApplication,
 } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
-import { getWorkerAssigneeFallbackByWorker } from "@/lib/candidates/sync-recruiter-assignment";
 import {
   filterWorkerIdsMatchingSkills,
   parseSkillsFilterParam,
 } from "@/lib/jobs/application-skills-filter";
+import { loadStaffApplicationPage } from "@/lib/admin/load-staff-application-page";
 
 export const runtime = "nodejs";
 
@@ -53,6 +53,16 @@ export async function GET(req: NextRequest) {
   try {
     const tenantId = await resolveStaffTenantId(db, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    const listParams = req.nextUrl.searchParams;
+    if (
+      listParams.has("page") ||
+      listParams.get("idsOnly") === "1" ||
+      listParams.get("export") === "1"
+    ) {
+      const body = await loadStaffApplicationPage(db, tenantId, listParams);
+      return NextResponse.json(body);
+    }
 
     const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
     const workerId = req.nextUrl.searchParams.get("workerId")?.trim();
@@ -212,47 +222,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const siblingAssigneeByWorker = new Map<string, string>();
-    for (const row of applications) {
-      const workerId = String((row as { worker_id?: string | null }).worker_id ?? "").trim();
-      const assigneeId = String(
-        (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id ?? ""
-      ).trim();
-      if (workerId && assigneeId && !siblingAssigneeByWorker.has(workerId)) {
-        siblingAssigneeByWorker.set(workerId, assigneeId);
-      }
-    }
-
-    const workerIdsForAssigneeFallback = Array.from(
-      new Set(
-        applications
-          .map((row) => {
-            const assigned = (row as { assigned_recruiter_user_id?: string | null })
-              .assigned_recruiter_user_id;
-            const workerId = (row as { worker_id?: string | null }).worker_id;
-            if (assigned || !workerId) return "";
-            return String(workerId).trim();
-          })
-          .filter(Boolean)
-      )
-    );
-    const workerAssigneeFallback =
-      workerIdsForAssigneeFallback.length > 0
-        ? await getWorkerAssigneeFallbackByWorker(supabase, tenantId, workerIdsForAssigneeFallback)
-        : new Map<string, string>();
-
     const recruiterIds = Array.from(
       new Set(
-        [
-          ...applications
-            .map(
-              (row) =>
-                (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id
-            )
-            .filter((id): id is string => Boolean(id)),
-          ...workerAssigneeFallback.values(),
-          ...siblingAssigneeByWorker.values(),
-        ].filter(Boolean)
+        applications
+          .map(
+            (row) =>
+              (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id
+          )
+          .filter((id): id is string => Boolean(id))
       )
     );
     const recruitersById = await loadStaffUsersByIds(supabase, tenantId, recruiterIds);
@@ -269,22 +246,11 @@ export async function GET(req: NextRequest) {
           ? (row as { application_statuses: Array<{ name?: string }> }).application_statuses[0]
           : (row as { application_statuses?: { name?: string } | null }).application_statuses;
         const workerIdValue = (row as { worker_id?: string | null }).worker_id;
-        const workerKey = workerIdValue ? String(workerIdValue).trim() : "";
         const applicationId = (row as { id: string }).id;
-        const directAssignedRecruiterUserId = (row as { assigned_recruiter_user_id?: string | null })
+        const assignedRecruiterUserId = (row as { assigned_recruiter_user_id?: string | null })
           .assigned_recruiter_user_id;
-        const fallbackAssigneeId =
-          !directAssignedRecruiterUserId && workerKey
-            ? workerAssigneeFallback.get(workerKey) ??
-              siblingAssigneeByWorker.get(workerKey) ??
-              null
-            : null;
-        const assignedRecruiterUserId = directAssignedRecruiterUserId || fallbackAssigneeId;
         return {
           ...row,
-          ...(fallbackAssigneeId && !directAssignedRecruiterUserId
-            ? { assigned_recruiter_user_id: fallbackAssigneeId }
-            : {}),
           statusName: statusJoin?.name ?? null,
           appliedJobCount: workerIdValue ? countByWorker.get(workerIdValue) ?? 1 : 1,
           statusNote: noteByApplication.get(applicationId) || null,

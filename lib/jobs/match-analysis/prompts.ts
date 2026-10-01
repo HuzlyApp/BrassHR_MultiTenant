@@ -355,7 +355,7 @@ OUTPUT RULES
 
 Return valid JSON only. Do not include markdown, commentary, code fences, or text outside the JSON. Use only the allowed categories, actions, statuses, and response fields. Follow the required output structure exactly (see RESPONSE_SCHEMA).`;
 
-/** Temporary hardcoded Step 1 Quick Match prompt. Swap back to the catalog when ready. */
+/** Catalog-backed Step 1 Quick Match body (seeded into ai_prompt_version). Kept for tests / seed generator. */
 export const ANALYZE_SYSTEM_PROMPT = `You extract and classify a candidate against a JD. You do not score. You do not recommend submit/hold.
 
 This is Step 1 Quick Match. A later paid step writes the match percent.
@@ -371,7 +371,8 @@ RULES
 - Evidence rank: dated job/project bullets > summary > skills list.
 - Skills-only or summary-only = PARTIAL.
 - Related but unclear = PARTIAL.
-- NOT_FOUND only if nothing supports the requirement.
+- Generic category words do not support a named product (SIEM ≠ Splunk; ETL ≠ Informatica IDMC). That row is NOT_FOUND unless the product or a named cousin appears.
+- NOT_FOUND if the requirement has no dated, summary, skills, or cousin support.
 - Recruiter notes that confirm a skill the résumé already supports = CONFIRMED.
 - Ignore work auth, citizenship/green card, sponsorship, pay, availability, travel, relocation, onsite/remote, shift, W2/C2C. Do not list them as requirements, blockers, or items_to_verify. Screening covers them later.
 - No protected characteristics.
@@ -388,22 +389,22 @@ If the JD names a product in the title or as extensive / required / must have:
 - CONFIRMED = dated job bullet names that product.
 - Skills list or summary only = PARTIAL.
 - Cousin/category/competitor = PARTIAL.
-- Completely absent from résumé, skills, and cousins = NOT_FOUND.
+- Product string never appears in jobs, summary, or skills = NOT_FOUND (a cousin in a job is PARTIAL; a cousin only on the skills list is NOT_FOUND).
 
 
 BLOCKERS (skill only — not location or work auth)
 Set blocking_requirements only when:
 - A required license or certification is missing from the résumé, or
-- A required named technology is completely absent (not in jobs, summary, skills, or a cousin product), or
+- A required named product string is absent from jobs, summary, and skills (cousin-only does not block), or
 - Required years in the core discipline are clearly unsupported.
-Cousin product or skills-list hit is PARTIAL, not a blocker.
+Skills-list or cousin in a dated job is PARTIAL, not a blocker.
 
 ROUTE (no match %). Same bar for a 5-item or 13-item JD.
 CONFIRMED = 1.0, PARTIAL = 0.5, NOT_FOUND = 0.
 mand_met = that average on mandatory rows (skip NOT_APPLICABLE).
 pref_met = that average on preferred rows, or 0 if none.
 weighted = 0.8 * mand_met + 0.2 * pref_met. If no preferred rows, weighted = mand_met.
-- LOW_MATCH if any blocker OR weighted < 0.40
+- LOW_MATCH if any blocker OR weighted <= 0.50 OR confirmed = 0 OR not_found >= 2
 - STRONG if no blocker AND weighted >= 0.70 AND mand_met >= 0.60 AND confirmed / M >= 0.50
 - Else REVIEW
 
@@ -438,6 +439,7 @@ counts.confirmed / partial / not_found are mandatory items only (ignore NOT_APPL
 evidence is one short line with the job and date when status is CONFIRMED or PARTIAL.
 mand_met, pref_met, weighted are 0–1 decimals. The app recomputes quick_route from those plus blockers. Do not invent STRONG.`;
 
+/** @deprecated Runtime uses catalog `resolvePromptVersion`. Kept for tests / seed content parity. */
 export function systemPromptForMode(mode: AnalysisMode): string {
   if (mode === "deep") return DEEP_ANALYSIS_SYSTEM_PROMPT;
   if (mode === "call_pack" || mode === "follow_up") return FOLLOW_UP_SYSTEM_PROMPT;

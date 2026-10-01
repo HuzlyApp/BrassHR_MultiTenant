@@ -20,6 +20,7 @@ export type AdminJobApplicationResumeHistoryItem = {
   uploadedByType: "worker" | "staff" | "unknown";
   parsingStatus: "pending" | "processing" | "completed" | "failed";
   isReuploaded: boolean;
+  improvementSummary?: unknown;
 };
 export type AdminJobApplicationResumeHistoryResult = {
   jobTitle: string;
@@ -40,7 +41,7 @@ type JobRequisitionJoin = {
 function formatUploadedAt(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -72,6 +73,7 @@ export type ResumeHistorySourceRow = {
   job_application_id?: string | null;
   parsing_status?: string | null;
   parse_status?: string | null;
+  parsed_json?: unknown;
 };
 
 function resolveHistoryParsingStatus(
@@ -237,7 +239,7 @@ export async function loadAdminJobApplicationResumeHistory(
   let resumeQuery = supabase
     .from("worker_resumes")
     .select(
-      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id, parsing_status, parse_status"
+      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id, parsing_status, parse_status, parsed_json"
     )
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: true });
@@ -327,6 +329,13 @@ export async function loadAdminJobApplicationResumeHistory(
       uploadedByType,
       parsingStatus: resolveHistoryParsingStatus(row),
       isReuploaded: isReuploadedResumePath(row.storage_path, row.file_url),
+      improvementSummary:
+        row.parsed_json &&
+        typeof row.parsed_json === "object" &&
+        row.parsed_json !== null &&
+        "improvementSummary" in row.parsed_json
+          ? (row.parsed_json as { improvementSummary?: unknown }).improvementSummary
+          : undefined,
     };
   });
 

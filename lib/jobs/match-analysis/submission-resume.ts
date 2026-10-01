@@ -15,36 +15,43 @@ const clipped = (max: number) =>
     return String(value).replace(/\s+/g, " ").trim().slice(0, max);
   }, z.string().max(max));
 
+/** Keep a long source résumé. Slice overflow instead of failing the whole parse. */
+function cappedList<T extends z.ZodTypeAny>(item: T, max: number) {
+  return z.preprocess((value) => {
+    if (value == null) return [];
+    if (!Array.isArray(value)) return [];
+    return value.slice(0, max);
+  }, z.array(item).max(max));
+}
+
 export const submissionResumeSchema = z.object({
   fullName: clipped(120),
   headline: clipped(200),
-  email: clipped(200),
-  phone: clipped(40),
-  location: clipped(200),
-  summary: clipped(1200),
-  skills: z.array(clipped(80)).max(24).default([]),
-  experience: z
-    .array(
-      z.object({
-        title: clipped(160),
-        company: clipped(160),
-        dates: clipped(80),
-        bullets: z.array(clipped(400)).max(8).default([]),
-      })
-    )
-    .max(10)
-    .default([]),
-  education: z
-    .array(
-      z.object({
-        school: clipped(200),
-        credential: clipped(200),
-        year: clipped(40),
-      })
-    )
-    .max(8)
-    .default([]),
-  licenses: z.array(clipped(200)).max(12).default([]),
+  email: clipped(200).default(""),
+  phone: clipped(40).default(""),
+  location: clipped(200).default(""),
+  linkedin: clipped(300).default(""),
+  summary: clipped(2400).default(""),
+  skills: cappedList(clipped(80), 40).default([]),
+  experience: cappedList(
+    z.object({
+      title: clipped(160).default(""),
+      company: clipped(160).default(""),
+      location: clipped(160).default(""),
+      dates: clipped(80).default(""),
+      bullets: cappedList(clipped(800), 20).default([]),
+    }),
+    24
+  ).default([]),
+  education: cappedList(
+    z.object({
+      school: clipped(200).default(""),
+      credential: clipped(200).default(""),
+      year: clipped(40).default(""),
+    }),
+    12
+  ).default([]),
+  licenses: cappedList(clipped(200), 24).default([]),
 });
 
 export type SubmissionResume = z.infer<typeof submissionResumeSchema>;
@@ -115,6 +122,7 @@ function experienceFromTitles(
     return titles.slice(0, 6).map((title, index) => ({
       title,
       company: "",
+      location: "",
       dates: "",
       bullets:
         index === 0
@@ -131,6 +139,7 @@ function experienceFromTitles(
     {
       title: analysis?.quick_match?.extracted_resume?.headline || "Professional experience",
       company: "",
+      location: "",
       dates: "",
       bullets: compact
         .split(/\n+/)
@@ -141,12 +150,31 @@ function experienceFromTitles(
   ];
 }
 
-export function submissionResumeFileName(fullName: string): string {
+export function submissionResumeFileName(
+  fullName: string,
+  ext: ".pdf" | ".docx" = ".pdf"
+): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   const first = sanitizeResumeNamePart(parts[0] ?? "");
   const last = sanitizeResumeNamePart(parts.slice(1).join(" "));
   const base = [first, last].filter(Boolean).join("_") || "candidate";
-  return `${base}_submission_resume.pdf`;
+  return `${base}_submission_resume${ext}`;
+}
+
+/** Prefer short skill/product labels; drop long requirement sentences from fallback dumps. */
+export function shortSkillLabels(items: string[], max = 16): string[] {
+  return cleanList(
+    items.filter((item) => {
+      const text = String(item ?? "").trim();
+      if (!text) return false;
+      if (text.length > 60) return false;
+      if (/\b(must|required|ability to|years of)\b/i.test(text) && text.split(/\s+/).length > 8) {
+        return false;
+      }
+      return true;
+    }),
+    max
+  );
 }
 
 export function parseSubmissionResume(value: unknown): SubmissionResume | null {
@@ -165,6 +193,7 @@ export function mergeSubmissionResume(
     email: preferred.email || fallback.email,
     phone: preferred.phone || fallback.phone,
     location: preferred.location || fallback.location,
+    linkedin: preferred.linkedin || fallback.linkedin,
     summary: preferred.summary || fallback.summary,
     skills: preferred.skills.length ? preferred.skills : fallback.skills,
     experience: preferred.experience.length ? preferred.experience : fallback.experience,
@@ -195,15 +224,13 @@ export function buildFallbackSubmissionResume(args: {
     email: identity.email,
     phone: identity.phone,
     location: identity.location,
+    linkedin: "",
     summary,
-    skills: cleanList(
-      [
-        ...confirmedRequirementLines(analysis),
-        ...(extracted?.named_products_in_jobs ?? []),
-        ...(extracted?.recent_titles ?? []),
-      ],
-      16
-    ),
+    skills: shortSkillLabels([
+      ...confirmedRequirementLines(analysis),
+      ...(extracted?.named_products_in_jobs ?? []),
+      ...(extracted?.recent_titles ?? []),
+    ]),
     experience: experienceFromTitles(analysis, resumeText),
     education: educationFromAnalysis(analysis),
     licenses: [],
@@ -213,7 +240,7 @@ export function buildFallbackSubmissionResume(args: {
 export function submissionResumeToPlainText(resume: SubmissionResume): string {
   const lines: string[] = [resume.fullName];
   if (resume.headline) lines.push(resume.headline);
-  const contact = [resume.location, resume.email, resume.phone].filter(Boolean).join("  |  ");
+  const contact = [resume.location, resume.email, resume.phone, resume.linkedin].filter(Boolean).join("  |  ");
   if (contact) lines.push(contact);
   if (resume.summary) {
     lines.push("", "PROFESSIONAL SUMMARY", resume.summary);
@@ -222,10 +249,11 @@ export function submissionResumeToPlainText(resume: SubmissionResume): string {
     lines.push("", "CORE QUALIFICATIONS", resume.skills.map((item) => `• ${item}`).join("\n"));
   }
   if (resume.experience.length) {
-    lines.push("", "RELEVANT EXPERIENCE");
+    lines.push("", "PROFESSIONAL EXPERIENCE");
     for (const job of resume.experience) {
       lines.push([job.title, job.company].filter(Boolean).join(" — "));
-      if (job.dates) lines.push(job.dates);
+      const meta = [job.location, job.dates].filter(Boolean).join("  |  ");
+      if (meta) lines.push(meta);
       for (const bullet of job.bullets) lines.push(`• ${bullet}`);
     }
   }

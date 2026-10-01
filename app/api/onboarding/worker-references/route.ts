@@ -12,6 +12,7 @@ import {
   type ReferenceRow,
 } from "@/lib/referencesValidation"
 import { markTenantStepCompletedByType } from "@/lib/onboarding/mark-tenant-step-completed"
+import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name"
 
 export const runtime = "nodejs"
 
@@ -48,6 +49,12 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 },
       )
+    }
+    const hasTooLongName = completeOnly.some(
+      (r) => isPersonNameTooLong(String(r.first ?? "")) || isPersonNameTooLong(String(r.last ?? "")),
+    )
+    if (hasTooLongName) {
+      return NextResponse.json({ error: personNameTooLongMessage("Reference name") }, { status: 400 })
     }
 
     const url = getSupabaseUrl()

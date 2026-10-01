@@ -1,3 +1,4 @@
+import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 import {
   appRoleToConsoleRole,
@@ -44,9 +45,9 @@ export function validateInviteStaffInput(input: {
   const role: StaffConsoleRole = roleRaw === "admin" ? "admin" : "recruiter";
 
   if (!firstName) return { error: "First name is required." };
-  if (firstName.length > 80) return { error: "First name is too long." };
+  if (isPersonNameTooLong(firstName)) return { error: personNameTooLongMessage("First name") };
   if (!lastName) return { error: "Last name is required." };
-  if (lastName.length > 80) return { error: "Last name is too long." };
+  if (isPersonNameTooLong(lastName)) return { error: personNameTooLongMessage("Last name") };
   if (!email.includes("@") || !EMAIL_RE.test(email)) {
     return { error: "Enter a valid email address." };
   }

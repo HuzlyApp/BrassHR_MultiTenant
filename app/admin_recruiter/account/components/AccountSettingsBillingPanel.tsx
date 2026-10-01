@@ -29,7 +29,7 @@ const COLORS = {
 function formatTrialEndDate(daysFromNow: number): string {
   const d = new Date();
   d.setDate(d.getDate() + daysFromNow);
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
     month: "long",
     day: "numeric",
     year: "numeric",

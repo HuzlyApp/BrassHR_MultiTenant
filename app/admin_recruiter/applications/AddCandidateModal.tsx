@@ -10,7 +10,10 @@ import {
   type DragEvent,
 } from "react";
 import { Check, Loader2, X } from "lucide-react";
-import type { AdminResumeParsePreview } from "@/app/api/admin/add-candidate-from-resume/parse/route";
+import type {
+  AdminResumeNameReview,
+  AdminResumeParsePreview,
+} from "@/app/api/admin/add-candidate-from-resume/parse/route";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import SuccessModal from "@/app/components/SuccessModal";
@@ -20,11 +23,12 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
+import { PERSON_NAME_MAX_LENGTH, validatePersonName } from "@/lib/person-name";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import { locationFromFreeText, normalizeStateCode } from "@/lib/service-area/normalize";
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
-import { parseCityStateLocation } from "@/lib/location/city-state";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
 import { useMatchAnalysisProvider } from "@/app/admin_recruiter/applications/MatchAnalysisModelSelect";
@@ -34,6 +38,55 @@ type ResumeTab = "files" | "paste";
 type ParseState = "idle" | "parsing" | "parsed" | "failed";
 
 type StateRow = { code: string; name: string };
+
+type JobLocationSource = {
+  location?: string | null;
+  facility?: string | null;
+  facility_name?: string | null;
+  postal_code?: string | null;
+  worksite_city?: string | null;
+  worksite_state?: string | null;
+  worksite_postal_code?: string | null;
+};
+
+/** Resolve work city/state from the job worksite (not the resume address). */
+function workLocationFromJob(job: JobLocationSource): {
+  city: string;
+  stateName: string;
+  stateCode: string;
+  postalCode: string;
+} {
+  const worksiteCity = String(job.worksite_city ?? "").trim();
+  const worksiteStateCode = normalizeStateCode(job.worksite_state);
+  if (worksiteCity && worksiteStateCode) {
+    return {
+      city: worksiteCity,
+      stateCode: worksiteStateCode,
+      stateName: getStateNameFromCode(worksiteStateCode) || worksiteStateCode,
+      postalCode:
+        String(job.worksite_postal_code ?? "").trim() ||
+        String(job.postal_code ?? "").trim() ||
+        "",
+    };
+  }
+
+  const freeText =
+    String(job.facility ?? "").trim() ||
+    String(job.location ?? "").trim() ||
+    String(job.facility_name ?? "").trim() ||
+    "";
+  const parsed = locationFromFreeText(
+    freeText,
+    job.worksite_postal_code || job.postal_code || null
+  );
+  const stateCode = normalizeStateCode(parsed.state);
+  return {
+    city: parsed.city,
+    stateCode,
+    stateName: stateCode ? getStateNameFromCode(stateCode) || stateCode : "",
+    postalCode: parsed.postalCode || String(job.postal_code ?? "").trim() || "",
+  };
+}
 
 const PARSE_FAILED_FALLBACK =
   "Resume parsing failed. Please upload a valid resume or fill in the required fields manually.";
@@ -49,38 +102,12 @@ type AddCandidateModalProps = {
   onClose: () => void;
   jobId?: string;
   jobTitle?: string | null;
-  /** Optional job worksite text used when the résumé has no city/state. */
+  /** Optional job worksite text used when the job record has no usable location. */
   jobLocation?: string | null;
   /** When set, shows a job picker as the first field (used on All candidates). */
   jobOptions?: AddCandidateJobOption[];
   onSuccess?: () => void;
 };
-
-async function locationFromJobWorksite(
-  jobId: string,
-  jobLocationHint?: string | null
-): Promise<{ city: string; state: string }> {
-  const hint = String(jobLocationHint ?? "").trim();
-  if (hint && hint !== "—") {
-    const parsed = parseCityStateLocation(hint);
-    if (parsed.city && parsed.stateCode) {
-      return { city: parsed.city, state: parsed.stateCode };
-    }
-  }
-  if (!jobId.trim()) return { city: "", state: "" };
-  try {
-    const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId.trim())}`, {
-      credentials: "include",
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      job?: { location?: string | null };
-    };
-    const parsed = parseCityStateLocation(String(payload.job?.location ?? "").trim());
-    return { city: parsed.city, state: parsed.stateCode };
-  } catch {
-    return { city: "", state: "" };
-  }
-}
 
 const FIELD_LABEL_CLASS = "mb-1.5 block text-sm font-normal text-[#6B7280]";
 const FIELD_INPUT_CLASS =
@@ -193,9 +220,15 @@ export default function AddCandidateModal({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [workCity, setWorkCity] = useState("");
-  /** Display name for searchable select (e.g. California); submit uses selectedStateCode. */
   const [workState, setWorkState] = useState("");
+  const [workPostalCode, setWorkPostalCode] = useState("");
   const [relocateToJobSite, setRelocateToJobSite] = useState(false);
+  const [stateRows, setStateRows] = useState<StateRow[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [jobLocationLoading, setJobLocationLoading] = useState(false);
   const [resumeTitle, setResumeTitle] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -208,15 +241,26 @@ export default function AddCandidateModal({
   const [dragActive, setDragActive] = useState(false);
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
+  const [nameReview, setNameReview] = useState<AdminResumeNameReview | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [jobError, setJobError] = useState<string | null>(null);
-  const [stateRows, setStateRows] = useState<StateRow[]>([]);
-  const [stateOptions, setStateOptions] = useState<string[]>([]);
-  const [cityOptions, setCityOptions] = useState<string[]>([]);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [citiesLoading, setCitiesLoading] = useState(false);
+
+  const firstNameCheck = useMemo(
+    () => validatePersonName(firstName, { label: "First name" }),
+    [firstName]
+  );
+  const lastNameCheck = useMemo(
+    () => validatePersonName(lastName, { label: "Last name" }),
+    [lastName]
+  );
+  const namesValid = firstNameCheck.ok && lastNameCheck.ok;
+  const nameNeedsReview = Boolean(nameReview?.needsReview && nameReview.rawExtract);
+  const firstNameError =
+    !firstNameCheck.ok && (firstName.trim() || nameNeedsReview) ? firstNameCheck.error : null;
+  const lastNameError =
+    !lastNameCheck.ok && (lastName.trim() || nameNeedsReview) ? lastNameCheck.error : null;
 
   const showJobPicker = Boolean(jobOptions?.length) && !jobId.trim();
   const effectiveJobId = (jobId.trim() || selectedJobId).trim();
@@ -228,19 +272,21 @@ export default function AddCandidateModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Ignore responses from parses the recruiter has already superseded. */
   const parseRequestRef = useRef(0);
+  const modalBodyRef = useRef<HTMLDivElement>(null);
+  const workLocationAlertRef = useRef<HTMLParagraphElement>(null);
+  /** Last worksite loaded from the job, restored for each new candidate. */
+  const jobWorkLocationRef = useRef<ReturnType<typeof workLocationFromJob> | null>(null);
 
   const resetParse = useCallback(() => {
     parseRequestRef.current += 1;
     setParseState("idle");
     setParsePreview(null);
+    setNameReview(null);
     setParseError(null);
     setFirstName("");
     setLastName("");
     setEmail("");
     setPhone("");
-    setWorkCity("");
-    setWorkState("");
-    setRelocateToJobSite(false);
   }, []);
 
   const resetCandidateEntry = useCallback(() => {
@@ -250,6 +296,11 @@ export default function AddCandidateModal({
     setFileError(null);
     setPasteError(null);
     setDragActive(false);
+    const jobLocationDefaults = jobWorkLocationRef.current;
+    setWorkCity(jobLocationDefaults?.city ?? "");
+    setWorkState(jobLocationDefaults?.stateName ?? "");
+    setWorkPostalCode(jobLocationDefaults?.postalCode ?? "");
+    setRelocateToJobSite(false);
     resetParse();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetParse]);
@@ -258,117 +309,17 @@ export default function AddCandidateModal({
     setActiveTab("files");
     setSelectedJobId("");
     setJobError(null);
+    jobWorkLocationRef.current = null;
     resetCandidateEntry();
   }, [resetCandidateEntry]);
 
-  const runParse = useCallback(
-    async (source: { file?: File | null; text?: string; title?: string }) => {
-      const requestId = parseRequestRef.current + 1;
-      parseRequestRef.current = requestId;
-      setParseState("parsing");
-      setParsePreview(null);
-      setParseError(null);
-      setFirstName("");
-      setLastName("");
-      setEmail("");
-      setPhone("");
-      setWorkCity("");
-      setWorkState("");
-      setRelocateToJobSite(false);
-
-      try {
-        const form = new FormData();
-        if (source.file) {
-          form.set("resume", source.file);
-        } else {
-          form.set("resumeText", (source.text ?? "").trim());
-          if (source.title?.trim()) form.set("resumeTitle", source.title.trim());
-        }
-
-        const response = await fetch("/api/admin/add-candidate-from-resume/parse", {
-          method: "POST",
-          credentials: "include",
-          body: form,
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          error?: string;
-          warning?: string | null;
-          qualityOk?: boolean;
-          parsed?: AdminResumeParsePreview;
-          extractedText?: string | null;
-        };
-        if (parseRequestRef.current !== requestId) return;
-
-        const preview = payload.parsed ?? null;
-        if (preview) {
-          setParsePreview(preview);
-          setFirstName(preview.firstName ?? "");
-          setLastName(preview.lastName ?? "");
-          setEmail(preview.email ?? "");
-          setPhone(preview.phone ?? "");
-
-          // Assignment work location always comes from the job worksite, not the résumé.
-          let workCityValue = "";
-          let workStateCode = "";
-          if (effectiveJobId) {
-            const fromJob = await locationFromJobWorksite(effectiveJobId, jobLocation);
-            workCityValue = fromJob.city;
-            workStateCode = fromJob.state;
-          }
-          const stateLabel = getStateNameFromCode(workStateCode) || workStateCode;
-          setWorkCity(workCityValue);
-          setWorkState(stateLabel);
-          setRelocateToJobSite(false);
-
-          const extracted = payload.extractedText?.trim() || source.text?.trim() || "";
-          const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
-          if (autoTitle) setResumeTitle(autoTitle);
-          if (source.file && extracted) {
-            setResumeText(extracted);
-          } else if (source.text?.trim()) {
-            setResumeText(source.text.trim());
-          }
-        }
-
-        const hasIdentity = Boolean(
-          preview?.firstName?.trim() && preview?.lastName?.trim() && preview?.email?.trim()
-        );
-        if (response.ok && hasIdentity) {
-          setParseState("parsed");
-          return;
-        }
-
-        setParseState("failed");
-        setParseError(
-          payload.warning?.trim() || payload.error?.trim() || PARSE_FAILED_FALLBACK
-        );
-      } catch {
-        if (parseRequestRef.current !== requestId) return;
-        setParseState("failed");
-        setParseError("Could not parse the resume. Please check your connection and try again.");
-      }
-    },
-    [effectiveJobId, jobLocation]
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !uploading && !successOpen && !errorOpen) {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [open, uploading, successOpen, errorOpen, onClose]);
-
-  useEffect(() => {
-    if (!open) resetForm();
-  }, [open, resetForm]);
+  const applyJobWorkLocation = useCallback((job: JobLocationSource) => {
+    const next = workLocationFromJob(job);
+    jobWorkLocationRef.current = next;
+    setWorkCity(next.city);
+    setWorkState(next.stateName);
+    setWorkPostalCode(next.postalCode);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -383,12 +334,7 @@ export default function AddCandidateModal({
           .order("sort_order", { ascending: true })
           .order("name", { ascending: true });
 
-        if (!active) return;
-        if (error || !data?.length) {
-          setStateRows([]);
-          setStateOptions([]);
-          return;
-        }
+        if (!active || error || !data?.length) return;
 
         const states = data.map((row) => ({
           code: String(row.code),
@@ -396,11 +342,6 @@ export default function AddCandidateModal({
         }));
         setStateRows(states);
         setStateOptions(states.map((row) => row.name));
-      } catch {
-        if (active) {
-          setStateRows([]);
-          setStateOptions([]);
-        }
       } finally {
         if (active) setLocationLoading(false);
       }
@@ -412,18 +353,12 @@ export default function AddCandidateModal({
   }, [open]);
 
   const selectedStateCode = useMemo(() => {
-    const trimmed = workState.trim();
-    if (!trimmed) return "";
-    const fromRowsByCode = stateRows.find(
-      (row) => row.code.toUpperCase() === trimmed.toUpperCase()
-    )?.code;
-    if (fromRowsByCode) return fromRowsByCode;
-    const fromRowsByName = stateRows.find((row) => row.name === trimmed)?.code;
-    if (fromRowsByName) return fromRowsByName;
-    const fromName = getStateCodeFromName(trimmed);
+    const fromRows = stateRows.find((row) => row.name === workState)?.code;
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(workState);
     if (fromName) return fromName;
-    const upper = trimmed.toUpperCase();
-    if (upper.length === 2 && getStateNameFromCode(upper)) return upper;
+    const trimmed = workState.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
     return "";
   }, [workState, stateRows]);
 
@@ -450,7 +385,6 @@ export default function AddCandidateModal({
           setCityOptions([]);
           return;
         }
-
         setCityOptions((data ?? []).map((row) => String(row.city_name)));
       } catch {
         if (active) setCityOptions([]);
@@ -464,45 +398,52 @@ export default function AddCandidateModal({
     };
   }, [open, selectedStateCode]);
 
-  // Align resume-filled city label with the backend option list once cities load.
   useEffect(() => {
-    const current = workCity.trim();
-    if (!current || cityOptions.length === 0) return;
-    if (cityOptions.includes(current)) return;
-    const match = cityOptions.find(
-      (option) => option.toLowerCase() === current.toLowerCase()
-    );
-    if (match) setWorkCity(match);
-  }, [cityOptions, workCity]);
-
-  // If resume left a state code, normalize to the display name used by the searchable select.
-  useEffect(() => {
-    const raw = workState.trim();
-    if (!raw || stateOptions.length === 0) return;
-    if (stateOptions.includes(raw)) return;
-    const fromCode = getStateNameFromCode(raw);
-    if (fromCode && stateOptions.includes(fromCode)) {
-      setWorkState(fromCode);
+    if (!open || !effectiveJobId) {
+      if (!effectiveJobId) {
+        jobWorkLocationRef.current = null;
+        setWorkCity("");
+        setWorkState("");
+        setWorkPostalCode("");
+      }
+      setJobLocationLoading(false);
+      return;
     }
-  }, [stateOptions, workState]);
 
-  const displayStateValue = useMemo(() => {
-    const raw = workState.trim();
-    if (!raw) return "";
-    if (stateOptions.includes(raw)) return raw;
-    const fromCode = getStateNameFromCode(raw);
-    if (fromCode) return fromCode;
-    const fromRows = stateRows.find(
-      (row) => row.code.toUpperCase() === raw.toUpperCase()
-    )?.name;
-    return fromRows || raw;
-  }, [workState, stateOptions, stateRows]);
+    let active = true;
+    setJobLocationLoading(true);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/admin/jobs/${encodeURIComponent(effectiveJobId)}`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          job?: JobLocationSource;
+        };
+        if (!active) return;
+        const fallbackLocation = String(jobLocation ?? "").trim();
+        if (response.ok && payload.job) {
+          applyJobWorkLocation({
+            ...payload.job,
+            location: payload.job.location || fallbackLocation || null,
+          });
+        } else if (fallbackLocation) {
+          applyJobWorkLocation({ location: fallbackLocation });
+        }
+      } catch {
+        // Keep manual entry available if job location cannot be loaded.
+        const fallbackLocation = String(jobLocation ?? "").trim();
+        if (active && fallbackLocation) applyJobWorkLocation({ location: fallbackLocation });
+      } finally {
+        if (active) setJobLocationLoading(false);
+      }
+    })();
 
-  const effectiveStateOptions = useMemo(() => {
-    const current = displayStateValue.trim();
-    if (!current || stateOptions.includes(current)) return stateOptions;
-    return [...stateOptions, current].sort((a, b) => a.localeCompare(b));
-  }, [displayStateValue, stateOptions]);
+    return () => {
+      active = false;
+    };
+  }, [open, effectiveJobId, jobLocation, applyJobWorkLocation]);
 
   const effectiveCityOptions = useMemo(() => {
     const current = workCity.trim();
@@ -510,17 +451,130 @@ export default function AddCandidateModal({
     return [...cityOptions, current].sort((a, b) => a.localeCompare(b));
   }, [workCity, cityOptions]);
 
-  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
-  const cityOptionsUnavailable =
-    Boolean(displayStateValue) &&
-    !citiesLoading &&
-    effectiveCityOptions.length === 0 &&
-    !workCity.trim();
+  const effectiveStateOptions = useMemo(() => {
+    const current = workState.trim();
+    if (!current) return stateOptions;
+    if (stateOptions.includes(current)) return stateOptions;
+    const fromCode = getStateNameFromCode(current);
+    if (fromCode && stateOptions.includes(fromCode)) return stateOptions;
+    return [...stateOptions, fromCode || current].sort((a, b) => a.localeCompare(b));
+  }, [workState, stateOptions]);
 
-  function handleWorkStateChange(value: string) {
-    setWorkState(value);
-    setWorkCity("");
-  }
+  const displayStateValue = useMemo(() => {
+    const raw = workState.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw) || effectiveStateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && (stateOptions.includes(fromCode) || effectiveStateOptions.includes(fromCode))) {
+      return fromCode;
+    }
+    return raw;
+  }, [effectiveStateOptions, workState, stateOptions]);
+
+  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
+  const resolvedWorkStateCode = useMemo(() => {
+    return (
+      selectedStateCode ||
+      getStateCodeFromName(workState) ||
+      normalizeStateCode(workState) ||
+      ""
+    );
+  }, [selectedStateCode, workState]);
+
+  const runParse = useCallback(
+    async (source: { file?: File | null; text?: string; title?: string }) => {
+      const requestId = parseRequestRef.current + 1;
+      parseRequestRef.current = requestId;
+      setParseState("parsing");
+      setParsePreview(null);
+      setNameReview(null);
+      setParseError(null);
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
+
+      try {
+        const form = new FormData();
+        if (source.file) {
+          form.set("resume", source.file);
+        } else {
+          form.set("resumeText", (source.text ?? "").trim());
+          if (source.title?.trim()) form.set("resumeTitle", source.title.trim());
+        }
+
+        const response = await fetch("/api/admin/add-candidate-from-resume/parse", {
+          method: "POST",
+          credentials: "include",
+          body: form,
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          warning?: string | null;
+          qualityOk?: boolean;
+          parsed?: AdminResumeParsePreview;
+          nameReview?: AdminResumeNameReview;
+          extractedText?: string | null;
+        };
+        if (parseRequestRef.current !== requestId) return;
+
+        const preview = payload.parsed ?? null;
+        setNameReview(payload.nameReview ?? null);
+        if (preview) {
+          setParsePreview(preview);
+          setFirstName(preview.firstName ?? "");
+          setLastName(preview.lastName ?? "");
+          setEmail(preview.email ?? "");
+          setPhone(preview.phone ?? "");
+          const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
+          if (autoTitle) setResumeTitle(autoTitle);
+          const extracted = payload.extractedText?.trim() || source.text?.trim() || "";
+          if (source.file && extracted) {
+            setResumeText(extracted);
+          } else if (source.text?.trim()) {
+            setResumeText(source.text.trim());
+          }
+        }
+
+        const hasIdentity = Boolean(
+          preview?.firstName?.trim() && preview?.lastName?.trim() && preview?.email?.trim()
+        );
+        if (response.ok && hasIdentity) {
+          setParseState("parsed");
+          return;
+        }
+
+        setParseState("failed");
+        setParseError(
+          payload.warning?.trim() || payload.error?.trim() || PARSE_FAILED_FALLBACK
+        );
+      } catch {
+        if (parseRequestRef.current !== requestId) return;
+        setParseState("failed");
+        setParseError("Could not parse the resume. Please check your connection and try again.");
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !uploading && !successOpen && !errorOpen) {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open, uploading, successOpen, errorOpen, onClose]);
+
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open, resetForm]);
 
   function handleClose() {
     if (uploading || importOpen) return;
@@ -641,9 +695,8 @@ export default function AddCandidateModal({
       }
     }
 
-    const nameError = validateAddCandidateField("name", {
-      name: [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" "),
-    });
+    const nameError =
+      (!firstNameCheck.ok && firstNameCheck.error) || (!lastNameCheck.ok && lastNameCheck.error) || null;
     const emailError = validateAddCandidateField("email", { email });
     if (nameError || emailError) {
       const message = nameError || emailError || "Fill in the candidate name and email.";
@@ -651,7 +704,7 @@ export default function AddCandidateModal({
       else setPasteError(message);
       return;
     }
-    if (!workCity.trim() || !workState.trim()) {
+    if (!workCity.trim() || !resolvedWorkStateCode) {
       const message = "Where will they work this assignment?";
       if (uploadFromFile) setFileError(message);
       else setPasteError(message);
@@ -668,13 +721,13 @@ export default function AddCandidateModal({
         form.set("resumeText", resumeText.trim());
         if (resumeTitle.trim()) form.set("resumeTitle", resumeTitle.trim());
       }
-      if (firstName.trim()) form.set("firstName", firstName.trim());
-      if (lastName.trim()) form.set("lastName", lastName.trim());
+      if (firstNameCheck.ok) form.set("firstName", firstNameCheck.value);
+      if (lastNameCheck.ok) form.set("lastName", lastNameCheck.value);
       if (email.trim()) form.set("email", email.trim());
       if (phone.trim()) form.set("phone", phone.trim());
       if (workCity.trim()) form.set("workCity", workCity.trim());
-      const stateToSubmit = selectedStateCode || workState.trim();
-      if (stateToSubmit) form.set("workState", stateToSubmit);
+      if (resolvedWorkStateCode) form.set("workState", resolvedWorkStateCode);
+      if (workPostalCode.trim()) form.set("workPostalCode", workPostalCode.trim());
       form.set("relocateToJobSite", relocateToJobSite ? "true" : "false");
       form.set("analysisProvider", analysisProvider);
 
@@ -724,15 +777,16 @@ export default function AddCandidateModal({
     (parseState === "parsed" || parseState === "failed" || hasIdentity);
   const workLocation = useMemo(
     () =>
-      workCity.trim() && (selectedStateCode || workState.trim())
+      workCity.trim() && resolvedWorkStateCode
         ? {
             city: workCity.trim(),
-            state: selectedStateCode || workState.trim(),
+            state: resolvedWorkStateCode,
+            postalCode: workPostalCode.trim() || undefined,
             locationType: "onsite" as const,
             relocateToJobSite,
           }
         : null,
-    [relocateToJobSite, selectedStateCode, workCity, workState]
+    [relocateToJobSite, resolvedWorkStateCode, workCity, workPostalCode]
   );
   const workLocationPreview = useServiceAreaPreview(workLocation, "attach_candidate", {
     jobId: effectiveJobId || null,
@@ -743,10 +797,46 @@ export default function AddCandidateModal({
     parseState !== "parsing" &&
     hasResumeSource &&
     hasIdentity &&
+    namesValid &&
     Boolean(effectiveJobId) &&
     Boolean(workLocation) &&
     !workLocationPreview.loading &&
     workLocationPreview.allowed;
+
+  useEffect(() => {
+    if (!open || !showIdentityFields || workLocationPreview.loading) return;
+    const message = workLocationPreview.message?.trim();
+    if (!message) return;
+
+    const scrollToAlert = () => {
+      const alertEl = workLocationAlertRef.current;
+      const bodyEl = modalBodyRef.current;
+      if (bodyEl && alertEl) {
+        const top =
+          alertEl.offsetTop - Math.max(16, bodyEl.clientHeight - alertEl.offsetHeight - 32);
+        bodyEl.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+        return;
+      }
+      if (bodyEl) {
+        bodyEl.scrollTo({ top: bodyEl.scrollHeight, behavior: "smooth" });
+      }
+    };
+
+    let timeoutId = 0;
+    const frame = window.requestAnimationFrame(() => {
+      scrollToAlert();
+      timeoutId = window.setTimeout(scrollToAlert, 50);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [
+    open,
+    showIdentityFields,
+    workLocationPreview.loading,
+    workLocationPreview.message,
+  ]);
 
   if (!open && !successOpen && !errorOpen && !uploading && !importOpen) return null;
 
@@ -763,7 +853,7 @@ export default function AddCandidateModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-candidates-modal-title"
-            className="relative flex max-h-[min(90vh,840px)] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-[#E5E7EB] bg-white shadow-xl"
+            className="relative flex max-h-[min(92vh,880px)] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-[#E5E7EB] bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#E5E7EB] px-6 py-5">
@@ -784,7 +874,10 @@ export default function AddCandidateModal({
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5 [scrollbar-color:#CBD5E1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#CBD5E1] [&::-webkit-scrollbar-track]:bg-transparent">
+            <div
+              ref={modalBodyRef}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5"
+            >
               {showJobPicker ? (
                 <div className="mb-4">
                   <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-job">
@@ -998,34 +1091,72 @@ export default function AddCandidateModal({
                       <p className="truncate text-xs text-[#64748B]">{parsePreview.jobRole}</p>
                     ) : null}
                   </div>
+                  {nameNeedsReview && nameReview ? (
+                    <div
+                      role="alert"
+                      className="mb-4 rounded-lg border border-[#FCD34D] bg-[#FFFBEB] px-3 py-2.5 text-xs text-[#92400E]"
+                    >
+                      <p className="font-medium">{nameReview.message}</p>
+                      <p className="mt-1 break-all">
+                        Extracted from resume: <span className="font-mono">{nameReview.rawExtract}</span>
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-2 font-medium text-[#92400E] underline underline-offset-2 disabled:opacity-50"
+                        onClick={() => {
+                          setFirstName("");
+                          setLastName("");
+                        }}
+                        disabled={uploading}
+                      >
+                        Clear and type manually
+                      </button>
+                    </div>
+                  ) : null}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-first-name">
-                        First name
+                        First name <span className="text-[#B91C1C]">*</span>
                       </label>
                       <input
                         id="add-candidate-first-name"
-                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        className={`${FIELD_INPUT_CLASS} h-10 ${firstNameError ? "border-[#F87171]" : ""}`}
                         placeholder="First name"
                         value={firstName}
                         onChange={(event) => setFirstName(event.target.value)}
+                        maxLength={PERSON_NAME_MAX_LENGTH}
                         disabled={uploading}
                         autoComplete="given-name"
+                        aria-invalid={Boolean(firstNameError)}
+                        aria-describedby={firstNameError ? "add-candidate-first-name-error" : undefined}
                       />
+                      {firstNameError ? (
+                        <p id="add-candidate-first-name-error" className="mt-1 text-xs text-[#B91C1C]">
+                          {firstNameError}
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-last-name">
-                        Last name
+                        Last name <span className="text-[#B91C1C]">*</span>
                       </label>
                       <input
                         id="add-candidate-last-name"
-                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        className={`${FIELD_INPUT_CLASS} h-10 ${lastNameError ? "border-[#F87171]" : ""}`}
                         placeholder="Last name"
                         value={lastName}
                         onChange={(event) => setLastName(event.target.value)}
+                        maxLength={PERSON_NAME_MAX_LENGTH}
                         disabled={uploading}
                         autoComplete="family-name"
+                        aria-invalid={Boolean(lastNameError)}
+                        aria-describedby={lastNameError ? "add-candidate-last-name-error" : undefined}
                       />
+                      {lastNameError ? (
+                        <p id="add-candidate-last-name-error" className="mt-1 text-xs text-[#B91C1C]">
+                          {lastNameError}
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-email">
@@ -1062,92 +1193,100 @@ export default function AddCandidateModal({
                         Where will they work this assignment?
                       </p>
                       <p className="mt-1 text-xs text-[#64748B]">
-                        Filled from the job work location. Change it if they will work somewhere else.
+                        Prefilled from the job location — confirm the job site, not the address on
+                        the resume.
+                        {jobLocationLoading ? " Loading job location…" : null}
                       </p>
                     </div>
-                    <SearchableSelectField
-                      label="Work state"
-                      compact
-                      loading={locationLoading}
-                      disabled={uploading || locationLoading || stateOptionsUnavailable}
-                      value={displayStateValue}
-                      onChange={handleWorkStateChange}
-                      placeholder={
-                        locationLoading
-                          ? "Loading…"
-                          : stateOptionsUnavailable
-                            ? "No states found"
-                            : "Search state"
-                      }
-                      searchPlaceholder="Type to search states"
-                      options={effectiveStateOptions}
-                      emptyMessage="No states found. Try another search."
-                    />
-                    <SearchableSelectField
-                      label="Work city"
-                      compact
-                      disabled={
-                        uploading ||
-                        (!displayStateValue && !workCity.trim()) ||
-                        stateOptionsUnavailable ||
-                        cityOptionsUnavailable
-                      }
-                      loading={citiesLoading}
-                      value={workCity}
-                      onChange={setWorkCity}
-                      placeholder={
-                        stateOptionsUnavailable || cityOptionsUnavailable
-                          ? "No cities found"
-                          : !displayStateValue
+                    <div>
+                      <SearchableSelectField
+                        label="Work state"
+                        required
+                        compact
+                        dropdownPlacement="up"
+                        loading={locationLoading || jobLocationLoading}
+                        disabled={uploading || locationLoading}
+                        value={displayStateValue}
+                        onChange={(value) => {
+                          setWorkState(value);
+                          setWorkCity("");
+                          setWorkPostalCode("");
+                        }}
+                        placeholder={
+                          locationLoading
+                            ? "Loading…"
+                            : stateOptionsUnavailable
+                              ? "No states found"
+                              : "Search state"
+                        }
+                        searchPlaceholder="Type to search states"
+                        options={effectiveStateOptions}
+                        emptyMessage="No states found. Try another search."
+                      />
+                    </div>
+                    <div>
+                      <SearchableSelectField
+                        label="Work city"
+                        required
+                        compact
+                        allowCustom
+                        dropdownPlacement="up"
+                        loading={citiesLoading || jobLocationLoading}
+                        disabled={uploading || !displayStateValue || stateOptionsUnavailable}
+                        value={workCity}
+                        onChange={setWorkCity}
+                        placeholder={
+                          !displayStateValue
                             ? "Select state first"
                             : citiesLoading
                               ? "Loading…"
                               : "Search city"
-                      }
-                      searchPlaceholder="Type to search cities"
-                      options={effectiveCityOptions}
-                      emptyMessage="No cities found. Try another search."
-                    />
-                    <label className="sm:col-span-2 flex cursor-pointer items-center gap-2.5 text-sm text-[#334155]">
-                      <span
-                        className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border transition-colors"
-                        style={
-                          relocateToJobSite
-                            ? {
-                                borderColor: secondaryColor,
-                                backgroundColor: secondaryColor,
-                              }
-                            : {
-                                borderColor: "#D0D5DD",
-                                backgroundColor: "#FFFFFF",
-                              }
                         }
+                        searchPlaceholder="Type to search cities"
+                        options={effectiveCityOptions}
+                        emptyMessage="No cities found. Try another search."
+                      />
+                    </div>
+                    {workLocationPreview.message ? (
+                      <p
+                        ref={workLocationAlertRef}
+                        className="sm:col-span-2 text-sm text-[#B91C1C]"
+                        role="alert"
                       >
+                        {workLocationPreview.message}
+                      </p>
+                    ) : null}
+                    <label className="sm:col-span-2 flex cursor-pointer items-center gap-2.5 text-sm text-[#334155]">
+                      <span className="relative inline-flex h-5 w-5 shrink-0">
                         <input
                           type="checkbox"
                           checked={relocateToJobSite}
                           onChange={(event) => setRelocateToJobSite(event.target.checked)}
                           disabled={uploading}
-                          className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                          aria-label="They will relocate to the job site"
+                          className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border border-[#CBD5E1] bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_28%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
+                          style={
+                            relocateToJobSite
+                              ? {
+                                  backgroundColor: secondaryColor,
+                                  borderColor: secondaryColor,
+                                }
+                              : undefined
+                          }
                         />
-                        {relocateToJobSite ? (
-                          <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} aria-hidden />
-                        ) : null}
+                        <Check
+                          className="pointer-events-none absolute inset-0 m-auto hidden h-3.5 w-3.5 text-white peer-checked:block"
+                          strokeWidth={3}
+                          aria-hidden
+                        />
                       </span>
-                      <span>They will relocate to the job site</span>
+                      They will relocate to the job site
                     </label>
-                    {workLocationPreview.message ? (
-                      <p className="sm:col-span-2 text-sm text-[#B91C1C]" role="alert">
-                        {workLocationPreview.message}
-                      </p>
-                    ) : null}
                   </div>
                 </div>
               ) : null}
             </div>
 
-            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] bg-white px-6 py-4">
+            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
               <button
                 type="button"
                 onClick={handleClose}
@@ -1167,7 +1306,7 @@ export default function AddCandidateModal({
                       ? "Please wait for the resume to finish parsing"
                       : workLocationPreview.message
                         ? SERVICE_AREA_COPY.location_not_enabled
-                        : !workCity.trim() || !workState.trim()
+                        : !workCity.trim() || !resolvedWorkStateCode
                           ? "Where will they work this assignment?"
                           : "Upload a resume and fill in name and email"
                 }

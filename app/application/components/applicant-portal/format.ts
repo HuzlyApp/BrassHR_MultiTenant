@@ -1,3 +1,4 @@
+import { easternDateString, formatEastern } from "@/lib/datetime/eastern";
 import type {
   AppointmentStatus,
   AttendanceLog,
@@ -31,7 +32,7 @@ export function formatScheduleDate(iso: string | null | undefined) {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -42,21 +43,14 @@ export function formatScheduleDate(iso: string | null | undefined) {
 }
 
 export function formatDateOnly(iso: string | null | undefined) {
-  if (!iso) return "—";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatEastern(iso, { month: "long", day: "numeric", year: "numeric" }, "—");
 }
 
 export function formatTimeParts(iso: string | null | undefined) {
   if (!iso) return { time: "—", meridiem: "" };
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return { time: "—", meridiem: "" };
-  const parts = date.toLocaleTimeString(undefined, {
+  const parts = date.toLocaleTimeString("en-US", { timeZone: "America/New_York", 
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -120,16 +114,22 @@ export function locationDisplay(
 }
 
 export function isSameCalendarDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return easternDateString(a) === easternDateString(b);
 }
 
 export function dayLabel(dateIso: string) {
+  const dateOnly = /^(\d{4}-\d{2}-\d{2})/.exec(dateIso.trim());
+  if (dateOnly && dateIso.trim().length === 10) {
+    if (dateOnly[1] === easternDateString(new Date())) return "Today";
+    return formatEastern(dateOnly[1], { weekday: "long", month: "short", day: "numeric" });
+  }
   const date = new Date(dateIso);
   if (Number.isNaN(date.getTime())) return dateIso;
   if (isSameCalendarDay(date, new Date())) return "Today";
-  return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
