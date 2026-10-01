@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  Download,
+  Eye,
   FileSignature,
   FileText,
   Layers,
@@ -506,6 +508,7 @@ export default function CandidateWorkflowStepModal({
                   </dl>
                 </Section>
 
+                {/* Timeline hidden from step details.
                 <Section title="Timeline">
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Meta label="Assigned" value={formatDateTime(inspection.assignedAt)} />
@@ -518,6 +521,7 @@ export default function CandidateWorkflowStepModal({
                     />
                   </dl>
                 </Section>
+                */}
 
                 {staffReview ? (
                   <Section title={variant === "interview" ? "Interview outcome" : "Internal review"}>
@@ -573,21 +577,33 @@ export default function CandidateWorkflowStepModal({
                           {doc.fileUnavailable ? (
                             <p className="mt-2 text-xs text-amber-800">File unavailable.</p>
                           ) : doc.previewUrl ? (
-                            <div className="mt-2 flex flex-wrap gap-3">
+                            <div className="mt-3 flex flex-wrap gap-2">
                               <a
                                 href={doc.previewUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+                                className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold transition hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]"
+                                style={{
+                                  borderColor: "var(--brand-primary)",
+                                  color: "var(--brand-primary)",
+                                  backgroundColor: "color-mix(in srgb, var(--brand-primary) 6%, white)",
+                                }}
                               >
+                                <Eye className="h-3.5 w-3.5" aria-hidden />
                                 Preview
                               </a>
                               <a
                                 href={doc.downloadUrl ?? doc.previewUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+                                download={doc.originalFileName ?? true}
+                                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition hover:brightness-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]"
+                                style={{
+                                  background: "var(--step-modal-cta)",
+                                  color: "var(--step-modal-on-primary)",
+                                }}
                               >
+                                <Download className="h-3.5 w-3.5" aria-hidden />
                                 Download
                               </a>
                             </div>
