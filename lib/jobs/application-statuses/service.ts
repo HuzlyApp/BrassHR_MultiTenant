@@ -43,6 +43,27 @@ type HistoryRow = {
   created_at: string;
 };
 
+/**
+ * Placement acceptance is the system key `hired` ("Selected by Client"), not the display name.
+ */
+export async function previousPlacementSystemKey(
+  supabase: SupabaseClient,
+  params: { tenantId: string; statusId: string | null; displayName: string | null }
+): Promise<string | null> {
+  if (params.statusId) {
+    const { data, error } = await supabase
+      .from("application_statuses")
+      .select("system_key")
+      .eq("id", params.statusId)
+      .eq("tenant_id", params.tenantId)
+      .maybeSingle();
+    if (!error && data && typeof data.system_key === "string" && data.system_key.trim()) {
+      return data.system_key;
+    }
+  }
+  return params.displayName;
+}
+
 function mapStatus(row: StatusRow): ApplicationStatusRecord {
   return {
     id: row.id,
@@ -387,9 +408,15 @@ export async function changeApplicationStatus(
     }
   }
 
+  const previousStatusKey = await previousPlacementSystemKey(supabase, {
+    tenantId: input.tenantId,
+    statusId: result.history?.fromStatus.id ?? null,
+    displayName: result.history?.fromStatus.name ?? null,
+  });
+
   if (
     shouldSuspendPostHireAfterStatusChange({
-      previousStatus: result.history?.fromStatus.name,
+      previousStatus: previousStatusKey,
       nextStatus: result.application.status,
       unchanged: result.unchanged,
     })

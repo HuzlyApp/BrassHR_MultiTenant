@@ -56,6 +56,7 @@ import type { ServiceAreaLocation } from "@/lib/service-area/types";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
+import { stampHireStageOnStepSettings } from "@/lib/onboarding/hire-stage-catalog";
 import {
   jobScreeningQuestionToInput,
   loadJobScreeningQuestions,
@@ -1855,15 +1856,16 @@ export async function startOrResumeJobApplication(
           : typeof node.phase === "string"
             ? node.phase
             : "pre_hire";
+      const stepType = String(node.stepId ?? "custom");
       return {
         tenant_id: input.tenantId,
         workflow_instance_id: instance.id,
         snapshot_step_id: String(node.id ?? `step-${index + 1}`),
         position: index + 1,
         title: String(node.label ?? `Step ${index + 1}`),
-        step_type: String(node.stepId ?? "custom"),
+        step_type: stepType,
         is_required: node.required === true,
-        settings: { ...settings, phase },
+        settings: stampHireStageOnStepSettings(stepType, { ...settings, phase }),
       };
     });
     const { error: stepsError } = await supabase
@@ -1968,15 +1970,16 @@ export async function attachWorkflowInstanceToApplication(
           : typeof node.phase === "string"
             ? node.phase
             : "pre_hire";
+      const stepType = String(node.stepId ?? "custom");
       return {
         tenant_id: input.tenantId,
         workflow_instance_id: instance.id,
         snapshot_step_id: String(node.id ?? `step-${index + 1}`),
         position: index + 1,
         title: String(node.label ?? `Step ${index + 1}`),
-        step_type: String(node.stepId ?? "custom"),
+        step_type: stepType,
         is_required: node.required === true,
-        settings: { ...settings, phase },
+        settings: stampHireStageOnStepSettings(stepType, { ...settings, phase }),
       };
     });
     const { error: stepsError } = await supabase
