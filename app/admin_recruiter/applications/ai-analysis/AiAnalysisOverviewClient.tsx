@@ -873,8 +873,8 @@ export function AiAnalysisOverviewClient({
   const parkedInTalentPool =
     app?.recruiter_decision === "do_not_pursue" ||
     (statusSystemKey ?? app?.status_system_key) === "rejected";
-  // Same Fit as the job candidates list: checklist band, with a stored Quick Match
-  // LOW_MATCH forcing Low before Deep Match.
+  // Same Fit as the job candidates list and Analysis history: the stored Quick Match
+  // route before Deep Match, checklist band only when no route was stored.
   const displayedFitBand: QuickMatchFitBand =
     listingDisplayFitBand({
       analyzed: isAnalyzed,

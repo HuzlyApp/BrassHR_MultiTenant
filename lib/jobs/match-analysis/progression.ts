@@ -109,27 +109,21 @@ export function quickMatchFitBand(
   return "review";
 }
 
-/** A stored Quick Match LOW_MATCH turns a Review checklist into Low. A Strong checklist still wins. */
-function applyQuickRouteLow(band: QuickMatchFitBand, route: QuickRoute | null | undefined): QuickMatchFitBand {
-  return band === "review" && route === "LOW_MATCH" ? "low" : band;
-}
-
 /**
- * Deep Match uses the live checklist, same as the overview ring.
- * A stored Quick Match route applies only when no requirement rows have been scored,
- * except LOW_MATCH, which also downgrades a Review checklist.
+ * The stored Quick Match route (the one Analysis history shows) is the source of truth.
+ * Checklist counts are only a fallback for analyses saved without a route.
  */
 export function fitBandForMatchGate(args: {
   counts: Pick<QualificationOutcomeCounts, "mandatory" | "confirmed" | "notMet" | "blocking">;
   storedRoute?: QuickRoute | null;
 }): QuickMatchFitBand {
+  if (args.storedRoute) return fitBandFromQuickRoute(args.storedRoute);
   const hasChecklist =
     args.counts.mandatory > 0 ||
     args.counts.confirmed > 0 ||
     args.counts.notMet > 0 ||
     args.counts.blocking > 0;
-  if (hasChecklist) return applyQuickRouteLow(quickMatchFitBand(args.counts), args.storedRoute);
-  if (args.storedRoute) return fitBandFromQuickRoute(args.storedRoute);
+  if (hasChecklist) return quickMatchFitBand(args.counts);
   return "review";
 }
 
@@ -203,8 +197,9 @@ export function fitBandFromDeepMatchResult(args: {
 }
 
 /**
- * Listing Fit uses the same checklist band as overview when mandatory/blocking are present.
- * Before Deep Match, a stored Quick Match LOW_MATCH turns a Review checklist into Low.
+ * Before Deep Match, Fit follows the stored Quick Match route so the overview ring,
+ * candidate lists, and Analysis history agree. Checklist counts are the fallback
+ * when no route was stored, and the band used from Deep Match onward.
  */
 export function listingDisplayFitBand(args: {
   analyzed: boolean;
@@ -241,7 +236,8 @@ export function listingDisplayFitBand(args: {
     else if (notMet === 0 && total > 0 && confirmed / total >= 0.7) band = "strong";
   }
   const atDeep = args.stage === "deep" || args.stage === "submission";
-  if (!atDeep) band = applyQuickRouteLow(band, args.counts?.quickRoute);
+  const quickRoute = args.counts?.quickRoute;
+  if (!atDeep && quickRoute) band = fitBandFromQuickRoute(quickRoute);
   return displayFitBand({ fitBand: band, stage: args.stage });
 }
 

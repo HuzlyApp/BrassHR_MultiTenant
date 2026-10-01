@@ -239,8 +239,9 @@ export function qualificationDisplayStatus(
   const outcome = String(req.requirement_outcome ?? "").toUpperCase();
   const status = String(req.status ?? "").toUpperCase();
   if (outcome === "CONFLICT" || status === "CONFLICTING") return "Blocking";
-  if (req.verification_required || outcome === "VERIFY") return "Needs Verification";
+  // Quick and Deep Match both store NOT_MET rows with verification_required = true.
   if (outcome === "NOT_MET") return "Not Met";
+  if (req.verification_required || outcome === "VERIFY") return "Needs Verification";
   if (outcome === "MET" || status === "CONFIRMED") return "Confirmed";
   if (status === "NOT_FOUND") return "Unknown";
   return "Unknown";
