@@ -118,6 +118,7 @@ export type MatchAnalysisWorkspacePayload = {
   extractedResume?: { text: string; fileName: string | null } | null;
   assignedRecruiter?: { id: string; name: string } | null;
   modelName?: string | null;
+  claudeAvailable?: boolean;
 };
 
 export type WorkerProfileSummary = {

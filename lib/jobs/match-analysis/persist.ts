@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 import type { MatchAnalysisResponse, RequirementItem } from "./schema";
 import type { RequirementOutcomeCountRow } from "./workspace";
 
@@ -145,6 +146,7 @@ export async function updateApplicationMatchFields(args: {
     .eq("id", args.jobApplicationId)
     .eq("tenant_id", args.tenantId);
   if (error) throw error;
+  await invalidateCandidateKpiCache(args.tenantId);
 }
 
 export async function cacheStructuredRequirements(args: {

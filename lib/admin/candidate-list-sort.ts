@@ -139,6 +139,9 @@ function candidateFitBand(row: CandidateRow) {
   return listingDisplayFitBand({
     analyzed: row.aiMatchStatus === "ANALYZED",
     stage: row.aiMatchStage,
+    category: row.aiMatchCategory,
+    displayCategory: row.aiMatchDisplayCategory,
+    score: row.aiMatchScore,
     counts: row.aiRequirementCounts,
   });
 }

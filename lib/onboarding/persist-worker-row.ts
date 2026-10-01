@@ -16,6 +16,7 @@ import {
 } from "@/lib/tenant/tenant-email-uniqueness"
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { findWorkerByPhoneAndName } from "@/lib/workers/candidate-identity"
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache"
 
 function isMissingColumnErr(e: unknown) {
   const err = e as { code?: string; message?: string } | null
@@ -451,6 +452,7 @@ export async function persistWorkerRow(
     invalidateTenantCache("worker", tenantId),
     invalidateUserCache("worker", applicantId),
     invalidateTableCache("worker_search"),
+    invalidateCandidateKpiCache(tenantId),
   ])
 
   return { ok: true, workerId }

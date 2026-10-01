@@ -7,6 +7,7 @@ import {
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { shouldSuspendPostHireAfterStatusChange } from "@/lib/onboarding/lock-post-hire";
 import { isPlacementAcceptedStatus } from "@/lib/onboarding/workflow-phase";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 import {
   ApplicationStatusError,
   type ApplicationStatusHistoryRecord,
@@ -404,6 +405,7 @@ export async function changeApplicationStatus(
   }
 
   if (!result.unchanged) {
+    await invalidateCandidateKpiCache(input.tenantId);
     await writeActivityLog({
       actorUserId: input.changedByUserId ?? null,
       action: isPlacementAcceptedStatus(result.application.status)

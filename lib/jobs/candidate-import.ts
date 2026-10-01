@@ -248,6 +248,26 @@ async function collectIdsFromQuery(
   return ids;
 }
 
+/** Resume substring search written to match worker_resumes_extracted_text_trgm_idx. */
+async function resumeWorkerIdsForPattern(
+  supabase: DbClient,
+  tenantId: string,
+  pattern: string
+): Promise<string[]> {
+  const { data, error } = await supabase.rpc("match_resume_worker_ids", {
+    p_tenant_id: tenantId,
+    p_pattern: pattern,
+    p_limit: IMPORT_MATCH_FETCH_CAP,
+  });
+  if (error) throw error;
+  const ids: string[] = [];
+  for (const row of (data ?? []) as Array<{ worker_id?: string | null }>) {
+    const id = asText(row.worker_id);
+    if (id) ids.push(id);
+  }
+  return ids;
+}
+
 async function workerIdsMatchingIlike(
   supabase: DbClient,
   tenantId: string,
@@ -267,15 +287,7 @@ async function workerIdsMatchingIlike(
         )
         .limit(IMPORT_MATCH_FETCH_CAP)
     ),
-    collectIdsFromQuery(() =>
-      supabase
-        .from("worker_resumes")
-        .select("worker_id")
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .ilike("extracted_text", pattern)
-        .limit(IMPORT_MATCH_FETCH_CAP)
-    ),
+    resumeWorkerIdsForPattern(supabase, tenantId, pattern),
     collectIdsFromQuery(() =>
       supabase
         .from("worker_notes")
@@ -371,15 +383,7 @@ async function workerIdsMatchingPhraseColumns(
           .or(ilikeOr(["job_role", "first_name", "last_name", "city", "state"], pattern))
           .limit(IMPORT_MATCH_FETCH_CAP)
       ),
-      collectIdsFromQuery(() =>
-        supabase
-          .from("worker_resumes")
-          .select("worker_id")
-          .eq("tenant_id", tenantId)
-          .is("deleted_at", null)
-          .ilike("extracted_text", pattern)
-          .limit(IMPORT_MATCH_FETCH_CAP)
-      ),
+      resumeWorkerIdsForPattern(supabase, tenantId, pattern),
     ]);
     ids.push(...workers, ...resumes);
   }

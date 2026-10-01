@@ -10,6 +10,7 @@ import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
@@ -104,6 +105,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
         { status: result.status }
       );
     }
+
+    await invalidateCandidateKpiCache(tenantId);
 
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
