@@ -203,6 +203,19 @@ export function resolveRecommendedScreeningAnswerUpsert(
     };
   }
 
+  // Step 3 and Step 4 keys stay on their own rows even when the wording matches Step 2.
+  if (trimmedKey.startsWith("follow_up:") || trimmedKey.startsWith("deep:")) {
+    const question = typedQuestion || trimmedKey;
+    if (!question) return null;
+    return {
+      key: trimmedKey,
+      question,
+      reason: null,
+      related_requirement: null,
+      answer_text: answerText,
+    };
+  }
+
   const byKey = analysisQuestions.find(
     (question) => aiScreeningQuestionKey(question.priority, question.question) === trimmedKey
   );

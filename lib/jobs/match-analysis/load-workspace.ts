@@ -33,6 +33,29 @@ function displayName(first: string | null | undefined, last: string | null | und
   return name || email?.trim() || null;
 }
 
+function questionsWithAnswers(
+  raw: unknown,
+  stage: "call_pack" | "follow_up" | "deep",
+  answersByKey: Map<string, { question_key: string; question_text?: string | null; answer_text?: string | null }>
+) {
+  return normalizeAnalysisScreeningQuestions(raw).map((question) => {
+    const baseKey = aiScreeningQuestionKey(question.priority, question.question);
+    const key = stage === "call_pack" ? baseKey : `${stage}:${baseKey}`;
+    const saved =
+      stage === "call_pack"
+        ? matchSavedAiScreeningAnswer(answersByKey, key, question.question)
+        : answersByKey.get(key);
+    return {
+      key,
+      priority: question.priority,
+      question: question.question,
+      reason: question.reason,
+      relatedRequirement: question.relatedRequirement,
+      answer: saved?.answer_text ?? "",
+    };
+  });
+}
+
 export async function loadMatchAnalysisWorkspace(
   supabase: SupabaseClient,
   tenantId: string,
@@ -156,20 +179,26 @@ export async function loadMatchAnalysisWorkspace(
   );
   const callContext =
     String(aiAnswersByKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
-  const recommendedQuestions = normalizeAnalysisScreeningQuestions(
-    analysis?.screening_questions
-  ).map((question) => {
-    const key = aiScreeningQuestionKey(question.priority, question.question);
-    const saved = matchSavedAiScreeningAnswer(aiAnswersByKey, key, question.question);
-    return {
-      key,
-      priority: question.priority,
-      question: question.question,
-      reason: question.reason,
-      relatedRequirement: question.relatedRequirement,
-      answer: saved?.answer_text ?? "",
-    };
-  });
+  const recommendedQuestions = questionsWithAnswers(
+    analysis?.screening_questions,
+    "call_pack",
+    aiAnswersByKey
+  );
+  const followUpQuestions = questionsWithAnswers(
+    analysis?.follow_up_questions,
+    "follow_up",
+    aiAnswersByKey
+  );
+  const deepQuestions = questionsWithAnswers(
+    analysis?.deep_screening_questions,
+    "deep",
+    aiAnswersByKey
+  );
+  const questionSetsStale = {
+    call_pack: analysis?.question_sets_stale?.call_pack === true,
+    follow_up: analysis?.question_sets_stale?.follow_up === true,
+    deep: analysis?.question_sets_stale?.deep === true,
+  };
 
   let extractedResume: { text: string; fileName: string | null } | null = null;
   const { data: resumeRow } = await supabase
@@ -329,6 +358,9 @@ export async function loadMatchAnalysisWorkspace(
     screeningQuestions: screening.questions,
     screeningAssessment: screening.assessment,
     recommendedQuestions,
+    followUpQuestions,
+    deepQuestions,
+    questionSetsStale,
     callContext,
     screeningUploads,
     verifiedInformation: (verifiedResult.data ?? []).map((row) => ({

@@ -295,6 +295,17 @@ export const matchAnalysisResponseSchema = z.object({
   strengths: z.array(z.string().max(1000)).max(20).default([]),
   gaps_and_risks: z.array(z.string().max(1000)).max(20).default([]),
   screening_questions: z.array(screeningQuestionSchema).max(5).default([]),
+  /** Step 3 Follow-Up questions. Kept separate from Step 2 `screening_questions`. */
+  follow_up_questions: z.array(screeningQuestionSchema).max(5).optional(),
+  /** Step 4 Deep Match questions. Not written back over the Step 2 call pack. */
+  deep_screening_questions: z.array(screeningQuestionSchema).max(5).optional(),
+  question_sets_stale: z
+    .object({
+      call_pack: z.boolean().optional(),
+      follow_up: z.boolean().optional(),
+      deep: z.boolean().optional(),
+    })
+    .optional(),
   submission_readiness: z
     .object({
       ready_to_submit: z.boolean().default(false),

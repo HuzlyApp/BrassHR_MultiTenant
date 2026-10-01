@@ -5,6 +5,7 @@ import {
   deepMatchSubmitBanner,
   isDeepMatchStage,
   matchStageFromMode,
+  matchWorkspaceIsAnalyzed,
   publicMatchScore,
 } from "./match-stage";
 
@@ -19,6 +20,15 @@ const analysis = {
 } as MatchAnalysisResponse;
 
 describe("match stage", () => {
+  it("keeps a saved stage analyzable after a contact correction flipped status", () => {
+    expect(
+      matchWorkspaceIsAnalyzed({ status: "NEEDS_REVIEW", stage: "follow_up", hasAnalysis: true })
+    ).toBe(true);
+    expect(matchWorkspaceIsAnalyzed({ status: "READY", stage: "follow_up", hasAnalysis: true })).toBe(
+      false
+    );
+  });
+
   it("maps analyze to quick, call_pack to call_pack, follow_up to follow_up, and deep to deep", () => {
     expect(matchStageFromMode("analyze")).toBe("quick");
     expect(matchStageFromMode("call_pack")).toBe("call_pack");

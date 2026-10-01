@@ -9,6 +9,7 @@ import type {
   ReadinessStatus,
 } from "@/lib/jobs/match-analysis/schema";
 import { DEFAULT_ANALYSIS_PROVIDER } from "@/lib/jobs/match-analysis/schema";
+import { matchWorkspaceIsAnalyzed } from "@/lib/jobs/match-analysis/match-stage";
 import {
   RECRUITER_DECISIONS,
   CALL_CONTEXT_QUESTION_KEY,
@@ -71,6 +72,27 @@ export type MatchAnalysisWorkspacePayload = {
     relatedRequirement: string;
     answer: string;
   }>;
+  followUpQuestions?: Array<{
+    key: string;
+    priority: number;
+    question: string;
+    reason: string;
+    relatedRequirement: string;
+    answer: string;
+  }>;
+  deepQuestions?: Array<{
+    key: string;
+    priority: number;
+    question: string;
+    reason: string;
+    relatedRequirement: string;
+    answer: string;
+  }>;
+  questionSetsStale?: {
+    call_pack?: boolean;
+    follow_up?: boolean;
+    deep?: boolean;
+  };
   /** Step 2 call-pack context (optional); included in Deep Match notes when present. */
   callContext?: string;
   screeningUploads?: Array<{
@@ -299,7 +321,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     setDecisionNote(payload.application.recruiter_decision_note || "");
     setAssignedId(payload.assignedRecruiter?.id || "");
     const rec: Record<string, string> = {};
-    for (const item of payload.recommendedQuestions ?? []) {
+    for (const item of [
+      ...(payload.recommendedQuestions ?? []),
+      ...(payload.followUpQuestions ?? []),
+      ...(payload.deepQuestions ?? []),
+    ]) {
       rec[item.key] =
         item.answer ||
         (opts?.preserveLocalAnswers ? recommendedAnswersRef.current[item.key] ?? "" : "");
@@ -428,7 +454,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const blocking = analysis?.submission_readiness?.blocking_requirements ?? [];
   const verifyItems = analysis?.submission_readiness?.items_to_verify_before_submission ?? [];
   const status = data?.application.ai_match_status ?? "READY";
-  const isAnalyzed = status === "ANALYZED";
+  const isAnalyzed = matchWorkspaceIsAnalyzed({
+    status,
+    stage: data?.application.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+    hasAnalysis: Boolean(data?.application.ai_analysis),
+  });
 
   async function runAnalyze(
     mode: AnalysisMode = "analyze",
@@ -685,7 +715,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       const currentRecommended = recommendedAnswersRef.current;
       const currentJob = jobAnswersRef.current;
       const currentContext = callContextRef.current;
-      const questions = data?.recommendedQuestions ?? [];
+      const questions = [
+        ...(data?.recommendedQuestions ?? []),
+        ...(data?.followUpQuestions ?? []),
+        ...(data?.deepQuestions ?? []),
+      ];
       const res = await fetch(`/api/admin/job-applications/${applicationId}/screening-answers`, {
         method: "POST",
         credentials: "include",
@@ -741,6 +775,14 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           ...current,
           callContext: byKey.get(CALL_CONTEXT_QUESTION_KEY) ?? currentContext,
           recommendedQuestions: (current.recommendedQuestions ?? []).map((item) => ({
+            ...item,
+            answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
+          })),
+          followUpQuestions: (current.followUpQuestions ?? []).map((item) => ({
+            ...item,
+            answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
+          })),
+          deepQuestions: (current.deepQuestions ?? []).map((item) => ({
             ...item,
             answer: byKey.get(item.key) ?? currentRecommended[item.key] ?? item.answer,
           })),
@@ -1029,6 +1071,14 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       invalidateStaffDetailCache(workerProfileApiUrl(workerId));
       invalidateStaffDetailCache(candidateProfileApiUrl(workerId));
       invalidateStaffDetailCache(`/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}`);
+      setProfile((current) => ({
+        ...(current ?? {}),
+        first_name: info.firstName,
+        last_name: info.lastName,
+        email: info.email,
+        phone: info.phone,
+        job_role: info.specialty,
+      }));
       toast.success("Candidate details saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save details");
@@ -1090,9 +1140,36 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ extractedText: extractedDraft }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        profile?: Record<string, string>;
+        profileUpdated?: boolean;
+        stage?: string | null;
+      };
       if (!res.ok) throw new Error(json.error || "Failed to save extracted text");
-      toast.success("Extracted text saved. Reanalyze to use the corrected résumé.");
+      if (json.profile && Object.keys(json.profile).length) {
+        setProfile((current) => ({
+          ...(current ?? {}),
+          first_name: json.profile?.first_name ?? current?.first_name,
+          last_name: json.profile?.last_name ?? current?.last_name,
+          email: json.profile?.email ?? current?.email,
+          phone: json.profile?.phone ?? current?.phone,
+          city: json.profile?.city ?? current?.city,
+          state: json.profile?.state ?? current?.state,
+        }));
+        setInfo((current) => ({
+          ...current,
+          firstName: json.profile?.first_name ?? current.firstName,
+          lastName: json.profile?.last_name ?? current.lastName,
+          email: json.profile?.email ?? current.email,
+          phone: json.profile?.phone ?? current.phone,
+        }));
+      }
+      toast.success(
+        json.profileUpdated
+          ? "Extracted text saved. Candidate profile updated. This step was kept."
+          : "Extracted text saved. This analysis step was kept."
+      );
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save extracted text");

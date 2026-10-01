@@ -288,7 +288,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: true, stage: application.ai_match_stage });
   }
 
-  if (requested === "call_pack") {
+  if (requested === "call_pack" || requested === "follow_up") {
     const rawProvider = (body as { analysisProvider?: unknown }).analysisProvider;
     if (rawProvider != null && rawProvider !== "" && !isAnalysisProvider(rawProvider)) {
       return NextResponse.json({ error: "Invalid analysis provider" }, { status: 400 });
@@ -299,7 +299,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       tenantId,
       jobApplicationId: id,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
-      analysisMode: "call_pack",
+      analysisMode: requested,
       analysisProvider,
     });
     if (result.status !== "ANALYZED") {
@@ -308,9 +308,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         result.error === FOLLOW_UP_BLOCKED_NOT_READY
           ? 409
           : 502;
+      const label = requested === "follow_up" ? "Follow-up" : "Verifications";
       return NextResponse.json(
         {
-          error: result.error || "Could not write Verifications screening questions.",
+          error: result.error || `Could not write ${label} questions.`,
           status: result.status,
         },
         { status }
@@ -325,12 +326,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       request: req,
       metadata: {
         from: application.ai_match_stage,
-        to: "call_pack",
-        analysisMode: "call_pack",
+        to: result.stage ?? requested,
+        analysisMode: requested,
         model: result.model,
       },
     });
-    return NextResponse.json({ ok: true, stage: "call_pack", model: result.model });
+    return NextResponse.json({ ok: true, stage: result.stage ?? requested, model: result.model });
   }
 
   const { error: updateError } = await supabase

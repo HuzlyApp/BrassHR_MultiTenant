@@ -165,17 +165,48 @@ export function parseFollowUpQuestions(rawText: string): {
   return { ok: true, questions, rawObject };
 }
 
+export type StageQuestionKey = "call_pack" | "follow_up" | "deep";
+
+const STAGE_QUESTION_FIELD: Record<StageQuestionKey, string> = {
+  call_pack: "screening_questions",
+  follow_up: "follow_up_questions",
+  deep: "deep_screening_questions",
+};
+
+export function storedScreeningQuestions(questions: AnalysisScreeningQuestion[]) {
+  return questions.map((item) => ({
+    priority: item.priority,
+    question: item.question,
+    reason: item.reason,
+    related_requirement: item.relatedRequirement,
+  }));
+}
+
+/** Write one stage's questions without replacing the other stages' arrays. */
+export function mergeStageQuestions(
+  analysis: Record<string, unknown>,
+  stage: StageQuestionKey,
+  questions: AnalysisScreeningQuestion[]
+): Record<string, unknown> {
+  const previousStale =
+    analysis.question_sets_stale &&
+    typeof analysis.question_sets_stale === "object" &&
+    !Array.isArray(analysis.question_sets_stale)
+      ? (analysis.question_sets_stale as Record<string, unknown>)
+      : {};
+  return {
+    ...analysis,
+    [STAGE_QUESTION_FIELD[stage]]: storedScreeningQuestions(questions),
+    question_sets_stale: {
+      ...previousStale,
+      [stage]: false,
+    },
+  };
+}
+
 export function mergeFollowUpQuestions(
   analysis: Record<string, unknown>,
   questions: AnalysisScreeningQuestion[]
 ): Record<string, unknown> {
-  return {
-    ...analysis,
-    screening_questions: questions.map((item) => ({
-      priority: item.priority,
-      question: item.question,
-      reason: item.reason,
-      related_requirement: item.relatedRequirement,
-    })),
-  };
+  return mergeStageQuestions(analysis, "call_pack", questions);
 }
