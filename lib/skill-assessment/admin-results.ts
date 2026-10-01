@@ -163,8 +163,13 @@ export function buildSkillAssessmentResults(
         };
       });
     const answeredCount = questions.filter((question) => question.answerLabel != null).length;
+    const allAnswered = questions.length > 0 && answeredCount === questions.length;
     const status: SkillCategoryResultStatus =
-      row?.completed === true ? "completed" : answeredCount > 0 || row ? "in_progress" : "not_started";
+      row?.completed === true || allAnswered
+        ? "completed"
+        : answeredCount > 0 || row
+          ? "in_progress"
+          : "not_started";
     return {
       id: category.id,
       slug: category.slug,

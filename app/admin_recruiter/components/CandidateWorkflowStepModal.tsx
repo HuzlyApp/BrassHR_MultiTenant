@@ -721,7 +721,9 @@ export default function CandidateWorkflowStepModal({
                   </Section>
                 ) : null}
 
-                {inspection.assessment && inspection.assessment.summary.answeredQuestions === 0 ? (
+                {inspection.assessment &&
+                inspection.assessment.summary.answeredQuestions === 0 &&
+                inspection.step.displayStatus === "not_started" ? (
                   <CenteredEmptyState
                     icon={ClipboardCheck}
                     title="Assessment not started"

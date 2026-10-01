@@ -548,5 +548,7 @@ export const POST_HIRE_UNASSIGNED_MESSAGE =
 export const PRE_HIRE_UNASSIGNED_MESSAGE = "No Pre-Hire workflow is assigned to this applicant.";
 export const STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE =
   "Completed through candidate confirmation. No document was required.";
+export const ASSESSMENT_COMPLETED_WITHOUT_ANSWERS_MESSAGE =
+  "This step is marked complete, but no skill assessment answers were saved for this candidate. Reopen the step so the candidate can retake the assessment.";
 export const LEGACY_UNMATCHED_STEP_MESSAGE =
   "This step could not be linked to a stored submission record.";

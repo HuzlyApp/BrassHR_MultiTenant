@@ -4,6 +4,7 @@ import { canRevealPostHire } from "@/lib/onboarding/lock-post-hire";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
 import {
   ASSIGNED_STEP_RECORD_COLUMNS,
+  ASSESSMENT_COMPLETED_WITHOUT_ANSWERS_MESSAGE,
   LEGACY_UNMATCHED_STEP_MESSAGE,
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
@@ -772,6 +773,14 @@ export async function loadCandidateWorkflowStepInspection(
     emptyState = "No submission received for this step.";
   } else if (mapped.status === "completed" && documents.length === 0 && !form && !assessment && !agreement) {
     emptyState = STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE;
+  }
+
+  if (
+    assessment &&
+    assessment.summary.answeredQuestions === 0 &&
+    isCompleteDisplayStatus(mapped.displayStatus)
+  ) {
+    emptyState = ASSESSMENT_COMPLETED_WITHOUT_ANSWERS_MESSAGE;
   }
 
   const reviewable = kind !== "resume";
