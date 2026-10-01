@@ -32,10 +32,11 @@ export async function snapshotCurrentAnalysisVersion(args: {
     .maybeSingle();
   if (error) throw error;
   if (
+    !current ||
     !matchWorkspaceIsAnalyzed({
-      status: current?.ai_match_status,
-      stage: current?.ai_match_stage,
-      hasAnalysis: Boolean(current?.ai_analysis),
+      status: current.ai_match_status,
+      stage: current.ai_match_stage,
+      hasAnalysis: Boolean(current.ai_analysis),
     })
   ) {
     return Number(current?.ai_analysis_version ?? 0);

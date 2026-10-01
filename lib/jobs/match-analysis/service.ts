@@ -539,32 +539,31 @@ async function callClaudeOnce(args: {
   model: string;
   timeoutMs: number;
 }): Promise<Anthropic.Message> {
-  const create =
-    claudeMessagesCreateImpl ??
-    getClaudeClient().messages.create.bind(getClaudeClient().messages);
-  return create(
-    {
-      model: args.model,
-      max_tokens: args.maxTokens,
-      temperature: TEMPERATURE,
-      system: args.system,
-      messages: [{ role: "user", content: args.user }],
-      tools: [
-        {
-          name: CLAUDE_SUBMIT_TOOL,
-          description:
-            "Submit the complete analysis result as a JSON object matching the required schema from the instructions.",
-          input_schema: {
-            type: "object",
-            properties: {},
-            additionalProperties: true,
-          },
+  const params: Anthropic.MessageCreateParamsNonStreaming = {
+    model: args.model,
+    max_tokens: args.maxTokens,
+    temperature: TEMPERATURE,
+    system: args.system,
+    messages: [{ role: "user", content: args.user }],
+    tools: [
+      {
+        name: CLAUDE_SUBMIT_TOOL,
+        description:
+          "Submit the complete analysis result as a JSON object matching the required schema from the instructions.",
+        input_schema: {
+          type: "object",
+          properties: {},
+          additionalProperties: true,
         },
-      ],
-      tool_choice: { type: "tool", name: CLAUDE_SUBMIT_TOOL },
-    },
-    { timeout: args.timeoutMs }
-  );
+      },
+    ],
+    tool_choice: { type: "tool", name: CLAUDE_SUBMIT_TOOL },
+    stream: false,
+  };
+  const options = { timeout: args.timeoutMs };
+  if (claudeMessagesCreateImpl) return claudeMessagesCreateImpl(params, options);
+  // Call create directly. Binding messages.create drops the non-streaming overload.
+  return getClaudeClient().messages.create(params, options);
 }
 
 async function callClaude(args: {
