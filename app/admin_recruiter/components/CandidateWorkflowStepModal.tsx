@@ -42,8 +42,8 @@ import {
   candidateInterviewStatusLabel,
   candidateInterviewStatusTone,
   interviewStepStatus,
-  STEP_PILL_TONE_CLASSES,
   type CandidateInterview,
+  type StepPillTone,
 } from "@/lib/onboarding/interview-step";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import SkillAssessmentResults from "./SkillAssessmentResults";
@@ -61,20 +61,52 @@ const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
   generic: Layers,
 };
 
+type BadgeTone = StepPillTone | "submitted" | "revision";
+
 /** Status colour stays semantic so it never competes with the tenant palette. */
-const STATUS_TONE: Record<WorkflowStepDisplayStatus, string> = {
-  not_started: "bg-slate-100 text-slate-700 ring-slate-200",
-  in_progress: "bg-blue-50 text-blue-700 ring-blue-200",
-  submitted: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-  under_review: "bg-amber-50 text-amber-800 ring-amber-200",
-  completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  approved: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  rejected: "bg-red-50 text-red-700 ring-red-200",
-  needs_revision: "bg-orange-50 text-orange-800 ring-orange-200",
-  skipped: "bg-slate-100 text-slate-600 ring-slate-200",
-  not_applicable: "bg-slate-100 text-slate-600 ring-slate-200",
-  blocked: "bg-red-50 text-red-700 ring-red-200",
+const BADGE_TONE: Record<BadgeTone, { badge: string; dot: string }> = {
+  success: { badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/25", dot: "bg-emerald-500" },
+  warning: { badge: "bg-amber-50 text-amber-800 ring-amber-600/25", dot: "bg-amber-500" },
+  revision: { badge: "bg-orange-50 text-orange-800 ring-orange-600/25", dot: "bg-orange-500" },
+  danger: { badge: "bg-red-50 text-red-700 ring-red-600/25", dot: "bg-red-500" },
+  info: { badge: "bg-blue-50 text-blue-700 ring-blue-600/25", dot: "bg-blue-500" },
+  submitted: { badge: "bg-indigo-50 text-indigo-700 ring-indigo-600/25", dot: "bg-indigo-500" },
+  neutral: { badge: "bg-slate-100 text-slate-700 ring-slate-500/25", dot: "bg-slate-400" },
 };
+
+const STATUS_TONE: Record<WorkflowStepDisplayStatus, BadgeTone> = {
+  not_started: "neutral",
+  in_progress: "info",
+  submitted: "submitted",
+  under_review: "warning",
+  completed: "success",
+  approved: "success",
+  rejected: "danger",
+  needs_revision: "revision",
+  skipped: "neutral",
+  not_applicable: "neutral",
+  blocked: "danger",
+};
+
+function StatusBadge({
+  tone,
+  label,
+  className = "",
+}: {
+  tone: BadgeTone;
+  label: string;
+  className?: string;
+}) {
+  const styles = BADGE_TONE[tone];
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold leading-4 ring-1 ring-inset ${styles.badge} ${className}`}
+    >
+      <span aria-hidden className={`size-1.5 rounded-full ${styles.dot}`} />
+      {label}
+    </span>
+  );
+}
 
 /** Decision steps are a staff to-do, so their open states read amber/orange rather than grey/blue. */
 const DECISION_TONE: Partial<Record<WorkflowStepDisplayStatus, WorkflowStepDisplayStatus>> = {
@@ -156,6 +188,29 @@ function Section({
   );
 }
 
+function CenteredEmptyState({
+  icon: Icon,
+  title,
+  message,
+}: {
+  icon: LucideIcon;
+  title: string;
+  message: string;
+}) {
+  return (
+    <section className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+      <span
+        aria-hidden
+        className="inline-flex size-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500"
+      >
+        <Icon className="h-6 w-6" />
+      </span>
+      <h3 className="mt-4 text-sm font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 max-w-sm text-sm text-slate-500">{message}</p>
+    </section>
+  );
+}
+
 const MEETING_TYPE_LABELS: Record<string, string> = {
   online: "Online",
   phone: "Phone",
@@ -197,13 +252,10 @@ function InterviewCard({
           </p>
           <p className="mt-0.5 break-words text-xs text-slate-600">{interview.title}</p>
         </div>
-        <span
-          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
-            STEP_PILL_TONE_CLASSES[candidateInterviewStatusTone(interview.status)]
-          }`}
-        >
-          {candidateInterviewStatusLabel(interview.status)}
-        </span>
+        <StatusBadge
+          tone={candidateInterviewStatusTone(interview.status)}
+          label={candidateInterviewStatusLabel(interview.status)}
+        />
       </div>
       <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Meta label="Date" value={formatInterviewDate(interview.startsAt)} />
@@ -298,10 +350,10 @@ export default function CandidateWorkflowStepModal({
   const variant = staffAction?.variant ?? "default";
   const statusLabel = inspection ? stepDisplayStatusLabel(inspection.step) : "";
   const interviewState = inspection ? interviewStepStatus(inspection.step) : null;
-  const statusTone = !inspection
-    ? ""
+  const statusTone: BadgeTone = !inspection
+    ? "neutral"
     : interviewState
-      ? STEP_PILL_TONE_CLASSES[interviewState.tone]
+      ? interviewState.tone
       : isDecisionVariant(staffStepVariantForLibraryId(inspection.step.stepType))
         ? STATUS_TONE[DECISION_TONE[inspection.step.displayStatus] ?? inspection.step.displayStatus]
         : STATUS_TONE[inspection.step.displayStatus];
@@ -409,10 +461,8 @@ export default function CandidateWorkflowStepModal({
 
             <div className="flex shrink-0 items-center gap-2">
               {inspection ? (
-                <span
-                  className={`hidden rounded-full px-3 py-1 text-xs font-semibold ring-1 sm:inline-block ${statusTone}`}
-                >
-                  {statusLabel}
+                <span className="hidden sm:inline-flex">
+                  <StatusBadge tone={statusTone} label={statusLabel} className="shadow-sm" />
                 </span>
               ) : null}
               <Dialog.Close
@@ -457,11 +507,9 @@ export default function CandidateWorkflowStepModal({
               </p>
             ) : (
               <>
-                <span
-                  className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ring-1 sm:hidden ${statusTone}`}
-                >
-                  {statusLabel}
-                </span>
+                <div className="sm:hidden">
+                  <StatusBadge tone={statusTone} label={statusLabel} />
+                </div>
 
                 {inspection.emptyState ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -494,13 +542,10 @@ export default function CandidateWorkflowStepModal({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-medium text-slate-900">{inspection.checkResult.typeLabel}</p>
-                      <span
-                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
-                          STEP_PILL_TONE_CLASSES[inspection.checkResult.tone]
-                        }`}
-                      >
-                        {inspection.checkResult.statusLabel}
-                      </span>
+                      <StatusBadge
+                        tone={inspection.checkResult.tone}
+                        label={inspection.checkResult.statusLabel}
+                      />
                     </div>
                     <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {inspection.checkResult.kind === "facility" ? (
@@ -538,7 +583,9 @@ export default function CandidateWorkflowStepModal({
                     />
                     <Meta label="Workflow" value={inspection.workflowName} />
                     <Meta label="Workflow version" value={inspection.workflowVersion} />
-                    <Meta label="Approved or rejected by" value={inspection.approvedOrRejectedBy} />
+                    {inspection.reviewable ? (
+                      <Meta label="Approved or rejected by" value={inspection.approvedOrRejectedBy} />
+                    ) : null}
                   </dl>
                 </Section>
 
@@ -603,7 +650,12 @@ export default function CandidateWorkflowStepModal({
                             <div>Uploaded: {formatDateTime(doc.uploadedAt)}</div>
                             <div>Uploaded by: {doc.uploadedBy || "—"}</div>
                             <div>Verification: {doc.verificationStatus || "—"}</div>
-                            <div>Reviewed: {formatDateTime(doc.approvedOrRejectedAt)}</div>
+                            {inspection.reviewable ? (
+                              <>
+                                <div>Reviewed: {formatDateTime(doc.approvedOrRejectedAt)}</div>
+                                {doc.reviewedBy ? <div>Reviewed by: {doc.reviewedBy}</div> : null}
+                              </>
+                            ) : null}
                           </dl>
                           {doc.reviewNotes ? (
                             <p className="mt-1 text-xs text-rose-700">{doc.reviewNotes}</p>
@@ -669,7 +721,13 @@ export default function CandidateWorkflowStepModal({
                   </Section>
                 ) : null}
 
-                {inspection.assessment ? (
+                {inspection.assessment && inspection.assessment.summary.answeredQuestions === 0 ? (
+                  <CenteredEmptyState
+                    icon={ClipboardCheck}
+                    title="Assessment not started"
+                    message="The candidate hasn't started this skill assessment yet. Results will appear here once they begin answering."
+                  />
+                ) : inspection.assessment ? (
                   <Section
                     title="Skill assessment results"
                     count={inspection.assessment.summary.totalCategories}

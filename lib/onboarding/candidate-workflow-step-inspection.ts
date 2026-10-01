@@ -9,6 +9,7 @@ import {
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
   STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE,
   displayStatusLabel,
+  isCompleteDisplayStatus,
   mapProgressToDisplayStatus,
   parseAssignedStepPhase,
   type MappedAssignedStep,
@@ -27,6 +28,10 @@ import {
   mapInstanceStepRecord,
   resolveStaffStepEligibility,
 } from "@/lib/onboarding/staff-workflow-step-review";
+import { filterResumesForApplication } from "@/lib/jobs/match-analysis/pick-resume-for-application";
+import { classifyResumeUploaderRole } from "@/lib/resume/resume-upload-limit";
+import { staffRoleLabel, type StaffConsoleRole } from "@/lib/admin/staff-directory-types";
+import { staffDisplayName } from "@/lib/account/resolve-staff-users";
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 import {
   WORKER_REQUIRED_FILES_BUCKET,
@@ -103,6 +108,8 @@ export type WorkflowStepInspection = {
   approvedOrRejectedAt: string | null;
   completedBy: string | null;
   approvedOrRejectedBy: string | null;
+  /** False for steps with no approve/reject review (e.g. résumé upload). */
+  reviewable: boolean;
   notes: string | null;
   emptyState: string | null;
   /** Whether staff can complete / reject / reopen this step from the drawer. */
@@ -222,6 +229,90 @@ function signatureStatusLabel(raw: string | null): string {
   return value.replaceAll("_", " ");
 }
 
+export type StaffMember = { name: string; role: StaffConsoleRole };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function candidateUploaderLabel(candidateName: string | null | undefined): string {
+  return `${candidateName?.trim() || "Candidate"} (Applicant)`;
+}
+
+function staffMemberLabel(staff: StaffMember): string {
+  return `${staff.name} (${staffRoleLabel(staff.role)})`;
+}
+
+/** "Name (Admin|Recruiter)" for a reviewer, falling back to the stored name. */
+export function reviewerLabel(
+  userId: string | null | undefined,
+  fallbackName: string | null | undefined,
+  staffById: Map<string, StaffMember>
+): string | null {
+  const staff = userId ? staffById.get(userId.trim()) : undefined;
+  if (staff) return staffMemberLabel(staff);
+  return fallbackName?.trim() || null;
+}
+
+/** "Name (Applicant)" for the candidate's own uploads, "Name (Admin|Recruiter)" for staff. */
+export function resumeUploaderLabel(params: {
+  uploadedByUserId: string | null | undefined;
+  workerUserId: string | null | undefined;
+  workerId: string;
+  candidateName: string | null | undefined;
+  staffById: Map<string, StaffMember>;
+}): string {
+  const role = classifyResumeUploaderRole(
+    params.uploadedByUserId,
+    params.workerUserId,
+    params.workerId
+  );
+  if (role === "worker") return candidateUploaderLabel(params.candidateName);
+  const staff = params.staffById.get(String(params.uploadedByUserId).trim());
+  if (!staff) return "Team member (Staff)";
+  return staffMemberLabel(staff);
+}
+
+async function loadStaffMembers(
+  supabase: SupabaseClient,
+  tenantId: string,
+  userIds: string[]
+): Promise<Map<string, StaffMember>> {
+  const result = new Map<string, StaffMember>();
+  const ids = [...new Set(userIds.map((id) => id.trim()).filter((id) => UUID_RE.test(id)))];
+  if (!ids.length) return result;
+
+  const [{ data: users, error: usersError }, { data: memberships, error: membershipError }] =
+    await Promise.all([
+      supabase.from("users").select("id, first_name, last_name, email, role").in("id", ids),
+      supabase.from("user_roles").select("user_id, role").eq("tenant_id", tenantId).in("user_id", ids),
+    ]);
+  if (usersError) throw usersError;
+  if (membershipError) throw membershipError;
+
+  const membershipRoleById = new Map(
+    ((memberships ?? []) as Array<{ user_id: string; role: string | null }>).map((row) => [
+      String(row.user_id),
+      asText(row.role),
+    ])
+  );
+  for (const user of (users ?? []) as Array<{
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    role: string | null;
+  }>) {
+    const id = String(user.id);
+    const isAdmin = [asText(user.role), membershipRoleById.get(id) ?? null].some(
+      (role) => role === "admin" || role === "owner"
+    );
+    result.set(id, {
+      name: staffDisplayName(user.first_name, user.last_name, user.email),
+      role: isAdmin ? "admin" : "recruiter",
+    });
+  }
+  return result;
+}
+
 async function signedOrUnavailable(
   supabase: SupabaseClient,
   stored: string | null | undefined,
@@ -245,7 +336,7 @@ export async function loadCandidateWorkflowStepInspection(
 
   const { data: worker, error: workerError } = await supabase
     .from("worker")
-    .select("id, status, converted_at, converted_worker_id, conversion_status")
+    .select("id, user_id, first_name, last_name, status, converted_at, converted_worker_id, conversion_status")
     .eq("id", workerId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -377,6 +468,9 @@ export async function loadCandidateWorkflowStepInspection(
         ).data ?? []
       : [];
 
+  const candidateName = [asText(worker.first_name), asText(worker.last_name)]
+    .filter(Boolean)
+    .join(" ");
   const documents: InspectableDocument[] = [];
   for (const row of submittedRows as Array<Record<string, unknown>>) {
     const signed = await signedOrUnavailable(
@@ -390,7 +484,7 @@ export async function loadCandidateWorkflowStepInspection(
       documentType: asText(row.file_type),
       fileSize: typeof row.file_size === "number" ? row.file_size : null,
       uploadedAt: asText(row.uploaded_at),
-      uploadedBy: "Applicant",
+      uploadedBy: candidateUploaderLabel(candidateName),
       verificationStatus: asText(row.status),
       previewUrl: signed.url,
       downloadUrl: signed.url,
@@ -405,13 +499,25 @@ export async function loadCandidateWorkflowStepInspection(
     const { data: resumes } = await supabase
       .from("worker_resumes")
       .select(
-        "id, file_url, storage_path, original_file_name, file_name, file_type, file_size_bytes, uploaded_at, uploaded_by_user_id"
+        "id, file_url, storage_path, original_file_name, file_name, file_type, file_size_bytes, uploaded_at, uploaded_by_user_id, job_application_id"
       )
       .eq("tenant_id", tenantId)
       .eq("worker_id", workerId)
       .is("deleted_at", null)
       .order("uploaded_at", { ascending: false });
-    for (const row of (resumes ?? []) as Array<Record<string, unknown>>) {
+    const applicationResumes = filterResumesForApplication(
+      (resumes ?? []) as Array<Record<string, unknown> & { job_application_id?: string | null }>,
+      applicationId
+    );
+    const workerUserId = asText(worker.user_id);
+    const staffById = await loadStaffMembers(
+      supabase,
+      tenantId,
+      applicationResumes
+        .map((row) => asText(row.uploaded_by_user_id))
+        .filter((id): id is string => Boolean(id) && id !== workerUserId && id !== workerId)
+    );
+    for (const row of applicationResumes) {
       const stored = asText(row.storage_path) ?? asText(row.file_url);
       const signed = await signedOrUnavailable(supabase, stored, WORKER_RESUMES_BUCKET);
       documents.push({
@@ -420,7 +526,13 @@ export async function loadCandidateWorkflowStepInspection(
         documentType: asText(row.file_type) ?? "resume",
         fileSize: typeof row.file_size_bytes === "number" ? row.file_size_bytes : null,
         uploadedAt: asText(row.uploaded_at),
-        uploadedBy: asText(row.uploaded_by_user_id) ? "Staff" : "Applicant",
+        uploadedBy: resumeUploaderLabel({
+          uploadedByUserId: asText(row.uploaded_by_user_id),
+          workerUserId,
+          workerId,
+          candidateName,
+          staffById,
+        }),
         verificationStatus: "uploaded",
         previewUrl: signed.url,
         downloadUrl: signed.url,
@@ -433,7 +545,11 @@ export async function loadCandidateWorkflowStepInspection(
   }
 
   const latestDoc = documents[0] ?? null;
-  mapped.displayStatus = mapProgressToDisplayStatus(mapped.status, latestDoc?.verificationStatus);
+  const stepOnlyStatus = mapProgressToDisplayStatus(mapped.status);
+  mapped.displayStatus =
+    kind === "resume" && stepOnlyStatus === "completed"
+      ? stepOnlyStatus
+      : mapProgressToDisplayStatus(mapped.status, latestDoc?.verificationStatus);
 
   let form: WorkflowStepInspection["form"] = null;
   if (kind === "form" || asText(progressData.response) != null) {
@@ -658,6 +774,22 @@ export async function loadCandidateWorkflowStepInspection(
     emptyState = STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE;
   }
 
+  const reviewable = kind !== "resume";
+  const reviewerById = await loadStaffMembers(
+    supabase,
+    tenantId,
+    [
+      ...documents.map((doc) => doc.reviewedBy ?? ""),
+      staffDecision?.reviewedByUserId ?? "",
+    ]
+  );
+  for (const doc of documents) {
+    doc.reviewedBy = reviewerLabel(doc.reviewedBy, null, reviewerById);
+  }
+  const staffDecisionBy = staffDecision
+    ? reviewerLabel(staffDecision.reviewedByUserId, staffDecision.reviewedByName, reviewerById)
+    : null;
+
   return {
     ok: true,
     kind,
@@ -672,13 +804,14 @@ export async function loadCandidateWorkflowStepInspection(
     approvedOrRejectedAt: latestDoc?.approvedOrRejectedAt ?? staffDecision?.reviewedAt ?? null,
     completedBy:
       staffDecision?.decision === "complete"
-        ? staffDecision.reviewedByName ?? staffAction.ownerLabel
+        ? staffDecisionBy ?? staffAction.ownerLabel
         : staffAction.allowed
           ? null
-          : progress
-            ? "Applicant"
+          : progress && isCompleteDisplayStatus(mapped.displayStatus)
+            ? candidateUploaderLabel(candidateName)
             : null,
-    approvedOrRejectedBy: latestDoc?.reviewedBy ?? staffDecision?.reviewedByName ?? null,
+    approvedOrRejectedBy: reviewable ? (latestDoc?.reviewedBy ?? staffDecisionBy) : null,
+    reviewable,
     notes: latestDoc?.reviewNotes ?? staffReview?.note ?? asText(progressData.reason),
     emptyState,
     staffAction,
