@@ -51,7 +51,43 @@ export type AssignedStepRecordInput = {
   settings?: Record<string, unknown> | null;
   completed_at?: string | null;
   created_at?: string | null;
+  completed_by?: string | null;
+  status_changed_at?: string | null;
+  status_changed_by?: string | null;
+  status_changed_by_name?: string | null;
+  review_decision?: string | null;
+  review_note?: string | null;
 };
+
+/** Columns read from `applicant_workflow_step_records` for {@link toAssignedStepRecordInput}. */
+export const ASSIGNED_STEP_RECORD_COLUMNS =
+  "id, tenant_id, workflow_instance_id, snapshot_step_id, title, step_type, is_required, status, position, phase, settings, completed_at, created_at, completed_by, status_changed_at, status_changed_by, status_changed_by_name, review_decision, review_note";
+
+export function toAssignedStepRecordInput(row: Record<string, unknown>): AssignedStepRecordInput {
+  const settings = row.settings;
+  return {
+    id: String(row.id),
+    snapshot_step_id: String(row.snapshot_step_id ?? ""),
+    title: String(row.title ?? "Step"),
+    step_type: String(row.step_type ?? "custom-step"),
+    is_required: row.is_required !== false,
+    status: asText(row.status),
+    position: typeof row.position === "number" ? row.position : 0,
+    phase: asText(row.phase),
+    settings:
+      settings && typeof settings === "object" && !Array.isArray(settings)
+        ? (settings as Record<string, unknown>)
+        : {},
+    completed_at: asText(row.completed_at),
+    created_at: asText(row.created_at),
+    completed_by: asText(row.completed_by),
+    status_changed_at: asText(row.status_changed_at),
+    status_changed_by: asText(row.status_changed_by),
+    status_changed_by_name: asText(row.status_changed_by_name),
+    review_decision: asText(row.review_decision),
+    review_note: asText(row.review_note),
+  };
+}
 
 export type ProgressRowInput = {
   onboarding_step_id?: string | null;
@@ -359,6 +395,59 @@ export function matchTenantStepForAssignedRecord(
   return null;
 }
 
+const STEP_STATUSES: readonly OnboardingStepStatus[] = [
+  "pending",
+  "in_progress",
+  "completed",
+  "skipped",
+  "failed",
+];
+
+function normalizeStepStatus(value: unknown): OnboardingStepStatus {
+  const status = asText(value) as OnboardingStepStatus | null;
+  return status && STEP_STATUSES.includes(status) ? status : "pending";
+}
+
+function timeOf(value: string | null | undefined): number {
+  const ms = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
+export function isStaffOwnedAssignedRecord(
+  record: Pick<AssignedStepRecordInput, "settings">
+): boolean {
+  return !isApplicantCompletionOwner(asText(record.settings?.completionOwner));
+}
+
+/**
+ * Candidate steps follow the linked progress row (that is where submissions land). Staff-owned
+ * steps keep their decision on the step record, because the progress row is keyed by the tenant's
+ * published step and is replaced when the workflow is re-published. A non-pending progress row
+ * only wins for a staff step when it changed after the last staff decision (e.g. an automated
+ * check completed it).
+ */
+export function resolveAssignedStepStatus(
+  record: AssignedStepRecordInput,
+  progress: ProgressRowInput | undefined
+): { status: OnboardingStepStatus; completedAt: string | null } {
+  const fromProgress = {
+    status: normalizeStepStatus(progress?.status),
+    completedAt: progress?.completed_at ?? record.completed_at ?? null,
+  };
+  const fromRecord = {
+    status: normalizeStepStatus(record.status),
+    completedAt: record.completed_at ?? null,
+  };
+  if (!isStaffOwnedAssignedRecord(record)) {
+    return asText(progress?.status) ? fromProgress : fromRecord;
+  }
+  if (!progress || fromProgress.status === "pending") return fromRecord;
+  const decidedAt = timeOf(record.status_changed_at);
+  if (Number.isNaN(decidedAt)) return fromProgress;
+  const progressAt = timeOf(progress.updated_at ?? progress.completed_at);
+  return !Number.isNaN(progressAt) && progressAt > decidedAt ? fromProgress : fromRecord;
+}
+
 export function mapAssignedStepRecords(params: {
   records: AssignedStepRecordInput[];
   tenantSteps: TenantOnboardingStep[];
@@ -370,16 +459,8 @@ export function mapAssignedStepRecords(params: {
     const matched = matchTenantStepForAssignedRecord(record, params.tenantSteps, usedIds);
     if (matched) usedIds.add(matched.id);
     const progress = matched ? params.progressByStepId.get(matched.id) : undefined;
-    const progressStatus = (asText(progress?.status) ?? asText(record.status) ?? "pending") as OnboardingStepStatus;
-    const normalizedStatus: OnboardingStepStatus = [
-      "pending",
-      "in_progress",
-      "completed",
-      "skipped",
-      "failed",
-    ].includes(progressStatus)
-      ? progressStatus
-      : "pending";
+    const resolved = resolveAssignedStepStatus(record, progress);
+    const normalizedStatus = resolved.status;
     const unmatched = !matched;
     const settings =
       record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
@@ -405,7 +486,7 @@ export function mapAssignedStepRecords(params: {
           ? "This step could not be linked to a stored submission record."
           : undefined,
       assignedAt: params.assignedAt ?? record.created_at ?? null,
-      completedAt: progress?.completed_at ?? record.completed_at ?? null,
+      completedAt: resolved.completedAt,
       settings,
     };
   });

@@ -16,6 +16,7 @@ import {
   resolveEmploymentJourneyStage,
 } from "@/lib/onboarding/workflow-phase-groups";
 import {
+  ASSIGNED_STEP_RECORD_COLUMNS,
   type CandidateWorkflowAssignmentView,
   type MappedAssignedStep,
   buildPhaseAssignment,
@@ -24,6 +25,7 @@ import {
   mapAssignedStepRecords,
   resolveAssignmentSource,
   sanitizeTagsForClient,
+  toAssignedStepRecordInput,
 } from "@/lib/onboarding/assigned-workflow-steps";
 import {
   SCOPED_STEP_PROGRESS_SELECT,
@@ -191,9 +193,7 @@ export async function loadCandidateWorkflowPhaseView(
   if (instanceIds.length) {
     const { data, error } = await supabase
       .from("applicant_workflow_step_records")
-      .select(
-        "id, workflow_instance_id, snapshot_step_id, title, step_type, is_required, status, position, phase, settings, completed_at, created_at"
-      )
+      .select(ASSIGNED_STEP_RECORD_COLUMNS)
       .eq("tenant_id", tenantId)
       .in("workflow_instance_id", instanceIds)
       .order("position", { ascending: true });
@@ -234,22 +234,7 @@ export async function loadCandidateWorkflowPhaseView(
   );
 
   let mappedSteps = mapAssignedStepRecords({
-    records: activeRecords.map((row) => ({
-      id: String(row.id),
-      snapshot_step_id: String(row.snapshot_step_id ?? ""),
-      title: String(row.title ?? "Step"),
-      step_type: String(row.step_type ?? "custom-step"),
-      is_required: row.is_required !== false,
-      status: asText(row.status),
-      position: typeof row.position === "number" ? row.position : 0,
-      phase: asText(row.phase),
-      settings:
-        row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)
-          ? (row.settings as Record<string, unknown>)
-          : {},
-      completed_at: asText(row.completed_at),
-      created_at: asText(row.created_at),
-    })),
+    records: activeRecords.map(toAssignedStepRecordInput),
     tenantSteps,
     progressByStepId,
     assignedAt: asText(activeInstance?.started_at) ?? asText(activeInstance?.created_at),

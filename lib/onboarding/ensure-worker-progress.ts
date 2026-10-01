@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StepProgressRow, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { backfillFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
+import type { ProgressRowInput } from "@/lib/onboarding/assigned-workflow-steps";
+import { syncStaffStepDecisionsIntoProgress } from "@/lib/onboarding/staff-step-record-sync";
 
 function normalizeApplicationId(value?: string | null): string {
   return typeof value === "string" ? value.trim() : "";
@@ -128,12 +130,12 @@ async function ensureWorkerOnboardingProgressUncached(
   // publish of another flow disabled, and the applicant stepper resolves them by id.
   const { data: allSteps, error: allErr } = await supabase
     .from("worker_onboarding_step_progress")
-    .select("onboarding_step_id, status, completed_at, data")
+    .select("onboarding_step_id, status, completed_at, updated_at, data")
     .eq("worker_onboarding_progress_id", progressId);
 
   if (allErr) throw allErr;
 
-  const steps: StepProgressRow[] = (allSteps ?? []).map((r) => {
+  const storedSteps: StepProgressRow[] = (allSteps ?? []).map((r) => {
     const stepId = String(r.onboarding_step_id);
     return {
       onboarding_step_id: stepId,
@@ -143,6 +145,24 @@ async function ensureWorkerOnboardingProgressUncached(
       data: (r.data as Record<string, unknown>) ?? {},
     };
   });
+
+  let steps = storedSteps;
+  try {
+    steps = await syncStaffStepDecisionsIntoProgress(supabase, {
+      tenantId,
+      workerId,
+      applicationId: scopedApplicationId || null,
+      progressId: progressId!,
+      tenantSteps: config.steps,
+      steps: storedSteps,
+      progressRows: (allSteps ?? []) as ProgressRowInput[],
+    });
+  } catch (error) {
+    console.error("[ensure-worker-progress] staff step sync failed", {
+      workerId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const persistedFarthest = Number(existing?.farthest_reached_step_index ?? 1);
   const payloadWithoutFarthest: WorkerOnboardingProgressPayload = {

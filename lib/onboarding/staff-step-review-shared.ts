@@ -220,6 +220,25 @@ function asText(value: unknown): string | null {
   return text || null;
 }
 
+/** Last staff decision stored on an `applicant_workflow_step_records` row. */
+export function readRecordStaffReview(record: {
+  review_decision?: unknown;
+  review_note?: unknown;
+  status_changed_at?: unknown;
+  status_changed_by?: unknown;
+  status_changed_by_name?: unknown;
+}): StaffStepReview | null {
+  return readStaffStepReview({
+    staff_review: {
+      decision: record.review_decision,
+      note: record.review_note,
+      reviewed_at: record.status_changed_at,
+      reviewed_by_user_id: record.status_changed_by,
+      reviewed_by_name: record.status_changed_by_name,
+    },
+  });
+}
+
 export function readStaffStepReview(data: unknown): StaffStepReview | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const raw = (data as Record<string, unknown>).staff_review;

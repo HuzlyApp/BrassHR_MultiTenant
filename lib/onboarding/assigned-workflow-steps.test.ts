@@ -8,9 +8,12 @@ import {
   mapAssignedStepRecords,
   mapProgressToDisplayStatus,
   matchTenantStepForAssignedRecord,
+  resolveAssignedStepStatus,
   resolveAssignmentSource,
   sanitizeTagsForClient,
 } from "@/lib/onboarding/assigned-workflow-steps";
+import { readRecordStaffReview } from "@/lib/onboarding/staff-step-review-shared";
+import { computeStaffStepStatusOverrides } from "@/lib/onboarding/staff-step-record-sync";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
 function tenantStep(
@@ -73,6 +76,125 @@ describe("stepDisplayStatusLabel", () => {
       "Not Started"
     );
     expect(stepDisplayStatusLabel({ stepType: "screening", displayStatus: "completed" })).toBe("Completed");
+  });
+});
+
+describe("staff-owned step status", () => {
+  const screeningRecord = {
+    id: "rec-screening",
+    snapshot_step_id: "node-screening",
+    title: "Recruiter Screening",
+    step_type: "recruiter-screening",
+    is_required: true,
+    position: 1,
+    status: "completed",
+    completed_at: "2026-10-01T07:11:30.000Z",
+    settings: { completionOwner: "recruiter_or_hr" },
+    status_changed_at: "2026-10-01T07:11:30.000Z",
+    review_decision: "complete",
+  };
+
+  it("keeps the recruiter decision when a re-published tenant step brings a fresh pending progress row", () => {
+    const republished = tenantStep({
+      id: "tenant-new",
+      step_key: "recruiter_screening",
+      title: "Recruiter Screening",
+      step_type: "screening",
+      metadata: { workflow_step_id: "recruiter-screening" },
+    });
+    const [step] = mapAssignedStepRecords({
+      records: [screeningRecord],
+      tenantSteps: [republished],
+      progressByStepId: new Map([
+        ["tenant-new", { status: "pending", updated_at: "2026-10-01T09:37:38.000Z" }],
+      ]),
+    });
+    expect(step.tenantStepId).toBe("tenant-new");
+    expect(step.status).toBe("completed");
+    expect(step.completedAt).toBe("2026-10-01T07:11:30.000Z");
+  });
+
+  it("lets a newer non-pending progress row win over an older staff decision", () => {
+    expect(
+      resolveAssignedStepStatus(screeningRecord, {
+        status: "failed",
+        updated_at: "2026-10-02T00:00:00.000Z",
+      }).status
+    ).toBe("failed");
+    expect(
+      resolveAssignedStepStatus(screeningRecord, {
+        status: "failed",
+        updated_at: "2026-09-30T00:00:00.000Z",
+      }).status
+    ).toBe("completed");
+  });
+
+  it("keeps candidate steps on the progress row", () => {
+    const candidateRecord = {
+      ...screeningRecord,
+      step_type: "personal-information",
+      settings: { completionOwner: "applicant" },
+    };
+    expect(resolveAssignedStepStatus(candidateRecord, { status: "pending" }).status).toBe("pending");
+  });
+
+  it("reads the staff review from record columns", () => {
+    expect(
+      readRecordStaffReview({
+        review_decision: "reject",
+        review_note: "Not found",
+        status_changed_at: "2026-10-01T07:47:39.684Z",
+        status_changed_by: "user-1",
+        status_changed_by_name: "Test User",
+      })
+    ).toEqual({
+      decision: "reject",
+      note: "Not found",
+      reviewedAt: "2026-10-01T07:47:39.684Z",
+      reviewedByUserId: "user-1",
+      reviewedByName: "Test User",
+    });
+    expect(readRecordStaffReview({ review_decision: null, status_changed_at: null })).toBeNull();
+  });
+
+  it("produces progress overrides only for decided staff steps that disagree with progress", () => {
+    const republished = tenantStep({
+      id: "tenant-new",
+      step_key: "recruiter_screening",
+      title: "Recruiter Screening",
+      step_type: "screening",
+      metadata: { workflow_step_id: "recruiter-screening" },
+    });
+    const candidate = tenantStep({
+      id: "tenant-info",
+      step_key: "personal_information",
+      title: "Personal Information",
+      step_type: "personal_info",
+      metadata: { workflow_step_id: "personal-information" },
+    });
+    const overrides = computeStaffStepStatusOverrides({
+      records: [
+        screeningRecord,
+        {
+          id: "rec-info",
+          snapshot_step_id: "node-info",
+          title: "Personal Information",
+          step_type: "personal-information",
+          is_required: true,
+          position: 2,
+          status: "completed",
+          settings: { completionOwner: "applicant" },
+        },
+      ],
+      tenantSteps: [republished, candidate],
+      progressByStepId: new Map([
+        ["tenant-new", { status: "pending" }],
+        ["tenant-info", { status: "pending" }],
+      ]),
+    });
+    expect(overrides).toEqual([
+      { tenantStepId: "tenant-new", status: "completed", completedAt: "2026-10-01T07:11:30.000Z" },
+    ]);
   });
 });
 

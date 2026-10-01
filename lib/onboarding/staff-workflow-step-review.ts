@@ -8,11 +8,13 @@ import {
 import { sendTemplatedEmail } from "@/lib/email/send-templated-email";
 import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
 import {
+  ASSIGNED_STEP_RECORD_COLUMNS,
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
   mapAssignedStepRecords,
   parseAssignedStepPhase,
-  type AssignedStepRecordInput,
+  resolveAssignedStepStatus,
+  toAssignedStepRecordInput,
   type MappedAssignedStep,
   type ProgressRowInput,
 } from "@/lib/onboarding/assigned-workflow-steps";
@@ -87,24 +89,7 @@ function asObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function toAssignedRecord(row: Record<string, unknown>): AssignedStepRecordInput {
-  return {
-    id: String(row.id),
-    snapshot_step_id: String(row.snapshot_step_id ?? ""),
-    title: String(row.title ?? "Step"),
-    step_type: String(row.step_type ?? "custom-step"),
-    is_required: row.is_required !== false,
-    status: asText(row.status),
-    position: typeof row.position === "number" ? row.position : 0,
-    phase: asText(row.phase),
-    settings: asObject(row.settings),
-    completed_at: asText(row.completed_at),
-    created_at: asText(row.created_at),
-  };
-}
-
-const STEP_RECORD_SELECT =
-  "id, tenant_id, workflow_instance_id, snapshot_step_id, title, step_type, is_required, status, position, phase, settings, completed_at, created_at";
+const STEP_RECORD_SELECT = ASSIGNED_STEP_RECORD_COLUMNS;
 
 /**
  * Maps every record in the instance (not just the target) so tenant-step matching
@@ -129,7 +114,7 @@ export async function mapInstanceStepRecord(
     .order("position", { ascending: true });
   if (error) throw error;
   const mapped = mapAssignedStepRecords({
-    records: ((data ?? []) as Array<Record<string, unknown>>).map(toAssignedRecord),
+    records: ((data ?? []) as Array<Record<string, unknown>>).map(toAssignedStepRecordInput),
     tenantSteps: params.tenantSteps,
     progressByStepId: params.progressByStepId,
     assignedAt: params.assignedAt,
@@ -525,7 +510,7 @@ async function buildStaffReview(
   };
 }
 
-/** Writes `staff_review` + capped `staff_review_history` into a progress `data` / record `settings` blob. */
+/** Writes `staff_review` + capped `staff_review_history` into a progress row's `data`. */
 function withStaffReview(
   existing: Record<string, unknown>,
   review: StaffStepReview,
@@ -552,65 +537,96 @@ function withStaffReview(
   };
 }
 
-async function applyRecordOnlyStaffAction(
+/** The step record is the source of truth for staff decisions; every change is also appended to the event log. */
+async function writeStepRecordDecision(
   supabase: SupabaseClient,
   params: {
     ctx: StaffStepContext;
     tenantId: string;
-    workerId: string;
     action: StaffStepAction;
-    note: string | null;
-    actor: { userId: string | null; email: string | null };
-    variant: StaffStepVariant;
-    settings: Record<string, unknown>;
-    request?: Request;
+    previousStatus: string;
+    nextStatus: OnboardingStepStatus;
+    review: StaffStepReview;
   }
-): Promise<StaffStepActionResult> {
-  const { ctx, tenantId, action } = params;
-  const currentStatus = asText(ctx.record.status) ?? "pending";
-  if (!allowedStaffActions(currentStatus, params.variant).includes(action)) {
-    return {
-      ok: false,
-      status: 409,
-      code: "INVALID_TRANSITION",
-      error: "This step already has that status. Refresh to see the latest status.",
-    };
-  }
+): Promise<void> {
+  const { ctx, tenantId, review, nextStatus } = params;
+  const recordId = String(ctx.record.id);
+  // Actor ids reference public.users; an auth user without a profile row is stored by name only.
+  const isMissingUser = (error: { code?: string } | null) => error?.code === "23503";
 
-  const now = new Date().toISOString();
-  const nextStatus = staffActionTargetStatus(action);
-  const review = await buildStaffReview(supabase, { action, note: params.note, actor: params.actor, now });
-  const { error } = await supabase
-    .from("applicant_workflow_step_records")
-    .update({
-      status: nextStatus,
-      completed_at: nextStatus === "completed" ? now : null,
-      updated_at: now,
-      settings: withStaffReview(params.settings, review, currentStatus),
-    })
-    .eq("id", String(ctx.record.id))
-    .eq("tenant_id", tenantId);
+  const updateRecord = (actorId: string | null) =>
+    supabase
+      .from("applicant_workflow_step_records")
+      .update({
+        status: nextStatus,
+        completed_at: nextStatus === "completed" ? review.reviewedAt : null,
+        completed_by: nextStatus === "completed" ? actorId : null,
+        status_changed_at: review.reviewedAt,
+        status_changed_by: actorId,
+        status_changed_by_name: review.reviewedByName,
+        review_decision: params.action,
+        review_note: review.note,
+        updated_at: review.reviewedAt,
+      })
+      .eq("id", recordId)
+      .eq("tenant_id", tenantId);
+  let { error } = await updateRecord(review.reviewedByUserId);
+  if (isMissingUser(error)) ({ error } = await updateRecord(null));
   if (error) throw error;
 
-  await writeActivityLog({
-    actorUserId: params.actor.userId,
-    action: `workflow_step.staff_${action}`,
-    entityType: "applicant_workflow_step_record",
-    entityId: String(ctx.record.id),
-    tenantId,
-    metadata: {
-      worker_id: params.workerId,
-      application_id: ctx.applicationId,
-      onboarding_step_id: null,
-      step_title: ctx.mapped.title,
-      previous_status: currentStatus,
-      status: nextStatus,
-      note: params.note,
-    },
-    request: params.request,
-  });
+  const insertEvent = (actorId: string | null) =>
+    supabase.from("applicant_workflow_step_events").insert({
+      tenant_id: tenantId,
+      workflow_instance_id: String(ctx.instance.id),
+      step_record_id: recordId,
+      action: params.action,
+      from_status: params.previousStatus,
+      to_status: nextStatus,
+      note: review.note,
+      actor_user_id: actorId,
+      actor_name: review.reviewedByName,
+      created_at: review.reviewedAt,
+    });
+  let { error: eventError } = await insertEvent(review.reviewedByUserId);
+  if (isMissingUser(eventError)) ({ error: eventError } = await insertEvent(null));
+  if (eventError) {
+    console.error("[staff-workflow-step-review] step event insert failed", eventError.message);
+  }
+}
 
-  return { ok: true, status: nextStatus, review, email: null };
+async function loadLinkedProgressRow(
+  supabase: SupabaseClient,
+  params: {
+    progressId: string;
+    tenantStepId: string;
+    workerId: string;
+    tenantId: string;
+    applicationId: string | null;
+  }
+): Promise<ProgressRowInput | null> {
+  const load = async () => {
+    const { data, error } = await supabase
+      .from("worker_onboarding_step_progress")
+      .select("onboarding_step_id, status, completed_at, updated_at, data")
+      .eq("worker_onboarding_progress_id", params.progressId)
+      .eq("onboarding_step_id", params.tenantStepId)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as ProgressRowInput | null) ?? null;
+  };
+
+  const row = await load();
+  if (row) return row;
+  const { error: insertError } = await supabase.from("worker_onboarding_step_progress").insert({
+    worker_onboarding_progress_id: params.progressId,
+    worker_id: params.workerId,
+    tenant_id: params.tenantId,
+    onboarding_step_id: params.tenantStepId,
+    status: "pending",
+    ...(params.applicationId ? { application_id: params.applicationId } : {}),
+  });
+  if (insertError && insertError.code !== "23505") throw insertError;
+  return load();
 }
 
 export async function applyStaffWorkflowStepAction(
@@ -654,49 +670,25 @@ export async function applyStaffWorkflowStepAction(
       error: initial.reason ?? "This step can't be updated by staff.",
     };
   }
-  if (!tenantStepId) {
-    return applyRecordOnlyStaffAction(supabase, {
-      ctx,
-      tenantId,
+
+  let progressId: string | null = null;
+  let progressRow: ProgressRowInput | null = null;
+  if (tenantStepId) {
+    progressId = (await ensureWorkerOnboardingProgress(supabase, workerId, tenantId, ctx.applicationId))
+      .progressId;
+    progressRow = await loadLinkedProgressRow(supabase, {
+      progressId,
+      tenantStepId,
       workerId,
-      action,
-      note,
-      actor: params.actor,
-      variant: initial.variant,
-      settings: recordSettings,
-      request: params.request,
+      tenantId,
+      applicationId: ctx.applicationId,
     });
   }
 
-  const progress = await ensureWorkerOnboardingProgress(supabase, workerId, tenantId, ctx.applicationId);
-  const progressId = progress.progressId;
-
-  const loadRow = async () => {
-    const { data, error } = await supabase
-      .from("worker_onboarding_step_progress")
-      .select("status, data")
-      .eq("worker_onboarding_progress_id", progressId)
-      .eq("onboarding_step_id", tenantStepId)
-      .maybeSingle();
-    if (error) throw error;
-    return data as { status?: string | null; data?: unknown } | null;
-  };
-
-  let row = await loadRow();
-  if (!row) {
-    const { error: insertError } = await supabase.from("worker_onboarding_step_progress").insert({
-      worker_onboarding_progress_id: progressId,
-      worker_id: workerId,
-      tenant_id: tenantId,
-      onboarding_step_id: tenantStepId,
-      status: "pending",
-      ...(ctx.applicationId ? { application_id: ctx.applicationId } : {}),
-    });
-    if (insertError && insertError.code !== "23505") throw insertError;
-    row = await loadRow();
-  }
-
-  const currentStatus = asText(row?.status) ?? "pending";
+  const currentStatus = resolveAssignedStepStatus(
+    toAssignedStepRecordInput(ctx.record),
+    progressRow ?? undefined
+  ).status;
   if (!allowedStaffActions(currentStatus, initial.variant).includes(action)) {
     return {
       ok: false,
@@ -709,31 +701,30 @@ export async function applyStaffWorkflowStepAction(
   const now = new Date().toISOString();
   const nextStatus = staffActionTargetStatus(action);
   const review = await buildStaffReview(supabase, { action, note, actor: params.actor, now });
-  const existingData = asObject(row?.data);
 
-  const { error: updateError } = await supabase
-    .from("worker_onboarding_step_progress")
-    .update({
-      status: nextStatus,
-      completed_at: nextStatus === "completed" ? now : null,
-      updated_at: now,
-      data: withStaffReview(existingData, review, currentStatus),
-    })
-    .eq("worker_onboarding_progress_id", progressId)
-    .eq("onboarding_step_id", tenantStepId);
-  if (updateError) throw updateError;
+  await writeStepRecordDecision(supabase, {
+    ctx,
+    tenantId,
+    action,
+    previousStatus: currentStatus,
+    nextStatus,
+    review,
+  });
 
-  const { error: recordError } = await supabase
-    .from("applicant_workflow_step_records")
-    .update({
-      status: nextStatus,
-      completed_at: nextStatus === "completed" ? now : null,
-      updated_at: now,
-    })
-    .eq("id", String(ctx.record.id))
-    .eq("tenant_id", tenantId);
-  if (recordError) {
-    console.error("[staff-workflow-step-review] step record sync failed", recordError.message);
+  if (progressId && tenantStepId) {
+    const { error: progressError } = await supabase
+      .from("worker_onboarding_step_progress")
+      .update({
+        status: nextStatus,
+        completed_at: nextStatus === "completed" ? now : null,
+        updated_at: now,
+        data: withStaffReview(asObject(progressRow?.data), review, currentStatus),
+      })
+      .eq("worker_onboarding_progress_id", progressId)
+      .eq("onboarding_step_id", tenantStepId);
+    if (progressError) {
+      console.error("[staff-workflow-step-review] progress mirror failed", progressError.message);
+    }
   }
 
   await writeActivityLog({
@@ -755,7 +746,7 @@ export async function applyStaffWorkflowStepAction(
   });
 
   const email =
-    action === "complete" && params.notifyCandidate
+    action === "complete" && params.notifyCandidate && progressId && tenantStepId
       ? await notifyCandidateNextStep(supabase, {
           tenantId,
           workerId,
@@ -770,3 +761,4 @@ export async function applyStaffWorkflowStepAction(
 
   return { ok: true, status: nextStatus, review, email };
 }
+

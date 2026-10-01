@@ -3,6 +3,7 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { canRevealPostHire } from "@/lib/onboarding/lock-post-hire";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
 import {
+  ASSIGNED_STEP_RECORD_COLUMNS,
   LEGACY_UNMATCHED_STEP_MESSAGE,
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
@@ -17,6 +18,7 @@ import {
   resolveInstanceApplicationId,
 } from "@/lib/onboarding/scoped-step-progress";
 import {
+  readRecordStaffReview,
   readStaffStepReview,
   type StaffStepActionEligibility,
   type StaffStepReview,
@@ -44,6 +46,7 @@ import {
 } from "@/lib/skill-assessment/load-settings";
 import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defaults";
 import { loadCandidateInterviews } from "@/lib/interviews/candidate-interview-history";
+import { loadStepCheckResult, type StepCheckResult } from "@/lib/onboarding/step-check-results";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import {
   interviewStepStatus,
@@ -105,6 +108,8 @@ export type WorkflowStepInspection = {
   /** Whether staff can complete / reject / reopen this step from the drawer. */
   staffAction: StaffStepActionEligibility;
   staffReview: StaffStepReview | null;
+  /** Compliance check / facility approval result for those step types. */
+  checkResult: StepCheckResult | null;
   documents: InspectableDocument[];
   form: {
     questions: Array<{
@@ -256,9 +261,7 @@ export async function loadCandidateWorkflowStepInspection(
 
   const { data: record, error: recordError } = await supabase
     .from("applicant_workflow_step_records")
-    .select(
-      "id, tenant_id, workflow_instance_id, snapshot_step_id, title, step_type, is_required, status, position, phase, settings, completed_at, created_at"
-    )
+    .select(ASSIGNED_STEP_RECORD_COLUMNS)
     .eq("id", stepId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -336,8 +339,14 @@ export async function loadCandidateWorkflowStepInspection(
     stepType: asText(record.step_type),
     settings: recordSettings,
   });
-  const reviewedOnRecord = !tenantStep && staffAction.allowed;
-  const staffReview = readStaffStepReview(reviewedOnRecord ? recordSettings : progressData);
+  const recordReview = readRecordStaffReview(record);
+  const progressReview = readStaffStepReview(progressData);
+  const staffReview =
+    recordReview && progressReview
+      ? Date.parse(progressReview.reviewedAt) > Date.parse(recordReview.reviewedAt)
+        ? progressReview
+        : recordReview
+      : recordReview ?? progressReview;
   const staffDecision =
     staffReview && staffReview.decision !== "reopen" ? staffReview : null;
   const kind = inspectionKindForStep({
@@ -588,6 +597,12 @@ export async function loadCandidateWorkflowStepInspection(
     };
   }
 
+  const checkResult = await loadStepCheckResult(supabase, {
+    tenantId,
+    stepRecordId: String(record.id),
+    stepType: asText(record.step_type),
+  });
+
   let interviews: CandidateInterview[] | null = null;
   let step = mapped;
   if (isInterviewStep(mapped)) {
@@ -597,7 +612,7 @@ export async function loadCandidateWorkflowStepInspection(
   const interviewStatus = interviewStepStatus(step);
 
   let emptyState: string | null = null;
-  if (mapped.unmatched && !reviewedOnRecord) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
+  if (mapped.unmatched && !staffAction.allowed) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
   else if (interviewStatus?.key === "not_scheduled") {
     emptyState = "No interview scheduled yet. Use Schedule Interview to book one with the candidate.";
   } else if (interviewStatus?.key === "scheduled" && step.interview?.latest) {
@@ -653,7 +668,7 @@ export async function loadCandidateWorkflowStepInspection(
     assignedAt: asText(instance.started_at) ?? asText(instance.created_at),
     startedAt: asText(progress?.created_at),
     submittedAt: asText(progress?.updated_at),
-    completedAt: asText(progress?.completed_at) ?? mapped.completedAt,
+    completedAt: mapped.completedAt,
     approvedOrRejectedAt: latestDoc?.approvedOrRejectedAt ?? staffDecision?.reviewedAt ?? null,
     completedBy:
       staffDecision?.decision === "complete"
@@ -668,6 +683,7 @@ export async function loadCandidateWorkflowStepInspection(
     emptyState,
     staffAction,
     staffReview,
+    checkResult,
     documents,
     form,
     assessment,

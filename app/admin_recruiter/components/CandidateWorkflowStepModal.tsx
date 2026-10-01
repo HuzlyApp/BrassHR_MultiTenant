@@ -488,6 +488,40 @@ export default function CandidateWorkflowStepModal({
                   </Section>
                 ) : null}
 
+                {inspection.checkResult ? (
+                  <Section
+                    title={inspection.checkResult.kind === "facility" ? "Facility approval" : "Compliance check"}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-900">{inspection.checkResult.typeLabel}</p>
+                      <span
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                          STEP_PILL_TONE_CLASSES[inspection.checkResult.tone]
+                        }`}
+                      >
+                        {inspection.checkResult.statusLabel}
+                      </span>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {inspection.checkResult.kind === "facility" ? (
+                        <Meta label="Facility" value={inspection.checkResult.facilityName} />
+                      ) : (
+                        <>
+                          <Meta label="Vendor" value={inspection.checkResult.vendorName} />
+                          <Meta label="Reference" value={inspection.checkResult.externalRef} />
+                        </>
+                      )}
+                      <Meta label="Result date" value={formatDateTime(inspection.checkResult.completedAt)} />
+                      <Meta label="Recorded by" value={inspection.checkResult.completedByName} />
+                    </dl>
+                    {inspection.checkResult.resultSummary ? (
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
+                        {inspection.checkResult.resultSummary}
+                      </p>
+                    ) : null}
+                  </Section>
+                ) : null}
+
                 <Section title="Overview">
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Meta label="Step name" value={inspection.step.title} />
