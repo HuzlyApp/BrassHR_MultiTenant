@@ -172,7 +172,7 @@ let geminiFetchImpl: typeof fetch | null = null;
 let claudeClient: Anthropic | null = null;
 let claudeMessagesCreateImpl:
   | ((
-      params: Anthropic.MessageCreateParams,
+      params: Anthropic.MessageCreateParamsNonStreaming,
       options?: Anthropic.RequestOptions
     ) => Promise<Anthropic.Message>)
   | null = null;
@@ -220,7 +220,7 @@ export function __setGeminiFetchForTests(mock: typeof fetch | null): void {
 export function __setClaudeMessagesCreateForTests(
   mock:
     | ((
-        params: Anthropic.MessageCreateParams,
+        params: Anthropic.MessageCreateParamsNonStreaming,
         options?: Anthropic.RequestOptions
       ) => Promise<Anthropic.Message>)
     | null
@@ -541,7 +541,8 @@ async function callClaudeOnce(args: {
 }): Promise<Anthropic.Message> {
   const create =
     claudeMessagesCreateImpl ??
-    getClaudeClient().messages.create.bind(getClaudeClient().messages);
+    ((params: Anthropic.MessageCreateParamsNonStreaming, options?: Anthropic.RequestOptions) =>
+      getClaudeClient().messages.create(params, options));
   return create(
     {
       model: args.model,
