@@ -1,5 +1,6 @@
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import type { WorkflowStepDisplayStatus } from "@/lib/onboarding/assigned-workflow-steps";
+import { hireStageForStepKey } from "@/lib/onboarding/hire-stage-catalog";
 import { isInterviewStep } from "@/lib/onboarding/interview-step";
 
 export const PRE_HIRE_FIGMA_STAGES = [
@@ -56,7 +57,6 @@ const PRE_HIRE_LIBRARY_STAGE: Record<string, (typeof PRE_HIRE_FIGMA_STAGES)[numb
   "internal-select": "Interview",
   "candidate-selection": "Interview",
   "release-to-client": "Submission",
-  "client-review": "Submission",
   "background-check": "Compliance",
   "drug-test-screening": "Compliance",
   "oig-exclusion-check": "Compliance",
@@ -252,12 +252,47 @@ function stepHaystack(step: CandidateWorkflowStepView): string {
   return `${step.stepKey} ${step.stepType} ${step.onboardingType} ${step.title}`.toLowerCase();
 }
 
+/**
+ * The library catalog and stamped `settings.stageName` use the seven post-hire library
+ * stages; the Post-Hire board shows four Figma buckets.
+ */
+const POST_HIRE_STAGE_ALIASES: Record<string, (typeof POST_HIRE_FIGMA_STAGES)[number]> = {
+  kickoff: "Welcome & Complete",
+  paperwork: "Payroll & Tax",
+  "payroll & pay": "Payroll & Tax",
+  policies: "Training & Policy",
+  "access & equipment": "Access & Systems",
+  training: "Training & Policy",
+  "day one ready": "Welcome & Complete",
+};
+
+const POST_HIRE_STAGE_NAMES = new Set([
+  ...Object.keys(POST_HIRE_STAGE_ALIASES),
+  ...POST_HIRE_FIGMA_STAGES.map((stage) => stage.toLowerCase()),
+]);
+
+/** Maps a stage name onto the board for this lifecycle; null when it belongs to the other board. */
+function boardStageName(name: string | null, lifecycle: HireStageLifecycle): string | null {
+  if (!name) return null;
+  const key = name.toLowerCase();
+  if (lifecycle === "post_hire") return POST_HIRE_STAGE_ALIASES[key] ?? name;
+  return POST_HIRE_STAGE_NAMES.has(key) ? null : name;
+}
+
 function resolveStageName(
   step: CandidateWorkflowStepView,
   lifecycle: HireStageLifecycle,
   explicitStage: string | null
 ): string {
-  if (explicitStage) return explicitStage;
+  const explicit = boardStageName(explicitStage, lifecycle);
+  if (explicit) return explicit;
+  const fromCatalog = boardStageName(
+    hireStageForStepKey(step.stepType) ??
+      hireStageForStepKey(step.stepKey) ??
+      hireStageForStepKey(step.snapshotStepId),
+    lifecycle
+  );
+  if (fromCatalog) return fromCatalog;
 
   if (lifecycle === "pre_hire") {
     const keys = [step.stepKey, step.stepType]
@@ -322,9 +357,10 @@ function summarizeStage(steps: CandidateWorkflowStepView[]): {
 }
 
 /**
- * Groups assigned workflow steps into Figma-style recruiter stages.
- * Uses explicit settings.stage* when present; otherwise keyword heuristics
- * aligned to the Pre-Hire / Post-Hire Figma boards.
+ * Groups assigned workflow steps into recruiter stages.
+ * Order: explicit settings.stageName, then the library step-key catalog,
+ * then the Pre-Hire library map, then keyword heuristics for steps that are not in the catalog.
+ * Post-hire library stage names are folded into the four Post-Hire board buckets.
  */
 export function groupStepsIntoHireStages(
   steps: CandidateWorkflowStepView[],

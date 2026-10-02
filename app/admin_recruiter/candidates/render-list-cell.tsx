@@ -296,6 +296,9 @@ export function renderListCell(
           band={listingDisplayFitBand({
             analyzed,
             stage: c.aiMatchStage,
+            category: c.aiMatchCategory,
+            displayCategory: c.aiMatchDisplayCategory,
+            score: c.aiMatchScore,
             counts: c.aiRequirementCounts,
           })}
         />

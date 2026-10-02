@@ -2343,6 +2343,9 @@ export default function JobApplicationsPage() {
             band={listingDisplayFitBand({
               analyzed: row.ai_match_status === "ANALYZED",
               stage: row.ai_match_stage,
+              category: row.ai_match_category,
+              displayCategory: row.ai_match_display_category,
+              score: row.ai_match_score,
               counts: row.ai_requirement_counts,
             })}
           />

@@ -3,12 +3,8 @@ import { isCandidateAlreadyConverted } from "@/lib/admin/convert-candidate-to-wo
 import type { AdminAttachmentRequirement } from "@/lib/onboarding/build-admin-attachment-requirements";
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import {
-  canRevealPostHire,
-  canRevealPostHireForStaffJourney,
-  isAuthoritativelyHired,
-} from "@/lib/onboarding/lock-post-hire";
-import { parseApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
+import { canRevealPostHire, canRevealPostHireForStaffJourney } from "@/lib/onboarding/lock-post-hire";
+import { resolveCandidateHireGate } from "@/lib/onboarding/resolve-candidate-hire-gate";
 import {
   type EmploymentJourneyStage,
   type EmploymentLifecyclePhase,
@@ -167,18 +163,13 @@ export async function loadCandidateWorkflowPhaseView(
   const applications = (applicationsRes.data ?? []) as Array<Record<string, unknown>>;
   const instances = (instancesRes.data ?? []) as Array<Record<string, unknown>>;
   const primaryApp = applications[0] ?? null;
-  const hiredApp = applications.find((row) => isAuthoritativelyHired(asText(row.status))) ?? null;
-  const isHired = Boolean(hiredApp);
-  const workflowPhase = parseApplicantLifecyclePhase(primaryApp?.workflow_phase);
-  const postHireUnlockedAt = asText(
-    hiredApp?.post_hire_activated_at ?? primaryApp?.post_hire_activated_at
-  );
-  const postHireSuspended = Boolean(
-    asText(hiredApp?.post_hire_suspended_at ?? primaryApp?.post_hire_suspended_at)
-  );
-  const postHireUnlocked =
-    isHired && Boolean(postHireUnlockedAt) && !postHireSuspended && workflowPhase !== "pre_hire";
-  const postHireActivationFailed = isHired && !postHireUnlockedAt && workflowPhase === "pre_hire";
+  const hireGate = resolveCandidateHireGate(applications);
+  const isHired = hireGate.isHired;
+  const workflowPhase = hireGate.workflowPhase;
+  const postHireUnlockedAt = hireGate.postHireUnlockedAt;
+  const postHireSuspended = hireGate.postHireSuspended;
+  const postHireUnlocked = hireGate.postHireUnlocked;
+  const postHireActivationFailed = hireGate.postHireActivationFailed;
 
   const workerRow = (workerRes.data ?? {}) as Record<string, unknown>;
   const convertedVisible = canRevealPostHire({
@@ -447,8 +438,8 @@ export async function loadCandidateWorkflowPhaseView(
   const view: CandidateWorkflowPhaseView = {
     currentStage,
     isHired,
-    hiredAt: asText(hiredApp?.hired_at) ?? (isHired ? asText(hiredApp?.updated_at) : null),
-    hiredBy: asText(hiredApp?.hired_by),
+    hiredAt: hireGate.hiredAt,
+    hiredBy: hireGate.hiredBy,
     postHireVisible,
     postHireUnlocked: postHireVisible && postHireUnlocked,
     postHireLocked: !postHireVisible,

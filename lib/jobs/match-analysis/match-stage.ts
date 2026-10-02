@@ -19,6 +19,22 @@ export function isDeepMatchStage(stage: unknown): boolean {
   return parsed === "deep" || parsed === "submission";
 }
 
+/**
+ * Contact and extracted-text corrections used to set ai_match_status to NEEDS_REVIEW
+ * without clearing ai_match_stage. A saved stage plus analysis still means the
+ * recruiter can continue; only an explicit re-run should send them back to Quick Match.
+ */
+export function matchWorkspaceIsAnalyzed(args: {
+  status?: string | null;
+  stage?: string | null;
+  hasAnalysis?: boolean;
+}): boolean {
+  const status = String(args.status ?? "").trim().toUpperCase();
+  if (status === "ANALYZED") return true;
+  if (status === "ANALYZING" || status === "FAILED" || status === "READY") return false;
+  return Boolean(args.hasAnalysis && parseMatchStage(args.stage));
+}
+
 /** Listing / header match % — only after Deep Match. */
 export function publicMatchScore(
   stage: unknown,

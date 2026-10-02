@@ -149,52 +149,79 @@ export async function findIdentitySiblingWorkerIds(
 
   const siblingIds = new Set(seedIds);
 
-  if (emails.size > 0) {
-    const { data, error } = await queryInChunks([...emails], async (chunk) => {
-      const result = await supabase
-        .from("worker")
-        .select("id, email")
-        .eq("tenant_id", tenantId)
-        .in("email", chunk);
-      return {
-        data: (result.data ?? []) as Array<{ id?: string; email?: string | null }>,
-        error: result.error,
-      };
-    });
-    if (error) throw error;
-    for (const row of data) {
-      const id = String(row.id ?? "").trim();
-      if (id) siblingIds.add(id);
-    }
+  const phones = [
+    ...new Set(
+      [...phoneNameKeys].map((key) => key.split(":")[0]).filter((phone) => phone.length >= 10)
+    ),
+  ];
+
+  const [emailRows, phoneRows] = await Promise.all([
+    emails.size > 0
+      ? queryInChunks([...emails], async (chunk) => {
+          const result = await supabase
+            .from("worker")
+            .select("id, email")
+            .eq("tenant_id", tenantId)
+            .in("email", chunk);
+          return {
+            data: (result.data ?? []) as Array<{ id?: string; email?: string | null }>,
+            error: result.error,
+          };
+        })
+      : Promise.resolve({
+          data: [] as Array<{ id?: string; email?: string | null }>,
+          error: null,
+        }),
+    phones.length > 0
+      ? (async () => {
+          const orFilter = phones.map((last10) => `phone.ilike.%${last10}%`).join(",");
+          const result = await supabase
+            .from("worker")
+            .select("id, phone, first_name, last_name, email")
+            .eq("tenant_id", tenantId)
+            .or(orFilter)
+            .limit(Math.min(phones.length * 40, 1000));
+          return {
+            data: (result.data ?? []) as Array<{
+              id?: string;
+              phone?: string | null;
+              first_name?: string | null;
+              last_name?: string | null;
+              email?: string | null;
+            }>,
+            error: result.error,
+          };
+        })()
+      : Promise.resolve({
+          data: [] as Array<{
+            id?: string;
+            phone?: string | null;
+            first_name?: string | null;
+            last_name?: string | null;
+            email?: string | null;
+          }>,
+          error: null,
+        }),
+  ]);
+
+  if (emailRows.error) throw emailRows.error;
+  for (const row of emailRows.data) {
+    const id = String(row.id ?? "").trim();
+    if (id) siblingIds.add(id);
   }
 
-  if (phoneNameKeys.size > 0) {
-    const phones = [
-      ...new Set(
-        [...phoneNameKeys].map((key) => key.split(":")[0]).filter((phone) => phone.length >= 10)
-      ),
-    ];
-    for (const last10 of phones) {
-      const { data, error } = await supabase
-        .from("worker")
-        .select("id, phone, first_name, last_name, email")
-        .eq("tenant_id", tenantId)
-        .ilike("phone", `%${last10}%`)
-        .limit(40);
-      if (error) throw error;
-      for (const row of data ?? []) {
-        const id = String((row as { id?: string }).id ?? "").trim();
-        if (!id) continue;
-        const phone = normalizeCandidatePhone((row as { phone?: string | null }).phone);
-        const name = normalizeCandidatePersonName(
-          (row as { first_name?: string | null }).first_name,
-          (row as { last_name?: string | null }).last_name
-        );
-        if (phone.length < 10 || !name) continue;
-        if (!phoneNameKeys.has(`${phone.slice(-10)}:${name}`)) continue;
-        siblingIds.add(id);
-      }
-    }
+  if (phoneRows.error) throw phoneRows.error;
+  for (const row of phoneRows.data) {
+    const id = String((row as { id?: string }).id ?? "").trim();
+    if (!id) continue;
+    const phone = normalizeCandidatePhone((row as { phone?: string | null }).phone);
+    const name = normalizeCandidatePersonName(
+      (row as { first_name?: string | null }).first_name,
+      (row as { last_name?: string | null }).last_name
+    );
+    if (phone.length < 10 || !name) continue;
+    if (!phoneNameKeys.has(`${phone.slice(-10)}:${name}`)) continue;
+    siblingIds.add(id);
   }
 
   return [...siblingIds];

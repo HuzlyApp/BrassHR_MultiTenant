@@ -60,6 +60,9 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
       const band = listingDisplayFitBand({
         analyzed: row.aiMatchStatus === "ANALYZED",
         stage: row.aiMatchStage,
+        category: row.aiMatchCategory,
+        displayCategory: row.aiMatchDisplayCategory,
+        score: row.aiMatchScore,
         counts: row.aiRequirementCounts,
       });
       return band ? fitBandLabel(band) : "—";

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseBulkDeleteIds } from "@/lib/jobs/service";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 
 type DbClient = SupabaseClient;
 
@@ -30,6 +31,10 @@ export async function bulkDeleteWorkers(
   const deletedIds = ((data ?? []) as BulkDeleteWorkerRow[])
     .map((row) => String(row.deleted_id ?? "").trim())
     .filter(Boolean);
+
+  if (deletedIds.length > 0) {
+    await invalidateCandidateKpiCache(tenantId);
+  }
 
   return { deletedIds };
 }

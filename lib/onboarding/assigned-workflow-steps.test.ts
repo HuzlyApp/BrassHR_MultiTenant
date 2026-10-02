@@ -338,7 +338,7 @@ describe("assigned workflow steps", () => {
           position: 1,
           phase: "pre_hire",
           status: "pending",
-          settings: {},
+          settings: { stageName: "Intake", phase: "pre_hire" },
         },
       ],
       tenantSteps: [resume],
@@ -347,6 +347,7 @@ describe("assigned workflow steps", () => {
     expect(mapped[0]?.status).toBe("completed");
     expect(mapped[0]?.displayStatus).toBe("completed");
     expect(mapped[0]?.tenantStepId).toBe("tenant-resume");
+    expect(mapped[0]?.settings).toEqual({ stageName: "Intake", phase: "pre_hire" });
   });
 
   it("prefers job mapping over manual when the workflow id is mapped", () => {

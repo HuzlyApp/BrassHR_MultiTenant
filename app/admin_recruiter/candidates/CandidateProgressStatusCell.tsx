@@ -12,6 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
+import { invalidateCandidatesListCache } from "@/lib/workers/candidates-list-session-cache";
 import toast from "react-hot-toast";
 import {
   ApplicationStatusChangeModal,
@@ -285,6 +286,7 @@ export function useCandidateProgressStatus(
         );
         setPendingChange(null);
         setStatusChangeNote("");
+        invalidateCandidatesListCache();
         toast.success(`${nextStatusName} saved`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to update status");

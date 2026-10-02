@@ -29,6 +29,10 @@ import {
   isPlacementAcceptedStatus,
   readStepLifecyclePhase,
 } from "@/lib/onboarding/workflow-phase";
+import {
+  commitOnboardingStepProgress,
+  StepProgressConflictError,
+} from "@/lib/onboarding/step-progress-write";
 
 export const runtime = "nodejs";
 
@@ -350,18 +354,59 @@ export async function POST(req: NextRequest) {
       if (insertMissingErr && insertMissingErr.code !== "23505") throw insertMissingErr;
     }
 
-    const { error: upErr } = await supabase
-      .from("worker_onboarding_step_progress")
-      .update({
-        status,
-        completed_at,
-        data: stepData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("worker_onboarding_progress_id", progressPayload.progressId)
-      .eq("onboarding_step_id", stepId);
+    const progressId = progressPayload.progressId;
+    const committed = await commitOnboardingStepProgress({
+      status,
+      data: stepData,
+      completedAt: completed_at,
+      read: async () => {
+        const { data, error } = await supabase
+          .from("worker_onboarding_step_progress")
+          .select("status, data, updated_at")
+          .eq("worker_onboarding_progress_id", progressId)
+          .eq("onboarding_step_id", stepId)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) return null;
+        const rawData = data.data;
+        return {
+          status: typeof data.status === "string" ? data.status : null,
+          data:
+            rawData && typeof rawData === "object" && !Array.isArray(rawData)
+              ? (rawData as Record<string, unknown>)
+              : {},
+          updatedAt: typeof data.updated_at === "string" ? data.updated_at : null,
+        };
+      },
+      write: async (input) => {
+        let query = supabase
+          .from("worker_onboarding_step_progress")
+          .update({
+            status: input.status,
+            completed_at: input.completedAt,
+            data: input.data,
+            updated_at: input.updatedAt,
+          })
+          .eq("worker_onboarding_progress_id", progressId)
+          .eq("onboarding_step_id", stepId);
+        query = input.expectedUpdatedAt
+          ? query.eq("updated_at", input.expectedUpdatedAt)
+          : query.is("updated_at", null);
+        const { data, error } = await query.select("onboarding_step_id");
+        if (error) throw error;
+        return data && data.length > 0 ? "ok" : "conflict";
+      },
+    });
 
-    if (upErr) throw upErr;
+    if (committed.noop) {
+      const progress = await ensureWorkerOnboardingProgress(
+        supabase,
+        ctx.workerId,
+        ctx.tenantId,
+        applicationId || null
+      );
+      return NextResponse.json({ progress, noop: true });
+    }
 
     if (config) {
       const enabledSteps = getEnabledTenantSteps(config);
@@ -383,6 +428,9 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ progress });
   } catch (err: unknown) {
+    if (err instanceof StepProgressConflictError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     console.error("[onboarding/progress/step]", err);
     return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }

@@ -142,6 +142,13 @@ export function formatMatchModelLabel(model: string | null | undefined): string 
     return `Grok ${pretty}`;
   }
 
+  if (lower.startsWith("claude")) {
+    if (lower.includes("haiku")) return "Claude Haiku";
+    if (lower.includes("opus")) return "Claude Opus";
+    if (lower.includes("sonnet")) return "Claude Sonnet";
+    return "Claude";
+  }
+
   return raw;
 }
 
