@@ -1992,7 +1992,7 @@ export function AiAnalysisOverviewClient({
                   })}
                   {!filteredRequirements.length ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-sm text-[#667085]">
+                      <td colSpan={4} className="py-8 text-center text-sm text-[#667085]">
                         No requirements match this filter.
                       </td>
                     </tr>
