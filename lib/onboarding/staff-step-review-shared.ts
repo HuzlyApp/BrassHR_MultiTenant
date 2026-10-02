@@ -26,6 +26,8 @@ export type StaffStepEmailResult = {
   skipped: boolean;
   reason?: string;
   nextStepTitle?: string | null;
+  /** Set when the requested step was still locked, so the email opened `nextStepTitle` instead. */
+  lockedStepTitle?: string | null;
 };
 
 export const STAFF_REVIEW_NOTE_MAX_LENGTH = 2000;

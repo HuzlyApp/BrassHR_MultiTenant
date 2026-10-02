@@ -4,8 +4,7 @@ import {
   buildApplicantEmailContext,
   contextToTemplateVariables,
 } from "@/lib/email/applicant-email-context";
-import { sendTemplatedEmail } from "@/lib/email/send-templated-email";
-import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
+import { sendStepReadyEmail } from "@/lib/onboarding/step-ready-email";
 import {
   computeCandidateOnboardingFrontier,
   type CandidateOnboardingFrontier,
@@ -55,7 +54,7 @@ export function candidateStepEmailBlock(params: {
     };
   }
   const status = params.statusById.get(params.targetStepId) ?? "pending";
-  if (status === "completed" || status === "skipped") {
+  if (status === "completed") {
     return { code: "STEP_ALREADY_COMPLETED", error: "The candidate has already completed this step." };
   }
   if (index + 1 <= params.frontier.maxAllowedStepIndex) return null;
@@ -135,19 +134,26 @@ export async function sendCandidateStepEmail(
     };
   }
 
+  const statusById = buildProgressStatusMaps(candidateSteps, progress);
+  const frontier = computeCandidateOnboardingFrontier({
+    engineOrder: config.candidateEngineOrder,
+    candidateSteps,
+    progress,
+  });
   const block = candidateStepEmailBlock({
     candidateSteps,
     targetStepId: target?.id ?? "",
-    statusById: buildProgressStatusMaps(candidateSteps, progress),
-    frontier: computeCandidateOnboardingFrontier({
-      engineOrder: config.candidateEngineOrder,
-      candidateSteps,
-      progress,
-    }),
+    statusById,
+    frontier,
   });
-  if (block || !target) {
+  // A locked step can't be opened yet, so point the candidate at the step they need to do first.
+  const openStep =
+    block?.code === "STEP_LOCKED" ? currentOpenCandidateStep(candidateSteps, statusById, frontier) : null;
+  if ((block && !openStep) || !target) {
     return { ok: false, status: 409, ...(block ?? { code: "STEP_NOT_IN_APPLICATION", error: "Step not found." }) };
   }
+  const emailStep = openStep ?? target;
+  const lockedStepTitle = openStep ? target.title : null;
 
   const emailCtx = await buildApplicantEmailContext(supabase, {
     tenantId,
@@ -156,25 +162,27 @@ export async function sendCandidateStepEmail(
     continuationReason: "step_ready",
     continuationMetadata: {
       purpose: "staff_step_email",
-      stepKey: target.step_key,
+      stepKey: emailStep.step_key,
+      requestedStepKey: target.step_key,
       sentBy: params.actor.userId,
     },
     applicationId: ctx.applicationId,
     jobToken,
+    continuationTargetStepKey: emailStep.step_key,
   });
   if (!emailCtx) {
     return { ok: false, status: 409, code: "NO_APPLICANT_EMAIL", error: "This candidate has no email address on file." };
   }
 
-  const result = await sendTemplatedEmail(supabase, {
+  const result = await sendStepReadyEmail(supabase, {
+    phase: activePhase,
     to: emailCtx.applicantEmail,
     tenantId,
-    templateKey: EMAIL_TEMPLATE_TYPE.NEXT_STEP_READY,
     variables: {
       ...contextToTemplateVariables(emailCtx),
       jobTitle,
       completedStepTitle: "",
-      nextStepTitle: target.title,
+      nextStepTitle: emailStep.title,
       nextStepLink: emailCtx.applicantContinuationLink,
     },
   });
@@ -188,8 +196,9 @@ export async function sendCandidateStepEmail(
     metadata: {
       worker_id: workerId,
       application_id: ctx.applicationId,
-      onboarding_step_id: target.id,
-      step_title: target.title,
+      onboarding_step_id: emailStep.id,
+      step_title: emailStep.title,
+      requested_step_title: target.title,
       sent: result.sent,
       reason: result.reason ?? null,
     },
@@ -202,7 +211,23 @@ export async function sendCandidateStepEmail(
       sent: result.sent,
       skipped: result.skipped ?? false,
       reason: result.reason,
-      nextStepTitle: target.title,
+      nextStepTitle: emailStep.title,
+      lockedStepTitle,
     },
   };
+}
+
+/** First candidate step inside the frontier that still needs the candidate. */
+export function currentOpenCandidateStep(
+  candidateSteps: TenantOnboardingStep[],
+  statusById: Map<string, OnboardingStepStatus | string>,
+  frontier: CandidateOnboardingFrontier
+): TenantOnboardingStep | null {
+  return (
+    candidateSteps.find((step, index) => {
+      if (index + 1 > frontier.maxAllowedStepIndex) return false;
+      const status = statusById.get(step.id) ?? "pending";
+      return status !== "completed" && status !== "skipped";
+    }) ?? null
+  );
 }

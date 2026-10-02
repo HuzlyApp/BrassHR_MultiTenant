@@ -24,6 +24,8 @@ import { dedicatedRouteForWorkflowStep } from "@/lib/onboarding/resolve-applican
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { resolveCustomStepContinue } from "@/lib/onboarding/custom-step-continue";
 import { isOfferAcceptanceStepType } from "@/lib/onboarding/offer-acceptance";
+import { isEnrollmentDecisionStep } from "@/lib/onboarding/enrollment-decision-step";
+import EnrollmentDecisionStep from "./EnrollmentDecisionStep";
 import OfferAcceptanceStep from "./OfferAcceptanceStep";
 import {
   APPLICANT_ACTION_ROW,
@@ -59,6 +61,7 @@ export default function CustomOnboardingStepPage() {
   const isOfferStep =
     typeof step?.metadata?.workflow_step_id === "string" &&
     isOfferAcceptanceStepType(step.metadata.workflow_step_id);
+  const isEnrollmentStep = isEnrollmentDecisionStep(step);
 
   const isGenericCustom =
     step?.step_type === "custom_question" &&
@@ -68,7 +71,7 @@ export default function CustomOnboardingStepPage() {
       step.metadata.workflow_step_id === "custom-form");
 
   const shouldRedirectToDedicatedScreen = useMemo(() => {
-    if (!step || showCustomForm) return false;
+    if (!step || showCustomForm || isEnrollmentDecisionStep(step)) return false;
     if (step.step_type !== "custom_question") return true;
     const dedicated = dedicatedRouteForWorkflowStep(step);
     const customPath = APPLICATION_ROUTES.customStep(step.step_key).split("?")[0];
@@ -165,6 +168,14 @@ export default function CustomOnboardingStepPage() {
             <OfferAcceptanceStep
               step={step}
               tenantSlug={nav.slug || null}
+              updateStepStatus={nav.updateStepStatus}
+              onBack={() => nav.goPrev()}
+              onContinue={() => nav.goNext()}
+            />
+          ) : step && isEnrollmentStep ? (
+            <EnrollmentDecisionStep
+              step={step}
+              required={settings?.required === true}
               updateStepStatus={nav.updateStepStatus}
               onBack={() => nav.goPrev()}
               onContinue={() => nav.goNext()}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import CandidateWorkflowStepModal from "@/app/admin_recruiter/components/CandidateWorkflowStepModal";
+import { candidateAiAnalysisHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
 import {
   invitationSuccessMessage,
@@ -23,6 +24,7 @@ import {
 import { HireStageAccordion } from "./HireStageAccordion";
 import { HireStageSidebar, type HireStageSidebarProfile } from "./HireStageSidebar";
 import { HireStageStepper } from "./HireStageStepper";
+import { PostHireStageColumns, PostHireSummaryBanner } from "./PostHireStageColumns";
 
 function formatLongDate(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -90,6 +92,7 @@ export function HireStageBoard({
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const title = lifecycle === "pre_hire" ? "Pre-hire" : "Post-hire";
+  const aiAnalysisHref = workerId ? candidateAiAnalysisHref(workerId, { applicationId }) : null;
   const subtitle =
     lifecycle === "pre_hire"
       ? "Track every step before someone becomes part of your team."
@@ -271,36 +274,61 @@ export function HireStageBoard({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-          <div className="min-w-0 flex-1">
-            <HireStageAccordion
+        {lifecycle === "post_hire" ? (
+          <>
+            <PostHireSummaryBanner
+              profile={profile}
+              statusLabel={
+                phaseView?.currentStage === "onboarded"
+                  ? "Onboarding / Worker Created"
+                  : "Hired / Post-Hire Onboarding"
+              }
+              hiredAt={formatLongDate(phaseView?.hiredAt)}
+              percent={progressMeta.percent}
+              completedSteps={stages.reduce((sum, stage) => sum + stage.completedCount, 0)}
+              totalSteps={stages.reduce((sum, stage) => sum + stage.steps.length, 0)}
+              lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
+              aiAnalysisHref={aiAnalysisHref}
+            />
+            <PostHireStageColumns
               stages={stages}
-              lifecycle={lifecycle}
               onInspectStep={openStep}
-              onScheduleInterview={lifecycle === "pre_hire" ? openSchedule : undefined}
               onRefresh={onWorkflowChanged}
             />
-          </div>
+          </>
+        ) : (
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+            <div className="min-w-0 flex-1">
+              <HireStageAccordion
+                stages={stages}
+                lifecycle={lifecycle}
+                onInspectStep={openStep}
+                onScheduleInterview={openSchedule}
+                onRefresh={onWorkflowChanged}
+              />
+            </div>
 
-          <HireStageSidebar
-            lifecycle={lifecycle}
-            profile={profile}
-            templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
-            progressPercent={progressMeta.percent}
-            progressLabel={progressMeta.label}
-            lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
-            showProceedToPostHire={lifecycle === "pre_hire" && preHireComplete}
-            proceedDisabledReason={proceedDisabledReason}
-            proceedBusy={activatingPostHire}
-            proceedError={activatePostHireError}
-            proceedNote={
-              canActivatePostHire
-                ? "This marks the candidate as hired and emails them their Post-Hire steps."
-                : null
-            }
-            onProceedToPostHire={() => void proceedToPostHire()}
-          />
-        </div>
+            <HireStageSidebar
+              lifecycle={lifecycle}
+              profile={profile}
+              templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
+              progressPercent={progressMeta.percent}
+              progressLabel={progressMeta.label}
+              lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
+              showProceedToPostHire={preHireComplete}
+              proceedDisabledReason={proceedDisabledReason}
+              aiAnalysisHref={aiAnalysisHref}
+              proceedBusy={activatingPostHire}
+              proceedError={activatePostHireError}
+              proceedNote={
+                canActivatePostHire
+                  ? "This marks the candidate as hired and emails them their Post-Hire steps."
+                  : null
+              }
+              onProceedToPostHire={() => void proceedToPostHire()}
+            />
+          </div>
+        )}
       </div>
 
       <CandidateWorkflowStepModal

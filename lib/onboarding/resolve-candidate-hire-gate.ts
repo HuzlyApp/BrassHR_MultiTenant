@@ -1,4 +1,5 @@
-import { isAuthoritativelyHired } from "@/lib/onboarding/lock-post-hire";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { canRevealPostHire, isAuthoritativelyHired } from "@/lib/onboarding/lock-post-hire";
 import { parseApplicantLifecyclePhase, type ApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 
 export type CandidateApplicationPhaseRow = {
@@ -52,4 +53,41 @@ export function resolveCandidateHireGate(applications: CandidateApplicationPhase
     hiredAt: asText(hiredApp?.hired_at) ?? (isHired ? asText(hiredApp?.updated_at) : null),
     hiredBy: asText(hiredApp?.hired_by),
   };
+}
+
+/**
+ * Staff access to individual Post-Hire step records: after conversion, or once
+ * an application is hired (Post-Hire activated) and not suspended.
+ */
+export async function canStaffAccessPostHireSteps(
+  supabase: SupabaseClient,
+  params: {
+    tenantId: string;
+    workerId: string;
+    worker: {
+      status?: unknown;
+      converted_at?: unknown;
+      converted_worker_id?: unknown;
+      conversion_status?: unknown;
+    };
+  }
+): Promise<boolean> {
+  if (
+    canRevealPostHire({
+      workerStatus: asText(params.worker.status),
+      convertedAt: asText(params.worker.converted_at),
+      convertedWorkerId: asText(params.worker.converted_worker_id),
+      conversionStatus: asText(params.worker.conversion_status),
+    })
+  ) {
+    return true;
+  }
+  const { data } = await supabase
+    .from("job_applications")
+    .select("status, workflow_phase, post_hire_activated_at, post_hire_suspended_at, created_at")
+    .eq("tenant_id", params.tenantId)
+    .eq("worker_id", params.workerId)
+    .order("created_at", { ascending: false });
+  const gate = resolveCandidateHireGate((data ?? []) as CandidateApplicationPhaseRow[]);
+  return gate.isHired && !gate.postHireSuspended;
 }

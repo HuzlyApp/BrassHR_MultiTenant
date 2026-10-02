@@ -122,12 +122,19 @@ const CANDIDATE_EMAIL_STATUSES: ReadonlySet<WorkflowStepDisplayStatus> = new Set
   "needs_revision",
   "rejected",
   "blocked",
+  "skipped",
 ]);
 
 function candidateEmailNotice(email: StaffStepEmailResult | null | undefined): {
   tone: "success" | "warning";
   message: string;
 } {
+  if (email?.sent && email.lockedStepTitle && email.nextStepTitle) {
+    return {
+      tone: "success",
+      message: `Email sent. "${email.lockedStepTitle}" is still locked, so the link opens "${email.nextStepTitle}", which the candidate needs to complete first.`,
+    };
+  }
   if (email?.sent) {
     return {
       tone: "success",
@@ -385,11 +392,18 @@ export default function CandidateWorkflowStepModal({
   const canAct = Boolean(workerId && staffAction?.allowed && staffAction.actions.length);
   const KindIcon = inspection ? KIND_ICONS[inspection.kind] : Layers;
   const variant = staffAction?.variant ?? "default";
-  const statusLabel = inspection ? stepDisplayStatusLabel(inspection.step) : "";
+  const enrollmentNotReady = inspection?.enrollment?.decision === "not_ready";
+  const statusLabel = !inspection
+    ? ""
+    : enrollmentNotReady
+      ? "Not ready"
+      : stepDisplayStatusLabel(inspection.step);
   const interviewState = inspection ? interviewStepStatus(inspection.step) : null;
   const statusTone: BadgeTone = !inspection
     ? "neutral"
-    : interviewState
+    : enrollmentNotReady
+      ? "warning"
+      : interviewState
       ? interviewState.tone
       : isDecisionVariant(staffStepVariantForLibraryId(inspection.step.stepType))
         ? STATUS_TONE[DECISION_TONE[inspection.step.displayStatus] ?? inspection.step.displayStatus]
@@ -658,6 +672,27 @@ export default function CandidateWorkflowStepModal({
                 ) : null}
 
                 {inspection.offer ? <OfferAcceptanceSection offer={inspection.offer} /> : null}
+
+                {inspection.enrollment ? (
+                  <Section title="Candidate response">
+                    <p className="text-sm font-medium text-slate-900">{inspection.enrollment.question}</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      {inspection.enrollment.decision ? (
+                        <StatusBadge
+                          tone={inspection.enrollment.decision === "agreed" ? "success" : "warning"}
+                          label={inspection.enrollment.decisionLabel ?? ""}
+                        />
+                      ) : (
+                        <StatusBadge tone="neutral" label="Not answered yet" />
+                      )}
+                      {inspection.enrollment.answeredAt ? (
+                        <p className="text-xs text-slate-500">
+                          Answered {formatDateTime(inspection.enrollment.answeredAt)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </Section>
+                ) : null}
 
                 <Section title="Overview">
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

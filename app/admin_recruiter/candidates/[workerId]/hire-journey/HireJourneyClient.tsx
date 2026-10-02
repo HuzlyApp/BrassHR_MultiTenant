@@ -15,6 +15,9 @@ import { POST_HIRE_LOCKED_TAB_MESSAGE } from "@/lib/onboarding/workflow-phase-gr
 
 type HireTab = "pre_hire" | "post_hire";
 
+/** Picks up candidate-side progress (e.g. a submitted form) without a page reload. */
+const BACKGROUND_REFRESH_MS = 30_000;
+
 function formatAppliedDate(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
@@ -104,6 +107,20 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    };
+    const timer = window.setInterval(refreshIfVisible, BACKGROUND_REFRESH_MS);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
   }, [load]);
 
   useEffect(() => {

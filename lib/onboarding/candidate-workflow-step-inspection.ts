@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import { canRevealPostHire } from "@/lib/onboarding/lock-post-hire";
+import { canStaffAccessPostHireSteps } from "@/lib/onboarding/resolve-candidate-hire-gate";
+import {
+  enrollmentDecisionLabel,
+  enrollmentQuestionForStep,
+  isEnrollmentDecisionStepType,
+  readEnrollmentDecision,
+  type EnrollmentDecision,
+} from "@/lib/onboarding/enrollment-decision-step";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 import {
@@ -196,6 +203,13 @@ export type WorkflowStepInspection = {
   jobApplication: JobApplicationStepView | null;
   /** Job offer + the candidate's Accept / Decline. Null except on Offer Acceptance. */
   offer: { details: OfferDetails | null; decision: OfferDecision | null } | null;
+  /** Question + the candidate's Agree / Not ready. Null except on Benefits / 401(k) enrollment. */
+  enrollment: {
+    question: string;
+    decision: EnrollmentDecision | null;
+    decisionLabel: string | null;
+    answeredAt: string | null;
+  } | null;
 };
 
 function asText(value: unknown): string | null {
@@ -460,13 +474,6 @@ export async function loadCandidateWorkflowStepInspection(
   if (workerError) throw workerError;
   if (!worker) return { ok: false, status: 404, error: "Candidate not found" };
 
-  const postHireVisible = canRevealPostHire({
-    workerStatus: asText(worker.status),
-    convertedAt: asText(worker.converted_at),
-    convertedWorkerId: asText(worker.converted_worker_id),
-    conversionStatus: asText(worker.conversion_status),
-  });
-
   const { data: record, error: recordError } = await supabase
     .from("applicant_workflow_step_records")
     .select(ASSIGNED_STEP_RECORD_COLUMNS)
@@ -498,7 +505,10 @@ export async function loadCandidateWorkflowStepInspection(
         ? (record.settings as Record<string, unknown>)
         : {},
   });
-  if (phase === "post_hire" && !postHireVisible) {
+  if (
+    phase === "post_hire" &&
+    !(await canStaffAccessPostHireSteps(supabase, { tenantId, workerId, worker }))
+  ) {
     return {
       ok: false,
       status: 403,
@@ -686,8 +696,26 @@ export async function loadCandidateWorkflowStepInspection(
     );
   }
 
+  let enrollment: WorkflowStepInspection["enrollment"] = null;
+  if (isEnrollmentDecisionStepType(mapped.stepType)) {
+    const saved = readEnrollmentDecision(progressData);
+    const tenantStep = mapped.tenantStepId
+      ? config?.steps.find((step) => step.id === mapped.tenantStepId) ?? null
+      : null;
+    enrollment = {
+      question:
+        saved?.question ??
+        enrollmentQuestionForStep(
+          tenantStep ?? { title: mapped.title, metadata: { workflow_step_id: mapped.stepType } }
+        ),
+      decision: saved?.decision ?? null,
+      decisionLabel: saved ? enrollmentDecisionLabel(saved.decision) : null,
+      answeredAt: saved?.answeredAt ?? null,
+    };
+  }
+
   let form: WorkflowStepInspection["form"] = null;
-  if (kind === "form" || asText(progressData.response) != null) {
+  if (!enrollment && (kind === "form" || asText(progressData.response) != null)) {
     const prompt = asText(
       (mapped.tenantStepId
         ? config?.steps.find((step) => step.id === mapped.tenantStepId)?.metadata?.prompt
@@ -884,10 +912,24 @@ export async function loadCandidateWorkflowStepInspection(
         }
       : null;
   const candidateHasSubmitted =
-    documents.length > 0 || Boolean(offer?.decision) || Boolean(agreement?.signedAt);
+    documents.length > 0 ||
+    Boolean(offer?.decision) ||
+    Boolean(agreement?.signedAt) ||
+    Boolean(enrollment?.decision);
 
   let emptyState: string | null = null;
-  if (mapped.unmatched && !staffAction.allowed) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
+  if (enrollment) {
+    if (!enrollment.decision) {
+      emptyState =
+        progressData.system_completed === true
+          ? "The system marked this step complete before the candidate answered."
+          : `Waiting for the candidate to answer Agree or Not ready on the ${mapped.title} screen.`;
+    } else if (enrollment.decision === "not_ready") {
+      emptyState = mapped.required
+        ? "The candidate isn't ready yet. This step is required, so they can't continue until they agree."
+        : "The candidate isn't ready yet. This step is optional, so it doesn't block their next step.";
+    }
+  } else if (mapped.unmatched && !staffAction.allowed) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
   else if (
     jobApplication &&
     staffAction.allowed &&
@@ -991,7 +1033,10 @@ export async function loadCandidateWorkflowStepInspection(
             : null,
     approvedOrRejectedBy: reviewable ? (latestDoc?.reviewedBy ?? staffDecisionBy) : null,
     reviewable,
-    notes: latestDoc?.reviewNotes ?? staffReview?.note ?? asText(progressData.reason),
+    notes:
+      latestDoc?.reviewNotes ??
+      staffReview?.note ??
+      (progressData.system_completed === true ? null : asText(progressData.reason)),
     emptyState,
     staffAction,
     staffReview,
@@ -1006,5 +1051,6 @@ export async function loadCandidateWorkflowStepInspection(
     interviews,
     jobApplication,
     offer,
+    enrollment,
   };
 }

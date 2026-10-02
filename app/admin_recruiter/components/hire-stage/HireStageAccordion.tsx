@@ -24,6 +24,7 @@ import {
   resolveStageHeroIcon,
 } from "./hire-figma-assets";
 import { HireStepTypeIcon } from "./HireStepTypeIcon";
+import { StepRefreshButton, useStepStatusRefresh } from "./StepStatusRefresh";
 
 function formatCompletedOn(value: string | null | undefined, prefix = "Completed"): string | null {
   if (!value) return null;
@@ -54,17 +55,6 @@ function interviewSubtitle(step: CandidateWorkflowStepView): string | null {
   const name = count > 1 && latest.sequence ? `Interview ${latest.sequence} of ${count}` : "Interview";
   return `${name} · ${formatInterviewDate(latest.startsAt)}, ${formatInterviewTimeRange(latest.startsAt, latest.endsAt)} ET`;
 }
-
-function PendingStepIcon({ step }: { step: CandidateWorkflowStepView }) {
-  return step.displayStatus === "under_review" ? (
-    <HireFigmaIcon src={PRE_HIRE_UI_ICONS.pendingClock} width={20} height={20} />
-  ) : (
-    <HireFigmaIcon src={PRE_HIRE_UI_ICONS.taskIncomplete} width={24} height={24} />
-  );
-}
-
-/** Keeps the spin visible even when the refresh returns instantly. */
-const MIN_REFRESH_SPIN_MS = 600;
 
 function StageSummaryText({ summary, locked }: { summary: string; locked: boolean }) {
   if (locked) return <span>{summary}</span>;
@@ -112,20 +102,7 @@ export function HireStageAccordion({
 }) {
   const seed = useMemo(() => defaultOpenIds(stages), [stages]);
   const [openIds, setOpenIds] = useState<Set<string>>(seed);
-  const [refreshingId, setRefreshingId] = useState<string | null>(null);
-
-  async function refreshStep(stepId: string) {
-    if (!onRefresh || refreshingId) return;
-    setRefreshingId(stepId);
-    try {
-      await Promise.all([
-        onRefresh(),
-        new Promise((resolve) => setTimeout(resolve, MIN_REFRESH_SPIN_MS)),
-      ]);
-    } finally {
-      setRefreshingId(null);
-    }
-  }
+  const { refreshingId, refreshStep } = useStepStatusRefresh(onRefresh);
 
   useEffect(() => {
     setOpenIds(defaultOpenIds(stages));
@@ -371,23 +348,12 @@ export function HireStageAccordion({
                           width={20}
                           height={20}
                         />
-                      ) : onRefresh ? (
-                        <button
-                          type="button"
-                          onClick={() => void refreshStep(step.id)}
-                          disabled={refreshingId != null}
-                          title="Refresh status"
-                          aria-label={`Refresh ${step.title} status`}
-                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 disabled:cursor-wait"
-                        >
-                          <span
-                            className={`inline-flex ${refreshingId === step.id ? "animate-spin" : ""}`}
-                          >
-                            <PendingStepIcon step={step} />
-                          </span>
-                        </button>
                       ) : (
-                        <PendingStepIcon step={step} />
+                        <StepRefreshButton
+                          step={step}
+                          refreshingId={refreshingId}
+                          onRefreshStep={onRefresh ? (id) => void refreshStep(id) : undefined}
+                        />
                       )}
                     </div>
                   );

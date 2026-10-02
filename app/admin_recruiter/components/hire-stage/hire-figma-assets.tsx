@@ -68,6 +68,13 @@ export function HireFigmaIcon({
 }
 
 export function resolveStageHeroIcon(stageName: string, lifecycle: "pre_hire" | "post_hire"): string {
-  const map = lifecycle === "pre_hire" ? PRE_HIRE_STAGE_HERO : POST_HIRE_STAGE_HERO;
-  return map[stageName] ?? (lifecycle === "pre_hire" ? PRE_HIRE_STAGE_HERO.Intake! : POST_HIRE_STAGE_HERO["Payroll & Tax"]!);
+  const [own, other] =
+    lifecycle === "pre_hire"
+      ? [PRE_HIRE_STAGE_HERO, POST_HIRE_STAGE_HERO]
+      : [POST_HIRE_STAGE_HERO, PRE_HIRE_STAGE_HERO];
+  return (
+    own[stageName] ??
+    other[stageName] ??
+    (lifecycle === "pre_hire" ? PRE_HIRE_STAGE_HERO.Intake! : POST_HIRE_STAGE_HERO["Payroll & Tax"]!)
+  );
 }

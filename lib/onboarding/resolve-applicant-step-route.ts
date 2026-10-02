@@ -25,6 +25,19 @@ export const WORKFLOW_STEP_APPLICANT_ROUTE: Record<string, string> = {
   "background-check": APPLICATION_ROUTES.authorizationsDocuments,
 };
 
+/**
+ * Post-Hire library steps typed `profile_information` that have their own screen. Without this,
+ * whichever one gets the bare `profile_information` key routes to the resume flow and is
+ * auto-completed as a placeholder.
+ */
+const CUSTOM_SCREEN_LIBRARY_STEPS = new Set([
+  "direct-deposit-setup",
+  "benefits-enrollment",
+  "401k-enrollment",
+  "pay-rate-hire-date",
+  "payroll-profile-creation",
+]);
+
 const CANONICAL_STEP_KEY_ROUTES: Record<string, string> = {
   resume_upload: APPLICATION_ROUTES.addResume,
   professional_license: APPLICATION_ROUTES.professionalLicense,
@@ -68,6 +81,9 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
   // even when a Firma template is attached — Click and Sign lives on that screen.
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];
+  }
+  if (libraryId && CUSTOM_SCREEN_LIBRARY_STEPS.has(libraryId)) {
+    return APPLICATION_ROUTES.customStep(step.step_key);
   }
 
   if (CANONICAL_STEP_KEY_ROUTES[step.step_key]) {

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import type { HireStageLifecycle } from "@/lib/onboarding/hire-stage-groups";
 import { HireFigmaIcon, PRE_HIRE_UI_ICONS } from "./hire-figma-assets";
@@ -50,9 +52,11 @@ export function HireStageSidebar({
   proceedBusy,
   proceedNote,
   proceedError,
+  aiAnalysisHref,
 }: {
   lifecycle: HireStageLifecycle;
   profile: HireStageSidebarProfile;
+  aiAnalysisHref?: string | null;
   templateName: string | null;
   progressPercent: number;
   progressLabel: string;
@@ -169,6 +173,22 @@ export function HireStageSidebar({
               {profile.statusLabel}
             </span>
           </div>
+        ) : null}
+
+        {aiAnalysisHref ? (
+          <Link
+            href={aiAnalysisHref}
+            aria-label={`Open AI analysis overview for ${profile.name}`}
+            className={`${profile.statusLabel ? "mt-3" : "mt-auto"} inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
+            style={{
+              color: "var(--brand-primary)",
+              borderColor: "color-mix(in srgb, var(--brand-primary) 35%, white)",
+              backgroundColor: "color-mix(in srgb, var(--brand-primary) 10%, white)",
+            }}
+          >
+            <BrandedSvgIcon src="/ai-icon.svg" className="h-4 w-4" color="var(--brand-primary)" />
+            AI Analysis Overview
+          </Link>
         ) : null}
       </section>
 

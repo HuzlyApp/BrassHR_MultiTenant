@@ -5,8 +5,7 @@ import {
   buildApplicantEmailContext,
   contextToTemplateVariables,
 } from "@/lib/email/applicant-email-context";
-import { sendTemplatedEmail } from "@/lib/email/send-templated-email";
-import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
+import { sendStepReadyEmail } from "@/lib/onboarding/step-ready-email";
 import {
   ASSIGNED_STEP_RECORD_COLUMNS,
   POST_HIRE_NOT_AVAILABLE_CODE,
@@ -24,7 +23,7 @@ import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-p
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { loadApplicantConfigForJobToken } from "@/lib/onboarding/load-config-for-job-workflow";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import { canRevealPostHire } from "@/lib/onboarding/lock-post-hire";
+import { canStaffAccessPostHireSteps } from "@/lib/onboarding/resolve-candidate-hire-gate";
 import { loadApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import { resolveInstanceApplicationId } from "@/lib/onboarding/scoped-step-progress";
 import {
@@ -239,13 +238,10 @@ export async function loadStaffStepContext(
     phase: asText(record.phase),
     settings: asObject(record.settings),
   });
-  const postHireVisible = canRevealPostHire({
-    workerStatus: asText(worker.status),
-    convertedAt: asText(worker.converted_at),
-    convertedWorkerId: asText(worker.converted_worker_id),
-    conversionStatus: asText(worker.conversion_status),
-  });
-  if (phase === "post_hire" && !postHireVisible) {
+  if (
+    phase === "post_hire" &&
+    !(await canStaffAccessPostHireSteps(supabase, { tenantId, workerId, worker }))
+  ) {
     return {
       ok: false,
       status: 403,
@@ -518,10 +514,10 @@ async function notifyCandidateNextStep(
       return { sent: false, skipped: true, reason: "NO_APPLICANT_EMAIL", nextStepTitle: next.step.title };
     }
 
-    const result = await sendTemplatedEmail(supabase, {
+    const result = await sendStepReadyEmail(supabase, {
+      phase: activePhase,
       to: ctx.applicantEmail,
       tenantId: params.tenantId,
-      templateKey: EMAIL_TEMPLATE_TYPE.NEXT_STEP_READY,
       variables: {
         ...contextToTemplateVariables(ctx),
         jobTitle,
