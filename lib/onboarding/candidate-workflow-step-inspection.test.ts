@@ -3,6 +3,7 @@ import {
   inspectionKindForStep,
   resumeUploaderLabel,
   reviewerLabel,
+  storedFileName,
   type StaffMember,
 } from "@/lib/onboarding/candidate-workflow-step-inspection";
 import {
@@ -50,6 +51,19 @@ describe("workflow step inspection kinds", () => {
     );
     expect(LEGACY_UNMATCHED_STEP_MESSAGE).toBe(
       "This step could not be linked to a stored submission record."
+    );
+  });
+});
+
+describe("storedFileName", () => {
+  it("shows the original name of an identity upload", () => {
+    expect(
+      storedFileName(
+        "tenant/worker/ssn/1790941455165-95bcd26f-0294-4c26-812a-ee9af231e0dc-Group%201%20(1).png"
+      )
+    ).toBe("Group 1 (1).png");
+    expect(storedFileName("https://x.supabase.co/storage/v1/object/public/b/w/license.pdf?t=1")).toBe(
+      "license.pdf"
     );
   });
 });

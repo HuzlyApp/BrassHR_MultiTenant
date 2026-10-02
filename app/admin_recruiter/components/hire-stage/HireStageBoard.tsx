@@ -48,6 +48,7 @@ export function HireStageBoard({
   profile,
   activationFailed,
   onRequestPostHireTab,
+  onPostHireActivated,
   applicationId,
   jobTitle,
   onScheduled,
@@ -68,6 +69,8 @@ export function HireStageBoard({
   };
   activationFailed?: boolean;
   onRequestPostHireTab?: () => void;
+  /** Called after "Proceed" hires the candidate; should refresh the journey and open Post-Hire. */
+  onPostHireActivated?: () => void | Promise<void>;
   applicationId?: string | null;
   jobTitle?: string | null;
   onScheduled?: () => void | Promise<void>;
@@ -98,11 +101,50 @@ export function HireStageBoard({
     steps.length > 0 &&
     progressMeta.percent === 100;
 
-  const proceedDisabledReason = !phaseView?.postHireVisible
-    ? "Select the candidate and complete required Pre-Hire steps to unlock Post-Hire."
-    : phaseView.postHireLocked
-      ? "Post-Hire is locked until hire activation completes."
-      : null;
+  // Pre-Hire is done but the application isn't hired yet: proceeding hires them, which unlocks Post-Hire.
+  const canActivatePostHire =
+    preHireComplete && Boolean(applicationId) && !phaseView?.postHireVisible && !phaseView?.isHired;
+  const [activatingPostHire, setActivatingPostHire] = useState(false);
+  const [activatePostHireError, setActivatePostHireError] = useState<string | null>(null);
+
+  const proceedDisabledReason = canActivatePostHire
+    ? null
+    : !phaseView?.postHireVisible
+      ? "Select the candidate and complete required Pre-Hire steps to unlock Post-Hire."
+      : phaseView.postHireLocked
+        ? "Post-Hire is locked until hire activation completes."
+        : null;
+
+  async function proceedToPostHire() {
+    if (proceedDisabledReason || activatingPostHire) return;
+    if (!canActivatePostHire) {
+      onRequestPostHireTab?.();
+      return;
+    }
+    setActivatingPostHire(true);
+    setActivatePostHireError(null);
+    try {
+      const res = await fetch(`/api/admin/job-applications/${encodeURIComponent(applicationId!)}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "hired", note: "Pre-Hire completed; moved to Post-Hire" }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Could not move the candidate to Post-Hire.");
+      if (onPostHireActivated) {
+        await onPostHireActivated();
+      } else {
+        await onWorkflowChanged?.();
+        onRequestPostHireTab?.();
+      }
+    } catch (err) {
+      setActivatePostHireError(
+        err instanceof Error ? err.message : "Could not move the candidate to Post-Hire."
+      );
+    } finally {
+      setActivatingPostHire(false);
+    }
+  }
 
   async function fetchInspection(stepId: string, options?: { silent?: boolean }) {
     if (!workerId) return;
@@ -249,10 +291,14 @@ export function HireStageBoard({
             lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
             showProceedToPostHire={lifecycle === "pre_hire" && preHireComplete}
             proceedDisabledReason={proceedDisabledReason}
-            onProceedToPostHire={() => {
-              if (proceedDisabledReason) return;
-              onRequestPostHireTab?.();
-            }}
+            proceedBusy={activatingPostHire}
+            proceedError={activatePostHireError}
+            proceedNote={
+              canActivatePostHire
+                ? "This marks the candidate as hired and emails them their Post-Hire steps."
+                : null
+            }
+            onProceedToPostHire={() => void proceedToPostHire()}
           />
         </div>
       </div>

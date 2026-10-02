@@ -29,6 +29,7 @@ import {
   loadApplicationProgressIds,
   pickStepProgressRows,
 } from "@/lib/onboarding/scoped-step-progress";
+import { carryOverReplacedStepProgressSafely } from "@/lib/onboarding/replaced-step-progress";
 
 export type { CandidateWorkflowAssignmentView } from "@/lib/onboarding/assigned-workflow-steps";
 
@@ -111,6 +112,8 @@ export async function loadCandidateWorkflowPhaseView(
   }
 ): Promise<CandidateWorkflowPhaseView> {
   const { workerId, tenantId } = params;
+
+  await carryOverReplacedStepProgressSafely(supabase, { tenantId, workerId });
 
   const [applicationsRes, instancesRes, workerRes, config, progressRes, mappingsRes, resumeRes] =
     await Promise.all([

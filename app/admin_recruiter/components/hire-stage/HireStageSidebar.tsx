@@ -47,6 +47,9 @@ export function HireStageSidebar({
   showProceedToPostHire,
   onProceedToPostHire,
   proceedDisabledReason,
+  proceedBusy,
+  proceedNote,
+  proceedError,
 }: {
   lifecycle: HireStageLifecycle;
   profile: HireStageSidebarProfile;
@@ -57,6 +60,10 @@ export function HireStageSidebar({
   showProceedToPostHire?: boolean;
   onProceedToPostHire?: () => void;
   proceedDisabledReason?: string | null;
+  proceedBusy?: boolean;
+  /** What proceeding does, shown under the button when it is enabled. */
+  proceedNote?: string | null;
+  proceedError?: string | null;
 }) {
   const phaseLabel = lifecycle === "pre_hire" ? "Pre-hire" : "Post-hire";
   const clamped = Math.max(0, Math.min(100, progressPercent));
@@ -292,15 +299,22 @@ export function HireStageSidebar({
           <button
             type="button"
             onClick={onProceedToPostHire}
-            disabled={Boolean(proceedDisabledReason)}
+            disabled={Boolean(proceedDisabledReason) || proceedBusy}
+            aria-busy={proceedBusy || undefined}
             title={proceedDisabledReason || undefined}
             className="mt-4 inline-flex w-full items-center justify-center gap-1 rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             style={{ backgroundColor: "var(--brand-primary)" }}
           >
-            Proceed to Post-hire process →
+            {proceedBusy ? "Moving to Post-hire…" : "Proceed to Post-hire process →"}
           </button>
-          {proceedDisabledReason ? (
+          {proceedError ? (
+            <p className="mt-2 text-[11px] text-rose-700" role="alert">
+              {proceedError}
+            </p>
+          ) : proceedDisabledReason ? (
             <p className="mt-2 text-[11px] text-[#B45309]">{proceedDisabledReason}</p>
+          ) : proceedNote ? (
+            <p className="mt-2 text-[11px] text-[#64748B]">{proceedNote}</p>
           ) : null}
         </section>
       ) : null}

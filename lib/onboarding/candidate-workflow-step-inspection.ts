@@ -20,6 +20,7 @@ import {
   loadScopedStepProgress,
   resolveInstanceApplicationId,
 } from "@/lib/onboarding/scoped-step-progress";
+import { REPLACED_STEP_DATA_KEY } from "@/lib/onboarding/replaced-step-progress";
 import {
   readRecordStaffReview,
   readStaffStepReview,
@@ -377,6 +378,69 @@ async function signedOrUnavailable(
   return { url, unavailable: !url };
 }
 
+const IDENTITY_DOCUMENT_SLOTS = [
+  { column: "ssn_url", label: "SSN card (front)" },
+  { column: "ssn_back_url", label: "SSN card (back)" },
+  { column: "drivers_license_url", label: "Driver's license (front)" },
+  { column: "drivers_license_back_url", label: "Driver's license (back)" },
+] as const;
+
+const UPLOAD_NAME_PREFIX_RE =
+  /^\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i;
+
+/** Original file name from a stored path (`<timestamp>-<uuid>-<name>`). */
+export function storedFileName(stored: string): string {
+  const path = stored.split("?")[0] ?? stored;
+  let name = path.split("/").filter(Boolean).pop() ?? path;
+  try {
+    name = decodeURIComponent(name);
+  } catch {
+    // keep the raw segment
+  }
+  return name.replace(UPLOAD_NAME_PREFIX_RE, "") || name;
+}
+
+/** SSN / ID uploads live on the worker's `worker_documents` row, not per required document. */
+async function loadIdentityDocuments(
+  supabase: SupabaseClient,
+  params: { tenantId: string; workerId: string; uploadedBy: string }
+): Promise<InspectableDocument[]> {
+  const { data, error } = await supabase
+    .from("worker_documents")
+    .select("*")
+    .eq("worker_id", params.workerId)
+    .limit(1);
+  if (error) {
+    console.error("[candidate-workflow-step-inspection] identity documents unavailable", error);
+    return [];
+  }
+  const row = ((data ?? []) as Array<Record<string, unknown>>)[0];
+  if (!row || (asText(row.tenant_id) && asText(row.tenant_id) !== params.tenantId)) return [];
+
+  const documents: InspectableDocument[] = [];
+  for (const slot of IDENTITY_DOCUMENT_SLOTS) {
+    const stored = asText(row[slot.column]);
+    if (!stored) continue;
+    const signed = await signedOrUnavailable(supabase, stored, WORKER_REQUIRED_FILES_BUCKET);
+    documents.push({
+      id: `${String(row.id ?? params.workerId)}:${slot.column}`,
+      originalFileName: storedFileName(stored),
+      documentType: slot.label,
+      fileSize: null,
+      uploadedAt: asText(row.updated_at),
+      uploadedBy: params.uploadedBy,
+      verificationStatus: null,
+      previewUrl: signed.url,
+      downloadUrl: signed.url,
+      fileUnavailable: signed.unavailable,
+      approvedOrRejectedAt: null,
+      reviewedBy: null,
+      reviewNotes: null,
+    });
+  }
+  return documents;
+}
+
 export async function loadCandidateWorkflowStepInspection(
   supabase: SupabaseClient,
   params: {
@@ -611,6 +675,17 @@ export async function loadCandidateWorkflowStepInspection(
       ? stepOnlyStatus
       : mapProgressToDisplayStatus(mapped.status, latestDoc?.verificationStatus);
 
+  // Identity uploads have no review status of their own, so they don't drive the step status.
+  if (mapped.stepType === "ssn-identity-verification") {
+    documents.push(
+      ...(await loadIdentityDocuments(supabase, {
+        tenantId,
+        workerId,
+        uploadedBy: candidateUploaderLabel(candidateName),
+      }))
+    );
+  }
+
   let form: WorkflowStepInspection["form"] = null;
   if (kind === "form" || asText(progressData.response) != null) {
     const prompt = asText(
@@ -692,7 +767,11 @@ export async function loadCandidateWorkflowStepInspection(
   }
 
   let agreement: WorkflowStepInspection["agreement"] = null;
-  if (kind === "agreement") {
+  // A signing session opened before a re-publish stays on the replaced step.
+  const sessionStepIds = [mapped.tenantStepId, asText(progressData[REPLACED_STEP_DATA_KEY])].filter(
+    (id): id is string => Boolean(id)
+  );
+  if (kind === "agreement" || (kind === "background_check" && sessionStepIds.length)) {
     let query = supabase
       .from("worker_firma_signing_sessions")
       .select(
@@ -701,7 +780,7 @@ export async function loadCandidateWorkflowStepInspection(
       .eq("tenant_id", tenantId)
       .eq("worker_id", workerId)
       .order("created_at", { ascending: false });
-    if (mapped.tenantStepId) query = query.eq("onboarding_step_id", mapped.tenantStepId);
+    if (sessionStepIds.length) query = query.in("onboarding_step_id", sessionStepIds);
     const { data: sessions } = await query;
     const session = ((sessions ?? []) as Array<Record<string, unknown>>)[0] ?? null;
     const completedDoc = documents.find((doc) => doc.verificationStatus === "approved") ?? documents[0] ?? null;
@@ -737,7 +816,7 @@ export async function loadCandidateWorkflowStepInspection(
           : progressData.authorization_agreed === false
             ? "Not authorized"
             : null,
-      consentTimestamp: asText(progress?.updated_at) ?? asText(progress?.completed_at),
+      consentTimestamp: asText(progress?.completed_at) ?? asText(progress?.updated_at),
       providerSafeStatus: asText(partner.status) ?? asText(progressData.firma_status),
       reviewStatus: displayStatusLabel(mapped.displayStatus),
     };
@@ -899,7 +978,7 @@ export async function loadCandidateWorkflowStepInspection(
     phase,
     assignedAt: asText(instance.started_at) ?? asText(instance.created_at),
     startedAt: asText(progress?.created_at),
-    submittedAt: asText(progress?.updated_at),
+    submittedAt: asText(progress?.completed_at) ?? asText(progress?.updated_at),
     completedAt: mapped.completedAt,
     approvedOrRejectedAt: latestDoc?.approvedOrRejectedAt ?? staffDecision?.reviewedAt ?? null,
     completedBy:

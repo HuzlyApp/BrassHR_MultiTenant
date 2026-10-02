@@ -206,6 +206,10 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
             onScheduled={() => load({ silent: true })}
             onWorkflowChanged={() => load({ silent: true })}
             onRequestPostHireTab={() => selectTab("post_hire")}
+            onPostHireActivated={async () => {
+              await load({ silent: true });
+              setTab("post_hire");
+            }}
           />
         )}
       </div>

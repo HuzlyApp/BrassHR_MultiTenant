@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProgressRowInput } from "@/lib/onboarding/assigned-workflow-steps";
+import { carryOverReplacedStepProgressSafely } from "@/lib/onboarding/replaced-step-progress";
 
 export type ScopedProgressRow = ProgressRowInput & {
   worker_onboarding_progress_id?: string | null;
@@ -62,6 +63,10 @@ export async function loadScopedStepProgress(
   supabase: SupabaseClient,
   params: { tenantId: string; workerId: string; applicationId: string | null }
 ): Promise<Map<string, ProgressRowInput>> {
+  await carryOverReplacedStepProgressSafely(supabase, {
+    tenantId: params.tenantId,
+    workerId: params.workerId,
+  });
   const [rowsRes, progressIds] = await Promise.all([
     supabase
       .from("worker_onboarding_step_progress")

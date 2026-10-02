@@ -5,6 +5,7 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { backfillFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import type { ProgressRowInput } from "@/lib/onboarding/assigned-workflow-steps";
 import { syncStaffStepDecisionsIntoProgress } from "@/lib/onboarding/staff-step-record-sync";
+import { carryOverReplacedStepProgressSafely } from "@/lib/onboarding/replaced-step-progress";
 
 function normalizeApplicationId(value?: string | null): string {
   return typeof value === "string" ? value.trim() : "";
@@ -137,6 +138,8 @@ async function ensureWorkerOnboardingProgressUncached(
     );
     if (bulkErr) throw bulkErr;
   }
+
+  await carryOverReplacedStepProgressSafely(supabase, { tenantId, workerId, progressId });
 
   // Not limited to enabled steps: job workflows record progress on steps that a later
   // publish of another flow disabled, and the applicant stepper resolves them by id.
