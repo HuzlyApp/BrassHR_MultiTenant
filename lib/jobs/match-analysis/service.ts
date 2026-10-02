@@ -12,7 +12,10 @@ import {
   type MatchAnalysisUserPromptInput,
 } from "./prompts";
 import {
+  buildFollowUpNonEmptyRepairPrompt,
   buildFollowUpRepairPrompt,
+  ensureFollowUpUserPrompt,
+  FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT,
   parseFollowUpQuestions,
   type ChecklistFollowUpRow,
 } from "./follow-up-questions";
@@ -876,7 +879,8 @@ export async function generateFollowUpQuestions(
     enrichmentNotes?: string | null;
   },
   resolved: ResolvedPromptVersion,
-  provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
+  provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER,
+  stage: "call_pack" | "follow_up" = "call_pack"
 ): Promise<{
   questions: AnalysisScreeningQuestion[];
   repaired: boolean;
@@ -886,14 +890,21 @@ export async function generateFollowUpQuestions(
   contentHash: string;
 }> {
   const selectedProvider = parseAnalysisProvider(provider);
-  const system = resolved.systemPrompt?.trim() ?? "";
+  const catalogSystem = resolved.systemPrompt?.trim() ?? "";
+  const system =
+    stage === "follow_up" && !catalogSystem.includes("Step 3 Follow-Up")
+      ? FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT
+      : catalogSystem;
   if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
   }
-  const userPrompt = renderPromptTemplate(
-    resolved.userPromptTemplate ?? "",
-    assembleFollowUpPromptVariables(input),
-    { required: ["qualification_checklist"] }
+  const userPrompt = ensureFollowUpUserPrompt(
+    renderPromptTemplate(
+      resolved.userPromptTemplate ?? "",
+      assembleFollowUpPromptVariables(input),
+      { required: ["qualification_checklist"] }
+    ),
+    stage
   );
   const cfg = resolved.modelConfig ?? {};
   const catalogModel =
@@ -921,7 +932,7 @@ export async function generateFollowUpQuestions(
       user: userPrompt,
       maxTokens,
       model,
-      stepName: "call_pack",
+      stepName: stage,
     });
 
     let parsed = parseFollowUpQuestions(rawText);
@@ -935,10 +946,27 @@ export async function generateFollowUpQuestions(
         }),
         maxTokens,
         model,
-        stepName: "call_pack_repair",
+        stepName: `${stage}_repair`,
       });
       parsed = parseFollowUpQuestions(repairedText);
       repaired = true;
+    }
+    if (parsed.ok && stage === "follow_up" && parsed.questions.length === 0) {
+      const repairedText = await callProvider(provider, {
+        system,
+        user: buildFollowUpNonEmptyRepairPrompt({
+          userPrompt,
+          badJson: JSON.stringify(parsed.rawObject ?? { screening_questions: [] }),
+        }),
+        maxTokens,
+        model,
+        stepName: "follow_up_nonempty",
+      });
+      const repairedParsed = parseFollowUpQuestions(repairedText);
+      repaired = true;
+      if (repairedParsed.ok && repairedParsed.questions.length > 0) {
+        parsed = repairedParsed;
+      }
     }
     if (!parsed.ok) {
       throw new MatchAnalysisGenerationError("INVALID_RESPONSE");
