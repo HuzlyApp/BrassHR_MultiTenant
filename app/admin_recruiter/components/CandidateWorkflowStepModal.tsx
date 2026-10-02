@@ -11,6 +11,7 @@ import {
   Eye,
   FileSignature,
   FileText,
+  Handshake,
   Layers,
   ShieldCheck,
   UploadCloud,
@@ -48,6 +49,7 @@ import {
 } from "@/lib/onboarding/interview-step";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import JobApplicationStepSection from "./JobApplicationStepSection";
+import OfferAcceptanceSection from "./OfferAcceptanceSection";
 import SkillAssessmentResults from "./SkillAssessmentResults";
 import WorkflowStepStaffActionModal from "./WorkflowStepStaffActionModal";
 
@@ -61,6 +63,7 @@ const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
   agreement: FileSignature,
   background_check: ShieldCheck,
   final_review: CheckCircle2,
+  offer: Handshake,
   generic: Layers,
 };
 
@@ -572,6 +575,8 @@ export default function CandidateWorkflowStepModal({
                 {inspection.jobApplication ? (
                   <JobApplicationStepSection view={inspection.jobApplication} />
                 ) : null}
+
+                {inspection.offer ? <OfferAcceptanceSection offer={inspection.offer} /> : null}
 
                 <Section title="Overview">
                   <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

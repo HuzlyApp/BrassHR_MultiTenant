@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { canRevealPostHire } from "@/lib/onboarding/lock-post-hire";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
+import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 import {
   ASSIGNED_STEP_RECORD_COLUMNS,
   ASSESSMENT_COMPLETED_WITHOUT_ANSWERS_MESSAGE,
@@ -60,6 +61,17 @@ import {
   type JobApplicationStepView,
 } from "@/lib/onboarding/job-application-step";
 import {
+  isOfferAcceptanceStepType,
+  loadOfferDetailsForApplication,
+  readOfferDecision,
+  type OfferDecision,
+  type OfferDetails,
+} from "@/lib/onboarding/offer-acceptance";
+import {
+  getFirmaRecruiterTemplateId,
+  isFirmaAttachableWorkflowStepId,
+} from "@/lib/onboarding/firma-step-settings";
+import {
   interviewStepStatus,
   isInterviewStep,
   summarizeInterviews,
@@ -76,6 +88,7 @@ export type WorkflowStepInspectionKind =
   | "background_check"
   | "final_review"
   | "job_application"
+  | "offer"
   | "generic";
 
 export type WorkflowStepInspectionError = {
@@ -180,6 +193,8 @@ export type WorkflowStepInspection = {
   interviews: CandidateInterview[] | null;
   /** Requisition parameters + screening answers. Null except on Parameterized Job Application. */
   jobApplication: JobApplicationStepView | null;
+  /** Job offer + the candidate's Accept / Decline. Null except on Offer Acceptance. */
+  offer: { details: OfferDetails | null; decision: OfferDecision | null } | null;
 };
 
 function asText(value: unknown): string | null {
@@ -190,10 +205,14 @@ function asText(value: unknown): string | null {
 export function inspectionKindForStep(params: {
   stepType: string;
   onboardingType: string;
+  /** A Firma template is attached, so the candidate e-signs instead of uploading. */
+  usesESign?: boolean;
 }): WorkflowStepInspectionKind {
   const stepType = params.stepType.trim().toLowerCase();
   const onboardingType = params.onboardingType.trim().toLowerCase();
   if (isParameterizedJobApplicationStepType(stepType)) return "job_application";
+  if (isOfferAcceptanceStepType(stepType)) return "offer";
+  if (params.usesESign && stepType !== "background-check") return "agreement";
   if (onboardingType === "resume_upload" || stepType === "resume-basic-profile") return "resume";
   if (
     onboardingType === "professional_license" ||
@@ -226,6 +245,30 @@ export function inspectionKindForStep(params: {
   }
   if (onboardingType === "custom_question" || onboardingType === "profile_information") return "form";
   return "generic";
+}
+
+const CANDIDATE_SCREEN_BY_KIND: Partial<Record<WorkflowStepInspectionKind, string>> = {
+  offer: "accepts or declines the offer on the Offer Acceptance screen",
+  agreement: "reviews and e-signs it on the Authorizations & Documents screen",
+  background_check: "signs the authorization on the Authorizations & Documents screen",
+  upload: "uploads the documents on the document upload screen",
+  references: "adds them on the References screen",
+  assessment: "takes it on the Skill Assessment screen",
+  resume: "uploads their resume on the Resume & Profile screen",
+  form: "answers it on this step's screen",
+};
+
+/** Candidate-owned step with nothing submitted yet: who does it and where, since staff have no buttons. */
+export function candidateWaitingMessage(
+  kind: WorkflowStepInspectionKind,
+  status: OnboardingStepStatus
+): string {
+  const where = CANDIDATE_SCREEN_BY_KIND[kind] ?? "completes it in the application portal";
+  const progress =
+    status === "in_progress"
+      ? "The candidate has opened this step but hasn't finished it yet."
+      : "Waiting for the candidate.";
+  return `${progress} This is a candidate step: the candidate ${where} in their application portal once they reach it, so there's nothing for staff to mark here. Their response will appear here when they submit it.`;
 }
 
 function signatureStatusLabel(raw: string | null): string {
@@ -450,9 +493,16 @@ export async function loadCandidateWorkflowStepInspection(
       : recordReview ?? progressReview;
   const staffDecision =
     staffReview && staffReview.decision !== "reopen" ? staffReview : null;
+  const usesESign =
+    isFirmaAttachableWorkflowStepId(mapped.stepType) &&
+    Boolean(
+      asText(recordSettings.firmaRecruiterTemplateId) ??
+        (tenantStep ? getFirmaRecruiterTemplateId(tenantStep) : null)
+    );
   const kind = inspectionKindForStep({
     stepType: mapped.stepType,
     onboardingType: mapped.onboardingType || workflowStepIdToOnboardingType(mapped.stepType),
+    usesESign,
   });
 
   const requiredDocIds = [
@@ -742,6 +792,21 @@ export async function loadCandidateWorkflowStepInspection(
       ? await loadJobApplicationStepView(supabase, { tenantId, applicationId })
       : null;
 
+  const offer =
+    kind === "offer"
+      ? {
+          details: applicationId
+            ? await loadOfferDetailsForApplication(supabase, { tenantId, applicationId }).catch((error) => {
+                console.error("[candidate-workflow-step-inspection] offer details unavailable", error);
+                return null;
+              })
+            : null,
+          decision: readOfferDecision(progressData, progress?.status),
+        }
+      : null;
+  const candidateHasSubmitted =
+    documents.length > 0 || Boolean(offer?.decision) || Boolean(agreement?.signedAt);
+
   let emptyState: string | null = null;
   if (mapped.unmatched && !staffAction.allowed) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
   else if (
@@ -789,6 +854,12 @@ export async function loadCandidateWorkflowStepInspection(
     mapped.status === "completed"
   ) {
     emptyState = STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE;
+  } else if (
+    !staffAction.allowed &&
+    !candidateHasSubmitted &&
+    (mapped.status === "pending" || mapped.status === "in_progress")
+  ) {
+    emptyState = candidateWaitingMessage(kind, mapped.status);
   } else if (!progress && documents.length === 0 && mapped.status === "pending") {
     emptyState = "No submission received for this step.";
   } else if (mapped.status === "completed" && documents.length === 0 && !form && !assessment && !agreement) {
@@ -855,5 +926,6 @@ export async function loadCandidateWorkflowStepInspection(
     finalReview,
     interviews,
     jobApplication,
+    offer,
   };
 }
