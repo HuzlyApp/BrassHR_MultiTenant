@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useState, type ComponentProps } from "react";
 
-/** Password hidden (default) — open eye. */
+/** Password visible — open eye. */
 export const PASSWORD_EYE_ON_ICON = "/icons/braas-HR/eye.svg";
-/** Password visible — eye-off. */
+/** Password hidden (default) — eye-off. */
 export const PASSWORD_EYE_OFF_ICON = "/eye-off.svg";
 
 type PasswordVisibilityToggleProps = {
@@ -31,7 +31,7 @@ export function PasswordVisibilityToggle({
       className={`absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-[#f8fafc] ${className}`.trim()}
     >
       <Image
-        src={visible ? PASSWORD_EYE_OFF_ICON : PASSWORD_EYE_ON_ICON}
+        src={visible ? PASSWORD_EYE_ON_ICON : PASSWORD_EYE_OFF_ICON}
         alt=""
         width={20}
         height={20}
