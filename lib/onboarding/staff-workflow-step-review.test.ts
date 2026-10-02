@@ -10,6 +10,8 @@ import {
   staffActionTargetStatus,
 } from "@/lib/onboarding/staff-step-review-shared";
 import {
+  canReviewUnlinkedRecord,
+  findCandidateGateStep,
   resolveStaffStepEligibility,
   resolveUnlockedApplicantStep,
 } from "@/lib/onboarding/staff-workflow-step-review";
@@ -168,6 +170,30 @@ describe("staff workflow step review rules", () => {
     expect(staffActionLabel("needs_review", "selection")).toBe("On Hold");
     expect(staffActionLabel("reject", "selection")).toBe("Not Selected");
     expect(staffActionLabel("reject", "verification")).toBe("Reject");
+  });
+
+  it("lets staff complete an unlinked Parameterized Job Application even when the owner defaulted to applicant", () => {
+    const record = { stepType: "parameterized-job-application", settings: { completionOwner: "applicant" } };
+    expect(canReviewUnlinkedRecord(record)).toBe(true);
+    expect(resolveStaffStepEligibility(null, "pending", record)).toEqual({
+      allowed: true,
+      ownerLabel: "Recruiter / HR",
+      actions: ["complete", "reject"],
+      variant: "default",
+      reason: null,
+    });
+  });
+
+  it("finds the internal step the candidate portal gates on by workflow node id", () => {
+    const gate = { ...step({ id: "gate", title: "Parameterized Job Application", libraryId: "parameterized-job-application", owner: "applicant", stepType: "profile_information", sort: 20 }) };
+    gate.metadata = { ...gate.metadata, workflow_node_id: "w2-02" };
+    const visible = { ...references, metadata: { ...references.metadata, workflow_node_id: "w2-03" } };
+    const preview = { ...gate, id: "preview-profile_information", metadata: { ...gate.metadata, workflow_node_id: "w2-09" } };
+    const engine = { configId: "c", tenantId: "t", version: 1, steps: [resume, gate, visible, preview], requiredDocuments: [], skillAssessments: [] };
+    expect(findCandidateGateStep(engine, "w2-02")?.id).toBe("gate");
+    expect(findCandidateGateStep(engine, "w2-03")).toBeNull();
+    expect(findCandidateGateStep(engine, "w2-09")).toBeNull();
+    expect(findCandidateGateStep(engine, null)).toBeNull();
   });
 
   it("still refuses unlinked candidate-owned steps", () => {

@@ -101,6 +101,15 @@ export function showsApplicantPartnerScreeningNotice(step: TenantOnboardingStep)
   );
 }
 
+/**
+ * Internal library step by builder id alone (e.g. an assigned step record's `step_type`).
+ * Completion Milestone is excluded: it is also the applicant's review/submit step.
+ */
+export function isInternalLibraryStepId(libraryId: string | null | undefined): boolean {
+  const value = String(libraryId ?? "").trim().toLowerCase();
+  return value !== "completion-milestone" && INTERNAL_LIBRARY_STEP_IDS.has(value);
+}
+
 export function isInternalLibraryOnboardingStep(step: TenantOnboardingStep): boolean {
   const libraryId = readWorkflowLibraryStepId(step);
   if (libraryId === "completion-milestone") {

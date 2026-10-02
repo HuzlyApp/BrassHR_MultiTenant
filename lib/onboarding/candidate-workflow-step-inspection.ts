@@ -54,6 +54,11 @@ import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defa
 import { loadCandidateInterviews } from "@/lib/interviews/candidate-interview-history";
 import { loadStepCheckResult, type StepCheckResult } from "@/lib/onboarding/step-check-results";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-application-parameters";
+import {
+  loadJobApplicationStepView,
+  type JobApplicationStepView,
+} from "@/lib/onboarding/job-application-step";
 import {
   interviewStepStatus,
   isInterviewStep,
@@ -70,6 +75,7 @@ export type WorkflowStepInspectionKind =
   | "agreement"
   | "background_check"
   | "final_review"
+  | "job_application"
   | "generic";
 
 export type WorkflowStepInspectionError = {
@@ -172,6 +178,8 @@ export type WorkflowStepInspection = {
   } | null;
   /** Every interview booked with the candidate, oldest first. Null on non-interview steps. */
   interviews: CandidateInterview[] | null;
+  /** Requisition parameters + screening answers. Null except on Parameterized Job Application. */
+  jobApplication: JobApplicationStepView | null;
 };
 
 function asText(value: unknown): string | null {
@@ -185,6 +193,7 @@ export function inspectionKindForStep(params: {
 }): WorkflowStepInspectionKind {
   const stepType = params.stepType.trim().toLowerCase();
   const onboardingType = params.onboardingType.trim().toLowerCase();
+  if (isParameterizedJobApplicationStepType(stepType)) return "job_application";
   if (onboardingType === "resume_upload" || stepType === "resume-basic-profile") return "resume";
   if (
     onboardingType === "professional_license" ||
@@ -728,9 +737,20 @@ export async function loadCandidateWorkflowStepInspection(
   }
   const interviewStatus = interviewStepStatus(step);
 
+  const jobApplication =
+    kind === "job_application"
+      ? await loadJobApplicationStepView(supabase, { tenantId, applicationId })
+      : null;
+
   let emptyState: string | null = null;
   if (mapped.unmatched && !staffAction.allowed) emptyState = LEGACY_UNMATCHED_STEP_MESSAGE;
-  else if (interviewStatus?.key === "not_scheduled") {
+  else if (
+    jobApplication &&
+    staffAction.allowed &&
+    (mapped.status === "pending" || mapped.status === "in_progress")
+  ) {
+    emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to review the job details below and complete this step. The candidate can't continue past it until then.`;
+  } else if (interviewStatus?.key === "not_scheduled") {
     emptyState = "No interview scheduled yet. Use Schedule Interview to book one with the candidate.";
   } else if (interviewStatus?.key === "scheduled" && step.interview?.latest) {
     const latest = step.interview.latest;
@@ -834,5 +854,6 @@ export async function loadCandidateWorkflowStepInspection(
     authorization: kind === "background_check" ? authorization : kind === "agreement" ? authorization : authorization,
     finalReview,
     interviews,
+    jobApplication,
   };
 }

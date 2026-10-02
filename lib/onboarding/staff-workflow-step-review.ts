@@ -48,11 +48,14 @@ import type {
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
 import type { EmploymentLifecyclePhase } from "@/lib/onboarding/workflow-phase-groups";
+import type { ApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 import {
   getWorkflowSettings,
   isApplicantCompletionOwner,
+  isInternalLibraryStepId,
   isWorkerVisibleStep,
 } from "@/lib/onboarding/workflow-settings";
+import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-application-parameters";
 
 const STAFF_REVIEW_HISTORY_LIMIT = 20;
 
@@ -143,7 +146,14 @@ export function staffStepVariant(
  */
 export function canReviewUnlinkedRecord(record: UnlinkedStepRecord | null | undefined): boolean {
   if (!record) return false;
+  if (isInternalLibraryStepId(record.stepType)) return true;
   return !isApplicantCompletionOwner(asText(record.settings?.completionOwner));
+}
+
+/** Internal steps whose completion owner defaulted to the applicant still belong to staff. */
+function staffOwnerLabel(owner: string | null | undefined, stepType: string | null | undefined): string {
+  if (!isApplicantCompletionOwner(owner)) return completionOwnerLabel(owner);
+  return isParameterizedJobApplicationStepType(stepType) ? "Recruiter / HR" : "Internal team";
 }
 
 export function resolveStaffStepEligibility(
@@ -156,7 +166,7 @@ export function resolveStaffStepEligibility(
       const variant = staffStepVariant(null, record!.stepType);
       return {
         allowed: true,
-        ownerLabel: completionOwnerLabel(asText(record!.settings?.completionOwner)),
+        ownerLabel: staffOwnerLabel(asText(record!.settings?.completionOwner), record!.stepType),
         actions: allowedStaffActions(currentStatus, variant),
         variant,
         reason: null,
@@ -183,7 +193,7 @@ export function resolveStaffStepEligibility(
   const variant = staffStepVariant(tenantStep, record?.stepType);
   return {
     allowed: true,
-    ownerLabel: isApplicantCompletionOwner(owner) ? "Internal team" : completionOwnerLabel(owner),
+    ownerLabel: staffOwnerLabel(owner, record?.stepType ?? asText(tenantStep.metadata?.workflow_step_id)),
     actions: allowedStaffActions(currentStatus, variant),
     variant,
     reason: null,
@@ -380,6 +390,82 @@ async function loadProgressPayload(
   };
 }
 
+type ApplicationApplicantConfig = {
+  /** The steps the candidate portal runs for this application (job workflow when available). */
+  config: TenantOnboardingConfig | null;
+  /** Same config before candidate projection, so internal (staff) steps are still in `steps`. */
+  engineConfig: TenantOnboardingConfig | null;
+  activePhase: ApplicantLifecyclePhase;
+  jobToken: string | null;
+  jobTitle: string;
+};
+
+async function loadApplicationApplicantConfig(
+  supabase: SupabaseClient,
+  params: { tenantId: string; applicationId: string | null }
+): Promise<ApplicationApplicantConfig> {
+  const phaseRecord = params.applicationId
+    ? await loadApplicationWorkflowPhase(supabase, {
+        tenantId: params.tenantId,
+        applicationId: params.applicationId,
+      })
+    : null;
+
+  let jobToken: string | null = null;
+  let jobTitle = "your application";
+  if (phaseRecord?.jobRequisitionId) {
+    const { data: job } = await supabase
+      .from("job_requisitions")
+      .select("public_job_token, public_title, source_job_title")
+      .eq("id", phaseRecord.jobRequisitionId)
+      .eq("tenant_id", params.tenantId)
+      .maybeSingle();
+    jobToken = asText(job?.public_job_token);
+    jobTitle = asText(job?.public_title) ?? asText(job?.source_job_title) ?? jobTitle;
+  }
+
+  let config = await loadTenantOnboardingConfig(supabase, params.tenantId, { workerFacing: true });
+  if (jobToken) {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("slug")
+      .eq("id", params.tenantId)
+      .maybeSingle();
+    try {
+      config = (await loadApplicantConfigForJobToken(supabase, asText(tenant?.slug), jobToken)).config;
+    } catch {
+      // Stale or unpublished job: fall back to the tenant's published config.
+    }
+  }
+  const activePhase = phaseRecord?.phase ?? "pre_hire";
+  return {
+    config: config ? applyApplicantConfigFilters(config, { activePhase }) : null,
+    engineConfig: config,
+    activePhase,
+    jobToken,
+    jobTitle,
+  };
+}
+
+/**
+ * The internal step the candidate portal gates on for an assigned record the Hire Journey
+ * couldn't link (the job workflow has nodes the tenant's published config doesn't).
+ */
+export function findCandidateGateStep(
+  config: TenantOnboardingConfig | null,
+  snapshotStepId: string | null
+): TenantOnboardingStep | null {
+  if (!config || !snapshotStepId) return null;
+  return (
+    config.steps.find(
+      (step) =>
+        !step.id.startsWith("preview-") &&
+        asText(step.metadata?.workflow_node_id) === snapshotStepId &&
+        !isWorkerVisibleStep(step)
+    ) ?? null
+  );
+}
+
 async function notifyCandidateNextStep(
   supabase: SupabaseClient,
   params: {
@@ -395,42 +481,11 @@ async function notifyCandidateNextStep(
 ): Promise<StaffStepEmailResult> {
   if (!params.origin) return { sent: false, skipped: true, reason: "NO_APP_ORIGIN" };
   try {
-    const phaseRecord = params.applicationId
-      ? await loadApplicationWorkflowPhase(supabase, {
-          tenantId: params.tenantId,
-          applicationId: params.applicationId,
-        })
-      : null;
-
-    let jobToken: string | null = null;
-    let jobTitle = "your application";
-    if (phaseRecord?.jobRequisitionId) {
-      const { data: job } = await supabase
-        .from("job_requisitions")
-        .select("public_job_token, public_title, source_job_title")
-        .eq("id", phaseRecord.jobRequisitionId)
-        .eq("tenant_id", params.tenantId)
-        .maybeSingle();
-      jobToken = asText(job?.public_job_token);
-      jobTitle = asText(job?.public_title) ?? asText(job?.source_job_title) ?? jobTitle;
-    }
-
-    let config = await loadTenantOnboardingConfig(supabase, params.tenantId, { workerFacing: true });
-    if (jobToken) {
-      const { data: tenant } = await supabase
-        .from("tenants")
-        .select("slug")
-        .eq("id", params.tenantId)
-        .maybeSingle();
-      try {
-        config = (await loadApplicantConfigForJobToken(supabase, asText(tenant?.slug), jobToken)).config;
-      } catch {
-        // Stale or unpublished job: fall back to the tenant's published config.
-      }
-    }
+    const { config, activePhase, jobToken, jobTitle } = await loadApplicationApplicantConfig(supabase, {
+      tenantId: params.tenantId,
+      applicationId: params.applicationId,
+    });
     if (!config) return { sent: false, skipped: true, reason: "NO_APPLICANT_CONFIG" };
-    const activePhase = phaseRecord?.phase ?? "pre_hire";
-    config = applyApplicantConfigFilters(config, { activePhase });
 
     const progress = await loadProgressPayload(supabase, params.progressId, params.tenantConfig);
     if (activePhase === "pre_hire" && progress.submittedAt) {
@@ -514,9 +569,11 @@ async function buildStaffReview(
 function withStaffReview(
   existing: Record<string, unknown>,
   review: StaffStepReview,
-  previousStatus: string
+  previousStatus: string,
+  stepRecordId: string
 ): Record<string, unknown> {
   const stored = {
+    step_record_id: stepRecordId,
     decision: review.decision,
     note: review.note,
     reviewed_by_user_id: review.reviewedByUserId,
@@ -629,6 +686,22 @@ async function loadLinkedProgressRow(
   return load();
 }
 
+function staffEligibilityFor(ctx: StaffStepContext): StaffStepActionEligibility {
+  return resolveStaffStepEligibility(ctx.tenantStep, "pending", {
+    stepType: asText(ctx.record.step_type),
+    settings: asObject(ctx.record.settings),
+  });
+}
+
+function notStaffOwned(eligibility: StaffStepActionEligibility): StepFailure {
+  return {
+    ok: false,
+    status: 409,
+    code: "STEP_NOT_STAFF_OWNED",
+    error: eligibility.reason ?? "This step can't be updated by staff.",
+  };
+}
+
 export async function applyStaffWorkflowStepAction(
   supabase: SupabaseClient,
   params: {
@@ -656,20 +729,18 @@ export async function applyStaffWorkflowStepAction(
   });
   if (!ctx.ok) return ctx;
 
-  const tenantStepId = ctx.mapped.tenantStepId;
-  const recordSettings = asObject(ctx.record.settings);
-  const initial = resolveStaffStepEligibility(ctx.tenantStep, "pending", {
-    stepType: asText(ctx.record.step_type),
-    settings: recordSettings,
-  });
-  if (!initial.allowed) {
-    return {
-      ok: false,
-      status: 409,
-      code: "STEP_NOT_STAFF_OWNED",
-      error: initial.reason ?? "This step can't be updated by staff.",
-    };
-  }
+  const initial = staffEligibilityFor(ctx);
+  if (!initial.allowed) return notStaffOwned(initial);
+
+  // Unlinked internal steps still gate the candidate on the job workflow's step, so mirror there.
+  const tenantStepId =
+    ctx.mapped.tenantStepId ??
+    findCandidateGateStep(
+      (await loadApplicationApplicantConfig(supabase, { tenantId, applicationId: ctx.applicationId }))
+        .engineConfig,
+      asText(ctx.record.snapshot_step_id)
+    )?.id ??
+    null;
 
   let progressId: string | null = null;
   let progressRow: ProgressRowInput | null = null;
@@ -718,7 +789,7 @@ export async function applyStaffWorkflowStepAction(
         status: nextStatus,
         completed_at: nextStatus === "completed" ? now : null,
         updated_at: now,
-        data: withStaffReview(asObject(progressRow?.data), review, currentStatus),
+        data: withStaffReview(asObject(progressRow?.data), review, currentStatus, String(ctx.record.id)),
       })
       .eq("worker_onboarding_progress_id", progressId)
       .eq("onboarding_step_id", tenantStepId);

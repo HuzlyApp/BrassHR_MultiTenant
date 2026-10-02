@@ -2,6 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -46,10 +47,12 @@ import {
   type StepPillTone,
 } from "@/lib/onboarding/interview-step";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import JobApplicationStepSection from "./JobApplicationStepSection";
 import SkillAssessmentResults from "./SkillAssessmentResults";
 import WorkflowStepStaffActionModal from "./WorkflowStepStaffActionModal";
 
 const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
+  job_application: BriefcaseBusiness,
   resume: FileText,
   upload: UploadCloud,
   form: ClipboardList,
@@ -371,7 +374,6 @@ export default function CandidateWorkflowStepModal({
       interviewState.key !== "rejected"
   );
   const showFooter = !loading && !error && (canSchedule || (canAct && staffAction));
-
   async function submitAction(input: { note: string; notifyCandidate: boolean }) {
     if (!workerId || !stepId || !pendingAction) return;
     const action = pendingAction;
@@ -565,6 +567,10 @@ export default function CandidateWorkflowStepModal({
                       </p>
                     ) : null}
                   </Section>
+                ) : null}
+
+                {inspection.jobApplication ? (
+                  <JobApplicationStepSection view={inspection.jobApplication} />
                 ) : null}
 
                 <Section title="Overview">

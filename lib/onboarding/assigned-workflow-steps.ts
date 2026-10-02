@@ -5,7 +5,10 @@ import {
   isAlwaysOptionalStep,
   isReferenceVerificationStep,
 } from "@/lib/onboarding/reference-verification";
-import { isApplicantCompletionOwner } from "@/lib/onboarding/workflow-settings";
+import {
+  isApplicantCompletionOwner,
+  isInternalLibraryStepId,
+} from "@/lib/onboarding/workflow-settings";
 import {
   decisionLabel,
   isDecisionVariant,
@@ -414,9 +417,21 @@ function timeOf(value: string | null | undefined): number {
 }
 
 export function isStaffOwnedAssignedRecord(
-  record: Pick<AssignedStepRecordInput, "settings">
+  record: Pick<AssignedStepRecordInput, "settings"> & { step_type?: string | null }
 ): boolean {
+  if (isInternalLibraryStepId(record.step_type)) return true;
   return !isApplicantCompletionOwner(asText(record.settings?.completionOwner));
+}
+
+/**
+ * A staff decision mirrored onto a progress row for a different step record (the candidate
+ * engine can gate an internal step on a progress row the Hire Journey links to another step).
+ */
+function progressDecidedForOtherRecord(recordId: string, progress: ProgressRowInput | undefined): boolean {
+  const review = progress?.data?.staff_review;
+  if (!review || typeof review !== "object" || Array.isArray(review)) return false;
+  const owner = asText((review as Record<string, unknown>).step_record_id);
+  return Boolean(owner) && owner !== recordId;
 }
 
 /**
@@ -439,6 +454,7 @@ export function resolveAssignedStepStatus(
     completedAt: record.completed_at ?? null,
   };
   if (!isStaffOwnedAssignedRecord(record)) {
+    if (progressDecidedForOtherRecord(record.id, progress)) return fromRecord;
     return asText(progress?.status) ? fromProgress : fromRecord;
   }
   if (!progress || fromProgress.status === "pending") return fromRecord;
@@ -482,7 +498,7 @@ export function mapAssignedStepRecords(params: {
       unmatched,
       // Staff-owned unmatched steps are reviewed on the record itself, so only candidate steps lose data.
       detail:
-        unmatched && isApplicantCompletionOwner(asText(settings?.completionOwner))
+        unmatched && !isStaffOwnedAssignedRecord(record)
           ? "This step could not be linked to a stored submission record."
           : undefined,
       assignedAt: params.assignedAt ?? record.created_at ?? null,
