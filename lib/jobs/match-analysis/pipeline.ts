@@ -429,7 +429,8 @@ async function runCallPackQuestionsForApplication(args: {
     const generated = await generateFollowUpQuestions(
       { jobTitle, checklist, enrichmentNotes },
       resolved,
-      analysisProvider
+      analysisProvider,
+      progressMode
     );
     const merged = mergeStageQuestions(
       existingAnalysis,

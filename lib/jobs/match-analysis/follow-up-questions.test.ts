@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT,
+  FOLLOW_UP_ENRICHMENT_USER_TEMPLATE,
   FOLLOW_UP_SYSTEM_PROMPT,
+  buildFollowUpNonEmptyRepairPrompt,
   buildFollowUpQuestionsPrompt,
   checklistFollowUpRows,
+  ensureFollowUpUserPrompt,
   mergeFollowUpQuestions,
   parseFollowUpQuestions,
 } from "./follow-up-questions";
@@ -33,7 +37,28 @@ describe("follow-up screening questions", () => {
     expect(parseAnalysisMode("deep")).toBe("deep");
     expect(parseAnalysisMode("analyze")).toBe("analyze");
     expect(systemPromptForMode("call_pack")).toBe(FOLLOW_UP_SYSTEM_PROMPT);
-    expect(systemPromptForMode("follow_up")).toBe(FOLLOW_UP_SYSTEM_PROMPT);
+    expect(systemPromptForMode("follow_up")).toBe(FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT);
+    expect(FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT).toContain("An empty array is invalid");
+    expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).toContain("{{enrichment_notes}}");
+    expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).not.toContain("Prefer empty array");
+  });
+
+  it("overrides an older Follow-Up prompt that preferred an empty list", () => {
+    const legacy =
+      "Return 0-5 focused questions. Prefer empty array when nothing remains open.";
+    const ensured = ensureFollowUpUserPrompt(legacy, "follow_up");
+    expect(ensured).toContain("An empty array is invalid");
+    expect(ensured).toContain("start date");
+    expect(ensureFollowUpUserPrompt(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE, "follow_up")).toBe(
+      FOLLOW_UP_ENRICHMENT_USER_TEMPLATE
+    );
+    expect(ensureFollowUpUserPrompt(legacy, "call_pack")).toBe(legacy);
+    expect(
+      buildFollowUpNonEmptyRepairPrompt({
+        userPrompt: legacy,
+        badJson: '{"screening_questions":[]}',
+      })
+    ).toContain("screening_questions is empty");
   });
 
   it("builds the prompt from Qualification Checklist statuses and recruiter notes", () => {
@@ -93,6 +118,19 @@ describe("follow-up screening questions", () => {
       parsed.questions
     );
     expect(merged.quick_match).toEqual({ quick_route: "REVIEW" });
+    const aliased = parseFollowUpQuestions(`{
+      "follow_up_questions": [
+        {
+          "priority": 1,
+          "question": "What date can you start?",
+          "reason": "Start date was not collected on the call.",
+          "related_requirement": "Start date"
+        }
+      ]
+    }`);
+    expect(aliased.ok).toBe(true);
+    if (!aliased.ok) return;
+    expect(aliased.questions[0]?.question).toBe("What date can you start?");
     expect(merged.screening_questions).toEqual([
       {
         priority: 1,

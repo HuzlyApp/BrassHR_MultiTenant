@@ -1,5 +1,8 @@
 import type { AnalysisMode, MatchAnalysisResponse, StructuredJobRequirements } from "./schema";
-import { FOLLOW_UP_SYSTEM_PROMPT } from "./follow-up-questions";
+import {
+  FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT,
+  FOLLOW_UP_SYSTEM_PROMPT,
+} from "./follow-up-questions";
 
 // Existing detailed prompt. Used only for Deeper Analysis. Do not simplify.
 export const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are an expert staffing candidate-to-job matching analyst and recruiting advisor supporting recruiters across healthcare and non-healthcare staffing, including nursing, allied health, physicians, IT, engineering, finance, manufacturing, logistics, warehouse, public works, administrative, executive, and professional services.
@@ -448,7 +451,8 @@ mand_met, pref_met, weighted are 0–1 decimals. The app recomputes quick_route 
 /** @deprecated Runtime uses catalog `resolvePromptVersion`. Kept for tests / seed content parity. */
 export function systemPromptForMode(mode: AnalysisMode): string {
   if (mode === "deep") return DEEP_ANALYSIS_SYSTEM_PROMPT;
-  if (mode === "call_pack" || mode === "follow_up") return FOLLOW_UP_SYSTEM_PROMPT;
+  if (mode === "follow_up") return FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT;
+  if (mode === "call_pack") return FOLLOW_UP_SYSTEM_PROMPT;
   return ANALYZE_SYSTEM_PROMPT;
 }
 
