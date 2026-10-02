@@ -19,6 +19,7 @@ import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
+import { invalidateJobsListCache } from "@/lib/lists/staff-list-session-cache";
 import { showsRemoteAllowedStatesField } from "./RemoteAllowedStatesField";
 import {
   JobFormFooter,
@@ -627,6 +628,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setOriginalStatus("draft");
       }
       clearJobRequisitionFormDraft();
+      invalidateJobsListCache();
       router.push("/admin_recruiter/jobs");
       router.refresh();
     } catch (error) {

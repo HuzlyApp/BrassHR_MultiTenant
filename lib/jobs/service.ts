@@ -67,6 +67,7 @@ import {
   normalizeJobTags,
   type JobRequisitionPatchInput,
 } from "@/lib/jobs/job-requisition-patch";
+import { capJobListBodyFields } from "@/lib/jobs/cap-job-list-text";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { embeddedRelationName } from "@/lib/jobs/profession-text";
 import { resolveProfessionIdForSave } from "@/lib/jobs/resolve-profession";
@@ -1446,7 +1447,7 @@ export async function listInternalJobs(
   return jobs.map((job) => {
     const metrics = metricsByJob.get(String(job.id));
     const createdByUserId = (job as { created_by?: string | null }).created_by;
-    return {
+    return capJobListBodyFields({
       ...job,
       status: normalizeJobRequisitionStatus(String(job.status ?? "")),
       is_hot: Boolean((job as { is_hot?: boolean | null }).is_hot),
@@ -1464,7 +1465,7 @@ export async function listInternalJobs(
       createdBy: createdByUserId
         ? creatorsById.get(String(createdByUserId)) ?? null
         : null,
-    };
+    });
   });
 }
 

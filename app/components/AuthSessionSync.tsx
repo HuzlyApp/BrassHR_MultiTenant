@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { clearStaffListSessionCache } from "@/lib/lists/staff-list-session-cache";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { idleLogoutRedirectPath } from "@/lib/auth/idle-session";
 import {
@@ -66,6 +67,7 @@ export default function AuthSessionSync() {
       }
 
       if (result.status === "signed_out") {
+        clearStaffListSessionCache();
         const wasSignedIn = Boolean(lastUserIdRef.current);
         lastUserIdRef.current = null;
         if (source === "remote" || wasSignedIn) {
@@ -80,6 +82,9 @@ export default function AuthSessionSync() {
 
       const previousUserId = lastUserIdRef.current;
       lastUserIdRef.current = result.userId;
+      if (previousUserId && result.userId && previousUserId !== result.userId) {
+        clearStaffListSessionCache();
+      }
       const sessionChanged = previousUserId !== result.userId;
 
       // Remote sign-in or reload onto an auth entry page: refresh so middleware redirects.
@@ -135,6 +140,7 @@ export default function AuthSessionSync() {
       }
 
       if (event === "SIGNED_OUT") {
+        clearStaffListSessionCache();
         lastUserIdRef.current = null;
         if (isSessionGuardedPath(pathnameRef.current)) {
           router.replace(idleLogoutRedirectPath(pathnameRef.current));
@@ -144,7 +150,18 @@ export default function AuthSessionSync() {
         return;
       }
 
-      lastUserIdRef.current = session?.user?.id ?? null;
+      const nextUserId = session?.user?.id ?? null;
+      if (
+        event === "USER_UPDATED" ||
+        (event === "SIGNED_IN" &&
+          lastUserIdRef.current &&
+          nextUserId &&
+          lastUserIdRef.current !== nextUserId)
+      ) {
+        clearStaffListSessionCache();
+      }
+
+      lastUserIdRef.current = nextUserId;
 
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
         router.refresh();
