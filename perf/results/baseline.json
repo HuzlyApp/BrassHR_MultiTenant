@@ -1,0 +1,387 @@
+{
+  "capturedAt": "2026-10-01T03:45:00+08:00",
+  "target": "http://localhost:3010",
+  "auth": "Local dev staff bypass with DEV_BENCHMARK_TENANT_ID. No K6_COOKIE was set. HTML /admin_recruiter/candidates followed a redirect to the login page (about 23KB, HTTP 200). API list routes used the bypass. GET /api/admin/jobs?fields=picker returned 400 No tenant selected because that route does not read DEV_BENCHMARK_TENANT_ID.",
+  "runner": "k6 2.2.0 portable, one iteration per VU, script perf/k6/candidates.js",
+  "server": "next dev --webpack on this machine, not Vercel. Latency includes the local dev server queue.",
+  "database": {
+    "note": "CPU is not available. track_io_timing is off. Connections sampled from pg_stat_activity during the 50 VU run, max_connections=60.",
+    "during50Vu": {
+      "idle": 25,
+      "idleInTransaction": 7,
+      "active": 4,
+      "nullState": 2
+    }
+  },
+  "vus": {
+    "1": {
+      "testRunDurationMs": 10416,
+      "checks": {
+        "rate": 0.875,
+        "passes": 7,
+        "fails": 1
+      },
+      "httpReqFailed": {
+        "passes": 1,
+        "fails": 8,
+        "rate": 0.1111111111111111
+      },
+      "bytes_workers_page2": {
+        "p50": 26780,
+        "max": 26780
+      },
+      "timing_workers_search_smith": {
+        "p50": 2153,
+        "p95": 2153,
+        "p99": 2153,
+        "max": 2153
+      },
+      "bytes_admin_jobs_picker": {
+        "p50": 30,
+        "max": 30
+      },
+      "dur_candidates_page": {
+        "p50": 953,
+        "p95": 953,
+        "p99": 953,
+        "max": 953
+      },
+      "dur_workers_search_smith": {
+        "p50": 2182,
+        "p95": 2182,
+        "p99": 2182,
+        "max": 2182
+      },
+      "timing_workers_page2": {
+        "p50": 1990,
+        "p95": 1990,
+        "p99": 1990,
+        "max": 1990
+      },
+      "bytes_workers_metrics": {
+        "p50": 965,
+        "max": 965
+      },
+      "dur_workers_metrics": {
+        "p50": 28,
+        "p95": 28,
+        "p99": 28,
+        "max": 28
+      },
+      "bytes_workers_search_smith": {
+        "p50": 29057,
+        "max": 29057
+      },
+      "dur_workers_page2": {
+        "p50": 2025,
+        "p95": 2025,
+        "p99": 2025,
+        "max": 2025
+      },
+      "timing_workers_filter": {
+        "p50": 375,
+        "p95": 375,
+        "p99": 375,
+        "max": 375
+      },
+      "bytes_candidates_page": {
+        "p50": 23403,
+        "max": 23403
+      },
+      "timing_workers_page1": {
+        "p50": 2187,
+        "p95": 2187,
+        "p99": 2187,
+        "max": 2187
+      },
+      "timing_workers_search_rare": {
+        "p50": 1932,
+        "p95": 1932,
+        "p99": 1932,
+        "max": 1932
+      },
+      "dur_admin_jobs_picker": {
+        "p50": 368,
+        "p95": 368,
+        "p99": 368,
+        "max": 368
+      },
+      "bytes_workers_search_rare": {
+        "p50": 25282,
+        "max": 25282
+      },
+      "bytes_workers_filter": {
+        "p50": 171,
+        "max": 171
+      },
+      "dur_workers_page1": {
+        "p50": 2233,
+        "p95": 2233,
+        "p99": 2233,
+        "max": 2233
+      },
+      "dur_workers_filter": {
+        "p50": 416,
+        "p95": 416,
+        "p99": 416,
+        "max": 416
+      },
+      "dur_workers_search_rare": {
+        "p50": 1959,
+        "p95": 1959,
+        "p99": 1959,
+        "max": 1959
+      },
+      "bytes_workers_page1": {
+        "p50": 26553,
+        "max": 26553
+      }
+    },
+    "10": {
+      "testRunDurationMs": 132233,
+      "checks": {
+        "rate": 0.75,
+        "passes": 60,
+        "fails": 20
+      },
+      "httpReqFailed": {
+        "passes": 20,
+        "fails": 70,
+        "rate": 0.2222222222222222
+      },
+      "dur_workers_page1": {
+        "p50": 3119,
+        "p95": 3669,
+        "p99": 3822,
+        "max": 3860
+      },
+      "dur_workers_page2": {
+        "p50": 2070,
+        "p95": 2250,
+        "p99": 2279,
+        "max": 2287
+      },
+      "dur_candidates_page": {
+        "p50": 968,
+        "p95": 1445,
+        "p99": 1465,
+        "max": 1470
+      },
+      "dur_workers_search_smith": {
+        "p50": 2271,
+        "p95": 2838,
+        "p99": 2850,
+        "max": 2853
+      },
+      "dur_workers_search_rare": {
+        "p50": 2101,
+        "p95": 2507,
+        "p99": 2539,
+        "max": 2547
+      },
+      "bytes_workers_search_rare": {
+        "p50": 25282,
+        "max": 25282
+      },
+      "timing_workers_search_smith": {
+        "p50": 2236,
+        "p95": 2801,
+        "p99": 2820,
+        "max": 2825
+      },
+      "dur_workers_metrics": {
+        "p50": 120000,
+        "p95": 120001,
+        "p99": 120001,
+        "max": 120001
+      },
+      "dur_workers_filter": {
+        "p50": 382,
+        "p95": 410,
+        "p99": 412,
+        "max": 412
+      },
+      "bytes_workers_search_smith": {
+        "p50": 29057,
+        "max": 29058
+      },
+      "bytes_workers_page1": {
+        "p50": 26553,
+        "max": 26555
+      },
+      "bytes_admin_jobs_picker": {
+        "p50": 30,
+        "max": 30
+      },
+      "timing_workers_search_rare": {
+        "p50": 2069,
+        "p95": 2485,
+        "p99": 2517,
+        "max": 2525
+      },
+      "timing_workers_page1": {
+        "p50": 3075,
+        "p95": 3615,
+        "p99": 3774,
+        "max": 3814
+      },
+      "timing_workers_page2": {
+        "p50": 2049,
+        "p95": 2230,
+        "p99": 2258,
+        "max": 2265
+      },
+      "timing_workers_filter": {
+        "p50": 354,
+        "p95": 378,
+        "p99": 379,
+        "max": 379
+      },
+      "bytes_candidates_page": {
+        "p50": 23403,
+        "max": 23403
+      },
+      "bytes_workers_metrics": {
+        "p50": 0,
+        "max": 0
+      },
+      "bytes_workers_page2": {
+        "p50": 26780,
+        "max": 26780
+      },
+      "dur_admin_jobs_picker": {
+        "p50": 348,
+        "p95": 471,
+        "p99": 492,
+        "max": 498
+      },
+      "bytes_workers_filter": {
+        "p50": 171,
+        "max": 171
+      }
+    },
+    "50": {
+      "testRunDurationMs": 90619,
+      "checks": {
+        "fails": 50,
+        "rate": 0.875,
+        "passes": 350
+      },
+      "httpReqFailed": {
+        "passes": 50,
+        "fails": 400,
+        "rate": 0.1111111111111111
+      },
+      "bytes_workers_search_rare": {
+        "p50": 25285,
+        "max": 25289
+      },
+      "dur_workers_search_smith": {
+        "p50": 5955,
+        "p95": 7751,
+        "p99": 7940,
+        "max": 7954
+      },
+      "timing_workers_filter": {
+        "p50": 839,
+        "p95": 1592,
+        "p99": 1752,
+        "max": 1874
+      },
+      "bytes_workers_search_smith": {
+        "p50": 29093,
+        "max": 29097
+      },
+      "bytes_candidates_page": {
+        "p50": 23403,
+        "max": 23403
+      },
+      "dur_admin_jobs_picker": {
+        "p50": 447,
+        "p95": 1304,
+        "p99": 2038,
+        "max": 2324
+      },
+      "timing_workers_page1": {
+        "p50": 17177,
+        "p95": 67373,
+        "p99": 67710,
+        "max": 67806
+      },
+      "timing_workers_page2": {
+        "p50": 55282,
+        "p95": 56500,
+        "p99": 56851,
+        "max": 56953
+      },
+      "dur_workers_filter": {
+        "p50": 889,
+        "p95": 1615,
+        "p99": 1795,
+        "max": 1890
+      },
+      "dur_candidates_page": {
+        "p50": 3438,
+        "p95": 3659,
+        "p99": 3663,
+        "max": 3663
+      },
+      "timing_workers_search_rare": {
+        "p50": 4905,
+        "p95": 5509,
+        "p99": 5565,
+        "max": 5584
+      },
+      "dur_workers_search_rare": {
+        "p50": 4937,
+        "p95": 5637,
+        "p99": 5677,
+        "max": 5686
+      },
+      "dur_workers_page2": {
+        "p50": 55309,
+        "p95": 56533,
+        "p99": 56883,
+        "max": 56977
+      },
+      "bytes_workers_metrics": {
+        "p50": 965,
+        "max": 965
+      },
+      "dur_workers_metrics": {
+        "p50": 48,
+        "p95": 143,
+        "p99": 157,
+        "max": 162
+      },
+      "timing_workers_search_smith": {
+        "p50": 5899,
+        "p95": 7688,
+        "p99": 7914,
+        "max": 7932
+      },
+      "bytes_workers_page2": {
+        "p50": 26536,
+        "max": 26539
+      },
+      "bytes_workers_filter": {
+        "p50": 171,
+        "max": 173
+      },
+      "dur_workers_page1": {
+        "p50": 17602,
+        "p95": 67842,
+        "p99": 68290,
+        "max": 68326
+      },
+      "bytes_admin_jobs_picker": {
+        "p50": 30,
+        "max": 30
+      },
+      "bytes_workers_page1": {
+        "p50": 26563,
+        "max": 26566
+      }
+    }
+  }
+}

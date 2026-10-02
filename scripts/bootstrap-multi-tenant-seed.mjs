@@ -6,10 +6,11 @@
  * Usage (repo root):
  *   node scripts/bootstrap-multi-tenant-seed.mjs
  *
- * Creates auth user godadmin@test.com / 123 unless it already exists:
+ * Creates auth user godadmin@test.com / godadmin123 unless it already exists:
  * - app_metadata: { platform: "nexus", role: "god_admin", god_admin: true }
  * - public.users: god_admin=true, tenant_id=NULL
  * Does not attach user_roles rows for god admin.
+ * Note: Supabase rejects passwords shorter than 6 characters.
  */
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync } from "fs";
@@ -35,7 +36,7 @@ loadDotEnv();
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOD_EMAIL = "godadmin@test.com".toLowerCase();
-const GOD_PW = "123";
+const GOD_PW = "godadmin123";
 
 if (!url || !serviceKey) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
 
@@ -27,6 +28,14 @@ export type AdminHeaderDataPayload = {
 };
 
 export const ADMIN_HEADER_DATA_QUERY_KEY = ["admin-header-data"] as const;
+export const ADMIN_HEADER_POLL_MS = 30_000;
+
+/** Poll while the tab is visible. A hidden tab must not keep requesting header data. */
+export function adminHeaderRefetchInterval(
+  visibilityState: "visible" | "hidden" | "prerender" = "visible"
+): number | false {
+  return visibilityState === "hidden" ? false : ADMIN_HEADER_POLL_MS;
+}
 
 async function fetchAdminHeaderData(): Promise<AdminHeaderDataPayload> {
   const res = await fetch("/api/admin/header-data", {
@@ -60,9 +69,21 @@ export function useAdminHeaderData() {
     queryKey: ADMIN_HEADER_DATA_QUERY_KEY,
     queryFn: fetchAdminHeaderData,
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    refetchInterval: () =>
+      adminHeaderRefetchInterval(
+        typeof document === "undefined" ? "visible" : document.visibilityState
+      ),
+    refetchIntervalInBackground: false,
     retry: 1,
   });
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void query.refetch();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [query.refetch]);
 
   return {
     userId: query.data?.userId ?? null,

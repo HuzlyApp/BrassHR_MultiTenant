@@ -7,6 +7,7 @@ import type {
   AiFeatureKey,
   AiVariantKey,
   ClientGateSnapshot,
+  CurrentPromptStamp,
   PromptResolveRequest,
   PromptResolveSnapshot,
   TenantBindingSnapshot,
@@ -145,6 +146,49 @@ export function bindingFor(
         row.variantKey === variantKey &&
         row.verticalKey === verticalKey
     ) ?? null
+  );
+}
+
+export function currentPromptStampKey(
+  featureKey: string,
+  variantKey: string,
+  verticalKey: string
+): string {
+  return `${featureKey}:${variantKey}:${verticalKey}`;
+}
+
+/**
+ * A cached prompt body is usable only when it is still the version that
+ * resolution would load. A new publish changes id and content hash, so the
+ * next analysis misses this cache even if process memory or Redis was not cleared.
+ * Pinned versions stay on the pinned id. Forks are not cached.
+ */
+export function cachedPromptIsCurrent(args: {
+  cached: {
+    promptVersionId: string;
+    contentHash: string;
+    resolvedVerticalKey: string;
+  };
+  plannedVerticalKey: string;
+  plannedStamp: CurrentPromptStamp | null;
+  fallbackStamp: CurrentPromptStamp | null;
+  binding: TenantBindingSnapshot | null;
+}): boolean {
+  if (!args.cached.promptVersionId || !args.cached.contentHash) return false;
+  if (args.binding && (!args.binding.isEnabled || args.binding.mode === "disabled")) return false;
+  if (args.binding?.mode === "pinned") {
+    return args.cached.promptVersionId === args.binding.pinnedVersionId;
+  }
+  if (args.binding?.mode === "forked") return false;
+
+  const expected = args.plannedStamp ?? args.fallbackStamp;
+  if (!expected) return false;
+  if (args.plannedStamp && args.cached.resolvedVerticalKey !== args.plannedVerticalKey) {
+    return false;
+  }
+  return (
+    args.cached.promptVersionId === expected.id &&
+    args.cached.contentHash === expected.contentHash
   );
 }
 

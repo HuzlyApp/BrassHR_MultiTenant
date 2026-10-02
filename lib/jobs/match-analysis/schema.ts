@@ -68,7 +68,7 @@ export const PIPELINE_PROGRESS_STEPS = [
 ] as const;
 
 export const ANALYSIS_MODES = ["analyze", "call_pack", "follow_up", "deep"] as const;
-export const ANALYSIS_PROVIDERS = ["grok", "gemini"] as const;
+export const ANALYSIS_PROVIDERS = ["grok", "gemini", "claude"] as const;
 export const DEFAULT_ANALYSIS_PROVIDER = "grok" as const;
 export const QUICK_ROUTES = ["STRONG", "REVIEW", "LOW_MATCH"] as const;
 export const QUICK_EVIDENCE_SOURCES = [
@@ -87,10 +87,19 @@ export type QuickEvidenceSource = (typeof QUICK_EVIDENCE_SOURCES)[number];
 export const ANALYSIS_PROVIDER_LABELS: Record<AnalysisProvider, string> = {
   grok: "Grok",
   gemini: "Gemini",
+  claude: "Claude",
 };
 
+export function isAnalysisProvider(value: unknown): value is AnalysisProvider {
+  return value === "grok" || value === "gemini" || value === "claude";
+}
+
+/** Coerce missing/unknown values to the default provider (Grok). */
 export function parseAnalysisProvider(value: unknown): AnalysisProvider {
-  return value === "gemini" ? "gemini" : DEFAULT_ANALYSIS_PROVIDER;
+  if (value === "gemini") return "gemini";
+  if (value === "claude") return "claude";
+  if (value === "grok") return "grok";
+  return DEFAULT_ANALYSIS_PROVIDER;
 }
 
 export function parseAnalysisMode(value: unknown): AnalysisMode {
@@ -218,6 +227,9 @@ export const matchAnalysisResponseSchema = z.object({
   analysis_version: z.string().default("1.0"),
   /** Fingerprint of JD source fields at analysis time; used to detect stale results. */
   job_requirements_fingerprint: z.string().max(128).optional(),
+  /** Catalog content hash sent for this run. A later publish makes the saved result stale. */
+  prompt_content_hash: z.string().max(128).optional(),
+  prompt_variant_key: z.string().max(64).optional(),
   job: z
     .object({
       job_id: z.string().default(""),

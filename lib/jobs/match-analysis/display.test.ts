@@ -31,4 +31,10 @@ describe("formatMatchModelLabel", () => {
     expect(formatMatchModelLabel("grok-4.3")).toBe("Grok 4.3");
     expect(formatMatchModelLabel("grok-4-fast")).toBe("Grok 4 Fast");
   });
+
+  it("formats Claude model ids", () => {
+    expect(formatMatchModelLabel("claude-haiku-4-5-20251001")).toBe("Claude Haiku");
+    expect(formatMatchModelLabel("claude-sonnet-5-5")).toBe("Claude Sonnet");
+    expect(formatMatchModelLabel("claude-opus-5-5")).toBe("Claude Opus");
+  });
 });

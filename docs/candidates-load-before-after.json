@@ -1,0 +1,56 @@
+{
+  "tenantId": "efe85d96-536e-497b-9e1a-d8876d29feea",
+  "tenant": "zipstaff",
+  "measuredAt": "2026-09-29",
+  "endpoint": "/api/workers?limit=15&offset=0",
+  "before": {
+    "notes": "Warm samples after first compile; serverPaged=true",
+    "samplesMs": [7693, 3321, 5642, 3509, 7493],
+    "warmMedianMs": 4580,
+    "phasesColdMs": {
+      "idPageMs": 555,
+      "hydrateMs": 331,
+      "contactsMs": 322,
+      "siblingsMs": 1037,
+      "attachBundleMs": 3428,
+      "requirementCountsMs": 1346,
+      "enrichTotalMs": 6483
+    },
+    "phasesWarmMs": {
+      "idPageMs": 505,
+      "hydrateMs": 325,
+      "contactsMs": 314,
+      "siblingsMs": 762,
+      "attachBundleMs": 441,
+      "requirementCountsMs": 339,
+      "enrichTotalMs": 2176
+    }
+  },
+  "after": {
+    "notes": "Warm samples; consolidated job_applications bundle + parallel contacts/siblings/post-attach",
+    "samplesMs": [2602, 2757, 2015],
+    "warmAvgMs": 2458,
+    "phasesWarmMs": {
+      "idPageMs": 496,
+      "hydrateMs": 394,
+      "contactsMs": 443,
+      "siblingsMs": 443,
+      "attachBundleMs": 330,
+      "postAttachParallelMs": 352,
+      "enrichTotalMs": 352
+    }
+  },
+  "rootCause": "Candidates list spent most of its time in serial PostgREST enrichment after paging: five separate job_applications queries, sequential contacts then siblings, then requirement counts/rollup.",
+  "changes": [
+    "loadCandidateListApplicationBundle: one job_applications read derives status/match/jobs/assignees/counts",
+    "Parallel contacts (users+applicants) and contacts||siblings after hydrate",
+    "Parallel photos with application bundle",
+    "Parallel requirement counts + identity rollup + assignee fallback",
+    "Parallel email+phone sibling identity lookups"
+  ],
+  "remainingBottlenecks": [
+    "list_candidate_ids_page still materializes ~4.8k unique profiles before LIMIT (~450–1000ms)",
+    "findIdentitySiblingWorkerIds phone ILIKE against large tenant (~400–800ms)",
+    "Local→us-east-1 Supabase RTT (~300ms per round trip) dominates remaining phases"
+  ]
+}

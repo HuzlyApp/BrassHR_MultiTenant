@@ -879,11 +879,15 @@ export function AiAnalysisOverviewClient({
     listingDisplayFitBand({
       analyzed: isAnalyzed,
       stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+      category: hasDeepMatch ? app?.ai_match_category : null,
+      displayCategory: hasDeepMatch ? app?.ai_match_display_category : null,
+      score: hasDeepMatch ? matchScore : null,
       counts: {
         confirmed: outcomeCounts.confirmed,
         verify: outcomeCounts.verify,
         notMet: outcomeCounts.notMet,
         mandatory: outcomeCounts.mandatory,
+        mandatoryConfirmed: outcomeCounts.mandatoryConfirmed,
         blocking: outcomeCounts.blocking,
         quickRoute: storedRoute,
       },
@@ -1463,6 +1467,7 @@ export function AiAnalysisOverviewClient({
                     onChange={setAnalysisProvider}
                     disabled={analyzing}
                     className="h-8 shrink-0"
+                    claudeAvailable={data?.claudeAvailable}
                   />
                   <MatchAnalyzeButton
                     variant="primary"

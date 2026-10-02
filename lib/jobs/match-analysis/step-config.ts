@@ -30,12 +30,17 @@ export const DEFAULT_STEP2_MODEL = "grok-4-fast";
 export const DEFAULT_STEP2_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_STEP3_MODEL = "gemini-3.1-pro-preview";
 export const DEFAULT_STEP3_GROK_MODEL = "grok-4.6";
+/** Claude Match Analysis default — Haiku 4.5 (fast / cheap). */
+export const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+export const DEFAULT_CLAUDE_DEEP_MODEL = DEFAULT_CLAUDE_MODEL;
+export const CLAUDE_MODEL_SONNET = "claude-sonnet-5-5";
+export const CLAUDE_MODEL_OPUS = "claude-opus-5-5";
 export const DEFAULT_STEP1_FALLBACKS = [
   "gemini-3.5-flash-lite",
   "gpt-5.4-nano",
 ] as const;
 export const DEFAULT_STEP2_FALLBACKS = [DEFAULT_STEP2_FALLBACK_MODEL] as const;
-export const DEFAULT_STEP3_FALLBACKS = ["gpt-5.4", "claude-sonnet-5"] as const;
+export const DEFAULT_STEP3_FALLBACKS = ["gpt-5.4", CLAUDE_MODEL_SONNET] as const;
 
 /** Retired Gemini IDs that still appear in env or prompt-catalog config. */
 const RETIRED_MODEL_ALIASES: Record<string, string> = {
@@ -93,7 +98,14 @@ export function sanitizeStep3Model(model: string, fallback = DEFAULT_STEP3_MODEL
   return remapped;
 }
 
-export function deepMatchModelForProvider(provider: "gemini" | "grok"): string {
+export function deepMatchModelForProvider(provider: "gemini" | "grok" | "claude"): string {
+  if (provider === "claude") {
+    return (
+      readEnv("CLAUDE_MATCH_DEEP_MODEL") ||
+      readEnv("CLAUDE_MODEL_DEFAULT") ||
+      DEFAULT_CLAUDE_DEEP_MODEL
+    );
+  }
   if (provider === "grok") {
     const fromEnv =
       readEnv("AI_MATCH_STEP3_DEEP_GROK_MODEL") ||
@@ -130,9 +142,11 @@ export type MatchStepModelConfig = {
   requireRecruiterConfirm: boolean;
 };
 
+export type MatchAnalysisLlmProvider = "gemini" | "grok" | "claude";
+
 export type Step2ModelRoute = {
-  primary: { provider: "gemini" | "grok"; model: string };
-  fallback: { provider: "gemini" | "grok"; model: string };
+  primary: { provider: MatchAnalysisLlmProvider; model: string };
+  fallback: { provider: MatchAnalysisLlmProvider; model: string };
 };
 
 /** Step 2 Verifications: grok-4-fast primary → gemini-3.5-flash-lite fallback. */
@@ -181,10 +195,21 @@ export function getMatchStepModels(): MatchStepModelConfig {
 
 export function providerForModel(
   model: string,
-  fallback: "gemini" | "grok" = "gemini"
-): "gemini" | "grok" {
+  fallback: MatchAnalysisLlmProvider = "gemini"
+): MatchAnalysisLlmProvider {
   const lower = model.toLowerCase();
+  if (lower.includes("claude") || lower.includes("sonnet") || lower.includes("haiku") || lower.includes("opus")) {
+    return "claude";
+  }
   if (lower.includes("gemini")) return "gemini";
   if (lower.includes("grok")) return "grok";
   return fallback;
+}
+
+export function resolveClaudeMatchModel(): string {
+  return (
+    readEnv("CLAUDE_MATCH_MODEL") ||
+    readEnv("CLAUDE_MODEL_DEFAULT") ||
+    DEFAULT_CLAUDE_MODEL
+  );
 }

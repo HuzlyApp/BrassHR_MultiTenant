@@ -6,6 +6,7 @@ import { SendEmailError } from "@/lib/email/errors";
 import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
@@ -68,6 +69,7 @@ export async function PATCH(req: NextRequest) {
       .maybeSingle();
 
     if (updateError) throw updateError;
+    await invalidateCandidateKpiCache(String(worker.tenant_id));
 
     let approvalEmail:
       | { sent: boolean; skipped: boolean; messageId: string | null; error?: undefined }

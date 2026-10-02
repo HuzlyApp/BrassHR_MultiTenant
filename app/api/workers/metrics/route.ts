@@ -2,7 +2,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { getCache, setCache } from "@/lib/cache";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import {
+  CANDIDATE_KPI_CACHE_TTL_SECONDS,
+  candidateKpiCacheKey,
+} from "@/lib/workers/candidate-kpi-cache";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import {
   buildCandidateKpiCardsFromMetrics,
@@ -296,11 +301,17 @@ export async function GET(req: Request) {
       try {
         const supabase = createClient(url, key);
         const started = Date.now();
-        const metrics = await loadMetrics(supabase, tenantScope.tenantId, status);
+        const cacheKey = candidateKpiCacheKey(tenantScope.tenantId, status);
+        const cached = await getCache<CandidateKpiMetricsPayload>(cacheKey);
+        const metrics = cached ?? (await loadMetrics(supabase, tenantScope.tenantId, status));
+        if (!cached) {
+          await setCache(cacheKey, metrics, CANDIDATE_KPI_CACHE_TTL_SECONDS);
+        }
         const cards = buildCandidateKpiCardsFromMetrics(metrics);
         return Response.json({
           metrics,
           cards,
+          cached: Boolean(cached),
           timingMs: Date.now() - started,
         });
       } catch (err) {
