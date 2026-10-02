@@ -13,6 +13,7 @@ import {
   FileText,
   Handshake,
   Layers,
+  Mail,
   ShieldCheck,
   UploadCloud,
   Users,
@@ -112,6 +113,36 @@ function StatusBadge({
       {label}
     </span>
   );
+}
+
+/** Candidate steps still waiting on the candidate; submitted / completed steps need no reminder. */
+const CANDIDATE_EMAIL_STATUSES: ReadonlySet<WorkflowStepDisplayStatus> = new Set([
+  "not_started",
+  "in_progress",
+  "needs_revision",
+  "rejected",
+  "blocked",
+]);
+
+function candidateEmailNotice(email: StaffStepEmailResult | null | undefined): {
+  tone: "success" | "warning";
+  message: string;
+} {
+  if (email?.sent) {
+    return {
+      tone: "success",
+      message: email.nextStepTitle
+        ? `Email sent. The candidate received a link to complete "${email.nextStepTitle}".`
+        : "Email sent. The candidate received a link to continue.",
+    };
+  }
+  if (email?.reason === "RESEND_NOT_CONFIGURED") {
+    return { tone: "warning", message: "Email isn't configured for this environment, so nothing was sent." };
+  }
+  return {
+    tone: "warning",
+    message: `The email couldn't be sent${email?.reason ? ` (${email.reason})` : ""}. Try again in a moment.`,
+  };
 }
 
 /** Decision steps are a staff to-do, so their open states read amber/orange rather than grey/blue. */
@@ -376,7 +407,46 @@ export default function CandidateWorkflowStepModal({
       interviewState.key !== "completed" &&
       interviewState.key !== "rejected"
   );
-  const showFooter = !loading && !error && (canSchedule || (canAct && staffAction));
+  const stepSideLabel = staffAction?.allowed ? "Recruiter step" : "Candidate step";
+  const canEmailCandidate = Boolean(
+    workerId &&
+      inspection &&
+      !staffAction?.allowed &&
+      CANDIDATE_EMAIL_STATUSES.has(inspection.step.displayStatus)
+  );
+  const showFooter =
+    !loading && !error && (canSchedule || (canAct && staffAction) || canEmailCandidate);
+
+  async function sendCandidateEmail() {
+    if (!workerId || !stepId) return;
+    setSubmitting(true);
+    setNotice(null);
+    try {
+      const res = await fetch(
+        `/api/admin/candidates/${encodeURIComponent(workerId)}/workflow-steps/${encodeURIComponent(stepId)}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "send_email", clientOrigin: window.location.origin }),
+        }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        email?: StaffStepEmailResult | null;
+      };
+      setNotice(
+        res.ok
+          ? candidateEmailNotice(json.email)
+          : { tone: "warning", message: json.error || "Failed to send the email." }
+      );
+    } catch {
+      setNotice({ tone: "warning", message: "Failed to send the email." });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function submitAction(input: { note: string; notifyCandidate: boolean }) {
     if (!workerId || !stepId || !pendingAction) return;
     const action = pendingAction;
@@ -456,9 +526,20 @@ export default function CandidateWorkflowStepModal({
                   : "Candidate workflow step"}
               </Dialog.Description>
               {inspection ? (
+                <span
+                  className="mt-2 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)",
+                    color: "var(--brand-primary)",
+                  }}
+                >
+                  {stepSideLabel}
+                </span>
+              ) : null}
+              {inspection ? (
                 <p className="mt-2 text-xs text-slate-600">
                   {staffAction?.allowed
-                    ? `Internal step owned by ${staffAction.ownerLabel ?? "your team"}. Complete it here to unlock the candidate's next step.`
+                    ? "Complete it here to unlock the candidate's next step."
                     : "Read-only submission from the candidate."}
                 </p>
               ) : null}
@@ -588,10 +669,7 @@ export default function CandidateWorkflowStepModal({
                       value={inspection.step.required ? "Required" : "Optional"}
                     />
                     <Meta label="Completed by" value={inspection.completedBy} />
-                    <Meta
-                      label="Owner"
-                      value={staffAction?.allowed ? staffAction.ownerLabel : "Candidate"}
-                    />
+                    <Meta label="Step for" value={stepSideLabel} />
                     <Meta label="Workflow" value={inspection.workflowName} />
                     <Meta label="Workflow version" value={inspection.workflowVersion} />
                     {inspection.reviewable ? (
@@ -855,13 +933,23 @@ export default function CandidateWorkflowStepModal({
 
           {showFooter ? (
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
-              <p className="text-xs text-slate-500">
-                Owner:{" "}
-                <span className="font-semibold text-slate-700">
-                  {staffAction?.ownerLabel ?? "Internal team"}
-                </span>
-              </p>
+              <p className="text-xs font-semibold text-slate-700">{stepSideLabel}</p>
               <div className="flex flex-wrap gap-2">
+                {canEmailCandidate ? (
+                  <button
+                    type="button"
+                    onClick={() => void sendCandidateEmail()}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition hover:brightness-[0.97] disabled:opacity-50"
+                    style={{
+                      background: "var(--step-modal-cta)",
+                      color: "var(--step-modal-on-primary)",
+                    }}
+                  >
+                    <Mail className="h-4 w-4" aria-hidden />
+                    {submitting ? "Sending…" : "Send Email"}
+                  </button>
+                ) : null}
                 {canSchedule ? (
                   <button
                     type="button"

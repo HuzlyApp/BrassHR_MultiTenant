@@ -56,7 +56,7 @@ import type { ServiceAreaLocation } from "@/lib/service-area/types";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
-import { stampHireStageOnStepSettings } from "@/lib/onboarding/hire-stage-catalog";
+import { buildStepRecordRow, snapshotNodes } from "@/lib/onboarding/sync-workflow-instances";
 import {
   jobScreeningQuestionToInput,
   loadJobScreeningQuestions,
@@ -1841,33 +1841,11 @@ export async function startOrResumeJobApplication(
     throw instanceError ?? new Error("Failed to create applicant workflow instance.");
   }
 
-  const nodes = Array.isArray((snapshot as { nodes?: unknown[] }).nodes)
-    ? ((snapshot as { nodes: Array<Record<string, unknown>> }).nodes ?? [])
-    : [];
+  const nodes = snapshotNodes(snapshot);
   if (nodes.length) {
-    const stepRows = nodes.map((node, index) => {
-      const settings =
-        node.settings && typeof node.settings === "object"
-          ? (node.settings as Record<string, unknown>)
-          : {};
-      const phase =
-        typeof settings.phase === "string"
-          ? settings.phase
-          : typeof node.phase === "string"
-            ? node.phase
-            : "pre_hire";
-      const stepType = String(node.stepId ?? "custom");
-      return {
-        tenant_id: input.tenantId,
-        workflow_instance_id: instance.id,
-        snapshot_step_id: String(node.id ?? `step-${index + 1}`),
-        position: index + 1,
-        title: String(node.label ?? `Step ${index + 1}`),
-        step_type: stepType,
-        is_required: node.required === true,
-        settings: stampHireStageOnStepSettings(stepType, { ...settings, phase }),
-      };
-    });
+    const stepRows = nodes.map((node, index) =>
+      buildStepRecordRow(input.tenantId, instance.id, node, index)
+    );
     const { error: stepsError } = await supabase
       .from("applicant_workflow_step_records")
       .insert(stepRows);
@@ -1955,33 +1933,11 @@ export async function attachWorkflowInstanceToApplication(
     throw instanceError ?? new Error("Failed to create applicant workflow instance.");
   }
 
-  const nodes = Array.isArray((snapshot as { nodes?: unknown[] }).nodes)
-    ? ((snapshot as { nodes: Array<Record<string, unknown>> }).nodes ?? [])
-    : [];
+  const nodes = snapshotNodes(snapshot);
   if (nodes.length) {
-    const stepRows = nodes.map((node, index) => {
-      const settings =
-        node.settings && typeof node.settings === "object"
-          ? (node.settings as Record<string, unknown>)
-          : {};
-      const phase =
-        typeof settings.phase === "string"
-          ? settings.phase
-          : typeof node.phase === "string"
-            ? node.phase
-            : "pre_hire";
-      const stepType = String(node.stepId ?? "custom");
-      return {
-        tenant_id: input.tenantId,
-        workflow_instance_id: instance.id,
-        snapshot_step_id: String(node.id ?? `step-${index + 1}`),
-        position: index + 1,
-        title: String(node.label ?? `Step ${index + 1}`),
-        step_type: stepType,
-        is_required: node.required === true,
-        settings: stampHireStageOnStepSettings(stepType, { ...settings, phase }),
-      };
-    });
+    const stepRows = nodes.map((node, index) =>
+      buildStepRecordRow(input.tenantId, instance.id, node, index)
+    );
     const { error: stepsError } = await supabase
       .from("applicant_workflow_step_records")
       .insert(stepRows);

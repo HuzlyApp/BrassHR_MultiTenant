@@ -353,7 +353,7 @@ export function resolveUnlockedApplicantStep(params: {
   };
 }
 
-async function loadProgressPayload(
+export async function loadProgressPayload(
   supabase: SupabaseClient,
   progressId: string,
   config: TenantOnboardingConfig | null
@@ -400,7 +400,7 @@ type ApplicationApplicantConfig = {
   jobTitle: string;
 };
 
-async function loadApplicationApplicantConfig(
+export async function loadApplicationApplicantConfig(
   supabase: SupabaseClient,
   params: { tenantId: string; applicationId: string | null }
 ): Promise<ApplicationApplicantConfig> {

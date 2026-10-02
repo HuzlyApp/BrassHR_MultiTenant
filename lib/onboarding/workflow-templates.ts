@@ -520,5 +520,14 @@ export async function applyPublishedTemplateToEmploymentFlow(
 
   const { replaceFlowStepsFromDraft } = await import("@/lib/onboarding/flow-steps-sync");
   await replaceFlowStepsFromDraft(supabase, String(updated.id), input.builderDraft);
+  const { syncActiveWorkflowInstancesSafely } = await import(
+    "@/lib/onboarding/sync-workflow-instances"
+  );
+  await syncActiveWorkflowInstancesSafely(supabase, {
+    tenantId,
+    flowId: String(updated.id),
+    draft: input.builderDraft,
+    flowName: match.name,
+  });
   return { flowId: String(updated.id) };
 }
