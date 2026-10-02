@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyQuestionSetRefresh,
   followUpEnrichmentFromVerifications,
+  formatQuickMatchForFollowUp,
   questionsForProgressionStep,
   retainQuestionSetsForAnalysisMode,
   stagesAffectedByInputChange,
@@ -134,6 +135,27 @@ describe("stage question sets", () => {
     expect(notes).toContain("Do not repeat");
     expect(notes).toContain(callPack[0]!.question);
     expect(notes).toContain("Yes, compact.");
+    expect(notes).toContain("Available in two weeks.");
     expect(notes).not.toContain(followUp[0]!.question);
+  });
+
+  it("keeps unanswered Step 2 questions and the Quick Match summary", () => {
+    const notes = followUpEnrichmentFromVerifications({
+      callPackQuestions: [{ question: "Send your BLS card.", answer: "" }],
+      callContext: "",
+    });
+    expect(notes).toContain("(no answer yet)");
+    expect(notes).toContain("Call context:\n(none)");
+    const summary = formatQuickMatchForFollowUp({
+      quick_match: {
+        quick_route: "REVIEW",
+        extracted_resume: { headline: "RN", recent_titles: ["ICU Nurse"] },
+      },
+      gaps_and_risks: ["No ACLS listed"],
+    });
+    expect(summary).toContain("Route: REVIEW");
+    expect(summary).toContain("RN");
+    expect(summary).toContain("ICU Nurse");
+    expect(summary).toContain("No ACLS listed");
   });
 });

@@ -8,6 +8,9 @@ const UNTRUSTED_VARIABLES = new Set([
   "full_job_description",
   "resume_text",
   "verified_recruiter_info",
+  "quick_match_summary",
+  "enrichment_notes",
+  "qualification_checklist",
 ]);
 
 const VARIABLE_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;

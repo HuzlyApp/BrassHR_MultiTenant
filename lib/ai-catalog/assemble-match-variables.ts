@@ -71,19 +71,31 @@ export type FollowUpChecklistVariableRow = {
   requirement: string;
   type: string;
   status: string;
+  evidence?: string;
   recruiterNote: string;
   candidateQuestion: string;
   candidateResponse: string;
 };
 
+function clipSource(value: string | null | undefined, max = 20_000): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "(none)";
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}\n[truncated]`;
+}
+
 export function assembleFollowUpPromptVariables(input: {
   jobTitle?: string | null;
   checklist: FollowUpChecklistVariableRow[];
   enrichmentNotes?: string | null;
+  jobDescription?: string | null;
+  resumeText?: string | null;
+  quickMatchSummary?: string | null;
 }): PromptTemplateVariables {
   const lines = input.checklist.length
     ? input.checklist.map((row, index) => {
         const parts = [`${index + 1}. [${row.status}] ${row.type}: ${row.requirement}`];
+        if (row.evidence?.trim()) parts.push(`   Evidence: ${row.evidence.trim()}`);
         if (row.recruiterNote) parts.push(`   Recruiter note: ${row.recruiterNote}`);
         if (row.candidateQuestion) parts.push(`   Question sent: ${row.candidateQuestion}`);
         if (row.candidateResponse) parts.push(`   Candidate reply: ${row.candidateResponse}`);
@@ -92,6 +104,9 @@ export function assembleFollowUpPromptVariables(input: {
     : ["(empty checklist)"];
   return {
     job_title: input.jobTitle?.trim() || "(unknown)",
+    job_description: clipSource(input.jobDescription),
+    candidate_resume: clipSource(input.resumeText),
+    quick_match_summary: String(input.quickMatchSummary ?? "").trim() || "(none)",
     qualification_checklist: lines.join("\n"),
     enrichment_notes: String(input.enrichmentNotes ?? "").trim() || "(none)",
   };

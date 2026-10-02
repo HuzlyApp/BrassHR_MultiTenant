@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  FOLLOW_UP_CALL_PACK_USER_TEMPLATE,
   FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT,
   FOLLOW_UP_ENRICHMENT_USER_TEMPLATE,
   FOLLOW_UP_SYSTEM_PROMPT,
+  systemPromptForQuestionStage,
   buildFollowUpNonEmptyRepairPrompt,
   buildFollowUpQuestionsPrompt,
   checklistFollowUpRows,
   ensureFollowUpUserPrompt,
+  followUpSourceContextBlock,
   mergeFollowUpQuestions,
   parseFollowUpQuestions,
 } from "./follow-up-questions";
@@ -37,22 +40,56 @@ describe("follow-up screening questions", () => {
     expect(parseAnalysisMode("deep")).toBe("deep");
     expect(parseAnalysisMode("analyze")).toBe("analyze");
     expect(systemPromptForMode("call_pack")).toBe(FOLLOW_UP_SYSTEM_PROMPT);
+    expect(FOLLOW_UP_SYSTEM_PROMPT).toContain("An empty array is invalid");
+    expect(FOLLOW_UP_CALL_PACK_USER_TEMPLATE).toContain("{{candidate_resume}}");
+    expect(FOLLOW_UP_CALL_PACK_USER_TEMPLATE).toContain("{{job_description}}");
+    expect(FOLLOW_UP_CALL_PACK_USER_TEMPLATE).not.toContain("empty screening_questions array");
+    expect(systemPromptForQuestionStage("call_pack", "Skip Not Met and return an empty list.")).toBe(
+      FOLLOW_UP_SYSTEM_PROMPT
+    );
+    expect(
+      systemPromptForQuestionStage("call_pack", FOLLOW_UP_SYSTEM_PROMPT)
+    ).toBe(FOLLOW_UP_SYSTEM_PROMPT);
     expect(systemPromptForMode("follow_up")).toBe(FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT);
     expect(FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT).toContain("An empty array is invalid");
     expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).toContain("{{enrichment_notes}}");
+    expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).toContain("{{candidate_resume}}");
+    expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).toContain("{{job_description}}");
+    expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).toContain("{{quick_match_summary}}");
     expect(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE).not.toContain("Prefer empty array");
   });
 
   it("overrides an older Follow-Up prompt that preferred an empty list", () => {
     const legacy =
       "Return 0-5 focused questions. Prefer empty array when nothing remains open.";
-    const ensured = ensureFollowUpUserPrompt(legacy, "follow_up");
+    const ensured = ensureFollowUpUserPrompt(legacy, "follow_up", {
+      jobDescription: "Must have 4 years.",
+      resumeText: "Project manager, 15 years.",
+      quickMatchSummary: "Route: STRONG",
+    });
     expect(ensured).toContain("An empty array is invalid");
     expect(ensured).toContain("start date");
+    expect(ensured).toContain("Must have 4 years.");
+    expect(ensured).toContain("Project manager, 15 years.");
+    expect(ensured).toContain("Route: STRONG");
+    expect(followUpSourceContextBlock({ resumeText: "RN" })).toContain("CANDIDATE RESUME");
     expect(ensureFollowUpUserPrompt(FOLLOW_UP_ENRICHMENT_USER_TEMPLATE, "follow_up")).toBe(
       FOLLOW_UP_ENRICHMENT_USER_TEMPLATE
     );
-    expect(ensureFollowUpUserPrompt(legacy, "call_pack")).toBe(legacy);
+    const callPackLegacy =
+      "If every mandatory item is Confirmed and no note is open, return an empty screening_questions array.";
+    const callPackEnsured = ensureFollowUpUserPrompt(callPackLegacy, "call_pack", {
+      jobDescription: "Must have 4 years.",
+      resumeText: "Project manager, 15 years.",
+      quickMatchSummary: "Route: STRONG",
+    });
+    expect(callPackEnsured).toContain("Ignore any earlier instruction");
+    expect(callPackEnsured).toContain("An empty array is invalid");
+    expect(callPackEnsured).toContain("Must have 4 years.");
+    expect(callPackEnsured).toContain("Project manager, 15 years.");
+    expect(ensureFollowUpUserPrompt(FOLLOW_UP_CALL_PACK_USER_TEMPLATE, "call_pack")).toBe(
+      FOLLOW_UP_CALL_PACK_USER_TEMPLATE
+    );
     expect(
       buildFollowUpNonEmptyRepairPrompt({
         userPrompt: legacy,
