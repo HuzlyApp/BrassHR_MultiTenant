@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { clearStaffListSessionCache } from "@/lib/lists/staff-list-session-cache";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 
 export default function GodAdminImpersonationBanner() {
@@ -25,6 +26,7 @@ export default function GodAdminImpersonationBanner() {
       },
       body: JSON.stringify({ tenantId: null }),
     });
+    clearStaffListSessionCache();
     router.push("/godadmin/tenants");
     router.refresh();
   };
