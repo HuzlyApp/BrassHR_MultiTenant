@@ -22,7 +22,7 @@ export type AutoQuickMatchResult = {
   readiness: string | null;
   displayCategory: string | null;
   stage: string | null;
-  requirementCounts: { confirmed: number; verify: number; notMet: number } | null;
+  requirementCounts: RunMatchAnalysisResult["requirementCounts"];
 };
 
 function emptyAutoResult(error: string | null): AutoQuickMatchResult {

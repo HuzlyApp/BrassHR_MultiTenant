@@ -1,0 +1,131 @@
+{
+  "tenantId": "efe85d96-536e-497b-9e1a-d8876d29feea",
+  "base": "http://localhost:3000",
+  "at": "2026-09-29T18:17:48.294Z",
+  "rows": [
+    {
+      "label": "rpc_unfiltered_page1",
+      "ms": 687,
+      "n": 15,
+      "total": 4875
+    },
+    {
+      "label": "rpc_search_micheal",
+      "ms": 456,
+      "n": 2,
+      "total": 2
+    },
+    {
+      "label": "worker_hydrate_15",
+      "ms": 321,
+      "n": 15
+    },
+    {
+      "label": "apps_status_match_for_page",
+      "ms": 334,
+      "n": 15
+    },
+    {
+      "label": "legacy_tenant_range_15",
+      "ms": 316,
+      "n": 15,
+      "total": 5641
+    },
+    {
+      "label": "api:/api/workers?limit=15&offset=0:a",
+      "path": "/api/workers?limit=15&offset=0",
+      "status": 200,
+      "httpMs": 4207,
+      "timingMs": 3838,
+      "total": 4875,
+      "serverPaged": true,
+      "workers": 15,
+      "bytes": 26214,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers?limit=15&offset=0:b",
+      "path": "/api/workers?limit=15&offset=0",
+      "status": 200,
+      "httpMs": 6155,
+      "timingMs": 5642,
+      "total": 4875,
+      "serverPaged": true,
+      "workers": 15,
+      "bytes": 26214,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers?limit=15&offset=0&includePhotoUrls=1:a",
+      "path": "/api/workers?limit=15&offset=0&includePhotoUrls=1",
+      "status": 200,
+      "httpMs": 4446,
+      "timingMs": 3509,
+      "total": 4875,
+      "serverPaged": true,
+      "workers": 15,
+      "bytes": 26214,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers?limit=15&offset=0&includePhotoUrls=1:b",
+      "path": "/api/workers?limit=15&offset=0&includePhotoUrls=1",
+      "status": 200,
+      "httpMs": 7887,
+      "timingMs": 7493,
+      "total": 4875,
+      "serverPaged": true,
+      "workers": 15,
+      "bytes": 26214,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers?limit=15&offset=0&q=micheal&includePhotoUrls=1:a",
+      "path": "/api/workers?limit=15&offset=0&q=micheal&includePhotoUrls=1",
+      "status": 200,
+      "httpMs": 6043,
+      "timingMs": 4640,
+      "total": 2,
+      "serverPaged": true,
+      "workers": 2,
+      "bytes": 3547,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers?limit=15&offset=0&q=micheal&includePhotoUrls=1:b",
+      "path": "/api/workers?limit=15&offset=0&q=micheal&includePhotoUrls=1",
+      "status": 200,
+      "httpMs": 5832,
+      "timingMs": 5448,
+      "total": 2,
+      "serverPaged": true,
+      "workers": 2,
+      "bytes": 3547,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers/metrics?:a",
+      "path": "/api/workers/metrics?",
+      "status": 200,
+      "httpMs": 62296,
+      "timingMs": 61928,
+      "total": null,
+      "serverPaged": null,
+      "workers": null,
+      "bytes": 955,
+      "error": null
+    },
+    {
+      "label": "api:/api/workers/metrics?:b",
+      "path": "/api/workers/metrics?",
+      "status": 200,
+      "httpMs": 68032,
+      "timingMs": 67671,
+      "total": null,
+      "serverPaged": null,
+      "workers": null,
+      "bytes": 955,
+      "error": null
+    }
+  ]
+}

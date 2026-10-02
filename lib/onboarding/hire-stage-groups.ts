@@ -1,5 +1,6 @@
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import type { WorkflowStepDisplayStatus } from "@/lib/onboarding/assigned-workflow-steps";
+import { hireStageForStepKey } from "@/lib/onboarding/hire-stage-catalog";
 
 export const PRE_HIRE_FIGMA_STAGES = [
   "Intake",
@@ -128,6 +129,11 @@ function resolveStageName(
   explicitStage: string | null
 ): string {
   if (explicitStage) return explicitStage;
+  const fromCatalog =
+    hireStageForStepKey(step.stepType) ??
+    hireStageForStepKey(step.stepKey) ??
+    hireStageForStepKey(step.snapshotStepId);
+  if (fromCatalog) return fromCatalog;
   const haystack = stepHaystack(step);
   const rules = lifecycle === "pre_hire" ? PRE_HIRE_RULES : POST_HIRE_RULES;
   for (const rule of rules) {
@@ -138,11 +144,7 @@ function resolveStageName(
 }
 
 function readExplicitStage(step: CandidateWorkflowStepView): string | null {
-  // Reserved for future settings.stage / settings.stageName from workflow builder.
-  const anyStep = step as CandidateWorkflowStepView & {
-    settings?: Record<string, unknown> | null;
-  };
-  const settings = anyStep.settings;
+  const settings = step.settings;
   if (!settings || typeof settings !== "object") return null;
   for (const key of ["stageName", "stage", "group", "section"] as const) {
     const value = settings[key];
@@ -185,9 +187,9 @@ function summarizeStage(steps: CandidateWorkflowStepView[]): {
 }
 
 /**
- * Groups assigned workflow steps into Figma-style recruiter stages.
- * Uses explicit settings.stage* when present; otherwise keyword heuristics
- * aligned to the Pre-Hire / Post-Hire Figma boards.
+ * Groups assigned workflow steps into recruiter stages.
+ * Order: explicit settings.stageName, then the library step-key catalog,
+ * then keyword heuristics for steps that are not in the catalog.
  */
 export function groupStepsIntoHireStages(
   steps: CandidateWorkflowStepView[],

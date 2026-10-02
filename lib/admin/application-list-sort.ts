@@ -64,6 +64,10 @@ export type ApplicationListSortRow = {
     confirmed?: number | null;
     verify?: number | null;
     notMet?: number | null;
+    mandatory?: number | null;
+    blocking?: number | null;
+    mandatoryConfirmed?: number | null;
+    quickRoute?: "STRONG" | "REVIEW" | "LOW_MATCH" | null;
   } | null;
   assignedRecruiter?: { name?: string | null } | null;
   application_statuses?:
@@ -272,11 +276,15 @@ function compareColumn(
       const aBand = listingDisplayFitBand({
         analyzed: a.ai_match_status === "ANALYZED",
         stage: a.ai_match_stage,
+        category: a.ai_match_category,
+        score: a.ai_match_score,
         counts: a.ai_requirement_counts,
       });
       const bBand = listingDisplayFitBand({
         analyzed: b.ai_match_status === "ANALYZED",
         stage: b.ai_match_stage,
+        category: b.ai_match_category,
+        score: b.ai_match_score,
         counts: b.ai_requirement_counts,
       });
       return compareNumericNullLast(

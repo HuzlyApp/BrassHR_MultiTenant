@@ -1,5 +1,6 @@
 import "server-only";
 
+import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { assembleFollowUpPromptVariables, assembleMatchAnalysisVariables } from "@/lib/ai-catalog/assemble-match-variables";
 import { renderPromptTemplate } from "@/lib/ai-catalog/render-prompt";
@@ -27,12 +28,14 @@ import {
 import type { AnalysisScreeningQuestion } from "./workspace";
 import {
   deepMatchModelForProvider,
+  DEFAULT_CLAUDE_MODEL,
   DEFAULT_STEP1_FALLBACKS,
   getMatchStepModels,
   getStep2QuestionRoute,
   grokReasoningEffort,
   isBlockedStep1Model,
   isBlockedStep3Model,
+  resolveClaudeMatchModel,
   sanitizeStep1Model,
   sanitizeStep3Model,
 } from "./step-config";
@@ -48,6 +51,11 @@ const LONG_RESUME_CHARS = 8_000;
 const DEFAULT_API_TIMEOUT_MS = 90_000;
 /** Flagship Deep Match (reasoning) often needs longer than Quick Match. */
 const DEFAULT_DEEP_API_TIMEOUT_MS = 120_000;
+const CLAUDE_SUBMIT_TOOL = "submit_analysis_json";
+const CLAUDE_UNAVAILABLE_MESSAGE =
+  "Claude is temporarily unavailable, try another model";
+const CLAUDE_RETRYABLE_STATUS = new Set([429, 500, 529]);
+const CLAUDE_MAX_TOKENS_CEILING = 64_000;
 
 function readTimeoutMs(envName: string, fallback: number): number {
   const raw = Number(process.env[envName]);
@@ -140,8 +148,34 @@ function resolveGeminiModel(): string {
   return DEFAULT_GEMINI_MODEL;
 }
 
+function resolveClaudeApiKey(): string {
+  return process.env.CLAUDE_API_KEY?.trim() || "";
+}
+
+function resolveClaudeModel(): string {
+  return resolveClaudeMatchModel() || DEFAULT_CLAUDE_MODEL;
+}
+
+function claudeMaxTokensCeiling(): number {
+  const raw = Number(process.env.CLAUDE_MAX_TOKENS ?? process.env.MATCH_ANALYSIS_CLAUDE_MAX_TOKENS);
+  if (Number.isFinite(raw) && raw >= 1_024) return Math.min(Math.floor(raw), CLAUDE_MAX_TOKENS_CEILING);
+  return CLAUDE_MAX_TOKENS_CEILING;
+}
+
+/** True when CLAUDE_API_KEY is set (never exposes the key). */
+export function isClaudeMatchAnalysisAvailable(): boolean {
+  return Boolean(resolveClaudeApiKey());
+}
+
 let grokClient: OpenAI | null = null;
 let geminiFetchImpl: typeof fetch | null = null;
+let claudeClient: Anthropic | null = null;
+let claudeMessagesCreateImpl:
+  | ((
+      params: Anthropic.MessageCreateParams,
+      options?: Anthropic.RequestOptions
+    ) => Promise<Anthropic.Message>)
+  | null = null;
 
 function getGrokClient(): OpenAI {
   if (grokClient) return grokClient;
@@ -158,6 +192,20 @@ function getGrokClient(): OpenAI {
   return grokClient;
 }
 
+function getClaudeClient(): Anthropic {
+  if (claudeClient) return claudeClient;
+  const apiKey = resolveClaudeApiKey();
+  if (!apiKey) {
+    throw new MatchAnalysisGenerationError("MISSING_CONFIG", CLAUDE_UNAVAILABLE_MESSAGE);
+  }
+  claudeClient = new Anthropic({
+    apiKey,
+    timeout: apiTimeoutMs(),
+    maxRetries: 0,
+  });
+  return claudeClient;
+}
+
 /** Test hook: inject a mock OpenAI/Grok client. */
 export function __setGrokClientForTests(mock: OpenAI | null): void {
   grokClient = mock;
@@ -168,10 +216,26 @@ export function __setGeminiFetchForTests(mock: typeof fetch | null): void {
   geminiFetchImpl = mock;
 }
 
+/** Test hook: inject Claude messages.create (or null to reset). */
+export function __setClaudeMessagesCreateForTests(
+  mock:
+    | ((
+        params: Anthropic.MessageCreateParams,
+        options?: Anthropic.RequestOptions
+      ) => Promise<Anthropic.Message>)
+    | null
+): void {
+  claudeMessagesCreateImpl = mock;
+  if (!mock) claudeClient = null;
+}
+
 export function getMatchAnalysisModelName(
   provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
 ): string {
-  return parseAnalysisProvider(provider) === "grok" ? resolveGrokModel() : resolveGeminiModel();
+  const selected = parseAnalysisProvider(provider);
+  if (selected === "claude") return resolveClaudeModel();
+  if (selected === "gemini") return resolveGeminiModel();
+  return resolveGrokModel();
 }
 
 function modelForProvider(
@@ -179,6 +243,12 @@ function modelForProvider(
   cfg: Record<string, unknown>,
   analysisMode: "analyze" | "deep" = "analyze"
 ): string {
+  if (provider === "claude") {
+    return analysisMode === "deep"
+      ? deepMatchModelForProvider("claude")
+      : resolveClaudeModel();
+  }
+
   if (analysisMode === "deep") {
     const deepDefault = deepMatchModelForProvider(provider);
     const configured = typeof cfg.model === "string" ? cfg.model.trim() : "";
@@ -259,18 +329,25 @@ export function matchAnalysisErrorCode(error: unknown): MatchAnalysisGenerationE
   return "UNKNOWN";
 }
 
-function mapApiError(error: unknown): MatchAnalysisGenerationError {
+function mapApiError(error: unknown, provider?: AnalysisProvider): MatchAnalysisGenerationError {
   if (error instanceof MatchAnalysisGenerationError) return error;
-  const anyErr = error as { status?: number; message?: string; name?: string; code?: string };
-  const status = anyErr?.status;
+  const anyErr = error as { status?: number; message?: string; name?: string; code?: string; statusCode?: number };
+  const status = anyErr?.status ?? anyErr?.statusCode;
   const code = String(anyErr?.code ?? "");
   const msg = (anyErr?.message || "").toLowerCase();
+  const unavailable =
+    provider === "claude" ? CLAUDE_UNAVAILABLE_MESSAGE : MATCH_ANALYSIS_ERROR;
 
   if (status === 401 || status === 403 || code === "invalid_api_key") {
-    return new MatchAnalysisGenerationError("AUTH");
+    return new MatchAnalysisGenerationError(
+      "AUTH",
+      provider === "claude"
+        ? "Claude API key is invalid. Check CLAUDE_API_KEY and try again."
+        : unavailable
+    );
   }
   if (status === 429) {
-    return new MatchAnalysisGenerationError("RATE_LIMIT");
+    return new MatchAnalysisGenerationError("RATE_LIMIT", unavailable);
   }
   if (
     status === 408 ||
@@ -281,7 +358,7 @@ function mapApiError(error: unknown): MatchAnalysisGenerationError {
     msg.includes("aborted") ||
     anyErr?.name === "AbortError"
   ) {
-    return new MatchAnalysisGenerationError("TIMEOUT");
+    return new MatchAnalysisGenerationError("TIMEOUT", unavailable);
   }
   if (
     code === "ECONNREFUSED" ||
@@ -290,13 +367,16 @@ function mapApiError(error: unknown): MatchAnalysisGenerationError {
     msg.includes("network") ||
     msg.includes("econn")
   ) {
-    return new MatchAnalysisGenerationError("NETWORK");
+    return new MatchAnalysisGenerationError("NETWORK", unavailable);
   }
   // Gemini often returns 400/404 for retired or invalid model ids.
   if (status === 400 || status === 404) {
-    return new MatchAnalysisGenerationError("INVALID_RESPONSE");
+    return new MatchAnalysisGenerationError("INVALID_RESPONSE", unavailable);
   }
-  return new MatchAnalysisGenerationError("UNKNOWN");
+  if (status === 500 || status === 529) {
+    return new MatchAnalysisGenerationError("UNKNOWN", unavailable);
+  }
+  return new MatchAnalysisGenerationError("UNKNOWN", unavailable);
 }
 
 async function callGrok(args: {
@@ -426,6 +506,168 @@ async function callGemini(args: {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractClaudeToolInput(message: Anthropic.Message): Record<string, unknown> | null {
+  for (const block of message.content ?? []) {
+    if (block.type === "tool_use" && block.name === CLAUDE_SUBMIT_TOOL) {
+      const input = block.input;
+      if (input && typeof input === "object" && !Array.isArray(input)) {
+        return input as Record<string, unknown>;
+      }
+    }
+  }
+  return null;
+}
+
+function extractClaudeText(message: Anthropic.Message): string {
+  const chunks: string[] = [];
+  for (const block of message.content ?? []) {
+    if (block.type === "text" && typeof block.text === "string") {
+      chunks.push(block.text);
+    }
+  }
+  return chunks.join("\n").trim();
+}
+
+async function callClaudeOnce(args: {
+  system: string;
+  user: string;
+  maxTokens: number;
+  model: string;
+  timeoutMs: number;
+}): Promise<Anthropic.Message> {
+  const params: Anthropic.MessageCreateParamsNonStreaming = {
+    model: args.model,
+    max_tokens: args.maxTokens,
+    temperature: TEMPERATURE,
+    system: args.system,
+    messages: [{ role: "user", content: args.user }],
+    tools: [
+      {
+        name: CLAUDE_SUBMIT_TOOL,
+        description:
+          "Submit the complete analysis result as a JSON object matching the required schema from the instructions.",
+        input_schema: {
+          type: "object",
+          properties: {},
+          additionalProperties: true,
+        },
+      },
+    ],
+    tool_choice: { type: "tool", name: CLAUDE_SUBMIT_TOOL },
+    stream: false,
+  };
+  const options = { timeout: args.timeoutMs };
+  if (claudeMessagesCreateImpl) return claudeMessagesCreateImpl(params, options);
+  // Call create directly. Binding messages.create drops the non-streaming overload.
+  return getClaudeClient().messages.create(params, options);
+}
+
+async function callClaude(args: {
+  system: string;
+  user: string;
+  maxTokens: number;
+  model?: string;
+  timeoutMs?: number;
+  stepName?: string;
+  applicationId?: string | null;
+}): Promise<string> {
+  if (!resolveClaudeApiKey() && !claudeMessagesCreateImpl) {
+    throw new MatchAnalysisGenerationError("MISSING_CONFIG", CLAUDE_UNAVAILABLE_MESSAGE);
+  }
+
+  const model = args.model || resolveClaudeModel();
+  const timeoutMs = args.timeoutMs ?? apiTimeoutMs();
+  const stepName = args.stepName ?? "match_analysis";
+  const startedAt = Date.now();
+  let maxTokens = Math.min(Math.max(1_024, args.maxTokens), claudeMaxTokensCeiling());
+  let attempt = 0;
+  let raisedForTruncation = false;
+
+  while (attempt < 2) {
+    attempt += 1;
+    try {
+      const message = await callClaudeOnce({
+        system: args.system,
+        user: args.user,
+        maxTokens,
+        model,
+        timeoutMs,
+      });
+
+      const usage = message.usage;
+      console.info("[match-analysis] claude usage", {
+        model,
+        step: stepName,
+        applicationId: args.applicationId ?? null,
+        latencyMs: Date.now() - startedAt,
+        inputTokens: usage?.input_tokens ?? null,
+        outputTokens: usage?.output_tokens ?? null,
+        stopReason: message.stop_reason ?? null,
+        attempt,
+      });
+
+      if (message.stop_reason === "max_tokens") {
+        if (!raisedForTruncation) {
+          raisedForTruncation = true;
+          const next = Math.min(maxTokens * 2, claudeMaxTokensCeiling());
+          if (next > maxTokens) {
+            maxTokens = next;
+            continue;
+          }
+        }
+        throw new MatchAnalysisGenerationError(
+          "INVALID_RESPONSE",
+          "Claude response was truncated. Try again or pick another model."
+        );
+      }
+
+      const toolInput = extractClaudeToolInput(message);
+      if (toolInput) {
+        return JSON.stringify(toolInput);
+      }
+
+      const text = extractClaudeText(message);
+      if (!text) {
+        throw new MatchAnalysisGenerationError("EMPTY", CLAUDE_UNAVAILABLE_MESSAGE);
+      }
+      return text;
+    } catch (error) {
+      if (error instanceof MatchAnalysisGenerationError) throw error;
+      const anyErr = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        code?: string;
+        name?: string;
+      };
+      const status = anyErr?.status ?? anyErr?.statusCode;
+      console.error("[match-analysis] claude request failed", {
+        model,
+        step: stepName,
+        applicationId: args.applicationId ?? null,
+        timeoutMs,
+        elapsedMs: Date.now() - startedAt,
+        status: status ?? null,
+        code: anyErr?.code ?? null,
+        name: anyErr?.name ?? null,
+        attempt,
+      });
+
+      if (status != null && CLAUDE_RETRYABLE_STATUS.has(status) && attempt < 2) {
+        await sleep(400 * attempt);
+        continue;
+      }
+      throw mapApiError(error, "claude");
+    }
+  }
+
+  throw new MatchAnalysisGenerationError("UNKNOWN", CLAUDE_UNAVAILABLE_MESSAGE);
+}
+
 async function callProvider(
   provider: AnalysisProvider,
   args: {
@@ -434,10 +676,15 @@ async function callProvider(
     maxTokens: number;
     model: string;
     timeoutMs?: number;
+    stepName?: string;
+    applicationId?: string | null;
   }
 ): Promise<string> {
   if (provider === "grok") {
     return callGrok(args);
+  }
+  if (provider === "claude") {
+    return callClaude(args);
   }
   return callGemini(args);
 }
@@ -531,6 +778,13 @@ export async function generateMatchAnalysis(
   if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
   }
+  console.info("[match-analysis] prompt", {
+    promptVersionId: resolved.promptVersionId,
+    contentHash: resolved.contentHash.slice(0, 12),
+    variant: resolved.variantKey,
+    vertical: resolved.resolvedVerticalKey,
+    source: resolved.source,
+  });
 
   const userPrompt = renderPromptTemplate(
     resolved.userPromptTemplate ?? "",
@@ -622,7 +876,7 @@ export async function generateFollowUpQuestions(
     enrichmentNotes?: string | null;
   },
   resolved: ResolvedPromptVersion,
-  _provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
+  provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER
 ): Promise<{
   questions: AnalysisScreeningQuestion[];
   repaired: boolean;
@@ -631,8 +885,7 @@ export async function generateFollowUpQuestions(
   promptVersionId: string;
   contentHash: string;
 }> {
-  // FS-AI-MATCH Steps 2–3: catalog system/user prompts; grok-4-fast → gemini-3.5-flash-lite.
-  void _provider;
+  const selectedProvider = parseAnalysisProvider(provider);
   const system = resolved.systemPrompt?.trim() ?? "";
   if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
@@ -646,13 +899,21 @@ export async function generateFollowUpQuestions(
   const catalogModel =
     typeof cfg.model === "string" && cfg.model.trim() ? sanitizeStep1Model(cfg.model) : "";
   const route = getStep2QuestionRoute();
-  const primaryModel = catalogModel || route.primary.model;
-  const primaryProvider: AnalysisProvider = catalogModel
-    ? primaryModel.toLowerCase().includes("gemini")
-      ? "gemini"
-      : "grok"
-    : route.primary.provider;
   const maxTokens = Number(cfg.base_max_tokens ?? BASE_MAX_TOKENS);
+
+  let primaryProvider: AnalysisProvider;
+  let primaryModel: string;
+  if (selectedProvider === "claude") {
+    primaryProvider = "claude";
+    primaryModel = resolveClaudeModel();
+  } else {
+    primaryModel = catalogModel || route.primary.model;
+    primaryProvider = catalogModel
+      ? primaryModel.toLowerCase().includes("gemini")
+        ? "gemini"
+        : "grok"
+      : route.primary.provider;
+  }
 
   async function runOnce(provider: AnalysisProvider, model: string) {
     const rawText = await callProvider(provider, {
@@ -660,6 +921,7 @@ export async function generateFollowUpQuestions(
       user: userPrompt,
       maxTokens,
       model,
+      stepName: "call_pack",
     });
 
     let parsed = parseFollowUpQuestions(rawText);
@@ -673,6 +935,7 @@ export async function generateFollowUpQuestions(
         }),
         maxTokens,
         model,
+        stepName: "call_pack_repair",
       });
       parsed = parseFollowUpQuestions(repairedText);
       repaired = true;
@@ -693,6 +956,7 @@ export async function generateFollowUpQuestions(
   try {
     return await runOnce(primaryProvider, primaryModel);
   } catch (primaryError) {
+    if (selectedProvider === "claude") throw primaryError;
     const sameModel =
       primaryModel.toLowerCase() === route.fallback.model.toLowerCase() &&
       primaryProvider === route.fallback.provider;

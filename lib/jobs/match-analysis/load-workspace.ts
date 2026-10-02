@@ -21,11 +21,39 @@ import {
 } from "./workspace";
 import type { MatchAnalysisResponse } from "./schema";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
+import { PromptNotConfiguredError } from "@/lib/ai-catalog/errors";
+import { resolvePromptVersion } from "@/lib/ai-catalog/resolve-prompt";
+import type { AiVariantKey } from "@/lib/ai-catalog/types";
 import { jobRequirementsSourceFingerprint } from "./build-job-requirements";
+import { analysisPromptIsStale, storedAnalysisPromptStamp } from "./prompt-stamp";
 
 function displayName(first: string | null | undefined, last: string | null | undefined, email?: string | null) {
   const name = `${first ?? ""} ${last ?? ""}`.trim();
   return name || email?.trim() || null;
+}
+
+function questionsWithAnswers(
+  raw: unknown,
+  stage: "call_pack" | "follow_up" | "deep",
+  answersByKey: Map<string, { question_key: string; question_text?: string | null; answer_text?: string | null }>
+) {
+  return normalizeAnalysisScreeningQuestions(raw).map((question) => {
+    const baseKey = aiScreeningQuestionKey(question.priority, question.question);
+    const key = stage === "call_pack" ? baseKey : `${stage}:${baseKey}`;
+    const saved =
+      stage === "call_pack"
+        ? matchSavedAiScreeningAnswer(answersByKey, key, question.question)
+        : answersByKey.get(key);
+    return {
+      key,
+      priority: question.priority,
+      question: question.question,
+      reason: question.reason,
+      relatedRequirement: question.relatedRequirement,
+      answer: saved?.answer_text ?? "",
+    };
+  });
 }
 
 export async function loadMatchAnalysisWorkspace(
@@ -51,7 +79,7 @@ export async function loadMatchAnalysisWorkspace(
     ? supabase
         .from("job_requisitions")
         .select(
-          "id, public_title, location, facility, facility_name, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, specialty"
+          "id, public_title, location, facility, facility_name, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, specialty, industry_key, msp_client, msp_name"
         )
         .eq("id", jobId)
         .eq("tenant_id", tenantId)
@@ -151,20 +179,26 @@ export async function loadMatchAnalysisWorkspace(
   );
   const callContext =
     String(aiAnswersByKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
-  const recommendedQuestions = normalizeAnalysisScreeningQuestions(
-    analysis?.screening_questions
-  ).map((question) => {
-    const key = aiScreeningQuestionKey(question.priority, question.question);
-    const saved = matchSavedAiScreeningAnswer(aiAnswersByKey, key, question.question);
-    return {
-      key,
-      priority: question.priority,
-      question: question.question,
-      reason: question.reason,
-      relatedRequirement: question.relatedRequirement,
-      answer: saved?.answer_text ?? "",
-    };
-  });
+  const recommendedQuestions = questionsWithAnswers(
+    analysis?.screening_questions,
+    "call_pack",
+    aiAnswersByKey
+  );
+  const followUpQuestions = questionsWithAnswers(
+    analysis?.follow_up_questions,
+    "follow_up",
+    aiAnswersByKey
+  );
+  const deepQuestions = questionsWithAnswers(
+    analysis?.deep_screening_questions,
+    "deep",
+    aiAnswersByKey
+  );
+  const questionSetsStale = {
+    call_pack: analysis?.question_sets_stale?.call_pack === true,
+    follow_up: analysis?.question_sets_stale?.follow_up === true,
+    deep: analysis?.question_sets_stale?.deep === true,
+  };
 
   let extractedResume: { text: string; fileName: string | null } | null = null;
   const { data: resumeRow } = await supabase
@@ -241,7 +275,30 @@ export async function loadMatchAnalysisWorkspace(
       storedFingerprint &&
       storedFingerprint !== liveJobFingerprint
   );
-  const effectiveAnalysis = analysisStaleDueToJobUpdate ? null : analysis;
+  const promptStamp = storedAnalysisPromptStamp(analysis);
+  const analysisStaleDueToPrompt =
+    !analysisStaleDueToJobUpdate &&
+    application.ai_match_status === "ANALYZED" &&
+    promptStamp.contentHash &&
+    promptStamp.variantKey
+      ? await publishedPromptHashDiffers({
+          supabase,
+          tenantId,
+          variantKey: promptStamp.variantKey as AiVariantKey,
+          storedHash: promptStamp.contentHash,
+          jobIndustryKey:
+            typeof jobRow?.industry_key === "string" ? jobRow.industry_key : null,
+          clientName:
+            typeof jobRow?.msp_client === "string" && jobRow.msp_client.trim()
+              ? jobRow.msp_client
+              : typeof jobRow?.msp_name === "string"
+                ? jobRow.msp_name
+                : null,
+          sourceKey: typeof jobRow?.msp_name === "string" ? jobRow.msp_name : null,
+        })
+      : false;
+  const analysisIsStale = analysisStaleDueToJobUpdate || analysisStaleDueToPrompt;
+  const effectiveAnalysis = analysisIsStale ? null : analysis;
   const jobTitleFromRequisition = jobRow
     ? publicJobDisplayTitle({
         public_title: typeof jobRow.public_title === "string" ? jobRow.public_title : null,
@@ -258,19 +315,21 @@ export async function loadMatchAnalysisWorkspace(
     application: {
       ...application,
       ai_analysis: effectiveAnalysis,
-      ai_match_status: analysisStaleDueToJobUpdate ? "READY" : application.ai_match_status,
-      ai_match_score: analysisStaleDueToJobUpdate ? null : application.ai_match_score,
-      ai_match_category: analysisStaleDueToJobUpdate ? null : application.ai_match_category,
-      ai_match_action: analysisStaleDueToJobUpdate ? null : application.ai_match_action,
-      ai_match_readiness: analysisStaleDueToJobUpdate ? null : application.ai_match_readiness,
-      ai_match_display_category: analysisStaleDueToJobUpdate
+      ai_match_status: analysisIsStale ? "READY" : application.ai_match_status,
+      ai_match_score: analysisIsStale ? null : application.ai_match_score,
+      ai_match_category: analysisIsStale ? null : application.ai_match_category,
+      ai_match_action: analysisIsStale ? null : application.ai_match_action,
+      ai_match_readiness: analysisIsStale ? null : application.ai_match_readiness,
+      ai_match_display_category: analysisIsStale
         ? null
         : application.ai_match_display_category,
       ai_analysis_error: analysisStaleDueToJobUpdate
         ? "Job description changed since this analysis. Re-run match analysis."
-        : application.ai_analysis_error,
+        : analysisStaleDueToPrompt
+          ? "The match prompt changed since this analysis. Re-run match analysis."
+          : application.ai_analysis_error,
       ai_analysis_model: application.ai_analysis_model || getMatchAnalysisModelName(),
-      ai_match_stage: analysisStaleDueToJobUpdate ? null : application.ai_match_stage ?? null,
+      ai_match_stage: analysisIsStale ? null : application.ai_match_stage ?? null,
       status_name: statusName,
       status_system_key: statusSystemKey,
     },
@@ -299,6 +358,9 @@ export async function loadMatchAnalysisWorkspace(
     screeningQuestions: screening.questions,
     screeningAssessment: screening.assessment,
     recommendedQuestions,
+    followUpQuestions,
+    deepQuestions,
+    questionSetsStale,
     callContext,
     screeningUploads,
     verifiedInformation: (verifiedResult.data ?? []).map((row) => ({
@@ -327,8 +389,9 @@ export async function loadMatchAnalysisWorkspace(
       ? usersById.get(String(application.recruiter_decision_by))?.name ?? null
       : null,
     modelName: application.ai_analysis_model || getMatchAnalysisModelName(),
+    claudeAvailable: Boolean(process.env.CLAUDE_API_KEY?.trim()),
     matchProgression: {
-      stage: application.ai_match_stage ?? null,
+      stage: analysisIsStale ? null : application.ai_match_stage ?? null,
       callPackUnlocked: isMatchCallPackStatus({
         statusName,
         systemKey: statusSystemKey,
@@ -337,4 +400,42 @@ export async function loadMatchAnalysisWorkspace(
       deepModel: stepModels.step3Deep,
     },
   };
+}
+
+async function publishedPromptHashDiffers(args: {
+  supabase: SupabaseClient;
+  tenantId: string;
+  variantKey: AiVariantKey;
+  storedHash: string;
+  jobIndustryKey: string | null;
+  clientName: string | null;
+  sourceKey: string | null;
+}): Promise<boolean> {
+  const { data: tenantRow } = await args.supabase
+    .from("tenants")
+    .select("primary_industry_key, industry")
+    .eq("id", args.tenantId)
+    .maybeSingle();
+  const tenantPrimary =
+    typeof tenantRow?.primary_industry_key === "string" && tenantRow.primary_industry_key.trim()
+      ? String(tenantRow.primary_industry_key)
+      : industryKeyFromLegacyLabel(
+          typeof tenantRow?.industry === "string" ? tenantRow.industry : null
+        );
+  try {
+    const resolved = await resolvePromptVersion(args.supabase, {
+      tenantId: args.tenantId,
+      featureKey: "candidate_match",
+      variantKey: args.variantKey,
+      industryKey: args.jobIndustryKey,
+      tenantPrimaryIndustryKey: tenantPrimary,
+      clientName: args.clientName,
+      sourceKey: args.sourceKey,
+    });
+    return analysisPromptIsStale(args.storedHash, resolved.contentHash);
+  } catch (error) {
+    if (error instanceof PromptNotConfiguredError) return false;
+    console.warn("[match-analysis] could not compare stored prompt hash", error);
+    return false;
+  }
 }

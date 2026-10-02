@@ -56,6 +56,7 @@ import type { ServiceAreaLocation } from "@/lib/service-area/types";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
+import { stampHireStageOnStepSettings } from "@/lib/onboarding/hire-stage-catalog";
 import {
   jobScreeningQuestionToInput,
   loadJobScreeningQuestions,
@@ -931,6 +932,72 @@ export async function closeExpiredPublishedJobs(
   if (error) throw error;
 }
 
+/**
+ * Same deadline rule as closeExpiredPublishedJobs, across every tenant.
+ * Leaves updated_by unchanged. Used by the hourly cron, not by list GETs.
+ */
+export async function closeExpiredPublishedJobsAllTenants(
+  supabase: DbClient
+): Promise<number> {
+  const today = formatDateOnlyUtc(new Date());
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("job_requisitions")
+    .update({
+      status: "closed",
+      closed_at: now,
+    })
+    .in("status", ["open", "published", "paused"])
+    .not("application_deadline", "is", null)
+    .lt("application_deadline", today)
+    .select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+export type JobPickerOption = {
+  id: string;
+  title: string;
+  status: string;
+  /** MSP end-client name. Null for internal jobs. Keeps the Candidates client filter. */
+  clientName: string | null;
+};
+
+function jobPickerTitle(row: {
+  source_type?: string | null;
+  source_job_title?: string | null;
+  public_title?: string | null;
+}): string {
+  const source = String(row.source_type ?? "").trim().toLowerCase();
+  if (source === "msp") {
+    return row.source_job_title?.trim() || row.public_title?.trim() || "Untitled draft";
+  }
+  return row.public_title?.trim() || "Untitled draft";
+}
+
+/** Id, display title, status, and MSP client name. No descriptions or list metrics. */
+export async function listJobPickerOptions(
+  supabase: DbClient,
+  tenantId: string
+): Promise<JobPickerOption[]> {
+  const { data, error } = await supabase
+    .from("job_requisitions")
+    .select("id, status, source_type, public_title, source_job_title, msp_name")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => {
+    const source = String(row.source_type ?? "").trim().toLowerCase();
+    const clientName = source === "msp" ? row.msp_name?.trim() || null : null;
+    return {
+      id: row.id,
+      title: jobPickerTitle(row),
+      status: normalizeJobRequisitionStatus(String(row.status ?? "")),
+      clientName,
+    };
+  });
+}
+
 function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
   const additionalRaw = row.additional_locations;
   const additionalLocations = Array.isArray(additionalRaw)
@@ -1789,15 +1856,16 @@ export async function startOrResumeJobApplication(
           : typeof node.phase === "string"
             ? node.phase
             : "pre_hire";
+      const stepType = String(node.stepId ?? "custom");
       return {
         tenant_id: input.tenantId,
         workflow_instance_id: instance.id,
         snapshot_step_id: String(node.id ?? `step-${index + 1}`),
         position: index + 1,
         title: String(node.label ?? `Step ${index + 1}`),
-        step_type: String(node.stepId ?? "custom"),
+        step_type: stepType,
         is_required: node.required === true,
-        settings: { ...settings, phase },
+        settings: stampHireStageOnStepSettings(stepType, { ...settings, phase }),
       };
     });
     const { error: stepsError } = await supabase
@@ -1902,15 +1970,16 @@ export async function attachWorkflowInstanceToApplication(
           : typeof node.phase === "string"
             ? node.phase
             : "pre_hire";
+      const stepType = String(node.stepId ?? "custom");
       return {
         tenant_id: input.tenantId,
         workflow_instance_id: instance.id,
         snapshot_step_id: String(node.id ?? `step-${index + 1}`),
         position: index + 1,
         title: String(node.label ?? `Step ${index + 1}`),
-        step_type: String(node.stepId ?? "custom"),
+        step_type: stepType,
         is_required: node.required === true,
-        settings: { ...settings, phase },
+        settings: stampHireStageOnStepSettings(stepType, { ...settings, phase }),
       };
     });
     const { error: stepsError } = await supabase

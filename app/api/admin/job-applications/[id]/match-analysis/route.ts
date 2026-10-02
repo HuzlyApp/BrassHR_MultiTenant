@@ -8,12 +8,13 @@ import {
   matchAnalysisErrorCode,
   parseAnalysisMode,
   parseAnalysisProvider,
+  isAnalysisProvider,
   runMatchAnalysisForApplication,
   FOLLOW_UP_BLOCKED_NOT_READY,
 } from "@/lib/jobs/match-analysis";
 import { isDeepMatchStage, parseMatchStage } from "@/lib/jobs/match-analysis/match-stage";
 import {
-  DEEP_MATCH_BLOCKED_LOW_FIT,
+  DEEP_MATCH_BLOCKED_TALENT_POOL,
   DEEP_MATCH_BLOCKED_NOT_READY,
   canAdvanceMatchProgression,
   matchProgressionIndexFromStage,
@@ -93,6 +94,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
       ? (body.verifiedRecruiterInfo as Record<string, unknown>)
       : null;
   const analysisMode = parseAnalysisMode(body?.analysisMode);
+  if (
+    body?.analysisProvider != null &&
+    body.analysisProvider !== "" &&
+    !isAnalysisProvider(body.analysisProvider)
+  ) {
+    return NextResponse.json({ error: "Invalid analysis provider" }, { status: 400 });
+  }
   const analysisProvider = parseAnalysisProvider(body?.analysisProvider);
 
   try {
@@ -137,7 +145,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if (
       result.status === "FAILED" &&
-      (result.error === DEEP_MATCH_BLOCKED_LOW_FIT ||
+      (result.error === DEEP_MATCH_BLOCKED_TALENT_POOL ||
         result.error === DEEP_MATCH_BLOCKED_NOT_READY ||
         result.error === FOLLOW_UP_BLOCKED_NOT_READY)
     ) {
@@ -257,7 +265,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     })
   ) {
     return NextResponse.json(
-      { error: parked ? "This candidate is in Talent Pool." : DEEP_MATCH_BLOCKED_LOW_FIT },
+      { error: DEEP_MATCH_BLOCKED_TALENT_POOL },
       { status: 409 }
     );
   }
@@ -280,27 +288,30 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: true, stage: application.ai_match_stage });
   }
 
-  if (requested === "call_pack") {
-    const analysisProvider = parseAnalysisProvider(
-      (body as { analysisProvider?: unknown }).analysisProvider
-    );
+  if (requested === "call_pack" || requested === "follow_up") {
+    const rawProvider = (body as { analysisProvider?: unknown }).analysisProvider;
+    if (rawProvider != null && rawProvider !== "" && !isAnalysisProvider(rawProvider)) {
+      return NextResponse.json({ error: "Invalid analysis provider" }, { status: 400 });
+    }
+    const analysisProvider = parseAnalysisProvider(rawProvider);
     const result = await runMatchAnalysisForApplication({
       supabase,
       tenantId,
       jobApplicationId: id,
       analyzedByUserId: auth.devBypass ? null : auth.userId,
-      analysisMode: "call_pack",
+      analysisMode: requested,
       analysisProvider,
     });
     if (result.status !== "ANALYZED") {
       const status =
-        result.error === DEEP_MATCH_BLOCKED_LOW_FIT ||
+        result.error === DEEP_MATCH_BLOCKED_TALENT_POOL ||
         result.error === FOLLOW_UP_BLOCKED_NOT_READY
           ? 409
           : 502;
+      const label = requested === "follow_up" ? "Follow-up" : "Verifications";
       return NextResponse.json(
         {
-          error: result.error || "Could not write Verifications screening questions.",
+          error: result.error || `Could not write ${label} questions.`,
           status: result.status,
         },
         { status }
@@ -315,12 +326,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       request: req,
       metadata: {
         from: application.ai_match_stage,
-        to: "call_pack",
-        analysisMode: "call_pack",
+        to: result.stage ?? requested,
+        analysisMode: requested,
         model: result.model,
       },
     });
-    return NextResponse.json({ ok: true, stage: "call_pack", model: result.model });
+    return NextResponse.json({ ok: true, stage: result.stage ?? requested, model: result.model });
   }
 
   const { error: updateError } = await supabase
