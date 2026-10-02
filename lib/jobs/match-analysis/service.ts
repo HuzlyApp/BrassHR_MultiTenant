@@ -15,8 +15,8 @@ import {
   buildFollowUpNonEmptyRepairPrompt,
   buildFollowUpRepairPrompt,
   ensureFollowUpUserPrompt,
-  FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT,
   parseFollowUpQuestions,
+  systemPromptForQuestionStage,
   type ChecklistFollowUpRow,
 } from "./follow-up-questions";
 import { parseAndValidateMatchAnalysis } from "./parse";
@@ -877,6 +877,9 @@ export async function generateFollowUpQuestions(
     jobTitle?: string | null;
     checklist: ChecklistFollowUpRow[];
     enrichmentNotes?: string | null;
+    jobDescription?: string | null;
+    resumeText?: string | null;
+    quickMatchSummary?: string | null;
   },
   resolved: ResolvedPromptVersion,
   provider: AnalysisProvider = DEFAULT_ANALYSIS_PROVIDER,
@@ -890,11 +893,7 @@ export async function generateFollowUpQuestions(
   contentHash: string;
 }> {
   const selectedProvider = parseAnalysisProvider(provider);
-  const catalogSystem = resolved.systemPrompt?.trim() ?? "";
-  const system =
-    stage === "follow_up" && !catalogSystem.includes("Step 3 Follow-Up")
-      ? FOLLOW_UP_ENRICHMENT_SYSTEM_PROMPT
-      : catalogSystem;
+  const system = systemPromptForQuestionStage(stage, resolved.systemPrompt ?? "");
   if (!system) {
     throw new MatchAnalysisGenerationError("PROMPT_NOT_CONFIGURED");
   }
@@ -904,7 +903,12 @@ export async function generateFollowUpQuestions(
       assembleFollowUpPromptVariables(input),
       { required: ["qualification_checklist"] }
     ),
-    stage
+    stage,
+    {
+      jobDescription: input.jobDescription,
+      resumeText: input.resumeText,
+      quickMatchSummary: input.quickMatchSummary,
+    }
   );
   const cfg = resolved.modelConfig ?? {};
   const catalogModel =
@@ -951,16 +955,17 @@ export async function generateFollowUpQuestions(
       parsed = parseFollowUpQuestions(repairedText);
       repaired = true;
     }
-    if (parsed.ok && stage === "follow_up" && parsed.questions.length === 0) {
+    if (parsed.ok && parsed.questions.length === 0) {
       const repairedText = await callProvider(provider, {
         system,
         user: buildFollowUpNonEmptyRepairPrompt({
           userPrompt,
           badJson: JSON.stringify(parsed.rawObject ?? { screening_questions: [] }),
+          stage,
         }),
         maxTokens,
         model,
-        stepName: "follow_up_nonempty",
+        stepName: stage === "follow_up" ? "follow_up_nonempty" : "call_pack_nonempty",
       });
       const repairedParsed = parseFollowUpQuestions(repairedText);
       repaired = true;
