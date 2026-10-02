@@ -90,6 +90,17 @@ function buildAppContentSecurityPolicy(frameAncestors: string): string {
 }
 
 const nextConfig: NextConfig = {
+  // Keep PDF.js out of the server chunk. The bundled pdf-parse build throws
+  // "bad XRef entry" on valid PDFs (including ReportLab résumés).
+  serverExternalPackages: ["pdfjs-dist", "pdf-parse"],
+  outputFileTracingIncludes: {
+    "/api/**/*": [
+      "./node_modules/pdfjs-dist/build/pdf.worker.mjs",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+      "./node_modules/pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js",
+      "./node_modules/pdf-parse/lib/pdf.js/v1.10.100/build/pdf.worker.js",
+    ],
+  },
   images: {
     remotePatterns: getSupabaseImageRemotePatterns(),
   },
