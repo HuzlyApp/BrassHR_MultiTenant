@@ -398,13 +398,15 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
   const waitingOnInternal = useMemo(() => {
     if (!config) return false;
+    // Unscoped progress on a job link belongs to an earlier application, not this one.
+    if (resolvedJobToken && !progress?.applicationId) return false;
     const candidateSteps = getEnabledTenantSteps(config);
     return computeCandidateOnboardingFrontier({
       engineOrder: config.candidateEngineOrder,
       candidateSteps,
       progress,
     }).waitingOnInternal;
-  }, [config, progress]);
+  }, [config, progress, resolvedJobToken]);
 
   const loading = loadingConfig || loadingProgress || sessionLoading || !sessionReady;
 

@@ -17,7 +17,8 @@ async function loadLatestWorkerProgress(
   supabase: SupabaseClient,
   workerId: string,
   configId: string,
-  applicationId: string
+  applicationId: string,
+  unscopedOnly: boolean
 ) {
   // This table has started_at / updated_at, not created_at.
   let query = supabase
@@ -32,6 +33,10 @@ async function loadLatestWorkerProgress(
     return data ?? null;
   }
 
+  if (unscopedOnly) {
+    query = query.is("application_id", null);
+  }
+
   const { data, error } = await query
     .order("updated_at", { ascending: false })
     .order("started_at", { ascending: false })
@@ -42,11 +47,16 @@ async function loadLatestWorkerProgress(
 
 export const ensureWorkerOnboardingProgress = cache(ensureWorkerOnboardingProgressUncached);
 
+/**
+ * `unscopedOnly`: without an applicationId, ignore progress owned by other job applications
+ * (job-link sessions must not inherit another job's step statuses).
+ */
 async function ensureWorkerOnboardingProgressUncached(
   supabase: SupabaseClient,
   workerId: string,
   tenantId: string,
-  applicationId?: string | null
+  applicationId?: string | null,
+  unscopedOnly = false
 ): Promise<WorkerOnboardingProgressPayload> {
   const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   if (!config) {
@@ -58,7 +68,8 @@ async function ensureWorkerOnboardingProgressUncached(
     supabase,
     workerId,
     config.configId,
-    scopedApplicationId
+    scopedApplicationId,
+    unscopedOnly
   );
 
   let progressId = existing?.id ? String(existing.id) : null;
@@ -85,7 +96,8 @@ async function ensureWorkerOnboardingProgressUncached(
           supabase,
           workerId,
           config.configId,
-          scopedApplicationId
+          scopedApplicationId,
+          unscopedOnly
         );
         if (!raced?.id) throw insErr;
         progressId = String(raced.id);
@@ -169,6 +181,9 @@ async function ensureWorkerOnboardingProgressUncached(
     progressId: progressId!,
     status,
     steps,
+    applicationId: existing?.application_id
+      ? String(existing.application_id)
+      : scopedApplicationId || null,
     farthestReachedStepIndex: persistedFarthest,
     submittedAt: existing?.submitted_at != null ? String(existing.submitted_at) : null,
     submittedWithIncompleteSteps: Boolean(existing?.submitted_with_incomplete_steps),

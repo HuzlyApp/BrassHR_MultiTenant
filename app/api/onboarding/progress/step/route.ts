@@ -94,12 +94,14 @@ export async function POST(req: NextRequest) {
     if (!applicationId && phaseRecord?.applicationId) {
       applicationId = phaseRecord.applicationId;
     }
+    const unscopedOnly = Boolean(jobToken) && !applicationId;
 
     const payload = await ensureWorkerOnboardingProgress(
       supabase,
       ctx.workerId,
       ctx.tenantId,
-      applicationId || null
+      applicationId || null,
+      unscopedOnly
     );
 
     let tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
@@ -143,7 +145,8 @@ export async function POST(req: NextRequest) {
           supabase,
           ctx.workerId,
           ctx.tenantId,
-          applicationId || null
+          applicationId || null,
+          unscopedOnly
         );
       }
     }
@@ -262,7 +265,8 @@ export async function POST(req: NextRequest) {
         supabase,
         ctx.workerId,
         ctx.tenantId,
-        applicationId || null
+        applicationId || null,
+        unscopedOnly
       );
       return NextResponse.json({ progress, noop: true });
     }
@@ -403,7 +407,8 @@ export async function POST(req: NextRequest) {
         supabase,
         ctx.workerId,
         ctx.tenantId,
-        applicationId || null
+        applicationId || null,
+        unscopedOnly
       );
       return NextResponse.json({ progress, noop: true });
     }
@@ -424,7 +429,8 @@ export async function POST(req: NextRequest) {
       supabase,
       ctx.workerId,
       ctx.tenantId,
-      applicationId || null
+      applicationId || null,
+      unscopedOnly
     );
     return NextResponse.json({ progress });
   } catch (err: unknown) {
