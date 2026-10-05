@@ -1,27 +1,17 @@
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import type { WorkflowStepDisplayStatus } from "@/lib/onboarding/assigned-workflow-steps";
-import { hireStageForStepKey } from "@/lib/onboarding/hire-stage-catalog";
+import {
+  hireStageFitsLifecycle,
+  hireStageForStepKey,
+  POST_HIRE_FIGMA_STAGES,
+  PRE_HIRE_FIGMA_STAGES,
+  type HireLifecycle,
+} from "@/lib/onboarding/hire-stage-catalog";
 import { isInterviewStep } from "@/lib/onboarding/interview-step";
 
-export const PRE_HIRE_FIGMA_STAGES = [
-  "Intake",
-  "Screening",
-  "Interview",
-  "Submission",
-  "Compliance",
-  "Offer & Agreement",
-  "Approvals",
-] as const;
+export { POST_HIRE_FIGMA_STAGES, PRE_HIRE_FIGMA_STAGES };
 
-/** Align with Figma Post-hire board (Payroll · Access · Training · Welcome). */
-export const POST_HIRE_FIGMA_STAGES = [
-  "Payroll & Tax",
-  "Access & Systems",
-  "Training & Policy",
-  "Welcome & Complete",
-] as const;
-
-export type HireStageLifecycle = "pre_hire" | "post_hire";
+export type HireStageLifecycle = HireLifecycle;
 
 export type HireStageStatus = "completed" | "current" | "in_progress" | "locked" | "upcoming";
 
@@ -266,17 +256,11 @@ const POST_HIRE_STAGE_ALIASES: Record<string, (typeof POST_HIRE_FIGMA_STAGES)[nu
   "day one ready": "Welcome & Complete",
 };
 
-const POST_HIRE_STAGE_NAMES = new Set([
-  ...Object.keys(POST_HIRE_STAGE_ALIASES),
-  ...POST_HIRE_FIGMA_STAGES.map((stage) => stage.toLowerCase()),
-]);
-
 /** Maps a stage name onto the board for this lifecycle; null when it belongs to the other board. */
 function boardStageName(name: string | null, lifecycle: HireStageLifecycle): string | null {
-  if (!name) return null;
-  const key = name.toLowerCase();
-  if (lifecycle === "post_hire") return POST_HIRE_STAGE_ALIASES[key] ?? name;
-  return POST_HIRE_STAGE_NAMES.has(key) ? null : name;
+  if (!name || !hireStageFitsLifecycle(name, lifecycle)) return null;
+  if (lifecycle === "post_hire") return POST_HIRE_STAGE_ALIASES[name.toLowerCase()] ?? name;
+  return name;
 }
 
 function resolveStageName(
@@ -287,9 +271,9 @@ function resolveStageName(
   const explicit = boardStageName(explicitStage, lifecycle);
   if (explicit) return explicit;
   const fromCatalog = boardStageName(
-    hireStageForStepKey(step.stepType) ??
-      hireStageForStepKey(step.stepKey) ??
-      hireStageForStepKey(step.snapshotStepId),
+    hireStageForStepKey(step.stepType, lifecycle) ??
+      hireStageForStepKey(step.stepKey, lifecycle) ??
+      hireStageForStepKey(step.snapshotStepId, lifecycle),
     lifecycle
   );
   if (fromCatalog) return fromCatalog;

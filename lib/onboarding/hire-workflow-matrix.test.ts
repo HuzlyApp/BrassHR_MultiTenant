@@ -156,6 +156,31 @@ describe("hire stage catalog", () => {
       }).stageName
     ).toBe("Screening");
   });
+
+  it("stamps the phase's own stage when a library step is placed in the other phase", () => {
+    expect(stampHireStageOnStepSettings("pay-rate-hire-date", { phase: "post_hire" }).stageName).toBe(
+      "Payroll & Pay"
+    );
+    expect(
+      stampHireStageOnStepSettings("i9-right-to-work-verification", {
+        phase: "post_hire",
+        stageName: "Offer & Agreement",
+      }).stageName
+    ).toBe("Paperwork");
+    expect(stampHireStageOnStepSettings("custom-form", { phase: "post_hire" }).stageName).toBe("Paperwork");
+    expect(stampHireStageOnStepSettings("pay-rate-hire-date", { phase: "pre_hire" }).stageName).toBe(
+      "Offer & Agreement"
+    );
+    expect(stampHireStageOnStepSettings("completion-milestone", { phase: "transition" }).stageName).toBe(
+      "Approvals"
+    );
+    expect(stampHireStageOnStepSettings("completion-milestone", { phase: "post_hire" }).stageName).toBe(
+      "Day One Ready"
+    );
+    expect(
+      stampHireStageOnStepSettings("offer-acceptance", { phase: "post_hire", stageName: "Offer & Agreement" })
+    ).toEqual({ phase: "post_hire" });
+  });
 });
 
 describe("pre-hire to post-hire handoff", () => {

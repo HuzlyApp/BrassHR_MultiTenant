@@ -269,6 +269,52 @@ describe("groupStepsIntoHireStages", () => {
     expect(groups[2]?.status).toBe("locked");
   });
 
+  it("never shows a Pre-Hire stage on the Post-Hire board, even when one is stamped on the step", () => {
+    const post = (id: string, title: string, stepType: string, stageName: string) =>
+      step({ id, title, stepType, stepKey: `w2-figma-${id}`, phase: "post_hire", settings: { stageName } });
+    const groups = groupStepsIntoHireStages(
+      [
+        post("20", "I-9 / Right to Work Verification", "i9-right-to-work-verification", "Offer & Agreement"),
+        post("21", "Tax Forms (W-4 / State)", "tax-forms", "Paperwork"),
+        post("23", "Pay Rate & Hire Date Entry", "pay-rate-hire-date", "Offer & Agreement"),
+        post("24", "W-9 Tax Form", "custom-form", "Intake"),
+        post("27", "Policy Acknowledgment", "policy-acknowledgment", "Policies"),
+        post("32", "Schedule Assignment", "schedule-assignment", "Access & Equipment"),
+        post("36", "Welcome Email", "welcome-email", "Kickoff"),
+      ],
+      "post_hire"
+    );
+
+    expect(groups.map((g) => g.name)).toEqual([
+      "Payroll & Tax",
+      "Access & Systems",
+      "Training & Policy",
+      "Welcome & Complete",
+    ]);
+    expect(groups[0]?.steps.map((s) => s.title)).toEqual([
+      "I-9 / Right to Work Verification",
+      "Tax Forms (W-4 / State)",
+      "Pay Rate & Hire Date Entry",
+      "W-9 Tax Form",
+    ]);
+  });
+
+  it("never shows a Post-Hire stage on the Pre-Hire board", () => {
+    const groups = groupStepsIntoHireStages(
+      [
+        step({ id: "d", title: "Document Upload", stepType: "document-upload", settings: { stageName: "Paperwork" } }),
+        step({
+          id: "a",
+          title: "Pre-Hire Approval",
+          stepType: "completion-milestone",
+          settings: { stageName: "Day One Ready", phase: "transition" },
+        }),
+      ],
+      "pre_hire"
+    );
+    expect(groups.map((g) => g.name)).toEqual(["Intake", "Approvals"]);
+  });
+
   it("lets an explicit stageName override the library map", () => {
     const groups = groupStepsIntoHireStages(
       [
