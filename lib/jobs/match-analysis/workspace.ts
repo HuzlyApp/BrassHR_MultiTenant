@@ -203,6 +203,19 @@ export function resolveRecommendedScreeningAnswerUpsert(
     };
   }
 
+  // Step 3 and Step 4 keys stay on their own rows even when the wording matches Step 2.
+  if (trimmedKey.startsWith("follow_up:") || trimmedKey.startsWith("deep:")) {
+    const question = typedQuestion || trimmedKey;
+    if (!question) return null;
+    return {
+      key: trimmedKey,
+      question,
+      reason: null,
+      related_requirement: null,
+      answer_text: answerText,
+    };
+  }
+
   const byKey = analysisQuestions.find(
     (question) => aiScreeningQuestionKey(question.priority, question.question) === trimmedKey
   );
@@ -307,6 +320,8 @@ export type QualificationOutcomeCounts = {
   notMet: number;
   blocking: number;
   mandatory: number;
+  /** Mandatory rows whose display status is Confirmed. Preferred rows are excluded. */
+  mandatoryConfirmed: number;
   preferred: number;
   total: number;
 };
@@ -317,7 +332,9 @@ export type ListingRequirementOutcomeCounts = {
   notMet: number;
   mandatory?: number;
   blocking?: number;
-  /** Stored Step 1 route (`ai_analysis.quick_match.quick_route`). LOW_MATCH forces Low before Deep Match. */
+  /** Confirmed mandatory rows only. */
+  mandatoryConfirmed?: number;
+  /** Stored Step 1 route (`ai_analysis.quick_match.quick_route`). LOW_MATCH forces Low before Deep Match unless every mandatory row is confirmed. */
   quickRoute?: QuickRoute | null;
 };
 
@@ -327,6 +344,7 @@ export const EMPTY_LISTING_REQUIREMENT_COUNTS: ListingRequirementOutcomeCounts =
   notMet: 0,
   mandatory: 0,
   blocking: 0,
+  mandatoryConfirmed: 0,
 };
 
 /**
@@ -344,6 +362,7 @@ export function countQualificationOutcomes(
     notMet: 0,
     blocking: 0,
     mandatory: 0,
+    mandatoryConfirmed: 0,
     preferred: 0,
     total: requirements.length,
   };
@@ -357,10 +376,12 @@ export function countQualificationOutcomes(
     if (outcome === "NOT_APPLICABLE") continue;
 
     const display = qualificationDisplayStatus(req, blockingTexts);
-    if (display === "Confirmed") counts.confirmed += 1;
-    else if (display === "Not Met") counts.notMet += 1;
+    if (display === "Confirmed") {
+      counts.confirmed += 1;
+      if (type === "MANDATORY") counts.mandatoryConfirmed += 1;
+    }     else if (display === "Not Met") counts.notMet += 1;
     else if (display === "Blocking") counts.blocking += 1;
-    else counts.verify += 1;
+    else if (display === "Needs Verification") counts.verify += 1;
   }
 
   return counts;
@@ -377,6 +398,7 @@ export function listingRequirementOutcomeCounts(
     notMet: counts.notMet,
     mandatory: counts.mandatory,
     blocking: counts.blocking,
+    mandatoryConfirmed: counts.mandatoryConfirmed,
   };
   if (quickRoute) listing.quickRoute = quickRoute;
   return listing;
@@ -396,6 +418,8 @@ export function parseListingRequirementCounts(
   const blocking = record.blocking == null ? NaN : Number(record.blocking);
   if (Number.isFinite(mandatory)) counts.mandatory = mandatory;
   if (Number.isFinite(blocking)) counts.blocking = blocking;
+  const mandatoryConfirmed = record.mandatoryConfirmed == null ? NaN : Number(record.mandatoryConfirmed);
+  if (Number.isFinite(mandatoryConfirmed)) counts.mandatoryConfirmed = mandatoryConfirmed;
   const quickRoute = parseQuickRoute(record.quickRoute);
   if (quickRoute) counts.quickRoute = quickRoute;
   return counts;

@@ -3,9 +3,9 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { JobValidationError, jobValidationHttpStatus, JOB_STATUSES, type JobStatus } from "@/lib/jobs/types";
 import { jobMutationSchema } from "@/lib/jobs/validation";
 import {
-  closeExpiredPublishedJobs,
   bulkDeleteJobRequisitions,
   listInternalJobs,
+  listJobPickerOptions,
   openJobRequisition,
   parseBulkDeleteIds,
   publishExistingJob,
@@ -70,7 +70,10 @@ export async function GET(req: NextRequest) {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
-    await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
+    if (req.nextUrl.searchParams.get("fields") === "picker") {
+      const jobs = await listJobPickerOptions(supabase, tenantId);
+      return NextResponse.json({ jobs });
+    }
 
     const status = parseJobStatusFilter(req.nextUrl.searchParams.get("status"));
     const [jobs, tenantResult, totalCandidateCount] = await Promise.all([

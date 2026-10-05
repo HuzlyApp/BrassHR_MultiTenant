@@ -96,8 +96,8 @@ describe("sortApplicationRows", () => {
       row({
         id: "strong",
         ai_match_status: "ANALYZED",
-        ai_match_stage: "deep",
-        ai_requirement_counts: { confirmed: 2, verify: 4, notMet: 0 },
+        ai_match_stage: "quick",
+        ai_requirement_counts: { confirmed: 6, verify: 0, notMet: 0, mandatory: 6, blocking: 0 },
       }),
       row({
         id: "low",

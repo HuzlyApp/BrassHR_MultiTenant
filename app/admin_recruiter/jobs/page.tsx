@@ -25,6 +25,13 @@ import toast from "react-hot-toast";
 import { normalizeJobRequisitionStatus, jobStatusDisplayLabel } from "@/lib/jobs/job-status";
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
 import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache";
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import { toPersistedJobListRow } from "@/lib/lists/staff-list-cache-rows";
+import {
+  invalidateJobsListCache,
+  readJobsListCache,
+  writeJobsListCache,
+} from "@/lib/lists/staff-list-session-cache";
 import {
   EditJobsFiltersModal,
   EMPTY_JOBS_EXTENDED_FILTERS,
@@ -805,6 +812,13 @@ export default function AdminRecruiterJobsPage() {
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [totalCandidateCount, setTotalCandidateCount] = useState<number | null>(null);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
+  const { userId: currentUserId, tenantId: currentTenantId } = useAdminHeaderData();
+  const jobsUserIdRef = useRef(currentUserId);
+  const jobsTenantIdRef = useRef(currentTenantId);
+  jobsUserIdRef.current = currentUserId;
+  jobsTenantIdRef.current = currentTenantId;
+  const jobsRequestRef = useRef(0);
+  const jobsNetworkReadyRef = useRef(false);
   const [jobTab, setJobTab] = useState<JobTab>(() => parseJobTab(searchParams.get("tab")));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -909,32 +923,101 @@ export default function AdminRecruiterJobsPage() {
     setJobTab((current) => (current === next ? current : next));
   }, [searchParams]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const applyJobsCache = useCallback((scope: string) => {
+    if (jobsNetworkReadyRef.current) return false;
+    const cached = readJobsListCache<JobListRow>(scope);
+    if (!cached) return false;
+    setJobs(cached.rows);
+    const candidateCount = cached.meta?.candidateCount;
+    setTotalCandidateCount(typeof candidateCount === "number" ? candidateCount : null);
+    const slug = cached.meta?.tenantSlug;
+    setTenantSlug(typeof slug === "string" && slug ? slug : null);
+    setLoading(false);
     setError("");
+    return true;
+  }, []);
+
+  useLayoutEffect(() => {
+    const scope =
+      currentUserId && currentTenantId ? `${currentUserId}:${currentTenantId}` : "";
+    if (!scope) return;
+    applyJobsCache(scope);
+  }, [applyJobsCache, currentTenantId, currentUserId]);
+
+  const load = useCallback(async (mode: "navigate" | "refresh" = "navigate") => {
+    const requestId = ++jobsRequestRef.current;
+    const scopeNow = () =>
+      jobsUserIdRef.current && jobsTenantIdRef.current
+        ? `${jobsUserIdRef.current}:${jobsTenantIdRef.current}`
+        : "";
+    if (mode === "refresh") {
+      invalidateJobsListCache();
+      jobsNetworkReadyRef.current = false;
+      setLoading(true);
+      setError("");
+    } else if (!applyJobsCache(scopeNow())) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const response = await fetch("/api/admin/jobs", { cache: "no-store" });
       const payload = await response.json();
+      if (requestId !== jobsRequestRef.current) return;
+      if (response.status === 401 || response.status === 403) {
+        invalidateJobsListCache();
+        jobsNetworkReadyRef.current = true;
+        setJobs([]);
+        setTotalCandidateCount(null);
+        setTenantSlug(null);
+        throw new Error(payload.error || "Failed to load jobs");
+      }
       if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
-      setJobs(payload.jobs ?? []);
-      setTotalCandidateCount(
-        typeof payload.totalCandidateCount === "number" ? payload.totalCandidateCount : null
-      );
-      setTenantSlug(
+      const nextJobs = (payload.jobs ?? []) as JobListRow[];
+      const nextCount =
+        typeof payload.totalCandidateCount === "number" ? payload.totalCandidateCount : null;
+      const nextSlug =
         typeof payload.tenantSlug === "string" && payload.tenantSlug.trim()
           ? payload.tenantSlug.trim().toLowerCase()
-          : null
-      );
+          : null;
+      jobsNetworkReadyRef.current = true;
+      setJobs(nextJobs);
+      setTotalCandidateCount(nextCount);
+      setTenantSlug(nextSlug);
+      const scope = scopeNow();
+      if (scope) {
+        writeJobsListCache(
+          scope,
+          nextJobs,
+          nextJobs.length,
+          nextJobs.map((job) => toPersistedJobListRow(job)),
+          { candidateCount: nextCount, tenantSlug: nextSlug }
+        );
+      }
     } catch (loadError) {
+      if (requestId !== jobsRequestRef.current) return;
       setError(loadError instanceof Error ? loadError.message : "Failed to load jobs");
     } finally {
-      setLoading(false);
+      if (requestId === jobsRequestRef.current) setLoading(false);
     }
-  }, []);
+  }, [applyJobsCache]);
 
   useEffect(() => {
-    void load();
+    void load("navigate");
   }, [load]);
+
+  useEffect(() => {
+    if (!jobsNetworkReadyRef.current) return;
+    const scope =
+      currentUserId && currentTenantId ? `${currentUserId}:${currentTenantId}` : "";
+    if (!scope) return;
+    writeJobsListCache(
+      scope,
+      jobs,
+      jobs.length,
+      jobs.map((job) => toPersistedJobListRow(job)),
+      { candidateCount: totalCandidateCount, tenantSlug }
+    );
+  }, [currentTenantId, currentUserId, jobs, tenantSlug, totalCandidateCount]);
 
   useEffect(() => {
     setListColumnOrder(loadJobColumnOrder());
@@ -1023,7 +1106,7 @@ export default function AdminRecruiterJobsPage() {
       } else if (action === "set_status" && nextStatus) {
         toast.success(`${jobTitle} status updated`, { duration: ACTION_TOAST_DURATION_MS });
       }
-      await load();
+      await load("refresh");
     } finally {
       setPublishBusyIds((current) => {
         const next = new Set(current);
@@ -1265,6 +1348,7 @@ export default function AdminRecruiterJobsPage() {
       const deletedCount =
         typeof payload.count === "number" ? payload.count : deletedIds.size;
       setJobs((current) => current.filter((job) => !deletedIds.has(job.id)));
+      invalidateJobsListCache();
       setSelectedIds(new Set());
       setDeleteConfirmOpen(false);
       if (deletedCount > 0) {
@@ -1467,7 +1551,7 @@ export default function AdminRecruiterJobsPage() {
         setSelectedIds(new Set());
         setStatusFilter("archived");
         selectJobTab("all");
-        await load();
+        await load("refresh");
       } else if (targets.length > 0) {
         toast.error("No jobs could be archived", { duration: ACTION_TOAST_DURATION_MS });
       }
@@ -1804,7 +1888,7 @@ export default function AdminRecruiterJobsPage() {
           jobTitle={addCandidateJob?.title}
           jobLocation={addCandidateJob?.location}
           onSuccess={() => {
-            void load();
+            void load("refresh");
           }}
         />
         <ImportCandidatesModal
@@ -1813,7 +1897,7 @@ export default function AdminRecruiterJobsPage() {
           onClose={() => setImportCandidateJobId(null)}
           onImported={() => {
             setImportCandidateJobId(null);
-            void load();
+            void load("refresh");
           }}
         />
         <BulkDeleteConfirmModal
@@ -2316,7 +2400,7 @@ export default function AdminRecruiterJobsPage() {
         jobTitle={addCandidateJob?.title}
         jobLocation={addCandidateJob?.location}
         onSuccess={() => {
-          void load();
+          void load("refresh");
         }}
       />
 
@@ -2326,7 +2410,7 @@ export default function AdminRecruiterJobsPage() {
         onClose={() => setImportCandidateJobId(null)}
         onImported={() => {
           setImportCandidateJobId(null);
-          void load();
+          void load("refresh");
         }}
       />
 

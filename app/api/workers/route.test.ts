@@ -1,20 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const inMock = vi.hoisted(() => vi.fn().mockReturnThis());
-const rangeMock = vi.hoisted(() => vi.fn().mockReturnThis());
-const orderMock = vi.hoisted(() => vi.fn().mockReturnThis());
-const orMock = vi.hoisted(() => vi.fn().mockReturnThis());
-const eqMock = vi.hoisted(() => vi.fn().mockReturnThis());
-const selectMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    eq: eqMock,
-    or: orMock,
-    order: orderMock,
-    range: rangeMock,
-    in: inMock,
-  }))
-);
-const fromMock = vi.hoisted(() => vi.fn(() => ({ select: selectMock })));
+const inMock = vi.hoisted(() => vi.fn());
+const rangeMock = vi.hoisted(() => vi.fn());
+const orderMock = vi.hoisted(() => vi.fn());
+const orMock = vi.hoisted(() => vi.fn());
+const eqMock = vi.hoisted(() => vi.fn());
+const fromMock = vi.hoisted(() => vi.fn());
+
+function makeBuilder(result: { data: unknown; error: null; count?: number }) {
+  const builder: Record<string, unknown> = {};
+  const self = () => builder;
+  builder.select = vi.fn(self);
+  builder.eq = eqMock.mockImplementation(self);
+  builder.or = orMock.mockImplementation(self);
+  builder.order = orderMock.mockImplementation(self);
+  builder.range = rangeMock.mockImplementation(self);
+  builder.in = inMock.mockImplementation(self);
+  builder.not = vi.fn(self);
+  builder.limit = vi.fn(self);
+  builder.then = (
+    onFulfilled: (value: unknown) => unknown,
+    onRejected?: (reason: unknown) => unknown
+  ) => Promise.resolve(result).then(onFulfilled, onRejected);
+  return builder;
+}
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({ from: fromMock, rpc: vi.fn(async () => ({ data: null, error: { message: "no rpc" } })) })),
@@ -51,14 +60,21 @@ describe("GET /api/workers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
-    rangeMock.mockReturnValue({
-      data: [{ id: "w1", status: "new", created_at: "2026-01-01", profile_photo: "x.jpg" }],
-      error: null,
-      count: 1,
-    });
-    inMock.mockReturnValue({
-      data: [],
-      error: null,
+    const workerRow = {
+      id: "w1",
+      status: "new",
+      created_at: "2026-01-01",
+      profile_photo: "x.jpg",
+      email: "a@example.com",
+      phone: "5551112222",
+      first_name: "Ada",
+      last_name: "Lovelace",
+    };
+    fromMock.mockImplementation((table: string) => {
+      if (table === "worker") {
+        return makeBuilder({ data: [workerRow], error: null, count: 1 });
+      }
+      return makeBuilder({ data: [], error: null });
     });
   });
 

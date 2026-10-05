@@ -1,7 +1,7 @@
 // app/admin_recruiter/candidates/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
@@ -48,7 +48,6 @@ import {
 import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
-import { jobListDisplayTitle, type JobListRow } from "../jobs/render-job-list-cell";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import {
@@ -90,6 +89,20 @@ import {
 } from "@/lib/workers/candidates-list-fetch";
 import { DEFAULT_CANDIDATES_PAGE_SIZE } from "@/lib/workers/candidate-list-params";
 import {
+  candidatesListPath,
+  parseCandidatesListUrlState,
+  serializeCandidatesListUrlState,
+  type CandidatesListUrlState,
+} from "@/lib/workers/candidates-list-url";
+import { toPersistedCandidateRow } from "@/lib/lists/staff-list-cache-rows";
+import {
+  invalidateCandidatesListCache,
+  isLatestCandidatesListRequest,
+  nextCandidatesListRequest,
+  readCandidatesListCache,
+  writeCandidatesListCache,
+} from "@/lib/workers/candidates-list-session-cache";
+import {
   buildAssigneeFilterOptions,
   candidateMatchesAssigneeFilter,
 } from "@/lib/candidates/assignee-filter";
@@ -100,6 +113,21 @@ import {
 } from "@/lib/location/city-state";
 
 const ACTION_TOAST_DURATION_MS = 3500;
+const SEARCH_DEBOUNCE_MS = 300;
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
+type JobPickerOption = {
+  id: string;
+  title: string;
+  status: string;
+  clientName: string | null;
+};
 
 function resolveCandidateApplicationId(row: CandidateRow): string {
   return (row.matchApplicationId ?? row.progressStatusApplicationId ?? "").trim();
@@ -273,6 +301,7 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [appliedDateFrom, setAppliedDateFrom] = useState("");
@@ -291,6 +320,7 @@ export default function CandidatesPage() {
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [listReady, setListReady] = useState(false);
   const [facetOptions, setFacetOptions] = useState<{
     jobRoles: string[];
     locations: string[];
@@ -335,7 +365,7 @@ export default function CandidatesPage() {
   );
   const [bulkAnalyzingIds, setBulkAnalyzingIds] = useState<Set<string>>(() => new Set());
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
-  const [addCandidateJobs, setAddCandidateJobs] = useState<JobListRow[]>([]);
+  const [addCandidateJobs, setAddCandidateJobs] = useState<JobPickerOption[]>([]);
   const [updateResumeApplicationId, setUpdateResumeApplicationId] = useState<string | null>(null);
   const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
   const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
@@ -344,8 +374,15 @@ export default function CandidatesPage() {
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [interviewError, setInterviewError] = useState<string | null>(null);
-  const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
+  const { userId: currentUserId, displayName: currentUserName, tenantId: currentTenantId } =
+    useAdminHeaderData();
   const clearSelectionRef = useRef<() => void>(() => {});
+  const userIdRef = useRef(currentUserId);
+  const tenantIdRef = useRef(currentTenantId);
+  const applyingUrlRef = useRef(false);
+  const networkListKeyRef = useRef<string | null>(null);
+  userIdRef.current = currentUserId;
+  tenantIdRef.current = currentTenantId;
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -407,10 +444,10 @@ export default function CandidatesPage() {
 
   const loadAddCandidateJobs = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/jobs", { cache: "no-store" });
+      const response = await fetch("/api/admin/jobs?fields=picker", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
-      setAddCandidateJobs((payload.jobs ?? []) as JobListRow[]);
+      setAddCandidateJobs((payload.jobs ?? []) as JobPickerOption[]);
     } catch {
       setAddCandidateJobs([]);
     }
@@ -425,7 +462,7 @@ export default function CandidatesPage() {
       addCandidateJobs
         .map((job) => ({
           id: job.id,
-          title: jobListDisplayTitle(job),
+          title: job.title,
         }))
         .sort((a, b) => a.title.localeCompare(b.title)),
     [addCandidateJobs]
@@ -501,14 +538,44 @@ export default function CandidatesPage() {
 
   const loadCandidates = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
+    const requestId = nextCandidatesListRequest();
     loadAbortRef.current?.abort();
     const controller = new AbortController();
     loadAbortRef.current = controller;
-    setLoading(true);
-    setListError(null);
-    // Clear stale rows while a new search/page loads.
-    setCandidates([]);
-    setTotalFromApi(null);
+    const listUrlState: CandidatesListUrlState = {
+      q: debouncedQuery,
+      skills: skillsFilter,
+      jobRole: jobRoleFilter,
+      location: locationFilter,
+      appliedFrom: appliedDateFrom,
+      appliedTo: appliedDateTo,
+      status: statusFilter,
+      progressStatusId: progressStatusFilter,
+      jobTitle: jobFilter,
+      stage: stageFilter,
+      matchScore: matchScoreFilter,
+      clientName: clientNameFilter,
+      assignee: assigneeFilter,
+      sortColumn: listSort.column,
+      sortDir: listSort.direction,
+      page,
+      pageSize,
+      multiJob: highlightMultiJob,
+    };
+    const cacheScope = `${userIdRef.current ?? ""}:${tenantIdRef.current ?? ""}`;
+    const cacheKey = serializeCandidatesListUrlState(listUrlState);
+    const cached = activeSearch ? null : readCandidatesListCache<CandidateRow>(cacheScope, cacheKey);
+    if (cached) {
+      setCandidates(cached.rows);
+      setTotalFromApi(cached.total);
+      setLoading(false);
+      setListError(null);
+    } else {
+      setLoading(true);
+      setListError(null);
+      setCandidates([]);
+      setTotalFromApi(null);
+    }
     try {
       if (activeSearch) {
         const res = await fetch("/api/search-workers", {
@@ -543,7 +610,7 @@ export default function CandidatesPage() {
         {
           page,
           pageSize,
-          q: query || undefined,
+          q: debouncedQuery || undefined,
           skills: skillTags.length ? skillTags.join(",") : undefined,
           jobRole: jobRoleFilter || undefined,
           location: locationFilter || undefined,
@@ -568,6 +635,8 @@ export default function CandidatesPage() {
       setTotalFromApi(total);
 
       const mapped = rows.map(mapWorkerToRow);
+      if (!isLatestCandidatesListRequest(requestId)) return;
+      networkListKeyRef.current = cacheKey;
       setCandidates(mapped);
       setFacetOptions((prev) => {
         const jobRoles = new Set(prev.jobRoles);
@@ -595,12 +664,28 @@ export default function CandidatesPage() {
           stages: buildCandidateStageOptions([...mapped]),
         };
       });
+      const writeScope = `${userIdRef.current ?? ""}:${tenantIdRef.current ?? ""}`;
+      writeCandidatesListCache(
+        writeScope,
+        cacheKey,
+        mapped,
+        total,
+        mapped.map(toPersistedCandidateRow)
+      );
       clearSelectionRef.current();
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (isAbortError(err)) return;
+      if (!isLatestCandidatesListRequest(requestId)) return;
       console.error("Failed to fetch workers:", err);
-      setCandidates([]);
-      setTotalFromApi(null);
+      const status = (err as { status?: number }).status;
+      if (status === 401 || status === 403) {
+        invalidateCandidatesListCache();
+        setCandidates([]);
+        setTotalFromApi(null);
+      } else if (!cached) {
+        setCandidates([]);
+        setTotalFromApi(null);
+      }
       setListError(err instanceof Error ? err.message : "Failed to search candidates");
       clearSelectionRef.current();
     } finally {
@@ -611,7 +696,7 @@ export default function CandidatesPage() {
     mapWorkerToRow,
     page,
     pageSize,
-    query,
+    debouncedQuery,
     skillsFilter,
     jobRoleFilter,
     locationFilter,
@@ -624,12 +709,42 @@ export default function CandidatesPage() {
     stageFilter,
     assigneeFilter,
     listSort,
+    clientNameFilter,
+    highlightMultiJob,
   ]);
 
   useEffect(() => {
-    void loadCandidates();
-    return () => loadAbortRef.current?.abort();
-  }, [loadCandidates]);
+    const parsed = parseCandidatesListUrlState(new URLSearchParams(window.location.search));
+    applyingUrlRef.current = true;
+    setQuery(parsed.q);
+    setDebouncedQuery(parsed.q.trim());
+    setSkillsFilter(parsed.skills);
+    setJobRoleFilter(parsed.jobRole);
+    setLocationFilter(parsed.location);
+    setAppliedDateFrom(parsed.appliedFrom);
+    setAppliedDateTo(parsed.appliedTo);
+    setStatusFilter(parsed.status);
+    setProgressStatusFilter(parsed.progressStatusId);
+    setJobFilter(parsed.jobTitle);
+    setStageFilter(parsed.stage);
+    setMatchScoreFilter(parsed.matchScore);
+    setClientNameFilter(parsed.clientName);
+    setAssigneeFilter(parsed.assignee);
+    setListSort(
+      parsed.sortColumn
+        ? { column: parsed.sortColumn, direction: parsed.sortDir }
+        : EMPTY_CANDIDATE_LIST_SORT
+    );
+    setPage(parsed.page);
+    setPageSize(parsed.pageSize);
+    setHighlightMultiJob(parsed.multiJob);
+    setListReady(true);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   const jobRoleOptions = facetOptions.jobRoles;
   const locationOptions = facetOptions.locations;
@@ -639,8 +754,7 @@ export default function CandidatesPage() {
   const clientNameOptions = useMemo(() => {
     const names = new Set(facetOptions.clientNames);
     for (const job of addCandidateJobs) {
-      if (String(job.source_type ?? "").trim().toLowerCase() !== "msp") continue;
-      const clientName = String(job.msp_name ?? "").trim();
+      const clientName = job.clientName?.trim();
       if (clientName) names.add(clientName);
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
@@ -710,26 +824,143 @@ export default function CandidatesPage() {
     ? visibleCandidates.length
     : (totalFromApi ?? candidates.length);
 
+  const listUrlState = useMemo<CandidatesListUrlState>(
+    () => ({
+      q: debouncedQuery,
+      skills: skillsFilter,
+      jobRole: jobRoleFilter,
+      location: locationFilter,
+      appliedFrom: appliedDateFrom,
+      appliedTo: appliedDateTo,
+      status: statusFilter,
+      progressStatusId: progressStatusFilter,
+      jobTitle: jobFilter,
+      stage: stageFilter,
+      matchScore: matchScoreFilter,
+      clientName: clientNameFilter,
+      assignee: assigneeFilter,
+      sortColumn: listSort.column,
+      sortDir: listSort.direction,
+      page,
+      pageSize,
+      multiJob: highlightMultiJob,
+    }),
+    [
+      debouncedQuery,
+      skillsFilter,
+      jobRoleFilter,
+      locationFilter,
+      appliedDateFrom,
+      appliedDateTo,
+      statusFilter,
+      progressStatusFilter,
+      jobFilter,
+      stageFilter,
+      matchScoreFilter,
+      clientNameFilter,
+      assigneeFilter,
+      listSort,
+      page,
+      pageSize,
+      highlightMultiJob,
+    ]
+  );
+  const filterKey = serializeCandidatesListUrlState({ ...listUrlState, page: 1 });
+  const listFetchKey = `${serializeCandidatesListUrlState(listUrlState)}|geo:${
+    advancedSearchContext.active
+      ? `${advancedSearchContext.lat},${advancedSearchContext.lng},${advancedSearchContext.radius},${advancedSearchContext.place}`
+      : ""
+  }`;
+  const loadCandidatesRef = useRef(loadCandidates);
+  loadCandidatesRef.current = loadCandidates;
+  const lastFetchedListKeyRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!listReady || !currentUserId || !currentTenantId || advancedSearchContext.active) return;
+    const key = serializeCandidatesListUrlState(listUrlState);
+    if (networkListKeyRef.current === key) return;
+    const cached = readCandidatesListCache<CandidateRow>(`${currentUserId}:${currentTenantId}`, key);
+    if (!cached) return;
+    setCandidates(cached.rows);
+    setTotalFromApi(cached.total);
+    setLoading(false);
+    setListError(null);
+  }, [advancedSearchContext.active, currentTenantId, currentUserId, listReady, listUrlState]);
+
+  useLayoutEffect(() => {
+    if (!listReady) return;
+    if (lastFetchedListKeyRef.current === listFetchKey) return;
+    lastFetchedListKeyRef.current = listFetchKey;
+    void loadCandidatesRef.current();
+    return () => loadAbortRef.current?.abort();
+  }, [listReady, listFetchKey]);
+  const filterKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    setPage(1);
-  }, [
-    query,
-    skillsFilter,
-    jobRoleFilter,
-    statusFilter,
-    progressStatusFilter,
-    jobFilter,
-    stageFilter,
-    matchScoreFilter,
-    clientNameFilter,
-    assigneeFilter,
-    locationFilter,
-    appliedDateFrom,
-    appliedDateTo,
-    pageSize,
-    listSort,
-    highlightMultiJob,
-  ]);
+    if (!listReady) return;
+    if (applyingUrlRef.current) {
+      applyingUrlRef.current = false;
+      filterKeyRef.current = filterKey;
+      return;
+    }
+    if (filterKeyRef.current === null) {
+      filterKeyRef.current = filterKey;
+      return;
+    }
+    if (filterKeyRef.current !== filterKey) {
+      filterKeyRef.current = filterKey;
+      setPage(1);
+    }
+  }, [filterKey, listReady]);
+
+  useEffect(() => {
+    if (!listReady) return;
+    if (!window.location.pathname.endsWith("/admin_recruiter/candidates")) return;
+    const currentSerialized = serializeCandidatesListUrlState(
+      parseCandidatesListUrlState(new URLSearchParams(window.location.search))
+    );
+    const nextSerialized = serializeCandidatesListUrlState(listUrlState);
+    if (currentSerialized === nextSerialized) return;
+    const currentFilters = serializeCandidatesListUrlState({
+      ...parseCandidatesListUrlState(new URLSearchParams(window.location.search)),
+      page: 1,
+    });
+    const nextFilters = serializeCandidatesListUrlState({ ...listUrlState, page: 1 });
+    if (currentFilters !== nextFilters && listUrlState.page !== 1) return;
+    const nextPath = candidatesListPath(listUrlState);
+    window.history.pushState(null, "", nextPath);
+  }, [listReady, listUrlState]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const parsed = parseCandidatesListUrlState(new URLSearchParams(window.location.search));
+      applyingUrlRef.current = true;
+      setQuery(parsed.q);
+      setDebouncedQuery(parsed.q.trim());
+      setSkillsFilter(parsed.skills);
+      setJobRoleFilter(parsed.jobRole);
+      setLocationFilter(parsed.location);
+      setAppliedDateFrom(parsed.appliedFrom);
+      setAppliedDateTo(parsed.appliedTo);
+      setStatusFilter(parsed.status);
+      setProgressStatusFilter(parsed.progressStatusId);
+      setJobFilter(parsed.jobTitle);
+      setStageFilter(parsed.stage);
+      setMatchScoreFilter(parsed.matchScore);
+      setClientNameFilter(parsed.clientName);
+      setAssigneeFilter(parsed.assignee);
+      setListSort(
+        parsed.sortColumn
+          ? { column: parsed.sortColumn, direction: parsed.sortDir }
+          : EMPTY_CANDIDATE_LIST_SORT
+      );
+      setPage(parsed.page);
+      setPageSize(parsed.pageSize);
+      setHighlightMultiJob(parsed.multiJob);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const paginated = visibleCandidates;
 
@@ -751,7 +982,7 @@ export default function CandidatesPage() {
       [
         page,
         pageSize,
-        query,
+        debouncedQuery,
         skillsFilter,
         jobRoleFilter,
         statusFilter,
@@ -769,7 +1000,7 @@ export default function CandidatesPage() {
     [
       page,
       pageSize,
-      query,
+      debouncedQuery,
       skillsFilter,
       jobRoleFilter,
       statusFilter,
@@ -857,6 +1088,7 @@ export default function CandidatesPage() {
     try {
       const { archived, failed } = await bulkArchiveApplications(applicationIds);
       if (archived > 0) {
+        invalidateCandidatesListCache();
         toast.success(`Archived ${archived} candidate${archived === 1 ? "" : "s"}`, {
           duration: ACTION_TOAST_DURATION_MS,
         });
@@ -1094,6 +1326,7 @@ export default function CandidatesPage() {
     );
 
     if (result.resumeUploaded) {
+      invalidateCandidatesListCache();
       toast.success(`${nextName}: resume updated successfully`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
@@ -1109,6 +1342,7 @@ export default function CandidatesPage() {
         );
       }
     } else {
+      invalidateCandidatesListCache();
       toast.success(`${nextName}: candidate details updated`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
@@ -1250,6 +1484,7 @@ export default function CandidatesPage() {
         )
       );
       toast.success(nextName ? `Assigned to ${nextName}` : "Recruiter unassigned");
+      invalidateCandidatesListCache();
       setAssignRecruiterTarget(null);
     } catch (err) {
       setAssignRecruiterError(err instanceof Error ? err.message : "Failed to assign recruiter");
@@ -1264,6 +1499,7 @@ export default function CandidatesPage() {
     setClaimError(null);
     try {
       const result = await postClaimCandidates(selection.selectedEligibleIds);
+      invalidateCandidatesListCache();
       toast.success(result.summary);
       const claimed = new Set(result.claimed);
       const ownerId = result.recruiter?.id ?? currentUserId;
@@ -1319,6 +1555,7 @@ export default function CandidatesPage() {
         typeof current === "number" ? Math.max(0, current - deletedIds.size) : current
       );
       selection.removeIds(deletedIds);
+      invalidateCandidatesListCache();
       setDeleteConfirmOpen(false);
       const deletedCount =
         typeof payload.count === "number" ? payload.count : deletedIds.size;
@@ -1386,12 +1623,15 @@ export default function CandidatesPage() {
         simplifiedToolbarFilters
         skillsFilter={skillsFilter}
         onApplySearch={({ query: nextQuery, skillsFilter: nextSkills }) => {
-          setQuery(nextQuery.trim());
+          const trimmed = nextQuery.trim();
+          setQuery(trimmed);
+          setDebouncedQuery(trimmed);
           setSkillsFilter(nextSkills);
           setPage(1);
         }}
         onResetSearch={() => {
           setQuery("");
+          setDebouncedQuery("");
           setSkillsFilter("");
           setJobRoleFilter("");
           setLocationFilter("");
@@ -1479,11 +1719,11 @@ export default function CandidatesPage() {
                 <div>
                   {highlightMultiJob
                     ? "No multi-job applicants match these filters."
-                    : query.trim() || parseSkillsFilterParam(skillsFilter).length
+                    : debouncedQuery || parseSkillsFilterParam(skillsFilter).length
                       ? "No candidates match your search."
                       : "No candidates found."}
                 </div>
-                {query.trim() ||
+                {debouncedQuery ||
                 parseSkillsFilterParam(skillsFilter).length ||
                 advancedSearchContext.active ||
                 highlightMultiJob ? (
@@ -1491,6 +1731,7 @@ export default function CandidatesPage() {
                     type="button"
                     onClick={() => {
                       setQuery("");
+                      setDebouncedQuery("");
                       setSkillsFilter("");
                       setHighlightMultiJob(false);
                       applyAdvancedSearchParams(null);

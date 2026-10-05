@@ -7,6 +7,7 @@ import {
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { shouldSuspendPostHireAfterStatusChange } from "@/lib/onboarding/lock-post-hire";
 import { isPlacementAcceptedStatus } from "@/lib/onboarding/workflow-phase";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 import {
   ApplicationStatusError,
   type ApplicationStatusHistoryRecord,
@@ -41,6 +42,27 @@ type HistoryRow = {
   note: string | null;
   created_at: string;
 };
+
+/**
+ * Placement acceptance is the system key `hired` ("Selected by Client"), not the display name.
+ */
+export async function previousPlacementSystemKey(
+  supabase: SupabaseClient,
+  params: { tenantId: string; statusId: string | null; displayName: string | null }
+): Promise<string | null> {
+  if (params.statusId) {
+    const { data, error } = await supabase
+      .from("application_statuses")
+      .select("system_key")
+      .eq("id", params.statusId)
+      .eq("tenant_id", params.tenantId)
+      .maybeSingle();
+    if (!error && data && typeof data.system_key === "string" && data.system_key.trim()) {
+      return data.system_key;
+    }
+  }
+  return params.displayName;
+}
 
 function mapStatus(row: StatusRow): ApplicationStatusRecord {
   return {
@@ -386,9 +408,15 @@ export async function changeApplicationStatus(
     }
   }
 
+  const previousStatusKey = await previousPlacementSystemKey(supabase, {
+    tenantId: input.tenantId,
+    statusId: result.history?.fromStatus.id ?? null,
+    displayName: result.history?.fromStatus.name ?? null,
+  });
+
   if (
     shouldSuspendPostHireAfterStatusChange({
-      previousStatus: result.history?.fromStatus.name,
+      previousStatus: previousStatusKey,
       nextStatus: result.application.status,
       unchanged: result.unchanged,
     })
@@ -404,6 +432,7 @@ export async function changeApplicationStatus(
   }
 
   if (!result.unchanged) {
+    await invalidateCandidateKpiCache(input.tenantId);
     await writeActivityLog({
       actorUserId: input.changedByUserId ?? null,
       action: isPlacementAcceptedStatus(result.application.status)

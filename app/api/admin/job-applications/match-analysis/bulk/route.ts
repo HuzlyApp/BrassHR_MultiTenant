@@ -20,7 +20,7 @@ const MAX_BULK = 25;
 const bodySchema = z.object({
   jobApplicationIds: z.array(z.string().uuid()).min(1).max(MAX_BULK),
   analysisMode: z.enum(["analyze", "deep"]).optional(),
-  analysisProvider: z.enum(["gemini", "grok"]).optional(),
+  analysisProvider: z.enum(["gemini", "grok", "claude"]).optional(),
 });
 
 export async function POST(req: NextRequest) {

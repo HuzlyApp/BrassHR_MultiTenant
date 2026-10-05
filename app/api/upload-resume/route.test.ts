@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const afterMock = vi.hoisted(() => vi.fn((_fn: () => void | Promise<void>) => undefined))
 const runResumeParseJobMock = vi.hoisted(() => vi.fn(async () => undefined))
 const persistRecordMock = vi.hoisted(() => vi.fn(async () => "resume-uuid-1"))
-const pdfParseMock = vi.hoisted(() => vi.fn(async () => ({ text: "Jane Doe\njane@example.com" })))
+const extractPdfTextMock = vi.hoisted(() => vi.fn(async () => "Jane Doe\njane@example.com"))
 const mammothExtractRawTextMock = vi.hoisted(() => vi.fn(async () => ({ value: "Docx Person\ndocx@example.com" })))
 
 vi.mock("next/server", async (importOriginal) => {
@@ -11,7 +11,9 @@ vi.mock("next/server", async (importOriginal) => {
   return { ...actual, after: afterMock }
 })
 
-vi.mock("pdf-parse", () => ({ default: pdfParseMock }))
+vi.mock("@/lib/resume/extract-pdf-text", () => ({
+  extractPdfText: (...args: unknown[]) => extractPdfTextMock(...args),
+}))
 vi.mock("mammoth", () => ({ default: { extractRawText: mammothExtractRawTextMock } }))
 vi.mock("@/lib/resume/run-resume-parse-job", () => ({
   runResumeParseJob: (...args: unknown[]) => runResumeParseJobMock(...args),
@@ -94,7 +96,7 @@ describe("POST /api/upload-resume", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key"
     runResumeParseJobMock.mockResolvedValue(undefined)
     persistRecordMock.mockResolvedValue("resume-uuid-1")
-    pdfParseMock.mockResolvedValue({ text: "Jane Doe\njane@example.com" })
+    extractPdfTextMock.mockResolvedValue("Jane Doe\njane@example.com")
     mammothExtractRawTextMock.mockResolvedValue({ value: "Docx Person\ndocx@example.com" })
   })
 
@@ -122,7 +124,7 @@ describe("POST /api/upload-resume", () => {
     expect(json.textLength).toBeGreaterThan(0)
     expect(json.extractionMs).toBeGreaterThanOrEqual(0)
     expect(elapsed).toBeLessThan(1000)
-    expect(pdfParseMock).toHaveBeenCalled()
+    expect(extractPdfTextMock).toHaveBeenCalled()
     expect(persistRecordMock).toHaveBeenCalledWith(
       expect.anything(),
       "applicant-1",
