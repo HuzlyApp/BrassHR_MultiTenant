@@ -2156,6 +2156,9 @@ export function AiAnalysisOverviewClient({
 
             <div className="mt-4 rounded-[12px] border border-[#E5E7EB] bg-[#FCFCFD] p-4">
               <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                  Tone, availability &amp; call notes
+                </span>
                 <textarea
                   value={callContext}
                   onChange={(event) => updateCallContext(event.target.value)}

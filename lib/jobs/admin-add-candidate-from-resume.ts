@@ -107,6 +107,7 @@ async function persistWorkerResumeByWorkerId(
     fileType?: string | null;
     fileSizeBytes?: number | null;
     jobApplicationId?: string | null;
+    uploadedByUserId?: string | null;
   }
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -137,6 +138,7 @@ async function persistWorkerResumeByWorkerId(
     parse_error: null,
     parsed_json: parsedData,
     job_application_id: opts.jobApplicationId?.trim() || null,
+    uploaded_by_user_id: opts.uploadedByUserId?.trim() || null,
   };
 
   // Always insert. Workers can have multiple resumes; `.maybeSingle()` throws
@@ -440,6 +442,7 @@ export async function adminAddCandidateFromResume(
       fileType: resumeFileType === "unknown" ? "txt" : resumeFileType,
       fileSizeBytes: resumeBytes.byteLength,
       jobApplicationId: String(result.application?.id ?? "") || null,
+      uploadedByUserId: input.staffUserId ?? null,
     });
   }
 

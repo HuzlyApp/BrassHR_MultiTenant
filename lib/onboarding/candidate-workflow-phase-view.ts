@@ -30,6 +30,11 @@ import {
   pickStepProgressRows,
 } from "@/lib/onboarding/scoped-step-progress";
 import { carryOverReplacedStepProgressSafely } from "@/lib/onboarding/replaced-step-progress";
+import {
+  RECRUITER_SCREENING_STEP_TYPE,
+  applicationQuickMatchRan,
+  applyQuickMatchScreeningProgress,
+} from "@/lib/onboarding/recruiter-screening-progress";
 
 export type { CandidateWorkflowAssignmentView } from "@/lib/onboarding/assigned-workflow-steps";
 
@@ -264,6 +269,12 @@ export async function loadCandidateWorkflowPhaseView(
     documentStatusByStepKey,
     hasResumeUpload,
   });
+  if (mappedSteps.some((step) => step.stepType === RECRUITER_SCREENING_STEP_TYPE)) {
+    mappedSteps = applyQuickMatchScreeningProgress(
+      mappedSteps,
+      await applicationQuickMatchRan(supabase, { tenantId, applicationId: activeApplicationId })
+    );
+  }
 
   const preHireSteps = mappedSteps.filter((step) => step.phase === "pre_hire");
   const postHireSteps = mappedSteps.filter((step) => step.phase === "post_hire");

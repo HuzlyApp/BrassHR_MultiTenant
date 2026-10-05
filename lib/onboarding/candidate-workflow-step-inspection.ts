@@ -28,6 +28,11 @@ import {
   type MappedAssignedStep,
 } from "@/lib/onboarding/assigned-workflow-steps";
 import {
+  RECRUITER_SCREENING_STEP_TYPE,
+  applicationQuickMatchRan,
+  applyQuickMatchScreeningProgress,
+} from "@/lib/onboarding/recruiter-screening-progress";
+import {
   loadScopedStepProgress,
   resolveInstanceApplicationId,
 } from "@/lib/onboarding/scoped-step-progress";
@@ -130,6 +135,8 @@ export type WorkflowStepInspection = {
   ok: true;
   kind: WorkflowStepInspectionKind;
   step: MappedAssignedStep;
+  /** Job application the workflow instance belongs to, when it is tied to one. */
+  applicationId: string | null;
   workflowName: string | null;
   workflowVersion: string | null;
   phase: EmploymentLifecyclePhase;
@@ -691,6 +698,12 @@ export async function loadCandidateWorkflowStepInspection(
     kind === "resume" && stepOnlyStatus === "completed"
       ? stepOnlyStatus
       : mapProgressToDisplayStatus(mapped.status, latestDoc?.verificationStatus);
+  if (mapped.stepType === RECRUITER_SCREENING_STEP_TYPE) {
+    mapped.displayStatus = applyQuickMatchScreeningProgress(
+      [mapped],
+      await applicationQuickMatchRan(supabase, { tenantId, applicationId })
+    )[0].displayStatus;
+  }
 
   // Identity uploads have no review status of their own, so they don't drive the step status.
   if (mapped.stepType === "ssn-identity-verification") {
@@ -1040,6 +1053,7 @@ export async function loadCandidateWorkflowStepInspection(
     ok: true,
     kind,
     step,
+    applicationId: applicationId ?? null,
     workflowName: asText(instance.workflow_name),
     workflowVersion: asText(instance.workflow_version),
     phase,
@@ -1053,8 +1067,8 @@ export async function loadCandidateWorkflowStepInspection(
         ? staffDecisionBy ?? staffAction.ownerLabel
         : staffAction.allowed
           ? null
-          : progress && isCompleteDisplayStatus(mapped.displayStatus)
-            ? candidateUploaderLabel(candidateName)
+          : (progress || latestDoc) && isCompleteDisplayStatus(mapped.displayStatus)
+            ? latestDoc?.uploadedBy ?? candidateUploaderLabel(candidateName)
             : null,
     approvedOrRejectedBy: reviewable ? (latestDoc?.reviewedBy ?? staffDecisionBy) : null,
     reviewable,

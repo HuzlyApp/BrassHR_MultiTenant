@@ -41,6 +41,8 @@ import {
   type StaffStepEmailResult,
 } from "@/lib/onboarding/staff-step-review-shared";
 import { lifecyclePhaseLabel } from "@/lib/onboarding/workflow-phase-groups";
+import { workflowStepOwnershipCopy } from "@/lib/onboarding/workflow-step-ownership-copy";
+import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
 import {
   candidateInterviewStatusLabel,
   candidateInterviewStatusTone,
@@ -51,6 +53,7 @@ import {
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import JobApplicationStepSection from "./JobApplicationStepSection";
 import OfferAcceptanceSection from "./OfferAcceptanceSection";
+import RecruiterScreeningAiSection from "./RecruiterScreeningAiSection";
 import SkillAssessmentResults from "./SkillAssessmentResults";
 import WorkflowStepStaffActionModal from "./WorkflowStepStaffActionModal";
 
@@ -421,7 +424,19 @@ export default function CandidateWorkflowStepModal({
       interviewState.key !== "completed" &&
       interviewState.key !== "rejected"
   );
-  const stepSideLabel = staffAction?.allowed ? "Recruiter step" : "Candidate step";
+  const ownership = workflowStepOwnershipCopy({
+    kind: inspection?.kind,
+    staffCanAct: Boolean(staffAction?.allowed),
+  });
+  const stepSideLabel = ownership.badge;
+  const screeningApplicationId =
+    inspection?.step.stepType === RECRUITER_SCREENING_STEP_TYPE ? inspection.applicationId : null;
+  const formQuestions = useMemo(() => {
+    const questions = inspection?.form?.questions ?? [];
+    return screeningApplicationId
+      ? questions.filter((question) => formatAnswer(question.answer) !== "—")
+      : questions;
+  }, [inspection?.form?.questions, screeningApplicationId]);
   const canEmailCandidate = Boolean(
     workerId &&
       inspection &&
@@ -551,11 +566,7 @@ export default function CandidateWorkflowStepModal({
                 </span>
               ) : null}
               {inspection ? (
-                <p className="mt-2 text-xs text-slate-600">
-                  {staffAction?.allowed
-                    ? "Complete it here to unlock the candidate's next step."
-                    : "Read-only submission from the candidate."}
-                </p>
+                <p className="mt-2 text-xs text-slate-600">{ownership.note}</p>
               ) : null}
             </div>
 
@@ -704,7 +715,7 @@ export default function CandidateWorkflowStepModal({
                       value={inspection.step.required ? "Required" : "Optional"}
                     />
                     <Meta label="Completed by" value={inspection.completedBy} />
-                    <Meta label="Step for" value={stepSideLabel} />
+                    <Meta label="Step for" value={ownership.stepFor} />
                     <Meta label="Workflow" value={inspection.workflowName} />
                     <Meta label="Workflow version" value={inspection.workflowVersion} />
                     {inspection.reviewable ? (
@@ -824,10 +835,17 @@ export default function CandidateWorkflowStepModal({
                   </Section>
                 ) : null}
 
-                {inspection.form?.questions.length ? (
-                  <Section title="Form responses" count={inspection.form.questions.length}>
+                {screeningApplicationId ? (
+                  <RecruiterScreeningAiSection
+                    key={screeningApplicationId}
+                    applicationId={screeningApplicationId}
+                  />
+                ) : null}
+
+                {formQuestions.length ? (
+                  <Section title="Form responses" count={formQuestions.length}>
                     <ul className="space-y-3">
-                      {inspection.form.questions.map((question, index) => (
+                      {formQuestions.map((question, index) => (
                         <li
                           key={`${question.label}-${index}`}
                           className="rounded-lg border border-slate-200 px-3 py-2"
