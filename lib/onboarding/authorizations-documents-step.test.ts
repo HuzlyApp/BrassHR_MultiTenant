@@ -100,6 +100,27 @@ describe("authorizations-documents-step", () => {
     expect(resolved?.metadata?.firma_inherited_from_step_key).toBe("agreement_signature");
   });
 
+  it("does not borrow the template of an enabled agreement step that signs on its own screen", async () => {
+    const { resolveAuthorizationStepWithFirma } = await import(
+      "@/lib/onboarding/authorizations-documents-step"
+    );
+    const background = step({
+      step_key: "custom_question",
+      step_type: "custom_question",
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const agreement = step({
+      step_key: "authorizations_2",
+      step_type: "authorizations",
+      metadata: {
+        workflow_step_id: "employee-agreement",
+        workflow_settings: { ...DEFAULT_STEP_SETTINGS, firmaRecruiterTemplateId: "tmpl-w2" },
+      },
+    });
+    const resolved = resolveAuthorizationStepWithFirma(background, [background, agreement]);
+    expect(shouldShowFirmaAgreementPanel(resolved)).toBe(false);
+  });
+
   it("only shows Firma UI when the active step has a recruiter template", () => {
     const agreement = zipstaffAuthorizationsConfig().steps.find(
       (s) => s.step_key === "agreement_signature"
@@ -269,7 +290,7 @@ describe("authorizations-documents-step", () => {
     const config = zipstaffAuthorizationsConfig();
     const background = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const next = adjacentStepRoute(config, background, 1, "zipstaff");
-    expect(next).toContain("authorizations-documents");
+    expect(next).toContain("agreement-signature");
     expect(next).toContain("stepKey=agreement_signature");
   });
 });

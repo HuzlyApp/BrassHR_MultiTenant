@@ -3,6 +3,7 @@ import {
   workflowStepIdFromMetadata,
   getFirmaRecruiterTemplateId,
 } from "@/lib/onboarding/firma-step-settings";
+import { signsOnOwnScreen } from "@/lib/onboarding/agreement-signature-step";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export function isBackgroundCheckAuthorizationStep(
@@ -64,17 +65,18 @@ export function resolveAuthorizationStepWithFirma(
   if (getFirmaRecruiterTemplateId(activeStep)) return activeStep;
   if (!isBackgroundCheckAuthorizationStep(activeStep)) return activeStep;
 
+  const candidates = (allSteps ?? []).filter((step) => !signsOnOwnScreen(step));
   const donor =
-    (allSteps ?? []).find(
+    candidates.find(
       (step) =>
         step.step_key === "agreement_signature" && Boolean(getFirmaRecruiterTemplateId(step))
     ) ??
-    (allSteps ?? []).find(
+    candidates.find(
       (step) =>
         workflowStepIdFromMetadata(step.metadata) === "employee-agreement" &&
         Boolean(getFirmaRecruiterTemplateId(step))
     ) ??
-    (allSteps ?? []).find(
+    candidates.find(
       (step) =>
         step.id !== activeStep.id &&
         Boolean(getFirmaRecruiterTemplateId(step)) &&

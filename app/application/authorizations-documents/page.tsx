@@ -35,6 +35,8 @@ import {
   stepRequiresIdentityDocuments,
   workflowHasIdentityVerificationStep,
 } from "@/lib/onboarding/authorizations-documents-step"
+import { isAgreementSignatureStep } from "@/lib/onboarding/agreement-signature-step"
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
 import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
 import { useApplicantSigningEmail } from "@/lib/onboarding/use-applicant-signing-email"
 import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
@@ -127,8 +129,14 @@ export default function DocumentsPage() {
     tenantSlug: nav.slug,
   })
 
+  const agreementStep = isAgreementSignatureStep(nav.currentStep) ? nav.currentStep : null
+
+  useEffect(() => {
+    if (agreementStep) router.replace(routeForApplicantStep(agreementStep, nav.slug))
+  }, [agreementStep, nav.slug, router])
+
   useMarkStepInProgressIfPending({
-    step: activeStep,
+    step: agreementStep ? null : activeStep,
     disabled: !mounted,
     updateStepStatus: onboarding?.updateStepStatus,
   })
@@ -457,7 +465,7 @@ export default function DocumentsPage() {
     )
   }
 
-  if (!mounted) return null
+  if (!mounted || agreementStep) return null
 
   return (
     <OnboardingLayout

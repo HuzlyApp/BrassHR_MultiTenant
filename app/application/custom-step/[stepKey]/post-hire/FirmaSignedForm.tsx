@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel";
+import type { StepSettings } from "@/app/components/workflow-builder/types";
+import { readFirmaTemplateSettings } from "@/lib/onboarding/firma-step-settings";
 import type { PostHireSubmissionField } from "@/lib/onboarding/post-hire-step-screens";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 import { ActionRow, CheckboxRow, Section, type ActionRowProps } from "./fields";
@@ -30,6 +32,9 @@ export default function FirmaSignedForm({
   const [signed, setSigned] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const templateName = readFirmaTemplateSettings(
+    step.metadata?.workflow_settings as Partial<StepSettings> | undefined
+  ).recruiterTemplateName;
   const handleSignedChange = useCallback((value: boolean) => {
     setSigned(value);
     if (value) setAgreed(true);
@@ -74,6 +79,7 @@ export default function FirmaSignedForm({
           signerEmailLoading={signerEmailLoading}
           agreed={agreed}
           onSignedChange={handleSignedChange}
+          documentTitle={templateName ?? step.title}
         />
       </div>
       {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}

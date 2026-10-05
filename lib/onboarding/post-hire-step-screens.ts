@@ -55,6 +55,8 @@ export const POST_HIRE_SCREEN_SUBTITLE: Readonly<Record<PostHireScreenKind, stri
 };
 
 const DEFAULT_ACKNOWLEDGMENT_BY_STEP_ID: Readonly<Record<string, string>> = {
+  "employee-agreement":
+    "I have reviewed the agreement and consent to sign it electronically.",
   "welcome-packet-esign":
     "I have received and reviewed the welcome packet and agree to the terms it describes.",
   "policy-acknowledgment":

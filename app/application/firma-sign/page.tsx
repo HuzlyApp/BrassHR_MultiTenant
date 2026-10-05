@@ -155,7 +155,10 @@ export default function FirmaSignPage() {
     if (nav.configLoading || !matchedStep) return;
     const target = routeForApplicantStep(matchedStep, nav.slug);
     const targetPath = target.split("?")[0];
-    if (targetPath.includes(APPLICATION_ROUTES.authorizationsDocuments)) {
+    if (
+      targetPath.includes(APPLICATION_ROUTES.authorizationsDocuments) ||
+      targetPath.includes(APPLICATION_ROUTES.agreementSignature)
+    ) {
       router.replace(target);
     }
   }, [matchedStep, nav.configLoading, nav.slug, router]);
