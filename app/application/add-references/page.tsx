@@ -18,6 +18,7 @@ import { resolveLegacyAddReferencesTarget } from "@/lib/onboarding/legacy-add-re
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
+import { supabaseBrowser } from "@/lib/supabase-browser"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name"
 import {
@@ -68,6 +69,26 @@ function loadRefsFromStorage(): RefRow[] {
     /* ignore */
   }
   return [emptyReferenceRow()]
+}
+
+/** References already saved for the signed-in applicant, e.g. when they return on another device. */
+async function loadSavedReferences(): Promise<RefRow[]> {
+  try {
+    const tenantSlug = resolveClientOnboardingTenantSlug(window.location.search)
+    if (!tenantSlug) return []
+    const { data } = await supabaseBrowser.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) return []
+    const res = await fetch(
+      `/api/onboarding/worker-references?tenant=${encodeURIComponent(tenantSlug)}`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    )
+    if (!res.ok) return []
+    const json = (await res.json().catch(() => ({}))) as { references?: RefRow[] }
+    return Array.isArray(json.references) ? json.references : []
+  } catch {
+    return []
+  }
 }
 
 export default function ReferencesPage() {
@@ -121,6 +142,24 @@ export default function ReferencesPage() {
   useEffect(() => {
     if (nav.configLoading || isOnboardingDraftPreview(search)) return
     void ensureApplicantWorker()
+  }, [nav.configLoading, search])
+
+  useEffect(() => {
+    if (nav.configLoading || isOnboardingDraftPreview(search)) return
+    let cancelled = false
+    void (async () => {
+      const saved = await loadSavedReferences()
+      if (cancelled || !saved.length) return
+      setRefs((current) => {
+        const blank = current.every((row) =>
+          Object.values(row).every((value) => !String(value ?? "").trim()),
+        )
+        return blank ? saved.slice(0, 5).map((row) => ({ ...emptyReferenceRow(), ...row })) : current
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [nav.configLoading, search])
 
   useEffect(() => {

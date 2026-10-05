@@ -13,10 +13,71 @@ import {
 } from "@/lib/referencesValidation"
 import { markTenantStepCompletedByType } from "@/lib/onboarding/mark-tenant-step-completed"
 import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name"
+import { findApplicantByUserId } from "@/lib/applicant-portal"
 
 export const runtime = "nodejs"
 
 type ReferenceInput = Partial<ReferenceRow>
+
+function bearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization")?.trim() ?? ""
+  if (!header.toLowerCase().startsWith("bearer ")) return null
+  const token = header.slice(7).trim()
+  return token || null
+}
+
+/** The signed-in applicant's saved references, so the form can show what they already submitted. */
+export async function GET(req: NextRequest) {
+  try {
+    const token = bearerToken(req)
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const url = getSupabaseUrl()
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 })
+    const supabase = createClient(url, key)
+
+    const { data: auth, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !auth.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const tenantSlug = req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() || ""
+    if (!tenantSlug) return NextResponse.json({ error: "Missing tenant" }, { status: 400 })
+    const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug)
+    if (!tenantRes.ok) return NextResponse.json({ error: tenantRes.error }, { status: 404 })
+
+    const worker = await findApplicantByUserId(supabase, auth.user.id, tenantRes.tenantId)
+    if (!worker?.id) return NextResponse.json({ references: [] })
+
+    const { data, error } = await supabase
+      .from("worker_references")
+      .select(
+        "reference_first_name, reference_last_name, reference_phone, reference_email, relationship, company, job_title, years_known, notes, created_at"
+      )
+      .eq("tenant_id", tenantRes.tenantId)
+      .eq("worker_id", worker.id)
+      .order("created_at", { ascending: true })
+    if (error) throw error
+
+    const references: ReferenceRow[] = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      first: String(row.reference_first_name ?? ""),
+      last: String(row.reference_last_name ?? ""),
+      phone: String(row.reference_phone ?? ""),
+      email: String(row.reference_email ?? ""),
+      relationship: String(row.relationship ?? ""),
+      company: String(row.company ?? ""),
+      jobTitle: String(row.job_title ?? ""),
+      yearsKnown: row.years_known == null ? "" : String(row.years_known),
+      notes: String(row.notes ?? ""),
+    }))
+    return NextResponse.json({ references })
+  } catch (err: unknown) {
+    console.error("[onboarding/worker-references] GET", err)
+    const msg = err instanceof Error ? err.message : "Unexpected error"
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {

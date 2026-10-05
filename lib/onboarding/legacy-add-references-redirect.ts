@@ -19,7 +19,7 @@ export function mergeOnboardingQuery(basePath: string, currentSearch: string): s
   const [path, existingQuery] = basePath.split("?");
   const merged = new URLSearchParams(existingQuery ?? "");
 
-  for (const key of ["preview", "mode", "applicationId", "tenant"]) {
+  for (const key of ["preview", "mode", "applicationId", "job_token", "tenant"]) {
     const value = current.get(key);
     if (value && !merged.has(key)) merged.set(key, value);
   }
