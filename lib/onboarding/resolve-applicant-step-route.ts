@@ -1,5 +1,6 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
+import { postHireScreenKindForStep } from "@/lib/onboarding/post-hire-step-screens";
 import type { OnboardingStepType, TenantOnboardingStep } from "@/lib/onboarding/types";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
@@ -76,6 +77,10 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
     return APPLICATION_ROUTES.applicationSummary;
   }
 
+  if (postHireScreenKindForStep(step)) {
+    return APPLICATION_ROUTES.customStep(step.step_key);
+  }
+
   const libraryId = workflowStepId(step);
   // Prefer dedicated library routes (e.g. background-check → Authorizations & Documents)
   // even when a Firma template is attached — Click and Sign lives on that screen.
@@ -104,6 +109,7 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
 }
 
 export function dedicatedRouteForWorkflowStep(step: TenantOnboardingStep): string | null {
+  if (postHireScreenKindForStep(step)) return null;
   const libraryId = workflowStepId(step);
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];

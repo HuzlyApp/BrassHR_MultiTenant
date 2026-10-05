@@ -9,6 +9,10 @@ import {
   type EnrollmentDecision,
 } from "@/lib/onboarding/enrollment-decision-step";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
+import {
+  postHireScreenKindForStepId,
+  readPostHireSubmission,
+} from "@/lib/onboarding/post-hire-step-screens";
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 import {
   ASSIGNED_STEP_RECORD_COLUMNS,
@@ -276,9 +280,12 @@ const CANDIDATE_SCREEN_BY_KIND: Partial<Record<WorkflowStepInspectionKind, strin
 /** Candidate-owned step with nothing submitted yet: who does it and where, since staff have no buttons. */
 export function candidateWaitingMessage(
   kind: WorkflowStepInspectionKind,
-  status: OnboardingStepStatus
+  status: OnboardingStepStatus,
+  screenTitle?: string | null
 ): string {
-  const where = CANDIDATE_SCREEN_BY_KIND[kind] ?? "completes it in the application portal";
+  const where = screenTitle
+    ? `completes it on the ${screenTitle} screen`
+    : CANDIDATE_SCREEN_BY_KIND[kind] ?? "completes it in the application portal";
   const progress =
     status === "in_progress"
       ? "The candidate has opened this step but hasn't finished it yet."
@@ -734,6 +741,21 @@ export async function loadCandidateWorkflowStepInspection(
     };
   }
 
+  const postHireSubmission = enrollment ? null : readPostHireSubmission(progressData);
+  if (postHireSubmission) {
+    const submittedAt = postHireSubmission.submittedAt ?? asText(progress?.completed_at);
+    form = {
+      questions: postHireSubmission.fields.map((field) => ({
+        label: field.label,
+        fieldType: "text",
+        answer: field.value,
+        submittedAt,
+        reviewResult: null,
+      })),
+    };
+  }
+  const hasPostHireScreen = phase === "post_hire" && postHireScreenKindForStepId(mapped.stepType) != null;
+
   let assessment: WorkflowStepInspection["assessment"] = null;
   if (kind === "assessment") {
     const [{ data: skillRows }, { data: answerRows }, catalog] = await Promise.all([
@@ -915,7 +937,8 @@ export async function loadCandidateWorkflowStepInspection(
     documents.length > 0 ||
     Boolean(offer?.decision) ||
     Boolean(agreement?.signedAt) ||
-    Boolean(enrollment?.decision);
+    Boolean(enrollment?.decision) ||
+    Boolean(postHireSubmission);
 
   let emptyState: string | null = null;
   if (enrollment) {
@@ -963,6 +986,8 @@ export async function loadCandidateWorkflowStepInspection(
     if (mapped.status === "pending" || mapped.status === "in_progress") {
       emptyState = `Waiting for ${staffAction.ownerLabel ?? "the internal team"} to complete this step. The candidate can't continue past it until then.`;
     }
+  } else if (postHireSubmission) {
+    emptyState = null;
   } else if (
     (kind === "upload" || kind === "resume") &&
     documents.length === 0 &&
@@ -980,7 +1005,7 @@ export async function loadCandidateWorkflowStepInspection(
     !candidateHasSubmitted &&
     (mapped.status === "pending" || mapped.status === "in_progress")
   ) {
-    emptyState = candidateWaitingMessage(kind, mapped.status);
+    emptyState = candidateWaitingMessage(kind, mapped.status, hasPostHireScreen ? mapped.title : null);
   } else if (!progress && documents.length === 0 && mapped.status === "pending") {
     emptyState = "No submission received for this step.";
   } else if (mapped.status === "completed" && documents.length === 0 && !form && !assessment && !agreement) {

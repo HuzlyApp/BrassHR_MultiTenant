@@ -15,6 +15,7 @@ import {
   WORKFLOW_PROVIDER_OPTIONS,
 } from "@/lib/onboarding/normalize-workflow-settings";
 import { isFirmaAttachableWorkflowStepId } from "@/lib/onboarding/firma-step-settings";
+import { postHireScreenKindForStepId } from "@/lib/onboarding/post-hire-step-screens";
 import { FirmaTemplateSelect } from "@/app/components/onboarding/FirmaTemplateSelect";
 import { resolveHireLibraryIconPath } from "./hire-library-icons";
 import { resolveCanvasStepThemeColor } from "./library-category-theme";
@@ -173,6 +174,8 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
     ? [...WORKFLOW_PROVIDER_OPTIONS]
     : (["Manual", "Third-party API"] as const);
   const showFirmaTemplatePicker = isFirmaAttachableWorkflowStepId(node.data.stepId);
+  const candidateScreenKind =
+    settings.phase === "post_hire" ? postHireScreenKindForStepId(node.data.stepId) : null;
   const stageName =
     typeof (settings as { stageName?: unknown }).stageName === "string"
       ? (settings as { stageName?: string }).stageName
@@ -238,8 +241,9 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
               E-Signature (Sign Document)
             </p>
             <p className="mb-3 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
-              Attach a published signature template so applicants see Sign Document on Authorizations
-              &amp; Documents.
+              {candidateScreenKind
+                ? "Attach a published signature template to have candidates sign it on this step's screen instead of the built-in form."
+                : "Attach a published signature template so applicants see Sign Document on Authorizations & Documents."}
             </p>
             <FirmaTemplateSelect
               value={settings.firmaRecruiterTemplateId ?? ""}
@@ -251,6 +255,56 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
                   firmaRecruiterTemplateName: name,
                 })
               }
+            />
+          </div>
+        ) : null}
+        {candidateScreenKind ? (
+          <div
+            className="flex flex-col gap-3 rounded-xl border p-3"
+            style={{ borderColor: CARD_BORDER }}
+            data-testid="candidate-screen-content-settings"
+          >
+            <div>
+              <p className="text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>
+                Candidate screen content
+              </p>
+              <p className="mt-1 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
+                Shown to the candidate on this step. Leave blank to use the defaults.
+              </p>
+            </div>
+            <TextAreaField
+              label="Instructions"
+              value={settings.applicantInstructions ?? ""}
+              onChange={(v) => patchSettings({ applicantInstructions: v }, { skipHistory: true })}
+              onCommit={(v) => patchSettings({ applicantInstructions: v })}
+            />
+            {candidateScreenKind === "training" || candidateScreenKind === "acknowledgment" ? (
+              <TextField
+                label="Video or training link (YouTube, Vimeo, Loom, MP4 or any URL)"
+                value={settings.contentUrl ?? ""}
+                onChange={(v) => patchSettings({ contentUrl: v }, { skipHistory: true })}
+                onCommit={(v) => patchSettings({ contentUrl: v.trim() })}
+              />
+            ) : null}
+            {candidateScreenKind === "training" || candidateScreenKind === "acknowledgment" ? (
+              <TextField
+                label="Document link (policy, handbook, packet)"
+                value={settings.documentUrl ?? ""}
+                onChange={(v) => patchSettings({ documentUrl: v }, { skipHistory: true })}
+                onCommit={(v) => patchSettings({ documentUrl: v.trim() })}
+              />
+            ) : null}
+            <TextAreaField
+              label={
+                candidateScreenKind === "training"
+                  ? "Completion statement"
+                  : candidateScreenKind === "direct_deposit"
+                    ? "Deposit authorization statement"
+                    : "Acknowledgment / attestation statement"
+              }
+              value={settings.acknowledgmentText ?? ""}
+              onChange={(v) => patchSettings({ acknowledgmentText: v }, { skipHistory: true })}
+              onCommit={(v) => patchSettings({ acknowledgmentText: v })}
             />
           </div>
         ) : null}
@@ -529,6 +583,37 @@ function TextField({
         onChange={(e) => onChange(e.target.value)}
         onBlur={(e) => onCommit?.(e.target.value)}
         className="h-10 w-full rounded-lg border bg-white px-3 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+        style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+      />
+    </div>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCommit?: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label
+        className="mb-1.5 block text-xs font-medium leading-4"
+        style={{ color: TEXT_SECONDARY }}
+      >
+        {label}
+      </label>
+      <textarea
+        rows={3}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onCommit?.(e.target.value)}
+        className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
         style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
       />
     </div>

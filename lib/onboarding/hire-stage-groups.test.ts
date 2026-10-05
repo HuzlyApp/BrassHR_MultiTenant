@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import {
   groupStepsIntoHireStages,
+  hireStageLabelForStep,
   hireStageProgressMeta,
   isInterviewScheduleStep,
   shouldShowInterviewScheduleAction,
@@ -328,5 +329,27 @@ describe("groupStepsIntoHireStages", () => {
       "pre_hire"
     );
     expect(groups[0]?.name).toBe("Screening");
+  });
+});
+
+describe("hireStageLabelForStep", () => {
+  it("returns the Post-Hire board bucket for candidate screens", () => {
+    expect(
+      hireStageLabelForStep({ stageName: "Paperwork", libraryId: "tax-forms", stepKey: "document_upload_7", lifecycle: "post_hire" })
+    ).toBe("Payroll & Tax");
+    expect(
+      hireStageLabelForStep({ stageName: null, libraryId: "safety-training", stepKey: "custom_question_4", lifecycle: "post_hire" })
+    ).toBe("Training & Policy");
+  });
+
+  it("ignores a stage name that belongs to the other phase", () => {
+    expect(
+      hireStageLabelForStep({
+        stageName: "Offer & Agreement",
+        libraryId: "direct-deposit-setup",
+        stepKey: "profile_information",
+        lifecycle: "post_hire",
+      })
+    ).not.toBe("Offer & Agreement");
   });
 });

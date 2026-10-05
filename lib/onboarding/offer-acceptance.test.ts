@@ -72,5 +72,6 @@ describe("offer acceptance", () => {
   it("tells staff where the candidate completes a candidate-owned step", () => {
     expect(candidateWaitingMessage("offer", "pending")).toContain("Offer Acceptance screen");
     expect(candidateWaitingMessage("agreement", "in_progress")).toMatch(/opened this step.*Authorizations & Documents/);
+    expect(candidateWaitingMessage("upload", "pending", "Tax Forms")).toContain("on the Tax Forms screen");
   });
 });

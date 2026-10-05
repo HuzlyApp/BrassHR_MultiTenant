@@ -263,6 +263,23 @@ function boardStageName(name: string | null, lifecycle: HireStageLifecycle): str
   return name;
 }
 
+/** Board stage for a published step, as shown to the candidate above the step title. */
+export function hireStageLabelForStep(input: {
+  stageName: unknown;
+  libraryId: string | null;
+  stepKey: string;
+  lifecycle: HireStageLifecycle;
+}): string | null {
+  const explicit = typeof input.stageName === "string" ? input.stageName.trim() : "";
+  return (
+    boardStageName(explicit || null, input.lifecycle) ??
+    boardStageName(
+      hireStageForStepKey(input.libraryId, input.lifecycle) ?? hireStageForStepKey(input.stepKey, input.lifecycle),
+      input.lifecycle
+    )
+  );
+}
+
 function resolveStageName(
   step: CandidateWorkflowStepView,
   lifecycle: HireStageLifecycle,

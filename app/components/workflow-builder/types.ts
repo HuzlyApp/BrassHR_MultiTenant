@@ -69,6 +69,11 @@ export type StepSettings = {
   conditionalLogic: string;
   firmaRecruiterTemplateId?: string;
   firmaRecruiterTemplateName?: string;
+  /** Candidate screen content for Post-Hire steps (see lib/onboarding/post-hire-step-screens.ts). */
+  applicantInstructions?: string;
+  contentUrl?: string;
+  documentUrl?: string;
+  acknowledgmentText?: string;
 };
 
 export type WorkflowNodeData = {

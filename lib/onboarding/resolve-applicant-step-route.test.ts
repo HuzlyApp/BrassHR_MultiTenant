@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { routeForApplicantStep, WORKFLOW_STEP_APPLICANT_ROUTE } from "@/lib/onboarding/resolve-applicant-step-route";
+import {
+  dedicatedRouteForWorkflowStep,
+  routeForApplicantStep,
+  WORKFLOW_STEP_APPLICANT_ROUTE,
+} from "@/lib/onboarding/resolve-applicant-step-route";
 import { resolveApplicantStepFromPath } from "@/lib/onboarding/find-applicant-step";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
@@ -69,6 +73,38 @@ describe("resolve-applicant-step-route", () => {
     expect(route).toContain("/application/authorizations-documents");
     expect(route).toContain("stepKey=authorizations");
     expect(route).toContain("tenant=acme");
+  });
+
+  it("routes Post-Hire candidate steps to their own screen, even with a Firma template", () => {
+    for (const [stepKey, stepType, libraryId] of [
+      ["authorizations_3", "authorizations", "policy-acknowledgment"],
+      ["document_upload_7", "document_upload", "tax-forms"],
+      ["document_upload_8", "document_upload", "i9-right-to-work-verification"],
+      ["profile_information", "profile_information", "direct-deposit-setup"],
+      ["custom_question_4", "custom_question", "safety-training"],
+    ] as const) {
+      const s = step({
+        step_key: stepKey,
+        step_type: stepType,
+        metadata: {
+          workflow_step_id: libraryId,
+          workflow_settings: { phase: "post_hire", firmaRecruiterTemplateId: "tmpl-1" },
+        },
+      });
+      expect(routeForApplicantStep(s)).toContain(`/application/custom-step/${stepKey}`);
+      expect(dedicatedRouteForWorkflowStep(s)).toBeNull();
+    }
+  });
+
+  it("keeps Pre-Hire copies of those library steps on their existing screens", () => {
+    const route = routeForApplicantStep(
+      step({
+        step_key: "authorizations_2",
+        step_type: "authorizations",
+        metadata: { workflow_step_id: "policy-acknowledgment", workflow_settings: { phase: "pre_hire" } },
+      })
+    );
+    expect(route).toContain("/application/authorizations-documents");
   });
 
   it("resolves current step from stepKey query param", () => {

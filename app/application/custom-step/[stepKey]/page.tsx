@@ -25,8 +25,15 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { resolveCustomStepContinue } from "@/lib/onboarding/custom-step-continue";
 import { isOfferAcceptanceStepType } from "@/lib/onboarding/offer-acceptance";
 import { isEnrollmentDecisionStep } from "@/lib/onboarding/enrollment-decision-step";
+import {
+  POST_HIRE_SCREEN_SUBTITLE,
+  postHireScreenKindForStep,
+} from "@/lib/onboarding/post-hire-step-screens";
+import { hireStageLabelForStep } from "@/lib/onboarding/hire-stage-groups";
+import { workflowStepIdFromMetadata } from "@/lib/onboarding/firma-step-settings";
 import EnrollmentDecisionStep from "./EnrollmentDecisionStep";
 import OfferAcceptanceStep from "./OfferAcceptanceStep";
+import PostHireStepScreen from "./post-hire/PostHireStepScreen";
 import {
   APPLICANT_ACTION_ROW,
   APPLICANT_BTN_BACK,
@@ -62,6 +69,17 @@ export default function CustomOnboardingStepPage() {
     typeof step?.metadata?.workflow_step_id === "string" &&
     isOfferAcceptanceStepType(step.metadata.workflow_step_id);
   const isEnrollmentStep = isEnrollmentDecisionStep(step);
+  const postHireKind = postHireScreenKindForStep(step);
+  const rawWorkflowSettings = step?.metadata?.workflow_settings as Record<string, unknown> | null | undefined;
+  const stageLabel =
+    step && postHireKind
+      ? hireStageLabelForStep({
+          stageName: rawWorkflowSettings?.stageName,
+          libraryId: workflowStepIdFromMetadata(step.metadata),
+          stepKey: step.step_key,
+          lifecycle: "post_hire",
+        })
+      : null;
 
   const isGenericCustom =
     step?.step_type === "custom_question" &&
@@ -71,7 +89,9 @@ export default function CustomOnboardingStepPage() {
       step.metadata.workflow_step_id === "custom-form");
 
   const shouldRedirectToDedicatedScreen = useMemo(() => {
-    if (!step || showCustomForm || isEnrollmentDecisionStep(step)) return false;
+    if (!step || showCustomForm || isEnrollmentDecisionStep(step) || postHireScreenKindForStep(step)) {
+      return false;
+    }
     if (step.step_type !== "custom_question") return true;
     const dedicated = dedicatedRouteForWorkflowStep(step);
     const customPath = APPLICATION_ROUTES.customStep(step.step_key).split("?")[0];
@@ -155,16 +175,35 @@ export default function CustomOnboardingStepPage() {
 
         <div className={APPLICANT_CONTENT_CLASS}>
           <div className={APPLICANT_HEADER_ROW}>
-            <h2 className={APPLICANT_TITLE_CLASS}>{pageTitle}</h2>
+            <div className="min-w-0">
+              {stageLabel ? (
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+                  {stageLabel}
+                </p>
+              ) : null}
+              <h2 className={APPLICANT_TITLE_CLASS}>{pageTitle}</h2>
+            </div>
           </div>
 
           {step?.description ? (
             <p className="text-sm text-slate-600">{step.description}</p>
           ) : isOfferStep ? (
             <p className="text-sm text-slate-600">Review your offer details and choose to accept or decline.</p>
+          ) : postHireKind ? (
+            <p className="text-sm text-slate-600">{POST_HIRE_SCREEN_SUBTITLE[postHireKind]}</p>
           ) : null}
 
-          {step && isOfferStep ? (
+          {step && postHireKind ? (
+            <PostHireStepScreen
+              key={step.id}
+              step={step}
+              kind={postHireKind}
+              tenantSlug={nav.slug || null}
+              updateStepStatus={nav.updateStepStatus}
+              onBack={() => nav.goPrev()}
+              onContinue={() => nav.goNext()}
+            />
+          ) : step && isOfferStep ? (
             <OfferAcceptanceStep
               step={step}
               tenantSlug={nav.slug || null}
