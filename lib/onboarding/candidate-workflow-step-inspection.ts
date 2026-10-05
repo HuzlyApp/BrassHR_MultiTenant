@@ -20,8 +20,11 @@ import {
   LEGACY_UNMATCHED_STEP_MESSAGE,
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
+  SSN_IDENTITY_STEP_TYPE,
   STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE,
   displayStatusLabel,
+  enrichAssignedStepsDisplayFromEvidence,
+  hasRequiredIdentityDocuments,
   isCompleteDisplayStatus,
   mapProgressToDisplayStatus,
   parseAssignedStepPhase,
@@ -432,7 +435,7 @@ export function storedFileName(stored: string): string {
 async function loadIdentityDocuments(
   supabase: SupabaseClient,
   params: { tenantId: string; workerId: string; uploadedBy: string }
-): Promise<InspectableDocument[]> {
+): Promise<{ documents: InspectableDocument[]; complete: boolean }> {
   const { data, error } = await supabase
     .from("worker_documents")
     .select("*")
@@ -440,10 +443,12 @@ async function loadIdentityDocuments(
     .limit(1);
   if (error) {
     console.error("[candidate-workflow-step-inspection] identity documents unavailable", error);
-    return [];
+    return { documents: [], complete: false };
   }
   const row = ((data ?? []) as Array<Record<string, unknown>>)[0];
-  if (!row || (asText(row.tenant_id) && asText(row.tenant_id) !== params.tenantId)) return [];
+  if (!row || (asText(row.tenant_id) && asText(row.tenant_id) !== params.tenantId)) {
+    return { documents: [], complete: false };
+  }
 
   const documents: InspectableDocument[] = [];
   for (const slot of IDENTITY_DOCUMENT_SLOTS) {
@@ -466,7 +471,7 @@ async function loadIdentityDocuments(
       reviewNotes: null,
     });
   }
-  return documents;
+  return { documents, complete: hasRequiredIdentityDocuments(row) };
 }
 
 export async function loadCandidateWorkflowStepInspection(
@@ -705,15 +710,18 @@ export async function loadCandidateWorkflowStepInspection(
     )[0].displayStatus;
   }
 
-  // Identity uploads have no review status of their own, so they don't drive the step status.
-  if (mapped.stepType === "ssn-identity-verification") {
-    documents.push(
-      ...(await loadIdentityDocuments(supabase, {
-        tenantId,
-        workerId,
-        uploadedBy: candidateUploaderLabel(candidateName),
-      }))
-    );
+  // Identity uploads have no review status of their own; they only lift an untouched step to Submitted.
+  if (mapped.stepType === SSN_IDENTITY_STEP_TYPE) {
+    const identity = await loadIdentityDocuments(supabase, {
+      tenantId,
+      workerId,
+      uploadedBy: candidateUploaderLabel(candidateName),
+    });
+    documents.push(...identity.documents);
+    mapped.displayStatus = enrichAssignedStepsDisplayFromEvidence({
+      steps: [mapped],
+      hasIdentityDocuments: identity.complete,
+    })[0].displayStatus;
   }
 
   let enrollment: WorkflowStepInspection["enrollment"] = null;

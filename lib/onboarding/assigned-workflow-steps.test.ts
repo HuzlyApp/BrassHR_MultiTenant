@@ -5,6 +5,7 @@ import {
   assignmentSourceLabel,
   buildPhaseAssignment,
   enrichAssignedStepsDisplayFromEvidence,
+  hasRequiredIdentityDocuments,
   mapAssignedStepRecords,
   mapProgressToDisplayStatus,
   matchTenantStepForAssignedRecord,
@@ -428,5 +429,61 @@ describe("assigned workflow steps", () => {
       hasResumeUpload: true,
     });
     expect(enriched[0]?.displayStatus).toBe("submitted");
+  });
+
+  function mapIdentityStep(progressStatus: string) {
+    return mapAssignedStepRecords({
+      records: [
+        {
+          id: "rec-ssn",
+          snapshot_step_id: "step-ssn",
+          title: "SSN / Identity Verification",
+          step_type: "ssn-identity-verification",
+          is_required: true,
+          position: 11,
+          phase: "pre_hire",
+          status: "pending",
+          settings: {},
+        },
+      ],
+      tenantSteps: [
+        tenantStep({
+          id: "tenant-ssn",
+          step_key: "document_upload",
+          title: "SSN / Identity Verification",
+          step_type: "document_upload",
+        }),
+      ],
+      progressByStepId: new Map([
+        ["tenant-ssn", { onboarding_step_id: "tenant-ssn", status: progressStatus }],
+      ]),
+    });
+  }
+
+  it("enriches the SSN step to Submitted when identity documents were collected by an earlier step", () => {
+    const mapped = mapIdentityStep("pending");
+    expect(mapped[0]?.displayStatus).toBe("not_started");
+    expect(
+      enrichAssignedStepsDisplayFromEvidence({ steps: mapped, hasIdentityDocuments: true })[0]
+        ?.displayStatus
+    ).toBe("submitted");
+    expect(
+      enrichAssignedStepsDisplayFromEvidence({ steps: mapped, hasIdentityDocuments: false })[0]
+        ?.displayStatus
+    ).toBe("not_started");
+  });
+
+  it("never downgrades a completed SSN step to Submitted", () => {
+    const mapped = mapIdentityStep("completed");
+    expect(
+      enrichAssignedStepsDisplayFromEvidence({ steps: mapped, hasIdentityDocuments: true })[0]
+        ?.displayStatus
+    ).toBe("completed");
+  });
+
+  it("requires both SSN card and driver's license fronts", () => {
+    expect(hasRequiredIdentityDocuments({ ssn_url: "ssn/a.png", drivers_license_url: "license/b.png" })).toBe(true);
+    expect(hasRequiredIdentityDocuments({ ssn_url: "ssn/a.png", drivers_license_url: null })).toBe(false);
+    expect(hasRequiredIdentityDocuments(null)).toBe(false);
   });
 });

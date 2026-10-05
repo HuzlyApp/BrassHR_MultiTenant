@@ -92,9 +92,13 @@ export function resolveApplicantStepFromPath(
     }
   }
 
-  for (const step of steps) {
-    const route = routeForApplicantStep(step);
-    const routePath = route.split("?")[0];
+  const routePaths = steps.map((step) => routeForApplicantStep(step).split("?")[0]);
+  // A step's own screen (e.g. SSN / Identity Verification) wins over a step that only borrows it.
+  const exactIndex = routePaths.findIndex((routePath) => p === routePath);
+  if (exactIndex >= 0) return steps[exactIndex];
+
+  for (const [index, step] of steps.entries()) {
+    const routePath = routePaths[index];
     if (p.startsWith(routePath) || p.includes(routePath)) return step;
 
     // Published background-check steps often use step_key "custom_question" but still

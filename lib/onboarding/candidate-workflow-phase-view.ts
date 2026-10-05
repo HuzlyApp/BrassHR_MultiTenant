@@ -18,6 +18,7 @@ import {
   buildPhaseAssignment,
   countsFromAssignedSteps,
   enrichAssignedStepsDisplayFromEvidence,
+  hasRequiredIdentityDocuments,
   mapAssignedStepRecords,
   resolveAssignmentSource,
   sanitizeTagsForClient,
@@ -120,8 +121,16 @@ export async function loadCandidateWorkflowPhaseView(
 
   await carryOverReplacedStepProgressSafely(supabase, { tenantId, workerId });
 
-  const [applicationsRes, instancesRes, workerRes, config, progressRes, mappingsRes, resumeRes] =
-    await Promise.all([
+  const [
+    applicationsRes,
+    instancesRes,
+    workerRes,
+    config,
+    progressRes,
+    mappingsRes,
+    resumeRes,
+    identityDocsRes,
+  ] = await Promise.all([
     supabase
       .from("job_applications")
       .select(
@@ -159,6 +168,7 @@ export async function loadCandidateWorkflowPhaseView(
       .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })
       .limit(1),
+    supabase.from("worker_documents").select("*").eq("worker_id", workerId).limit(1),
   ]);
 
   if (applicationsRes.error && !/hired_at|post_hire_suspended_at|does not exist/i.test(applicationsRes.error.message)) {
@@ -264,10 +274,15 @@ export async function loadCandidateWorkflowPhaseView(
     if (!documentStatusByStepKey.has(key)) documentStatusByStepKey.set(key, status);
   }
 
+  const identityDocsRow = ((identityDocsRes.data ?? []) as Array<Record<string, unknown>>)[0] ?? null;
+  const identityDocsTenant = asText(identityDocsRow?.tenant_id);
   mappedSteps = enrichAssignedStepsDisplayFromEvidence({
     steps: mappedSteps,
     documentStatusByStepKey,
     hasResumeUpload,
+    hasIdentityDocuments:
+      (!identityDocsTenant || identityDocsTenant === tenantId) &&
+      hasRequiredIdentityDocuments(identityDocsRow),
   });
   if (mappedSteps.some((step) => step.stepType === RECRUITER_SCREENING_STEP_TYPE)) {
     mappedSteps = applyQuickMatchScreeningProgress(

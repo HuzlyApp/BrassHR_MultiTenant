@@ -24,7 +24,7 @@ import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-o
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
-import { currentApplicationJobToken } from "@/lib/tenant/with-tenant";
+import { currentApplicationJobToken, rememberApplicationJobToken } from "@/lib/tenant/with-tenant";
 import type { ApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 
 export type OnboardingConfigSource =
@@ -114,6 +114,7 @@ type ConfigPayload = {
   detail?: string;
   code?: string;
   source?: string;
+  jobToken?: string | null;
   workflowPhase?: ApplicantLifecyclePhase;
   applicationId?: string | null;
   postHireActivatedAt?: string | null;
@@ -131,11 +132,16 @@ export default function OnboardingConfigProvider({ children }: { children: React
   const isDraftPreview =
     searchParams.get("preview") === "draft" ||
     searchParams.get("mode")?.trim().toLowerCase() === "test";
+  const [recoveredJobToken, setRecoveredJobToken] = useState<string | null>(null);
   /** Test workflow / draft preview is never a live job application. */
   const resolvedJobToken =
     isDraftPreview || isDirectOnboardingEntry
       ? null
-      : jobTokenFromUrl || currentApplicationJobToken();
+      : jobTokenFromUrl || currentApplicationJobToken() || recoveredJobToken;
+
+  useEffect(() => {
+    if (!isDraftPreview && jobTokenFromUrl) rememberApplicationJobToken(jobTokenFromUrl);
+  }, [isDraftPreview, jobTokenFromUrl]);
   const { sessionReady, sessionLoading } = useApplicantSession();
 
   const [config, setConfig] = useState<TenantOnboardingConfig | null>(null);
@@ -238,6 +244,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
       if (jobToken) configQuery.set("job_token", jobToken);
       if (aid) configQuery.set("applicantId", aid);
       if (applicationIdFromUrl) configQuery.set("applicationId", applicationIdFromUrl);
+      if (!jobToken && aid && !isDirectOnboardingEntry) configQuery.set("infer_application", "1");
 
       const configRes = await safeFetchJson<ConfigPayload>(
         `/api/onboarding/config?${configQuery}`,
@@ -259,6 +266,11 @@ export default function OnboardingConfigProvider({ children }: { children: React
       }
 
       if (configRes.data.config) {
+        const recovered = normalizeJobToken(configRes.data.jobToken ?? null);
+        if (!jobToken && recovered && configRes.data.source === "job-workflow") {
+          rememberApplicationJobToken(recovered);
+          setRecoveredJobToken(recovered);
+        }
         setConfig(applyApplicantConfigFilters(configRes.data.config));
         setWorkflowPhase(configRes.data.workflowPhase ?? "pre_hire");
         setApplicationId(configRes.data.applicationId ?? (applicationIdFromUrl || null));
@@ -279,7 +291,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setLoadingConfig(false);
       }
     }
-  }, [isDraftPreview, resolvedJobToken, applicationIdFromUrl]);
+  }, [isDraftPreview, isDirectOnboardingEntry, resolvedJobToken, applicationIdFromUrl]);
 
   const refreshProgressOnly = useCallback(async () => {
     const aid = readApplicantId();

@@ -191,6 +191,18 @@ export function isResumeLikeAssignedStep(step: {
   return /resume/.test(hay) || hay.includes("basic profile");
 }
 
+export const SSN_IDENTITY_STEP_TYPE = "ssn-identity-verification";
+
+/**
+ * SSN / ID files live on the shared `worker_documents` row, so an earlier step (e.g. a background
+ * check authorization) can collect them; the fronts of both are what the identity step requires.
+ */
+export function hasRequiredIdentityDocuments(
+  row: Record<string, unknown> | null | undefined
+): boolean {
+  return Boolean(String(row?.ssn_url ?? "").trim() && String(row?.drivers_license_url ?? "").trim());
+}
+
 /**
  * Align list-card displayStatus with the step drawer: uploaded docs / resumes
  * should show Submitted (etc.) even when worker_onboarding_step_progress is still pending.
@@ -199,6 +211,7 @@ export function enrichAssignedStepsDisplayFromEvidence(params: {
   steps: MappedAssignedStep[];
   documentStatusByStepKey?: Map<string, string | null | undefined>;
   hasResumeUpload?: boolean;
+  hasIdentityDocuments?: boolean;
 }): MappedAssignedStep[] {
   const byKey = params.documentStatusByStepKey ?? new Map();
   return params.steps.map((step) => {
@@ -209,6 +222,15 @@ export function enrichAssignedStepsDisplayFromEvidence(params: {
       null;
 
     if (!docStatus && params.hasResumeUpload && isResumeLikeAssignedStep(step)) {
+      docStatus = "uploaded";
+    }
+
+    if (
+      !docStatus &&
+      params.hasIdentityDocuments &&
+      step.stepType === SSN_IDENTITY_STEP_TYPE &&
+      (step.displayStatus === "not_started" || step.displayStatus === "in_progress")
+    ) {
       docStatus = "uploaded";
     }
 

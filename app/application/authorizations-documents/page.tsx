@@ -33,6 +33,7 @@ import {
   shouldShowFirmaAgreementPanel,
   stepRequiresApplicantAgreement,
   stepRequiresIdentityDocuments,
+  workflowHasIdentityVerificationStep,
 } from "@/lib/onboarding/authorizations-documents-step"
 import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
 import { useApplicantSigningEmail } from "@/lib/onboarding/use-applicant-signing-email"
@@ -112,7 +113,10 @@ export default function DocumentsPage() {
 
   const requiresFirmaSigning = shouldShowFirmaAgreementPanel(firmaStep)
   const requiresAgreement = stepRequiresApplicantAgreement(activeStep)
-  const requiresIdentityDocs = stepRequiresIdentityDocuments(activeStep)
+  const workflowSteps = nav.enabledSteps ?? onboarding?.config?.steps ?? null
+  const showIdentitySection = !workflowHasIdentityVerificationStep(workflowSteps)
+  const requiresIdentityDocs = stepRequiresIdentityDocuments(activeStep, workflowSteps)
+  const pageTitle = activeStep?.title?.trim() || "Authorizations & Documents"
   const identityUploadHref = useMemo(
     () => identityVerificationPath(nav.slug, activeStep?.step_key),
     [nav.slug, activeStep?.step_key]
@@ -193,6 +197,7 @@ export default function DocumentsPage() {
     agreed,
     agreementSigned,
     identityDocsComplete,
+    allSteps: workflowSteps,
   })
 
   useEffect(() => {
@@ -346,26 +351,28 @@ export default function DocumentsPage() {
     setError(null)
 
     try {
-      const ssn_url = resolveStoragePublicUrl(identityPaths.ssnFront, publicUrl)
-      const drivers_license_url = resolveStoragePublicUrl(identityPaths.dlFront, publicUrl)
-      const ssn_back_url = null
-      const drivers_license_back_url = null
+      if (showIdentitySection) {
+        const ssn_url = resolveStoragePublicUrl(identityPaths.ssnFront, publicUrl)
+        const drivers_license_url = resolveStoragePublicUrl(identityPaths.dlFront, publicUrl)
+        const ssn_back_url = null
+        const drivers_license_back_url = null
 
-      const docRes = await fetch("/api/onboarding/worker-documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicantId,
-          ...(nav.slug ? { tenant: nav.slug } : {}),
-          ssn_url,
-          ssn_back_url,
-          drivers_license_url,
-          drivers_license_back_url,
-        }),
-      })
-      const docJson = (await docRes.json()) as { error?: string }
-      if (!docRes.ok) {
-        throw new Error(docJson.error || "Could not save worker documents")
+        const docRes = await fetch("/api/onboarding/worker-documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantId,
+            ...(nav.slug ? { tenant: nav.slug } : {}),
+            ssn_url,
+            ssn_back_url,
+            drivers_license_url,
+            drivers_license_back_url,
+          }),
+        })
+        const docJson = (await docRes.json()) as { error?: string }
+        if (!docRes.ok) {
+          throw new Error(docJson.error || "Could not save worker documents")
+        }
       }
 
       const stepKey = activeStep?.step_key
@@ -463,7 +470,7 @@ export default function DocumentsPage() {
 
         <div className={APPLICANT_CONTENT_CLASS}>
           <div className={APPLICANT_HEADER_ROW}>
-            <h1 className={APPLICANT_TITLE_LARGE_CLASS}>Authorizations &amp; Documents</h1>
+            <h1 className={APPLICANT_TITLE_LARGE_CLASS}>{pageTitle}</h1>
             <div className={APPLICANT_SKIP_COLUMN}>
               <AutosaveStatus
                 state={
@@ -514,6 +521,7 @@ export default function DocumentsPage() {
             onSignedChange={setAgreementSigned}
           />
 
+          {showIdentitySection ? (
           <div className="mb-6 sm:mb-8">
             <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
               <p className="min-w-0 text-[14px] font-semibold text-slate-900 sm:text-[15px]">Add Documents</p>
@@ -547,6 +555,7 @@ export default function DocumentsPage() {
 
             <p className="text-[11px] text-slate-500 mt-4">Only PNG, JPG, or PDF • Max 10 MB per file</p>
           </div>
+          ) : null}
 
           {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
 

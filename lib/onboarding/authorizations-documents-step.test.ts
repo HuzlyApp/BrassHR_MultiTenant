@@ -5,7 +5,9 @@ import {
   shouldShowFirmaAgreementPanel,
   stepRequiresApplicantAgreement,
   stepRequiresIdentityDocuments,
+  workflowHasIdentityVerificationStep,
 } from "@/lib/onboarding/authorizations-documents-step";
+import { resolveApplicantStepFromPath } from "@/lib/onboarding/find-applicant-step";
 import { DEFAULT_STEP_SETTINGS } from "@/app/components/workflow-builder/types";
 import { isOnboardingStepSkippable } from "@/lib/onboarding/is-step-skippable";
 import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation";
@@ -162,6 +164,54 @@ describe("authorizations-documents-step", () => {
         identityDocsComplete: false,
       })
     ).toBe(true);
+  });
+
+  it("leaves identity documents to the SSN / Identity step when the workflow has one", () => {
+    const background = step({
+      step_key: "custom_question",
+      step_type: "custom_question",
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const identity = step({
+      step_key: "document_upload",
+      step_type: "document_upload",
+      metadata: { workflow_step_id: "ssn-identity-verification" },
+    });
+    const allSteps = [background, identity];
+    expect(workflowHasIdentityVerificationStep(allSteps)).toBe(true);
+    expect(stepRequiresIdentityDocuments(background, allSteps)).toBe(false);
+    expect(
+      isAuthorizationsSaveBlocked({
+        step: background,
+        agreed: true,
+        agreementSigned: true,
+        identityDocsComplete: false,
+        allSteps,
+      })
+    ).toBe(false);
+    expect(stepRequiresIdentityDocuments(background, [background])).toBe(true);
+  });
+
+  it("resolves the identity screen to the SSN step, not the background check that links to it", () => {
+    const background = step({
+      step_key: "custom_question",
+      step_type: "custom_question",
+      sort_order: 10,
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const identity = step({
+      step_key: "document_upload",
+      step_type: "document_upload",
+      sort_order: 20,
+      metadata: { workflow_step_id: "ssn-identity-verification" },
+    });
+    expect(
+      resolveApplicantStepFromPath("/application/identity-verification", "", [background, identity])
+        ?.step_key
+    ).toBe("document_upload");
+    expect(
+      resolveApplicantStepFromPath("/application/identity-verification", "", [background])?.step_key
+    ).toBe("custom_question");
   });
 
   it("does not require agreement checkbox or documents when the step is optional", () => {

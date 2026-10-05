@@ -78,10 +78,10 @@ async function loadSavedReferences(): Promise<RefRow[]> {
     if (!tenantSlug) return []
     const { data } = await supabaseBrowser.auth.getSession()
     const token = data.session?.access_token
-    if (!token) return []
+    // Without a session, the continuation-link cookie identifies the applicant.
     const res = await fetch(
       `/api/onboarding/worker-references?tenant=${encodeURIComponent(tenantSlug)}`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+      { headers: token ? { Authorization: `Bearer ${token}` } : undefined, cache: "no-store" },
     )
     if (!res.ok) return []
     const json = (await res.json().catch(() => ({}))) as { references?: RefRow[] }
