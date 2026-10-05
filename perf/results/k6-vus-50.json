@@ -1,0 +1,549 @@
+{
+  "root_group": {
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": [],
+    "checks": [
+        {
+          "id": "ac326676120d6eb9324e57c701a6fb8b",
+          "passes": 50,
+          "fails": 0,
+          "name": "candidates_page status 200",
+          "path": "::candidates_page status 200"
+        },
+        {
+          "name": "workers_page1 status 200",
+          "path": "::workers_page1 status 200",
+          "id": "a47a4d906bda3d67d5827970b087bb70",
+          "passes": 50,
+          "fails": 0
+        },
+        {
+          "name": "workers_page2 status 200",
+          "path": "::workers_page2 status 200",
+          "id": "f600fa9cc2559068d6ffd14249e5e2c1",
+          "passes": 50,
+          "fails": 0
+        },
+        {
+          "fails": 0,
+          "name": "workers_filter status 200",
+          "path": "::workers_filter status 200",
+          "id": "29271267fee7ac55ca82f88675d15eb2",
+          "passes": 50
+        },
+        {
+          "name": "workers_search_smith status 200",
+          "path": "::workers_search_smith status 200",
+          "id": "96da5b0ec36467254074b40a1eb36014",
+          "passes": 50,
+          "fails": 0
+        },
+        {
+          "name": "workers_search_rare status 200",
+          "path": "::workers_search_rare status 200",
+          "id": "dbb4d0124970ce0faaf92482f93053f6",
+          "passes": 50,
+          "fails": 0
+        },
+        {
+          "name": "workers_metrics status 200",
+          "path": "::workers_metrics status 200",
+          "id": "c4240b18ffc7464e5e75caab70bf66b0",
+          "passes": 50,
+          "fails": 0
+        },
+        {
+          "name": "admin_jobs_picker status 200",
+          "path": "::admin_jobs_picker status 200",
+          "id": "9542e680bc7cd792468ea06273156a64",
+          "passes": 0,
+          "fails": 50
+        }
+      ],
+    "name": ""
+  },
+  "options": {
+    "summaryTrendStats": [
+      "avg",
+      "min",
+      "med",
+      "max",
+      "p(90)",
+      "p(95)",
+      "p(99)"
+    ],
+    "summaryTimeUnit": "",
+    "noColor": true
+  },
+  "state": {
+    "isStdOutTTY": false,
+    "isStdErrTTY": false,
+    "testRunDurationMs": 90619.0094
+  },
+  "metrics": {
+    "bytes_workers_search_rare": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 25285.54,
+        "min": 25282,
+        "med": 25285,
+        "max": 25289,
+        "p(90)": 25287,
+        "p(95)": 25288,
+        "p(99)": 25289
+      }
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 1.5031,
+        "p(99)": 1.5031,
+        "avg": 0.11690777777777793,
+        "min": 0,
+        "med": 0,
+        "max": 1.5031,
+        "p(90)": 0.05048000000001148
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 9917.055146888903,
+        "min": 16.5771,
+        "med": 3437.93795,
+        "max": 68326.33,
+        "p(90)": 53807.65675000001,
+        "p(95)": 55666.95289,
+        "p(99)": 67089.995459
+      }
+    },
+    "dur_workers_search_smith": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 7939.963655,
+        "avg": 6070.4053859999985,
+        "min": 4168.7444,
+        "med": 5955.1411499999995,
+        "max": 7954.3993,
+        "p(90)": 7252.6680000000015,
+        "p(95)": 7750.75948
+      }
+    },
+    "checks": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "fails": 50,
+        "rate": 0.875,
+        "passes": 350
+      }
+    },
+    "timing_workers_filter": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 885.4,
+        "min": 449,
+        "med": 839,
+        "max": 1874,
+        "p(90)": 1403.9,
+        "p(95)": 1592.0499999999997,
+        "p(99)": 1751.9899999999996
+      }
+    },
+    "bytes_workers_search_smith": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 29079.32,
+        "min": 29060,
+        "med": 29093,
+        "max": 29097,
+        "p(90)": 29095.1,
+        "p(95)": 29096,
+        "p(99)": 29097
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "passes": 50,
+        "fails": 400,
+        "rate": 0.1111111111111111
+      },
+      "thresholds": {
+        "rate<1": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 13.046419777777778,
+        "min": 0,
+        "med": 0.5077,
+        "max": 201.6644,
+        "p(90)": 35.37387000000034,
+        "p(95)": 124.57511999999991,
+        "p(99)": 197.333912
+      }
+    },
+    "bytes_candidates_page": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 23403,
+        "min": 23403,
+        "med": 23403,
+        "max": 23403,
+        "p(90)": 23403,
+        "p(95)": 23403,
+        "p(99)": 23403
+      }
+    },
+    "dur_admin_jobs_picker": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 2037.5309279999988,
+        "avg": 624.2013780000002,
+        "min": 333.8727,
+        "med": 447.2969,
+        "max": 2323.9863,
+        "p(90)": 1067.35887,
+        "p(95)": 1303.6119999999994
+      }
+    },
+    "timing_workers_page1": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 67373.35,
+        "p(99)": 67709.96,
+        "avg": 25449.28,
+        "min": 14513,
+        "med": 17177,
+        "max": 67806,
+        "p(90)": 66536.6
+      }
+    },
+    "timing_workers_page2": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 55282,
+        "max": 56953,
+        "p(90)": 56017.4,
+        "p(95)": 56499.85,
+        "p(99)": 56850.59,
+        "avg": 47122.9,
+        "min": 6509
+      }
+    },
+    "http_req_waiting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 68326.33,
+        "p(90)": 53807.30692000001,
+        "p(95)": 55666.287795,
+        "p(99)": 67089.711236,
+        "avg": 9903.997272444454,
+        "min": 16.5771,
+        "med": 3304.2191000000003
+      }
+    },
+    "dur_workers_filter": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 889.1087,
+        "max": 1890.2615,
+        "p(90)": 1441.6168,
+        "p(95)": 1615.3317149999998,
+        "p(99)": 1795.3950499999996,
+        "avg": 934.5367480000001,
+        "min": 541.3787
+      }
+    },
+    "http_req_sending": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 0,
+        "med": 0,
+        "max": 1.037,
+        "p(90)": 0,
+        "p(95)": 0,
+        "p(99)": 0.512716,
+        "avg": 0.011454666666666667
+      }
+    },
+    "dur_candidates_page": {
+      "contains": "time",
+      "values": {
+        "p(90)": 3655.97541,
+        "p(95)": 3658.9552449999996,
+        "p(99)": 3662.9194150000003,
+        "avg": 3453.104867999999,
+        "min": 3031.178,
+        "med": 3437.93795,
+        "max": 3663.4616
+      },
+      "type": "trend"
+    },
+    "http_req_tls_handshaking": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 0,
+        "avg": 0,
+        "min": 0,
+        "med": 0,
+        "max": 0,
+        "p(90)": 0,
+        "p(95)": 0
+      }
+    },
+    "timing_workers_search_rare": {
+      "contains": "time",
+      "values": {
+        "p(90)": 5413.3,
+        "p(95)": 5508.9,
+        "p(99)": 5564.89,
+        "avg": 4851.76,
+        "min": 3737,
+        "med": 4905,
+        "max": 5584
+      },
+      "type": "trend"
+    },
+    "dur_workers_search_rare": {
+      "contains": "time",
+      "values": {
+        "min": 3760.341,
+        "med": 4936.6209,
+        "max": 5685.7426,
+        "p(90)": 5586.71186,
+        "p(95)": 5636.720969999999,
+        "p(99)": 5677.086308999999,
+        "avg": 4929.687674000001
+      },
+      "type": "trend"
+    },
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 90493.6505,
+        "p(95)": 90512.77175,
+        "p(99)": 90596.610969,
+        "avg": 89468.03132200001,
+        "min": 86392.5122,
+        "med": 89883.5812,
+        "max": 90618.0004
+      }
+    },
+    "dur_workers_page2": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 47152.203672,
+        "min": 6523.4567,
+        "med": 55309.18725,
+        "max": 56976.6372,
+        "p(90)": 56046.73645,
+        "p(95)": 56532.904165,
+        "p(99)": 56882.658923999996
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 450,
+        "rate": 4.965845499520546
+      }
+    },
+    "iterations": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "rate": 0.5517606110578384,
+        "count": 50
+      }
+    },
+    "bytes_workers_metrics": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 965,
+        "min": 965,
+        "med": 965,
+        "max": 965,
+        "p(90)": 965,
+        "p(95)": 965,
+        "p(99)": 965
+      }
+    },
+    "dur_workers_metrics": {
+      "contains": "time",
+      "values": {
+        "p(90)": 136.04122999999998,
+        "p(95)": 143.227665,
+        "p(99)": 156.867407,
+        "avg": 65.29479,
+        "min": 16.5771,
+        "med": 47.8744,
+        "max": 161.7212
+      },
+      "type": "trend"
+    },
+    "timing_workers_search_smith": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 5898.5,
+        "max": 7932,
+        "p(90)": 7196.6,
+        "p(95)": 7687.6,
+        "p(99)": 7914.36,
+        "avg": 6020.94,
+        "min": 4136
+      }
+    },
+    "http_req_blocked": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 0,
+        "med": 0,
+        "max": 11.839,
+        "p(90)": 10.83,
+        "p(95)": 11.839,
+        "p(99)": 11.839,
+        "avg": 1.2806840000000006
+      }
+    },
+    "bytes_workers_page2": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 26531,
+        "med": 26535.5,
+        "max": 26539,
+        "p(90)": 26538,
+        "p(95)": 26538,
+        "p(99)": 26538.51,
+        "avg": 26535.48
+      }
+    },
+    "bytes_workers_filter": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 171.44,
+        "min": 171,
+        "med": 171,
+        "max": 173,
+        "p(90)": 173,
+        "p(95)": 173,
+        "p(99)": 173
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 68350,
+        "rate": 754.2567553160651
+      }
+    },
+    "dur_workers_page1": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 17602.0222,
+        "max": 68326.33,
+        "p(90)": 66935.84739,
+        "p(95)": 67842.255425,
+        "p(99)": 68290.2268,
+        "avg": 25893.617260000003,
+        "min": 15036.9995
+      }
+    },
+    "vus_max": {
+      "contains": "default",
+      "values": {
+        "value": 50,
+        "min": 50,
+        "max": 50
+      },
+      "type": "gauge"
+    },
+    "data_received": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 7065607,
+        "rate": 77970.47271629081
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 22,
+        "min": 22,
+        "max": 50
+      }
+    },
+    "bytes_admin_jobs_picker": {
+      "values": {
+        "med": 30,
+        "max": 30,
+        "p(90)": 30,
+        "p(95)": 30,
+        "p(99)": 30,
+        "avg": 30,
+        "min": 30
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 11078.661868000012,
+        "min": 16.5771,
+        "med": 3711.9013,
+        "max": 68326.33,
+        "p(90)": 54637.53644000001,
+        "p(95)": 55743.043435,
+        "p(99)": 67276.771803
+      }
+    },
+    "bytes_workers_page1": {
+      "values": {
+        "med": 26563,
+        "max": 26566,
+        "p(90)": 26565.1,
+        "p(95)": 26566,
+        "p(99)": 26566,
+        "avg": 26563.36,
+        "min": 26561
+      },
+      "type": "trend",
+      "contains": "time"
+    }
+  }
+}

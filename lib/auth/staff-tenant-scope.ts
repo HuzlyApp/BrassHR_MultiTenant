@@ -48,11 +48,8 @@ async function tenantIdFromProfilesTable(userId: string): Promise<string | null>
   return UUID_RE.test(s) ? s : null;
 }
 
-async function tenantIdFromHostCookieIfMember(params: {
-  userId: string;
-  jwtTenantId: string | null;
-  profileTenantId: string | null;
-}): Promise<string | null> {
+/** Tenant from `onboarding_tenant_slug` cookie (no membership check). */
+async function tenantIdFromHostCookie(): Promise<string | null> {
   try {
     const jar = await cookies();
     const slug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
@@ -60,13 +57,28 @@ async function tenantIdFromHostCookieIfMember(params: {
     const sb = createServiceRoleClient();
     if (!sb) return null;
     const tenantId = await resolveTenantIdBySlug(sb, slug);
+    return tenantId ? tenantId.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tenantIdFromHostCookieIfMember(params: {
+  userId: string;
+  jwtTenantId: string | null;
+  profileTenantId: string | null;
+}): Promise<string | null> {
+  try {
+    const tenantId = await tenantIdFromHostCookie();
     if (!tenantId) return null;
     if (
       sameTenantId(params.jwtTenantId, tenantId) ||
       sameTenantId(params.profileTenantId, tenantId)
     ) {
-      return tenantId.toLowerCase();
+      return tenantId;
     }
+    const sb = createServiceRoleClient();
+    if (!sb) return null;
     const { data, error } = await sb
       .from("user_roles")
       .select("tenant_id, role, is_active")
@@ -81,7 +93,7 @@ async function tenantIdFromHostCookieIfMember(params: {
         isStaffRole(parsed)
       );
     });
-    return member ? tenantId.toLowerCase() : null;
+    return member ? tenantId : null;
   } catch {
     return null;
   }
@@ -90,7 +102,8 @@ async function tenantIdFromHostCookieIfMember(params: {
 /**
  * Resolved tenant scope for list APIs (workers, geo search, …).
  * - Normal staff users: narrowed via JWT `tenant_id`, then `public.users.tenant_id` when missing from JWT.
- * - God admin: narrowed when `view_as_tenant_id` cookie is set; otherwise all tenants (`mode: all`).
+ * - God admin: narrowed when `view_as_tenant_id` cookie is set; otherwise host slug, else all tenants.
+ * - Dev / bypass: also honor host slug without membership so Candidates search can page via RPC.
  */
 export async function resolveStaffTenantScope(authUser: User): Promise<StaffTenantScope> {
   if (process.env.NODE_ENV !== "production") {
@@ -102,12 +115,22 @@ export async function resolveStaffTenantScope(authUser: User): Promise<StaffTena
     if (devViewAs) {
       return { mode: "scoped", tenantId: devViewAs };
     }
+    // Local branded hosts set onboarding_tenant_slug; DEV_ADMIN_AUTH_BYPASS has no users row
+    // so membership checks never pass — still scope so list/search RPCs get a tenant.
+    const fromHostDev = await tenantIdFromHostCookie();
+    if (fromHostDev) {
+      return { mode: "scoped", tenantId: fromHostDev };
+    }
   }
 
   if (await isGodAdminMerged(authUser)) {
     const viewAsId = await readValidatedViewAsTenantId();
     if (viewAsId) {
       return { mode: "scoped", tenantId: viewAsId };
+    }
+    const fromHostGod = await tenantIdFromHostCookie();
+    if (fromHostGod) {
+      return { mode: "scoped", tenantId: fromHostGod };
     }
     return { mode: "all" };
   }

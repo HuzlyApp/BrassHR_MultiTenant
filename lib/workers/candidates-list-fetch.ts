@@ -90,7 +90,11 @@ export async function fetchWorkersPageFromApi<T = Record<string, unknown>>(
   const res = await fetch(pageUrl, { cache: "no-store", signal: options?.signal });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(typeof data?.error === "string" ? data.error : "Failed to fetch workers");
+    const error = new Error(
+      typeof data?.error === "string" ? data.error : "Failed to fetch workers"
+    ) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
   }
 
   const workers: T[] = Array.isArray(data?.workers)

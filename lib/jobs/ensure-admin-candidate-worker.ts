@@ -8,6 +8,7 @@ import {
   tenantEmailTakenResult,
 } from "@/lib/tenant/tenant-email-uniqueness";
 import { findWorkerByPhoneAndName } from "@/lib/workers/candidate-identity";
+import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 
 export type EnsureAdminCandidateWorkerInput = {
   tenantId: string;
@@ -307,6 +308,8 @@ export async function ensureAdminCandidateWorker(
     }
     throw new Error(describeDbErr(profileLinkError, "Failed to link applicant profile"));
   }
+
+  await invalidateCandidateKpiCache(input.tenantId);
 
   return { workerId: resolvedWorkerId };
 }

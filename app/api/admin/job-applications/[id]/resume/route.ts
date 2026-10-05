@@ -245,6 +245,8 @@ export async function POST(
         ai_match_action: null,
         ai_match_readiness: null,
         ai_match_display_category: null,
+        ai_match_stage: null,
+        ai_analysis: null,
         ai_analyzed_at: null,
         ai_analysis_error: null,
         ai_analysis_progress: null,

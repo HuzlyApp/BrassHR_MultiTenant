@@ -127,6 +127,7 @@ describe("candidate analysis workspace helpers", () => {
       notMet: 2,
       blocking: 1,
       mandatory: 8,
+      mandatoryConfirmed: 2,
       preferred: 0,
       total: 8,
     });
@@ -137,8 +138,8 @@ describe("candidate analysis workspace helpers", () => {
       { ...rows[3], job_application_id: "app-2" },
     ])).toEqual(
       new Map([
-        ["app-1", { confirmed: 2, verify: 0, notMet: 0, mandatory: 2, blocking: 0 }],
-        ["app-2", { confirmed: 0, verify: 2, notMet: 0, mandatory: 2, blocking: 0 }],
+        ["app-1", { confirmed: 2, verify: 0, notMet: 0, mandatory: 2, blocking: 0, mandatoryConfirmed: 2 }],
+        ["app-2", { confirmed: 0, verify: 2, notMet: 0, mandatory: 2, blocking: 0, mandatoryConfirmed: 0 }],
       ])
     );
   });

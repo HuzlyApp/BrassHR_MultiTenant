@@ -74,6 +74,7 @@ export type MappedAssignedStep = {
   detail?: string;
   assignedAt: string | null;
   completedAt: string | null;
+  settings?: Record<string, unknown> | null;
 };
 
 function asText(value: unknown): string | null {
@@ -259,6 +260,7 @@ export function mapAssignedStepRecords(params: {
         : undefined,
       assignedAt: params.assignedAt ?? record.created_at ?? null,
       completedAt: progress?.completed_at ?? record.completed_at ?? null,
+      settings: record.settings ?? null,
     };
   });
 }

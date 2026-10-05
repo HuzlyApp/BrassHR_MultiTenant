@@ -879,11 +879,15 @@ export function AiAnalysisOverviewClient({
     listingDisplayFitBand({
       analyzed: isAnalyzed,
       stage: app?.ai_match_stage ?? data?.matchProgression?.stage ?? null,
+      category: hasDeepMatch ? app?.ai_match_category : null,
+      displayCategory: hasDeepMatch ? app?.ai_match_display_category : null,
+      score: hasDeepMatch ? matchScore : null,
       counts: {
         confirmed: outcomeCounts.confirmed,
         verify: outcomeCounts.verify,
         notMet: outcomeCounts.notMet,
         mandatory: outcomeCounts.mandatory,
+        mandatoryConfirmed: outcomeCounts.mandatoryConfirmed,
         blocking: outcomeCounts.blocking,
         quickRoute: storedRoute,
       },
@@ -924,6 +928,8 @@ export function AiAnalysisOverviewClient({
   const strengths = checklistItems.strengths;
   const verificationNeeded = checklistItems.verifications;
   const recommendedQuestions = data?.recommendedQuestions ?? [];
+  const followUpQuestions = data?.followUpQuestions ?? [];
+  const deepQuestions = data?.deepQuestions ?? [];
   const screeningUploads = data?.screeningUploads ?? [];
   const resumeCompleteness = hasDeepMatch
     ? analysis?.data_quality?.resume_completeness ?? "—"
@@ -1463,6 +1469,7 @@ export function AiAnalysisOverviewClient({
                     onChange={setAnalysisProvider}
                     disabled={analyzing}
                     className="h-8 shrink-0"
+                    claudeAvailable={data?.claudeAvailable}
                   />
                   <MatchAnalyzeButton
                     variant="primary"
@@ -1985,7 +1992,7 @@ export function AiAnalysisOverviewClient({
                   })}
                   {!filteredRequirements.length ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-sm text-[#667085]">
+                      <td colSpan={4} className="py-8 text-center text-sm text-[#667085]">
                         No requirements match this filter.
                       </td>
                     </tr>
@@ -2182,7 +2189,7 @@ export function AiAnalysisOverviewClient({
                 <div>
                   <SectionTitle>Follow-Up</SectionTitle>
                   <p className="mt-1 text-sm text-[#667085]">
-                    Record answers from the call or email remaining questions. Upload the reply when it arrives.
+                    Step 3 questions, separate from the Verifications call pack. Record answers or upload the reply when it arrives.
                   </p>
                 </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -2200,8 +2207,8 @@ export function AiAnalysisOverviewClient({
             </SectionHeaderBlock>
 
             <div className="mt-4 space-y-4">
-              {recommendedQuestions.length ? (
-                recommendedQuestions.map((item, index) => (
+              {followUpQuestions.length ? (
+                followUpQuestions.map((item, index) => (
                   <article key={`follow-up-${item.key}`} className="rounded-[12px] border border-[#E5E7EB] bg-[#FCFCFD] p-4">
                     <div className="flex items-start gap-3">
                       <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--brand-primary)] text-sm font-semibold text-[color:var(--brand-primary)]">
@@ -2209,6 +2216,11 @@ export function AiAnalysisOverviewClient({
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold leading-6 text-[#101828]">{item.question}</p>
+                        {item.reason ? (
+                          <p className="mt-2 text-sm leading-5 text-[#344054]">
+                            <span className="font-medium">Why this matters:</span> {item.reason}
+                          </p>
+                        ) : null}
                         <label className="mt-3 block">
                           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#667085]">
                             Notes
@@ -2232,11 +2244,19 @@ export function AiAnalysisOverviewClient({
                   </article>
                 ))
               ) : (
-                <p className="text-sm text-[#667085]">No remaining screening questions from Verifications.</p>
+                <p className="text-sm text-[#667085]">
+                  No follow-up questions yet. Continue to Follow-up, or re-run Follow-up, to write questions for this step.
+                </p>
               )}
             </div>
 
-            {recommendedQuestions.length ? (
+            {data?.questionSetsStale?.follow_up ? (
+              <p className="mt-3 text-xs text-[#B54708]">
+                Checklist or notes changed. Re-run Follow-up to refresh these questions.
+              </p>
+            ) : null}
+
+            {followUpQuestions.length ? (
               <div className="mt-4 flex justify-end">
                 <button
                   type="button"
@@ -2310,6 +2330,24 @@ export function AiAnalysisOverviewClient({
                 ) : (
                   <p>Run Deep Match to fill data quality notes and the submit recommendation.</p>
                 )}
+              </div>
+            ) : null}
+            {hasDeepMatch && deepQuestions.length ? (
+              <div className="mt-4 space-y-3 border-t border-[#E5E7EB] pt-4">
+                <p className="text-sm font-semibold text-[#101828]">Deeper analysis questions</p>
+                <ol className="space-y-2">
+                  {deepQuestions.map((item, index) => (
+                    <li key={item.key} className="text-sm leading-6 text-[#344054]">
+                      <span className="font-semibold text-[#101828]">{index + 1}. {item.question}</span>
+                      {item.reason ? <span className="mt-1 block text-[#667085]">{item.reason}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+                {data?.questionSetsStale?.deep ? (
+                  <p className="text-xs text-[#B54708]">
+                    Résumé, candidate, or job inputs changed. Re-run Deep Match to refresh these questions.
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </section>

@@ -311,7 +311,7 @@ function normalizeEnumToken(value: unknown): string {
     .replace(/[\s-]+/g, "_");
 }
 
-function parseRequirementStatus(value: unknown): RequirementStatus {
+function parseRequirementStatus(value: unknown): RequirementStatus | null {
   const token = normalizeEnumToken(value);
   if ((REQUIREMENT_STATUSES as readonly string[]).includes(token)) {
     return token as RequirementStatus;
@@ -320,7 +320,7 @@ function parseRequirementStatus(value: unknown): RequirementStatus {
   if (token === "CONFLICT" || token === "CONFLICTS") return "CONFLICTING";
   if (token === "MISSING" || token === "ABSENT") return "NOT_FOUND";
   if (token === "NA" || token === "N_A" || token === "NOT_APPLICABLE") return "NOT_APPLICABLE";
-  return "NOT_FOUND";
+  return null;
 }
 
 function parseRequirementOutcome(
@@ -370,6 +370,13 @@ function coerceRequirementRow(
         ? row.evidence
         : "";
   const status = parseRequirementStatus(row.status);
+  if (!status) {
+    return {
+      ...row,
+      requirement: String(row.requirement ?? "").trim() || String(row.name ?? "").trim(),
+      status: "",
+    };
+  }
   const typeToken = normalizeEnumToken(row.requirement_type);
   const requirementType =
     typeToken === "PREFERRED" || typeToken === "MANDATORY"

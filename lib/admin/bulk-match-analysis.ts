@@ -1,4 +1,4 @@
-import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
+import { parseAnalysisProvider, type AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 import type { ListingRequirementOutcomeCounts } from "@/lib/jobs/match-analysis/workspace";
 
 export const MATCH_ANALYSIS_BULK_CHUNK = 25;
@@ -65,7 +65,7 @@ export function describeBulkMatchAnalysisOutcome(input: {
 export async function postBulkMatchAnalysis(
   jobApplicationIds: string[],
   onChunk?: (results: BulkMatchAnalysisItem[]) => void,
-  options?: { analysisProvider?: "gemini" | "grok" }
+  options?: { analysisProvider?: AnalysisProvider }
 ): Promise<{ analyzed: number; needsReview: number; failed: number; results: BulkMatchAnalysisItem[] }> {
   const uniqueIds = [...new Set(jobApplicationIds.map((id) => id.trim()).filter(Boolean))];
   const results: BulkMatchAnalysisItem[] = [];

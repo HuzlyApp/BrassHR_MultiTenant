@@ -88,16 +88,21 @@ async function loadOutcomeCounts(
       not_met?: number;
       mandatory?: number;
       blocking?: number;
+      mandatory_confirmed?: number;
     }>) {
       const id = String(row.job_application_id ?? "").trim();
       if (!id) continue;
-      grouped.set(id, {
+      const counts: ListingRequirementOutcomeCounts = {
         confirmed: Number(row.confirmed ?? 0),
         verify: Number(row.verify ?? 0),
         notMet: Number(row.not_met ?? 0),
         mandatory: Number(row.mandatory ?? 0),
         blocking: Number(row.blocking ?? 0),
-      });
+      };
+      if (row.mandatory_confirmed != null && Number.isFinite(Number(row.mandatory_confirmed))) {
+        counts.mandatoryConfirmed = Number(row.mandatory_confirmed);
+      }
+      grouped.set(id, counts);
     }
     return grouped;
   }

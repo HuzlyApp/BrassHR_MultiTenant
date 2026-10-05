@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { matchWorkspaceIsAnalyzed } from "./match-stage";
 import type { MatchAnalysisResponse } from "./schema";
 
 export type AnalysisVersionRow = {
@@ -24,13 +25,20 @@ export async function snapshotCurrentAnalysisVersion(args: {
   const { data: current, error } = await supabase
     .from("job_applications")
     .select(
-      "ai_analysis, ai_match_score, ai_match_category, ai_match_action, ai_match_display_category, ai_analysis_model, ai_analysis_version, ai_analyzed_at, ai_analyzed_by, ai_match_status"
+      "ai_analysis, ai_match_score, ai_match_category, ai_match_action, ai_match_display_category, ai_analysis_model, ai_analysis_version, ai_analyzed_at, ai_analyzed_by, ai_match_status, ai_match_stage"
     )
     .eq("id", applicationId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw error;
-  if (!current?.ai_analysis || current.ai_match_status !== "ANALYZED") {
+  if (
+    !current ||
+    !matchWorkspaceIsAnalyzed({
+      status: current.ai_match_status,
+      stage: current.ai_match_stage,
+      hasAnalysis: Boolean(current.ai_analysis),
+    })
+  ) {
     return Number(current?.ai_analysis_version ?? 0);
   }
 

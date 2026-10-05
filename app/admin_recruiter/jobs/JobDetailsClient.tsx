@@ -59,6 +59,7 @@ import {
 import type { JobStatus } from "@/lib/jobs/types";
 import { JOB_STATUSES } from "@/lib/jobs/types";
 import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
+import { invalidateJobsListCache } from "@/lib/lists/staff-list-session-cache";
 import {
   fetchStaffDetailJson,
   invalidateStaffDetailCache,
@@ -280,6 +281,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       }
       toast.success(`Status updated to ${jobDetailsStatusLabel(nextStatus)}`);
       invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
+      invalidateJobsListCache();
       await load({ silent: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update job status";
@@ -336,6 +338,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       toast.success("Tags updated");
       setTagsOpen(false);
       invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
+      invalidateJobsListCache();
       await load({ silent: true });
     } catch (err) {
       setTagsError(err instanceof Error ? err.message : "Failed to save tags");
@@ -363,6 +366,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       toast.success(assigneeUserId ? "Recruiter assigned" : "Recruiter cleared");
       setAssignOpen(false);
       invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
+      invalidateJobsListCache();
       await load({ silent: true });
     } catch (err) {
       setAssignError(err instanceof Error ? err.message : "Failed to assign recruiter");
@@ -389,6 +393,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       const newId = String(payload.job?.id ?? "").trim();
       if (!newId) throw new Error("Duplicate job id missing");
       toast.success("Draft copy created");
+      invalidateJobsListCache();
       router.push(`/admin_recruiter/jobs/${encodeURIComponent(newId)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to duplicate job");

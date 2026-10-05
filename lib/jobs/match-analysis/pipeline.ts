@@ -48,6 +48,7 @@ import {
 import {
   applicationMatchScorePatch,
   matchStageFromMode,
+  matchWorkspaceIsAnalyzed,
   parseMatchStage,
   type MatchStage,
 } from "./match-stage";
@@ -66,8 +67,13 @@ import { loadVerificationNotesForApplication } from "./verification-notes-servic
 import { summarizeRequirementNotes } from "./verification-notes";
 import {
   checklistFollowUpRows,
-  mergeFollowUpQuestions,
+  mergeStageQuestions,
 } from "./follow-up-questions";
+import {
+  followUpEnrichmentFromVerifications,
+  formatQuickMatchForFollowUp,
+  retainQuestionSetsForAnalysisMode,
+} from "./stage-questions";
 import { matchProgressionVariantKey } from "./prompt-variant";
 import type { ResolvedPromptVersion } from "@/lib/ai-catalog/types";
 
@@ -149,7 +155,10 @@ async function runCallPackQuestionsForApplication(args: {
     ai_analysis?: unknown;
     recruiter_decision?: string | null;
     job_requisition_id?: string | null;
+    worker_id?: string | null;
+    applicant_profile_id?: string | null;
   };
+  job: JobRequisitionForRequirements;
   jobTitle: string;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {
@@ -161,6 +170,7 @@ async function runCallPackQuestionsForApplication(args: {
     analysisProvider,
     progressMode,
     application,
+    job,
     jobTitle,
     onProgress,
   } = args;
@@ -170,20 +180,28 @@ async function runCallPackQuestionsForApplication(args: {
   const stepLabel = progressMode === "follow_up" ? "Follow-up" : "Verifications";
   const targetIndex = progressMode === "follow_up" ? 2 : 1;
 
-  if (String(application.ai_match_status ?? "").toUpperCase() !== "ANALYZED") {
+  if (
+    !matchWorkspaceIsAnalyzed({
+      status: application.ai_match_status,
+      stage: application.ai_match_stage,
+      hasAnalysis: Boolean(application.ai_analysis),
+    })
+  ) {
     return failedAnalysis("Run Quick Match before Verifications screening questions.");
   }
   const currentIndex = matchProgressionIndexFromStage(application.ai_match_stage);
   // First Verifications unlock from Quick Match (index 0). Re-runs allowed after
   // Verifications/Follow-up/Deep without blocking or regressing ai_match_stage.
-  if (progressMode === "follow_up" && currentIndex < 2) {
-    return failedAnalysis("Continue to Follow-up from the stepper before re-running Follow-up.");
+  // Verifications (index 1) may advance into Follow-up and generate that step's questions.
+  // Re-runs after Follow-up / Deep keep the higher stage.
+  if (progressMode === "follow_up" && currentIndex < 1) {
+    return failedAnalysis("Finish Verifications before Follow-up questions.");
   }
 
   const { data: requirementRows, error: reqError } = await supabase
     .from("job_application_match_requirements")
     .select(
-      "id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified, recruiter_note"
+      "id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified, recruiter_note, candidate_evidence"
     )
     .eq("tenant_id", tenantId)
     .eq("job_application_id", jobApplicationId)
@@ -248,6 +266,7 @@ async function runCallPackQuestionsForApplication(args: {
         verification_required: Boolean(row.verification_required),
         recruiter_verified: Boolean(row.recruiter_verified),
         recruiter_note: (row.recruiter_note as string | null) ?? null,
+        candidate_evidence: String(row.candidate_evidence ?? ""),
         latest_verification_note: summary?.latestNote
           ? {
               id: summary.latestNote.id,
@@ -386,12 +405,56 @@ async function runCallPackQuestionsForApplication(args: {
   }
 
   try {
+    let enrichmentNotes: string | null = null;
+    if (progressMode === "follow_up") {
+      const { data: screeningRows } = await supabase
+        .from("job_application_ai_screening_answers")
+        .select("question_key, question_text, answer_text")
+        .eq("tenant_id", tenantId)
+        .eq("application_id", jobApplicationId);
+      const byKey = new Map(
+        (screeningRows ?? []).map((row) => [String(row.question_key), row])
+      );
+      const callContext =
+        String(byKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
+      const priorQuestions = normalizeAnalysisScreeningQuestions(
+        existingAnalysis.screening_questions
+      ).map((question) => {
+        const key = aiScreeningQuestionKey(question.priority, question.question);
+        const saved = matchSavedAiScreeningAnswer(byKey, key, question.question);
+        return {
+          question: question.question,
+          answer: saved?.answer_text ?? "",
+          reason: question.reason,
+          relatedRequirement: question.relatedRequirement,
+        };
+      });
+      enrichmentNotes = followUpEnrichmentFromVerifications({
+        callPackQuestions: priorQuestions,
+        callContext,
+      });
+    }
+    const jobDescription = buildFullJobDescriptionText(job);
+    const quickMatchSummary = formatQuickMatchForFollowUp(existingAnalysis);
+    const resume = await resolveResumeTextForMatch({
+      supabase,
+      tenantId,
+      workerId: application.worker_id ?? null,
+      applicantProfileId: application.applicant_profile_id ?? null,
+      jobApplicationId,
+    }).catch(() => null);
+    const resumeText = resume?.sanitized?.trim() || resume?.text?.trim() || null;
     const generated = await generateFollowUpQuestions(
-      { jobTitle, checklist },
+      { jobTitle, checklist, enrichmentNotes, jobDescription, resumeText, quickMatchSummary },
       resolved,
-      analysisProvider
+      analysisProvider,
+      progressMode
     );
-    const merged = mergeFollowUpQuestions(existingAnalysis, generated.questions);
+    const merged = mergeStageQuestions(
+      existingAnalysis,
+      progressMode === "follow_up" ? "follow_up" : "call_pack",
+      generated.questions
+    );
     const previousVersion = await snapshotCurrentAnalysisVersion({
       supabase,
       tenantId,
@@ -609,6 +672,7 @@ export async function runMatchAnalysisForApplication(args: {
       analysisProvider,
       progressMode: analysisMode,
       application,
+      job: job as JobRequisitionForRequirements,
       jobTitle,
       onProgress,
     });
@@ -926,12 +990,18 @@ export async function runMatchAnalysisForApplication(args: {
     emit("validating", "Validating and rescoring", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "validating");
 
-    const analysis: MatchAnalysisResponse = {
-      ...modelResult.analysis,
-      job_requirements_fingerprint:
-        structured.sourceFingerprint ??
-        jobRequirementsSourceFingerprint(job as JobRequisitionForRequirements),
-    };
+    const analysis = retainQuestionSetsForAnalysisMode(
+      application.ai_analysis,
+      {
+        ...modelResult.analysis,
+        job_requirements_fingerprint:
+          structured.sourceFingerprint ??
+          jobRequirementsSourceFingerprint(job as JobRequisitionForRequirements),
+        prompt_content_hash: resolved.contentHash,
+        prompt_variant_key: resolved.variantKey,
+      },
+      analysisMode
+    );
 
     emit("saving", "Saving analysis results", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "saving");

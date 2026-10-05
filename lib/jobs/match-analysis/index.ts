@@ -12,6 +12,7 @@ export {
   ANALYSIS_PROVIDER_LABELS,
   DEFAULT_ANALYSIS_PROVIDER,
   parseAnalysisProvider,
+  isAnalysisProvider,
   parseAnalysisMode,
   matchAnalysisResponseSchema,
   analyzeMatchResponseSchema,
@@ -40,7 +41,7 @@ export {
   type MatchStage,
 } from "./match-stage";
 export { isMatchCallPackStatus } from "./call-pack-status";
-export { getMatchStepModels, getStep2QuestionRoute, MATCH_CONFIG_KEYS, deepMatchModelForProvider } from "./step-config";
+export { getMatchStepModels, getStep2QuestionRoute, MATCH_CONFIG_KEYS, deepMatchModelForProvider, DEFAULT_CLAUDE_MODEL, resolveClaudeMatchModel } from "./step-config";
 export {
   MATCH_PROGRESSION_INTRO,
   MATCH_PROGRESSION_STEPS,
@@ -96,10 +97,12 @@ export {
   generateMatchAnalysis,
   generateMatchAnalysisWithGrok,
   getMatchAnalysisModelName,
+  isClaudeMatchAnalysisAvailable,
   MatchAnalysisGenerationError,
   matchAnalysisErrorCode,
   __setGrokClientForTests,
   __setGeminiFetchForTests,
+  __setClaudeMessagesCreateForTests,
 } from "./service";
 export {
   runMatchAnalysisForApplication,
