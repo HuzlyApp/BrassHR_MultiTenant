@@ -13,6 +13,7 @@ import { Check, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
 
 export type StatusOption = {
   id: string;
@@ -35,6 +36,7 @@ type ApplicationContext = {
   statusId: string | null;
   statusName: string | null;
   jobTitle: string | null;
+  jobSourceType: string | null;
 };
 
 type CandidateApplicationStatusControlProps = {
@@ -255,12 +257,14 @@ export function CandidateApplicationStatusControl({
             ? (appPayload.application as Record<string, unknown>)
             : {};
         const resolved = resolveApplicationStatusFromPayload(application, nextOptions);
+        const job = firstRelation(application.job_requisitions);
         setCtx({
           applicationId: scopedApplicationId,
           ambiguous: false,
           statusId: resolved.statusId,
           statusName: resolved.statusName,
           jobTitle: jobTitleFromApplicationPayload(application),
+          jobSourceType: typeof job?.source_type === "string" ? job.source_type : null,
         });
         return;
       }
@@ -278,6 +282,7 @@ export function CandidateApplicationStatusControl({
         statusId: ctxPayload.status?.id ?? null,
         statusName: ctxPayload.status?.name ?? null,
         jobTitle: ctxPayload.jobTitle ?? null,
+        jobSourceType: typeof ctxPayload.sourceType === "string" ? ctxPayload.sourceType : null,
       });
     } catch (error) {
       console.error(error);
@@ -340,6 +345,7 @@ export function CandidateApplicationStatusControl({
               ...current,
               statusId: nextId,
               statusName: nextName,
+              jobSourceType: current.jobSourceType,
             }
           : current
       );
@@ -363,6 +369,11 @@ export function CandidateApplicationStatusControl({
       : "inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] disabled:opacity-50");
 
   const canChangeStatus = Boolean(ctx?.applicationId) && !ctx?.ambiguous && !loading && !busy;
+  const visibleOptions = filterApplicationStatusesForSource(
+    options,
+    ctx?.jobSourceType,
+    ctx?.statusId
+  );
 
   return (
     <>
@@ -397,7 +408,7 @@ export function CandidateApplicationStatusControl({
         {menuOpen && buttonRef.current ? (
           <StatusOptionsMenu
             anchor={buttonRef.current}
-            options={options}
+            options={visibleOptions}
             currentStatusId={ctx?.statusId ?? null}
             onSelect={beginChange}
             onClose={closeMenu}

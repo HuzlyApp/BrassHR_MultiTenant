@@ -20,6 +20,7 @@ export const HIRE_LIBRARY_ICON_PATHS: Record<string, string> = {
   "client-review": `${PRE_HIRE_BASE}/Interview-icons/interview-qualification.svg`,
   "candidate-selection": `${PRE_HIRE_BASE}/Interview-icons/internal-select.svg`,
   "release-to-client": `${PRE_HIRE_BASE}/submission-icons/sent-to-client-msp.svg`,
+  "submit-to-msp": `${PRE_HIRE_BASE}/submission-icons/sent-to-client-msp.svg`,
   "background-check": `${PRE_HIRE_BASE}/Compliance-icons/background-check.svg`,
   "drug-test-screening": `${PRE_HIRE_BASE}/Compliance-icons/drug-test.svg`,
   "oig-exclusion-check": `${PRE_HIRE_BASE}/Compliance-icons/oig-exclusion.svg`,

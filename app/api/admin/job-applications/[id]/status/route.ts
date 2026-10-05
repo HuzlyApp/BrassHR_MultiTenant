@@ -7,6 +7,7 @@ import {
 } from "@/lib/jobs/application-statuses";
 import { isApplicationPipelineStatus } from "@/lib/jobs/application-status";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { guardJobApplicationStatusChange } from "@/lib/jobs/msp-submission-service";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -50,6 +51,15 @@ export async function PATCH(
     const legacyStatus =
       typeof body?.status === "string" ? body.status.trim().toLowerCase() : "";
     const origin = resolveApplicantEmailAppOrigin(req);
+
+    if (statusId || isApplicationPipelineStatus(legacyStatus)) {
+      await guardJobApplicationStatusChange(supabase, {
+        tenantId,
+        applicationId,
+        statusId: statusId || undefined,
+        systemKey: statusId ? undefined : legacyStatus,
+      });
+    }
 
     let result;
     if (statusId) {

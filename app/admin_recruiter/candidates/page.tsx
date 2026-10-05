@@ -178,6 +178,7 @@ type WorkerProfile = {
     title?: string | null;
   }> | null;
   application_source_job_id?: string | null;
+  application_source_type?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;

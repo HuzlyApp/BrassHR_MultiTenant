@@ -19,6 +19,7 @@ import {
   type ApplicationStatusOption,
 } from "../applications/ApplicationStatusUi";
 import { applicationStatusDotClassName, applicationStatusLabel } from "@/lib/jobs/application-status";
+import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
 import type { CandidateRow } from "./types";
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
@@ -31,6 +32,7 @@ export function mapWorkerProgressStatusFields(item: {
   application_status_name?: string | null;
   application_status_key?: string | null;
   application_status_ambiguous?: boolean | null;
+  application_source_type?: string | null;
 }) {
   return {
     progressStatusApplicationId: item.application_id?.trim() || null,
@@ -38,6 +40,7 @@ export function mapWorkerProgressStatusFields(item: {
     progressStatusName: item.application_status_name?.trim() || null,
     progressStatusKey: item.application_status_key?.trim() || null,
     progressStatusAmbiguous: Boolean(item.application_status_ambiguous),
+    applicationSourceType: item.application_source_type?.trim() || null,
   };
 }
 
@@ -339,7 +342,11 @@ export function useCandidateProgressStatus(
     <>
       {statusMenu && menuRow ? (
         <ProgressStatusDropdownPortal
-          options={statusOptions}
+          options={filterApplicationStatusesForSource(
+            statusOptions,
+            menuRow.applicationSourceType,
+            menuRow.progressStatusId
+          )}
           currentStatusId={menuRow.progressStatusId ?? null}
           anchor={statusMenu.anchor}
           busy={statusBusyWorkerId === statusMenu.workerId}

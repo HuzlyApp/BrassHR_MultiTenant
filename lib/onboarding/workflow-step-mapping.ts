@@ -25,6 +25,7 @@ export const WORKFLOW_STEP_TO_ONBOARDING_TYPE: Record<string, OnboardingStepType
   "client-review": "custom_question",
   "candidate-selection": "custom_question",
   "release-to-client": "custom_question",
+  "submit-to-msp": "custom_question",
   "ssn-identity-verification": "document_upload",
   "direct-deposit-setup": "profile_information",
   "benefits-enrollment": "profile_information",

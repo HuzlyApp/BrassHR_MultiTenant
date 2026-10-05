@@ -46,6 +46,7 @@ const INTERNAL_LIBRARY_STEP_IDS = new Set([
   "client-review",
   "candidate-selection",
   "release-to-client",
+  "submit-to-msp",
   "completion-milestone",
   "reference-verification",
   "oig-exclusion-check",
