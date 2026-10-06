@@ -499,15 +499,21 @@ export default function CandidateWorkflowStepModal({
       const json = (await res.json().catch(() => ({}))) as {
         error?: string;
         email?: StaffStepEmailResult | null;
+        applicationStatus?: { statusName: string } | null;
       };
       if (!res.ok) throw new Error(json.error || "Failed to update this step.");
       setPendingAction(null);
-      setNotice(
+      const resultNotice =
         action === "reject" && variant === "default" && inspection && !inspection.step.required
-          ? { tone: "success", message: "Step rejected. It's optional, so it doesn't block the candidate's next stage." }
+          ? { tone: "success" as const, message: "Step rejected. It's optional, so it doesn't block the candidate's next stage." }
           : action === "complete" && variant === "interview" && !json.email
-            ? { tone: "success", message: "Interview marked as completed." }
-          : staffActionResultMessage(action, json.email ?? null, variant)
+            ? { tone: "success" as const, message: "Interview marked as completed." }
+          : staffActionResultMessage(action, json.email ?? null, variant);
+      const statusName = json.applicationStatus?.statusName;
+      setNotice(
+        statusName
+          ? { ...resultNotice, message: `${resultNotice.message} Progress status updated to "${statusName}".` }
+          : resultNotice
       );
       await onStepUpdated?.();
     } catch (err) {

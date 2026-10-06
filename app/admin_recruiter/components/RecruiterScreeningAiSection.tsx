@@ -292,13 +292,14 @@ export default function RecruiterScreeningAiSection({ applicationId }: { applica
       </Card>
 
       <Card
-        title="Step 2 · Screening questions"
-        subtitle={
-          questions.length
-            ? `${questions.length} targeted question${questions.length === 1 ? "" : "s"} to confirm on the call`
-            : undefined
-        }
+        title="Step 2 · Call notes"
+        // subtitle={
+        //   questions.length
+        //     ? `${questions.length} targeted question${questions.length === 1 ? "" : "s"} to confirm on the call`
+        //     : undefined
+        // }
       >
+        {/* Screening questions are hidden in the Pre-Hire modal; only call notes are shown.
         {questions.length ? (
           <ol className="space-y-3">
             {questions.map((item, index) => (
@@ -342,8 +343,9 @@ export default function RecruiterScreeningAiSection({ applicationId }: { applica
             No screening questions yet. Open the Verifications step in AI Analysis to generate the call pack.
           </p>
         )}
+        */}
 
-        <label className="mt-4 block">
+        <label className="block">
           <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Tone, availability &amp; call notes
           </span>
@@ -374,7 +376,7 @@ export default function RecruiterScreeningAiSection({ applicationId }: { applica
             style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-            {saving ? "Saving…" : "Save screening answers"}
+            {saving ? "Saving…" : "Save call notes"}
           </button>
         </div>
       </Card>

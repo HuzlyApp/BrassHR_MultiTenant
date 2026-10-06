@@ -26,6 +26,8 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { canStaffAccessPostHireSteps } from "@/lib/onboarding/resolve-candidate-hire-gate";
 import { loadApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import { resolveInstanceApplicationId } from "@/lib/onboarding/scoped-step-progress";
+import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
+import { advanceApplicationToScreeningComplete } from "@/lib/onboarding/recruiter-screening-status";
 import {
   allowedStaffActions,
   completionOwnerLabel,
@@ -64,6 +66,7 @@ export type StaffStepActionResult =
       status: OnboardingStepStatus;
       review: StaffStepReview;
       email: StaffStepEmailResult | null;
+      applicationStatus?: { statusName: string } | null;
     }
   | { ok: false; status: number; code?: string; error: string };
 
@@ -812,6 +815,20 @@ export async function applyStaffWorkflowStepAction(
     request: params.request,
   });
 
+  let applicationStatus: { statusName: string } | null = null;
+  if (action === "complete" && ctx.mapped.stepType === RECRUITER_SCREENING_STEP_TYPE) {
+    try {
+      applicationStatus = await advanceApplicationToScreeningComplete(supabase, {
+        tenantId,
+        applicationId: ctx.applicationId,
+        actorUserId: params.actor.userId,
+        origin: params.origin,
+      });
+    } catch (statusError) {
+      console.error("[staff-workflow-step-review] screening status update failed", statusError);
+    }
+  }
+
   const email =
     action === "complete" && params.notifyCandidate && progressId && tenantStepId
       ? await notifyCandidateNextStep(supabase, {
@@ -826,6 +843,6 @@ export async function applyStaffWorkflowStepAction(
         })
       : null;
 
-  return { ok: true, status: nextStatus, review, email };
+  return { ok: true, status: nextStatus, review, email, applicationStatus };
 }
 

@@ -12,6 +12,7 @@ import {
   IdCard,
   Loader2,
   Medal,
+  Route,
   Search,
   Tag,
   Upload,
@@ -24,7 +25,10 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
-import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
+import {
+  candidateApplicantProfileHref,
+  candidateHireJourneyHref,
+} from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
@@ -1366,6 +1370,16 @@ export function AiAnalysisOverviewClient({
                       >
                         {fitBandLabel(statusFitBand)}
                       </span>
+                    ) : null}
+                    {workerId ? (
+                      <Link
+                        href={candidateHireJourneyHref(workerId)}
+                        title="Open the candidate's Pre-Hire and Post-Hire journey"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--brand-primary)] bg-white px-2.5 py-1 text-[10px] font-semibold leading-[15px] text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                      >
+                        <Route className="h-3 w-3" aria-hidden />
+                        Hire Journey
+                      </Link>
                     ) : null}
                   </div>
                   {isAnalyzed && outcomeCounts.total > 0 ? (
