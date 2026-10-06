@@ -137,6 +137,7 @@ import {
   tabCountsFromBuckets,
   type ApplicationListBucket,
 } from "@/lib/admin/staff-application-list-query";
+import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
 
 type ApplicationStatus = string;
 
@@ -215,6 +216,7 @@ type JobHeader = {
   published_at?: string | null;
   shift_type?: string | null;
   schedule?: string | null;
+  source_type?: string | null;
 };
 
 type JobOption = {
@@ -392,6 +394,7 @@ function toJobHeader(row: Partial<JobHeader> & { id: string }): JobHeader {
     published_at: row.published_at ?? null,
     shift_type: row.shift_type ?? null,
     schedule: row.schedule ?? null,
+    source_type: row.source_type ?? null,
   };
 }
 
@@ -467,15 +470,27 @@ function resolveApplicationTabParam(
   if (byKey) return byKey.id;
 
   const slug = raw.toLowerCase();
-  const byNameSlug = options.find((option) => {
-    const nameSlug = option.name
+  const nameSlugOf = (name: string) =>
+    name
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    return nameSlug === slug || option.name.trim().toLowerCase() === slug;
-  });
+  const byNameSlug = options.find(
+    (option) => nameSlugOf(option.name) === slug || option.name.trim().toLowerCase() === slug
+  );
   if (byNameSlug) return byNameSlug.id;
+
+  const submissionAlias =
+    slug === "submitted-to-msp"
+      ? "submitted-for-msp-review"
+      : slug === "submitted-for-msp-review"
+        ? "submitted-to-msp"
+        : null;
+  if (submissionAlias) {
+    const alias = options.find((option) => nameSlugOf(option.name) === submissionAlias);
+    if (alias) return alias.id;
+  }
 
   return raw;
 }
@@ -1335,15 +1350,20 @@ export default function JobApplicationsPage() {
     setPage(1);
   }, []);
 
+  const jobScopedStatusOptions = useMemo(() => {
+    if (!jobId) return statusOptions;
+    return filterApplicationStatusesForSource(statusOptions, job?.source_type);
+  }, [job?.source_type, jobId, statusOptions]);
+
   const statusTabs = useMemo(() => {
-    const pipeline = statusOptions.filter((option) => option.systemKey !== "archived");
+    const pipeline = jobScopedStatusOptions.filter((option) => option.systemKey !== "archived");
     const archivedTab = statusOptions.find((option) => option.systemKey === "archived");
     return [
       { id: "all" as const, label: "All" },
       ...pipeline.map((s) => ({ id: s.id, label: s.name })),
       ...(archivedTab ? [{ id: archivedTab.id, label: archivedTab.name }] : []),
     ];
-  }, [statusOptions]);
+  }, [jobScopedStatusOptions, statusOptions]);
 
   const resolvedActiveTab = useMemo(
     () => resolveApplicationTabParam(String(activeTab), statusOptions),
@@ -3208,7 +3228,17 @@ export default function JobApplicationsPage() {
 
       {statusMenu ? (
         <StatusDropdownPortal
-          options={selectableStatusOptions}
+          options={(() => {
+            const menuRow = rows.find((row) => row.id === statusMenu.rowId);
+            const source = String(
+              one(menuRow?.job_requisitions ?? null).source_type ?? job?.source_type ?? ""
+            );
+            return filterApplicationStatusesForSource(
+              selectableStatusOptions,
+              source,
+              menuRow ? rowStatusId(menuRow) : null
+            );
+          })()}
           currentStatusId={(() => {
             const menuRow = rows.find((row) => row.id === statusMenu.rowId);
             return menuRow ? rowStatusId(menuRow) : null;

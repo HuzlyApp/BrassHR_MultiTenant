@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
+import { extractPdfText } from "@/lib/resume/extract-pdf-text";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { repairExtractedResumeText } from "@/lib/resume/normalize-resume-text";
 import { normalizeResumeWhitespace, sanitizeResumeForMatchAnalysis } from "./sanitize-resume";
@@ -22,8 +22,7 @@ async function extractTextFromBuffer(
 ): Promise<string> {
   const lower = fileName.toLowerCase();
   if (lower.endsWith(".pdf")) {
-    const pdf = await pdfParse(buffer);
-    return finalizeExtractedResumeText(pdf.text || "");
+    return finalizeExtractedResumeText(await extractPdfText(buffer));
   }
   if (lower.endsWith(".docx")) {
     const result = await mammoth.extractRawText({ buffer });
@@ -39,8 +38,8 @@ async function extractTextFromBuffer(
   }
   // Try PDF then DOCX as fallbacks when extension is missing
   try {
-    const pdf = await pdfParse(buffer);
-    if (pdf.text?.trim()) return finalizeExtractedResumeText(pdf.text);
+    const pdfText = await extractPdfText(buffer);
+    if (pdfText.trim()) return finalizeExtractedResumeText(pdfText);
   } catch {
     /* ignore */
   }
@@ -77,7 +76,7 @@ export async function resolveResumeTextForMatch(args: {
   if (jobApplicationId?.trim()) {
     const { data: applicationResume } = await supabase
       .from("worker_resumes")
-      .select("extracted_text, storage_path, file_name, original_file_name, uploaded_at")
+      .select("id, extracted_text, storage_path, file_name, original_file_name, uploaded_at")
       .eq("tenant_id", tenantId)
       .eq("job_application_id", jobApplicationId.trim())
       .is("deleted_at", null)
@@ -85,16 +84,11 @@ export async function resolveResumeTextForMatch(args: {
       .limit(1)
       .maybeSingle();
 
-    const extracted = (applicationResume?.extracted_text as string | null)?.trim();
-    if (extracted) {
-      const normalized = normalizeResumeWhitespace(extracted);
-      return {
-        text: normalized,
-        sanitized: sanitizeResumeForMatchAnalysis(normalized),
-        source: "worker_resumes",
-        path: (applicationResume?.storage_path as string | null) ?? null,
-      };
-    }
+    const stored = resumeTextFromRow(applicationResume);
+    if (stored) return stored;
+
+    const fromFile = await extractResumeFile(supabase, tenantId, applicationResume);
+    if (fromFile) return fromFile;
   }
 
   // Prefer job_application_id above. worker_id fallback is same-tenant only and
@@ -102,7 +96,7 @@ export async function resolveResumeTextForMatch(args: {
   if (workerId) {
     const { data: resumeRow } = await supabase
       .from("worker_resumes")
-      .select("extracted_text, storage_path, file_name, original_file_name, uploaded_at")
+      .select("id, extracted_text, storage_path, file_name, original_file_name, uploaded_at")
       .eq("worker_id", workerId)
       .eq("tenant_id", tenantId)
       .is("deleted_at", null)
@@ -110,27 +104,11 @@ export async function resolveResumeTextForMatch(args: {
       .limit(1)
       .maybeSingle();
 
-    const extracted = (resumeRow?.extracted_text as string | null)?.trim();
-    if (extracted) {
-      const normalized = normalizeResumeWhitespace(extracted);
-      return {
-        text: normalized,
-        sanitized: sanitizeResumeForMatchAnalysis(normalized),
-        source: "worker_resumes",
-        path: (resumeRow?.storage_path as string | null) ?? null,
-      };
-    }
+    const stored = resumeTextFromRow(resumeRow);
+    if (stored) return stored;
 
-    const path = (resumeRow?.storage_path as string | null)?.trim();
-    if (path) {
-      const fromStorage = await downloadAndExtract(
-        supabase,
-        path,
-        (resumeRow?.file_name as string | null) ||
-          (resumeRow?.original_file_name as string | null)
-      );
-      if (fromStorage) return fromStorage;
-    }
+    const fromFile = await extractResumeFile(supabase, tenantId, resumeRow);
+    if (fromFile) return fromFile;
 
     const { data: req } = await supabase
       .from("worker_requirements")
@@ -176,6 +154,53 @@ export async function resolveResumeTextForMatch(args: {
   }
 
   return { text: "", sanitized: "", source: "empty", path: null };
+}
+
+type ResumeFileRow = {
+  id?: string | null;
+  extracted_text?: string | null;
+  storage_path?: string | null;
+  file_name?: string | null;
+  original_file_name?: string | null;
+} | null;
+
+function resumeTextFromRow(row: ResumeFileRow): ResumeTextResult | null {
+  const extracted = row?.extracted_text?.trim();
+  if (!extracted) return null;
+  const normalized = normalizeResumeWhitespace(extracted);
+  return {
+    text: normalized,
+    sanitized: sanitizeResumeForMatchAnalysis(normalized),
+    source: "worker_resumes",
+    path: row?.storage_path ?? null,
+  };
+}
+
+async function extractResumeFile(
+  supabase: SupabaseClient,
+  tenantId: string,
+  row: ResumeFileRow
+): Promise<ResumeTextResult | null> {
+  const path = row?.storage_path?.trim();
+  if (!path) return null;
+  const fromStorage = await downloadAndExtract(
+    supabase,
+    path,
+    row?.file_name || row?.original_file_name || null
+  );
+  if (!fromStorage) return null;
+  const resumeId = row?.id?.trim();
+  if (resumeId) {
+    await supabase
+      .from("worker_resumes")
+      .update({
+        extracted_text: fromStorage.text,
+        text_length: fromStorage.text.length,
+      })
+      .eq("id", resumeId)
+      .eq("tenant_id", tenantId);
+  }
+  return fromStorage;
 }
 
 async function downloadAndExtract(

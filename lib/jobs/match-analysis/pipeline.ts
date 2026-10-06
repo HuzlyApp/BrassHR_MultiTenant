@@ -71,6 +71,7 @@ import {
 } from "./follow-up-questions";
 import {
   followUpEnrichmentFromVerifications,
+  formatQuickMatchForFollowUp,
   retainQuestionSetsForAnalysisMode,
 } from "./stage-questions";
 import { matchProgressionVariantKey } from "./prompt-variant";
@@ -154,7 +155,10 @@ async function runCallPackQuestionsForApplication(args: {
     ai_analysis?: unknown;
     recruiter_decision?: string | null;
     job_requisition_id?: string | null;
+    worker_id?: string | null;
+    applicant_profile_id?: string | null;
   };
+  job: JobRequisitionForRequirements;
   jobTitle: string;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {
@@ -166,6 +170,7 @@ async function runCallPackQuestionsForApplication(args: {
     analysisProvider,
     progressMode,
     application,
+    job,
     jobTitle,
     onProgress,
   } = args;
@@ -196,7 +201,7 @@ async function runCallPackQuestionsForApplication(args: {
   const { data: requirementRows, error: reqError } = await supabase
     .from("job_application_match_requirements")
     .select(
-      "id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified, recruiter_note"
+      "id, requirement_text, requirement_type, status, requirement_outcome, verification_required, recruiter_verified, recruiter_note, candidate_evidence"
     )
     .eq("tenant_id", tenantId)
     .eq("job_application_id", jobApplicationId)
@@ -261,6 +266,7 @@ async function runCallPackQuestionsForApplication(args: {
         verification_required: Boolean(row.verification_required),
         recruiter_verified: Boolean(row.recruiter_verified),
         recruiter_note: (row.recruiter_note as string | null) ?? null,
+        candidate_evidence: String(row.candidate_evidence ?? ""),
         latest_verification_note: summary?.latestNote
           ? {
               id: summary.latestNote.id,
@@ -419,6 +425,8 @@ async function runCallPackQuestionsForApplication(args: {
         return {
           question: question.question,
           answer: saved?.answer_text ?? "",
+          reason: question.reason,
+          relatedRequirement: question.relatedRequirement,
         };
       });
       enrichmentNotes = followUpEnrichmentFromVerifications({
@@ -426,10 +434,21 @@ async function runCallPackQuestionsForApplication(args: {
         callContext,
       });
     }
+    const jobDescription = buildFullJobDescriptionText(job);
+    const quickMatchSummary = formatQuickMatchForFollowUp(existingAnalysis);
+    const resume = await resolveResumeTextForMatch({
+      supabase,
+      tenantId,
+      workerId: application.worker_id ?? null,
+      applicantProfileId: application.applicant_profile_id ?? null,
+      jobApplicationId,
+    }).catch(() => null);
+    const resumeText = resume?.sanitized?.trim() || resume?.text?.trim() || null;
     const generated = await generateFollowUpQuestions(
-      { jobTitle, checklist, enrichmentNotes },
+      { jobTitle, checklist, enrichmentNotes, jobDescription, resumeText, quickMatchSummary },
       resolved,
-      analysisProvider
+      analysisProvider,
+      progressMode
     );
     const merged = mergeStageQuestions(
       existingAnalysis,
@@ -653,6 +672,7 @@ export async function runMatchAnalysisForApplication(args: {
       analysisProvider,
       progressMode: analysisMode,
       application,
+      job: job as JobRequisitionForRequirements,
       jobTitle,
       onProgress,
     });

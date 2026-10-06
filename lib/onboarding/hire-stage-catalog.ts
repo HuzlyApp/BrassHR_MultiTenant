@@ -23,6 +23,7 @@ export const HIRE_STAGE_BY_STEP_KEY: Record<string, string> = {
   "candidate-selection": "Interview",
 
   "release-to-client": "Submission",
+  "submit-to-msp": "Submission",
 
   "background-check": "Compliance",
   "drug-test-screening": "Compliance",

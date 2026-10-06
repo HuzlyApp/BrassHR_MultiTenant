@@ -343,6 +343,15 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
         defaultPhase: "transition",
       },
       {
+        id: "submit-to-msp",
+        label: "Submit to MSP",
+        iconKey: "submit-to-msp",
+        description:
+          "Prepare the candidate profile and required packet, then submit the candidate to the MSP.",
+        stepType: "custom_question",
+        defaultPhase: "pre_hire",
+      },
+      {
         id: "conditional-branch-decision",
         label: "Conditional Branch",
         iconKey: "conditional-branch-decision",

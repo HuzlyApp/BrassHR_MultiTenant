@@ -5,7 +5,6 @@ import {
   type StageQuestionKey,
 } from "./follow-up-questions";
 import {
-  formatScreeningPackForAiNotes,
   normalizeAnalysisScreeningQuestions,
   type AnalysisScreeningQuestion,
 } from "./workspace";
@@ -82,27 +81,91 @@ export function questionsForProgressionStep(
 }
 
 export function followUpEnrichmentFromVerifications(args: {
-  callPackQuestions: Array<{ question: string; answer?: string | null }>;
+  callPackQuestions: Array<{
+    question: string;
+    answer?: string | null;
+    reason?: string | null;
+    relatedRequirement?: string | null;
+  }>;
   callContext?: string | null;
 }): string {
-  const asked = args.callPackQuestions
-    .map((item) => String(item.question ?? "").trim())
-    .filter(Boolean);
+  const questions = args.callPackQuestions
+    .map((item) => ({
+      question: String(item.question ?? "").trim(),
+      answer: String(item.answer ?? "").trim(),
+      reason: String(item.reason ?? "").trim(),
+      relatedRequirement: String(item.relatedRequirement ?? "").trim(),
+    }))
+    .filter((item) => item.question);
   const blocks: string[] = [];
-  if (asked.length) {
+  if (questions.length) {
     blocks.push(
       [
-        "Questions already asked at Verifications (Step 2). Do not repeat them.",
-        ...asked.map((question, index) => `${index + 1}. ${question}`),
+        "Step 2 Verifications questions and answers. Do not repeat a question that already has an answer. Use the answer when you write the next question.",
+        ...questions.map((item, index) => {
+          const parts = [
+            `${index + 1}. ${item.question}`,
+            `   Answer: ${item.answer || "(no answer yet)"}`,
+          ];
+          if (item.reason) parts.push(`   Why Step 2 asked: ${item.reason}`);
+          if (item.relatedRequirement) parts.push(`   Related: ${item.relatedRequirement}`);
+          return parts.join("\n");
+        }),
       ].join("\n")
     );
+  } else {
+    blocks.push("Step 2 Verifications questions and answers:\n(none saved)");
   }
-  const pack = formatScreeningPackForAiNotes({
-    questions: args.callPackQuestions,
-    callContext: args.callContext,
-  });
-  if (pack) blocks.push(pack);
+  const context = String(args.callContext ?? "").trim();
+  blocks.push(`Call context:\n${context || "(none)"}`);
   return blocks.join("\n\n");
+}
+
+function bulletList(label: string, value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const items = value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  if (!items.length) return null;
+  return `${label}\n${items.map((item) => `- ${item}`).join("\n")}`;
+}
+
+/** Step 1 fields that are not already on the live checklist rows. */
+export function formatQuickMatchForFollowUp(analysis: Record<string, unknown> | null): string {
+  if (!analysis) return "(no Quick Match saved)";
+  const quick = asRecord(analysis.quick_match);
+  const extracted = asRecord(quick.extracted_resume);
+  const readiness = asRecord(analysis.submission_readiness);
+  const blocks: string[] = [];
+  const route = String(quick.quick_route ?? "").trim();
+  if (route) blocks.push(`Route: ${route}`);
+  const headline = String(extracted.headline ?? "").trim();
+  if (headline) blocks.push(`Headline: ${headline}`);
+  const years = extracted.years_estimated;
+  if (years != null && String(years).trim()) blocks.push(`Years estimated: ${String(years)}`);
+  const titles = bulletList("Recent titles", extracted.recent_titles);
+  if (titles) blocks.push(titles);
+  const education = String(extracted.education ?? "").trim();
+  if (education) blocks.push(`Education: ${education}`);
+  const products = bulletList("Named products", extracted.named_products_in_jobs);
+  if (products) blocks.push(products);
+  const strengths = bulletList("Strengths", analysis.strengths);
+  if (strengths) blocks.push(strengths);
+  const gaps = bulletList("Gaps and risks", analysis.gaps_and_risks);
+  if (gaps) blocks.push(gaps);
+  const verify = bulletList(
+    "Items to verify",
+    Array.isArray(quick.items_to_verify)
+      ? quick.items_to_verify
+      : readiness.items_to_verify_before_submission
+  );
+  if (verify) blocks.push(verify);
+  const blocking = bulletList(
+    "Blocking requirements",
+    Array.isArray(quick.blocking_requirements)
+      ? quick.blocking_requirements
+      : readiness.blocking_requirements
+  );
+  if (blocking) blocks.push(blocking);
+  return blocks.length ? blocks.join("\n") : "(no Quick Match summary saved)";
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

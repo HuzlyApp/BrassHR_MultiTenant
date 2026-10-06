@@ -1,7 +1,7 @@
 // app/admin_recruiter/candidates/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
@@ -94,6 +94,7 @@ import {
   serializeCandidatesListUrlState,
   type CandidatesListUrlState,
 } from "@/lib/workers/candidates-list-url";
+import { toPersistedCandidateRow } from "@/lib/lists/staff-list-cache-rows";
 import {
   invalidateCandidatesListCache,
   isLatestCandidatesListRequest,
@@ -177,6 +178,7 @@ type WorkerProfile = {
     title?: string | null;
   }> | null;
   application_source_job_id?: string | null;
+  application_source_type?: string | null;
   match_application_id?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
@@ -379,6 +381,7 @@ export default function CandidatesPage() {
   const userIdRef = useRef(currentUserId);
   const tenantIdRef = useRef(currentTenantId);
   const applyingUrlRef = useRef(false);
+  const networkListKeyRef = useRef<string | null>(null);
   userIdRef.current = currentUserId;
   tenantIdRef.current = currentTenantId;
 
@@ -634,6 +637,7 @@ export default function CandidatesPage() {
 
       const mapped = rows.map(mapWorkerToRow);
       if (!isLatestCandidatesListRequest(requestId)) return;
+      networkListKeyRef.current = cacheKey;
       setCandidates(mapped);
       setFacetOptions((prev) => {
         const jobRoles = new Set(prev.jobRoles);
@@ -661,13 +665,25 @@ export default function CandidatesPage() {
           stages: buildCandidateStageOptions([...mapped]),
         };
       });
-      writeCandidatesListCache(cacheScope, cacheKey, mapped, total);
+      const writeScope = `${userIdRef.current ?? ""}:${tenantIdRef.current ?? ""}`;
+      writeCandidatesListCache(
+        writeScope,
+        cacheKey,
+        mapped,
+        total,
+        mapped.map(toPersistedCandidateRow)
+      );
       clearSelectionRef.current();
     } catch (err) {
       if (isAbortError(err)) return;
       if (!isLatestCandidatesListRequest(requestId)) return;
       console.error("Failed to fetch workers:", err);
-      if (!cached) {
+      const status = (err as { status?: number }).status;
+      if (status === 401 || status === 403) {
+        invalidateCandidatesListCache();
+        setCandidates([]);
+        setTotalFromApi(null);
+      } else if (!cached) {
         setCandidates([]);
         setTotalFromApi(null);
       }
@@ -851,9 +867,7 @@ export default function CandidatesPage() {
     ]
   );
   const filterKey = serializeCandidatesListUrlState({ ...listUrlState, page: 1 });
-  const listCacheScope =
-    currentUserId && currentTenantId ? `${currentUserId}:${currentTenantId}` : "";
-  const listFetchKey = `${listCacheScope}|${serializeCandidatesListUrlState(listUrlState)}|geo:${
+  const listFetchKey = `${serializeCandidatesListUrlState(listUrlState)}|geo:${
     advancedSearchContext.active
       ? `${advancedSearchContext.lat},${advancedSearchContext.lng},${advancedSearchContext.radius},${advancedSearchContext.place}`
       : ""
@@ -862,7 +876,19 @@ export default function CandidatesPage() {
   loadCandidatesRef.current = loadCandidates;
   const lastFetchedListKeyRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!listReady || !currentUserId || !currentTenantId || advancedSearchContext.active) return;
+    const key = serializeCandidatesListUrlState(listUrlState);
+    if (networkListKeyRef.current === key) return;
+    const cached = readCandidatesListCache<CandidateRow>(`${currentUserId}:${currentTenantId}`, key);
+    if (!cached) return;
+    setCandidates(cached.rows);
+    setTotalFromApi(cached.total);
+    setLoading(false);
+    setListError(null);
+  }, [advancedSearchContext.active, currentTenantId, currentUserId, listReady, listUrlState]);
+
+  useLayoutEffect(() => {
     if (!listReady) return;
     if (lastFetchedListKeyRef.current === listFetchKey) return;
     lastFetchedListKeyRef.current = listFetchKey;

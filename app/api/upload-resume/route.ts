@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { after, NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
-import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
+import { extractPdfText } from "@/lib/resume/extract-pdf-text"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path"
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
@@ -99,8 +99,7 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
   const mime = (file.type || "").toLowerCase()
 
   if (mime === "application/pdf" || lower.endsWith(".pdf")) {
-    const pdf = await pdfParse(buffer)
-    return finalizeExtractedResumeText(pdf.text || "")
+    return finalizeExtractedResumeText(await extractPdfText(buffer))
   }
 
   if (

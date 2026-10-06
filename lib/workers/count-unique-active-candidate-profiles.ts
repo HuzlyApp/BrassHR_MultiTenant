@@ -1,8 +1,14 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getOrSetCache } from "@/lib/cache";
 import { selectUniqueCandidateProfilesInOrder } from "@/lib/workers/candidate-identity";
+import {
+  CANDIDATE_KPI_CACHE_TTL_SECONDS,
+  candidateKpiCacheKey,
+} from "@/lib/workers/candidate-kpi-cache";
 import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
+import { loadPagedRows } from "@/lib/workers/load-paged-rows";
 
 type WorkerIdentityRow = {
   id?: string;
@@ -14,52 +20,96 @@ type WorkerIdentityRow = {
   created_at?: string | null;
 };
 
+const PAGE_SIZE = 1000;
+
 function isPipelineBaseStatus(status: string): boolean {
   if (!status) return true;
   return (ACTIVE_CANDIDATE_PIPELINE_STATUSES as readonly string[]).includes(status);
 }
 
-/**
- * Count unique candidate profiles for a tenant (email, or phone+name),
- * using the same pipeline + conversion scope as the Candidates screen Active KPI.
- */
-export async function countUniqueActiveCandidateProfiles(
+function isMissingRpc(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return /could not find the function|schema cache|does not exist/i.test(error.message ?? "");
+}
+
+function readRpcCount(data: unknown): number | null {
+  const value = Array.isArray(data) ? data[0] : data;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+async function countViaRpc(supabase: SupabaseClient, tenantId: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc("count_unique_active_candidate_profiles", {
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    if (isMissingRpc(error)) return null;
+    throw error;
+  }
+  return readRpcCount(data);
+}
+
+async function loadWorkerPages(
   supabase: SupabaseClient,
   tenantId: string
-): Promise<number> {
-  const pageSize = 1000;
-  const workerRows: WorkerIdentityRow[] = [];
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("worker")
-      .select("id, status, email, phone, first_name, last_name, created_at")
-      .eq("tenant_id", tenantId)
-      .range(from, from + pageSize - 1);
-    if (error) throw error;
-    const page = (data ?? []) as WorkerIdentityRow[];
-    workerRows.push(...page);
-    if (page.length < pageSize) break;
-  }
+): Promise<WorkerIdentityRow[]> {
+  return loadPagedRows(
+    async (from, to) => {
+      const { data, error } = await supabase
+        .from("worker")
+        .select("id, status, email, phone, first_name, last_name, created_at")
+        .eq("tenant_id", tenantId)
+        .order("id", { ascending: true })
+        .range(from, to);
+      if (error) throw error;
+      return (data ?? []) as WorkerIdentityRow[];
+    },
+    { pageSize: PAGE_SIZE }
+  );
+}
 
-  const convertedIds = new Set<string>();
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("workers")
-      .select("candidate_id")
-      .eq("tenant_id", tenantId)
-      .not("candidate_id", "is", null)
-      .range(from, from + pageSize - 1);
-    if (error) {
-      if (!String(error.message ?? "").includes("does not exist")) throw error;
-      break;
-    }
-    const page = (data ?? []) as Array<{ candidate_id?: string | null }>;
-    for (const row of page) {
+async function loadConvertedIds(supabase: SupabaseClient, tenantId: string): Promise<Set<string>> {
+  try {
+    const rows = await loadPagedRows(
+      async (from, to) => {
+        const { data, error } = await supabase
+          .from("workers")
+          .select("candidate_id")
+          .eq("tenant_id", tenantId)
+          .not("candidate_id", "is", null)
+          .order("candidate_id", { ascending: true })
+          .range(from, to);
+        if (error) {
+          if (String(error.message ?? "").includes("does not exist")) {
+            const missing = new Error(error.message) as Error & { missingRelation?: boolean };
+            missing.missingRelation = true;
+            throw missing;
+          }
+          throw error;
+        }
+        return (data ?? []) as Array<{ candidate_id?: string | null }>;
+      },
+      { pageSize: PAGE_SIZE }
+    );
+    const ids = new Set<string>();
+    for (const row of rows) {
       const id = String(row.candidate_id ?? "").trim();
-      if (id) convertedIds.add(id);
+      if (id) ids.add(id);
     }
-    if (page.length < pageSize) break;
+    return ids;
+  } catch (error) {
+    if (error && typeof error === "object" && "missingRelation" in error) return new Set();
+    throw error;
   }
+}
+
+async function countFromPages(supabase: SupabaseClient, tenantId: string): Promise<number> {
+  const [workerRows, convertedIds] = await Promise.all([
+    loadWorkerPages(supabase, tenantId),
+    loadConvertedIds(supabase, tenantId),
+  ]);
 
   const baseRows = workerRows.filter((row) => {
     const id = String(row.id ?? "").trim();
@@ -70,4 +120,23 @@ export async function countUniqueActiveCandidateProfiles(
   });
 
   return selectUniqueCandidateProfilesInOrder(baseRows.map((row) => ({ ...row }))).length;
+}
+
+async function countUncached(supabase: SupabaseClient, tenantId: string): Promise<number> {
+  const rpcCount = await countViaRpc(supabase, tenantId);
+  if (rpcCount != null) return rpcCount;
+  return countFromPages(supabase, tenantId);
+}
+
+/**
+ * Unique active candidate profiles for the Jobs dashboard KPI.
+ * One SQL function when the migration is applied; otherwise paged reads in parallel.
+ * Repeated loads reuse the candidate KPI cache (120s, tenant-scoped, same invalidation).
+ */
+export async function countUniqueActiveCandidateProfiles(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<number> {
+  const key = candidateKpiCacheKey(tenantId, "unique-active-profiles");
+  return getOrSetCache(key, () => countUncached(supabase, tenantId), CANDIDATE_KPI_CACHE_TTL_SECONDS);
 }

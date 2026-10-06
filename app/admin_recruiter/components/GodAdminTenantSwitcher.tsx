@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { clearStaffListSessionCache } from "@/lib/lists/staff-list-session-cache";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 
 type TenantRow = { id: string; name: string; slug: string };
@@ -67,6 +68,7 @@ export default function GodAdminTenantSwitcher() {
               tenantId: tenantId ? tenantId : null,
             }),
           });
+          clearStaffListSessionCache();
           window.location.reload();
         }}
       >

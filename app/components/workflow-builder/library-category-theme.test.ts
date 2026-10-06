@@ -249,6 +249,7 @@ describe("library-category-theme", () => {
     expect(submission?.label).toBe("Submission");
     expect(submission?.steps.map((step) => ({ id: step.id, label: step.label }))).toEqual([
       { id: "release-to-client", label: "Release to Client" },
+      { id: "submit-to-msp", label: "Submit to MSP" },
     ]);
 
     const approvals = preHire.find((category) => category.id === "approval-decision");
