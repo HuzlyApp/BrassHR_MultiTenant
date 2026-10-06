@@ -1,5 +1,16 @@
 import type { ApplicationPipelineStatus } from "@/lib/jobs/application-status";
 
+export type ApplicationStatusGroupRecord = {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  systemKey: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApplicationStatusRecord = {
   id: string;
   tenantId: string;
@@ -10,6 +21,11 @@ export type ApplicationStatusRecord = {
   isActive: boolean;
   isDefault: boolean;
   systemKey: ApplicationPipelineStatus | "withdrawn" | null;
+  groupId: string | null;
+  groupName: string | null;
+  groupDescription: string | null;
+  groupSortOrder: number | null;
+  groupSystemKey: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

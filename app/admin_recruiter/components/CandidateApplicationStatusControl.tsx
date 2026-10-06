@@ -14,11 +14,19 @@ import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
+import { readStatusGroupFields } from "@/lib/jobs/application-statuses/groups";
+import { GroupedStatusMenuList } from "@/app/admin_recruiter/components/GroupedStatusMenu";
 
 export type StatusOption = {
   id: string;
   name: string;
   systemKey: string | null;
+  sortOrder?: number;
+  groupId?: string | null;
+  groupName?: string | null;
+  groupDescription?: string | null;
+  groupSortOrder?: number | null;
+  groupSystemKey?: string | null;
 };
 
 type StatusHistoryItem = {
@@ -65,6 +73,8 @@ export function mapApplicationStatusOptions(payload: unknown): StatusOption[] {
     id: String(row.id),
     name: String(row.name),
     systemKey: typeof row.systemKey === "string" ? row.systemKey : null,
+    sortOrder: Number(row.sortOrder ?? 0),
+    ...readStatusGroupFields(row),
   }));
 }
 
@@ -106,8 +116,8 @@ function formatHistoryDate(iso: string): string {
   });
 }
 
-const MENU_MIN_WIDTH = 192;
-const MENU_MAX_HEIGHT = 256;
+const MENU_MIN_WIDTH = 240;
+const MENU_MAX_HEIGHT = 360;
 
 function StatusOptionsMenu({
   anchor,
@@ -191,20 +201,23 @@ function StatusOptionsMenu({
       className="z-[200] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg"
     >
       {options.length ? (
-        options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            role="menuitem"
-            onClick={() => onSelect(option)}
-            className="flex min-h-9 w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            <span>{option.name}</span>
-            {option.id === currentStatusId ? (
-              <Check className="h-4 w-4 text-[color:var(--brand-primary)]" />
-            ) : null}
-          </button>
-        ))
+        <GroupedStatusMenuList
+          options={options}
+          renderOption={(option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitem"
+              onClick={() => onSelect(option)}
+              className="flex min-h-9 w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            >
+              <span>{option.name}</span>
+              {option.id === currentStatusId ? (
+                <Check className="h-4 w-4 text-[color:var(--brand-primary)]" />
+              ) : null}
+            </button>
+          )}
+        />
       ) : (
         <p className="px-3 py-2 text-sm text-[#98A2B3]">No statuses available</p>
       )}

@@ -52,9 +52,9 @@ function SettingsContent() {
         <AssessmentSettingsPanel />
       </section>
 
-      <section aria-labelledby="candidate-statuses-heading">
-        <h2 id="candidate-statuses-heading" className="sr-only">
-          Candidate Statuses
+      <section aria-labelledby="prehire-status-catalog-heading">
+        <h2 id="prehire-status-catalog-heading" className="sr-only">
+          Pre-Hire Status Catalog
         </h2>
         <CandidateStatusesPanel />
       </section>
