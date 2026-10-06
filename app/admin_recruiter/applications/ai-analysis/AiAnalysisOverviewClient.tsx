@@ -913,6 +913,10 @@ export function AiAnalysisOverviewClient({
     data?.job?.title?.trim() ||
     analysis?.job?.job_title?.trim() ||
     "";
+  const jobDetailsId = data?.job?.id?.trim() || jobId?.trim() || "";
+  const jobDetailsHref = jobDetailsId
+    ? `/admin_recruiter/jobs/${encodeURIComponent(jobDetailsId)}`
+    : "";
   const confidencePercent =
     hasDeepMatch && analysis?.candidate_match?.confidence_score != null
       ? Math.round(Number(analysis.candidate_match.confidence_score))
@@ -1352,7 +1356,20 @@ export function AiAnalysisOverviewClient({
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   {jobTitle ? (
-                    <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
+                    <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">
+                      For:{" "}
+                      {jobDetailsHref ? (
+                        <Link
+                          href={jobDetailsHref}
+                          className="font-medium text-[#001A46] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                          title="View job details"
+                        >
+                          {jobTitle}
+                        </Link>
+                      ) : (
+                        <span className="font-medium text-[#001A46]">{jobTitle}</span>
+                      )}
+                    </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                     {confidencePercent != null && confidencePercent > 0 ? (
