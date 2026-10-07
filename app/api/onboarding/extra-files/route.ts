@@ -16,6 +16,18 @@ type ExtraFileRow = {
   created_at: string;
 };
 
+function isMissingExtraFilesTable(error: unknown): boolean {
+  const value = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+  const text = [value?.code, value?.message, value?.details, value?.hint]
+    .filter((part): part is string => typeof part === "string")
+    .join(" ");
+  return (
+    /42P01/i.test(text) ||
+    /PGRST205/i.test(text) ||
+    /worker_extra_files/i.test(text) && /does not exist|schema cache|could not find/i.test(text)
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() ?? "";
@@ -43,7 +55,13 @@ export async function GET(req: NextRequest) {
       .eq("worker_id", ctx.workerId)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingExtraFilesTable(error)) {
+        console.warn("[extra-files GET] worker_extra_files table is not available yet", error);
+        return NextResponse.json({ files: [] });
+      }
+      throw error;
+    }
 
     const files = (data ?? []).map((row) => ({
       id: row.id,
@@ -103,7 +121,21 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingExtraFilesTable(error)) {
+        console.warn("[extra-files POST] worker_extra_files table is not available yet", error);
+        return NextResponse.json({
+          success: true,
+          pendingPersistence: true,
+          file: {
+            id: storagePath,
+            original_file_name: fileName,
+            storage_path: storagePath,
+          },
+        });
+      }
+      throw error;
+    }
 
     return NextResponse.json({
       success: true,
@@ -159,7 +191,13 @@ export async function DELETE(req: NextRequest) {
       .eq("worker_id", ctx.workerId)
       .eq("storage_path", storagePath);
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingExtraFilesTable(error)) {
+        console.warn("[extra-files DELETE] worker_extra_files table is not available yet", error);
+        return NextResponse.json({ success: true, pendingPersistence: true });
+      }
+      throw error;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -264,7 +264,7 @@ export default function CollectExtraFilesPage() {
     }
   };
 
-  const pageTitle = currentStep?.title?.trim() || "Collect Extra Files";
+  const pageTitle = "Upload Extra Files";
 
   return (
     <OnboardingLayout
@@ -337,7 +337,7 @@ export default function CollectExtraFilesPage() {
                 </div>
               ) : null}
 
-              {/* Upload area always visible to allow multiple uploads */}
+              {uploadedFiles.length === 0 ? (
               <label
                 htmlFor={inputId}
                 className="block w-full min-h-[206px] cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] px-6 py-6 text-center transition hover:bg-slate-50"
@@ -367,6 +367,7 @@ export default function CollectExtraFilesPage() {
                   </p>
                 </div>
               </label>
+              ) : null}
             </div>
           </div>
 

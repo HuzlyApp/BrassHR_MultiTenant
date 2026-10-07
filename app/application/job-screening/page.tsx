@@ -20,10 +20,12 @@ import {
 import {
   APPLICANT_ACTION_ROW,
   APPLICANT_CONTENT_CLASS,
+  APPLICANT_HEADER_ROW,
   APPLICANT_SHELL_CLASS,
+  APPLICANT_SKIP_COLUMN,
   APPLICANT_TITLE_CLASS,
 } from "@/app/application/applicant-onboarding-responsive";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FileQuestion } from "lucide-react";
 import { nextStepRouteAfter } from "@/lib/onboarding/professional-license-step";
 import { isApplicantWaitingGateStep } from "@/lib/onboarding/workflow-settings";
 import { readStepKeyFromSearch } from "@/lib/onboarding/find-applicant-step";
@@ -108,76 +110,11 @@ export default function JobScreeningPage() {
         if (!response.ok) {
           throw new Error(payload.error || "Failed to load screening questions");
         }
-        if (!payload.hasQuestions) {
-          void (async () => {
-            const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
-            if (onboarding?.updateStepStatus) {
-              await persistStepProgress(
-                onboarding.updateStepStatus,
-                stepKeyToComplete,
-                "completed",
-                completingRef,
-                { system_completed: true, reason: "no_screening_questions" }
-              );
-            }
-            const nextRoute = nextStepRouteAfter(onboarding?.config, currentStep, tenantSlug);
-            if (nextRoute) {
-              const enabledSteps = onboarding?.config?.steps?.filter((s) => s.is_enabled) ?? [];
-              const currentIndex = enabledSteps.findIndex(
-                (s) => s.id === currentStep?.id || s.step_key === currentStep?.step_key
-              );
-              const nextStep =
-                currentIndex >= 0 && currentIndex < enabledSteps.length - 1
-                  ? enabledSteps[currentIndex + 1]
-                  : null;
-              if (nextStep && isApplicantWaitingGateStep(nextStep)) {
-                setShowWaitingModal(true);
-                return;
-              }
-              router.replace(nextRoute);
-            } else {
-              router.replace(applicationPath(APPLICATION_ROUTES.applicationStatus, tenantSlug));
-            }
-          })();
+        if (!payload.hasQuestions || !(payload.questions && payload.questions.length > 0)) {
+          setQuestions([]);
           return;
         }
         const loaded = (payload.questions ?? []) as ScreeningQuestion[];
-        const allRequiredAnswered = loaded.every(
-          (item) => !item.isRequired || (item.answer != null && String(item.answer).trim() !== "")
-        );
-        if (allRequiredAnswered && loaded.length > 0 && loaded.every((item) => item.answer != null)) {
-          void (async () => {
-            const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
-            if (onboarding?.updateStepStatus) {
-              await persistStepProgress(
-                onboarding.updateStepStatus,
-                stepKeyToComplete,
-                "completed",
-                completingRef,
-                { source: "job_screening_answers" }
-              );
-            }
-            const nextRoute = nextStepRouteAfter(onboarding?.config, currentStep, tenantSlug);
-            if (nextRoute) {
-              const enabledSteps = onboarding?.config?.steps?.filter((s) => s.is_enabled) ?? [];
-              const currentIndex = enabledSteps.findIndex(
-                (s) => s.id === currentStep?.id || s.step_key === currentStep?.step_key
-              );
-              const nextStep =
-                currentIndex >= 0 && currentIndex < enabledSteps.length - 1
-                  ? enabledSteps[currentIndex + 1]
-                  : null;
-              if (nextStep && isApplicantWaitingGateStep(nextStep)) {
-                setShowWaitingModal(true);
-                return;
-              }
-              router.replace(nextRoute);
-            } else {
-              router.replace(applicationPath(APPLICATION_ROUTES.applicationStatus, tenantSlug));
-            }
-          })();
-          return;
-        }
         setQuestions(loaded);
         setAnswers(
           Object.fromEntries(
@@ -195,6 +132,75 @@ export default function JobScreeningPage() {
     if (questionType === "multiple_select") return [];
     if (questionType === "yes_no") return null;
     return "";
+  }
+
+  async function handleSkip() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const applicantId = localStorage.getItem("applicantId")?.trim();
+      const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
+
+      // Explicitly persist completion in client onboarding state
+      if (onboarding?.updateStepStatus) {
+        await persistStepProgress(
+          onboarding.updateStepStatus,
+          stepKeyToComplete,
+          "completed",
+          completingRef,
+          { system_completed: true, reason: "no_screening_questions" }
+        );
+      }
+
+      // Persist step completion in backend DB
+      if (applicantId && jobToken && tenantSlug) {
+        await fetch("/api/onboarding/job-screening-answers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantId,
+            tenantSlug,
+            jobToken,
+            workLocation: readStoredApplyLocation(tenantSlug, jobToken),
+            answers: [],
+          }),
+        }).catch(() => {});
+      }
+
+      // Refresh the onboarding config and progress to get updated step status
+      if (onboarding?.refresh) {
+        await onboarding.refresh();
+      }
+
+      // Get next step and check if it's a waiting gate
+      const nextRoute = nextStepRouteAfter(onboarding?.config, currentStep, tenantSlug);
+      
+      if (nextRoute) {
+        const enabledSteps = onboarding?.config?.steps?.filter((s) => s.is_enabled) ?? [];
+        const currentIndex = enabledSteps.findIndex(
+          (s) => s.id === currentStep?.id || s.step_key === currentStep?.step_key
+        );
+        const nextStep = currentIndex >= 0 && currentIndex < enabledSteps.length - 1 
+          ? enabledSteps[currentIndex + 1] 
+          : null;
+
+        if (nextStep && isApplicantWaitingGateStep(nextStep)) {
+          // Show modal for recruiter-owned steps, do not navigate away
+          setShowWaitingModal(true);
+          return;
+        } else {
+          // Navigate immediately for candidate steps
+          router.push(nextRoute);
+        }
+      } else {
+        // Fallback to application status
+        router.push(applicationPath(APPLICATION_ROUTES.applicationStatus, tenantSlug));
+      }
+    } catch (skipError) {
+      setError(skipError instanceof Error ? skipError.message : "Failed to continue to next step");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -285,10 +291,23 @@ export default function JobScreeningPage() {
           <OnboardingStepper />
 
           <div className={APPLICANT_CONTENT_CLASS}>
-            <h2 className={APPLICANT_TITLE_CLASS}>Screening Questions</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Answer these job-specific questions before continuing your application.
-            </p>
+            <div className={APPLICANT_HEADER_ROW}>
+              <h2 className={APPLICANT_TITLE_CLASS}>
+                {currentStep?.title || "Screening Questions"}
+              </h2>
+              {questions.length === 0 ? (
+                <div className={APPLICANT_SKIP_COLUMN}>
+                  <button
+                    type="button"
+                    onClick={() => void handleSkip()}
+                    disabled={submitting}
+                    className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] hover:underline"
+                  >
+                    Skip for Now {"\u2192"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
             {error ? (
               <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -296,7 +315,36 @@ export default function JobScreeningPage() {
               </p>
             ) : null}
 
-            <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-5">
+            {questions.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-6 text-center sm:p-8">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                  <FileQuestion className="h-6 w-6 text-slate-500" />
+                </div>
+                <h3 className="text-base font-semibold text-slate-900">
+                  No screening questions required
+                </h3>
+                <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+                  No screening questions have been added for this job. You can skip this step and continue with your application.
+                </p>
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => void handleSkip()}
+                    disabled={submitting}
+                    className="group inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-5 py-2.5 text-[12px] font-semibold leading-5 text-white shadow-sm transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? "Continuing…" : "Skip for Now"}
+                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-slate-600">
+                  Answer these job-specific questions before continuing your application.
+                </p>
+
+                <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-5">
               {questions.map((item) => (
                 <fieldset key={item.id} className="space-y-2">
                   <legend className="text-sm font-medium text-slate-900">
@@ -429,8 +477,10 @@ export default function JobScreeningPage() {
                 </button>
               </div>
             </form>
-          </div>
+            </>
+          )}
         </div>
+      </div>
       </OnboardingLayout>
 
       <AwaitingRecruiterReviewModal 
