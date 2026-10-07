@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("[extra-files POST]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to save extra file" },
+      { error: error instanceof Error ? error.message : ((error as any)?.message ? `${(error as any).message} [${(error as any).code || ""}]` : "Failed to save extra file") },
       { status: 500 }
     );
   }

@@ -264,7 +264,7 @@ export default function CollectExtraFilesPage() {
     }
   };
 
-  const pageTitle = "Upload Extra Files";
+  const pageTitle = "Upload Extra files";
 
   return (
     <OnboardingLayout
@@ -367,7 +367,27 @@ export default function CollectExtraFilesPage() {
                   </p>
                 </div>
               </label>
-              ) : null}
+              ) : (
+                <div className="pt-2">
+                  <label
+                    htmlFor={inputId}
+                    className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[color:var(--brand-primary)] px-4 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10"
+                  >
+                    <input
+                      id={inputId}
+                      type="file"
+                      className="hidden"
+                      accept={ACCEPTED_FILE_TYPES}
+                      onChange={(e) => {
+                        const selected = e.target.files?.[0];
+                        e.target.value = "";
+                        if (selected) void handleFileUpload(selected);
+                      }}
+                    />
+                    + Add another file
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 
