@@ -191,6 +191,13 @@ export function computeMaxAllowedStepIndex(
   let max = farthestReachedIndex;
 
   if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const resume = params.get("resume");
+    const stepKey = params.get("stepKey");
+    if (resume === "1" || stepKey) {
+      const idx = stepIndexFromPathname(pathname ?? "", steps, window.location.search);
+      if (idx > 0) max = Math.max(max, idx);
+    }
     if (localStorage.getItem("step1ReviewCompleted") === "true") {
       const resumeIdx = steps.findIndex(
         (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"

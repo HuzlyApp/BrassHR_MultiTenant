@@ -1403,7 +1403,6 @@ export function AiAnalysisOverviewClient({
                         )}
                       </p>
                     ) : null}
-                    
                     {workerId ? (
                       <div className="mt-3 flex items-center gap-3">
                         <Link
@@ -1523,7 +1522,6 @@ export function AiAnalysisOverviewClient({
                   </div>
                 ) : null}
               </div>
-              
               <div className="mt-1">
                 {primaryAction && primaryAction.kind !== "advance" ? (
                   <button

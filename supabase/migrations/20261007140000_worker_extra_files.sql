@@ -4,16 +4,12 @@
 CREATE TABLE IF NOT EXISTS public.worker_extra_files (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
-  worker_id uuid NOT NULL REFERENCES public.workers (id) ON DELETE CASCADE,
+  worker_id uuid NOT NULL REFERENCES public.worker (id) ON DELETE CASCADE,
   original_file_name text NOT NULL,
   file_size_bytes bigint,
   storage_path text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT worker_extra_files_tenant_worker_fk
-    FOREIGN KEY (tenant_id, worker_id)
-    REFERENCES public.workers (tenant_id, id)
-    ON DELETE CASCADE
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS worker_extra_files_tenant_worker_idx
@@ -58,16 +54,8 @@ DROP POLICY IF EXISTS worker_extra_files_worker_own ON public.worker_extra_files
 CREATE POLICY worker_extra_files_worker_own
   ON public.worker_extra_files
   FOR ALL TO authenticated
-  USING (
-    worker_id IN (
-      SELECT w.id FROM public.workers w WHERE w.user_id = auth.uid() AND w.tenant_id = worker_extra_files.tenant_id
-    )
-  )
-  WITH CHECK (
-    worker_id IN (
-      SELECT w.id FROM public.workers w WHERE w.user_id = auth.uid() AND w.tenant_id = worker_extra_files.tenant_id
-    )
-  );
+  USING (public.approved_applicant_owns_worker(worker_id))
+  WITH CHECK (public.approved_applicant_owns_worker(worker_id));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.worker_extra_files TO authenticated;
 GRANT ALL ON public.worker_extra_files TO service_role;

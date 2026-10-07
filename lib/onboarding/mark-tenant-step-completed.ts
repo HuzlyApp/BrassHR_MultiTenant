@@ -11,13 +11,16 @@ async function markEnabledStepCompleted(
     workerId: string;
     tenantId: string;
     step: TenantOnboardingStep;
+    applicationId?: string | null;
+    configSteps?: TenantOnboardingStep[];
     data?: Record<string, unknown>;
   }
 ): Promise<void> {
   const progress = await ensureWorkerOnboardingProgress(
     supabase,
     input.workerId,
-    input.tenantId
+    input.tenantId,
+    input.applicationId
   );
 
   const existing = progress.steps.find((row) => row.onboarding_step_id === input.step.id);
@@ -51,6 +54,22 @@ async function markEnabledStepCompleted(
     .neq("status", "completed");
 
   if (updateErr) throw updateErr;
+
+  if (input.configSteps?.length) {
+    const stepIdx = input.configSteps.findIndex((s) => s.id === input.step.id || s.step_key === input.step.step_key);
+    if (stepIdx >= 0) {
+      await supabase
+        .from("worker_onboarding_progress")
+        .update({
+          farthest_reached_step_index: Math.max(
+            progress.farthestReachedStepIndex ?? 1,
+            stepIdx + 2
+          ),
+          updated_at: now,
+        })
+        .eq("id", progress.progressId);
+    }
+  }
 }
 
 /**
@@ -86,6 +105,7 @@ export async function markTenantStepCompletedByType(
     workerId: input.workerId,
     tenantId: input.tenantId,
     step,
+    configSteps: enabled,
   });
 }
 
@@ -99,19 +119,61 @@ export async function markTenantStepCompletedByWorkflowLibraryId(
     workerId: string;
     tenantId: string;
     workflowStepId: string;
+    applicationId?: string | null;
+    jobToken?: string | null;
     data?: Record<string, unknown>;
   }
 ): Promise<void> {
-  const config = await loadTenantOnboardingConfig(supabase, input.tenantId, {
+  let config = await loadTenantOnboardingConfig(supabase, input.tenantId, {
     workerFacing: true,
   });
+
+  if (input.jobToken) {
+    try {
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("slug")
+        .eq("id", input.tenantId)
+        .maybeSingle();
+      const { loadApplicantConfigForJobToken } = await import(
+        "@/lib/onboarding/load-config-for-job-workflow"
+      );
+      const jobConfig = await loadApplicantConfigForJobToken(
+        supabase,
+        tenant?.slug ?? null,
+        input.jobToken
+      );
+      if (jobConfig.config?.steps?.length) {
+        config = jobConfig.config;
+      }
+    } catch {
+      // Keep tenant config
+    }
+  }
+
   if (!config) return;
 
   const enabled = getEnabledTenantSteps(config);
+  const normalizedTarget = input.workflowStepId.trim().toLowerCase().replaceAll("_", "-");
+
   const step =
     enabled.find((s) => {
       const id = s.metadata?.workflow_step_id;
-      return typeof id === "string" && id.trim() === input.workflowStepId;
+      if (typeof id === "string" && id.trim().toLowerCase().replaceAll("_", "-") === normalizedTarget) {
+        return true;
+      }
+      const key = s.step_key?.toLowerCase().replaceAll("_", "-");
+      if (key === normalizedTarget || key?.replace(/-\d+$/, "") === normalizedTarget) {
+        return true;
+      }
+      if (s.id === input.workflowStepId) return true;
+      if (
+        normalizedTarget === "parameterized-job-application" &&
+        (s.step_type === "profile_information" || s.step_key === "parameterized_job_application")
+      ) {
+        return true;
+      }
+      return false;
     }) ?? null;
 
   if (!step) return;
@@ -119,7 +181,9 @@ export async function markTenantStepCompletedByWorkflowLibraryId(
   await markEnabledStepCompleted(supabase, {
     workerId: input.workerId,
     tenantId: input.tenantId,
+    applicationId: input.applicationId,
     step,
+    configSteps: enabled,
     data: {
       ...NON_NAVIGABLE_SYSTEM_COMPLETE_DATA,
       ...(input.data ?? {}),
