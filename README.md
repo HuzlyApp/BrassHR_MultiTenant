@@ -76,3 +76,5 @@ In development, cache hits, misses, and Redis errors are logged with a `[cache:*
 <!-- Security scan triggered at 2026-09-04 12:55:59 -->
 
 <!-- Security scan triggered at 2026-10-07 11:01:59 -->
+
+<!-- Security scan triggered at 2026-10-07 11:10:21 -->
