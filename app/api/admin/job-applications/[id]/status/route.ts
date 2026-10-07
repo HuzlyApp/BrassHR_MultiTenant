@@ -112,7 +112,11 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof ApplicationStatusError) {
       return NextResponse.json(
-        { error: error.message, code: error.code },
+        { 
+          error: error.message, 
+          code: error.code,
+          ...(error.metadata && { metadata: error.metadata })
+        },
         { status: error.status }
       );
     }

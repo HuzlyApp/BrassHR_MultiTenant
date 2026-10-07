@@ -72,6 +72,7 @@ type HistoryRow = {
   to_status_id: string | null;
   to_status_name: string;
   changed_by_user_id: string | null;
+  change_source: string | null;
   note: string | null;
   created_at: string;
 };
@@ -501,6 +502,7 @@ export async function changeApplicationStatus(
     changedByUserId?: string | null;
     note?: string | null;
     origin?: string | null;
+    changeSource?: "USER" | "SYSTEM" | "API";
   }
 ): Promise<ChangeApplicationStatusResult> {
   const note =
@@ -508,6 +510,8 @@ export async function changeApplicationStatus(
   if (note && note.length > 4000) {
     throw new ApplicationStatusError("Note must be 4000 characters or fewer", "VALIDATION");
   }
+
+  const changeSource = input.changeSource ?? "USER";
 
   const { data, error } = await supabase.rpc("change_job_application_status", {
     p_tenant_id: input.tenantId,
@@ -527,6 +531,27 @@ export async function changeApplicationStatus(
     }
     if (/Note too long/i.test(message)) {
       throw new ApplicationStatusError("Note must be 4000 characters or fewer", "VALIDATION");
+    }
+    if (/required.*task|gate|blocked|must complete/i.test(message)) {
+      throw new ApplicationStatusError(
+        message || "Finish the open tasks before changing status.",
+        "GATE_TASK_OPEN",
+        422
+      );
+    }
+    if (/invalid.*transition|not allowed|cannot move/i.test(message)) {
+      throw new ApplicationStatusError(
+        message || "This status transition is not allowed.",
+        "INVALID_TRANSITION",
+        422
+      );
+    }
+    if (/conflict|status.*changed|stale/i.test(message)) {
+      throw new ApplicationStatusError(
+        message || "Status was changed by another user. Please refresh and try again.",
+        "STATUS_CHANGED",
+        409
+      );
     }
     throw error;
   }

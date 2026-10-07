@@ -7,7 +7,7 @@ import { withTenant } from "@/lib/tenant/with-tenant";
 /** Builder library step id → primary applicant route. */
 export const WORKFLOW_STEP_APPLICANT_ROUTE: Record<string, string> = {
   "resume-basic-profile": APPLICATION_ROUTES.addResume,
-  "parameterized-job-application": APPLICATION_ROUTES.addResume,
+  "parameterized-job-application": APPLICATION_ROUTES.jobScreening,
   "collect-extra-files": APPLICATION_ROUTES.professionalLicense,
   "references-collection": APPLICATION_ROUTES.addReferences,
   "reference-verification": APPLICATION_ROUTES.addReferences,

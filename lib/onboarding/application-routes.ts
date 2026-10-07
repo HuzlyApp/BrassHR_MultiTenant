@@ -61,6 +61,12 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
     ],
   },
   {
+    stepType: "profile_information",
+    pathIncludes: [
+      APPLICATION_ROUTES.jobScreening,
+    ],
+  },
+  {
     stepType: "professional_license",
     pathIncludes: [APPLICATION_ROUTES.professionalLicense, "/application/step-2-"],
   },

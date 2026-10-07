@@ -64,7 +64,7 @@ const INTERNAL_LIBRARY_STEP_IDS = new Set([
   "benefits-confirmation",
   "adverse-action-process",
   "conditional-branch-decision",
-  "parameterized-job-application",
+  // parameterized-job-application is now applicant-facing: removed from internal steps
 ]);
 
 export function readWorkflowLibraryStepId(step: TenantOnboardingStep): string {

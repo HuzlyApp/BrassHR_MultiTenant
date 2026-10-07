@@ -31,6 +31,8 @@ export type ApplicationStatusRecord = {
   updatedAt: string;
 };
 
+export type ApplicationStatusChangeSource = "USER" | "SYSTEM" | "API";
+
 export type ApplicationStatusHistoryRecord = {
   id: string;
   applicationId: string;
@@ -41,6 +43,7 @@ export type ApplicationStatusHistoryRecord = {
   toStatusName: string;
   changedByUserId: string | null;
   changedByName: string | null;
+  changeSource: ApplicationStatusChangeSource;
   note: string | null;
   createdAt: string;
 };
@@ -78,8 +81,12 @@ export class ApplicationStatusError extends Error {
       | "VALIDATION"
       | "INACTIVE"
       | "CONFLICT"
-      | "INTERNAL",
-    public readonly status: number = 400
+      | "INTERNAL"
+      | "GATE_TASK_OPEN"
+      | "INVALID_TRANSITION"
+      | "STATUS_CHANGED",
+    public readonly status: number = 400,
+    public readonly metadata?: Record<string, unknown>
   ) {
     super(message);
     this.name = "ApplicationStatusError";
