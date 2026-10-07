@@ -26,6 +26,7 @@ export const APPLICATION_ROUTES = {
   applicationSummary: "/application/application-summary",
   applicationStatus: "/application/application-status",
   jobScreening: "/application/job-screening",
+  collectExtraFiles: "/application/collect-extra-files",
   customStep: (stepKey: string) => `/application/custom-step/${encodeURIComponent(stepKey)}`,
 } as const;
 
