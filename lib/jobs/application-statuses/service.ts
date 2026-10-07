@@ -10,7 +10,7 @@ import { isPlacementAcceptedStatus } from "@/lib/onboarding/workflow-phase";
 import { invalidateCandidateKpiCache } from "@/lib/workers/candidate-kpi-cache";
 import { isSharedClosedGroupKey } from "./groups";
 import {
-  isPreHireStatusStageName,
+  isAssignableStatusStageName,
   type ApplicationStatusGroupStageAssignmentRecord,
 } from "./stage-assignments";
 import {
@@ -859,11 +859,12 @@ const GROUP_STAGE_ASSIGNMENT_COLUMNS =
 
 function mapGroupStageAssignment(
   row: GroupStageAssignmentRow
-): ApplicationStatusGroupStageAssignmentRecord {
+): ApplicationStatusGroupStageAssignmentRecord | null {
+  if (!isAssignableStatusStageName(row.stage_name)) return null;
   return {
     id: row.id,
     tenantId: row.tenant_id,
-    stageName: row.stage_name as ApplicationStatusGroupStageAssignmentRecord["stageName"],
+    stageName: row.stage_name,
     groupId: row.group_id,
     sortOrder: row.sort_order,
     createdBy: row.created_by,
@@ -888,6 +889,22 @@ export async function ensureDefaultPreHireGroupStageAssignments(
   }
 }
 
+export async function ensureDefaultAiMatchGroupStageAssignments(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<void> {
+  const { error } = await supabase.rpc("ensure_default_ai_match_group_stage_assignments", {
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    const message = String((error as { message?: string }).message ?? error);
+    if (/ensure_default_ai_match_group_stage_assignments|schema cache|Could not find/i.test(message)) {
+      return;
+    }
+    throw error;
+  }
+}
+
 export async function listApplicationStatusGroupStageAssignments(
   supabase: SupabaseClient,
   tenantId: string,
@@ -896,6 +913,7 @@ export async function listApplicationStatusGroupStageAssignments(
   if (options?.ensureDefaults !== false) {
     await ensureDefaultApplicationStatuses(supabase, tenantId);
     await ensureDefaultPreHireGroupStageAssignments(supabase, tenantId);
+    await ensureDefaultAiMatchGroupStageAssignments(supabase, tenantId);
   }
 
   const { data, error } = await supabase
@@ -912,7 +930,9 @@ export async function listApplicationStatusGroupStageAssignments(
     }
     throw error;
   }
-  return ((data ?? []) as GroupStageAssignmentRow[]).map(mapGroupStageAssignment);
+  return ((data ?? []) as GroupStageAssignmentRow[])
+    .map(mapGroupStageAssignment)
+    .filter((row): row is ApplicationStatusGroupStageAssignmentRecord => row != null);
 }
 
 /**
@@ -929,13 +949,13 @@ export async function assignGroupToPreHireStage(
     actorUserId?: string | null;
   }
 ): Promise<ApplicationStatusGroupStageAssignmentRecord[]> {
-  if (!isPreHireStatusStageName(input.stageName)) {
-    throw new ApplicationStatusError(`Unknown Pre-Hire stage: ${input.stageName}`, "VALIDATION");
+  if (!isAssignableStatusStageName(input.stageName)) {
+    throw new ApplicationStatusError(`Unknown stage: ${input.stageName}`, "VALIDATION");
   }
   const group = await assertGroupInTenant(supabase, input.tenantId, input.groupId);
   if (isSharedClosedGroupKey(group.systemKey)) {
     throw new ApplicationStatusError(
-      "Closed is already available on every Pre-Hire stage and does not need assignment.",
+      "Closed is already available on every stage and does not need assignment.",
       "VALIDATION"
     );
   }
@@ -977,8 +997,8 @@ export async function unassignGroupFromPreHireStage(
   supabase: SupabaseClient,
   input: { tenantId: string; stageName: string; groupId: string }
 ): Promise<ApplicationStatusGroupStageAssignmentRecord[]> {
-  if (!isPreHireStatusStageName(input.stageName)) {
-    throw new ApplicationStatusError(`Unknown Pre-Hire stage: ${input.stageName}`, "VALIDATION");
+  if (!isAssignableStatusStageName(input.stageName)) {
+    throw new ApplicationStatusError(`Unknown stage: ${input.stageName}`, "VALIDATION");
   }
   const { error } = await supabase
     .from("application_status_group_stage_assignments")

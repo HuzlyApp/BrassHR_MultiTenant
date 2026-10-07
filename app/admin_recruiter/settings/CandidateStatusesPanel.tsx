@@ -16,6 +16,7 @@ import {
   groupStatuses,
   isSharedClosedGroupKey,
 } from "@/lib/jobs/application-statuses/groups";
+import { AI_MATCH_STATUS_STAGES } from "@/lib/jobs/application-statuses/stage-assignments";
 import { HIRE_STAGE_BY_STEP_KEY } from "@/lib/onboarding/hire-stage-catalog";
 import { PRE_HIRE_FIGMA_STAGES } from "@/lib/onboarding/hire-stage-groups";
 
@@ -105,6 +106,152 @@ function preHireStepsByStage(): Array<{ stage: string; steps: string[] }> {
   }));
 }
 
+function StageAssignmentCard({
+  stage,
+  detail,
+  stageGroups,
+  open,
+  available,
+  canManage,
+  saving,
+  assignValue,
+  closedSummary,
+  onToggle,
+  onKeyDown,
+  onAssignValue,
+  onAssign,
+  onRemove,
+  statusSummary,
+}: {
+  stage: string;
+  detail: string;
+  stageGroups: StatusGroup[];
+  open: boolean;
+  available: StatusGroup[];
+  canManage: boolean;
+  saving: boolean;
+  assignValue: string;
+  closedSummary: string;
+  onToggle: () => void;
+  onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+  onAssignValue: (value: string) => void;
+  onAssign: () => void;
+  onRemove: (groupId: string) => void;
+  statusSummary: (groupId: string, limit?: number) => string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        onKeyDown={onKeyDown}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#012352]"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-[#012352]">{stage}</span>
+          <span className="mt-0.5 block text-xs text-[#64748B]">
+            {stageGroups.length > 0
+              ? stageGroups.map((group) => group.name).join(", ")
+              : "No groups assigned yet"}
+            {" · "}+ Closed shared
+          </span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-[#64748B]">
+          {stageGroups.length}
+          <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} aria-hidden />
+        </span>
+      </button>
+
+      {open ? (
+        <div className="space-y-3 border-t border-[#E2E8F0] bg-white px-4 py-3">
+          <p className="text-[11px] leading-5 text-[#94A3B8]">{detail}</p>
+
+          {stageGroups.length === 0 ? (
+            <p className="text-sm text-[#94A3B8]">
+              No status groups on this stage yet. Closed still applies here.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {stageGroups.map((group) => (
+                <li
+                  key={`${stage}-${group.id}`}
+                  className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#0F172A]">{group.name}</p>
+                      <p className="mt-0.5 text-xs text-[#64748B]">{statusSummary(group.id)}</p>
+                    </div>
+                    {canManage ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => onRemove(group.id)}
+                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-[#CBD5E1] bg-white px-2 text-xs text-[#334155] disabled:opacity-50"
+                      >
+                        <X className="h-3 w-3" aria-hidden />
+                        Remove group
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="rounded-lg border border-dashed border-[#FCD34D] bg-[#FFFBEB] px-2.5 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#92400E]">
+              Also on this stage — Closed (shared)
+            </p>
+            <p className="mt-1 text-xs text-[#A16207]">{closedSummary}</p>
+          </div>
+
+          {canManage ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="sr-only" htmlFor={`assign-group-${stage}`}>
+                Assign status group to {stage}
+              </label>
+              <select
+                id={`assign-group-${stage}`}
+                value={assignValue}
+                disabled={saving || available.length === 0}
+                onChange={(event) => onAssignValue(event.target.value)}
+                className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm sm:flex-1"
+              >
+                <option value="">
+                  {available.length === 0
+                    ? "All assignable groups already on this stage"
+                    : "Select a status group…"}
+                </option>
+                {available.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                    {group.description ? ` — ${statusSummary(group.id, 3)}` : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={saving || !assignValue}
+                onClick={onAssign}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#012352] px-4 text-sm font-medium text-white disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Assign group
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-[#64748B]">
+              Only administrators can assign status groups to stages.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function CandidateStatusesPanel() {
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [groups, setGroups] = useState<StatusGroup[]>([]);
@@ -190,7 +337,7 @@ export default function CandidateStatusesPanel() {
 
   const groupsByStage = useMemo(() => {
     const map = new Map<string, StatusGroup[]>();
-    for (const stage of PRE_HIRE_FIGMA_STAGES) map.set(stage, []);
+    for (const stage of [...PRE_HIRE_FIGMA_STAGES, ...AI_MATCH_STATUS_STAGES]) map.set(stage, []);
     for (const row of [...assignments].sort((a, b) => a.sortOrder - b.sortOrder)) {
       const group = groupById.get(row.groupId);
       if (!group || isSharedClosedGroupKey(group.systemKey)) continue;
@@ -388,6 +535,44 @@ export default function CandidateStatusesPanel() {
     }
   }
 
+  function stageCard(stage: string, detail: string) {
+    const stageGroups = groupsByStage.get(stage) ?? [];
+    const assignedIds = new Set(stageGroups.map((group) => group.id));
+    return (
+      <StageAssignmentCard
+        key={stage}
+        stage={stage}
+        detail={detail}
+        stageGroups={stageGroups}
+        open={openStage === stage}
+        available={assignableGroups.filter((group) => !assignedIds.has(group.id))}
+        canManage={canManage}
+        saving={saving}
+        assignValue={assignPicker[stage] ?? ""}
+        closedSummary={formatGroupStatusSummary(
+          closedStatuses.map((status) => status.name),
+          8
+        )}
+        onToggle={() => toggleStage(stage)}
+        onKeyDown={(event) => onStageKeyDown(event, stage)}
+        onAssignValue={(value) =>
+          setAssignPicker((current) => ({
+            ...current,
+            [stage]: value,
+          }))
+        }
+        onAssign={() => void assignGroup(stage, assignPicker[stage] ?? "")}
+        onRemove={(groupId) => void removeGroup(stage, groupId)}
+        statusSummary={(groupId, limit) =>
+          formatGroupStatusSummary(
+            statusesInGroup(groupId).map((status) => status.name),
+            limit
+          )
+        }
+      />
+    );
+  }
+
   return (
     <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-5 flex items-start gap-3">
@@ -398,8 +583,8 @@ export default function CandidateStatusesPanel() {
           <h3 className="text-base font-semibold text-[#0F172A]">Pre-Hire Status Catalog</h3>
           <p className="mt-0.5 text-sm text-[#64748B]">
             Assign status <span className="font-medium text-[#0F172A]">groups</span> to Pre-Hire
-            stages. The same group can be available on multiple stages. Closed is shared on every
-            stage automatically.
+            stages and AI analysis steps 1–5. The same group can be available on multiple stages.
+            Closed is shared on every stage automatically.
           </p>
         </div>
       </div>
@@ -437,8 +622,8 @@ export default function CandidateStatusesPanel() {
               {closedGroupPickerLabel(closedGroup?.name || "Closed")} — shared on every stage
             </p>
             <p className="mt-0.5 text-xs text-[#A16207]">
-              You do not assign Closed per stage. Its statuses stay available from Intake through
-              Approvals.
+              You do not assign Closed per stage. Its statuses stay available on every Pre-Hire
+              stage and every AI analysis step.
             </p>
             <p className="mt-2 text-xs text-[#92400E]">
               {formatGroupStatusSummary(closedStatuses.map((status) => status.name), 8)}
@@ -455,151 +640,31 @@ export default function CandidateStatusesPanel() {
               group can sit on many stages.
             </p>
 
-            {workflowStages.map(({ stage, steps }) => {
-              const stageGroups = groupsByStage.get(stage) ?? [];
-              const open = openStage === stage;
-              const assignedIds = new Set(stageGroups.map((group) => group.id));
-              const available = assignableGroups.filter((group) => !assignedIds.has(group.id));
-              return (
-                <div key={stage} className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    onClick={() => toggleStage(stage)}
-                    onKeyDown={(event) => onStageKeyDown(event, stage)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#012352]"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-[#012352]">{stage}</span>
-                      <span className="mt-0.5 block text-xs text-[#64748B]">
-                        {stageGroups.length > 0
-                          ? stageGroups.map((group) => group.name).join(", ")
-                          : "No groups assigned yet"}
-                        {" · "}+ Closed shared
-                      </span>
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-[#64748B]">
-                      {stageGroups.length}
-                      <ChevronDown
-                        className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
-                        aria-hidden
-                      />
-                    </span>
-                  </button>
-
-                  {open ? (
-                    <div className="space-y-3 border-t border-[#E2E8F0] bg-white px-4 py-3">
-                      <p className="text-[11px] leading-5 text-[#94A3B8]">
-                        Workflow steps: {steps.length > 0 ? steps.join(", ") : "None mapped"}
-                      </p>
-
-                      {stageGroups.length === 0 ? (
-                        <p className="text-sm text-[#94A3B8]">
-                          No status groups on this stage yet. Closed still applies here.
-                        </p>
-                      ) : (
-                        <ul className="space-y-2">
-                          {stageGroups.map((group) => {
-                            const groupStatusesList = statusesInGroup(group.id);
-                            return (
-                              <li
-                                key={`${stage}-${group.id}`}
-                                className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2"
-                              >
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-[#0F172A]">{group.name}</p>
-                                    <p className="mt-0.5 text-xs text-[#64748B]">
-                                      {formatGroupStatusSummary(
-                                        groupStatusesList.map((status) => status.name)
-                                      )}
-                                    </p>
-                                  </div>
-                                  {canManage ? (
-                                    <button
-                                      type="button"
-                                      disabled={saving}
-                                      onClick={() => void removeGroup(stage, group.id)}
-                                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-[#CBD5E1] bg-white px-2 text-xs text-[#334155] disabled:opacity-50"
-                                    >
-                                      <X className="h-3 w-3" aria-hidden />
-                                      Remove group
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      <div className="rounded-lg border border-dashed border-[#FCD34D] bg-[#FFFBEB] px-2.5 py-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#92400E]">
-                          Also on this stage — Closed (shared)
-                        </p>
-                        <p className="mt-1 text-xs text-[#A16207]">
-                          {formatGroupStatusSummary(
-                            closedStatuses.map((status) => status.name),
-                            8
-                          )}
-                        </p>
-                      </div>
-
-                      {canManage ? (
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="sr-only" htmlFor={`assign-group-${stage}`}>
-                            Assign status group to {stage}
-                          </label>
-                          <select
-                            id={`assign-group-${stage}`}
-                            value={assignPicker[stage] ?? ""}
-                            disabled={saving || available.length === 0}
-                            onChange={(event) =>
-                              setAssignPicker((current) => ({
-                                ...current,
-                                [stage]: event.target.value,
-                              }))
-                            }
-                            className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm sm:flex-1"
-                          >
-                            <option value="">
-                              {available.length === 0
-                                ? "All assignable groups already on this stage"
-                                : "Select a status group…"}
-                            </option>
-                            {available.map((group) => (
-                              <option key={group.id} value={group.id}>
-                                {group.name}
-                                {group.description
-                                  ? ` — ${formatGroupStatusSummary(
-                                      statusesInGroup(group.id).map((status) => status.name),
-                                      3
-                                    )}`
-                                  : ""}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            disabled={saving || !(assignPicker[stage] ?? "")}
-                            onClick={() => void assignGroup(stage, assignPicker[stage] ?? "")}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#012352] px-4 text-sm font-medium text-white disabled:opacity-50"
-                          >
-                            <Plus className="h-4 w-4" aria-hidden />
-                            Assign group
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-[#64748B]">
-                          Only administrators can assign status groups to stages.
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
+            {workflowStages.map(({ stage, steps }) =>
+              stageCard(
+                stage,
+                `Workflow steps: ${steps.length > 0 ? steps.join(", ") : "None mapped"}`
+              )
+            )}
           </div>
+
+          <div className="mt-6 space-y-2">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#012352]">
+              <Layers3 className="h-4 w-4" aria-hidden />
+              AI analysis steps
+            </div>
+            <p className="mb-2 text-xs text-[#64748B]">
+              Assign status groups to Quick Match through Submission. On each AI analysis step,
+              recruiters only see statuses from the groups assigned there, plus Closed.
+            </p>
+            {AI_MATCH_STATUS_STAGES.map((stage) =>
+              stageCard(
+                stage,
+                "Statuses from the groups assigned here appear on this AI analysis step."
+              )
+            )}
+          </div>
+
 
           <div className="mt-5">
             <button
@@ -650,7 +715,7 @@ export default function CandidateStatusesPanel() {
                           </span>
                           <span className="mt-0.5 block text-xs text-[#64748B]">
                             {shared
-                              ? "Shared on every Pre-Hire stage"
+                            ? "Shared on every Pre-Hire stage and AI analysis step"
                               : stagesUsing.length > 0
                                 ? `On stages: ${stagesUsing.join(", ")}`
                                 : "Not assigned to any stage yet"}

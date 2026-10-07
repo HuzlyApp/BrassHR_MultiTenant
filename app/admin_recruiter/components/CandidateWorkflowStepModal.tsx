@@ -56,6 +56,10 @@ import OfferAcceptanceSection from "./OfferAcceptanceSection";
 import RecruiterScreeningAiSection from "./RecruiterScreeningAiSection";
 import SkillAssessmentResults from "./SkillAssessmentResults";
 import WorkflowStepStaffActionModal from "./WorkflowStepStaffActionModal";
+import { CandidateApplicationStatusControl } from "./CandidateApplicationStatusControl";
+import { StageContextNotesSection } from "./StageContextNotesSection";
+import { hireStageLabelForStep } from "@/lib/onboarding/hire-stage-groups";
+import { isPreHireStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 
 const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
   job_application: BriefcaseBusiness,
@@ -437,6 +441,20 @@ export default function CandidateWorkflowStepModal({
       ? questions.filter((question) => formatAnswer(question.answer) !== "—")
       : questions;
   }, [inspection?.form?.questions, screeningApplicationId]);
+  const hireLifecycle = inspection?.phase === "post_hire" ? "post_hire" : "pre_hire";
+  const hireStageName = useMemo(() => {
+    if (!inspection) return null;
+    return hireStageLabelForStep({
+      stageName: inspection.step.settings?.stageName,
+      libraryId: inspection.step.stepType,
+      stepKey: inspection.step.stepKey,
+      lifecycle: hireLifecycle,
+    });
+  }, [hireLifecycle, inspection]);
+  const showStageStatus =
+    hireLifecycle === "pre_hire" &&
+    Boolean(inspection?.applicationId) &&
+    Boolean(hireStageName && isPreHireStatusStageName(hireStageName));
   const canEmailCandidate = Boolean(
     workerId &&
       inspection &&
@@ -627,6 +645,38 @@ export default function CandidateWorkflowStepModal({
                 <div className="sm:hidden">
                   <StatusBadge tone={statusTone} label={statusLabel} />
                 </div>
+
+                {showStageStatus && inspection.applicationId && hireStageName ? (
+                  <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <h3 className="text-sm font-semibold text-slate-900">Application status</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Statuses assigned to {hireStageName} in Settings, plus Closed.
+                    </p>
+                    <div className="mt-3 max-w-sm">
+                      <CandidateApplicationStatusControl
+                        applicationId={inspection.applicationId}
+                        stageName={hireStageName}
+                        compact={false}
+                      />
+                    </div>
+                  </section>
+                ) : null}
+
+                {workerId ? (
+                  <StageContextNotesSection
+                    key={inspection.step.id}
+                    workerId={workerId}
+                    applicationId={inspection.applicationId}
+                    contextKind="workflow_step"
+                    contextKey={inspection.step.id}
+                    title="Notes"
+                    subtitle={
+                      hireLifecycle === "post_hire"
+                        ? "Notes for this Post-Hire step only."
+                        : `Notes for this step only${hireStageName ? ` (${hireStageName})` : ""}.`
+                    }
+                  />
+                ) : null}
 
                 {inspection.emptyState ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

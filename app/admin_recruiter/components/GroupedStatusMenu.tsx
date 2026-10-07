@@ -69,7 +69,7 @@ function GroupAccordionSection<T extends GroupableStatus>({
         <div id={panelId} role="menu" aria-label={`${section.name} statuses`} className="pb-1">
           {section.shared ? (
             <p className="px-3 pb-1 text-[11px] leading-4 text-[#92400E]">
-              Closing outcomes available from every Pre-Hire stage
+              Closing outcomes available from every stage
             </p>
           ) : null}
           {section.statuses.length === 0 ? (

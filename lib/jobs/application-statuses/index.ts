@@ -13,6 +13,7 @@ export {
   changeApplicationStatusBySystemKey,
   listApplicationStatusHistory,
   ensureDefaultPreHireGroupStageAssignments,
+  ensureDefaultAiMatchGroupStageAssignments,
   listApplicationStatusGroupStageAssignments,
   assignGroupToPreHireStage,
   unassignGroupFromPreHireStage,
@@ -51,11 +52,21 @@ export type {
 } from "./groups";
 export {
   PRE_HIRE_STATUS_STAGE_NAMES,
+  AI_MATCH_STATUS_STAGES,
+  AI_MATCH_STAGE_BY_STEP_ID,
   DEFAULT_GROUP_PRE_HIRE_STAGES,
+  DEFAULT_GROUP_AI_MATCH_STAGES,
   isPreHireStatusStageName,
+  isAiMatchStatusStageName,
+  isAssignableStatusStageName,
+  aiMatchStatusStageName,
   isAssignableCatalogGroupKey,
 } from "./stage-assignments";
 export type {
   PreHireStatusStageName,
+  AiMatchStatusStageName,
+  AiMatchProgressionStepId,
+  StatusStageName,
   ApplicationStatusGroupStageAssignmentRecord,
 } from "./stage-assignments";
+export { filterStatusesForAssignedGroups } from "./stage-status-filter";

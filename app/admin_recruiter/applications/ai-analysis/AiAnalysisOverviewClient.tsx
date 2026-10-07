@@ -59,6 +59,8 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
+import { StageContextNotesSection } from "@/app/admin_recruiter/components/StageContextNotesSection";
+import { aiMatchStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import {
   DeepMatchConfirmDialog,
@@ -998,6 +1000,7 @@ export function AiAnalysisOverviewClient({
     parkedInTalentPool,
   });
   const progressionStep = MATCH_PROGRESSION_STEPS[viewedStep] ?? null;
+  const aiStageName = progressionStep ? aiMatchStatusStageName(progressionStep.id) : null;
   const progressionHint = progressionStep?.hint ?? "";
   const progressionHintBody = progressionHint.replace(/^Step\s+\d+\s*·\s*[^.]*\.\s*/i, "").trim();
   // Only used by the commented-out checklist counts under the progression hint.
@@ -1469,6 +1472,7 @@ export function AiAnalysisOverviewClient({
                   )}
                   <CandidateApplicationStatusControl
                     applicationId={applicationId}
+                    stageName={aiStageName}
                     buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
                     onStatusChanged={(next) => {
                       setStatusName(next.statusName);
@@ -1556,6 +1560,18 @@ export function AiAnalysisOverviewClient({
                 </div>
               </div>
             </div>
+          ) : null}
+
+          {workerId && aiStageName && progressionStep ? (
+            <StageContextNotesSection
+              key={aiStageName}
+              workerId={workerId}
+              applicationId={applicationId}
+              contextKind="ai_match_step"
+              contextKey={aiStageName}
+              title={`Step ${progressionStep.stepNumber} notes`}
+              subtitle={`Notes for ${progressionStep.label} only. Other AI steps keep their own notes.`}
+            />
           ) : null}
 
           {viewedStep >= 4 ? (
