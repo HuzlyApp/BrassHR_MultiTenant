@@ -125,6 +125,7 @@ export const JOB_FORM_JOB_TYPES = [
   "Full-time",
   "Part-time",
   "Fixed term",
+  "Travel contract",
 ] as const;
 
 export type JobFormJobType = (typeof JOB_FORM_JOB_TYPES)[number];
