@@ -46,6 +46,7 @@ import {
   type ScheduleInterviewPayload,
 } from "@/lib/interviews/schedule-payload";
 import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
@@ -783,14 +784,39 @@ export default function CandidatesPage() {
     [candidates]
   );
 
-  const progressStatusFilterOptions = useMemo(
-    () =>
-      progressStatusOptions.map((option) => ({
-        value: option.id,
-        label: option.name,
-      })),
-    [progressStatusOptions]
-  );
+  const progressStatusFilterOptions = useMemo(() => {
+    const jobNeedle = jobFilter.trim().toLowerCase();
+    const scopedRows = jobNeedle
+      ? candidates.filter((row) => {
+          const titles = [
+            row.applicationJobTitle,
+            row.applicationJobTitlesText,
+            ...(row.appliedJobs ?? []).map((job) => job.title),
+          ]
+            .map((value) => String(value ?? "").trim().toLowerCase())
+            .filter(Boolean);
+          return titles.some((title) => title === jobNeedle || title.includes(jobNeedle));
+        })
+      : candidates;
+    const sources = new Set(
+      scopedRows
+        .map((row) => String(row.applicationSourceType ?? "").trim().toLowerCase())
+        .filter((source) => source === "msp" || source === "internal")
+    );
+    const scopedOptions =
+      sources.size === 1
+        ? filterApplicationStatusesForSource(progressStatusOptions, [...sources][0])
+        : progressStatusOptions;
+    return scopedOptions.map((option) => ({
+      value: option.id,
+      label: option.name,
+      sortOrder: option.sortOrder,
+      groupName: option.groupName,
+      groupDescription: option.groupDescription,
+      groupSortOrder: option.groupSortOrder,
+      groupSystemKey: option.groupSystemKey,
+    }));
+  }, [candidates, jobFilter, progressStatusOptions]);
 
   const multiJobApplicantCount = useMemo(
     () => countMultiJobApplicants(candidates, (candidate) => Number(candidate.appliedJobCount ?? 1)),

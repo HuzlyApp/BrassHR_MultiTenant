@@ -62,7 +62,14 @@ export type CandidatesListShellProps = {
   statusOptions?: string[];
   progressStatusFilter?: string;
   onProgressStatusFilterChange?: (value: string) => void;
-  progressStatusOptions?: { value: string; label: string }[];
+  progressStatusOptions?: {
+    value: string;
+    label: string;
+    sortOrder?: number;
+    groupName?: string | null;
+    groupDescription?: string | null;
+    groupSortOrder?: number | null;
+  }[];
   jobFilter?: string;
   onJobFilterChange?: (value: string) => void;
   jobOptions?: string[];
