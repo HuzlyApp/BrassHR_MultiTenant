@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
+import OnboardingLayout from "@/app/components/OnboardingLayout";
+import OnboardingStepper from "@/app/components/OnboardingStepper";
+import AwaitingRecruiterReviewModal from "@/app/components/onboarding/AwaitingRecruiterReviewModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { applicationPath } from "@/lib/tenant/with-tenant";
 import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding";
@@ -13,6 +17,20 @@ import {
   readStoredApplyLocation,
   storedApplyLocationSearchParams,
 } from "@/lib/service-area/apply-location-client";
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive";
+import { ChevronRight } from "lucide-react";
+import { nextStepRouteAfter } from "@/lib/onboarding/professional-license-step";
+import { isApplicantWaitingGateStep } from "@/lib/onboarding/workflow-settings";
+import { readStepKeyFromSearch } from "@/lib/onboarding/find-applicant-step";
+import {
+  useMarkStepInProgressIfPending,
+  persistStepProgress,
+} from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
 
 type ScreeningQuestion = {
   id: string;
@@ -27,6 +45,9 @@ export default function JobScreeningPage() {
   const branding = useTenantBranding();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const onboarding = useOnboardingConfigOptional();
+  const completingRef = useRef(false);
+  
   const tenantSlug =
     searchParams.get("tenant")?.trim().toLowerCase() ||
     branding.slug?.trim().toLowerCase() ||
@@ -35,12 +56,24 @@ export default function JobScreeningPage() {
     searchParams.get("job_token")?.trim() ||
     (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
     "";
+  
+  const stepKey = readStepKeyFromSearch(
+    searchParams.toString() ? `?${searchParams.toString()}` : ""
+  );
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [showWaitingModal, setShowWaitingModal] = useState(false);
+
+  const currentStep = useMemo(() => {
+    if (!onboarding?.config?.steps) return null;
+    return onboarding.config.steps.find(
+      (s) => s.step_key === stepKey || s.metadata?.workflow_step_id === "parameterized-job-application"
+    ) ?? null;
+  }, [onboarding?.config?.steps, stepKey]);
 
   const shellStyle = useMemo(
     () => ({
@@ -49,6 +82,13 @@ export default function JobScreeningPage() {
     }),
     [branding]
   );
+
+  useMarkStepInProgressIfPending({
+    step: currentStep,
+    disabled: onboarding?.loading,
+    updateStepStatus: onboarding?.updateStepStatus,
+    completingRef,
+  });
 
   useEffect(() => {
     const applicantId =
@@ -69,7 +109,36 @@ export default function JobScreeningPage() {
           throw new Error(payload.error || "Failed to load screening questions");
         }
         if (!payload.hasQuestions) {
-          router.replace(applicationPath(APPLICATION_ROUTES.addResume, tenantSlug));
+          void (async () => {
+            const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
+            if (onboarding?.updateStepStatus) {
+              await persistStepProgress(
+                onboarding.updateStepStatus,
+                stepKeyToComplete,
+                "completed",
+                completingRef,
+                { system_completed: true, reason: "no_screening_questions" }
+              );
+            }
+            const nextRoute = nextStepRouteAfter(onboarding?.config, currentStep, tenantSlug);
+            if (nextRoute) {
+              const enabledSteps = onboarding?.config?.steps?.filter((s) => s.is_enabled) ?? [];
+              const currentIndex = enabledSteps.findIndex(
+                (s) => s.id === currentStep?.id || s.step_key === currentStep?.step_key
+              );
+              const nextStep =
+                currentIndex >= 0 && currentIndex < enabledSteps.length - 1
+                  ? enabledSteps[currentIndex + 1]
+                  : null;
+              if (nextStep && isApplicantWaitingGateStep(nextStep)) {
+                setShowWaitingModal(true);
+                return;
+              }
+              router.replace(nextRoute);
+            } else {
+              router.replace(applicationPath(APPLICATION_ROUTES.applicationStatus, tenantSlug));
+            }
+          })();
           return;
         }
         const loaded = (payload.questions ?? []) as ScreeningQuestion[];
@@ -77,7 +146,36 @@ export default function JobScreeningPage() {
           (item) => !item.isRequired || (item.answer != null && String(item.answer).trim() !== "")
         );
         if (allRequiredAnswered && loaded.length > 0 && loaded.every((item) => item.answer != null)) {
-          router.replace(applicationPath(APPLICATION_ROUTES.addResume, tenantSlug));
+          void (async () => {
+            const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
+            if (onboarding?.updateStepStatus) {
+              await persistStepProgress(
+                onboarding.updateStepStatus,
+                stepKeyToComplete,
+                "completed",
+                completingRef,
+                { source: "job_screening_answers" }
+              );
+            }
+            const nextRoute = nextStepRouteAfter(onboarding?.config, currentStep, tenantSlug);
+            if (nextRoute) {
+              const enabledSteps = onboarding?.config?.steps?.filter((s) => s.is_enabled) ?? [];
+              const currentIndex = enabledSteps.findIndex(
+                (s) => s.id === currentStep?.id || s.step_key === currentStep?.step_key
+              );
+              const nextStep =
+                currentIndex >= 0 && currentIndex < enabledSteps.length - 1
+                  ? enabledSteps[currentIndex + 1]
+                  : null;
+              if (nextStep && isApplicantWaitingGateStep(nextStep)) {
+                setShowWaitingModal(true);
+                return;
+              }
+              router.replace(nextRoute);
+            } else {
+              router.replace(applicationPath(APPLICATION_ROUTES.applicationStatus, tenantSlug));
+            }
+          })();
           return;
         }
         setQuestions(loaded);
@@ -91,7 +189,7 @@ export default function JobScreeningPage() {
         setError(loadError instanceof Error ? loadError.message : "Failed to load screening questions");
       })
       .finally(() => setLoading(false));
-  }, [jobToken, router, tenantSlug]);
+  }, [currentStep, jobToken, onboarding, router, tenantSlug]);
 
   function defaultAnswer(questionType: JobScreeningQuestionType): unknown {
     if (questionType === "multiple_select") return [];
@@ -107,6 +205,7 @@ export default function JobScreeningPage() {
     setSubmitting(true);
     setError(null);
     try {
+      // API handles step completion in DB
       const response = await fetch("/api/onboarding/job-screening-answers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,7 +224,49 @@ export default function JobScreeningPage() {
       if (!response.ok) {
         throw new Error(payload.error || "Failed to save screening answers");
       }
-      router.push(applicationPath(APPLICATION_ROUTES.addResume, tenantSlug));
+
+      // Explicitly persist completion in client onboarding state
+      const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
+      if (onboarding?.updateStepStatus) {
+        await persistStepProgress(
+          onboarding.updateStepStatus,
+          stepKeyToComplete,
+          "completed",
+          completingRef,
+          { source: "job_screening_answers" }
+        );
+      }
+
+      // Refresh the onboarding config and progress to get updated step status
+      if (onboarding?.refresh) {
+        await onboarding.refresh();
+      }
+
+      // Get next step and check if it's a waiting gate
+      const nextRoute = nextStepRouteAfter(onboarding?.config, currentStep, tenantSlug);
+      
+      if (nextRoute) {
+        // Find the next step to check if it's internal/recruiter-owned
+        const enabledSteps = onboarding?.config?.steps?.filter((s) => s.is_enabled) ?? [];
+        const currentIndex = enabledSteps.findIndex(
+          (s) => s.id === currentStep?.id || s.step_key === currentStep?.step_key
+        );
+        const nextStep = currentIndex >= 0 && currentIndex < enabledSteps.length - 1 
+          ? enabledSteps[currentIndex + 1] 
+          : null;
+
+        if (nextStep && isApplicantWaitingGateStep(nextStep)) {
+          // Show modal for recruiter-owned steps, do not navigate away
+          setShowWaitingModal(true);
+          return;
+        } else {
+          // Navigate immediately for candidate steps
+          router.push(nextRoute);
+        }
+      } else {
+        // Fallback to application status
+        router.push(applicationPath(APPLICATION_ROUTES.applicationStatus, tenantSlug));
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to save screening answers");
     } finally {
@@ -138,145 +279,164 @@ export default function JobScreeningPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-10" style={shellStyle}>
-      <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Screening Questions</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Answer these job-specific questions before continuing your application.
-        </p>
+    <>
+      <OnboardingLayout>
+        <div className={APPLICANT_SHELL_CLASS} style={shellStyle}>
+          <OnboardingStepper />
 
-        {error ? (
-          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
-          </p>
-        ) : null}
+          <div className={APPLICANT_CONTENT_CLASS}>
+            <h2 className={APPLICANT_TITLE_CLASS}>Screening Questions</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Answer these job-specific questions before continuing your application.
+            </p>
 
-        <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-5">
-          {questions.map((item) => (
-            <fieldset key={item.id} className="space-y-2">
-              <legend className="text-sm font-medium text-slate-900">
-                {item.question}
-                {item.isRequired ? <span className="text-rose-600"> *</span> : null}
-              </legend>
+            {error ? (
+              <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {error}
+              </p>
+            ) : null}
 
-              {item.questionType === "yes_no" ? (
-                <div className="flex gap-4">
-                  {["Yes", "No"].map((label) => (
-                    <label key={label} className="inline-flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="radio"
-                        name={item.id}
-                        checked={
-                          label === "Yes"
-                            ? answers[item.id] === true || answers[item.id] === "yes"
-                            : answers[item.id] === false || answers[item.id] === "no"
-                        }
-                        onChange={() =>
-                          setAnswers((current) => ({
-                            ...current,
-                            [item.id]: label === "Yes",
-                          }))
-                        }
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              ) : null}
+            <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-5">
+              {questions.map((item) => (
+                <fieldset key={item.id} className="space-y-2">
+                  <legend className="text-sm font-medium text-slate-900">
+                    {item.question}
+                    {item.isRequired ? <span className="text-rose-600"> *</span> : null}
+                  </legend>
 
-              {item.questionType === "number" ? (
-                <input
-                  type="number"
-                  value={String(answers[item.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [item.id]: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-              ) : null}
+                  {item.questionType === "yes_no" ? (
+                    <div className="flex gap-4">
+                      {["Yes", "No"].map((label) => {
+                        const isChecked = label === "Yes"
+                          ? answers[item.id] === true || answers[item.id] === "yes"
+                          : answers[item.id] === false || answers[item.id] === "no";
+                        
+                        return (
+                          <label key={label} className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={item.id}
+                              checked={isChecked}
+                              onChange={() =>
+                                setAnswers((current) => ({
+                                  ...current,
+                                  [item.id]: label === "Yes",
+                                }))
+                              }
+                              className="h-4 w-4 cursor-pointer"
+                              style={isChecked ? {
+                                accentColor: branding.primaryHex
+                              } : undefined}
+                            />
+                            {label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
-              {item.questionType === "short_text" || item.questionType === "long_text" ? (
-                <textarea
-                  rows={item.questionType === "long_text" ? 4 : 2}
-                  value={String(answers[item.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [item.id]: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-              ) : null}
+                  {item.questionType === "number" ? (
+                    <input
+                      type="number"
+                      value={String(answers[item.id] ?? "")}
+                      onChange={(event) =>
+                        setAnswers((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  ) : null}
 
-              {item.questionType === "single_select" ? (
-                <select
-                  value={String(answers[item.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [item.id]: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  {item.questionType === "short_text" || item.questionType === "long_text" ? (
+                    <textarea
+                      rows={item.questionType === "long_text" ? 4 : 2}
+                      value={String(answers[item.id] ?? "")}
+                      onChange={(event) =>
+                        setAnswers((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  ) : null}
+
+                  {item.questionType === "single_select" ? (
+                    <select
+                      value={String(answers[item.id] ?? "")}
+                      onChange={(event) =>
+                        setAnswers((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">Select an option</option>
+                      {(item.options ?? []).map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+
+                  {item.questionType === "multiple_select" ? (
+                    <div className="space-y-2">
+                      {(item.options ?? []).map((option) => {
+                        const selected = Array.isArray(answers[item.id])
+                          ? (answers[item.id] as string[])
+                          : [];
+                        return (
+                          <label
+                            key={option.value}
+                            className="flex items-center gap-2 text-sm text-slate-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected.includes(option.value)}
+                              onChange={(event) => {
+                                setAnswers((current) => {
+                                  const currentValues = Array.isArray(current[item.id])
+                                    ? [...(current[item.id] as string[])]
+                                    : [];
+                                  const nextValues = event.target.checked
+                                    ? [...currentValues, option.value]
+                                    : currentValues.filter((value) => value !== option.value);
+                                  return { ...current, [item.id]: nextValues };
+                                });
+                              }}
+                            />
+                            {option.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </fieldset>
+              ))}
+
+              <div className={APPLICANT_ACTION_ROW}>
+                <button
+                  type="submit"
+                  disabled={submitting || questions.length === 0}
+                  className="group inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 max-[399px]:px-3 sm:w-auto sm:gap-2 sm:px-6 sm:py-2 sm:text-[12px]"
                 >
-                  <option value="">Select an option</option>
-                  {(item.options ?? []).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
+                  {submitting ? "Saving…" : "Continue"}
+                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </OnboardingLayout>
 
-              {item.questionType === "multiple_select" ? (
-                <div className="space-y-2">
-                  {(item.options ?? []).map((option) => {
-                    const selected = Array.isArray(answers[item.id])
-                      ? (answers[item.id] as string[])
-                      : [];
-                    return (
-                      <label
-                        key={option.value}
-                        className="flex items-center gap-2 text-sm text-slate-700"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(option.value)}
-                          onChange={(event) => {
-                            setAnswers((current) => {
-                              const currentValues = Array.isArray(current[item.id])
-                                ? [...(current[item.id] as string[])]
-                                : [];
-                              const nextValues = event.target.checked
-                                ? [...currentValues, option.value]
-                                : currentValues.filter((value) => value !== option.value);
-                              return { ...current, [item.id]: nextValues };
-                            });
-                          }}
-                        />
-                        {option.label}
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </fieldset>
-          ))}
-
-          <button
-            type="submit"
-            disabled={submitting || questions.length === 0}
-            className="inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-60"
-            style={{ backgroundColor: branding.primaryHex }}
-          >
-            {submitting ? "Saving…" : "Continue"}
-          </button>
-        </form>
-      </div>
-    </main>
+      <AwaitingRecruiterReviewModal 
+        open={showWaitingModal} 
+        onClose={() => setShowWaitingModal(false)} 
+      />
+    </>
   );
 }

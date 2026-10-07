@@ -146,14 +146,15 @@ export async function sendCandidateStepEmail(
     statusById,
     frontier,
   });
-  // A locked step can't be opened yet, so point the candidate at the step they need to do first.
-  const openStep =
-    block?.code === "STEP_LOCKED" ? currentOpenCandidateStep(candidateSteps, statusById, frontier) : null;
-  if ((block && !openStep) || !target) {
+  if (block?.code === "STEP_ALREADY_COMPLETED") {
+    return { ok: false, status: 409, code: "STEP_ALREADY_COMPLETED", error: "The candidate has already completed this step." };
+  }
+  if (!target) {
     return { ok: false, status: 409, ...(block ?? { code: "STEP_NOT_IN_APPLICATION", error: "Step not found." }) };
   }
-  const emailStep = openStep ?? target;
-  const lockedStepTitle = openStep ? target.title : null;
+  // Staff explicitly clicked "Send Email" for this step modal, so send step-wise mail for target step.
+  const emailStep = target;
+  const lockedStepTitle = null;
 
   const emailCtx = await buildApplicantEmailContext(supabase, {
     tenantId,

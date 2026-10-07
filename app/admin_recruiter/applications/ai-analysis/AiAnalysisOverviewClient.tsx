@@ -555,7 +555,7 @@ function statusBadgeClass(status: QualificationDisplayStatus) {
 const OUTCOME_STAT_CARDS = [
   {
     filter: "Confirmed" as const,
-    label: "CONF.",
+    label: "CONFIDENCE",
     title: "Confirmed requirements",
     valueClass: "text-[#16A34A]",
     countKey: "confirmed" as const,
@@ -678,6 +678,7 @@ export function AiAnalysisOverviewClient({
     prefill: "verified" | "pending";
   } | null>(null);
   const [dataQualityOpen, setDataQualityOpen] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   /* ── Resume History Modal state ── */
   const [resumeHistoryOpen, setResumeHistoryOpen] = useState(false);
@@ -917,6 +918,10 @@ export function AiAnalysisOverviewClient({
     data?.job?.title?.trim() ||
     analysis?.job?.job_title?.trim() ||
     "";
+  const jobDetailsId = data?.job?.id?.trim() || jobId?.trim() || "";
+  const jobDetailsHref = jobDetailsId
+    ? `/admin_recruiter/jobs/${encodeURIComponent(jobDetailsId)}`
+    : "";
   const confidencePercent =
     hasDeepMatch && analysis?.candidate_match?.confidence_score != null
       ? Math.round(Number(analysis.candidate_match.confidence_score))
@@ -1332,175 +1337,154 @@ export function AiAnalysisOverviewClient({
       <div className="mt-6 grid min-w-0 items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_minmax(16rem,21.875rem)]">
         <div className="min-w-0 space-y-5">
           <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
-              <BrandedSvgIcon
-                src="/hugeicons_ai-user.svg"
-                className="h-5 w-5"
-                color={branding.primaryHex}
-              />
-              <h1
-                className="m-0 text-base font-semibold leading-6 tracking-normal sm:text-lg sm:leading-7"
-                style={{ ...CANDIDATES_PAGE_TITLE_STYLE, color: branding.secondaryHex }}
-              >
-                AI Analysis Overview
-              </h1>
-            </div>
-            <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
-              <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
-                <MatchRing
-                  percent={matchScore == null ? null : Math.round(matchScore)}
-                  label={matchLabel}
-                  strokeColor={ringStrokeColor(matchScore)}
-                  fitBand={isAnalyzed ? statusFitBand : null}
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
+              <div className="flex items-center gap-2">
+                <BrandedSvgIcon
+                  src="/hugeicons_ai-user.svg"
+                  className="h-5 w-5"
+                  color={branding.primaryHex}
                 />
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
-                  {jobTitle ? (
-                    <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    {confidencePercent != null && confidencePercent > 0 ? (
-                      <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
-                        Confidence {confidencePercent}%
-                      </span>
-                    ) : null}
-                    {isAnalyzed ? (
-                      <span
-                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(statusFitBand)}`}
-                      >
-                        {fitBandLabel(statusFitBand)}
-                      </span>
-                    ) : null}
-                    {workerId ? (
-                      <Link
-                        href={candidateHireJourneyHref(workerId)}
-                        title="Open the candidate's Pre-Hire and Post-Hire journey"
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--brand-primary)] bg-white px-2.5 py-1 text-[10px] font-semibold leading-[15px] text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                      >
-                        <Route className="h-3 w-3" aria-hidden />
-                        Hire Journey
-                      </Link>
-                    ) : null}
-                  </div>
-                  {isAnalyzed && outcomeCounts.total > 0 ? (
-                    <div
-                      className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start"
-                      aria-label="Requirement outcome counts"
-                    >
-                      {OUTCOME_STAT_CARDS.map((card) => {
-                        const active = filter === card.filter;
-                        return (
-                          <button
-                            key={card.label}
-                            type="button"
-                            title={card.title}
-                            aria-pressed={active}
-                            onClick={() => {
-                              setFilter(card.filter);
-                              scrollAiAnalysisBelowHeader("match-step-quick");
-                            }}
-                            className={`inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-1.5 transition ${
-                              active
-                                ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                                : "border-[#E5E7EB] bg-[#F8FAFC] hover:border-[#D0D5DD]"
-                            }`}
-                          >
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#667085]">
-                              {card.label}
-                            </span>
-                            <span className={`text-base font-semibold tabular-nums leading-5 ${card.valueClass}`}>
-                              {outcomeCounts[card.countKey]}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
+                <h1
+                  className="m-0 text-base font-semibold leading-6 tracking-normal sm:text-lg sm:leading-7"
+                  style={{ ...CANDIDATES_PAGE_TITLE_STYLE, color: branding.secondaryHex }}
+                >
+                  AI Analysis Overview
+                </h1>
               </div>
-              <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <div className={`${HEADER_TOOLBAR} justify-center sm:justify-start`}>
-                  {primaryAction && primaryAction.kind !== "advance" ? (
-                    <button
-                      type="button"
-                      className={HEADER_OUTLINE_BTN}
-                      disabled={
-                        analyzing ||
-                        talentPoolBusy ||
-                        draftingSubmissionResume ||
-                        (primaryAction.kind !== "msp" &&
-                          primaryAction.kind !== "draft" &&
-                          !canAdvance &&
-                          primaryAction.kind !== "deep") ||
-                        (primaryAction.kind === "deep" && !canRunPaidDeep) ||
-                        (primaryAction.kind === "draft" && !hasDeepMatch)
-                      }
-                      onClick={() => void handlePrimaryProgressionAction()}
-                    >
-                      {draftingSubmissionResume && primaryAction.kind === "draft"
-                        ? "Drafting résumé…"
-                        : primaryAction.label}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={HEADER_OUTLINE_BTN}
-                    disabled={talentPoolBusy || parkedInTalentPool || savingDecision}
-                    onClick={() => void handleTalentPool()}
-                  >
-                    {parkedInTalentPool ? "In Talent Pool" : talentPoolBusy ? "Moving…" : "Not a fit · Talent Pool"}
-                  </button>
-                  {workerId ? (
-                    <Link
-                      href={candidateApplicantProfileHref(workerId, {
-                        from: backHref.includes("/admin_recruiter/candidates")
-                          ? "candidates"
-                          : "applications",
-                        jobId: jobId || undefined,
-                      })}
-                      className={HEADER_OUTLINE_BTN}
-                    >
-                      View Profile
-                    </Link>
-                  ) : (
-                    <button type="button" disabled className={HEADER_OUTLINE_BTN}>
-                      View Profile
-                    </button>
-                  )}
-                  <CandidateApplicationStatusControl
-                    applicationId={applicationId}
-                    buttonClassName={`${HEADER_OUTLINE_BTN} max-w-[16rem] gap-1`}
-                    onStatusChanged={(next) => {
-                      setStatusName(next.statusName);
-                      setStatusSystemKey(null);
-                    }}
-                  />
-                </div>
-                <div className={`${HEADER_TOOLBAR} justify-center sm:justify-end`}>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#667085]">Model</span>
                   <MatchAnalysisModelSelect
                     variant="primary"
                     value={analysisProvider}
                     onChange={setAnalysisProvider}
                     disabled={analyzing}
-                    className="h-8 shrink-0"
+                    className="h-9 shrink-0"
                     claudeAvailable={data?.claudeAvailable}
                   />
-                  <MatchAnalyzeButton
-                    variant="primary"
-                    analyzing={analyzing}
-                    isAnalyzed={isAnalyzed}
-                    viewedStep={viewedStep}
-                    deepPrimary={viewedStep >= 3}
-                    hasVerifications={unlockedIndex >= 1}
-                    hasFollowUp={unlockedIndex >= 2}
-                    hasDeepMatch={hasDeepMatch}
-                    analysisProvider={analysisProvider}
-                    requireDeepConfirm={data?.matchProgression?.requireDeepConfirm !== false}
-                    allowDeep={canRunPaidDeep}
-                    className="shrink-0"
-                    onAnalyze={(mode) => void handleRunAnalyze(mode)}
-                  />
                 </div>
+                <MatchAnalyzeButton
+                  variant="primary"
+                  analyzing={analyzing}
+                  isAnalyzed={isAnalyzed}
+                  viewedStep={viewedStep}
+                  deepPrimary={viewedStep >= 3}
+                  hasVerifications={unlockedIndex >= 1}
+                  hasFollowUp={unlockedIndex >= 2}
+                  hasDeepMatch={hasDeepMatch}
+                  analysisProvider={analysisProvider}
+                  requireDeepConfirm={data?.matchProgression?.requireDeepConfirm !== false}
+                  allowDeep={canRunPaidDeep}
+                  className="shrink-0 h-9"
+                  onAnalyze={(mode) => void handleRunAnalyze(mode)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
+              <div className="flex min-w-0 flex-col items-center justify-between gap-4 sm:flex-row sm:items-center sm:text-left">
+                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+                  <MatchRing
+                    percent={matchScore == null ? null : Math.round(matchScore)}
+                    label={matchLabel}
+                    strokeColor={ringStrokeColor(matchScore)}
+                    fitBand={isAnalyzed ? statusFitBand : null}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
+                    {jobTitle ? (
+                      <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">
+                        For:{" "}
+                        {jobDetailsHref ? (
+                          <Link
+                            href={jobDetailsHref}
+                            className="font-medium text-[#001A46] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                            title="View job details"
+                          >
+                            {jobTitle}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-[#001A46]">{jobTitle}</span>
+                        )}
+                      </p>
+                    ) : null}
+
+                    {workerId ? (
+                      <div className="mt-3">
+                        <Link
+                          href={candidateApplicantProfileHref(workerId, {
+                            from: backHref.includes("/admin_recruiter/candidates")
+                              ? "candidates"
+                              : "applications",
+                            jobId: jobId || undefined,
+                          })}
+                          className="inline-flex items-center justify-center rounded-[20px] border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
+                        >
+                          View Profile
+                        </Link>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                      {confidencePercent != null && confidencePercent > 0 ? (
+                        <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
+                          Confidence {confidencePercent}%
+                        </span>
+                      ) : null}
+                      {isAnalyzed ? (
+                        <span
+                          className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(statusFitBand)}`}
+                        >
+                          {fitBandLabel(statusFitBand)}
+                        </span>
+                      ) : null}
+                      {workerId ? (
+                        <Link
+                          href={candidateHireJourneyHref(workerId)}
+                          title="Open the candidate's Pre-Hire and Post-Hire journey"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--brand-primary)] bg-white px-2.5 py-1 text-[10px] font-semibold leading-[15px] text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                        >
+                          <Route className="h-3 w-3" aria-hidden />
+                          Hire Journey
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {isAnalyzed && outcomeCounts.total > 0 ? (
+                  <div
+                    className="flex flex-wrap justify-center gap-2 sm:justify-end"
+                    aria-label="Requirement outcome counts"
+                  >
+                    {OUTCOME_STAT_CARDS.map((card) => {
+                      const active = filter === card.filter;
+                      return (
+                        <button
+                          key={card.label}
+                          type="button"
+                          title={card.title}
+                          aria-pressed={active}
+                          onClick={() => {
+                            setFilter(card.filter);
+                            scrollAiAnalysisBelowHeader("match-step-quick");
+                          }}
+                          className={`inline-flex w-[70px] h-[50px] flex-col items-center justify-center rounded-lg border transition ${
+                            active
+                              ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                              : "border-[#E5E7EB] bg-[#F8FAFC] hover:border-[#D0D5DD]"
+                          }`}
+                        >
+                          <span className="text-[9px] font-semibold uppercase tracking-wide text-[#667085]">
+                            {card.label}
+                          </span>
+                          <span className={`text-base font-semibold tabular-nums leading-5 ${card.valueClass}`}>
+                            {outcomeCounts[card.countKey]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             </div>
             {app?.ai_analysis_error ? (
@@ -1534,6 +1518,78 @@ export function AiAnalysisOverviewClient({
                 Run Deep Match to fill the submit recommendation.
               </p>
             ) : null}
+          </section>
+
+          <section className="overflow-hidden rounded-[12px] border border-[color:var(--brand-primary)] bg-[#FFFDFC] p-5 shadow-sm">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-[#101828]">This Job</h2>
+                {statusName ? (
+                  <div className="flex items-center gap-2 text-sm text-[#475467]">
+                    <span>Status :</span>
+                    <span className="font-bold text-[#101828]">{statusName}</span>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-1">
+                {primaryAction && primaryAction.kind !== "advance" ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+                    disabled={
+                      analyzing ||
+                      talentPoolBusy ||
+                      draftingSubmissionResume ||
+                      (primaryAction.kind !== "msp" &&
+                        primaryAction.kind !== "draft" &&
+                        !canAdvance &&
+                        primaryAction.kind !== "deep") ||
+                      (primaryAction.kind === "deep" && !canRunPaidDeep) ||
+                      (primaryAction.kind === "draft" && !hasDeepMatch)
+                    }
+                    onClick={() => void handlePrimaryProgressionAction()}
+                  >
+                    {draftingSubmissionResume && primaryAction.kind === "draft"
+                      ? "Drafting résumé…"
+                      : primaryAction.label}
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-4 flex flex-col gap-4 border-t border-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] pt-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdvancedOpen((prev) => !prev)}
+                    className="flex items-center gap-2 text-sm text-[#475467] transition hover:text-[#101828] focus:outline-none"
+                  >
+                    <span className="text-[10px] transition-transform duration-200" style={{ transform: advancedOpen ? 'rotate(90deg)' : 'none' }}>▶</span>
+                    <span>Advanced - Correction only</span>
+                  </button>
+                  {advancedOpen && (
+                    <CandidateApplicationStatusControl
+                      applicationId={applicationId}
+                      buttonClassName="h-9 min-w-[180px] flex items-center justify-between gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm font-medium text-[#101828] shadow-sm transition hover:bg-gray-50"
+                      onStatusChanged={(next) => {
+                        setStatusName(next.statusName);
+                        setStatusSystemKey(null);
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="flex items-center gap-3 pt-1 text-sm font-semibold text-[color:var(--brand-primary)]">
+                  <button
+                    type="button"
+                    disabled={talentPoolBusy || parkedInTalentPool || savingDecision}
+                    onClick={() => void handleTalentPool()}
+                    className="transition hover:opacity-80 disabled:opacity-60"
+                  >
+                    {parkedInTalentPool ? "In Talent Pool" : talentPoolBusy ? "Moving…" : "Not a fit | Talent Pool | Withdraw"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
 
           {progressionStep && progressionHint ? (
