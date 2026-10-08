@@ -170,7 +170,14 @@ export function staffActionResultMessage(
   variant: StaffStepVariant = "default"
 ): { tone: "success" | "warning"; message: string } {
   if (isDecisionVariant(variant) && action !== "reopen") {
-    return { tone: "success", message: DECISION_COPY[variant].results[action] };
+    const base = DECISION_COPY[variant].results[action];
+    if (action === "complete" && email?.sent) {
+      const emailNote = email.nextStepTitle
+        ? ` The candidate was emailed a link to continue with "${email.nextStepTitle}".`
+        : " The candidate was emailed a link to continue.";
+      return { tone: "success", message: `${base}${emailNote}` };
+    }
+    return { tone: "success", message: base };
   }
   if (action === "needs_review") return { tone: "success", message: "Step marked as needing review." };
   if (variant === "interview" && action === "reject") {

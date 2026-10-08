@@ -234,12 +234,17 @@ export async function sendCandidateStepEmail(
 
   const { progressId } = await ensureWorkerOnboardingProgress(supabase, workerId, tenantId, ctx.applicationId);
   const progress = await loadProgressPayload(supabase, progressId, engineConfig);
-  if (activePhase === "pre_hire" && progress.submittedAt) {
+  const allCandidateStepsCompleted =
+    candidateSteps.length > 0 &&
+    candidateSteps.every(
+      (step) => progress.steps.find((s) => s.onboarding_step_id === step.id)?.status === "completed"
+    );
+  if (activePhase === "pre_hire" && progress.submittedAt && allCandidateStepsCompleted) {
     return {
       ok: false,
       status: 409,
       code: "APPLICATION_SUBMITTED",
-      error: "The candidate has already submitted their application, so there's nothing left for them to fill in.",
+      error: "The candidate has already completed all steps for their application.",
     };
   }
 

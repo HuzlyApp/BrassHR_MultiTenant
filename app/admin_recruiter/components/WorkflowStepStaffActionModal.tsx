@@ -160,7 +160,7 @@ export default function WorkflowStepStaffActionModal({
             "The step is marked as rejected. It's optional, so the candidate can still move to the next stage. Add the reason for the record.",
         }
       : baseCopy;
-  const showNotify = action === "complete" && (variant === "default" || variant === "interview");
+  const showNotify = action === "complete";
   const noteRequired = action === "reject";
   const canSubmit = !submitting && (!noteRequired || note.trim().length > 0);
 

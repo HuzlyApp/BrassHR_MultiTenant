@@ -317,6 +317,9 @@ describe("staff workflow step review rules", () => {
       '"Skill Assessment"'
     );
     expect(
+      staffActionResultMessage("complete", { sent: true, skipped: false, nextStepTitle: "Candidate Form" }, "selection").message
+    ).toContain('"Candidate Form"');
+    expect(
       staffActionResultMessage("complete", { sent: false, skipped: true, reason: "WAITING_ON_INTERNAL_STEP" }).message
     ).toContain("another internal step");
     expect(
