@@ -28,6 +28,8 @@ import { loadApplicationWorkflowPhase } from "@/lib/onboarding/resolve-applicati
 import { resolveInstanceApplicationId } from "@/lib/onboarding/scoped-step-progress";
 import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
 import { advanceApplicationToScreeningComplete } from "@/lib/onboarding/recruiter-screening-status";
+import { isInterviewStep } from "@/lib/onboarding/interview-step";
+import { advanceApplicationToInterviewComplete } from "@/lib/onboarding/interview-completion-status";
 import {
   allowedStaffActions,
   completionOwnerLabel,
@@ -818,16 +820,36 @@ export async function applyStaffWorkflowStepAction(
   });
 
   let applicationStatus: { statusName: string } | null = null;
-  if (action === "complete" && ctx.mapped.stepType === RECRUITER_SCREENING_STEP_TYPE) {
-    try {
-      applicationStatus = await advanceApplicationToScreeningComplete(supabase, {
-        tenantId,
-        applicationId: ctx.applicationId,
-        actorUserId: params.actor.userId,
-        origin: params.origin,
-      });
-    } catch (statusError) {
-      console.error("[staff-workflow-step-review] screening status update failed", statusError);
+  if (action === "complete") {
+    if (ctx.mapped.stepType === RECRUITER_SCREENING_STEP_TYPE) {
+      try {
+        applicationStatus = await advanceApplicationToScreeningComplete(supabase, {
+          tenantId,
+          applicationId: ctx.applicationId,
+          actorUserId: params.actor.userId,
+          origin: params.origin,
+        });
+      } catch (statusError) {
+        console.error("[staff-workflow-step-review] screening status update failed", statusError);
+      }
+    } else if (
+      isInterviewStep({
+        stepKey: ctx.mapped.stepKey,
+        stepType: ctx.mapped.stepType,
+        onboardingType: ctx.mapped.onboardingType,
+        title: ctx.mapped.title,
+      })
+    ) {
+      try {
+        applicationStatus = await advanceApplicationToInterviewComplete(supabase, {
+          tenantId,
+          applicationId: ctx.applicationId,
+          actorUserId: params.actor.userId,
+          origin: params.origin,
+        });
+      } catch (statusError) {
+        console.error("[staff-workflow-step-review] interview status update failed", statusError);
+      }
     }
   }
 
