@@ -20,7 +20,6 @@ import {
   type ApplicationStatusHistoryRecord,
   type ApplicationStatusRecord,
   type ChangeApplicationStatusResult,
-  type ApplicationStatusChangeSource,
 } from "./types";
 
 const STATUS_COLUMNS =

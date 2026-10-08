@@ -55,6 +55,8 @@ function tabHref(tab: TabName, applicantId?: string) {
       return `/admin_recruiter/new/checklist/${id}`;
     case "Profile":
       return `/admin_recruiter/new/profile/${id}`;
+    case "AI Analysis":
+      return `/admin_recruiter/new/ai-analysis/${id}`;
     case "Pre-Hire":
       return `/admin_recruiter/new/pre-hire/${id}`;
     case "Post-Hire":

@@ -24,7 +24,11 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
-import { candidateApplicantProfileHref, candidateHireJourneyHref } from "@/app/admin_recruiter/candidates/candidate-links";
+import {
+  candidateApplicantProfileHref,
+  candidateHireJourneyHref,
+  candidateProfileHref,
+} from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
@@ -193,7 +197,23 @@ type AiAnalysisOverviewClientProps = {
   applicationId: string;
   backHref: string;
   jobId?: string;
+  /** Hide breadcrumb when rendered inside candidate detail tabs. */
+  embedded?: boolean;
 };
+
+function candidateProfileHrefForAnalysisContext(
+  workerId: string,
+  backHref: string,
+  jobId?: string
+): string {
+  if (backHref.includes("/admin_recruiter/new/profile")) {
+    return candidateProfileHref(workerId);
+  }
+  return candidateApplicantProfileHref(workerId, {
+    from: backHref.includes("/admin_recruiter/candidates") ? "candidates" : "applications",
+    jobId: jobId || undefined,
+  });
+}
 
 function copyText(value: string, success: string) {
   void navigator.clipboard.writeText(value);
@@ -607,6 +627,7 @@ export function AiAnalysisOverviewClient({
   applicationId,
   backHref,
   jobId,
+  embedded = false,
 }: AiAnalysisOverviewClientProps) {
   const router = useRouter();
   const branding = useTenantBranding();
@@ -1292,13 +1313,18 @@ export function AiAnalysisOverviewClient({
     }
   }
 
+  const shellClass = embedded
+    ? "box-border w-full min-w-0 max-w-full pb-8"
+    : "box-border w-full min-w-0 max-w-full px-3 pb-10 pt-4 sm:px-5 sm:pt-5 lg:px-8";
+
   if (loading) {
     return (
-      <div
-        className="box-border w-full min-w-0 max-w-full px-3 pb-10 pt-4 sm:px-5 sm:pt-5 lg:px-8"
-        style={brandStyle}
-      >
-        <div className="mt-8 flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-6 text-sm text-[#667085]">
+      <div className={shellClass} style={brandStyle}>
+        <div
+          className={`flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-6 text-sm text-[#667085] ${
+            embedded ? "" : "mt-8"
+          }`}
+        >
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading AI analysis…
         </div>
@@ -1307,21 +1333,22 @@ export function AiAnalysisOverviewClient({
   }
 
   return (
-    <div
-      className="box-border w-full min-w-0 max-w-full px-3 pb-10 pt-4 sm:px-5 sm:pt-5 lg:px-8"
-      style={brandStyle}
-      data-application-id={applicationId}
-    >
-      {backHref.includes("/admin_recruiter/applications") ? (
-        <JobsBreadcrumb
-          page="ai-analysis"
-          jobCandidatesHref={jobCandidatesHrefForJob(jobId) || backHref}
-        />
-      ) : (
-        <CandidatesBreadcrumb currentLabel="AI Analysis" backHref={backHref} />
-      )}
+    <div className={shellClass} style={brandStyle} data-application-id={applicationId}>
+      {!embedded ? (
+        backHref.includes("/admin_recruiter/applications") ? (
+          <JobsBreadcrumb
+            page="ai-analysis"
+            jobCandidatesHref={jobCandidatesHrefForJob(jobId) || backHref}
+          />
+        ) : (
+          <CandidatesBreadcrumb currentLabel="AI Analysis" backHref={backHref} />
+        )
+      ) : null}
 
-      <div className={`mt-4 ${STEP_SCROLL_MARGIN_CLASS}`} id="ai-analysis-overview-top">
+      <div
+        className={`${embedded ? "" : "mt-4"} ${STEP_SCROLL_MARGIN_CLASS}`}
+        id="ai-analysis-overview-top"
+      >
         <MatchProgressionStepper
           viewedIndex={viewedStep}
           unlockedIndex={unlockedIndex}
@@ -1406,12 +1433,7 @@ export function AiAnalysisOverviewClient({
                     {workerId ? (
                       <div className="mt-3 flex items-center gap-3">
                         <Link
-                          href={candidateApplicantProfileHref(workerId, {
-                            from: backHref.includes("/admin_recruiter/candidates")
-                              ? "candidates"
-                              : "applications",
-                            jobId: jobId || undefined,
-                          })}
+                          href={candidateProfileHrefForAnalysisContext(workerId, backHref, jobId)}
                           className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
                         >
                           View Profile
