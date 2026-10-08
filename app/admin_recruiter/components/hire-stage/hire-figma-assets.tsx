@@ -22,8 +22,8 @@ export const PRE_HIRE_STAGE_HERO: Record<string, string> = {
   Interview: "/icons/Hire-icons/ic7.png",
   Submission: "/icons/Hire-icons/ic8.png",
   Compliance: "/icons/Hire-icons/ic9.png",
-  "Offer & Agreement": "/icons/Hire-icons/ic10.png",
-  Approvals: "/icons/Hire-icons/ic11.png",
+  "Offer & Agreement": "/icons/Hire-icons/ic11.png",
+  Approvals: "/icons/Hire-icons/ic12.png",
 };
 
 export const POST_HIRE_STAGE_HERO: Record<string, string> = {
