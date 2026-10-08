@@ -205,13 +205,14 @@ export function CheckboxRow({
   children: ReactNode;
 }) {
   return (
-    <label htmlFor={id} className="flex cursor-pointer items-start gap-2 text-sm leading-6 text-slate-700">
+    <label htmlFor={id} className="flex cursor-pointer items-start gap-2.5 text-sm leading-6 text-slate-700">
       <input
         id={id}
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--brand-primary)]"
+        style={{ accentColor: "var(--brand-secondary)" }}
+        className="mt-[3px] h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[4px] accent-[color:var(--brand-secondary)]"
       />
       <span>{children}</span>
     </label>

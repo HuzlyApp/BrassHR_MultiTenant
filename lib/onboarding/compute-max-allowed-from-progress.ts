@@ -77,7 +77,10 @@ export function buildProgressStatusMaps(
       // Published steps own their progress row by id (republish keeps ids stable). Keys are
       // shared by unrelated steps across flows, so only placeholder ids may resolve through them.
       if (isUuid(step.id)) {
-        return [step.id, byStepId.get(step.id) ?? "pending"] as const;
+        const idStatus = byStepId.get(step.id);
+        if (idStatus && idStatus !== "pending") {
+          return [step.id, idStatus] as const;
+        }
       }
       const baseKey = step.step_key.replace(/_\d+$/, "");
       const status =

@@ -26,11 +26,58 @@ export function canRevealPostHire(params: {
   return conversionCompleted && Boolean(params.convertedAt || params.convertedWorkerId);
 }
 
-type PreHireProgressStep = {
+export type PreHireProgressStep = {
+  snapshotStepId?: string | null;
+  stepKey?: string | null;
+  stepType?: string | null;
+  title?: string | null;
   required?: boolean;
   displayStatus?: WorkflowStepDisplayStatus | OnboardingStepStatus | null;
   status?: OnboardingStepStatus | string | null;
 };
+
+/** Detects whether a pre-hire step is an Agreement eSign / Employee Agreement step. */
+export function isAgreementEsignStep(step: {
+  snapshotStepId?: string | null;
+  stepKey?: string | null;
+  stepType?: string | null;
+  title?: string | null;
+}): boolean {
+  const key = String(step.stepKey ?? "").trim().toLowerCase();
+  const snapshotId = String(step.snapshotStepId ?? "").trim().toLowerCase();
+  const title = String(step.title ?? "").trim().toLowerCase();
+
+  if (
+    snapshotId === "employee-agreement" ||
+    snapshotId === "agreement-esign" ||
+    snapshotId === "agreement_signature" ||
+    key === "employee-agreement" ||
+    key === "agreement-esign" ||
+    key === "agreement_signature" ||
+    key === "agreement-signature"
+  ) {
+    return true;
+  }
+
+  return (
+    title.includes("agreement esign") ||
+    title.includes("agreement e-sign") ||
+    title.includes("employee agreement") ||
+    title.includes("contract esign") ||
+    title.includes("contract e-sign") ||
+    title.includes("agreement signature") ||
+    title.includes("agreement / signature")
+  );
+}
+
+/** Returns true if the Pre-Hire Agreement eSign step has been completed. */
+export function hasCompletedAgreementEsignStep(steps: PreHireProgressStep[]): boolean {
+  return steps.some((step) => {
+    if (!isAgreementEsignStep(step)) return false;
+    const status = (step.displayStatus ?? step.status ?? "pending") as WorkflowStepDisplayStatus;
+    return isCompleteDisplayStatus(status);
+  });
+}
 
 /**
  * Required Pre-Hire steps are "almost complete" when:
@@ -56,6 +103,7 @@ export function areRequiredPreHireStepsAlmostComplete(steps: PreHireProgressStep
 /**
  * Staff hire-journey Post-Hire tab:
  * - after conversion (Approve as Worker), or
+ * - after candidate completes the Agreement eSign step in Pre-Hire, or
  * - after application is Selected (hired) and required Pre-Hire steps are nearly complete.
  */
 export function canRevealPostHireForStaffJourney(params: {
@@ -64,6 +112,7 @@ export function canRevealPostHireForStaffJourney(params: {
   preHireSteps: PreHireProgressStep[];
 }): boolean {
   if (params.convertedVisible) return true;
+  if (hasCompletedAgreementEsignStep(params.preHireSteps)) return true;
   return (
     params.applicationHired && areRequiredPreHireStepsAlmostComplete(params.preHireSteps)
   );

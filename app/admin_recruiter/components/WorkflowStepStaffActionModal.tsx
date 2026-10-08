@@ -36,9 +36,9 @@ const VERIFICATION_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
 
 const SELECTION_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
   complete: {
-    title: () => "Select this candidate to move forward?",
-    description: "Records that your team chose to put this candidate forward to the client.",
-    confirm: "Selected",
+    title: () => "Mark this candidate as qualified?",
+    description: "Records that your team marked this candidate as qualified to move forward.",
+    confirm: "Mark as Qualified",
     confirmClass: "shadow-sm hover:brightness-[0.97]",
   },
   needs_review: {
@@ -160,7 +160,7 @@ export default function WorkflowStepStaffActionModal({
             "The step is marked as rejected. It's optional, so the candidate can still move to the next stage. Add the reason for the record.",
         }
       : baseCopy;
-  const showNotify = action === "complete" && (variant === "default" || variant === "interview");
+  const showNotify = action === "complete";
   const noteRequired = action === "reject";
   const canSubmit = !submitting && (!noteRequired || note.trim().length > 0);
 
@@ -236,15 +236,18 @@ export default function WorkflowStepStaffActionModal({
               />
 
               {showNotify ? (
-                <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
+                <label className="mt-3 flex items-start gap-2.5 text-sm text-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={notifyCandidate}
                     onChange={(event) => setNotifyCandidate(event.target.checked)}
                     disabled={submitting}
-                    className="mt-0.5 size-4 accent-[color:var(--brand-primary)]"
+                    className="mt-0.5 h-[18px] w-[18px] rounded-[4px] cursor-pointer accent-[color:var(--brand-secondary)]"
+                    style={{
+                      accentColor: branding.secondaryHex,
+                    }}
                   />
-                  <span>
+                  <span className="select-none">
                     Email the candidate a link to their next step
                     <span className="block text-xs text-slate-500">
                       Sent to the candidate only, and only if completing this step unlocks a step they

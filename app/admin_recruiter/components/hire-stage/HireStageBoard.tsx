@@ -25,6 +25,7 @@ import { HireStageAccordion } from "./HireStageAccordion";
 import { HireStageSidebar, type HireStageSidebarProfile } from "./HireStageSidebar";
 import { HireStageStepper } from "./HireStageStepper";
 import { PostHireStageColumns, PostHireSummaryBanner } from "./PostHireStageColumns";
+import { hasCompletedAgreementEsignStep } from "@/lib/onboarding/lock-post-hire";
 
 function formatLongDate(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -98,11 +99,15 @@ export function HireStageBoard({
       ? "Track every step before someone becomes part of your team."
       : "Track onboarding steps after the candidate joins your team.";
 
+  const agreementEsignComplete =
+    lifecycle === "pre_hire" &&
+    hasCompletedAgreementEsignStep(steps);
+
   const preHireComplete =
     lifecycle === "pre_hire" &&
     assigned &&
     steps.length > 0 &&
-    progressMeta.percent === 100;
+    (progressMeta.percent === 100 || agreementEsignComplete || Boolean(phaseView?.postHireVisible));
 
   // Pre-Hire is done but the application isn't hired yet: proceeding hires them, which unlocks Post-Hire.
   const canActivatePostHire =

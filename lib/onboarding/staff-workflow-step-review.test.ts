@@ -166,7 +166,7 @@ describe("staff workflow step review rules", () => {
       reason: null,
     });
     expect(resolveStaffStepEligibility(null, "completed", record).actions).toEqual(["needs_review", "reject"]);
-    expect(staffActionLabel("complete", "selection")).toBe("Selected");
+    expect(staffActionLabel("complete", "selection")).toBe("Mark as Qualified");
     expect(staffActionLabel("needs_review", "selection")).toBe("On Hold");
     expect(staffActionLabel("reject", "selection")).toBe("Not Selected");
     expect(staffActionLabel("reject", "verification")).toBe("Reject");
@@ -316,6 +316,9 @@ describe("staff workflow step review rules", () => {
     expect(staffActionResultMessage("complete", { sent: true, skipped: false, nextStepTitle: "Skill Assessment" }).message).toContain(
       '"Skill Assessment"'
     );
+    expect(
+      staffActionResultMessage("complete", { sent: true, skipped: false, nextStepTitle: "Candidate Form" }, "selection").message
+    ).toContain('"Candidate Form"');
     expect(
       staffActionResultMessage("complete", { sent: false, skipped: true, reason: "WAITING_ON_INTERNAL_STEP" }).message
     ).toContain("another internal step");

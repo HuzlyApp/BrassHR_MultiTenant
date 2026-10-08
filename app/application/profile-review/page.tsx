@@ -40,6 +40,7 @@ import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboard
 import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
+import AwaitingRecruiterReviewModal from "@/app/components/onboarding/AwaitingRecruiterReviewModal"
 import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import {
   findResumeUploadStep,
@@ -55,6 +56,7 @@ import { findNavigableStepIndex } from "@/lib/onboarding/applicant-step-navigabi
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 import { RESUME_PARSE_FAILED_USER_MESSAGE } from "@/lib/resumeParseQuality"
+import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-onboarding-projection"
 
 type ContactConflictKind = "email" | "phone"
 
@@ -321,6 +323,7 @@ function Step1ReviewContent() {
 
   const [loading, setLoading] = useState(false)
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
+  const [showReviewModal, setShowReviewModal] = useState(false)
   /** Avoid hammering save-worker when a hard email conflict is already known. */
   const autosaveEmailBlockedRef = useRef(false)
   /** Duplicate contact conflict: banner + field highlight (matches design mock). */
@@ -930,6 +933,56 @@ function Step1ReviewContent() {
         beforeIndex: nextIdx ?? resumeIdx,
       })
 
+      // Compute whether the candidate will be waiting on a recruiter step after
+      // this step completes. We do this by simulating the updated progress
+      // (marking the resume/profile step as "completed") and running the same
+      // frontier projection that OnboardingConfigProvider uses. This avoids the
+      // async React state-update timing issue where onboarding.waitingOnInternal
+      // still reflects the pre-completion state at this point.
+      const configForFrontier = nav.config
+      const simulatedProgress = onboarding?.progress
+        ? {
+            ...onboarding.progress,
+            steps: (
+              onboarding.progress.steps?.some(
+                (r) =>
+                  (resumeStep && r.onboarding_step_id === resumeStep.id) ||
+                  r.step_key === resumeStep?.step_key
+              )
+                ? onboarding.progress.steps.map((r) =>
+                    (resumeStep && r.onboarding_step_id === resumeStep.id) ||
+                    r.step_key === resumeStep?.step_key
+                      ? { ...r, status: "completed" as const }
+                      : r
+                  )
+                : [
+                    ...(onboarding.progress.steps ?? []),
+                    {
+                      onboarding_step_id: resumeStep?.id ?? "",
+                      step_key: resumeStep?.step_key ?? "resume_upload",
+                      status: "completed" as const,
+                      completed_at: new Date().toISOString(),
+                      data: {},
+                    },
+                  ]
+            ),
+          }
+        : null
+
+      const willWaitOnInternal =
+        configForFrontier?.candidateEngineOrder != null
+          ? computeCandidateOnboardingFrontier({
+              engineOrder: configForFrontier.candidateEngineOrder,
+              candidateSteps: enabled,
+              progress: simulatedProgress,
+            }).waitingOnInternal
+          : false
+
+      if (willWaitOnInternal) {
+        setShowReviewModal(true)
+        return
+      }
+
       const next =
         nextIdx !== null
           ? routeForApplicantStep(enabled[nextIdx]!, nav.slug)
@@ -992,6 +1045,11 @@ function Step1ReviewContent() {
     ) : null
 
   return (
+    <>
+    <AwaitingRecruiterReviewModal
+      open={showReviewModal}
+      onClose={() => setShowReviewModal(false)}
+    />
     <div
       className="relative flex min-h-screen items-stretch justify-center p-3 py-6 sm:items-center sm:p-4 sm:py-8"
       style={shellStyle}
@@ -1351,6 +1409,7 @@ function Step1ReviewContent() {
       </div>
 
     </div>
+    </>
   )
 }
 

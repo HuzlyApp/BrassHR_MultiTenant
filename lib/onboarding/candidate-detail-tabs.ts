@@ -1,6 +1,7 @@
 export const CANDIDATE_DETAIL_BASE_TABS = [
   "Checklist",
   "Profile",
+  "AI Analysis",
   "Pre-Hire",
   "Attachments",
   "Skill Assessments",

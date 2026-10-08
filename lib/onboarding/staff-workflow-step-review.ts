@@ -10,6 +10,7 @@ import {
   ASSIGNED_STEP_RECORD_COLUMNS,
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
+  isStaffOwnedAssignedRecord,
   mapAssignedStepRecords,
   parseAssignedStepPhase,
   resolveAssignedStepStatus,
@@ -28,6 +29,9 @@ import { loadApplicationWorkflowPhase } from "@/lib/onboarding/resolve-applicati
 import { resolveInstanceApplicationId } from "@/lib/onboarding/scoped-step-progress";
 import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
 import { advanceApplicationToScreeningComplete } from "@/lib/onboarding/recruiter-screening-status";
+import { isInterviewStep } from "@/lib/onboarding/interview-step";
+import { advanceApplicationToInterviewComplete } from "@/lib/onboarding/interview-completion-status";
+import { advanceApplicationToQualified } from "@/lib/onboarding/qualified-status";
 import {
   allowedStaffActions,
   completionOwnerLabel,
@@ -109,6 +113,7 @@ export async function mapInstanceStepRecord(
     tenantSteps: TenantOnboardingStep[];
     progressByStepId: Map<string, ProgressRowInput>;
     assignedAt: string | null;
+    applicationId?: string | null;
   }
 ): Promise<MappedAssignedStep | null> {
   const { data, error } = await supabase
@@ -123,6 +128,7 @@ export async function mapInstanceStepRecord(
     tenantSteps: params.tenantSteps,
     progressByStepId: params.progressByStepId,
     assignedAt: params.assignedAt,
+    applicationId: params.applicationId,
   });
   return mapped.find((step) => step.id === params.recordId) ?? null;
 }
@@ -148,7 +154,7 @@ export function staffStepVariant(
  */
 export function canReviewUnlinkedRecord(record: UnlinkedStepRecord | null | undefined): boolean {
   if (!record) return false;
-  if (isInternalLibraryStepId(record.stepType)) return true;
+  if (isInternalLibraryStepId(record.stepType) || isParameterizedJobApplicationStepType(record.stepType)) return true;
   return !isApplicantCompletionOwner(asText(record.settings?.completionOwner));
 }
 
@@ -460,7 +466,7 @@ export function findCandidateGateStep(
       (step) =>
         !step.id.startsWith("preview-") &&
         asText(step.metadata?.workflow_node_id) === snapshotStepId &&
-        !isWorkerVisibleStep(step)
+        (!isWorkerVisibleStep(step) || isParameterizedJobApplicationStepType(asText(step.metadata?.workflow_step_id)))
     ) ?? null
   );
 }
@@ -472,32 +478,72 @@ async function notifyCandidateNextStep(
     workerId: string;
     applicationId: string | null;
     origin: string | null;
-    progressId: string;
+    progressId: string | null;
     tenantConfig: TenantOnboardingConfig | null;
     completedStepId: string;
     completedStepTitle: string;
+    instanceId?: string | null;
+    completedRecordId?: string | null;
+    completedPosition?: number | null;
   }
 ): Promise<StaffStepEmailResult> {
   if (!params.origin) return { sent: false, skipped: true, reason: "NO_APP_ORIGIN" };
   try {
-    const { config, activePhase, jobToken, jobTitle } = await loadApplicationApplicantConfig(supabase, {
+    const { config, engineConfig, activePhase, jobToken, jobTitle } = await loadApplicationApplicantConfig(supabase, {
       tenantId: params.tenantId,
       applicationId: params.applicationId,
     });
-    if (!config) return { sent: false, skipped: true, reason: "NO_APPLICANT_CONFIG" };
+    if (!config && !params.instanceId) return { sent: false, skipped: true, reason: "NO_APPLICANT_CONFIG" };
 
-    const progress = await loadProgressPayload(supabase, params.progressId, params.tenantConfig);
-    if (activePhase === "pre_hire" && progress.submittedAt) {
-      // Submitted applicants are routed to the status page, so there is nothing to fill in.
-      return { sent: false, skipped: true, reason: "APPLICATION_SUBMITTED", nextStepTitle: null };
+    let nextStepTitle: string | null = null;
+    let nextStepKey: string | null = null;
+
+    // 1. Check assigned workflow step records for this instance
+    if (params.instanceId) {
+      const { data: stepRows } = await supabase
+        .from("applicant_workflow_step_records")
+        .select(STEP_RECORD_SELECT)
+        .eq("tenant_id", params.tenantId)
+        .eq("workflow_instance_id", params.instanceId)
+        .order("position", { ascending: true });
+
+      const records = ((stepRows ?? []) as Array<Record<string, unknown>>).map(toAssignedStepRecordInput);
+      const completedPos = params.completedPosition ?? 0;
+
+      // Find the next incomplete step after the completed step
+      const nextIncomplete = records.find(
+        (r) => (r.position ?? 0) > completedPos && r.status !== "completed" && r.status !== "skipped"
+      );
+
+      if (nextIncomplete) {
+        if (isStaffOwnedAssignedRecord(nextIncomplete)) {
+          // The next step is another staff step, so candidate shouldn't be emailed yet
+          return { sent: false, skipped: true, reason: "WAITING_ON_INTERNAL_STEP", nextStepTitle: null };
+        }
+        // It is a candidate step!
+        nextStepTitle = nextIncomplete.title;
+        nextStepKey = nextIncomplete.snapshot_step_id || nextIncomplete.step_type;
+      }
     }
-    const next = resolveUnlockedApplicantStep({
-      config,
-      progress,
-      completedStepId: params.completedStepId,
-    });
-    if (!next.step) {
-      return { sent: false, skipped: true, reason: next.reason, nextStepTitle: null };
+
+    // 2. Fall back to resolveUnlockedApplicantStep if not determined via instance records
+    if (!nextStepTitle && config && params.progressId) {
+      const progress = await loadProgressPayload(supabase, params.progressId, params.tenantConfig ?? engineConfig);
+      const next = resolveUnlockedApplicantStep({
+        config,
+        progress,
+        completedStepId: params.completedStepId,
+      });
+      if (next.step) {
+        nextStepTitle = next.step.title;
+        nextStepKey = next.step.step_key;
+      } else if (!params.instanceId) {
+        return { sent: false, skipped: true, reason: next.reason, nextStepTitle: null };
+      }
+    }
+
+    if (!nextStepTitle) {
+      return { sent: false, skipped: true, reason: "NO_NEW_CANDIDATE_STEP", nextStepTitle: null };
     }
 
     const ctx = await buildApplicantEmailContext(supabase, {
@@ -505,16 +551,17 @@ async function notifyCandidateNextStep(
       workerId: params.workerId,
       origin: params.origin,
       continuationReason: "step_ready",
+      continuationTargetStepKey: nextStepKey,
       continuationMetadata: {
         purpose: "next_step_ready",
         completedStepTitle: params.completedStepTitle,
-        nextStepKey: next.step.step_key,
+        nextStepKey,
       },
       applicationId: params.applicationId,
       jobToken,
     });
     if (!ctx) {
-      return { sent: false, skipped: true, reason: "NO_APPLICANT_EMAIL", nextStepTitle: next.step.title };
+      return { sent: false, skipped: true, reason: "NO_APPLICANT_EMAIL", nextStepTitle };
     }
 
     const result = await sendStepReadyEmail(supabase, {
@@ -525,7 +572,7 @@ async function notifyCandidateNextStep(
         ...contextToTemplateVariables(ctx),
         jobTitle,
         completedStepTitle: params.completedStepTitle,
-        nextStepTitle: next.step.title,
+        nextStepTitle,
         nextStepLink: ctx.applicantContinuationLink,
       },
     });
@@ -533,7 +580,7 @@ async function notifyCandidateNextStep(
       sent: result.sent,
       skipped: result.skipped ?? false,
       reason: result.reason,
-      nextStepTitle: next.step.title,
+      nextStepTitle,
     };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "EMAIL_FAILED";
@@ -741,11 +788,9 @@ export async function applyStaffWorkflowStepAction(
     )?.id ??
     null;
 
-  let progressId: string | null = null;
+  const { progressId } = await ensureWorkerOnboardingProgress(supabase, workerId, tenantId, ctx.applicationId);
   let progressRow: ProgressRowInput | null = null;
   if (tenantStepId) {
-    progressId = (await ensureWorkerOnboardingProgress(supabase, workerId, tenantId, ctx.applicationId))
-      .progressId;
     progressRow = await loadLinkedProgressRow(supabase, {
       progressId,
       tenantStepId,
@@ -816,21 +861,52 @@ export async function applyStaffWorkflowStepAction(
   });
 
   let applicationStatus: { statusName: string } | null = null;
-  if (action === "complete" && ctx.mapped.stepType === RECRUITER_SCREENING_STEP_TYPE) {
-    try {
-      applicationStatus = await advanceApplicationToScreeningComplete(supabase, {
-        tenantId,
-        applicationId: ctx.applicationId,
-        actorUserId: params.actor.userId,
-        origin: params.origin,
-      });
-    } catch (statusError) {
-      console.error("[staff-workflow-step-review] screening status update failed", statusError);
+  if (action === "complete") {
+    if (ctx.mapped.stepType === RECRUITER_SCREENING_STEP_TYPE) {
+      try {
+        applicationStatus = await advanceApplicationToScreeningComplete(supabase, {
+          tenantId,
+          applicationId: ctx.applicationId,
+          actorUserId: params.actor.userId,
+          origin: params.origin,
+        });
+      } catch (statusError) {
+        console.error("[staff-workflow-step-review] screening status update failed", statusError);
+      }
+    } else if (
+      isInterviewStep({
+        stepKey: ctx.mapped.stepKey,
+        stepType: ctx.mapped.stepType,
+        onboardingType: ctx.mapped.onboardingType,
+        title: ctx.mapped.title,
+      })
+    ) {
+      try {
+        applicationStatus = await advanceApplicationToInterviewComplete(supabase, {
+          tenantId,
+          applicationId: ctx.applicationId,
+          actorUserId: params.actor.userId,
+          origin: params.origin,
+        });
+      } catch (statusError) {
+        console.error("[staff-workflow-step-review] interview status update failed", statusError);
+      }
+    } else if (initial.variant === "selection") {
+      try {
+        applicationStatus = await advanceApplicationToQualified(supabase, {
+          tenantId,
+          applicationId: ctx.applicationId,
+          actorUserId: params.actor.userId,
+          origin: params.origin,
+        });
+      } catch (statusError) {
+        console.error("[staff-workflow-step-review] qualified status update failed", statusError);
+      }
     }
   }
 
   const email =
-    action === "complete" && params.notifyCandidate && progressId && tenantStepId
+    action === "complete" && params.notifyCandidate
       ? await notifyCandidateNextStep(supabase, {
           tenantId,
           workerId,
@@ -838,8 +914,11 @@ export async function applyStaffWorkflowStepAction(
           origin: params.origin,
           progressId,
           tenantConfig: ctx.config,
-          completedStepId: tenantStepId,
+          completedStepId: tenantStepId ?? String(ctx.record.id),
           completedStepTitle: ctx.mapped.title,
+          instanceId: String(ctx.instance.id),
+          completedRecordId: String(ctx.record.id),
+          completedPosition: typeof ctx.record.position === "number" ? ctx.record.position : 0,
         })
       : null;
 

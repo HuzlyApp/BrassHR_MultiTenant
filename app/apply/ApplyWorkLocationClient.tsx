@@ -128,25 +128,30 @@ export default function ApplyWorkLocationClient({
   }
 
   return (
-    <main className="min-h-screen bg-white px-5 py-8 sm:px-8 sm:py-10" style={shellStyle}>
-      <section className="mx-auto w-full max-w-lg">
-        <p
-          className="text-xs font-medium uppercase tracking-wide"
-          style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
-        >
-          Apply
-        </p>
-        <h1
-          className="mt-2 text-xl font-semibold sm:text-2xl"
-          style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
-        >
-          {jobTitle}
-        </h1>
-        <p className="mt-2 text-sm text-slate-600" style={{ fontFamily: "var(--brand-font-body)" }}>
-          Confirm where you will work this job. Home address, school, and travel city are not used.
-        </p>
+    <main
+      className="flex min-h-screen items-start justify-center bg-[#F1F5F9] px-4 py-6 sm:items-center sm:px-6 sm:py-10"
+      style={shellStyle}
+    >
+      <section className="w-full max-w-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45)]">
+        <header className="border-b border-slate-100 px-5 py-5 sm:px-6">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+            style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+          >
+            Apply
+          </p>
+          <h1
+            className="mt-1.5 text-lg font-semibold leading-snug sm:text-xl"
+            style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+          >
+            {jobTitle}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500" style={{ fontFamily: "var(--brand-font-body)" }}>
+            Confirm where you will work this job. Home address, school, and travel city are not used.
+          </p>
+        </header>
 
-        <div className="mt-6 space-y-4">
+        <div className="space-y-4 px-5 py-5 sm:px-6">
           <SearchableSelectField
             label="Work state"
             required
@@ -195,75 +200,87 @@ export default function ApplyWorkLocationClient({
               placeholder="Code"
             />
           </div>
+
+          <fieldset>
+            <legend className="text-sm font-medium text-slate-800">
+              Will you work on-site{jobCity ? ` at ${jobCity}` : ""}?
+            </legend>
+            <div className="mt-2 space-y-2">
+              {(
+                [
+                  { value: "onsite", label: "Yes" },
+                  { value: "relocate", label: "Yes, I will relocate" },
+                  { value: "remote", label: "No, I would work remote from the location above" },
+                ] as const
+              ).map((option) => {
+                const selected = relocate === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm leading-5 transition ${
+                      selected
+                        ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-slate-900"
+                        : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="relocate"
+                      className={radioClass}
+                      checked={selected}
+                      onChange={() => setRelocate(option.value)}
+                    />
+                    {option.label}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {preview.message ? (
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
+              {preview.message}
+            </p>
+          ) : null}
+
+          {preview.message ? (
+            <div className="border-t border-slate-100 pt-4">
+              <p className="text-sm text-slate-600">Email me if this location opens.</p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="email"
+                  className={`${inputClass} mt-0`}
+                  placeholder="Email"
+                  value={waitlistEmail}
+                  onChange={(event) => setWaitlistEmail(event.target.value)}
+                  aria-label="Email"
+                />
+                <button
+                  type="button"
+                  className="h-11 shrink-0 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:border-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)]"
+                  onClick={() => void onWaitlist()}
+                >
+                  Notify me
+                </button>
+              </div>
+              {waitlistSent ? (
+                <p className="mt-2 text-xs text-slate-500">We’ll email you if this location opens.</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
-        <fieldset className="mt-5">
-          <legend className="text-sm font-medium text-slate-800">
-            Will you work on-site{jobCity ? ` at ${jobCity}` : ""}?
-          </legend>
-          {(
-            [
-              { value: "onsite", label: "Yes" },
-              { value: "relocate", label: "Yes, I will relocate" },
-              { value: "remote", label: "No, I would work remote from the location above" },
-            ] as const
-          ).map((option) => (
-            <label
-              key={option.value}
-              className="mt-2.5 flex cursor-pointer items-center gap-2.5 text-sm text-slate-700"
-            >
-              <input
-                type="radio"
-                name="relocate"
-                className={radioClass}
-                checked={relocate === option.value}
-                onChange={() => setRelocate(option.value)}
-              />
-              {option.label}
-            </label>
-          ))}
-        </fieldset>
-
-        {preview.message ? (
-          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
-            {preview.message}
-          </p>
-        ) : null}
-
-        <button
-          type="button"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ backgroundColor: "var(--brand-primary)" }}
-          disabled={submitDisabled}
-          onClick={() => void onContinue()}
-        >
-          {preview.loading ? "Checking…" : "Continue"}
-        </button>
-
-        {preview.message ? (
-          <div className="mt-6 border-t border-slate-200 pt-4">
-            <p className="text-sm text-slate-600">Email me if this location opens.</p>
-            <div className="mt-2 flex gap-2">
-              <input
-                type="email"
-                className={inputClass}
-                placeholder="Email"
-                value={waitlistEmail}
-                onChange={(event) => setWaitlistEmail(event.target.value)}
-              />
-              <button
-                type="button"
-                className="h-11 shrink-0 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:border-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)]"
-                onClick={() => void onWaitlist()}
-              >
-                Notify me
-              </button>
-            </div>
-            {waitlistSent ? (
-              <p className="mt-2 text-xs text-slate-500">We’ll email you if this location opens.</p>
-            ) : null}
-          </div>
-        ) : null}
+        <footer className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+          <button
+            type="button"
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ backgroundColor: "var(--brand-primary)" }}
+            disabled={submitDisabled}
+            onClick={() => void onContinue()}
+          >
+            {preview.loading ? "Checking…" : "Continue"}
+          </button>
+        </footer>
       </section>
     </main>
   );

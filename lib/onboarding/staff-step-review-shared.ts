@@ -85,9 +85,9 @@ const DECISION_COPY: Record<
   },
   selection: {
     pending: "Pending Decision",
-    labels: { complete: "Selected", needs_review: "On Hold", reject: "Not Selected" },
+    labels: { complete: "Qualified", needs_review: "On Hold", reject: "Not Selected" },
     results: {
-      complete: "Candidate marked as selected to move forward.",
+      complete: "Candidate marked as qualified.",
       needs_review: "Candidate put on hold.",
       reject: "Candidate marked as not selected. This doesn't block the next stage.",
     },
@@ -110,7 +110,7 @@ export function isDecisionVariant(variant: StaffStepVariant): variant is StaffDe
   return variant === "verification" || variant === "selection";
 }
 
-/** Label for a decision ("Selected") or, with null, the pending state ("Pending Decision"). */
+/** Label for a decision ("Qualified") or, with null, the pending state ("Pending Decision"). */
 export function decisionLabel(variant: StaffDecisionVariant, action: StaffDecisionAction | null): string {
   return action ? DECISION_COPY[variant].labels[action] : DECISION_COPY[variant].pending;
 }
@@ -152,6 +152,7 @@ export function allowedStaffActions(
 }
 
 export function staffActionLabel(action: StaffStepAction, variant: StaffStepVariant = "default"): string {
+  if (variant === "selection" && action === "complete") return "Mark as Qualified";
   if (isDecisionVariant(variant) && action !== "reopen") {
     const label = decisionLabel(variant, action);
     return variant === "verification" && action === "reject" ? "Reject" : label;
@@ -169,7 +170,14 @@ export function staffActionResultMessage(
   variant: StaffStepVariant = "default"
 ): { tone: "success" | "warning"; message: string } {
   if (isDecisionVariant(variant) && action !== "reopen") {
-    return { tone: "success", message: DECISION_COPY[variant].results[action] };
+    const base = DECISION_COPY[variant].results[action];
+    if (action === "complete" && email?.sent) {
+      const emailNote = email.nextStepTitle
+        ? ` The candidate was emailed a link to continue with "${email.nextStepTitle}".`
+        : " The candidate was emailed a link to continue.";
+      return { tone: "success", message: `${base}${emailNote}` };
+    }
+    return { tone: "success", message: base };
   }
   if (action === "needs_review") return { tone: "success", message: "Step marked as needing review." };
   if (variant === "interview" && action === "reject") {
