@@ -109,6 +109,7 @@ export async function mapInstanceStepRecord(
     tenantSteps: TenantOnboardingStep[];
     progressByStepId: Map<string, ProgressRowInput>;
     assignedAt: string | null;
+    applicationId?: string | null;
   }
 ): Promise<MappedAssignedStep | null> {
   const { data, error } = await supabase
@@ -123,6 +124,7 @@ export async function mapInstanceStepRecord(
     tenantSteps: params.tenantSteps,
     progressByStepId: params.progressByStepId,
     assignedAt: params.assignedAt,
+    applicationId: params.applicationId,
   });
   return mapped.find((step) => step.id === params.recordId) ?? null;
 }

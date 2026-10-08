@@ -36,6 +36,9 @@ import {
   applicationQuickMatchRan,
   applyQuickMatchScreeningProgress,
 } from "@/lib/onboarding/recruiter-screening-progress";
+import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-application-parameters";
+import { loadJobApplicationStepView } from "@/lib/onboarding/job-application-step";
+import { applyParameterizedJobApplicationStepEvidence } from "@/lib/onboarding/parameterized-job-application-progress";
 
 export type { CandidateWorkflowAssignmentView } from "@/lib/onboarding/assigned-workflow-steps";
 
@@ -247,7 +250,24 @@ export async function loadCandidateWorkflowPhaseView(
     tenantSteps,
     progressByStepId,
     assignedAt: asText(activeInstance?.started_at) ?? asText(activeInstance?.created_at),
+    applicationId: activeApplicationId,
   });
+
+  if (
+    activeApplicationId &&
+    mappedSteps.some((step) => isParameterizedJobApplicationStepType(step.stepType))
+  ) {
+    const jobApplication = await loadJobApplicationStepView(supabase, {
+      tenantId,
+      applicationId: activeApplicationId,
+    }).catch(() => null);
+    mappedSteps = applyParameterizedJobApplicationStepEvidence({
+      steps: mappedSteps,
+      progressByStepId,
+      applicationId: activeApplicationId,
+      jobApplication,
+    });
+  }
 
   const documents = await loadAdminAttachmentRequirements({
     supabase,

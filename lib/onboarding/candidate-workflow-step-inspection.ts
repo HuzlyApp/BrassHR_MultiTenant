@@ -80,6 +80,7 @@ import {
   loadJobApplicationStepView,
   type JobApplicationStepView,
 } from "@/lib/onboarding/job-application-step";
+import { applyParameterizedJobApplicationStepEvidence } from "@/lib/onboarding/parameterized-job-application-progress";
 import {
   isOfferAcceptanceStepType,
   loadOfferDetailsForApplication,
@@ -547,13 +548,14 @@ export async function loadCandidateWorkflowStepInspection(
   ]);
   const tenantSteps = config?.steps ?? [];
 
-  const mapped = await mapInstanceStepRecord(supabase, {
+  let mapped = await mapInstanceStepRecord(supabase, {
     tenantId,
     instanceId: String(instance.id),
     recordId: String(record.id),
     tenantSteps,
     progressByStepId,
     assignedAt: asText(instance.started_at) ?? asText(instance.created_at),
+    applicationId,
   });
 
   if (!mapped) {
@@ -942,6 +944,21 @@ export async function loadCandidateWorkflowStepInspection(
       ? await loadJobApplicationStepView(supabase, { tenantId, applicationId })
       : null;
 
+  if (kind === "job_application") {
+    const [withEvidence] = applyParameterizedJobApplicationStepEvidence({
+      steps: [mapped],
+      progressByStepId,
+      applicationId,
+      jobApplication,
+    });
+    if (withEvidence) {
+      mapped = withEvidence;
+      step = isInterviewStep(mapped)
+        ? { ...withEvidence, interview: step.interview ?? null }
+        : withEvidence;
+    }
+  }
+
   const offer =
     kind === "offer"
       ? {
@@ -959,7 +976,8 @@ export async function loadCandidateWorkflowStepInspection(
     Boolean(offer?.decision) ||
     Boolean(agreement?.signedAt) ||
     Boolean(enrollment?.decision) ||
-    Boolean(postHireSubmission);
+    Boolean(postHireSubmission) ||
+    Boolean(jobApplication?.screening.some((item) => item.answered));
 
   let emptyState: string | null = null;
   if (enrollment) {

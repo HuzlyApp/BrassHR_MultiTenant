@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { NON_NAVIGABLE_SYSTEM_COMPLETE_DATA } from "@/lib/onboarding/complete-non-navigable-step";
+import {
+  NON_NAVIGABLE_SYSTEM_COMPLETE_DATA,
+  PARAMETERIZED_JOB_APPLICATION_WORKFLOW_STEP_ID,
+} from "@/lib/onboarding/complete-non-navigable-step";
+import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-application-parameters";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
@@ -178,6 +182,7 @@ export async function markTenantStepCompletedByWorkflowLibraryId(
 
   if (!step) return;
 
+  const completedAt = new Date().toISOString();
   await markEnabledStepCompleted(supabase, {
     workerId: input.workerId,
     tenantId: input.tenantId,
@@ -189,4 +194,91 @@ export async function markTenantStepCompletedByWorkflowLibraryId(
       ...(input.data ?? {}),
     },
   });
+
+  await syncApplicantWorkflowStepRecordForLibraryId(supabase, {
+    tenantId: input.tenantId,
+    workerId: input.workerId,
+    applicationId: input.applicationId ?? null,
+    workflowStepId: input.workflowStepId,
+    completedAt,
+  });
+}
+
+function asText(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+async function syncApplicantWorkflowStepRecordForLibraryId(
+  supabase: SupabaseClient,
+  input: {
+    tenantId: string;
+    workerId: string;
+    applicationId: string | null;
+    workflowStepId: string;
+    completedAt: string;
+  }
+): Promise<void> {
+  const normalized = input.workflowStepId.trim().toLowerCase().replaceAll("_", "-");
+  if (
+    normalized !== PARAMETERIZED_JOB_APPLICATION_WORKFLOW_STEP_ID &&
+    !isParameterizedJobApplicationStepType(normalized)
+  ) {
+    return;
+  }
+
+  const { data: instances, error: instanceError } = await supabase
+    .from("applicant_workflow_instances")
+    .select("id, application_id, status, assignment_state, created_at")
+    .eq("tenant_id", input.tenantId)
+    .eq("worker_id", input.workerId)
+    .order("created_at", { ascending: false });
+  if (instanceError) throw instanceError;
+  const rows = (instances ?? []) as Array<Record<string, unknown>>;
+  if (!rows.length) return;
+
+  let instance =
+    (input.applicationId
+      ? rows.find((row) => asText(row.application_id) === input.applicationId)
+      : null) ?? null;
+  if (!instance && input.applicationId) {
+    const { data: app } = await supabase
+      .from("job_applications")
+      .select("applicant_workflow_instance_id")
+      .eq("tenant_id", input.tenantId)
+      .eq("id", input.applicationId)
+      .maybeSingle();
+    const linkedId = asText(
+      (app as { applicant_workflow_instance_id?: string } | null)?.applicant_workflow_instance_id
+    );
+    instance = rows.find((row) => asText(row.id) === linkedId) ?? null;
+  }
+  instance ??=
+    rows.find((row) => asText(row.assignment_state ?? row.status) === "active") ?? rows[0];
+  const instanceId = asText(instance?.id);
+  if (!instanceId) return;
+
+  const { data: records, error: recordsError } = await supabase
+    .from("applicant_workflow_step_records")
+    .select("id, step_type, status")
+    .eq("tenant_id", input.tenantId)
+    .eq("workflow_instance_id", instanceId)
+    .order("position", { ascending: true });
+  if (recordsError) throw recordsError;
+
+  const target = ((records ?? []) as Array<{ id?: string; step_type?: string; status?: string }>).find(
+    (row) => isParameterizedJobApplicationStepType(asText(row.step_type))
+  );
+  if (!target?.id || asText(target.status) === "completed") return;
+
+  const { error: updateError } = await supabase
+    .from("applicant_workflow_step_records")
+    .update({
+      status: "completed",
+      completed_at: input.completedAt,
+      updated_at: input.completedAt,
+    })
+    .eq("id", String(target.id))
+    .eq("tenant_id", input.tenantId);
+  if (updateError) throw updateError;
 }
