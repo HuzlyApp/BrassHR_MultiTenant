@@ -19,6 +19,7 @@ import {
   type ApplicationStatusHistoryRecord,
   type ApplicationStatusRecord,
   type ChangeApplicationStatusResult,
+  type ApplicationStatusChangeSource,
 } from "./types";
 
 const STATUS_COLUMNS =
@@ -755,6 +756,7 @@ export async function listApplicationStatusHistory(
     changedByName: row.changed_by_user_id
       ? nameByUserId.get(row.changed_by_user_id) ?? "Staff"
       : "System",
+    changeSource: (row.change_source as ApplicationStatusChangeSource) ?? "SYSTEM",
     note: row.note,
     createdAt: row.created_at,
   }));
