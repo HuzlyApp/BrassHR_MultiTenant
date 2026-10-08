@@ -60,6 +60,7 @@ import { CandidateApplicationStatusControl } from "./CandidateApplicationStatusC
 import { StageContextNotesSection } from "./StageContextNotesSection";
 import { hireStageLabelForStep } from "@/lib/onboarding/hire-stage-groups";
 import { isPreHireStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
+import { isWelcomeEmailWorkflowStep } from "@/lib/onboarding/welcome-email-step";
 
 const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
   job_application: BriefcaseBusiness,
@@ -132,10 +133,19 @@ const CANDIDATE_EMAIL_STATUSES: ReadonlySet<WorkflowStepDisplayStatus> = new Set
   "skipped",
 ]);
 
-function candidateEmailNotice(email: StaffStepEmailResult | null | undefined): {
+function candidateEmailNotice(
+  email: StaffStepEmailResult | null | undefined,
+  welcomeTemplate?: boolean
+): {
   tone: "success" | "warning";
   message: string;
 } {
+  if (welcomeTemplate && email?.sent) {
+    return {
+      tone: "success",
+      message: "Welcome email sent using your tenant Welcome email template.",
+    };
+  }
   if (email?.sent && email.lockedStepTitle && email.nextStepTitle) {
     return {
       tone: "success",
@@ -455,11 +465,14 @@ export default function CandidateWorkflowStepModal({
     hireLifecycle === "pre_hire" &&
     Boolean(inspection?.applicationId) &&
     Boolean(hireStageName && isPreHireStatusStageName(hireStageName));
+  const isWelcomeEmailStep =
+    inspection ? isWelcomeEmailWorkflowStep(inspection.step.stepType) : false;
   const canEmailCandidate = Boolean(
     workerId &&
       inspection &&
-      !staffAction?.allowed &&
-      CANDIDATE_EMAIL_STATUSES.has(inspection.step.displayStatus)
+      ((isWelcomeEmailStep && inspection.phase === "post_hire") ||
+        (!staffAction?.allowed &&
+          CANDIDATE_EMAIL_STATUSES.has(inspection.step.displayStatus)))
   );
   const showFooter =
     !loading && !error && (canSchedule || (canAct && staffAction) || canEmailCandidate);
@@ -484,9 +497,10 @@ export default function CandidateWorkflowStepModal({
       };
       setNotice(
         res.ok
-          ? candidateEmailNotice(json.email)
+          ? candidateEmailNotice(json.email, isWelcomeEmailStep)
           : { tone: "warning", message: json.error || "Failed to send the email." }
       );
+      if (res.ok) await onStepUpdated?.();
     } catch {
       setNotice({ tone: "warning", message: "Failed to send the email." });
     } finally {
@@ -1056,7 +1070,7 @@ export default function CandidateWorkflowStepModal({
                     }}
                   >
                     <Mail className="h-4 w-4" aria-hidden />
-                    {submitting ? "Sending…" : "Send Email"}
+                    {submitting ? "Sending…" : isWelcomeEmailStep ? "Send Welcome Email" : "Send Email"}
                   </button>
                 ) : null}
                 {canSchedule ? (

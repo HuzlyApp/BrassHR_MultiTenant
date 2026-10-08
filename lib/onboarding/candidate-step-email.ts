@@ -4,6 +4,8 @@ import {
   buildApplicantEmailContext,
   contextToTemplateVariables,
 } from "@/lib/email/applicant-email-context";
+import { sendOnboardingApplicantEmail } from "@/lib/email/send-templated-email";
+import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
 import { sendStepReadyEmail } from "@/lib/onboarding/step-ready-email";
 import {
   computeCandidateOnboardingFrontier,
@@ -13,17 +15,111 @@ import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-fr
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import type { StaffStepEmailResult } from "@/lib/onboarding/staff-step-review-shared";
 import {
+  applyStaffWorkflowStepAction,
   loadApplicationApplicantConfig,
   loadProgressPayload,
   loadStaffStepContext,
   resolveStaffStepEligibility,
+  type StaffStepContext,
 } from "@/lib/onboarding/staff-workflow-step-review";
+import { isWelcomeEmailWorkflowStep } from "@/lib/onboarding/welcome-email-step";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 type StepFailure = { ok: false; status: number; code?: string; error: string };
 
 export type CandidateStepEmailResult = { ok: true; email: StaffStepEmailResult } | StepFailure;
+
+async function sendWelcomeEmailFromPostHireStep(
+  supabase: SupabaseClient,
+  params: {
+    ctx: StaffStepContext;
+    workerId: string;
+    tenantId: string;
+    stepRecordId: string;
+    origin: string | null;
+    actor: { userId: string | null; email: string | null };
+    request?: Request;
+  }
+): Promise<CandidateStepEmailResult> {
+  const { ctx, workerId, tenantId, stepRecordId } = params;
+  if (!params.origin) {
+    return { ok: false, status: 400, code: "NO_APP_ORIGIN", error: "Could not resolve the candidate portal address." };
+  }
+  if (ctx.phase !== "post_hire") {
+    return {
+      ok: false,
+      status: 409,
+      code: "NOT_POST_HIRE",
+      error: "The welcome email template is sent from Post-Hire welcome steps only.",
+    };
+  }
+
+  const { jobTitle } = await loadApplicationApplicantConfig(supabase, {
+    tenantId,
+    applicationId: ctx.applicationId,
+  });
+
+  let sendResult;
+  try {
+    sendResult = await sendOnboardingApplicantEmail(supabase, {
+      tenantId,
+      workerId,
+      templateKey: EMAIL_TEMPLATE_TYPE.WELCOME,
+      origin: params.origin,
+      continuationReason: "welcome",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to send welcome email.";
+    return { ok: false, status: 502, code: "SEND_FAILED", error: message };
+  }
+
+  if (sendResult.sent && ctx.mapped.status !== "completed") {
+    await applyStaffWorkflowStepAction(supabase, {
+      workerId,
+      tenantId,
+      stepRecordId,
+      action: "complete",
+      note: null,
+      actor: params.actor,
+      notifyCandidate: false,
+      origin: params.origin,
+      request: params.request,
+    }).catch((error) => {
+      console.error("[candidate-step-email] welcome step complete after send failed", error);
+    });
+  }
+
+  await writeActivityLog({
+    actorUserId: params.actor.userId,
+    action: "workflow_step.welcome_email_sent",
+    entityType: "applicant_workflow_step_record",
+    entityId: String(ctx.record.id),
+    tenantId,
+    metadata: {
+      worker_id: workerId,
+      application_id: ctx.applicationId,
+      step_title: ctx.mapped.title,
+      template_key: EMAIL_TEMPLATE_TYPE.WELCOME,
+      job_title: jobTitle ?? null,
+      sent: sendResult.sent,
+      skipped: sendResult.skipped ?? false,
+      reason: sendResult.reason ?? null,
+    },
+    request: params.request,
+  });
+
+  return {
+    ok: true,
+    email: {
+      sent: sendResult.sent,
+      skipped: sendResult.skipped ?? false,
+      reason: sendResult.reason,
+      nextStepTitle: ctx.mapped.title,
+      lockedStepTitle: null,
+    },
+  };
+}
 
 function asText(value: unknown): string | null {
   const text = String(value ?? "").trim();
@@ -94,6 +190,19 @@ export async function sendCandidateStepEmail(
 
   const ctx = await loadStaffStepContext(supabase, { workerId, tenantId, stepRecordId: params.stepRecordId });
   if (!ctx.ok) return ctx;
+
+  const recordStepType = asText(ctx.record.step_type) ?? ctx.mapped.stepType;
+  if (isWelcomeEmailWorkflowStep(recordStepType)) {
+    return sendWelcomeEmailFromPostHireStep(supabase, {
+      ctx,
+      workerId,
+      tenantId,
+      stepRecordId: params.stepRecordId,
+      origin: params.origin,
+      actor: params.actor,
+      request: params.request,
+    });
+  }
 
   const eligibility = resolveStaffStepEligibility(ctx.tenantStep, "pending", {
     stepType: asText(ctx.record.step_type),
