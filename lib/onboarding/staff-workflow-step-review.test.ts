@@ -166,7 +166,7 @@ describe("staff workflow step review rules", () => {
       reason: null,
     });
     expect(resolveStaffStepEligibility(null, "completed", record).actions).toEqual(["needs_review", "reject"]);
-    expect(staffActionLabel("complete", "selection")).toBe("Selected");
+    expect(staffActionLabel("complete", "selection")).toBe("Mark as Qualified");
     expect(staffActionLabel("needs_review", "selection")).toBe("On Hold");
     expect(staffActionLabel("reject", "selection")).toBe("Not Selected");
     expect(staffActionLabel("reject", "verification")).toBe("Reject");

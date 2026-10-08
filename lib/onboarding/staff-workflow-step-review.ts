@@ -30,6 +30,7 @@ import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screen
 import { advanceApplicationToScreeningComplete } from "@/lib/onboarding/recruiter-screening-status";
 import { isInterviewStep } from "@/lib/onboarding/interview-step";
 import { advanceApplicationToInterviewComplete } from "@/lib/onboarding/interview-completion-status";
+import { advanceApplicationToQualified } from "@/lib/onboarding/qualified-status";
 import {
   allowedStaffActions,
   completionOwnerLabel,
@@ -152,7 +153,7 @@ export function staffStepVariant(
  */
 export function canReviewUnlinkedRecord(record: UnlinkedStepRecord | null | undefined): boolean {
   if (!record) return false;
-  if (isInternalLibraryStepId(record.stepType)) return true;
+  if (isInternalLibraryStepId(record.stepType) || isParameterizedJobApplicationStepType(record.stepType)) return true;
   return !isApplicantCompletionOwner(asText(record.settings?.completionOwner));
 }
 
@@ -464,7 +465,7 @@ export function findCandidateGateStep(
       (step) =>
         !step.id.startsWith("preview-") &&
         asText(step.metadata?.workflow_node_id) === snapshotStepId &&
-        !isWorkerVisibleStep(step)
+        (!isWorkerVisibleStep(step) || isParameterizedJobApplicationStepType(asText(step.metadata?.workflow_step_id)))
     ) ?? null
   );
 }
@@ -849,6 +850,17 @@ export async function applyStaffWorkflowStepAction(
         });
       } catch (statusError) {
         console.error("[staff-workflow-step-review] interview status update failed", statusError);
+      }
+    } else if (initial.variant === "selection") {
+      try {
+        applicationStatus = await advanceApplicationToQualified(supabase, {
+          tenantId,
+          applicationId: ctx.applicationId,
+          actorUserId: params.actor.userId,
+          origin: params.origin,
+        });
+      } catch (statusError) {
+        console.error("[staff-workflow-step-review] qualified status update failed", statusError);
       }
     }
   }

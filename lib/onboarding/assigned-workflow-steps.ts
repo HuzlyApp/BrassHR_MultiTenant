@@ -268,7 +268,7 @@ export { isReferenceVerificationStep };
 
 /**
  * Decision steps are only touched by staff, so each status maps to the button that produced it
- * (e.g. Selected / On Hold / Not Selected); undecided reads as "Pending Decision", never "Not Started".
+ * (e.g. Qualified / On Hold / Not Selected); undecided reads as "Pending Decision", never "Not Started".
  */
 function decisionForDisplayStatus(status: WorkflowStepDisplayStatus): StaffDecisionAction | null {
   switch (status) {

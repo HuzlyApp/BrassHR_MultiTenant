@@ -36,9 +36,9 @@ const VERIFICATION_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
 
 const SELECTION_COPY: Partial<Record<StaffStepAction, ActionCopy>> = {
   complete: {
-    title: () => "Select this candidate to move forward?",
-    description: "Records that your team chose to put this candidate forward to the client.",
-    confirm: "Selected",
+    title: () => "Mark this candidate as qualified?",
+    description: "Records that your team marked this candidate as qualified to move forward.",
+    confirm: "Mark as Qualified",
     confirmClass: "shadow-sm hover:brightness-[0.97]",
   },
   needs_review: {
