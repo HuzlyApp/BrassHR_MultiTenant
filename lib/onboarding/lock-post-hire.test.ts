@@ -117,6 +117,52 @@ describe("lock-post-hire", () => {
     ).toBe(true);
   });
 
+  it("reveals staff Post-Hire when Agreement eSign step in Pre-Hire is completed", () => {
+    const withAgreementPending = [
+      {
+        snapshotStepId: "employee-agreement",
+        title: "Agreement eSign",
+        required: true,
+        displayStatus: "pending" as const,
+      },
+      {
+        snapshotStepId: "manager-facility-approval",
+        title: "Facility Approval",
+        required: true,
+        displayStatus: "not_started" as const,
+      },
+    ];
+    expect(
+      canRevealPostHireForStaffJourney({
+        convertedVisible: false,
+        applicationHired: false,
+        preHireSteps: withAgreementPending,
+      })
+    ).toBe(false);
+
+    const withAgreementDone = [
+      {
+        snapshotStepId: "employee-agreement",
+        title: "Agreement eSign",
+        required: true,
+        displayStatus: "completed" as const,
+      },
+      {
+        snapshotStepId: "manager-facility-approval",
+        title: "Facility Approval",
+        required: true,
+        displayStatus: "not_started" as const,
+      },
+    ];
+    expect(
+      canRevealPostHireForStaffJourney({
+        convertedVisible: false,
+        applicationHired: false,
+        preHireSteps: withAgreementDone,
+      })
+    ).toBe(true);
+  });
+
   it("rejects direct Post-Hire endpoint access before conversion", () => {
     expect(shouldRejectPostHirePhaseRequest("post_hire", false)).toBe(true);
     expect(shouldRejectPostHirePhaseRequest("post_hire", true)).toBe(false);
