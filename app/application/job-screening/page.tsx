@@ -533,10 +533,10 @@ export default function JobScreeningPage() {
                                         return { ...current, [item.id]: nextValues };
                                       });
                                     }}
-                                    className="h-4 w-4 rounded cursor-pointer"
+                                    className="h-[18px] w-[18px] rounded-[4px] cursor-pointer accent-[color:var(--brand-secondary)]"
                                     style={
                                       selected.includes(option.value)
-                                        ? { accentColor: branding.primaryHex }
+                                        ? { accentColor: branding.secondaryHex || "var(--brand-secondary)" }
                                         : undefined
                                     }
                                   />
