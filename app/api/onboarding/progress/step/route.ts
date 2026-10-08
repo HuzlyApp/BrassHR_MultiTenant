@@ -17,6 +17,8 @@ import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first
 import { isOnboardingStepSkippable } from "@/lib/onboarding/is-step-skippable";
 import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-onboarding-projection";
+import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
 import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
@@ -92,12 +94,14 @@ export async function POST(req: NextRequest) {
     if (!applicationId && phaseRecord?.applicationId) {
       applicationId = phaseRecord.applicationId;
     }
+    const unscopedOnly = Boolean(jobToken) && !applicationId;
 
     const payload = await ensureWorkerOnboardingProgress(
       supabase,
       ctx.workerId,
       ctx.tenantId,
-      applicationId || null
+      applicationId || null,
+      unscopedOnly
     );
 
     let tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
@@ -141,7 +145,8 @@ export async function POST(req: NextRequest) {
           supabase,
           ctx.workerId,
           ctx.tenantId,
-          applicationId || null
+          applicationId || null,
+          unscopedOnly
         );
       }
     }
@@ -260,9 +265,31 @@ export async function POST(req: NextRequest) {
         supabase,
         ctx.workerId,
         ctx.tenantId,
-        applicationId || null
+        applicationId || null,
+        unscopedOnly
       );
       return NextResponse.json({ progress, noop: true });
+    }
+
+    // The screen marks itself in_progress on mount, which can fire before the client route
+    // guard redirects away from a step still locked behind a required internal step.
+    if (status === "in_progress" && stepRow && config) {
+      const target = stepRow;
+      const gatedConfig = applyApplicantConfigFilters(config, { activePhase });
+      const candidateSteps = getEnabledTenantSteps(gatedConfig);
+      const stepIndex = candidateSteps.findIndex(
+        (candidate) => candidate.id === target.id || candidate.step_key === target.step_key
+      );
+      if (stepIndex >= 0) {
+        const frontier = computeCandidateOnboardingFrontier({
+          engineOrder: gatedConfig.candidateEngineOrder,
+          candidateSteps,
+          progress: progressPayload,
+        });
+        if (stepIndex + 1 > frontier.maxAllowedStepIndex) {
+          return NextResponse.json({ progress: progressPayload, noop: true, locked: true });
+        }
+      }
     }
 
     let stepData: Record<string, unknown> =
@@ -380,7 +407,8 @@ export async function POST(req: NextRequest) {
         supabase,
         ctx.workerId,
         ctx.tenantId,
-        applicationId || null
+        applicationId || null,
+        unscopedOnly
       );
       return NextResponse.json({ progress, noop: true });
     }
@@ -401,7 +429,8 @@ export async function POST(req: NextRequest) {
       supabase,
       ctx.workerId,
       ctx.tenantId,
-      applicationId || null
+      applicationId || null,
+      unscopedOnly
     );
     return NextResponse.json({ progress });
   } catch (err: unknown) {

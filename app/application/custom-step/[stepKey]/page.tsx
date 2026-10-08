@@ -23,6 +23,17 @@ import {
 import { dedicatedRouteForWorkflowStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { resolveCustomStepContinue } from "@/lib/onboarding/custom-step-continue";
+import { isOfferAcceptanceStepType } from "@/lib/onboarding/offer-acceptance";
+import { isEnrollmentDecisionStep } from "@/lib/onboarding/enrollment-decision-step";
+import {
+  POST_HIRE_SCREEN_SUBTITLE,
+  postHireScreenKindForStep,
+} from "@/lib/onboarding/post-hire-step-screens";
+import { hireStageLabelForStep } from "@/lib/onboarding/hire-stage-groups";
+import { workflowStepIdFromMetadata } from "@/lib/onboarding/firma-step-settings";
+import EnrollmentDecisionStep from "./EnrollmentDecisionStep";
+import OfferAcceptanceStep from "./OfferAcceptanceStep";
+import PostHireStepScreen from "./post-hire/PostHireStepScreen";
 import {
   APPLICANT_ACTION_ROW,
   APPLICANT_BTN_BACK,
@@ -54,6 +65,21 @@ export default function CustomOnboardingStepPage() {
   const usesPartner = step ? isIntegrationPartnerStep(step) : false;
   const waitingGate = step ? isApplicantWaitingGateStep(step) : false;
   const showScreeningNotice = step ? showsApplicantPartnerScreeningNotice(step) : false;
+  const isOfferStep =
+    typeof step?.metadata?.workflow_step_id === "string" &&
+    isOfferAcceptanceStepType(step.metadata.workflow_step_id);
+  const isEnrollmentStep = isEnrollmentDecisionStep(step);
+  const postHireKind = postHireScreenKindForStep(step);
+  const rawWorkflowSettings = step?.metadata?.workflow_settings as Record<string, unknown> | null | undefined;
+  const stageLabel =
+    step && postHireKind
+      ? hireStageLabelForStep({
+          stageName: rawWorkflowSettings?.stageName,
+          libraryId: workflowStepIdFromMetadata(step.metadata),
+          stepKey: step.step_key,
+          lifecycle: "post_hire",
+        })
+      : null;
 
   const isGenericCustom =
     step?.step_type === "custom_question" &&
@@ -63,7 +89,9 @@ export default function CustomOnboardingStepPage() {
       step.metadata.workflow_step_id === "custom-form");
 
   const shouldRedirectToDedicatedScreen = useMemo(() => {
-    if (!step || showCustomForm) return false;
+    if (!step || showCustomForm || isEnrollmentDecisionStep(step) || postHireScreenKindForStep(step)) {
+      return false;
+    }
     if (step.step_type !== "custom_question") return true;
     const dedicated = dedicatedRouteForWorkflowStep(step);
     const customPath = APPLICATION_ROUTES.customStep(step.step_key).split("?")[0];
@@ -147,80 +175,121 @@ export default function CustomOnboardingStepPage() {
 
         <div className={APPLICANT_CONTENT_CLASS}>
           <div className={APPLICANT_HEADER_ROW}>
-            <h2 className={APPLICANT_TITLE_CLASS}>{pageTitle}</h2>
+            <div className="min-w-0">
+              {stageLabel ? (
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+                  {stageLabel}
+                </p>
+              ) : null}
+              <h2 className={APPLICANT_TITLE_CLASS}>{pageTitle}</h2>
+            </div>
           </div>
 
           {step?.description ? (
             <p className="text-sm text-slate-600">{step.description}</p>
+          ) : isOfferStep ? (
+            <p className="text-sm text-slate-600">Review your offer details and choose to accept or decline.</p>
+          ) : postHireKind ? (
+            <p className="text-sm text-slate-600">{POST_HIRE_SCREEN_SUBTITLE[postHireKind]}</p>
           ) : null}
 
-          {waitingGate ? (
-            <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              Your recruiter or HR team completes this approval. Continue does not unlock the next
-              stage — you will get an email when they accept your placement.
-            </p>
-          ) : showScreeningNotice && partnerLabel ? (
-            <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              Your background screening is handled by {partnerLabel}.
-              {settings?.timeline ? ` Typical turnaround: ${settings.timeline}.` : ""}
-            </p>
-          ) : settings && !usesPartner ? (
-            <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {settings.clientPerforms
-                ? "Complete this step in the application."
-                : "Your recruiter or HR team will complete this step on your behalf."}
-              {settings.timeline ? ` Expected timeline: ${settings.timeline}.` : ""}
-              {!settings.required ? " This step is optional." : null}
-            </p>
-          ) : null}
-
-          {isGenericCustom || showCustomForm ? (
-            <div className="mt-6 space-y-3">
-              <label className="block text-sm font-medium text-slate-800" htmlFor="custom-answer">
-                Your response {settings?.required ? <span className="text-red-600">*</span> : null}
-              </label>
-              <textarea
-                id="custom-answer"
-                rows={5}
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-primary)]"
-                placeholder="Enter information for this step"
-              />
-            </div>
+          {step && postHireKind ? (
+            <PostHireStepScreen
+              key={step.id}
+              step={step}
+              kind={postHireKind}
+              tenantSlug={nav.slug || null}
+              updateStepStatus={nav.updateStepStatus}
+              onBack={() => nav.goPrev()}
+              onContinue={() => nav.goNext()}
+            />
+          ) : step && isOfferStep ? (
+            <OfferAcceptanceStep
+              step={step}
+              tenantSlug={nav.slug || null}
+              updateStepStatus={nav.updateStepStatus}
+              onBack={() => nav.goPrev()}
+              onContinue={() => nav.goNext()}
+            />
+          ) : step && isEnrollmentStep ? (
+            <EnrollmentDecisionStep
+              step={step}
+              required={settings?.required === true}
+              updateStepStatus={nav.updateStepStatus}
+              onBack={() => nav.goPrev()}
+              onContinue={() => nav.goNext()}
+            />
           ) : (
-            <p className="mt-6 text-sm text-slate-600">
-              This step uses a dedicated application screen in your onboarding workflow.
-            </p>
+            <>
+              {waitingGate ? (
+                <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  Your recruiter or HR team completes this approval. Continue does not unlock the next
+                  stage — you will get an email when they accept your placement.
+                </p>
+              ) : showScreeningNotice && partnerLabel ? (
+                <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  Your background screening is handled by {partnerLabel}.
+                  {settings?.timeline ? ` Typical turnaround: ${settings.timeline}.` : ""}
+                </p>
+              ) : settings && !usesPartner ? (
+                <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  {settings.clientPerforms
+                    ? "Complete this step in the application."
+                    : "Your recruiter or HR team will complete this step on your behalf."}
+                  {settings.timeline ? ` Expected timeline: ${settings.timeline}.` : ""}
+                  {!settings.required ? " This step is optional." : null}
+                </p>
+              ) : null}
+
+              {isGenericCustom || showCustomForm ? (
+                <div className="mt-6 space-y-3">
+                  <label className="block text-sm font-medium text-slate-800" htmlFor="custom-answer">
+                    Your response {settings?.required ? <span className="text-red-600">*</span> : null}
+                  </label>
+                  <textarea
+                    id="custom-answer"
+                    rows={5}
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-primary)]"
+                    placeholder="Enter information for this step"
+                  />
+                </div>
+              ) : (
+                <p className="mt-6 text-sm text-slate-600">
+                  This step uses a dedicated application screen in your onboarding workflow.
+                </p>
+              )}
+
+              {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
+
+              <div className={APPLICANT_ACTION_ROW}>
+                <button
+                  type="button"
+                  onClick={() => nav.goPrev()}
+                  className={APPLICANT_BTN_BACK}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    void handleComplete();
+                  }}
+                  className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {saving
+                    ? "Saving…"
+                    : waitingGate
+                      ? "View application status"
+                      : isGenericCustom || showCustomForm
+                        ? "Save & continue"
+                        : "Continue"}
+                </button>
+              </div>
+            </>
           )}
-
-          {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
-
-          <div className={APPLICANT_ACTION_ROW}>
-            <button
-              type="button"
-              onClick={() => nav.goPrev()}
-              className={APPLICANT_BTN_BACK}
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => {
-                void handleComplete();
-              }}
-              className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              {saving
-                ? "Saving…"
-                : waitingGate
-                  ? "View application status"
-                  : isGenericCustom || showCustomForm
-                    ? "Save & continue"
-                    : "Continue"}
-            </button>
-          </div>
         </div>
       </div>
     </OnboardingLayout>

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
+import { writeActivityLog } from "@/lib/audit/activity-log";
 import {
   ApplicationStatusError,
+  listApplicationStatuses,
   updateApplicationStatus,
 } from "@/lib/jobs/application-statuses";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
@@ -52,7 +54,12 @@ export async function PATCH(
       sortOrder?: unknown;
       isActive?: unknown;
       isDefault?: unknown;
+      groupId?: unknown;
     } | null;
+
+    const before = (await listApplicationStatuses(supabase, tenantId, { ensureDefaults: false })).find(
+      (row) => row.id === statusId
+    );
 
     const status = await updateApplicationStatus(supabase, {
       tenantId,
@@ -73,6 +80,39 @@ export async function PATCH(
       sortOrder: typeof body?.sortOrder === "number" ? body.sortOrder : undefined,
       isActive: typeof body?.isActive === "boolean" ? body.isActive : undefined,
       isDefault: typeof body?.isDefault === "boolean" ? body.isDefault : undefined,
+      groupId:
+        body?.groupId === null
+          ? null
+          : typeof body?.groupId === "string"
+            ? body.groupId
+            : undefined,
+    });
+
+    await writeActivityLog({
+      actorUserId: auth.userId,
+      action: "application_status_catalog.updated",
+      entityType: "application_status",
+      entityId: status.id,
+      tenantId,
+      metadata: {
+        before: before
+          ? {
+              name: before.name,
+              description: before.description,
+              isActive: before.isActive,
+              groupId: before.groupId,
+              groupSystemKey: before.groupSystemKey,
+            }
+          : null,
+        after: {
+          name: status.name,
+          description: status.description,
+          isActive: status.isActive,
+          groupId: status.groupId,
+          groupSystemKey: status.groupSystemKey,
+        },
+      },
+      request: req,
     });
 
     return NextResponse.json({ status });

@@ -1,0 +1,205 @@
+"use client";
+
+import { useState } from "react";
+import {
+  isValidRoutingNumber,
+  validateDirectDepositInput,
+  type PostHireSubmissionField,
+} from "@/lib/onboarding/post-hire-step-screens";
+import { ActionRow, CheckboxRow, RadioGroup, Section, TextField, type ActionRowProps } from "./fields";
+
+type Summary = {
+  accountHolderName: string;
+  bankName: string;
+  accountType: "checking" | "savings";
+  routingNumberMasked: string;
+  accountNumberMasked: string;
+};
+
+export default function DirectDepositForm({
+  stepKey,
+  applicantId,
+  applicationId,
+  tenantSlug,
+  defaultHolderName,
+  authorizationText,
+  isPreview,
+  submit,
+  actions,
+}: {
+  stepKey: string;
+  applicantId: string | null;
+  applicationId: string | null;
+  tenantSlug: string | null;
+  defaultHolderName: string;
+  authorizationText: string;
+  isPreview: boolean;
+  submit: (fields: PostHireSubmissionField[]) => Promise<void>;
+  actions: ActionRowProps;
+}) {
+  const [holder, setHolder] = useState(defaultHolderName);
+  const [bankName, setBankName] = useState("");
+  const [accountType, setAccountType] = useState("");
+  const [routing, setRouting] = useState("");
+  const [account, setAccount] = useState("");
+  const [accountConfirm, setAccountConfirm] = useState("");
+  const [authorized, setAuthorized] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const routingDigits = routing.replace(/\D/g, "");
+  const routingInvalid = routingDigits.length === 9 && !isValidRoutingNumber(routingDigits);
+
+  async function handleSave() {
+    setError("");
+    const validation = validateDirectDepositInput({
+      accountHolderName: holder || defaultHolderName,
+      bankName,
+      accountType,
+      routingNumber: routing,
+      accountNumber: account,
+    });
+    if (!validation.ok) {
+      setError(validation.error);
+      return;
+    }
+    if (account.replace(/\s+/g, "") !== accountConfirm.replace(/\s+/g, "")) {
+      setError("Account numbers don't match.");
+      return;
+    }
+    if (!authorized) {
+      setError("Authorize direct deposit to continue.");
+      return;
+    }
+    if (isPreview) {
+      setError("Direct deposit isn't saved in preview mode.");
+      return;
+    }
+    if (!applicantId) {
+      setError("Missing applicant session. Return to the first onboarding step.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/onboarding/direct-deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicantId,
+          tenantSlug: tenantSlug || undefined,
+          applicationId: applicationId || undefined,
+          stepKey,
+          ...validation.value,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { summary?: Summary; error?: string };
+      if (!res.ok || !json.summary) throw new Error(json.error || "Could not save your direct deposit");
+      const summary = json.summary;
+      setAccount("");
+      setAccountConfirm("");
+      await submit([
+        { label: "Account holder", value: summary.accountHolderName },
+        { label: "Bank", value: summary.bankName },
+        { label: "Account type", value: summary.accountType === "savings" ? "Savings" : "Checking" },
+        { label: "Routing number", value: summary.routingNumberMasked },
+        { label: "Account number", value: summary.accountNumberMasked },
+        { label: "Deposit authorization", value: "Authorized" },
+      ]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save your direct deposit");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Section title="Bank account">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          <TextField
+            id="dd-holder"
+            label="Account holder name"
+            value={holder}
+            onChange={setHolder}
+            autoComplete="name"
+            maxLength={120}
+            required
+          />
+          <TextField
+            id="dd-bank"
+            label="Bank name"
+            value={bankName}
+            onChange={setBankName}
+            maxLength={120}
+            required
+          />
+          <div className="sm:col-span-2">
+            <RadioGroup
+              name="dd-account-type"
+              label="Account type"
+              value={accountType}
+              onChange={setAccountType}
+              options={[
+                { value: "checking", label: "Checking" },
+                { value: "savings", label: "Savings" },
+              ]}
+              required
+            />
+          </div>
+          <div>
+            <TextField
+              id="dd-routing"
+              label="Routing number"
+              hint="9 digits"
+              value={routing}
+              onChange={(v) => setRouting(v.replace(/[^\d\s]/g, ""))}
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={11}
+              required
+            />
+            {routingInvalid ? (
+              <p className="mt-1 text-xs text-red-700">This routing number doesn&apos;t look right.</p>
+            ) : null}
+          </div>
+          <div className="hidden sm:block" aria-hidden="true" />
+          <TextField
+            id="dd-account"
+            label="Account number"
+            type="password"
+            value={account}
+            onChange={(v) => setAccount(v.replace(/[^\d\s]/g, ""))}
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={20}
+            required
+          />
+          <TextField
+            id="dd-account-confirm"
+            label="Confirm account number"
+            type="password"
+            value={accountConfirm}
+            onChange={(v) => setAccountConfirm(v.replace(/[^\d\s]/g, ""))}
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={20}
+            required
+          />
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Your account number is encrypted. HR only sees the last four digits here.
+        </p>
+      </Section>
+
+      <Section>
+        <CheckboxRow id="dd-authorize" checked={authorized} onChange={setAuthorized}>
+          {authorizationText}
+        </CheckboxRow>
+      </Section>
+
+      {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
+      <ActionRow {...actions} primaryLabel="Save & continue" onPrimary={() => void handleSave()} saving={saving} />
+    </>
+  );
+}

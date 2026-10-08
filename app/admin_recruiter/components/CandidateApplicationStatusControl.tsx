@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -14,11 +15,20 @@ import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
+import { readStatusGroupFields } from "@/lib/jobs/application-statuses/groups";
+import { filterStatusesForAssignedGroups } from "@/lib/jobs/application-statuses/stage-status-filter";
+import { GroupedStatusMenuList } from "@/app/admin_recruiter/components/GroupedStatusMenu";
 
 export type StatusOption = {
   id: string;
   name: string;
   systemKey: string | null;
+  sortOrder?: number;
+  groupId?: string | null;
+  groupName?: string | null;
+  groupDescription?: string | null;
+  groupSortOrder?: number | null;
+  groupSystemKey?: string | null;
 };
 
 type StatusHistoryItem = {
@@ -48,6 +58,11 @@ type CandidateApplicationStatusControlProps = {
   compact?: boolean;
   /** Override chip classes (e.g. AI Analysis Overview header). */
   buttonClassName?: string;
+  /**
+   * When set, the menu only lists statuses from groups assigned to this stage
+   * in Settings, plus the shared Closed group.
+   */
+  stageName?: string | null;
   onStatusChanged?: (next: { statusName: string; statusId: string }) => void;
 };
 
@@ -65,6 +80,8 @@ export function mapApplicationStatusOptions(payload: unknown): StatusOption[] {
     id: String(row.id),
     name: String(row.name),
     systemKey: typeof row.systemKey === "string" ? row.systemKey : null,
+    sortOrder: Number(row.sortOrder ?? 0),
+    ...readStatusGroupFields(row),
   }));
 }
 
@@ -106,19 +123,21 @@ function formatHistoryDate(iso: string): string {
   });
 }
 
-const MENU_MIN_WIDTH = 192;
-const MENU_MAX_HEIGHT = 256;
+const MENU_MIN_WIDTH = 240;
+const MENU_MAX_HEIGHT = 360;
 
 function StatusOptionsMenu({
   anchor,
   options,
   currentStatusId,
+  emptyLabel,
   onSelect,
   onClose,
 }: {
   anchor: HTMLElement;
   options: StatusOption[];
   currentStatusId: string | null;
+  emptyLabel?: string;
   onSelect: (option: StatusOption) => void;
   onClose: () => void;
 }) {
@@ -191,22 +210,27 @@ function StatusOptionsMenu({
       className="z-[200] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg"
     >
       {options.length ? (
-        options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            role="menuitem"
-            onClick={() => onSelect(option)}
-            className="flex min-h-9 w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            <span>{option.name}</span>
-            {option.id === currentStatusId ? (
-              <Check className="h-4 w-4 text-[color:var(--brand-primary)]" />
-            ) : null}
-          </button>
-        ))
+        <GroupedStatusMenuList
+          options={options}
+          renderOption={(option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitem"
+              onClick={() => onSelect(option)}
+              className="flex min-h-9 w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            >
+              <span>{option.name}</span>
+              {option.id === currentStatusId ? (
+                <Check className="h-4 w-4 text-[color:var(--brand-primary)]" />
+              ) : null}
+            </button>
+          )}
+        />
       ) : (
-        <p className="px-3 py-2 text-sm text-[#98A2B3]">No statuses available</p>
+        <p className="px-3 py-2 text-sm text-[#98A2B3]">
+          {emptyLabel || "No statuses available"}
+        </p>
       )}
     </div>,
     document.body
@@ -219,10 +243,14 @@ export function CandidateApplicationStatusControl({
   fallbackStatus,
   compact = true,
   buttonClassName,
+  stageName,
   onStatusChanged,
 }: CandidateApplicationStatusControlProps) {
   const [ctx, setCtx] = useState<ApplicationContext | null>(null);
   const [options, setOptions] = useState<StatusOption[]>([]);
+  const [stageAssignments, setStageAssignments] = useState<
+    Array<{ stageName: string; groupId: string }> | null
+  >(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<StatusOption | null>(null);
   const [note, setNote] = useState("");
@@ -295,6 +323,40 @@ export function CandidateApplicationStatusControl({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const stageFilter = stageName?.trim() || "";
+  useEffect(() => {
+    if (!stageFilter) {
+      setStageAssignments(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/application-status-stage-assignments", {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to load stage statuses");
+        const rows = Array.isArray(payload.assignments) ? payload.assignments : [];
+        if (cancelled) return;
+        setStageAssignments(
+          rows
+            .map((row: { stageName?: unknown; groupId?: unknown }) => ({
+              stageName: typeof row.stageName === "string" ? row.stageName : "",
+              groupId: typeof row.groupId === "string" ? row.groupId : "",
+            }))
+            .filter((row: { stageName: string; groupId: string }) => row.stageName && row.groupId)
+        );
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) setStageAssignments([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [stageFilter]);
 
   const label =
     ctx?.statusName?.trim() ||
@@ -369,11 +431,14 @@ export function CandidateApplicationStatusControl({
       : "inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] disabled:opacity-50");
 
   const canChangeStatus = Boolean(ctx?.applicationId) && !ctx?.ambiguous && !loading && !busy;
-  const visibleOptions = filterApplicationStatusesForSource(
-    options,
-    ctx?.jobSourceType,
-    ctx?.statusId
-  );
+  const visibleOptions = useMemo(() => {
+    const forSource = filterApplicationStatusesForSource(options, ctx?.jobSourceType, ctx?.statusId);
+    if (!stageFilter) return forSource;
+    const assignedGroupIds = (stageAssignments ?? [])
+      .filter((row) => row.stageName === stageFilter)
+      .map((row) => row.groupId);
+    return filterStatusesForAssignedGroups(forSource, assignedGroupIds, ctx?.statusId);
+  }, [options, ctx?.jobSourceType, ctx?.statusId, stageFilter, stageAssignments]);
 
   return (
     <>
@@ -410,6 +475,11 @@ export function CandidateApplicationStatusControl({
             anchor={buttonRef.current}
             options={visibleOptions}
             currentStatusId={ctx?.statusId ?? null}
+            emptyLabel={
+              stageFilter
+                ? "No statuses assigned to this step yet. Add a status group in Settings. Closed stays available once those statuses exist."
+                : undefined
+            }
             onSelect={beginChange}
             onClose={closeMenu}
           />

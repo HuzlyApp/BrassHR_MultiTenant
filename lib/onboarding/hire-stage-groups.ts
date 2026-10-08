@@ -1,28 +1,17 @@
 import type { CandidateWorkflowStepView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import type { WorkflowStepDisplayStatus } from "@/lib/onboarding/assigned-workflow-steps";
-import { hireStageForStepKey } from "@/lib/onboarding/hire-stage-catalog";
+import {
+  hireStageFitsLifecycle,
+  hireStageForStepKey,
+  POST_HIRE_FIGMA_STAGES,
+  PRE_HIRE_FIGMA_STAGES,
+  type HireLifecycle,
+} from "@/lib/onboarding/hire-stage-catalog";
+import { isInterviewStep } from "@/lib/onboarding/interview-step";
 
-export const PRE_HIRE_FIGMA_STAGES = [
-  "Intake",
-  "Screening",
-  "Interview",
-  "Submission",
-  "Compliance",
-  "Offer & Agreement",
-  "Approvals",
-] as const;
+export { POST_HIRE_FIGMA_STAGES, PRE_HIRE_FIGMA_STAGES };
 
-export const POST_HIRE_FIGMA_STAGES = [
-  "Kickoff",
-  "Paperwork",
-  "Payroll & Pay",
-  "Policies",
-  "Access & Equipment",
-  "Training",
-  "Day One Ready",
-] as const;
-
-export type HireStageLifecycle = "pre_hire" | "post_hire";
+export type HireStageLifecycle = HireLifecycle;
 
 export type HireStageStatus = "completed" | "current" | "in_progress" | "locked" | "upcoming";
 
@@ -38,32 +27,100 @@ export type HireStageGroup = {
   summaryLabel: string;
 };
 
+/**
+ * Exact library step keys → Figma Pre-Hire stages (Steps Library order).
+ * Preferred over regex so SSN stays in Compliance, Interview/Submission appear correctly.
+ */
+const PRE_HIRE_LIBRARY_STAGE: Record<string, (typeof PRE_HIRE_FIGMA_STAGES)[number]> = {
+  "resume-basic-profile": "Intake",
+  "parameterized-job-application": "Intake",
+  "collect-extra-files": "Intake",
+  "references-collection": "Intake",
+  "collect-references": "Intake",
+  "custom-form": "Intake",
+  "custom-application-form": "Intake",
+  "document-upload": "Intake",
+  "recruiter-screening": "Screening",
+  "skill-qualification-assessment": "Screening",
+  "reference-verification": "Screening",
+  "interview-qualification": "Interview",
+  "internal-select": "Interview",
+  "candidate-selection": "Interview",
+  "release-to-client": "Submission",
+  "background-check": "Compliance",
+  "drug-test-screening": "Compliance",
+  "oig-exclusion-check": "Compliance",
+  "credential-license-verification": "Compliance",
+  "ssn-identity-verification": "Compliance",
+  "adverse-action-process": "Compliance",
+  "pay-and-start-date": "Offer & Agreement",
+  "pay-rate-hire-date": "Offer & Agreement",
+  "offer-acceptance": "Offer & Agreement",
+  "offer-accepted": "Offer & Agreement",
+  "employee-agreement": "Offer & Agreement",
+  "agreement-esign": "Offer & Agreement",
+  "i9-section-1": "Offer & Agreement",
+  "manager-facility-approval": "Approvals",
+  "hr-final-approval": "Approvals",
+  "completion-milestone": "Approvals",
+};
+
+/** Match Figma W2 Pre-hire board: Intake → … → Approvals. */
 const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; patterns: RegExp[] }> = [
   {
     stage: "Intake",
-    patterns: [/intake/, /resume/, /basic.?profile/, /profile/, /application.?receiv/, /welcome/],
+    patterns: [
+      /intake/,
+      /collect.?extra.?file/,
+      /extra.?file/,
+      /collect.?file/,
+      /document.?upload/,
+      /collect.?reference/,
+      /references.?collection/,
+      /extra.?form/,
+      /custom.?form/,
+      /custom.?application/,
+      /resume/,
+      /basic.?profile/,
+      /parameterized.?job/,
+      /application.?receiv/,
+    ],
   },
   {
     stage: "Screening",
     patterns: [
-      /screen/,
+      /recruiter.?screen/,
+      /skill.?qualification/,
+      /skill.?assess/,
       /skill.?test/,
-      /assess/,
-      /extra.?file/,
-      /extra.?form/,
-      /collect.?file/,
-      /collect.?reference/,
-      /references?/,
+      /qualification.?assess/,
+      /reference.?verif/,
       /verify.?reference/,
     ],
   },
   {
     stage: "Interview",
-    patterns: [/interview/, /schedule/, /want.?to.?hire/, /hire.?intent/, /we.?want.?to.?hire/],
+    patterns: [
+      /interview/,
+      /internal.?select/,
+      /want.?to.?hire/,
+      /hire.?intent/,
+      /we.?want.?to.?hire/,
+    ],
   },
   {
     stage: "Submission",
-    patterns: [/submission/, /sent.?to.?client/, /msp/, /release.?to.?client/, /submit.?to.?client/],
+    patterns: [
+      /submission/,
+      /sent.?to.?client/,
+      /msp/,
+      /release.?to.?client/,
+      /released.?to.?client/,
+      /client.?review/,
+      /submit.?to.?client/,
+      /presented.?to.?client/,
+      /profile.?ready/,
+    ],
   },
   {
     stage: "Compliance",
@@ -76,38 +133,100 @@ const PRE_HIRE_RULES: Array<{ stage: (typeof PRE_HIRE_FIGMA_STAGES)[number]; pat
       /license/,
       /credential/,
       /ssn/,
-      /identity/,
+      /identity.?verif/,
       /adverse/,
     ],
   },
   {
     stage: "Offer & Agreement",
-    patterns: [/offer/, /agreement/, /contract/, /placement/],
+    patterns: [
+      /offer/,
+      /agreement/,
+      /contract/,
+      /placement/,
+      /pay.?and.?start/,
+      /pay.?rate/,
+      /hire.?date/,
+      /i-?9.?section.?1/,
+    ],
   },
   {
+    // Final Review / Completion milestones stay in Approvals when pre-hire.
     stage: "Approvals",
-    patterns: [/approv/, /final.?approval/, /sign.?off/],
+    patterns: [
+      /manager.?facility.?approv/,
+      /facility.?approv/,
+      /hr.?final.?approv/,
+      /final.?approval/,
+      /final.?review/,
+      /completion.?milestone/,
+      /pre.?hire.?approv/,
+      /approv/,
+      /sign.?off/,
+    ],
   },
 ];
 
 const POST_HIRE_RULES: Array<{ stage: (typeof POST_HIRE_FIGMA_STAGES)[number]; patterns: RegExp[] }> = [
-  { stage: "Kickoff", patterns: [/kickoff/, /welcome/, /intro/, /start/] },
   {
-    stage: "Paperwork",
-    patterns: [/i-?9/, /tax/, /w-?4/, /w-?9/, /right.?to.?work/, /paperwork/, /form/],
+    stage: "Payroll & Tax",
+    patterns: [
+      /payroll/,
+      /tax/,
+      /w-?4/,
+      /w-?9/,
+      /direct.?deposit/,
+      /benefits.?enroll/,
+      /401.?k/,
+      /i-?9/,
+      /everify/,
+      /right.?to.?work/,
+      /paychex/,
+      /adp/,
+    ],
   },
-  { stage: "Payroll & Pay", patterns: [/direct.?deposit/, /payroll/, /payment/, /bank/] },
-  { stage: "Policies", patterns: [/policy/, /handbook/, /acknowledg/] },
   {
-    stage: "Access & Equipment",
-    patterns: [/equipment/, /badge/, /access/, /laptop/, /credential.?kit/],
+    stage: "Access & Systems",
+    patterns: [/equipment/, /badge/, /access/, /schedule.?assign/, /facility.?access/, /door/, /system/],
   },
-  { stage: "Training", patterns: [/train/, /orient/, /learning/] },
-  { stage: "Day One Ready", patterns: [/day.?one/, /ready/, /complete/, /onboard/] },
+  {
+    stage: "Training & Policy",
+    patterns: [
+      /train/,
+      /orient/,
+      /policy/,
+      /handbook/,
+      /welcome.?packet/,
+      /safety/,
+      /certif/,
+      /learning/,
+      /quiz/,
+    ],
+  },
+  {
+    stage: "Welcome & Complete",
+    patterns: [
+      /welcome.?call/,
+      /welcome.?email/,
+      /manager.?welcome/,
+      /final.?onboarding.?call/,
+      /buddy/,
+      /mentor/,
+      /onboarding.?complete/,
+      /completion.?milestone/,
+      /day.?one/,
+    ],
+  },
 ];
 
 function isCompleteStatus(status: WorkflowStepDisplayStatus): boolean {
-  return status === "completed" || status === "approved" || status === "skipped" || status === "not_applicable";
+  return (
+    status === "completed" ||
+    status === "approved" ||
+    status === "submitted" ||
+    status === "skipped" ||
+    status === "not_applicable"
+  );
 }
 
 function isInProgressStatus(status: WorkflowStepDisplayStatus): boolean {
@@ -123,17 +242,69 @@ function stepHaystack(step: CandidateWorkflowStepView): string {
   return `${step.stepKey} ${step.stepType} ${step.onboardingType} ${step.title}`.toLowerCase();
 }
 
+/**
+ * The library catalog and stamped `settings.stageName` use the seven post-hire library
+ * stages; the Post-Hire board shows four Figma buckets.
+ */
+const POST_HIRE_STAGE_ALIASES: Record<string, (typeof POST_HIRE_FIGMA_STAGES)[number]> = {
+  kickoff: "Welcome & Complete",
+  paperwork: "Payroll & Tax",
+  "payroll & pay": "Payroll & Tax",
+  policies: "Training & Policy",
+  "access & equipment": "Access & Systems",
+  training: "Training & Policy",
+  "day one ready": "Welcome & Complete",
+};
+
+/** Maps a stage name onto the board for this lifecycle; null when it belongs to the other board. */
+function boardStageName(name: string | null, lifecycle: HireStageLifecycle): string | null {
+  if (!name || !hireStageFitsLifecycle(name, lifecycle)) return null;
+  if (lifecycle === "post_hire") return POST_HIRE_STAGE_ALIASES[name.toLowerCase()] ?? name;
+  return name;
+}
+
+/** Board stage for a published step, as shown to the candidate above the step title. */
+export function hireStageLabelForStep(input: {
+  stageName: unknown;
+  libraryId: string | null;
+  stepKey: string;
+  lifecycle: HireStageLifecycle;
+}): string | null {
+  const explicit = typeof input.stageName === "string" ? input.stageName.trim() : "";
+  return (
+    boardStageName(explicit || null, input.lifecycle) ??
+    boardStageName(
+      hireStageForStepKey(input.libraryId, input.lifecycle) ?? hireStageForStepKey(input.stepKey, input.lifecycle),
+      input.lifecycle
+    )
+  );
+}
+
 function resolveStageName(
   step: CandidateWorkflowStepView,
   lifecycle: HireStageLifecycle,
   explicitStage: string | null
 ): string {
-  if (explicitStage) return explicitStage;
-  const fromCatalog =
-    hireStageForStepKey(step.stepType) ??
-    hireStageForStepKey(step.stepKey) ??
-    hireStageForStepKey(step.snapshotStepId);
+  const explicit = boardStageName(explicitStage, lifecycle);
+  if (explicit) return explicit;
+  const fromCatalog = boardStageName(
+    hireStageForStepKey(step.stepType, lifecycle) ??
+      hireStageForStepKey(step.stepKey, lifecycle) ??
+      hireStageForStepKey(step.snapshotStepId, lifecycle),
+    lifecycle
+  );
   if (fromCatalog) return fromCatalog;
+
+  if (lifecycle === "pre_hire") {
+    const keys = [step.stepKey, step.stepType]
+      .map((value) => String(value ?? "").trim().toLowerCase())
+      .filter(Boolean);
+    for (const key of keys) {
+      const mapped = PRE_HIRE_LIBRARY_STAGE[key];
+      if (mapped) return mapped;
+    }
+  }
+
   const haystack = stepHaystack(step);
   const rules = lifecycle === "pre_hire" ? PRE_HIRE_RULES : POST_HIRE_RULES;
   for (const rule of rules) {
@@ -189,7 +360,8 @@ function summarizeStage(steps: CandidateWorkflowStepView[]): {
 /**
  * Groups assigned workflow steps into recruiter stages.
  * Order: explicit settings.stageName, then the library step-key catalog,
- * then keyword heuristics for steps that are not in the catalog.
+ * then the Pre-Hire library map, then keyword heuristics for steps that are not in the catalog.
+ * Post-hire library stage names are folded into the four Post-Hire board buckets.
  */
 export function groupStepsIntoHireStages(
   steps: CandidateWorkflowStepView[],
@@ -225,11 +397,19 @@ export function groupStepsIntoHireStages(
 
   let foundCurrent = false;
   for (const group of groups) {
-    const allComplete =
-      group.steps.length > 0 && group.completedCount === group.steps.length;
-    if (allComplete) {
+    const optionalOpen = group.steps.length - group.completedCount;
+    const requiredDone =
+      group.steps.length > 0 &&
+      group.steps.every((step) => !step.required || isCompleteStatus(step.displayStatus));
+    // Optional steps never hold a stage open, but an optional-only stage can't jump ahead of the current one.
+    if (requiredDone && (optionalOpen === 0 || !foundCurrent)) {
       group.status = "completed";
-      group.summaryLabel = `${group.completedCount} Completed`;
+      group.summaryLabel = [
+        group.completedCount ? `${group.completedCount} Completed` : null,
+        optionalOpen ? `${optionalOpen} Optional` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
       continue;
     }
     if (!foundCurrent) {
@@ -284,7 +464,28 @@ export function hireStageProgressMeta(groups: HireStageGroup[]): {
   };
 }
 
+/**
+ * Steps where recruiters can open Schedule Interview from the Pre-Hire board.
+ * Only steps that book time with the candidate qualify. Internal decisions that
+ * merely sit in the Interview stage (Internal Select, Client Review, Candidate
+ * Selection) are completed through the staff step modal instead.
+ */
 export function isInterviewScheduleStep(step: CandidateWorkflowStepView): boolean {
-  const haystack = stepHaystack(step);
-  return /interview/.test(haystack) && !isCompleteStatus(step.displayStatus);
+  if (isCompleteStatus(step.displayStatus)) return false;
+  if (step.displayStatus === "rejected" || step.displayStatus === "blocked") return false;
+  return isInterviewStep(step);
+}
+
+/**
+ * Show Schedule Interview on the row while the Interview stage is active and nothing is booked yet.
+ * Follow-up interviews are scheduled from the step modal.
+ */
+export function shouldShowInterviewScheduleAction(
+  stage: HireStageGroup,
+  step: CandidateWorkflowStepView
+): boolean {
+  if (stage.name.toLowerCase() !== "interview") return false;
+  if (stage.status !== "current" && stage.status !== "in_progress") return false;
+  if (step.interview?.latest) return false;
+  return isInterviewScheduleStep(step);
 }

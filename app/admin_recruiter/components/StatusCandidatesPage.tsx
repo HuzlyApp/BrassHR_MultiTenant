@@ -27,6 +27,7 @@ import { CandidateGridCard } from "../candidates/CandidateGridCard";
 import { CandidatesCardBulkSelectHeader } from "../candidates/CandidatesCardBulkSelectHeader";
 import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
+import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
 import { CandidatesListSkeleton } from "../candidates/CandidatesListSkeleton";
 import { useCandidateKpiMetrics } from "../candidates/useCandidateKpiMetrics";
 import { isWorkerClaimEligible } from "@/lib/candidates/claim";
@@ -397,14 +398,26 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
-  const progressStatusFilterOptions = useMemo(
-    () =>
-      progressStatusOptions.map((option) => ({
-        value: option.id,
-        label: option.name,
-      })),
-    [progressStatusOptions]
-  );
+  const progressStatusFilterOptions = useMemo(() => {
+    const sources = new Set(
+      candidates
+        .map((row) => String(row.applicationSourceType ?? "").trim().toLowerCase())
+        .filter((source) => source === "msp" || source === "internal")
+    );
+    const scopedOptions =
+      sources.size === 1
+        ? filterApplicationStatusesForSource(progressStatusOptions, [...sources][0])
+        : progressStatusOptions;
+    return scopedOptions.map((option) => ({
+      value: option.id,
+      label: option.name,
+      sortOrder: option.sortOrder,
+      groupName: option.groupName,
+      groupDescription: option.groupDescription,
+      groupSortOrder: option.groupSortOrder,
+      groupSystemKey: option.groupSystemKey,
+    }));
+  }, [candidates, progressStatusOptions]);
 
   const assigneeOptions = useMemo(
     () =>

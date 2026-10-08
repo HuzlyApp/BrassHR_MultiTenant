@@ -1055,10 +1055,12 @@ export default function PostHireJourney() {
   }
 
   return (
-    <div className="space-y-5">
-      <PostHireStepper completedFlags={completedFlags} />
+    <div className="flex flex-col gap-5">
+      <div className="flex w-full justify-center">
+        <PostHireStepper completedFlags={completedFlags} />
+      </div>
 
-      <header>
+      <header className="w-full shrink-0">
         <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--brand-secondary)" }}>
           Post-hire
         </h1>

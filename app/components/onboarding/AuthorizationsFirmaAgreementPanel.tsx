@@ -35,6 +35,7 @@ type Props = {
   agreed: boolean;
   configLoading?: boolean;
   onSignedChange?: (signed: boolean) => void;
+  documentTitle?: string | null;
 };
 
 function mapFirmaStatusLabel(status: string): string {
@@ -50,7 +51,9 @@ export function AuthorizationsFirmaAgreementPanel({
   agreed,
   configLoading = false,
   onSignedChange,
+  documentTitle,
 }: Props) {
+  const cardTitle = documentTitle?.trim() || "Onboarding Agreement";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
@@ -272,8 +275,8 @@ export function AuthorizationsFirmaAgreementPanel({
               <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm">
-                Onboarding Agreement
+              <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm" title={cardTitle}>
+                {cardTitle}
               </p>
               <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · E-Signature</p>
             </div>
@@ -302,8 +305,8 @@ export function AuthorizationsFirmaAgreementPanel({
             <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm">
-              Onboarding Agreement
+            <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm" title={cardTitle}>
+              {cardTitle}
             </p>
             <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · E-Signature</p>
           </div>

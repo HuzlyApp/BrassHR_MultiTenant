@@ -40,11 +40,13 @@ export async function GET(req: NextRequest) {
       jobToken: jobToken || null,
     });
 
+    const scopedApplicationId = applicationId || phaseRecord?.applicationId || null;
     const progress = await ensureWorkerOnboardingProgress(
       supabase,
       ctx.workerId,
       ctx.tenantId,
-      applicationId || phaseRecord?.applicationId || null
+      scopedApplicationId,
+      Boolean(jobToken) && !scopedApplicationId
     );
     return NextResponse.json({ progress, workerId: ctx.workerId, tenantId: ctx.tenantId });
   } catch (err: unknown) {

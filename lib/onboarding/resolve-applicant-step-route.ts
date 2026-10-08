@@ -1,12 +1,14 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
+import { postHireScreenKindForStep } from "@/lib/onboarding/post-hire-step-screens";
 import type { OnboardingStepType, TenantOnboardingStep } from "@/lib/onboarding/types";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
 /** Builder library step id → primary applicant route. */
 export const WORKFLOW_STEP_APPLICANT_ROUTE: Record<string, string> = {
   "resume-basic-profile": APPLICATION_ROUTES.addResume,
-  "parameterized-job-application": APPLICATION_ROUTES.addResume,
+  "parameterized-job-application": APPLICATION_ROUTES.jobScreening,
+  "collect-extra-files": APPLICATION_ROUTES.professionalLicense,
   "references-collection": APPLICATION_ROUTES.addReferences,
   "reference-verification": APPLICATION_ROUTES.addReferences,
   "skill-qualification-assessment": APPLICATION_ROUTES.skillsIntro,
@@ -14,15 +16,28 @@ export const WORKFLOW_STEP_APPLICANT_ROUTE: Record<string, string> = {
   "document-upload": APPLICATION_ROUTES.professionalLicense,
   "credential-license-verification": APPLICATION_ROUTES.professionalLicense,
   "certification-upload": APPLICATION_ROUTES.professionalLicense,
-  "welcome-packet-esign": APPLICATION_ROUTES.authorizationsDocuments,
+  "welcome-packet-esign": APPLICATION_ROUTES.agreementSignature,
   "i9-right-to-work-verification": APPLICATION_ROUTES.authorizationsDocuments,
   "tax-forms": APPLICATION_ROUTES.authorizationsDocuments,
-  "employee-agreement": APPLICATION_ROUTES.authorizationsDocuments,
-  "policy-acknowledgment": APPLICATION_ROUTES.authorizationsDocuments,
-  "equipment-badge-acknowledgment": APPLICATION_ROUTES.authorizationsDocuments,
+  "employee-agreement": APPLICATION_ROUTES.agreementSignature,
+  "policy-acknowledgment": APPLICATION_ROUTES.agreementSignature,
+  "equipment-badge-acknowledgment": APPLICATION_ROUTES.agreementSignature,
   "ssn-identity-verification": APPLICATION_ROUTES.identityVerification,
   "background-check": APPLICATION_ROUTES.authorizationsDocuments,
 };
+
+/**
+ * Post-Hire library steps typed `profile_information` that have their own screen. Without this,
+ * whichever one gets the bare `profile_information` key routes to the resume flow and is
+ * auto-completed as a placeholder.
+ */
+const CUSTOM_SCREEN_LIBRARY_STEPS = new Set([
+  "direct-deposit-setup",
+  "benefits-enrollment",
+  "401k-enrollment",
+  "pay-rate-hire-date",
+  "payroll-profile-creation",
+]);
 
 const CANONICAL_STEP_KEY_ROUTES: Record<string, string> = {
   resume_upload: APPLICATION_ROUTES.addResume,
@@ -62,11 +77,18 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
     return APPLICATION_ROUTES.applicationSummary;
   }
 
+  if (postHireScreenKindForStep(step)) {
+    return APPLICATION_ROUTES.customStep(step.step_key);
+  }
+
   const libraryId = workflowStepId(step);
   // Prefer dedicated library routes (e.g. background-check → Authorizations & Documents)
   // even when a Firma template is attached — Click and Sign lives on that screen.
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];
+  }
+  if (libraryId && CUSTOM_SCREEN_LIBRARY_STEPS.has(libraryId)) {
+    return APPLICATION_ROUTES.customStep(step.step_key);
   }
 
   if (CANONICAL_STEP_KEY_ROUTES[step.step_key]) {
@@ -87,6 +109,7 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
 }
 
 export function dedicatedRouteForWorkflowStep(step: TenantOnboardingStep): string | null {
+  if (postHireScreenKindForStep(step)) return null;
   const libraryId = workflowStepId(step);
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];

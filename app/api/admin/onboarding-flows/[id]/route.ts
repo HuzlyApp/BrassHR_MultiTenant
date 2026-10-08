@@ -11,6 +11,7 @@ import {
   type OnboardingFlowStatus,
 } from "@/lib/onboarding/onboarding-flows";
 import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboarding-from-workflow";
+import { syncActiveWorkflowInstancesSafely } from "@/lib/onboarding/sync-workflow-instances";
 import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
@@ -137,6 +138,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         auth.userId,
         body.name?.trim() || flow.name
       );
+      await syncActiveWorkflowInstancesSafely(supabase as OnboardingDbClient, {
+        tenantId,
+        flowId: id,
+        draft: draftToPublish,
+        flowName: body.name?.trim() || flow.name,
+      });
     }
 
     let savedTemplate: { templateId: string } | null = null;

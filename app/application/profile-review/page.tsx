@@ -737,8 +737,6 @@ function Step1ReviewContent() {
         updated_at: new Date().toISOString(),
       }
 
-      let usedBrowserFallback = false
-
       const saveRes = await fetch("/api/onboarding/save-worker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -822,27 +820,10 @@ function Step1ReviewContent() {
             )
           }
         }
-        usedBrowserFallback = true
       } else if (!saveRes.ok) {
         throw new Error(
           saveJson.hint || saveJson.error || `Save failed (${saveRes.status})`
         )
-      }
-
-      if (usedBrowserFallback) {
-        try {
-          await fetch("/api/onboarding/send-profile-status-link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              applicantId,
-              email: form.email.trim(),
-              ...(tenantSlug ? { tenantSlug } : {}),
-            }),
-          })
-        } catch (e) {
-          console.warn("[step-1-review] profile status link email", e)
-        }
       }
 
       const resumeStoragePath =

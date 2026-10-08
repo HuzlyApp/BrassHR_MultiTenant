@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { routeForApplicantStep, WORKFLOW_STEP_APPLICANT_ROUTE } from "@/lib/onboarding/resolve-applicant-step-route";
+import {
+  dedicatedRouteForWorkflowStep,
+  routeForApplicantStep,
+  WORKFLOW_STEP_APPLICANT_ROUTE,
+} from "@/lib/onboarding/resolve-applicant-step-route";
 import { resolveApplicantStepFromPath } from "@/lib/onboarding/find-applicant-step";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
@@ -17,19 +21,20 @@ function step(partial: Partial<TenantOnboardingStep> & Pick<TenantOnboardingStep
 }
 
 describe("resolve-applicant-step-route", () => {
-  it("maps background check to authorizations documents", () => {
-    expect(WORKFLOW_STEP_APPLICANT_ROUTE["background-check"]).toBe(
-      "/application/authorizations-documents"
+  it("maps collect-extra-files to professional license / document upload screen", () => {
+    expect(WORKFLOW_STEP_APPLICANT_ROUTE["collect-extra-files"]).toBe(
+      "/application/professional-license"
     );
     const route = routeForApplicantStep(
       step({
-        step_key: "authorization_background_check",
-        step_type: "custom_question",
-        metadata: { workflow_step_id: "background-check" },
-      })
+        step_key: "document_upload",
+        step_type: "document_upload",
+        metadata: { workflow_step_id: "collect-extra-files" },
+      }),
+      "testcompany"
     );
-    expect(route).toContain("/application/authorizations-documents");
-    expect(route).toContain("stepKey=authorization_background_check");
+    expect(route).toContain("/application/professional-license");
+    expect(route).toContain("stepKey=document_upload");
   });
 
   it("keeps Firma-enabled background check on Authorizations & Documents (Click and Sign)", () => {
@@ -55,7 +60,7 @@ describe("resolve-applicant-step-route", () => {
 
   it("maps builder library steps to dedicated applicant routes", () => {
     expect(WORKFLOW_STEP_APPLICANT_ROUTE["welcome-packet-esign"]).toBe(
-      "/application/authorizations-documents"
+      "/application/agreement-signature"
     );
     const route = routeForApplicantStep(
       step({
@@ -65,9 +70,77 @@ describe("resolve-applicant-step-route", () => {
       }),
       "acme"
     );
-    expect(route).toContain("/application/authorizations-documents");
+    expect(route).toContain("/application/agreement-signature");
     expect(route).toContain("stepKey=authorizations");
     expect(route).toContain("tenant=acme");
+  });
+
+  it("routes Agreement eSign to its own signing screen, not Authorizations & Documents", () => {
+    const agreement = step({
+      step_key: "authorizations_2",
+      step_type: "authorizations",
+      title: "Agreement eSign",
+      metadata: {
+        workflow_step_id: "employee-agreement",
+        workflow_settings: { phase: "pre_hire", firmaRecruiterTemplateId: "tmpl-w2" },
+      },
+    });
+    const route = routeForApplicantStep(agreement, "nexus");
+    expect(route).toContain("/application/agreement-signature");
+    expect(route).toContain("stepKey=authorizations_2");
+    expect(route).not.toContain("authorizations-documents");
+    expect(dedicatedRouteForWorkflowStep(agreement)).toBe("/application/agreement-signature");
+  });
+
+  it("resolves the agreement step on the agreement screen alongside a background check", () => {
+    const background = step({
+      step_key: "custom_question",
+      step_type: "custom_question",
+      sort_order: 10,
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const agreement = step({
+      step_key: "authorizations_2",
+      step_type: "authorizations",
+      sort_order: 20,
+      metadata: { workflow_step_id: "employee-agreement" },
+    });
+    expect(
+      resolveApplicantStepFromPath("/application/agreement-signature", "?tenant=nexus", [background, agreement])
+        ?.step_key
+    ).toBe("authorizations_2");
+  });
+
+  it("routes Post-Hire candidate steps to their own screen, even with a Firma template", () => {
+    for (const [stepKey, stepType, libraryId] of [
+      ["authorizations_3", "authorizations", "policy-acknowledgment"],
+      ["document_upload_7", "document_upload", "tax-forms"],
+      ["document_upload_8", "document_upload", "i9-right-to-work-verification"],
+      ["profile_information", "profile_information", "direct-deposit-setup"],
+      ["custom_question_4", "custom_question", "safety-training"],
+    ] as const) {
+      const s = step({
+        step_key: stepKey,
+        step_type: stepType,
+        metadata: {
+          workflow_step_id: libraryId,
+          workflow_settings: { phase: "post_hire", firmaRecruiterTemplateId: "tmpl-1" },
+        },
+      });
+      expect(routeForApplicantStep(s)).toContain(`/application/custom-step/${stepKey}`);
+      expect(dedicatedRouteForWorkflowStep(s)).toBeNull();
+    }
+  });
+
+  it("sends Pre-Hire acknowledgment copies to the agreement signing screen", () => {
+    const route = routeForApplicantStep(
+      step({
+        step_key: "authorizations_2",
+        step_type: "authorizations",
+        metadata: { workflow_step_id: "policy-acknowledgment", workflow_settings: { phase: "pre_hire" } },
+      })
+    );
+    expect(route).toContain("/application/agreement-signature");
   });
 
   it("resolves current step from stepKey query param", () => {

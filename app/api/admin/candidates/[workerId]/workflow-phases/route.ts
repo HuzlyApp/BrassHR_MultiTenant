@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { loadCandidateWorkflowPhaseView } from "@/lib/onboarding/candidate-workflow-phase-view";
+import { loadCandidateInterviews } from "@/lib/interviews/candidate-interview-history";
+import { summarizeInterviews, withInterviewSummary } from "@/lib/onboarding/interview-step";
 import {
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
@@ -50,10 +52,18 @@ export async function GET(req: Request, context: RouteContext) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const view = await loadCandidateWorkflowPhaseView(supabase, {
-      workerId: idCheck.value,
-      tenantId,
-    });
+    const [baseView, interviews] = await Promise.all([
+      loadCandidateWorkflowPhaseView(supabase, { workerId: idCheck.value, tenantId }),
+      loadCandidateInterviews(supabase, { tenantId, workerId: idCheck.value }),
+    ]);
+    const interviewSummary = summarizeInterviews(interviews);
+    const view = {
+      ...baseView,
+      preHire: {
+        ...baseView.preHire,
+        steps: withInterviewSummary(baseView.preHire.steps, interviewSummary),
+      },
+    };
 
     const phase = new URL(req.url).searchParams.get("phase")?.trim().toLowerCase();
     if (shouldRejectPostHirePhaseRequest(phase, view.postHireVisible)) {

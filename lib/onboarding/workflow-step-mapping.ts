@@ -4,10 +4,12 @@ import type { OnboardingStepType } from "@/lib/onboarding/types";
 export const WORKFLOW_STEP_TO_ONBOARDING_TYPE: Record<string, OnboardingStepType> = {
   "resume-basic-profile": "resume_upload",
   "parameterized-job-application": "profile_information",
+  "collect-extra-files": "document_upload",
   "references-collection": "references",
   "reference-verification": "references",
   "skill-qualification-assessment": "skill_assessment",
   "custom-application-form": "custom_question",
+  "custom-form": "custom_question",
   "custom-step": "custom_question",
   "document-upload": "document_upload",
   "welcome-packet-esign": "authorizations",

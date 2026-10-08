@@ -4,7 +4,9 @@ import {
   buildProgressStatusMaps,
   computeMaxAllowedStepIndexFromProgress,
 } from "@/lib/onboarding/compute-max-allowed-from-progress";
+import { isTenantStepBlocking } from "@/lib/onboarding/reference-verification";
 import { isWorkerVisibleStep } from "@/lib/onboarding/workflow-settings";
+import { isUuid } from "@/lib/validation/uuid";
 import type {
   CandidateEngineOrderEntry,
   TenantOnboardingConfig,
@@ -36,7 +38,7 @@ export function toCandidateEngineOrder(steps: TenantOnboardingStep[]): Candidate
     id: step.id,
     step_key: step.step_key,
     sort_order: step.sort_order,
-    required: step.is_required !== false,
+    required: isTenantStepBlocking(step),
     candidateVisible: isWorkerVisibleStep(step),
   }));
 }
@@ -93,12 +95,13 @@ function engineStatus(
 ): string {
   const fromVisible = statusByCandidateId.get(entry.id);
   if (fromVisible) return fromVisible;
-  const row = progress?.steps?.find(
-    (step) =>
-      step.onboarding_step_id === entry.id ||
-      (entry.step_key && step.step_key === entry.step_key)
-  );
-  return String(row?.status ?? "pending");
+  const rows = progress?.steps ?? [];
+  const byId = rows.find((step) => step.onboarding_step_id === entry.id);
+  if (byId || isUuid(entry.id)) return String(byId?.status ?? "pending");
+  // Job workflows re-key steps, so a key can belong to an unrelated published step;
+  // only placeholder ids fall back to matching by key.
+  const byKey = entry.step_key ? rows.find((step) => step.step_key === entry.step_key) : undefined;
+  return String(byKey?.status ?? "pending");
 }
 
 /**

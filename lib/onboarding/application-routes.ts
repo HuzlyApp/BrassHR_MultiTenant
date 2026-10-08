@@ -18,6 +18,8 @@ export const APPLICATION_ROUTES = {
   eSignature: "/application/e-signature",
   /** @deprecated Prefer `eSignature`; kept for bookmarks and older links. */
   firmaSign: "/application/firma-sign",
+  /** Agreement / acknowledgment eSign steps (e.g. Agreement eSign) — titled from the workflow step. */
+  agreementSignature: "/application/agreement-signature",
   identityVerification: "/application/identity-verification",
   addReferences: "/application/add-references",
   referenceReview: "/application/reference-review",
@@ -56,6 +58,12 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
       APPLICATION_ROUTES.profileReview,
       APPLICATION_ROUTES.parseResume,
       "/application/step-1-",
+    ],
+  },
+  {
+    stepType: "profile_information",
+    pathIncludes: [
+      APPLICATION_ROUTES.jobScreening,
     ],
   },
   {
@@ -98,7 +106,11 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
   },
   {
     stepType: "authorizations",
-    pathIncludes: [APPLICATION_ROUTES.eSignature, APPLICATION_ROUTES.firmaSign],
+    pathIncludes: [
+      APPLICATION_ROUTES.eSignature,
+      APPLICATION_ROUTES.firmaSign,
+      APPLICATION_ROUTES.agreementSignature,
+    ],
   },
   {
     stepType: "authorizations",

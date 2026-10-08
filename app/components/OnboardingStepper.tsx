@@ -27,6 +27,7 @@ import {
   groupTenantStepsByPhase,
   lifecyclePhaseLabel,
   POST_HIRE_LOCKED_MESSAGE,
+  WAITING_ON_INTERNAL_MESSAGE,
   type EmploymentLifecyclePhase,
 } from "@/lib/onboarding/workflow-phase-groups"
 import ApplicantPhaseWelcome from "@/app/components/onboarding/ApplicantPhaseWelcome"
@@ -201,8 +202,7 @@ export default function OnboardingStepper({
         />
         {onboarding?.waitingOnInternal ? (
           <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            Your documents have been submitted. No action is required from you right now. We will
-            email you when the next step is ready.
+            {WAITING_ON_INTERNAL_MESSAGE}
           </div>
         ) : null}
         <div className="mb-3 flex items-end justify-between gap-3">

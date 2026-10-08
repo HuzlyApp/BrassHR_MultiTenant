@@ -64,7 +64,7 @@ const INTERNAL_LIBRARY_STEP_IDS = new Set([
   "benefits-confirmation",
   "adverse-action-process",
   "conditional-branch-decision",
-  "parameterized-job-application",
+  // parameterized-job-application is now applicant-facing: removed from internal steps
 ]);
 
 export function readWorkflowLibraryStepId(step: TenantOnboardingStep): string {
@@ -100,6 +100,15 @@ export function showsApplicantPartnerScreeningNotice(step: TenantOnboardingStep)
   return (
     SCREENING_LIBRARY_STEP_IDS.has(readWorkflowLibraryStepId(step)) && isIntegrationPartnerStep(step)
   );
+}
+
+/**
+ * Internal library step by builder id alone (e.g. an assigned step record's `step_type`).
+ * Completion Milestone is excluded: it is also the applicant's review/submit step.
+ */
+export function isInternalLibraryStepId(libraryId: string | null | undefined): boolean {
+  const value = String(libraryId ?? "").trim().toLowerCase();
+  return value !== "completion-milestone" && INTERNAL_LIBRARY_STEP_IDS.has(value);
 }
 
 export function isInternalLibraryOnboardingStep(step: TenantOnboardingStep): boolean {

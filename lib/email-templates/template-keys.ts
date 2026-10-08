@@ -6,6 +6,8 @@ export const ONBOARDING_EMAIL_TEMPLATE_KEYS = [
   "welcome",
   "declined",
   "placement_accepted",
+  "next_step_ready",
+  "post_hire_step_ready",
 ] as const;
 
 export type OnboardingEmailTemplateKey = (typeof ONBOARDING_EMAIL_TEMPLATE_KEYS)[number];
@@ -18,6 +20,8 @@ export const EMAIL_TEMPLATE_TYPE = {
   WELCOME: "welcome",
   DECLINED: "declined",
   PLACEMENT_ACCEPTED: "placement_accepted",
+  NEXT_STEP_READY: "next_step_ready",
+  POST_HIRE_STEP_READY: "post_hire_step_ready",
 } as const;
 
 export type EmailTemplateType =
@@ -30,6 +34,8 @@ export const EMAIL_TEMPLATE_TYPE_LABELS: Record<OnboardingEmailTemplateKey, stri
   welcome: "Welcome email",
   declined: "Declined email",
   placement_accepted: "Placement accepted — start onboarding",
+  next_step_ready: "Next application step ready",
+  post_hire_step_ready: "Post-Hire onboarding step ready",
 };
 
 export function isOnboardingEmailTemplateKey(key: string): key is OnboardingEmailTemplateKey {

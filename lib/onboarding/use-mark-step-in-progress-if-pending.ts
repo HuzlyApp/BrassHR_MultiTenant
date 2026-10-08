@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
@@ -33,10 +33,13 @@ export function useMarkStepInProgressIfPending({
   const mark = updateStepStatus ?? onboarding?.updateStepStatus;
   const loading = onboarding?.loading ?? false;
   const progressSteps = onboarding?.progress?.steps;
+  const attemptedStepIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (disabled || loading || completingRef?.current) return;
     if (!step?.step_key || !step.id || !mark) return;
+    // The server ignores the mark for steps still locked, so re-trying on every progress update would loop.
+    if (attemptedStepIdRef.current === step.id) return;
 
     const currentStatus = progressSteps?.find(
       (row) => row.onboarding_step_id === step.id
@@ -50,6 +53,7 @@ export function useMarkStepInProgressIfPending({
       return;
     }
 
+    attemptedStepIdRef.current = step.id;
     void mark(step.step_key, "in_progress").catch(() => {
       // Mount-time mark must not surface as an unhandledRejection.
     });
