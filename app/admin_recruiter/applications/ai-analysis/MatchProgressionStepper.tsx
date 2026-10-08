@@ -18,8 +18,8 @@ type StepTone = "current" | "completed" | "upcoming";
 
 const CHEVRON_SRC = "/icons/admin-recruiter/ai-analysis/chevron.svg";
 
-/** Wide enough for "Follow-Up" + "Enrichment" on one line. */
-const STEP_MIN_WIDTH_CLASS = "min-w-[13.75rem] sm:min-w-[14.5rem] lg:min-w-[15.25rem]";
+/** Allow stretching and wrapping on smaller screens. */
+const STEP_MIN_WIDTH_CLASS = "min-w-[10rem] sm:min-w-[12rem] lg:min-w-0";
 
 const STEP_ICONS: Record<
   MatchProgressionStepId,
@@ -188,8 +188,8 @@ export function MatchProgressionStepper({
   onSelect,
 }: MatchProgressionStepperProps) {
   return (
-    <nav aria-label="AI match progression" className="w-full overflow-x-auto pb-1">
-      <ol className="flex w-full min-w-[72rem] items-stretch lg:min-w-[78rem]">
+    <nav aria-label="AI match progression" className="w-full pb-1">
+      <ol className="flex w-full items-stretch">
         {MATCH_PROGRESSION_STEPS.flatMap((step, index) => {
           const nodes = [
             <StepButton

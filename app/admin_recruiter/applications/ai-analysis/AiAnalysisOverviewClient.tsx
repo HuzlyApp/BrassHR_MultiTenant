@@ -412,28 +412,33 @@ function AnalysisHistoryItem({
   const hasScore = item.score != null && Number.isFinite(Number(item.score));
 
   return (
-    <li className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2">
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-semibold text-[#475467]">Version {item.version}</span>
-          {hasScore ? (
-            <span
-              className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${historyScoreBadgeClass(item.score)}`}
-            >
-              {formatMatchScore(item.score)}
-            </span>
-          ) : null}
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-              band ? fitBandTagClassName(band) : "bg-[#F2F4F7] text-[#475467]"
-            }`}
-          >
-            {label}
-          </span>
+    <li className="rounded-lg border border-[#E5E7EB] bg-[#FCFCFD] p-3">
+      <div className="flex items-start gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] text-white text-xs font-semibold">
+          AI
         </div>
-        <p className="text-xs leading-4 text-[#94A3B8]">
-          {[formatHistoryWhen(item.analyzed_at), item.model].filter(Boolean).join(" · ")}
-        </p>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className="text-sm font-medium text-[#101828]">Analysis Version {item.version}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {hasScore ? (
+              <span
+                className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${historyScoreBadgeClass(item.score)}`}
+              >
+                {formatMatchScore(item.score)}
+              </span>
+            ) : null}
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                band ? fitBandTagClassName(band) : "bg-[#F2F4F7] text-[#475467]"
+              }`}
+            >
+              {label}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[#667085]">
+            {[formatHistoryWhen(item.analyzed_at), item.model].filter(Boolean).join(" · ")}
+          </p>
+        </div>
       </div>
     </li>
   );
@@ -1417,7 +1422,7 @@ export function AiAnalysisOverviewClient({
                               : "applications",
                             jobId: jobId || undefined,
                           })}
-                          className="inline-flex items-center justify-center rounded-[20px] border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
+                          className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
                         >
                           View Profile
                         </Link>
@@ -1536,7 +1541,7 @@ export function AiAnalysisOverviewClient({
                 {primaryAction && primaryAction.kind !== "advance" ? (
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+                    className="inline-flex items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
                     disabled={
                       analyzing ||
                       talentPoolBusy ||
@@ -2516,8 +2521,18 @@ export function AiAnalysisOverviewClient({
           <section className={CARD}>
             <SidebarSectionHeader
               title="Notes"
-              subtitle="Recruiter notes and verified evidence for this workspace."
+              subtitle="Visible to recruiters in this workspace"
             />
+            <div className="mt-4 flex gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] text-white text-xs font-semibold">
+                R
+              </div>
+              <input
+                type="text"
+                className="flex-1 rounded-full border border-[#D0D5DD] bg-[#F9FAFB] px-4 py-1.5 text-sm shadow-sm placeholder:text-[#667085] focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]"
+                placeholder="Add a note..."
+              />
+            </div>
             {noteFeedItems.length ? (
               <ul className="mt-4 space-y-3">
                 {noteFeedItems.map((entry) =>
