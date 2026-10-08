@@ -19,13 +19,15 @@ import {
 } from "@/lib/service-area/apply-location-client";
 import {
   APPLICANT_ACTION_ROW,
+  APPLICANT_BTN_BACK,
+  APPLICANT_BTN_PRIMARY,
   APPLICANT_CONTENT_CLASS,
   APPLICANT_HEADER_ROW,
   APPLICANT_SHELL_CLASS,
   APPLICANT_SKIP_COLUMN,
   APPLICANT_TITLE_CLASS,
 } from "@/app/application/applicant-onboarding-responsive";
-import { ChevronRight, FileQuestion } from "lucide-react";
+import { ChevronDown, ChevronRight, FileQuestion } from "lucide-react";
 import { nextStepRouteAfter } from "@/lib/onboarding/professional-license-step";
 import { isApplicantWaitingGateStep } from "@/lib/onboarding/workflow-settings";
 import { readStepKeyFromSearch } from "@/lib/onboarding/find-applicant-step";
@@ -66,6 +68,7 @@ export default function JobScreeningPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [showWaitingModal, setShowWaitingModal] = useState(false);
@@ -132,6 +135,15 @@ export default function JobScreeningPage() {
     if (questionType === "multiple_select") return [];
     if (questionType === "yes_no") return null;
     return "";
+  }
+
+  function clearFieldError(questionId: string) {
+    setFieldErrors((current) => {
+      if (!current[questionId]) return current;
+      const updated = { ...current };
+      delete updated[questionId];
+      return updated;
+    });
   }
 
   async function handleSkip() {
@@ -208,8 +220,43 @@ export default function JobScreeningPage() {
     const applicantId = localStorage.getItem("applicantId")?.trim();
     if (!applicantId || !jobToken || !tenantSlug) return;
 
+    // Validate required questions
+    const validationErrors: Record<string, string> = {};
+    for (const item of questions) {
+      if (!item.isRequired) continue;
+      const value = answers[item.id];
+      if (item.questionType === "yes_no") {
+        if (value !== true && value !== false && value !== "yes" && value !== "no") {
+          validationErrors[item.id] = "Please select Yes or No.";
+        }
+      } else if (item.questionType === "multiple_select") {
+        if (!Array.isArray(value) || value.length === 0) {
+          validationErrors[item.id] = "Please select at least one option.";
+        }
+      } else if (item.questionType === "single_select") {
+        if (typeof value !== "string" || !value.trim()) {
+          validationErrors[item.id] = "Please select an option.";
+        }
+      } else if (item.questionType === "number") {
+        if (value === "" || value === null || value === undefined || isNaN(Number(value))) {
+          validationErrors[item.id] = "Please enter a valid number.";
+        }
+      } else {
+        if (typeof value !== "string" || !value.trim()) {
+          validationErrors[item.id] = "This field is required.";
+        }
+      }
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      setError("Please answer all required questions before continuing.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+    setFieldErrors({});
     try {
       // API handles step completion in DB
       const response = await fetch("/api/onboarding/job-screening-answers", {
@@ -284,6 +331,20 @@ export default function JobScreeningPage() {
     return <OnboardingLoader label="Loading screening questions…" />;
   }
 
+  const inputClass = (hasError?: boolean) =>
+    `w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors ${
+      hasError
+        ? "border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+        : "border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]"
+    } disabled:bg-slate-50`;
+
+  const selectClass = (hasError?: boolean) =>
+    `w-full appearance-none rounded-lg border bg-white px-3.5 py-2.5 pr-10 text-sm text-slate-900 outline-none transition-colors cursor-pointer ${
+      hasError
+        ? "border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+        : "border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]"
+    } disabled:bg-slate-50`;
+
   return (
     <>
       <OnboardingLayout>
@@ -345,142 +406,177 @@ export default function JobScreeningPage() {
                 </p>
 
                 <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-5">
-              {questions.map((item) => (
-                <fieldset key={item.id} className="space-y-2">
-                  <legend className="text-sm font-medium text-slate-900">
-                    {item.question}
-                    {item.isRequired ? <span className="text-rose-600"> *</span> : null}
-                  </legend>
+                  {questions.map((item, index) => {
+                    const cleanQuestionText = item.question.replace(/\s*\*+\s*$/, "").trim();
+                    const fieldError = fieldErrors[item.id];
+                    const hasError = Boolean(fieldError);
 
-                  {item.questionType === "yes_no" ? (
-                    <div className="flex gap-4">
-                      {["Yes", "No"].map((label) => {
-                        const isChecked = label === "Yes"
-                          ? answers[item.id] === true || answers[item.id] === "yes"
-                          : answers[item.id] === false || answers[item.id] === "no";
-                        
-                        return (
-                          <label key={label} className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={item.id}
-                              checked={isChecked}
-                              onChange={() =>
+                    return (
+                      <fieldset key={item.id} className="space-y-2">
+                        <legend className="text-sm font-medium text-slate-900">
+                          <span className="font-semibold text-slate-800 mr-1.5">{index + 1}.</span>
+                          {cleanQuestionText}
+                          {item.isRequired ? <span className="text-rose-600"> *</span> : null}
+                        </legend>
+
+                        {item.questionType === "yes_no" ? (
+                          <div className="flex gap-4 pt-1">
+                            {["Yes", "No"].map((label) => {
+                              const isChecked =
+                                label === "Yes"
+                                  ? answers[item.id] === true || answers[item.id] === "yes"
+                                  : answers[item.id] === false || answers[item.id] === "no";
+
+                              return (
+                                <label
+                                  key={label}
+                                  className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+                                >
+                                  <input
+                                    type="radio"
+                                    name={item.id}
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      clearFieldError(item.id);
+                                      setAnswers((current) => ({
+                                        ...current,
+                                        [item.id]: label === "Yes",
+                                      }));
+                                    }}
+                                    className="h-4 w-4 cursor-pointer"
+                                    style={isChecked ? { accentColor: branding.primaryHex } : undefined}
+                                  />
+                                  {label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                        {item.questionType === "number" ? (
+                          <input
+                            type="number"
+                            value={String(answers[item.id] ?? "")}
+                            onChange={(event) => {
+                              clearFieldError(item.id);
+                              setAnswers((current) => ({
+                                ...current,
+                                [item.id]: event.target.value,
+                              }));
+                            }}
+                            className={inputClass(hasError)}
+                          />
+                        ) : null}
+
+                        {item.questionType === "short_text" || item.questionType === "long_text" ? (
+                          <textarea
+                            rows={item.questionType === "long_text" ? 4 : 2}
+                            value={String(answers[item.id] ?? "")}
+                            onChange={(event) => {
+                              clearFieldError(item.id);
+                              setAnswers((current) => ({
+                                ...current,
+                                [item.id]: event.target.value,
+                              }));
+                            }}
+                            className={inputClass(hasError)}
+                          />
+                        ) : null}
+
+                        {item.questionType === "single_select" ? (
+                          <div className="relative">
+                            <select
+                              value={String(answers[item.id] ?? "")}
+                              onChange={(event) => {
+                                clearFieldError(item.id);
                                 setAnswers((current) => ({
                                   ...current,
-                                  [item.id]: label === "Yes",
-                                }))
-                              }
-                              className="h-4 w-4 cursor-pointer"
-                              style={isChecked ? {
-                                accentColor: branding.primaryHex
-                              } : undefined}
-                            />
-                            {label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-
-                  {item.questionType === "number" ? (
-                    <input
-                      type="number"
-                      value={String(answers[item.id] ?? "")}
-                      onChange={(event) =>
-                        setAnswers((current) => ({
-                          ...current,
-                          [item.id]: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  ) : null}
-
-                  {item.questionType === "short_text" || item.questionType === "long_text" ? (
-                    <textarea
-                      rows={item.questionType === "long_text" ? 4 : 2}
-                      value={String(answers[item.id] ?? "")}
-                      onChange={(event) =>
-                        setAnswers((current) => ({
-                          ...current,
-                          [item.id]: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  ) : null}
-
-                  {item.questionType === "single_select" ? (
-                    <select
-                      value={String(answers[item.id] ?? "")}
-                      onChange={(event) =>
-                        setAnswers((current) => ({
-                          ...current,
-                          [item.id]: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    >
-                      <option value="">Select an option</option>
-                      {(item.options ?? []).map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
-
-                  {item.questionType === "multiple_select" ? (
-                    <div className="space-y-2">
-                      {(item.options ?? []).map((option) => {
-                        const selected = Array.isArray(answers[item.id])
-                          ? (answers[item.id] as string[])
-                          : [];
-                        return (
-                          <label
-                            key={option.value}
-                            className="flex items-center gap-2 text-sm text-slate-700"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected.includes(option.value)}
-                              onChange={(event) => {
-                                setAnswers((current) => {
-                                  const currentValues = Array.isArray(current[item.id])
-                                    ? [...(current[item.id] as string[])]
-                                    : [];
-                                  const nextValues = event.target.checked
-                                    ? [...currentValues, option.value]
-                                    : currentValues.filter((value) => value !== option.value);
-                                  return { ...current, [item.id]: nextValues };
-                                });
+                                  [item.id]: event.target.value,
+                                }));
                               }}
-                            />
-                            {option.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </fieldset>
-              ))}
+                              className={selectClass(hasError)}
+                            >
+                              <option value="">Select an option</option>
+                              {(item.options ?? []).map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          </div>
+                        ) : null}
 
-              <div className={APPLICANT_ACTION_ROW}>
-                <button
-                  type="submit"
-                  disabled={submitting || questions.length === 0}
-                  className="group inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 max-[399px]:px-3 sm:w-auto sm:gap-2 sm:px-6 sm:py-2 sm:text-[12px]"
-                >
-                  {submitting ? "Saving…" : "Continue"}
-                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </button>
-              </div>
-            </form>
-            </>
-          )}
+                        {item.questionType === "multiple_select" ? (
+                          <div className="space-y-2 pt-1">
+                            {(item.options ?? []).map((option) => {
+                              const selected = Array.isArray(answers[item.id])
+                                ? (answers[item.id] as string[])
+                                : [];
+                              return (
+                                <label
+                                  key={option.value}
+                                  className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected.includes(option.value)}
+                                    onChange={(event) => {
+                                      clearFieldError(item.id);
+                                      setAnswers((current) => {
+                                        const currentValues = Array.isArray(current[item.id])
+                                          ? [...(current[item.id] as string[])]
+                                          : [];
+                                        const nextValues = event.target.checked
+                                          ? [...currentValues, option.value]
+                                          : currentValues.filter((value) => value !== option.value);
+                                        return { ...current, [item.id]: nextValues };
+                                      });
+                                    }}
+                                    className="h-4 w-4 rounded cursor-pointer"
+                                    style={
+                                      selected.includes(option.value)
+                                        ? { accentColor: branding.primaryHex }
+                                        : undefined
+                                    }
+                                  />
+                                  {option.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                        {hasError ? (
+                          <p className="mt-1 text-xs font-medium text-rose-600">{fieldError}</p>
+                        ) : null}
+                      </fieldset>
+                    );
+                  })}
+
+                  <div className={APPLICANT_ACTION_ROW}>
+                    <button
+                      type="button"
+                      onClick={() => void handleSkip()}
+                      disabled={submitting}
+                      className={APPLICANT_BTN_BACK}
+                    >
+                      Skip for now
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting || questions.length === 0}
+                      className={APPLICANT_BTN_PRIMARY}
+                    >
+                      {submitting ? "Saving…" : "Continue"}
+                      <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
         </div>
-      </div>
       </OnboardingLayout>
 
       <AwaitingRecruiterReviewModal 
