@@ -24,7 +24,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
-import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
+import { candidateApplicantProfileHref, candidateHireJourneyHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CandidatesBreadcrumb,
   JobsBreadcrumb,
@@ -1405,7 +1405,7 @@ export function AiAnalysisOverviewClient({
                     ) : null}
                     
                     {workerId ? (
-                      <div className="mt-3">
+                      <div className="mt-3 flex items-center gap-3">
                         <Link
                           href={candidateApplicantProfileHref(workerId, {
                             from: backHref.includes("/admin_recruiter/candidates")
@@ -1413,9 +1413,15 @@ export function AiAnalysisOverviewClient({
                               : "applications",
                             jobId: jobId || undefined,
                           })}
-                          className="inline-flex items-center justify-center rounded-[20px] border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
+                          className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
                         >
                           View Profile
+                        </Link>
+                        <Link
+                          href={candidateHireJourneyHref(workerId)}
+                          className="inline-flex items-center justify-center rounded-lg border border-[#EAC5A8] bg-white px-4 py-1.5 text-sm font-semibold text-[#D6925A] shadow-sm transition hover:bg-[#FFF7F2]"
+                        >
+                          Hire Journey
                         </Link>
                       </div>
                     ) : null}
@@ -1548,7 +1554,7 @@ export function AiAnalysisOverviewClient({
                   <button
                     type="button"
                     onClick={() => setAdvancedOpen((prev) => !prev)}
-                    className="flex items-center gap-2 text-sm text-[#475467] transition hover:text-[#101828] focus:outline-none"
+                    className="flex h-6 items-center gap-2 text-sm text-[#475467] transition hover:text-[#101828] focus:outline-none"
                   >
                     <span className="text-[10px] transition-transform duration-200" style={{ transform: advancedOpen ? 'rotate(90deg)' : 'none' }}>▶</span>
                     <span>Advanced - Correction only</span>
@@ -1564,15 +1570,41 @@ export function AiAnalysisOverviewClient({
                     />
                   )}
                 </div>
-                <div className="flex items-center gap-3 pt-1 text-sm font-semibold text-[color:var(--brand-primary)]">
-                  <button
-                    type="button"
-                    disabled={talentPoolBusy || parkedInTalentPool || savingDecision}
-                    onClick={() => void handleTalentPool()}
-                    className="transition hover:opacity-80 disabled:opacity-60"
-                  >
-                    {parkedInTalentPool ? "In Talent Pool" : talentPoolBusy ? "Moving…" : "Not a fit | Talent Pool | Withdraw"}
-                  </button>
+                <div className="flex h-6 items-center justify-end text-sm font-semibold text-[color:var(--brand-primary)]">
+                  {parkedInTalentPool ? (
+                    <span>In Talent Pool</span>
+                  ) : talentPoolBusy ? (
+                    <span>Moving…</span>
+                  ) : (
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        disabled={savingDecision}
+                        onClick={() => void handleTalentPool()}
+                        className="transition hover:opacity-80 disabled:opacity-60"
+                      >
+                        Not a fit
+                      </button>
+                      <span className="font-normal text-[#D0D5DD]">|</span>
+                      <button
+                        type="button"
+                        disabled={savingDecision}
+                        onClick={() => void handleTalentPool()}
+                        className="transition hover:opacity-80 disabled:opacity-60"
+                      >
+                        Talent Pool
+                      </button>
+                      <span className="font-normal text-[#D0D5DD]">|</span>
+                      <button
+                        type="button"
+                        disabled={savingDecision}
+                        onClick={() => void handleTalentPool()}
+                        className="transition hover:opacity-80 disabled:opacity-60"
+                      >
+                        Withdraw
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2497,10 +2529,35 @@ export function AiAnalysisOverviewClient({
           </section>
 
           <section className={CARD}>
-            <SidebarSectionHeader
-              title="Notes"
-              subtitle="Recruiter notes and verified evidence for this workspace."
-            />
+            <div className="flex flex-col items-start text-left">
+              <h3 className="text-base font-semibold" style={{ color: "var(--brand-secondary)" }}>Notes</h3>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Recruiter notes and verified evidence for this workspace.
+              </p>
+            </div>
+            
+            <div className="mt-4 mb-5 space-y-3">
+              <textarea
+                value={verifiedDetails}
+                onChange={(event) => {
+                  setVerifiedCategory("note");
+                  setVerifiedTitle("Note");
+                  setVerifiedDetails(event.target.value);
+                }}
+                rows={3}
+                className={AREA}
+                placeholder="Add a note..."
+              />
+              <button
+                type="button"
+                className={`${PRIMARY_BTN} w-full`}
+                disabled={savingVerified || !verifiedDetails.trim()}
+                onClick={() => void addVerified()}
+              >
+                {savingVerified ? "Saving…" : "Add Note"}
+              </button>
+            </div>
+
             {noteFeedItems.length ? (
               <ul className="mt-4 space-y-3">
                 {noteFeedItems.map((entry) =>
@@ -2536,6 +2593,7 @@ export function AiAnalysisOverviewClient({
             )}
           </section>
 
+          {/*
           <section className={CARD}>
             <SidebarSectionHeader
               title="Verified information"
@@ -2594,6 +2652,7 @@ export function AiAnalysisOverviewClient({
               {savingVerified ? "Saving…" : "Add Verified Information"}
             </button>
           </section>
+          */}
 
           <section className={CARD}>
             <SidebarSectionHeader title="Analysis history" />
