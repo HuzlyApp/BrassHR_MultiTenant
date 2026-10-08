@@ -77,10 +77,18 @@ export async function advanceApplicationToInterviewComplete(
   const applicationId = params.applicationId?.trim();
   if (!applicationId) return null;
 
-  // 1. Find or resolve "Interview Complete" status in this tenant
+  // 1. Find the tenant's "interview" status group so it stays categorized under Admin Settings
+  const { data: interviewGroup } = await supabase
+    .from("application_status_groups")
+    .select("id")
+    .eq("tenant_id", params.tenantId)
+    .eq("system_key", "interview")
+    .maybeSingle();
+
+  // 2. Find or resolve "Interview Complete" status in this tenant
   const { data: statuses, error: listError } = await supabase
     .from("application_statuses")
-    .select("id, name, sort_order, is_active, system_key")
+    .select("id, name, sort_order, is_active, system_key, group_id")
     .eq("tenant_id", params.tenantId)
     .eq("is_active", true);
 
@@ -94,7 +102,7 @@ export async function advanceApplicationToInterviewComplete(
       s.name?.trim().toLowerCase() === "interview completed"
   );
 
-  // If no "Interview Complete" status exists yet in this tenant, insert one
+  // If no "Interview Complete" status exists yet in this tenant, insert one linked to the Interview group
   if (!target) {
     const { data: inserted, error: insertError } = await supabase
       .from("application_statuses")
@@ -104,13 +112,21 @@ export async function advanceApplicationToInterviewComplete(
         sort_order: 6,
         is_active: true,
         is_default: false,
+        group_id: interviewGroup?.id ?? null,
       })
-      .select("id, name, sort_order, is_active, system_key")
+      .select("id, name, sort_order, is_active, system_key, group_id")
       .maybeSingle();
 
     if (!insertError && inserted) {
       target = inserted;
     }
+  } else if (!target.group_id && interviewGroup?.id) {
+    // If it exists but is ungrouped, link it to the Interview group so it displays properly in Admin Settings
+    await supabase
+      .from("application_statuses")
+      .update({ group_id: interviewGroup.id })
+      .eq("id", target.id)
+      .eq("tenant_id", params.tenantId);
   }
 
   if (!target) return null;
