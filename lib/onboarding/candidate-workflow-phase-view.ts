@@ -3,7 +3,11 @@ import { isCandidateAlreadyConverted } from "@/lib/admin/convert-candidate-to-wo
 import type { AdminAttachmentRequirement } from "@/lib/onboarding/build-admin-attachment-requirements";
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import { canRevealPostHire, canRevealPostHireForStaffJourney } from "@/lib/onboarding/lock-post-hire";
+import {
+  canRevealPostHire,
+  canRevealPostHireForStaffJourney,
+  hasCompletedAgreementEsignStep,
+} from "@/lib/onboarding/lock-post-hire";
 import { resolveCandidateHireGate } from "@/lib/onboarding/resolve-candidate-hire-gate";
 import {
   type EmploymentJourneyStage,
@@ -36,6 +40,9 @@ import {
   applicationQuickMatchRan,
   applyQuickMatchScreeningProgress,
 } from "@/lib/onboarding/recruiter-screening-progress";
+import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-application-parameters";
+import { loadJobApplicationStepView } from "@/lib/onboarding/job-application-step";
+import { applyParameterizedJobApplicationStepEvidence } from "@/lib/onboarding/parameterized-job-application-progress";
 
 export type { CandidateWorkflowAssignmentView } from "@/lib/onboarding/assigned-workflow-steps";
 
@@ -247,7 +254,24 @@ export async function loadCandidateWorkflowPhaseView(
     tenantSteps,
     progressByStepId,
     assignedAt: asText(activeInstance?.started_at) ?? asText(activeInstance?.created_at),
+    applicationId: activeApplicationId,
   });
+
+  if (
+    activeApplicationId &&
+    mappedSteps.some((step) => isParameterizedJobApplicationStepType(step.stepType))
+  ) {
+    const jobApplication = await loadJobApplicationStepView(supabase, {
+      tenantId,
+      applicationId: activeApplicationId,
+    }).catch(() => null);
+    mappedSteps = applyParameterizedJobApplicationStepEvidence({
+      steps: mappedSteps,
+      progressByStepId,
+      applicationId: activeApplicationId,
+      jobApplication,
+    });
+  }
 
   const documents = await loadAdminAttachmentRequirements({
     supabase,
@@ -454,13 +478,16 @@ export async function loadCandidateWorkflowPhaseView(
     ) ??
     null;
 
+  const agreementEsignDone = hasCompletedAgreementEsignStep(preHireSteps);
+  const effectivePostHireUnlocked = postHireVisible && (postHireUnlocked || agreementEsignDone);
+
   const onboarded = isCandidateAlreadyConverted(workerRow);
   const currentStage = resolveEmploymentJourneyStage({
     isHired: postHireVisible || isHired,
     workflowPhase: postHireVisible ? workflowPhase : workflowPhase === "post_hire" ? "pre_hire" : workflowPhase,
     hasPreHireWorkflow: preHireSteps.length > 0 || tags.some((tag) => tag.phase !== "post_hire"),
     hasPostHireWorkflow: postHireVisible && (postHireSteps.length > 0 || tags.some((tag) => tag.phase !== "pre_hire")),
-    postHireUnlocked: postHireVisible && postHireUnlocked,
+    postHireUnlocked: effectivePostHireUnlocked,
     onboarded: postHireVisible && onboarded,
   });
 
@@ -470,7 +497,7 @@ export async function loadCandidateWorkflowPhaseView(
     hiredAt: hireGate.hiredAt,
     hiredBy: hireGate.hiredBy,
     postHireVisible,
-    postHireUnlocked: postHireVisible && postHireUnlocked,
+    postHireUnlocked: effectivePostHireUnlocked,
     postHireLocked: !postHireVisible,
     postHireSuspended,
     postHireActivationFailed: postHireVisible && postHireActivationFailed,

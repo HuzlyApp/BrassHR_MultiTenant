@@ -80,6 +80,7 @@ import {
   loadJobApplicationStepView,
   type JobApplicationStepView,
 } from "@/lib/onboarding/job-application-step";
+import { applyParameterizedJobApplicationStepEvidence } from "@/lib/onboarding/parameterized-job-application-progress";
 import {
   isOfferAcceptanceStepType,
   loadOfferDetailsForApplication,
@@ -547,26 +548,28 @@ export async function loadCandidateWorkflowStepInspection(
   ]);
   const tenantSteps = config?.steps ?? [];
 
-  const mapped = await mapInstanceStepRecord(supabase, {
+  let mapped = await mapInstanceStepRecord(supabase, {
     tenantId,
     instanceId: String(instance.id),
     recordId: String(record.id),
     tenantSteps,
     progressByStepId,
     assignedAt: asText(instance.started_at) ?? asText(instance.created_at),
+    applicationId,
   });
 
   if (!mapped) {
     return { ok: false, status: 404, error: "Workflow step not found" };
   }
 
-  const progress = mapped.tenantStepId ? progressByStepId.get(mapped.tenantStepId) : undefined;
+  const mappedTenantStepId = mapped.tenantStepId;
+  const progress = mappedTenantStepId ? progressByStepId.get(mappedTenantStepId) : undefined;
   const progressData =
     progress?.data && typeof progress.data === "object" && !Array.isArray(progress.data)
       ? (progress.data as Record<string, unknown>)
       : {};
-  const tenantStep = mapped.tenantStepId
-    ? tenantSteps.find((step) => step.id === mapped.tenantStepId) ?? null
+  const tenantStep = mappedTenantStepId
+    ? tenantSteps.find((step) => step.id === mappedTenantStepId) ?? null
     : null;
   const recordSettings =
     record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
@@ -601,7 +604,7 @@ export async function loadCandidateWorkflowStepInspection(
   const requiredDocIds = [
     ...new Set(
       (config?.requiredDocuments ?? [])
-        .filter((doc) => doc.onboarding_step_id === mapped.tenantStepId)
+        .filter((doc) => doc.onboarding_step_id === mappedTenantStepId)
         .map((doc) => doc.id)
     ),
   ];
@@ -727,8 +730,8 @@ export async function loadCandidateWorkflowStepInspection(
   let enrollment: WorkflowStepInspection["enrollment"] = null;
   if (isEnrollmentDecisionStepType(mapped.stepType)) {
     const saved = readEnrollmentDecision(progressData);
-    const tenantStep = mapped.tenantStepId
-      ? config?.steps.find((step) => step.id === mapped.tenantStepId) ?? null
+    const tenantStep = mappedTenantStepId
+      ? config?.steps.find((step) => step.id === mappedTenantStepId) ?? null
       : null;
     enrollment = {
       question:
@@ -745,8 +748,8 @@ export async function loadCandidateWorkflowStepInspection(
   let form: WorkflowStepInspection["form"] = null;
   if (!enrollment && (kind === "form" || asText(progressData.response) != null)) {
     const prompt = asText(
-      (mapped.tenantStepId
-        ? config?.steps.find((step) => step.id === mapped.tenantStepId)?.metadata?.prompt
+      (mappedTenantStepId
+        ? config?.steps.find((step) => step.id === mappedTenantStepId)?.metadata?.prompt
         : null) ?? record.settings?.prompt
     );
     form = {
@@ -839,7 +842,7 @@ export async function loadCandidateWorkflowStepInspection(
 
   let agreement: WorkflowStepInspection["agreement"] = null;
   // A signing session opened before a re-publish stays on the replaced step.
-  const sessionStepIds = [mapped.tenantStepId, asText(progressData[REPLACED_STEP_DATA_KEY])].filter(
+  const sessionStepIds = [mappedTenantStepId, asText(progressData[REPLACED_STEP_DATA_KEY])].filter(
     (id): id is string => Boolean(id)
   );
   if (kind === "agreement" || (kind === "background_check" && sessionStepIds.length)) {
@@ -942,6 +945,21 @@ export async function loadCandidateWorkflowStepInspection(
       ? await loadJobApplicationStepView(supabase, { tenantId, applicationId })
       : null;
 
+  if (kind === "job_application") {
+    const [withEvidence] = applyParameterizedJobApplicationStepEvidence({
+      steps: [mapped],
+      progressByStepId,
+      applicationId,
+      jobApplication,
+    });
+    if (withEvidence) {
+      mapped = withEvidence;
+      step = isInterviewStep(mapped)
+        ? { ...withEvidence, interview: step.interview ?? null }
+        : withEvidence;
+    }
+  }
+
   const offer =
     kind === "offer"
       ? {
@@ -959,7 +977,8 @@ export async function loadCandidateWorkflowStepInspection(
     Boolean(offer?.decision) ||
     Boolean(agreement?.signedAt) ||
     Boolean(enrollment?.decision) ||
-    Boolean(postHireSubmission);
+    Boolean(postHireSubmission) ||
+    Boolean(jobApplication?.screening.some((item) => item.answered));
 
   let emptyState: string | null = null;
   if (enrollment) {

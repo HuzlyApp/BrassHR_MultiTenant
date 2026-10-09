@@ -193,7 +193,57 @@ export function HireStageSidebar({
       </section>
 
       <section className="w-full rounded-2xl border border-[#E8ECF0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <div className="space-y-4">
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span
+              style={{
+                color: "#374151",
+                fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
+                fontSize: 16,
+                fontWeight: 600,
+                lineHeight: "24px",
+              }}
+            >
+              Progress
+            </span>
+            <span
+              className="text-right"
+              style={{
+                color: "#374151",
+                fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
+                fontSize: 12,
+                fontWeight: 600,
+                lineHeight: "16px",
+              }}
+            >
+              {clamped}% Completed
+            </span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-[#E5E7EB]">
+            <div
+              className="h-full rounded-full bg-[#22C55E] transition-all duration-300"
+              style={{ width: `${clamped}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs font-medium text-[#64748B]">{progressLabel}</p>
+          {lastUpdated ? (
+            <p
+              className="mt-4 flex items-center justify-center gap-1.5 text-center"
+              style={{
+                color: "#374151",
+                fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
+                fontSize: 12,
+                fontWeight: 600,
+                lineHeight: "16px",
+              }}
+            >
+              <HireFigmaIcon src={PRE_HIRE_UI_ICONS.calendarDate} width={16} height={16} />
+              Last Updated: {lastUpdated}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mt-5 space-y-4 border-t border-[#F1F5F9] pt-4">
           <div className="flex items-center gap-3">
             <SidebarIconTile
               src={PRE_HIRE_UI_ICONS.phasePeople}
@@ -248,56 +298,6 @@ export function HireStageSidebar({
               </p>
             </div>
           </div>
-        </div>
-
-        <div className="mt-5 border-t border-[#F1F5F9] pt-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span
-              style={{
-                color: "#374151",
-                fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-                fontSize: 16,
-                fontWeight: 600,
-                lineHeight: "24px",
-              }}
-            >
-              Progress
-            </span>
-            <span
-              className="text-right"
-              style={{
-                color: "#374151",
-                fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-                fontSize: 12,
-                fontWeight: 600,
-                lineHeight: "16px",
-              }}
-            >
-              {clamped}% Completed
-            </span>
-          </div>
-          <div className="h-3 overflow-hidden rounded-full bg-[#E5E7EB]">
-            <div
-              className="h-full rounded-full bg-[#22C55E] transition-all duration-300"
-              style={{ width: `${clamped}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs font-medium text-[#64748B]">{progressLabel}</p>
-          {lastUpdated ? (
-            <p
-              className="mt-4 flex items-center justify-center gap-1.5 text-center"
-              style={{
-                color: "#374151",
-                fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif",
-                fontSize: 12,
-                fontWeight: 600,
-                lineHeight: "16px",
-              }}
-            >
-              <HireFigmaIcon src={PRE_HIRE_UI_ICONS.calendarDate} width={16} height={16} />
-              Last Updated: {lastUpdated}
-            </p>
-          ) : null}
         </div>
       </section>
 

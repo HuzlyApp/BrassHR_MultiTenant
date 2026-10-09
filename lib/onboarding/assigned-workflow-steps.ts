@@ -26,6 +26,11 @@ import {
   type EmploymentLifecyclePhase,
   type PhaseProgressCounts,
 } from "@/lib/onboarding/workflow-phase-groups";
+import {
+  findParameterizedJobApplicationProgress,
+  isJobScreeningProgressData,
+  isParameterizedJobApplicationStepType,
+} from "@/lib/onboarding/job-application-parameters";
 
 export type WorkflowStepDisplayStatus =
   | "not_started"
@@ -263,7 +268,7 @@ export { isReferenceVerificationStep };
 
 /**
  * Decision steps are only touched by staff, so each status maps to the button that produced it
- * (e.g. Selected / On Hold / Not Selected); undecided reads as "Pending Decision", never "Not Started".
+ * (e.g. Qualified / On Hold / Not Selected); undecided reads as "Pending Decision", never "Not Started".
  */
 function decisionForDisplayStatus(status: WorkflowStepDisplayStatus): StaffDecisionAction | null {
   switch (status) {
@@ -410,6 +415,9 @@ export function matchTenantStepForAssignedRecord(
     if (byLibrary.length === 1) return byLibrary[0];
     const byLibraryPhase = byLibrary.filter((step) => readStepLifecyclePhase(step) === phase);
     if (byLibraryPhase.length === 1) return byLibraryPhase[0];
+    if (byLibraryPhase.length > 1 && isParameterizedJobApplicationStepType(libraryId)) {
+      return [...byLibraryPhase].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0];
+    }
   }
 
   const onboardingType = workflowStepIdToOnboardingType(libraryId ?? "");
@@ -491,15 +499,39 @@ export function mapAssignedStepRecords(params: {
   tenantSteps: TenantOnboardingStep[];
   progressByStepId: Map<string, ProgressRowInput>;
   assignedAt?: string | null;
+  applicationId?: string | null;
 }): MappedAssignedStep[] {
   const usedIds = new Set<string>();
   return params.records.map((record) => {
-    const matched = matchTenantStepForAssignedRecord(record, params.tenantSteps, usedIds);
-    if (matched) usedIds.add(matched.id);
-    const progress = matched ? params.progressByStepId.get(matched.id) : undefined;
+    let matched = matchTenantStepForAssignedRecord(record, params.tenantSteps, usedIds);
+    let progress = matched ? params.progressByStepId.get(matched.id) : undefined;
+
+    if (!progress && isParameterizedJobApplicationStepType(record.step_type)) {
+      const linked = findParameterizedJobApplicationProgress(
+        params.progressByStepId,
+        params.applicationId
+      );
+      if (linked) {
+        progress = linked.progress;
+        if (!matched && linked.tenantStepId) {
+          const fromProgress = params.tenantSteps.find((step) => step.id === linked.tenantStepId);
+          if (fromProgress && !usedIds.has(fromProgress.id)) {
+            matched = fromProgress;
+            usedIds.add(fromProgress.id);
+          }
+        }
+      }
+    }
+
+    if (matched && !usedIds.has(matched.id)) usedIds.add(matched.id);
     const resolved = resolveAssignedStepStatus(record, progress);
     const normalizedStatus = resolved.status;
-    const unmatched = !matched;
+    const hasLinkedProgress = Boolean(progress && isJobScreeningProgressData(
+      progress.data && typeof progress.data === "object" && !Array.isArray(progress.data)
+        ? (progress.data as Record<string, unknown>)
+        : null
+    ));
+    const unmatched = !matched && !hasLinkedProgress;
     const settings =
       record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
         ? record.settings
@@ -507,7 +539,7 @@ export function mapAssignedStepRecords(params: {
     return {
       id: record.id,
       snapshotStepId: record.snapshot_step_id,
-      tenantStepId: matched?.id ?? null,
+      tenantStepId: matched?.id ?? (hasLinkedProgress ? asText(progress?.onboarding_step_id) : null),
       title: record.title,
       stepKey: matched?.step_key ?? snapshotStepKey(record.snapshot_step_id),
       stepType: record.step_type,

@@ -11,7 +11,7 @@ import {
   PRE_HIRE_UNASSIGNED_MESSAGE,
 } from "@/lib/onboarding/assigned-workflow-steps";
 import type { CandidateWorkflowPhaseView } from "@/lib/onboarding/candidate-workflow-phase-view";
-import { POST_HIRE_LOCKED_TAB_MESSAGE } from "@/lib/onboarding/workflow-phase-groups";
+import { POST_HIRE_LOCKED_TAB_MESSAGE, EMPLOYMENT_JOURNEY_STAGES } from "@/lib/onboarding/workflow-phase-groups";
 
 type HireTab = "pre_hire" | "post_hire";
 
@@ -30,16 +30,24 @@ function formatAppliedDate(value: string | null | undefined): string | null {
 }
 
 function buildSidebarProfile(
-  profile: CandidateProfilePayload | null
+  profile: CandidateProfilePayload | null,
+  view: CandidateWorkflowPhaseView | null
 ): HireStageSidebarProfile & { email?: string | null; phone?: string | null } {
   const candidate = profile?.candidate;
   const primaryApp = profile?.applications?.[0] ?? null;
   const workTypeRaw = primaryApp?.workType || profile?.workTypeSummary?.[0]?.key || null;
 
+  // Prefer the specific application status, then overall dynamic status, then candidate fallback
+  const statusLabel = primaryApp?.statusName 
+    || profile?.stats?.overallStatus 
+    || candidate?.statusLabel 
+    || candidate?.status 
+    || null;
+
   return {
     name: candidate?.name?.trim() || "Candidate",
     role: candidate?.role?.trim() || primaryApp?.jobTitle?.trim() || "",
-    statusLabel: candidate?.statusLabel ?? candidate?.status ?? null,
+    statusLabel,
     photoUrl: candidate?.profilePhotoUrl ?? null,
     workType: workTypeRaw ? workTypeSummaryLabel(workTypeRaw) : null,
     department: primaryApp?.companyName?.trim() || null,
@@ -128,7 +136,7 @@ export default function HireJourneyClient({ workerId }: { workerId: string }) {
     setTab(next);
   }, [searchParams]);
 
-  const sidebarProfile = useMemo(() => buildSidebarProfile(profile), [profile]);
+  const sidebarProfile = useMemo(() => buildSidebarProfile(profile, view), [profile, view]);
   const primaryApplication = profile?.applications?.[0] ?? null;
   const postHireVisible = Boolean(view?.postHireVisible);
   const postHireBlock = view?.postHire ?? null;

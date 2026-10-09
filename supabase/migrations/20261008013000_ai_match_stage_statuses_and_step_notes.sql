@@ -55,12 +55,12 @@ BEGIN
   SELECT p_tenant_id, seed.stage_name, seed.group_id, seed.sort_order
   FROM (
     VALUES
-      ('Step 1 · Quick Match', v_start, 0),
-      ('Step 2 · Verifications', v_interview, 0),
-      ('Step 3 · Follow-Up', v_interview, 0),
-      ('Step 4 · Deep Match', v_msp, 0),
-      ('Step 5 · Submission', v_client, 0),
-      ('Step 5 · Submission', v_hire, 1)
+      ('Step 1 · Quick Match', v_start::uuid, 0),
+      ('Step 2 · Verifications', v_interview::uuid, 0),
+      ('Step 3 · Follow-Up', v_interview::uuid, 0),
+      ('Step 4 · Deep Match', v_msp::uuid, 0),
+      ('Step 5 · Submission', v_client::uuid, 0),
+      ('Step 5 · Submission', v_hire::uuid, 1)
   ) AS seed(stage_name, group_id, sort_order)
   WHERE seed.group_id IS NOT NULL
     AND NOT EXISTS (

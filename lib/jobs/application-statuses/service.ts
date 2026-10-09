@@ -15,6 +15,7 @@ import {
 } from "./stage-assignments";
 import {
   ApplicationStatusError,
+  type ApplicationStatusChangeSource,
   type ApplicationStatusGroupRecord,
   type ApplicationStatusHistoryRecord,
   type ApplicationStatusRecord,
@@ -77,6 +78,11 @@ type HistoryRow = {
   note: string | null;
   created_at: string;
 };
+
+function normalizeChangeSource(value: string | null | undefined): ApplicationStatusChangeSource {
+  if (value === "SYSTEM" || value === "API") return value;
+  return "USER";
+}
 
 /**
  * Placement acceptance is the system key `hired` ("Selected by Client"), not the display name.
@@ -713,7 +719,7 @@ export async function listApplicationStatusHistory(
   const { data, error } = await supabase
     .from("application_status_history")
     .select(
-      "id, tenant_id, application_id, from_status_id, from_status_name, to_status_id, to_status_name, changed_by_user_id, note, created_at"
+      "id, tenant_id, application_id, from_status_id, from_status_name, to_status_id, to_status_name, changed_by_user_id, change_source, note, created_at"
     )
     .eq("tenant_id", input.tenantId)
     .eq("application_id", input.applicationId)
@@ -756,7 +762,7 @@ export async function listApplicationStatusHistory(
     changedByName: row.changed_by_user_id
       ? nameByUserId.get(row.changed_by_user_id) ?? "Staff"
       : "System",
-    changeSource: (row.change_source as ApplicationStatusChangeSource) ?? "SYSTEM",
+    changeSource: normalizeChangeSource(row.change_source),
     note: row.note,
     createdAt: row.created_at,
   }));

@@ -51,10 +51,10 @@ describe("stepDisplayStatusLabel", () => {
     expect(stepDecision({ stepType: "screening", displayStatus: "completed" })).toBeNull();
   });
 
-  it("labels Internal Select as Selected / On Hold / Not Selected and Pending Decision while undecided", () => {
+  it("labels Internal Select as Qualified / On Hold / Not Selected and Pending Decision while undecided", () => {
     const stepType = "internal-select";
     expect(stepDisplayStatusLabel({ stepType, displayStatus: "not_started" })).toBe("Pending Decision");
-    expect(stepDecision({ stepType, displayStatus: "completed" })?.label).toBe("Selected");
+    expect(stepDecision({ stepType, displayStatus: "completed" })?.label).toBe("Qualified");
     expect(stepDecision({ stepType, displayStatus: "in_progress" })?.label).toBe("On Hold");
     expect(stepDecision({ stepType, displayStatus: "blocked" })?.label).toBe("Not Selected");
   });
