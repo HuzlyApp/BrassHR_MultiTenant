@@ -14,8 +14,8 @@ const LANE_COPY: Record<StageStatusLane, { title: string; detail: string }> = {
     detail: "One button on the stage. It shows the next status in this order, then the one after it.",
   },
   alternate: {
-    title: "Exception",
-    detail: "Dropdown on the stage. These are the other choices, in this order.",
+    title: "Follow up",
+    detail: "Dropdown on the stage. Follow up and the other choices, in this order.",
   },
   closed: {
     title: "Closed / stop",
@@ -121,7 +121,7 @@ export function StageStatusLaneEditor({
                         className="h-7 rounded border border-[#E2E8F0] bg-white px-1 text-xs text-[#334155]"
                       >
                         <option value="happy_path">Recommended</option>
-                        <option value="alternate">Exception</option>
+                        <option value="alternate">Follow up</option>
                         <option value="closed">Closed / stop</option>
                       </select>
                     </span>

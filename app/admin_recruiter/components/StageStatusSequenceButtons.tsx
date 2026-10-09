@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  normalizeStageStatusLane,
   resolveStageStatusLanes,
   sequenceOrderedStatuses,
+  type SavedStageStatusLane,
   type StageStatusLane,
 } from "@/lib/jobs/application-statuses/stage-status-lanes";
 import {
@@ -30,6 +32,7 @@ export function StageStatusSequenceButtons({
 }: StageStatusSequenceButtonsProps) {
   const [options, setOptions] = useState<StatusOption[]>([]);
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[] | null>(null);
+  const [savedLanes, setSavedLanes] = useState<SavedStageStatusLane[]>([]);
   const [statusId, setStatusId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -62,8 +65,17 @@ export function StageStatusSequenceButtons({
           : {};
       const resolved = resolveApplicationStatusFromPayload(application, nextOptions);
       const rows = Array.isArray(assignPayload.assignments) ? assignPayload.assignments : [];
+      const laneRows = Array.isArray(assignPayload.lanes) ? assignPayload.lanes : [];
       setOptions(nextOptions);
       setStatusId(resolved.statusId);
+      setSavedLanes(
+        laneRows.flatMap((row: { stageName?: unknown; statusId?: unknown; lane?: unknown; sortOrder?: unknown }) => {
+          if (row.stageName !== stageFilter || typeof row.statusId !== "string") return [];
+          const lane = typeof row.lane === "string" ? normalizeStageStatusLane(row.lane) : null;
+          if (!lane) return [];
+          return [{ statusId: row.statusId, lane, sortOrder: Number(row.sortOrder ?? 0) }];
+        })
+      );
       setAssignedGroupIds(
         rows
           .filter(
@@ -86,8 +98,8 @@ export function StageStatusSequenceButtons({
   }, [load]);
 
   const lanes = useMemo(
-    () => resolveStageStatusLanes(options, assignedGroupIds ?? []),
-    [assignedGroupIds, options]
+    () => resolveStageStatusLanes(options, assignedGroupIds ?? [], savedLanes),
+    [assignedGroupIds, options, savedLanes]
   );
   const nextHappyPath = useMemo(
     () => sequenceOrderedStatuses(lanes.happy_path, statusId).next,
@@ -160,7 +172,7 @@ export function StageStatusSequenceButtons({
           : (nextHappyPath?.name ?? "Recommended complete")}
       </button>
       <CategoryMenu
-        label="Exception"
+        label="Follow up"
         items={alternates}
         busy={Boolean(busyId)}
         busyId={busyId}

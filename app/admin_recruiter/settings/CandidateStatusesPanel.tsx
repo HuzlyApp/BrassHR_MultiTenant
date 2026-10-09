@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import { ChevronDown, ListChecks, Plus, Pencil, Layers3, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -18,8 +19,11 @@ import {
 } from "@/lib/jobs/application-statuses/groups";
 import { AI_MATCH_STATUS_STAGES } from "@/lib/jobs/application-statuses/stage-assignments";
 import {
+  normalizeStageStatusLane,
   resolveGroupStatusLanes,
+  resolveStageStatusLanes,
   STAGE_STATUS_LANES,
+  type SavedStageStatusLane,
   type StageStatusLane,
 } from "@/lib/jobs/application-statuses/stage-status-lanes";
 import { StageStatusLaneEditor } from "./StageStatusLaneEditor";
@@ -57,6 +61,8 @@ type GroupStageAssignment = {
   groupId: string;
   sortOrder: number;
 };
+
+type SavedLane = SavedStageStatusLane & { stageName: string };
 
 const fieldClass = "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm";
 const PIPELINE_GROUP_KEYS = new Set<string>(APPLICATION_STATUS_GROUP_KEYS);
@@ -99,6 +105,20 @@ function mapAssignment(row: Record<string, unknown>): GroupStageAssignment {
   };
 }
 
+function mapSavedLane(row: Record<string, unknown>): SavedLane | null {
+  const lane = normalizeStageStatusLane(typeof row.lane === "string" ? row.lane : "");
+  if (!lane) return null;
+  const stageName = typeof row.stageName === "string" ? row.stageName : "";
+  const statusId = typeof row.statusId === "string" ? row.statusId : "";
+  if (!stageName || !statusId) return null;
+  return {
+    stageName,
+    statusId,
+    lane,
+    sortOrder: Number(row.sortOrder ?? 0),
+  };
+}
+
 function preHireStepsByStage(): Array<{ stage: string; steps: string[] }> {
   const buckets = new Map<string, string[]>();
   for (const stage of PRE_HIRE_FIGMA_STAGES) {
@@ -130,6 +150,7 @@ function StageAssignmentCard({
   onAssign,
   onRemove,
   statusSummary,
+  laneEditor,
 }: {
   stage: string;
   detail: string;
@@ -146,6 +167,7 @@ function StageAssignmentCard({
   onAssign: () => void;
   onRemove: (groupId: string) => void;
   statusSummary: (groupId: string, limit?: number) => string;
+  laneEditor?: ReactNode;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
@@ -170,6 +192,8 @@ function StageAssignmentCard({
           <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} aria-hidden />
         </span>
       </button>
+
+      {laneEditor ? <div className="border-t border-[#E2E8F0] bg-white px-4 py-3">{laneEditor}</div> : null}
 
       {open ? (
         <div className="space-y-3 border-t border-[#E2E8F0] bg-white px-4 py-3">
@@ -264,6 +288,7 @@ export default function CandidateStatusesPanel() {
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [groups, setGroups] = useState<StatusGroup[]>([]);
   const [assignments, setAssignments] = useState<GroupStageAssignment[]>([]);
+  const [savedLanes, setSavedLanes] = useState<SavedLane[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -302,6 +327,11 @@ export default function CandidateStatusesPanel() {
       setStatuses(((statusPayload.statuses ?? []) as Array<Record<string, unknown>>).map(mapStatus));
       setAssignments(
         ((assignPayload.assignments ?? []) as Array<Record<string, unknown>>).map(mapAssignment)
+      );
+      setSavedLanes(
+        ((assignPayload.lanes ?? []) as Array<Record<string, unknown>>)
+          .map(mapSavedLane)
+          .filter((row): row is SavedLane => row != null)
       );
       setCanManage(Boolean(statusPayload.canManage || assignPayload.canManage));
       setDraftGroupId((current) => current || nextGroups[0]?.id || "");
@@ -448,6 +478,29 @@ export default function CandidateStatusesPanel() {
     }
   }
 
+  async function saveStageLanes(stageName: string, lanes: Record<StageStatusLane, string[]>) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/application-status-stage-assignments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setLanes", stageName, lanes }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to save status order");
+      setSavedLanes(
+        ((payload.lanes ?? []) as Array<Record<string, unknown>>)
+          .map(mapSavedLane)
+          .filter((row): row is SavedLane => row != null)
+      );
+      flash("success", `Status order saved for ${stageName}`);
+    } catch (error) {
+      flash("error", error instanceof Error ? error.message : "Failed to save status order");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function removeGroup(stageName: string, groupId: string) {
     setSaving(true);
     try {
@@ -573,7 +626,7 @@ export default function CandidateStatusesPanel() {
     }
   }
 
-  function stageCard(stage: string, detail: string) {
+  function stageCard(stage: string, detail: string, withLanes = false) {
     const stageGroups = groupsByStage.get(stage) ?? [];
     const assignedIds = new Set(stageGroups.map((group) => group.id));
     return (
@@ -607,6 +660,20 @@ export default function CandidateStatusesPanel() {
             limit
           )
         }
+        laneEditor={
+          withLanes ? (
+            <StageStatusLaneEditor
+              lanes={resolveStageStatusLanes(
+                statuses.filter((status) => status.isActive),
+                stageGroups.map((group) => group.id),
+                savedLanes.filter((row) => row.stageName === stage)
+              )}
+              canManage={canManage}
+              saving={saving}
+              onChange={(next) => void saveStageLanes(stage, next)}
+            />
+          ) : undefined
+        }
       />
     );
   }
@@ -620,9 +687,8 @@ export default function CandidateStatusesPanel() {
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-[#0F172A]">Pre-Hire Status Catalog</h3>
           <p className="mt-0.5 text-sm text-[#64748B]">
-            Open a status group below and set its three categories: recommended, exception, and
-            closed / stop. Assign that group to a Pre-Hire stage or AI analysis step, and the stage
-            shows those three buttons.
+            Open a status group below and set its three categories: recommended, follow up, and
+            closed / stop. Each AI analysis step below has the same three lists for that step.
           </p>
         </div>
       </div>
@@ -680,7 +746,7 @@ export default function CandidateStatusesPanel() {
                   Status groups (Start → Closed)
                 </span>
                 <span className="mt-0.5 block text-xs text-[#64748B]">
-                  Open a group to set its recommended, exception, and closed / stop order.
+                  Open a group to set its recommended, follow up, and closed / stop order.
                 </span>
               </span>
               <ChevronDown
@@ -746,7 +812,7 @@ export default function CandidateStatusesPanel() {
             </div>
             <p className="mb-2 text-xs text-[#64748B]">
               Assign catalog groups (Start, Interview, MSP, Client, Hire). The stage buttons use
-              the recommended, exception, and closed / stop order saved on each group.
+              the recommended, follow up, and closed / stop order saved on each group.
             </p>
 
             {workflowStages.map(({ stage, steps }) =>
@@ -763,13 +829,14 @@ export default function CandidateStatusesPanel() {
               AI analysis steps
             </div>
             <p className="mb-2 text-xs text-[#64748B]">
-              Assign status groups to Quick Match through Submission. Each step uses the three
-              categories from those groups, plus Closed / stop.
+              Set Recommended, Follow up, and Closed for each AI analysis step. Expand a step to
+              choose which status groups feed that list.
             </p>
             {AI_MATCH_STATUS_STAGES.map((stage) =>
               stageCard(
                 stage,
-                "Statuses from the groups assigned here appear on this AI analysis step."
+                "Statuses from the groups assigned here, plus Follow up and Closed, can be ordered for this step.",
+                true
               )
             )}
           </div>
