@@ -8,6 +8,7 @@ import {
   canRevealPostHireForStaffJourney,
   hasCompletedAgreementEsignStep,
 } from "@/lib/onboarding/lock-post-hire";
+
 import { resolveCandidateHireGate } from "@/lib/onboarding/resolve-candidate-hire-gate";
 import {
   type EmploymentJourneyStage,

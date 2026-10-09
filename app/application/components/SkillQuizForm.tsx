@@ -127,7 +127,7 @@ function ChoiceInput({
               }
               className={
                 question.type === "multiple_select"
-                  ? "h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[4px] accent-[color:var(--brand-secondary)]"
+                  ? "h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[6px] accent-[color:var(--brand-secondary)]"
                   : "accent-[color:var(--brand-primary)]"
               }
             />

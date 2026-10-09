@@ -14,6 +14,7 @@ import {
 } from "@/lib/onboarding/tenant-step-navigation";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
 /** Tenant-ordered onboarding navigation for applicant pages. */
@@ -76,8 +77,14 @@ export function useOnboardingStepNav() {
     prevRoute,
     firstRoute,
     goNext: () => {
+      const completion =
+        currentStep && readStepLifecyclePhase(currentStep) === "post_hire"
+          ? "post_hire"
+          : "pre_hire";
       if (onboarding?.waitingOnInternal) {
-        push(withTenant(APPLICATION_ROUTES.applicationStatus, slug));
+        const query = new URLSearchParams({ completion });
+        if (slug) query.set("tenant", slug);
+        push(`${APPLICATION_ROUTES.applicationStatus}?${query.toString()}`);
         return;
       }
       const href =

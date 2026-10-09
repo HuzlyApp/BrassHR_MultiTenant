@@ -1308,32 +1308,15 @@ function Step1ReviewContent() {
                   ) : null}
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-600 mb-1.5">
-                    Select Job Title<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={form.jobRole}
-                      onChange={(e) => handleChange("jobRole", e.target.value)}
-                      className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm appearance-none bg-white font-medium ${focusBorderClass}`}
-                    >
-                      <option value="" disabled>
-                        Select Job Title
-                      </option>
-                      <option value="CNA">CNA</option>
-                      <option value="RN">RN</option>
-                      <option value="LVN">LVN</option>
-                      <option value="Medical Assistant">Medical Assistant</option>
-                      <option value="Caregiver">Caregiver</option>
-                      {form.jobRole &&
-                      !["CNA", "RN", "LVN", "Medical Assistant", "Caregiver"].includes(form.jobRole) ? (
-                        <option value={form.jobRole}>{form.jobRole}</option>
-                      ) : null}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                  </div>
+                  <EditableInput
+                    label="Job Title"
+                    required
+                    value={form.jobRole}
+                    onChange={(value) => handleChange("jobRole", value)}
+                    className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
+                    placeholder="Enter Job Title"
+                    maxLength={100}
+                  />
                 </div>
               </div>
             </div>

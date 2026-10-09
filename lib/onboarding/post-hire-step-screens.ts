@@ -21,6 +21,8 @@ export const POST_HIRE_SCREEN_KIND_BY_STEP_ID: Readonly<Record<string, PostHireS
   "safety-training": "training",
   "orientation-video": "training",
   "compliance-training": "training",
+  "training-modules-quiz": "training",
+  "training-modules": "training",
 };
 
 export const POST_HIRE_SCREEN_STEP_IDS: readonly string[] = Object.keys(POST_HIRE_SCREEN_KIND_BY_STEP_ID);
@@ -66,6 +68,8 @@ const DEFAULT_ACKNOWLEDGMENT_BY_STEP_ID: Readonly<Record<string, string>> = {
   "safety-training": "I have completed the safety training and understand the safety procedures covered.",
   "orientation-video": "I have watched the orientation video in full.",
   "compliance-training": "I have completed the compliance training and understand my obligations.",
+  "training-modules-quiz": "I have completed the training modules and quiz.",
+  "training-modules": "I have completed the training modules and quiz.",
 };
 
 const DEFAULT_ACKNOWLEDGMENT_BY_KIND: Readonly<Record<PostHireScreenKind, string>> = {
@@ -103,10 +107,13 @@ export function safeHttpUrl(value: string | null | undefined): string | null {
   }
 }
 
-export function readPostHireScreenContent(step: Pick<TenantOnboardingStep, "metadata">): PostHireScreenContent {
+export function readPostHireScreenContent(
+  step: Pick<TenantOnboardingStep, "metadata"> & { title?: string }
+): PostHireScreenContent {
   const settings = rawWorkflowSettings(step.metadata);
   const stepId = workflowStepIdFromMetadata(step.metadata);
   const kind = postHireScreenKindForStepId(stepId) ?? "acknowledgment";
+  const dynamicAck = step.title ? `I confirm that I have completed ${step.title}.` : undefined;
   return {
     instructions: readTrimmed(settings, "applicantInstructions"),
     contentUrl: safeHttpUrl(readTrimmed(settings, "contentUrl")),
@@ -114,6 +121,7 @@ export function readPostHireScreenContent(step: Pick<TenantOnboardingStep, "meta
     acknowledgmentText:
       readTrimmed(settings, "acknowledgmentText") ??
       (stepId ? DEFAULT_ACKNOWLEDGMENT_BY_STEP_ID[stepId] : undefined) ??
+      dynamicAck ??
       DEFAULT_ACKNOWLEDGMENT_BY_KIND[kind],
   };
 }
