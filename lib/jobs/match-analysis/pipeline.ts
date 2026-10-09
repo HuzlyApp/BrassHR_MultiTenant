@@ -39,12 +39,11 @@ import {
   listingRequirementOutcomeCounts,
   type ListingRequirementOutcomeCounts,
   CALL_CONTEXT_QUESTION_KEY,
-  formatScreeningPackForAiNotes,
-  isCallContextQuestionKey,
   normalizeAnalysisScreeningQuestions,
   aiScreeningQuestionKey,
   matchSavedAiScreeningAnswer,
 } from "./workspace";
+import { buildSubmissionEnrichmentFromRows } from "./submission-enrichment";
 import {
   applicationMatchScorePatch,
   matchStageFromMode,
@@ -752,31 +751,23 @@ export async function runMatchAnalysisForApplication(args: {
     }
 
     {
+      // Step 2 screening answers + Step 3 follow-up answers (same pack Step 5 uses).
+      // Previously only screening_questions were joined, so follow-up rows never reached Deep Match.
       const { data: screeningRows } = await supabase
         .from("job_application_ai_screening_answers")
         .select("question_key, question_text, answer_text")
         .eq("tenant_id", tenantId)
         .eq("application_id", jobApplicationId);
-      const byKey = new Map(
-        (screeningRows ?? []).map((row) => [String(row.question_key), row])
-      );
-      const callContext =
-        String(byKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim() || "";
-      const analysisQuestions = normalizeAnalysisScreeningQuestions(
-        (application.ai_analysis as MatchAnalysisResponse | null)?.screening_questions
-      );
-      const packQuestions = analysisQuestions.map((question) => {
-        const key = aiScreeningQuestionKey(question.priority, question.question);
-        const saved = matchSavedAiScreeningAnswer(byKey, key, question.question);
-        return {
-          question: question.question,
-          answer: isCallContextQuestionKey(key) ? "" : saved?.answer_text ?? "",
-        };
-      });
-      const packNotes = formatScreeningPackForAiNotes({
-        questions: packQuestions,
-        callContext,
-      });
+      const { data: jobScreeningRows } = await supabase
+        .from("application_screening_answers")
+        .select("question_text, answer")
+        .eq("tenant_id", tenantId)
+        .eq("application_id", jobApplicationId);
+      const packNotes = buildSubmissionEnrichmentFromRows({
+        analysis: application.ai_analysis as MatchAnalysisResponse | null,
+        aiAnswers: screeningRows ?? [],
+        jobScreeningAnswers: jobScreeningRows ?? [],
+      }).promptNotes;
       if (packNotes) {
         notes = notes ? `${notes}\n\n${packNotes}` : packNotes;
       }
