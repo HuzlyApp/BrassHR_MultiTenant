@@ -918,20 +918,43 @@ export default function CandidateWorkflowStepModal({
                 {formQuestions.length ? (
                   <Section title="Form responses" count={formQuestions.length}>
                     <ul className="space-y-3">
-                      {formQuestions.map((question, index) => (
-                        <li
-                          key={`${question.label}-${index}`}
-                          className="rounded-lg border border-slate-200 px-3 py-2"
-                        >
-                          <p className="text-sm font-medium text-slate-900">{question.label}</p>
-                          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">
-                            {formatAnswer(question.answer)}
-                          </p>
-                          <p className="mt-1 text-[11px] text-slate-500">
-                            {question.fieldType} · {formatDateTime(question.submittedAt)}
-                          </p>
-                        </li>
-                      ))}
+                      {formQuestions.map((question, index) => {
+                        const isCheckbox =
+                          question.fieldType === "checkbox" ||
+                          /authoriz|consent|agreement|confirm/i.test(question.label);
+                        const isAuthorized =
+                          isCheckbox && /authoriz|yes|true|confirmed/i.test(String(question.answer ?? ""));
+                        return (
+                          <li
+                            key={`${question.label}-${index}`}
+                            className="rounded-lg border border-slate-200 px-3.5 py-2.5 bg-white"
+                          >
+                            <p className="text-sm font-medium text-slate-900">{question.label}</p>
+                            {isCheckbox ? (
+                              <div className="mt-2 flex items-center gap-2">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${
+                                    isAuthorized
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                      : "bg-slate-100 text-slate-700 border border-slate-200"
+                                  }`}
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                                  {formatAnswer(question.answer)}
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">
+                                {formatAnswer(question.answer)}
+                              </p>
+                            )}
+                            <p className="mt-2 text-[11px] text-slate-500">
+                              {isCheckbox ? "Confirmation checkbox" : question.fieldType}
+                              {question.submittedAt ? ` · ${formatDateTime(question.submittedAt)}` : ""}
+                            </p>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </Section>
                 ) : null}

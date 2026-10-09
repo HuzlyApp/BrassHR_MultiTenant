@@ -31,6 +31,10 @@ import {
   isJobScreeningProgressData,
   isParameterizedJobApplicationStepType,
 } from "@/lib/onboarding/job-application-parameters";
+import {
+  postHireScreenKindForStepId,
+  readPostHireSubmission,
+} from "@/lib/onboarding/post-hire-step-screens";
 
 export type WorkflowStepDisplayStatus =
   | "not_started"
@@ -517,9 +521,34 @@ export function mapAssignedStepRecords(params: {
         progress = linked.progress;
         if (!matched && linked.tenantStepId) {
           const fromProgress = params.tenantSteps.find((step) => step.id === linked.tenantStepId);
-          if (fromProgress && !usedIds.has(fromProgress.id)) {
+          if (
+            fromProgress &&
+            !usedIds.has(fromProgress.id) &&
+            (isParameterizedJobApplicationStepType(tenantWorkflowStepId(fromProgress) ?? fromProgress.step_type) ||
+              fromProgress.step_key === "parameterized_job_application")
+          ) {
             matched = fromProgress;
             usedIds.add(fromProgress.id);
+          }
+        }
+      }
+    }
+
+    const postHireKind = postHireScreenKindForStepId(record.step_type);
+    if (postHireKind) {
+      const currentSub = progress ? readPostHireSubmission(progress.data) : null;
+      if (!currentSub || currentSub.kind !== postHireKind) {
+        for (const [stepId, pRow] of params.progressByStepId) {
+          const sub = readPostHireSubmission(pRow.data);
+          if (sub?.kind === postHireKind) {
+            progress = pRow;
+            const fromP = params.tenantSteps.find((s) => s.id === stepId);
+            if (fromP && (!matched || matched.id !== fromP.id)) {
+              if (matched) usedIds.delete(matched.id);
+              matched = fromP;
+              usedIds.add(fromP.id);
+            }
+            break;
           }
         }
       }
@@ -528,11 +557,15 @@ export function mapAssignedStepRecords(params: {
     if (matched && !usedIds.has(matched.id)) usedIds.add(matched.id);
     const resolved = resolveAssignedStepStatus(record, progress);
     const normalizedStatus = resolved.status;
-    const hasLinkedProgress = Boolean(progress && isJobScreeningProgressData(
-      progress.data && typeof progress.data === "object" && !Array.isArray(progress.data)
-        ? (progress.data as Record<string, unknown>)
-        : null
-    ));
+    const hasLinkedPostHire = Boolean(progress && readPostHireSubmission(progress.data));
+    const hasLinkedProgress = Boolean(
+      hasLinkedPostHire ||
+      (progress && isJobScreeningProgressData(
+        progress.data && typeof progress.data === "object" && !Array.isArray(progress.data)
+          ? (progress.data as Record<string, unknown>)
+          : null
+      ))
+    );
     const unmatched = !matched && !hasLinkedProgress;
     const settings =
       record.settings && typeof record.settings === "object" && !Array.isArray(record.settings)

@@ -450,6 +450,54 @@ export async function POST(req: NextRequest) {
       } catch (conversionError) {
         console.error("[onboarding/progress/step] auto conversion failed", conversionError);
       }
+
+      try {
+        const workflowStepId =
+          (typeof stepRow?.metadata?.workflow_step_id === "string"
+            ? stepRow.metadata.workflow_step_id
+            : null) || (stepRow?.step_key ?? body.stepKey ?? null);
+        const workflowNodeId =
+          typeof stepRow?.metadata?.workflow_node_id === "string"
+            ? stepRow.metadata.workflow_node_id
+            : null;
+
+        const { data: instances } = await supabase
+          .from("applicant_workflow_instances")
+          .select("id")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("worker_id", ctx.workerId)
+          .order("created_at", { ascending: false });
+
+        if (instances?.length) {
+          const instanceIds = instances.map((i) => i.id);
+          const { data: recs } = await supabase
+            .from("applicant_workflow_step_records")
+            .select("id, step_type, snapshot_step_id, status")
+            .eq("tenant_id", ctx.tenantId)
+            .in("workflow_instance_id", instanceIds);
+
+          const matchingRec = (recs ?? []).find(
+            (r) =>
+              (workflowNodeId && r.snapshot_step_id === workflowNodeId) ||
+              (workflowStepId && r.step_type === workflowStepId) ||
+              (body.stepKey && r.snapshot_step_id === body.stepKey)
+          );
+
+          if (matchingRec && matchingRec.status !== "completed") {
+            await supabase
+              .from("applicant_workflow_step_records")
+              .update({
+                status: "completed",
+                completed_at,
+                updated_at: completed_at,
+              })
+              .eq("id", matchingRec.id)
+              .eq("tenant_id", ctx.tenantId);
+          }
+        }
+      } catch (syncErr) {
+        console.warn("[onboarding/progress/step] sync applicant step record failed", syncErr);
+      }
     }
 
     const progress = await ensureWorkerOnboardingProgress(

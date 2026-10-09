@@ -305,6 +305,19 @@ export function candidateWaitingMessage(
   return `${progress} This is a candidate step: the candidate ${where} in their application portal once they reach it, so there's nothing for staff to mark here. Their response will appear here when they submit it.`;
 }
 
+/** Filters post-hire direct deposit submission fields so recruiter view only sees the authorization confirmation checkbox. */
+export function filterDirectDepositInspectionFields(
+  fields: Array<{ label: string; value: string }>
+): Array<{ label: string; value: string }> {
+  const checkboxFields = fields.filter((field) =>
+    /authoriz|consent|agreement|confirm|checkbox/i.test(field.label)
+  );
+  if (checkboxFields.length > 0) {
+    return checkboxFields;
+  }
+  return [{ label: "Deposit authorization", value: "Authorized" }];
+}
+
 function signatureStatusLabel(raw: string | null): string {
   const value = String(raw ?? "").trim().toLowerCase();
   if (value === "completed" || value === "signed") return "Signed";
@@ -571,7 +584,17 @@ export async function loadCandidateWorkflowStepInspection(
   }
 
   const mappedTenantStepId = mapped.tenantStepId;
-  const progress = mappedTenantStepId ? progressByStepId.get(mappedTenantStepId) : undefined;
+  let progress = mappedTenantStepId ? progressByStepId.get(mappedTenantStepId) : undefined;
+  const postHireKind = postHireScreenKindForStepId(mapped.stepType);
+  if (postHireKind && (!progress || !readPostHireSubmission(progress.data))) {
+    for (const [, pRow] of progressByStepId) {
+      const sub = readPostHireSubmission(pRow.data);
+      if (sub?.kind === postHireKind) {
+        progress = pRow;
+        break;
+      }
+    }
+  }
   const progressData =
     progress?.data && typeof progress.data === "object" && !Array.isArray(progress.data)
       ? (progress.data as Record<string, unknown>)
@@ -753,8 +776,10 @@ export async function loadCandidateWorkflowStepInspection(
     };
   }
 
+  const hasPostHireScreen = phase === "post_hire" && postHireScreenKindForStepId(mapped.stepType) != null;
+
   let form: WorkflowStepInspection["form"] = null;
-  if (!enrollment && (kind === "form" || asText(progressData.response) != null)) {
+  if (!enrollment && !hasPostHireScreen && (kind === "form" || asText(progressData.response) != null)) {
     const prompt = asText(
       (mappedTenantStepId
         ? config?.steps.find((step) => step.id === mappedTenantStepId)?.metadata?.prompt
@@ -776,10 +801,14 @@ export async function loadCandidateWorkflowStepInspection(
   const postHireSubmission = enrollment ? null : readPostHireSubmission(progressData);
   if (postHireSubmission) {
     const submittedAt = postHireSubmission.submittedAt ?? asText(progress?.completed_at);
+    let fields = postHireSubmission.fields;
+    if (postHireSubmission.kind === "direct_deposit") {
+      fields = filterDirectDepositInspectionFields(fields);
+    }
     form = {
-      questions: postHireSubmission.fields.map((field) => ({
+      questions: fields.map((field) => ({
         label: field.label,
-        fieldType: "text",
+        fieldType: /authoriz|consent|agreement|confirm/i.test(field.label) ? "checkbox" : "text",
         answer: field.value,
         submittedAt,
         reviewResult: null,
@@ -821,10 +850,42 @@ export async function loadCandidateWorkflowStepInspection(
     }
 
     if (dynamicQuestions.length > 0) {
-      form = { questions: dynamicQuestions };
+      if (postHireScreenKindForStepId(mapped.stepType) === "direct_deposit") {
+        form = {
+          questions: [
+            {
+              label: "Deposit authorization",
+              fieldType: "checkbox",
+              answer: "Authorized",
+              submittedAt: asText(progress?.updated_at) ?? asText(progress?.completed_at),
+              reviewResult: null,
+            },
+          ],
+        };
+      } else {
+        form = { questions: dynamicQuestions };
+      }
     }
   }
-  const hasPostHireScreen = phase === "post_hire" && postHireScreenKindForStepId(mapped.stepType) != null;
+
+  if (
+    !form &&
+    hasPostHireScreen &&
+    postHireScreenKindForStepId(mapped.stepType) === "direct_deposit" &&
+    (mapped.status === "completed" || progress?.completed_at != null)
+  ) {
+    form = {
+      questions: [
+        {
+          label: "Deposit authorization",
+          fieldType: "checkbox",
+          answer: "Authorized",
+          submittedAt: asText(progress?.updated_at) ?? asText(progress?.completed_at),
+          reviewResult: null,
+        },
+      ],
+    };
+  }
 
   let assessment: WorkflowStepInspection["assessment"] = null;
   if (kind === "assessment") {
