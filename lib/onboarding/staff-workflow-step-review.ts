@@ -25,13 +25,14 @@ import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-s
 import { loadApplicantConfigForJobToken } from "@/lib/onboarding/load-config-for-job-workflow";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { canStaffAccessPostHireSteps } from "@/lib/onboarding/resolve-candidate-hire-gate";
+import { ensureCandidateConvertedIfAgreementCompleted } from "@/lib/onboarding/auto-convert-after-agreement";
 import { loadApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import { resolveInstanceApplicationId } from "@/lib/onboarding/scoped-step-progress";
 import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
 import { advanceApplicationToScreeningComplete } from "@/lib/onboarding/recruiter-screening-status";
 import { isInterviewStep } from "@/lib/onboarding/interview-step";
 import { advanceApplicationToInterviewComplete } from "@/lib/onboarding/interview-completion-status";
-import { advanceApplicationToQualified } from "@/lib/onboarding/qualified-status";
+import { advanceApplicationToSelected } from "@/lib/onboarding/selected-status";
 import {
   allowedStaffActions,
   completionOwnerLabel,
@@ -247,6 +248,13 @@ export async function loadStaffStepContext(
     phase: asText(record.phase),
     settings: asObject(record.settings),
   });
+  if (phase === "post_hire") {
+    try {
+      await ensureCandidateConvertedIfAgreementCompleted(supabase, { tenantId, workerId });
+    } catch (e) {
+      console.warn("[staff-review] ensureCandidateConvertedIfAgreementCompleted failed", e);
+    }
+  }
   if (
     phase === "post_hire" &&
     !(await canStaffAccessPostHireSteps(supabase, { tenantId, workerId, worker }))
@@ -893,14 +901,14 @@ export async function applyStaffWorkflowStepAction(
       }
     } else if (initial.variant === "selection") {
       try {
-        applicationStatus = await advanceApplicationToQualified(supabase, {
+        applicationStatus = await advanceApplicationToSelected(supabase, {
           tenantId,
           applicationId: ctx.applicationId,
           actorUserId: params.actor.userId,
           origin: params.origin,
         });
       } catch (statusError) {
-        console.error("[staff-workflow-step-review] qualified status update failed", statusError);
+        console.error("[staff-workflow-step-review] selected status update failed", statusError);
       }
     }
   }

@@ -8,6 +8,7 @@ import {
   POST_HIRE_NOT_AVAILABLE_CODE,
   POST_HIRE_NOT_AVAILABLE_MESSAGE,
 } from "@/lib/onboarding/assigned-workflow-steps";
+import { ensureCandidateConvertedIfAgreementCompleted } from "@/lib/onboarding/auto-convert-after-agreement";
 import { shouldRejectPostHirePhaseRequest } from "@/lib/onboarding/lock-post-hire";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -50,6 +51,15 @@ export async function GET(req: Request, context: RouteContext) {
     }
     if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    try {
+      await ensureCandidateConvertedIfAgreementCompleted(supabase, {
+        tenantId,
+        workerId: idCheck.value,
+      });
+    } catch (conversionErr) {
+      console.warn("[workflow-phases] auto conversion check error", conversionErr);
     }
 
     const [baseView, interviews] = await Promise.all([

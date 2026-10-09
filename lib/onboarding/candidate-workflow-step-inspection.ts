@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { canStaffAccessPostHireSteps } from "@/lib/onboarding/resolve-candidate-hire-gate";
+import { ensureCandidateConvertedIfAgreementCompleted } from "@/lib/onboarding/auto-convert-after-agreement";
 import {
   enrollmentDecisionLabel,
   enrollmentQuestionForStep,
@@ -525,6 +526,13 @@ export async function loadCandidateWorkflowStepInspection(
         ? (record.settings as Record<string, unknown>)
         : {},
   });
+  if (phase === "post_hire") {
+    try {
+      await ensureCandidateConvertedIfAgreementCompleted(supabase, { tenantId, workerId });
+    } catch (e) {
+      console.warn("[inspection] ensureCandidateConvertedIfAgreementCompleted failed", e);
+    }
+  }
   if (
     phase === "post_hire" &&
     !(await canStaffAccessPostHireSteps(supabase, { tenantId, workerId, worker }))
@@ -777,6 +785,44 @@ export async function loadCandidateWorkflowStepInspection(
         reviewResult: null,
       })),
     };
+  } else if (!form && phase === "post_hire" && progressData && Object.keys(progressData).length > 0) {
+    const IGNORED_KEYS = new Set([
+      "step_type",
+      "partner_dispatch",
+      "signing_provider",
+      "firma_status",
+      "flow_paused",
+      "pause_reason",
+      "reason",
+      "source",
+    ]);
+    const dynamicQuestions: Array<{
+      label: string;
+      fieldType: string;
+      answer: unknown;
+      submittedAt: string | null;
+      reviewResult: string | null;
+    }> = [];
+
+    for (const [k, v] of Object.entries(progressData)) {
+      if (IGNORED_KEYS.has(k) || v == null || v === "") continue;
+      const label =
+        k === "response"
+          ? mapped.title || "Response"
+          : k.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      const answer = typeof v === "boolean" ? (v ? "Yes / Confirmed" : "No") : v;
+      dynamicQuestions.push({
+        label,
+        fieldType: "text",
+        answer,
+        submittedAt: asText(progress?.updated_at) ?? asText(progress?.completed_at),
+        reviewResult: null,
+      });
+    }
+
+    if (dynamicQuestions.length > 0) {
+      form = { questions: dynamicQuestions };
+    }
   }
   const hasPostHireScreen = phase === "post_hire" && postHireScreenKindForStepId(mapped.stepType) != null;
 
@@ -945,7 +991,7 @@ export async function loadCandidateWorkflowStepInspection(
       ? await loadJobApplicationStepView(supabase, { tenantId, applicationId })
       : null;
 
-  if (kind === "job_application") {
+  if (kind === "job_application" && mapped) {
     const [withEvidence] = applyParameterizedJobApplicationStepEvidence({
       steps: [mapped],
       progressByStepId,

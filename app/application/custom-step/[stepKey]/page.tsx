@@ -89,6 +89,60 @@ export default function CustomOnboardingStepPage() {
       step.metadata.workflow_step_id === "custom-step" ||
       step.metadata.workflow_step_id === "custom-form");
 
+  const dynamicCheckboxLabel = useMemo(() => {
+    if (!step) return "";
+    if (
+      step.step_key === "i9-right-to-work-verification" ||
+      step.metadata?.workflow_step_id === "i9-right-to-work-verification"
+    ) {
+      return "I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge.";
+    }
+    const id = typeof step.metadata?.workflow_step_id === "string" ? step.metadata.workflow_step_id : "";
+    const key = step.step_key.toLowerCase();
+    if (id === "compliance-training" || key.includes("compliance")) {
+      return "I have completed the compliance training and understand my obligations.";
+    }
+    if (id === "training-modules-quiz" || key.includes("training-modules") || key.includes("training_modules")) {
+      return "I have completed the training modules and quiz.";
+    }
+    if (id === "orientation-video" || key.includes("orientation")) {
+      return "I have watched the orientation video in full.";
+    }
+    if (id === "safety-training" || key.includes("safety")) {
+      return "I have completed the safety training and understand the safety procedures covered.";
+    }
+    const rawSettings = step.metadata?.workflow_settings as Record<string, unknown> | undefined;
+    if (typeof rawSettings?.acknowledgmentText === "string" && rawSettings.acknowledgmentText.trim()) {
+      return rawSettings.acknowledgmentText.trim();
+    }
+    const title = step.title?.trim() || "this step";
+    return `I confirm that I have completed ${title}.`;
+  }, [step]);
+
+  const isCheckboxStep = useMemo(() => {
+    if (!step) return false;
+    const id = typeof step.metadata?.workflow_step_id === "string" ? step.metadata.workflow_step_id : "";
+    const key = step.step_key.toLowerCase();
+    const title = (step.title || "").toLowerCase();
+    return (
+      step.step_key === "i9-right-to-work-verification" ||
+      id === "compliance-training" ||
+      id === "training-modules-quiz" ||
+      id === "orientation-video" ||
+      id === "safety-training" ||
+      key.includes("compliance") ||
+      key.includes("training") ||
+      key.includes("orientation") ||
+      key.includes("quiz") ||
+      title.includes("compliance") ||
+      title.includes("training") ||
+      title.includes("orientation") ||
+      title.includes("quiz") ||
+      isGenericCustom ||
+      showCustomForm
+    );
+  }, [step, isGenericCustom, showCustomForm]);
+
   const shouldRedirectToDedicatedScreen = useMemo(() => {
     if (!step || showCustomForm || isEnrollmentDecisionStep(step) || postHireScreenKindForStep(step)) {
       return false;
@@ -113,14 +167,18 @@ export default function CustomOnboardingStepPage() {
       nav.goNext();
       return;
     }
-    const formVisible = isGenericCustom || showCustomForm;
+    const formVisible = isGenericCustom || showCustomForm || isCheckboxStep;
     const decision = resolveCustomStepContinue({
       formVisible,
       required: settings?.required === true,
       answer,
     });
     if (decision.action === "require-answer") {
-      setError("This step is required. Enter a response before continuing.");
+      setError(
+        isCheckboxStep
+          ? "Please check the confirmation box to continue."
+          : "This step is required. Enter a response before continuing."
+      );
       return;
     }
     setSaving(true);
@@ -242,21 +300,17 @@ export default function CustomOnboardingStepPage() {
                 </p>
               ) : null}
 
-              {isGenericCustom || showCustomForm ? (
-                step?.step_key === "i9-right-to-work-verification" ? (
+              {isGenericCustom || showCustomForm || isCheckboxStep ? (
+                isCheckboxStep ? (
                   <div className="mt-6">
                     <OnboardingCheckbox
-                      checked={answer === "I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge."}
+                      checked={Boolean(answer && answer === dynamicCheckboxLabel)}
                       onChange={(checked) => {
-                        if (checked) {
-                          setAnswer("I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge.");
-                        } else {
-                          setAnswer("");
-                        }
+                        setAnswer(checked ? dynamicCheckboxLabel : "");
                       }}
                     >
                       <span className="text-sm text-slate-700">
-                        I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge.
+                        {dynamicCheckboxLabel}
                         {settings?.required ? <span className="text-red-600"> *</span> : null}
                       </span>
                     </OnboardingCheckbox>
@@ -304,7 +358,7 @@ export default function CustomOnboardingStepPage() {
                     ? "Saving…"
                     : waitingGate
                       ? "View application status"
-                      : isGenericCustom || showCustomForm
+                      : isGenericCustom || showCustomForm || isCheckboxStep
                         ? "Save & continue"
                         : "Continue"}
                 </button>

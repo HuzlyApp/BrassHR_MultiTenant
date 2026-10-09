@@ -33,7 +33,10 @@ import {
   commitOnboardingStepProgress,
   StepProgressConflictError,
 } from "@/lib/onboarding/step-progress-write";
-import { autoConvertCandidateAfterAgreement } from "@/lib/onboarding/auto-convert-after-agreement";
+import {
+  autoConvertCandidateAfterAgreement,
+  ensureCandidateConvertedIfAgreementCompleted,
+} from "@/lib/onboarding/auto-convert-after-agreement";
 
 export const runtime = "nodejs";
 
@@ -436,6 +439,14 @@ export async function POST(req: NextRequest) {
           step: stepRow,
           origin: req.nextUrl.origin,
         });
+        if (!postHireConversion?.ok) {
+          postHireConversion = await ensureCandidateConvertedIfAgreementCompleted(supabase, {
+            tenantId: ctx.tenantId,
+            workerId: ctx.workerId,
+            applicationId: applicationId || null,
+            origin: req.nextUrl.origin,
+          });
+        }
       } catch (conversionError) {
         console.error("[onboarding/progress/step] auto conversion failed", conversionError);
       }
