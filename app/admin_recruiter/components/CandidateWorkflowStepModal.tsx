@@ -441,6 +441,7 @@ export default function CandidateWorkflowStepModal({
   const ownership = workflowStepOwnershipCopy({
     kind: inspection?.kind,
     staffCanAct: Boolean(staffAction?.allowed),
+    displayStatus: inspection?.step.displayStatus,
   });
   const stepSideLabel = ownership.badge;
   const screeningApplicationId =
@@ -909,6 +910,8 @@ export default function CandidateWorkflowStepModal({
                   <RecruiterScreeningAiSection
                     key={screeningApplicationId}
                     applicationId={screeningApplicationId}
+                    isRejected={inspection.step.displayStatus === "rejected" || inspection.step.displayStatus === "blocked"}
+                    reviewNote={staffReview?.note ?? null}
                   />
                 ) : null}
 

@@ -368,11 +368,17 @@ export function groupStepsIntoHireStages(
   lifecycle: HireStageLifecycle
 ): HireStageGroup[] {
   const buckets = new Map<string, CandidateWorkflowStepView[]>();
+  let isBlocked = false;
   for (const step of steps) {
+    if (isBlocked) break;
     const name = resolveStageName(step, lifecycle, readExplicitStage(step));
     const list = buckets.get(name) ?? [];
     list.push(step);
     buckets.set(name, list);
+    
+    if ((step.displayStatus === "rejected" || step.displayStatus === "blocked") && step.required) {
+      isBlocked = true;
+    }
   }
 
   const orderedNames = Array.from(buckets.keys()).sort((a, b) => {

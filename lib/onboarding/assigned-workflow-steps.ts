@@ -138,6 +138,8 @@ export type MappedAssignedStep = {
   settings?: Record<string, unknown> | null;
   /** Booked interviews, set on interview steps by admin views. */
   interview?: InterviewStepSummary | null;
+  reviewDecision?: string | null;
+  reviewNote?: string | null;
 };
 
 function asText(value: unknown): string | null {
@@ -558,6 +560,8 @@ export function mapAssignedStepRecords(params: {
       assignedAt: params.assignedAt ?? record.created_at ?? null,
       completedAt: resolved.completedAt,
       settings,
+      reviewDecision: record.review_decision ?? null,
+      reviewNote: record.review_note ?? null,
     };
   });
 }

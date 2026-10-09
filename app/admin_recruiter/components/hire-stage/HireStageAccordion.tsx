@@ -318,6 +318,11 @@ export function HireStageAccordion({
                           {subtitle ? (
                             <p className="mt-0.5 text-xs text-[#64748B]">{subtitle}</p>
                           ) : null}
+                          {(step.displayStatus === "rejected" || step.displayStatus === "blocked") && step.reviewNote ? (
+                            <div className="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-800 ring-1 ring-inset ring-red-600/20">
+                              <span className="font-semibold">Recruiter Note:</span> {step.reviewNote}
+                            </div>
+                          ) : null}
                         </div>
                       </button>
 
