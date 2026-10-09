@@ -704,6 +704,7 @@ export async function saveJobRequisition(
     if (error) throwJobWriteError(error);
     const savedJobId = String(data.id);
 
+    let matchReanalysisScheduled = 0;
     if (
       jobRequirementsSourceFieldsChanged(existingJobForMatchInvalidation, {
         public_title: jobRow.public_title,
@@ -718,11 +719,22 @@ export async function saveJobRequisition(
         specialty: existingJobForMatchInvalidation?.specialty ?? null,
       })
     ) {
-      await invalidateMatchCachesForJobDescriptionChange({
+      const invalidated = await invalidateMatchCachesForJobDescriptionChange({
         supabase,
         tenantId,
         jobRequisitionId: savedJobId,
       });
+      if (data.ai_match_enabled !== false && invalidated.applicationIds.length > 0) {
+        const { scheduleReanalysisAfterJobDescriptionChange } = await import(
+          "@/lib/jobs/match-analysis/auto-quick-match"
+        );
+        matchReanalysisScheduled = scheduleReanalysisAfterJobDescriptionChange({
+          supabase,
+          tenantId,
+          jobApplicationIds: invalidated.applicationIds,
+          analyzedByUserId: actorUserId,
+        });
+      }
     }
 
     const screeningQuestions =
@@ -738,6 +750,7 @@ export async function saveJobRequisition(
       job: data,
       workflow: match,
       screeningQuestions: screeningQuestions.map(jobScreeningQuestionToInput),
+      matchReanalysisScheduled,
     };
   }
 

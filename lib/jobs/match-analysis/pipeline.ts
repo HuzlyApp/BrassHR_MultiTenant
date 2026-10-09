@@ -1176,36 +1176,46 @@ export async function runMatchAnalysisBulk(args: {
   analysisMode?: AnalysisMode;
   analysisProvider?: AnalysisProvider;
   onProgress?: (applicationId: string, event: MatchAnalysisProgressEvent) => void;
+  /** Defaults to 1 so existing callers stay sequential. */
+  concurrency?: number;
 }): Promise<
   Array<{ jobApplicationId: string; result: RunMatchAnalysisResult | { status: "FAILED"; error: string } }>
 > {
+  const ids = args.jobApplicationIds;
   const results: Array<{
     jobApplicationId: string;
     result: RunMatchAnalysisResult | { status: "FAILED"; error: string };
-  }> = [];
+  }> = new Array(ids.length);
+  const width = Math.max(1, Math.min(args.concurrency ?? 1, ids.length || 1));
+  let cursor = 0;
 
-  for (const id of args.jobApplicationIds) {
-    try {
-      const result = await runMatchAnalysisForApplication({
-        supabase: args.supabase,
-        tenantId: args.tenantId,
-        jobApplicationId: id,
-        analyzedByUserId: args.analyzedByUserId,
-        analysisMode: args.analysisMode,
-        analysisProvider: args.analysisProvider,
-        onProgress: (event) => args.onProgress?.(id, event),
-      });
-      results.push({ jobApplicationId: id, result });
-    } catch (error) {
-      results.push({
-        jobApplicationId: id,
-        result: {
-          status: "FAILED",
-          error: error instanceof Error ? error.message : "Match analysis failed",
-        },
-      });
+  async function runNext(): Promise<void> {
+    while (cursor < ids.length) {
+      const index = cursor++;
+      const id = ids[index];
+      try {
+        const result = await runMatchAnalysisForApplication({
+          supabase: args.supabase,
+          tenantId: args.tenantId,
+          jobApplicationId: id,
+          analyzedByUserId: args.analyzedByUserId,
+          analysisMode: args.analysisMode,
+          analysisProvider: args.analysisProvider,
+          onProgress: (event) => args.onProgress?.(id, event),
+        });
+        results[index] = { jobApplicationId: id, result };
+      } catch (error) {
+        results[index] = {
+          jobApplicationId: id,
+          result: {
+            status: "FAILED",
+            error: error instanceof Error ? error.message : "Match analysis failed",
+          },
+        };
+      }
     }
   }
 
+  await Promise.all(Array.from({ length: width }, () => runNext()));
   return results;
 }

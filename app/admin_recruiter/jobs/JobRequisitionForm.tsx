@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -632,6 +633,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       }
       clearJobRequisitionFormDraft();
       invalidateJobsListCache();
+      const reanalysisCount = Number(payload.matchReanalysisScheduled ?? 0);
+      if (Number.isFinite(reanalysisCount) && reanalysisCount > 0) {
+        toast.success(
+          reanalysisCount === 1
+            ? "Job updated. Re-analyzing 1 candidate against the new description."
+            : `Job updated. Re-analyzing ${reanalysisCount} candidates against the new description.`
+        );
+      }
       router.push("/admin_recruiter/jobs");
       router.refresh();
     } catch (error) {
