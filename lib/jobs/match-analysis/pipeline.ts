@@ -43,7 +43,10 @@ import {
   aiScreeningQuestionKey,
   matchSavedAiScreeningAnswer,
 } from "./workspace";
-import { buildSubmissionEnrichmentFromRows } from "./submission-enrichment";
+import {
+  buildSubmissionEnrichmentFromRows,
+  loadInterviewNotesForSubmission,
+} from "./submission-enrichment";
 import {
   applicationMatchScorePatch,
   matchStageFromMode,
@@ -758,15 +761,24 @@ export async function runMatchAnalysisForApplication(args: {
         .select("question_key, question_text, answer_text")
         .eq("tenant_id", tenantId)
         .eq("application_id", jobApplicationId);
-      const { data: jobScreeningRows } = await supabase
-        .from("application_screening_answers")
-        .select("question_text, answer")
-        .eq("tenant_id", tenantId)
-        .eq("application_id", jobApplicationId);
+      const [{ data: jobScreeningRows }, interviewNotes] = await Promise.all([
+        supabase
+          .from("application_screening_answers")
+          .select("question_text, answer")
+          .eq("tenant_id", tenantId)
+          .eq("application_id", jobApplicationId),
+        loadInterviewNotesForSubmission({
+          supabase,
+          tenantId,
+          applicationId: jobApplicationId,
+          workerId: application.worker_id ?? null,
+        }),
+      ]);
       const packNotes = buildSubmissionEnrichmentFromRows({
         analysis: application.ai_analysis as MatchAnalysisResponse | null,
         aiAnswers: screeningRows ?? [],
         jobScreeningAnswers: jobScreeningRows ?? [],
+        interviewNotes,
       }).promptNotes;
       if (packNotes) {
         notes = notes ? `${notes}\n\n${packNotes}` : packNotes;
