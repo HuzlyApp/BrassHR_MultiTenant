@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSubmissionResumeUserPrompt,
   composeSubmissionResumePrompt,
+  ensureSubmissionSystemPrompt,
   SUBMISSION_RESUME_CONTENT_RULES,
   SUBMISSION_RESUME_SOURCE_CHARS,
 } from "./generate-submission-resume";
@@ -288,12 +289,23 @@ describe("Step 5 model input", () => {
     expect(user).toContain(FOLLOW_UP_QA_HEADING);
     expect(user).toContain(FOLLOW_UP_FACT);
     expect(user).toContain("Do not only reformat the layout or change the font.");
-    expect(system).toContain("PRIMARY DUTY");
+    expect(system.indexOf("CONTENT RULES")).toBeLessThan(system.indexOf("PRIMARY DUTY"));
+    expect(system).toContain("Concrete screening and follow-up facts");
     expect(system).toContain(SUBMISSION_RESUME_CONTENT_RULES);
     expect(system).toContain("Do not invent employers");
+    expect(system).not.toContain("Preserve the source résumé. Reorganize and tighten.");
     expect(enrichment.evidenceNotes).toContain(SCREENING_FACT);
     expect(enrichment.evidenceNotes).toContain(FOLLOW_UP_FACT);
     expect(enrichment.evidenceNotes).not.toContain("Which tools did you use");
+  });
+
+  it("puts CONTENT RULES ahead of a catalog PRIMARY DUTY preserve-only block", () => {
+    const system = ensureSubmissionSystemPrompt(
+      "PRIMARY DUTY\nPreserve the source résumé. Reorganize and tighten.\n\nANTI-SHRINK\nKeep bullets."
+    );
+    expect(system.indexOf("CONTENT RULES")).toBeLessThan(system.indexOf("PRIMARY DUTY"));
+    expect(system).toContain("must change the résumé content");
+    expect(system).toContain("ANTI-SHRINK");
   });
 
   it("still includes screening and follow-up when the catalog template drops the enrichment placeholder", () => {
