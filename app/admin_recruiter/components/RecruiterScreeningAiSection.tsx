@@ -77,7 +77,15 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
  * Recruiter Screening step: AI Analysis Step 1 result, the Step 2 call pack, and call context.
  * Reads and writes the same records as the AI Analysis screen, so edits show in both places.
  */
-export default function RecruiterScreeningAiSection({ applicationId }: { applicationId: string }) {
+export default function RecruiterScreeningAiSection({
+  applicationId,
+  isRejected = false,
+  reviewNote = null,
+}: {
+  applicationId: string;
+  isRejected?: boolean;
+  reviewNote?: string | null;
+}) {
   const [data, setData] = useState<MatchAnalysisWorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -344,34 +352,40 @@ export default function RecruiterScreeningAiSection({ applicationId }: { applica
           </p>
         )}
         */}
-
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Tone, availability &amp; call notes
-          </span>
-          <textarea
-            value={callContext}
-            onChange={(event) => setCallContext(event.target.value)}
-            onBlur={(event) => saveIfChanged(CALL_CONTEXT_QUESTION_KEY, event.target.value)}
-            rows={3}
-            placeholder="Tone, availability, red flags, client-fit notes, anything the model should use next…"
-            className={`${AREA} min-h-[5rem]`}
-          />
-        </label>
-
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
-          {saveMessage ? (
-            <p
-              role="status"
-              className={`text-xs ${saveMessage.tone === "success" ? "text-emerald-700" : "text-red-700"}`}
-            >
-              {saveMessage.text}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            disabled={saving || !dirty}
-            onClick={() => void save()}
+        {isRejected ? (
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Rejected by recruiter</p>
+            <p className="mt-2 text-sm text-slate-700">Notes: {reviewNote ?? "—"}</p>
+          </div>
+        ) : (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Tone, availability &amp; call notes
+              </span>
+              <textarea
+                value={callContext}
+                onChange={(event) => setCallContext(event.target.value)}
+                onBlur={(event) => saveIfChanged(CALL_CONTEXT_QUESTION_KEY, event.target.value)}
+                rows={3}
+                placeholder="Tone, availability, red flags, client-fit notes, anything the model should use next…"
+                className={`${AREA} min-h-[5rem]`}
+              />
+            </label>
+    
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
+              {saveMessage ? (
+                <p
+                  role="status"
+                  className={`text-xs ${saveMessage.tone === "success" ? "text-emerald-700" : "text-red-700"}`}
+                >
+                  {saveMessage.text}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                disabled={saving || !dirty}
+                onClick={() => void save()}
             className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition hover:bg-slate-50 disabled:opacity-50"
             style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}
           >
@@ -379,6 +393,8 @@ export default function RecruiterScreeningAiSection({ applicationId }: { applica
             {saving ? "Saving…" : "Save call notes"}
           </button>
         </div>
+          </>
+        )}
       </Card>
     </>
   );

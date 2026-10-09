@@ -7,6 +7,7 @@ import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-appl
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 import type { OnboardingStepType, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 async function markEnabledStepCompleted(
@@ -173,7 +174,12 @@ export async function markTenantStepCompletedByWorkflowLibraryId(
       if (s.id === input.workflowStepId) return true;
       if (
         normalizedTarget === "parameterized-job-application" &&
-        (s.step_type === "profile_information" || s.step_key === "parameterized_job_application")
+        (s.metadata?.workflow_step_id === "parameterized-job-application" ||
+          s.step_key === "parameterized_job_application" ||
+          (s.step_type === "profile_information" &&
+            readStepLifecyclePhase(s) === "pre_hire" &&
+            s.metadata?.workflow_step_id !== "direct-deposit-setup" &&
+            !s.step_key?.includes("direct_deposit")))
       ) {
         return true;
       }

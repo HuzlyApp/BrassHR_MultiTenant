@@ -19,12 +19,14 @@ import type { WorkflowStepInspection } from "@/lib/onboarding/candidate-workflow
 import {
   groupStepsIntoHireStages,
   hireStageProgressMeta,
+  isStepLockedAfterScreeningRejection,
   type HireStageLifecycle,
 } from "@/lib/onboarding/hire-stage-groups";
 import { HireStageAccordion } from "./HireStageAccordion";
 import { HireStageSidebar, type HireStageSidebarProfile } from "./HireStageSidebar";
 import { HireStageStepper } from "./HireStageStepper";
 import { PostHireStageColumns, PostHireSummaryBanner } from "./PostHireStageColumns";
+
 import { hasCompletedAgreementEsignStep } from "@/lib/onboarding/lock-post-hire";
 
 function formatLongDate(value: string | null | undefined): string | null {
@@ -182,6 +184,7 @@ export function HireStageBoard({
   }
 
   function openStep(step: CandidateWorkflowStepView) {
+    if (lifecycle === "pre_hire" && isStepLockedAfterScreeningRejection(step, steps)) return;
     setOpenStepId(step.id);
     void fetchInspection(step.id);
   }
@@ -306,6 +309,7 @@ export function HireStageBoard({
             <div className="min-w-0 flex-1">
               <HireStageAccordion
                 stages={stages}
+                workflowSteps={steps}
                 lifecycle={lifecycle}
                 onInspectStep={openStep}
                 onScheduleInterview={openSchedule}

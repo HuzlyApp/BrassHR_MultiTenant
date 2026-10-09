@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 const box =
-  "relative inline-grid h-[18px] w-[18px] shrink-0 place-items-center overflow-hidden rounded-[4px] border-2 box-border transition-colors leading-none"
+  "relative inline-grid h-[18px] w-[18px] shrink-0 place-items-center overflow-hidden rounded-[6px] border-2 box-border transition-colors leading-none"
 
 type Props = {
   checked: boolean
@@ -42,7 +42,7 @@ export default function OnboardingCheckbox({
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
           style={checkboxStyle}
-          className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[4px] border-2 border-slate-300 accent-[color:var(--brand-secondary)] focus:ring-2 focus:ring-[color:var(--brand-secondary)]/30 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[6px] border-2 border-slate-300 accent-[color:var(--brand-secondary)] focus:ring-2 focus:ring-[color:var(--brand-secondary)]/30 disabled:cursor-not-allowed disabled:opacity-50"
         />
         {children}
       </div>

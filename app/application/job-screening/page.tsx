@@ -83,7 +83,6 @@ export default function JobScreeningPage() {
   const shellStyle = useMemo(
     () => ({
       ...brandingToCssVars(branding),
-      backgroundColor: hexToRgba(branding.primaryHex, 0.04),
     }),
     [branding]
   );
@@ -238,8 +237,13 @@ export default function JobScreeningPage() {
           validationErrors[item.id] = "Please select an option.";
         }
       } else if (item.questionType === "number") {
-        if (value === "" || value === null || value === undefined || isNaN(Number(value))) {
+        const num = Number(value);
+        if (value === "" || value === null || value === undefined || isNaN(num)) {
           validationErrors[item.id] = "Please enter a valid number.";
+        } else if (num > 99) {
+          validationErrors[item.id] = "Maximum allowed value is 99.";
+        } else if (num < 0) {
+          validationErrors[item.id] = "Value cannot be negative.";
         }
       } else {
         if (typeof value !== "string" || !value.trim()) {
@@ -456,13 +460,27 @@ export default function JobScreeningPage() {
                         {item.questionType === "number" ? (
                           <input
                             type="number"
+                            min={0}
+                            max={99}
                             value={String(answers[item.id] ?? "")}
                             onChange={(event) => {
                               clearFieldError(item.id);
+                              let val = event.target.value;
+                              if (val.length > 2) {
+                                val = val.slice(0, 2);
+                              }
+                              if (Number(val) > 99) {
+                                val = "99";
+                              }
                               setAnswers((current) => ({
                                 ...current,
-                                [item.id]: event.target.value,
+                                [item.id]: val,
                               }));
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "e" || event.key === "E" || event.key === "+" || event.key === "-") {
+                                event.preventDefault();
+                              }
                             }}
                             className={inputClass(hasError)}
                           />
@@ -533,7 +551,7 @@ export default function JobScreeningPage() {
                                         return { ...current, [item.id]: nextValues };
                                       });
                                     }}
-                                    className="h-[18px] w-[18px] rounded-[4px] cursor-pointer accent-[color:var(--brand-secondary)]"
+                                    className="h-[18px] w-[18px] rounded-[6px] cursor-pointer accent-[color:var(--brand-secondary)]"
                                     style={
                                       selected.includes(option.value)
                                         ? { accentColor: branding.secondaryHex || "var(--brand-secondary)" }
@@ -568,8 +586,7 @@ export default function JobScreeningPage() {
                       disabled={submitting || questions.length === 0}
                       className={APPLICANT_BTN_PRIMARY}
                     >
-                      {submitting ? "Saving…" : "Continue"}
-                      <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      {submitting ? "Saving…" : "Save & continue"}
                     </button>
                   </div>
                 </form>

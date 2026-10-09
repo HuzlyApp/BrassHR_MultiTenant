@@ -1,13 +1,18 @@
 "use client";
 
 import { useState } from "react";
+// Bank account fields commented out per request - uncomment when re-enabling bank details collection
+/*
 import {
   isValidRoutingNumber,
   validateDirectDepositInput,
-  type PostHireSubmissionField,
 } from "@/lib/onboarding/post-hire-step-screens";
-import { ActionRow, CheckboxRow, RadioGroup, Section, TextField, type ActionRowProps } from "./fields";
+import { RadioGroup, TextField } from "./fields";
+*/
+import type { PostHireSubmissionField } from "@/lib/onboarding/post-hire-step-screens";
+import { ActionRow, CheckboxRow, Section, type ActionRowProps } from "./fields";
 
+/*
 type Summary = {
   accountHolderName: string;
   bankName: string;
@@ -15,15 +20,16 @@ type Summary = {
   routingNumberMasked: string;
   accountNumberMasked: string;
 };
+*/
 
 export default function DirectDepositForm({
-  stepKey,
-  applicantId,
-  applicationId,
-  tenantSlug,
-  defaultHolderName,
+  stepKey: _stepKey,
+  applicantId: _applicantId,
+  applicationId: _applicationId,
+  tenantSlug: _tenantSlug,
+  defaultHolderName: _defaultHolderName,
   authorizationText,
-  isPreview,
+  isPreview: _isPreview,
   submit,
   actions,
 }: {
@@ -37,21 +43,26 @@ export default function DirectDepositForm({
   submit: (fields: PostHireSubmissionField[]) => Promise<void>;
   actions: ActionRowProps;
 }) {
+  /*
   const [holder, setHolder] = useState(defaultHolderName);
   const [bankName, setBankName] = useState("");
   const [accountType, setAccountType] = useState("");
   const [routing, setRouting] = useState("");
   const [account, setAccount] = useState("");
   const [accountConfirm, setAccountConfirm] = useState("");
+  */
   const [authorized, setAuthorized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  /*
   const routingDigits = routing.replace(/\D/g, "");
   const routingInvalid = routingDigits.length === 9 && !isValidRoutingNumber(routingDigits);
+  */
 
   async function handleSave() {
     setError("");
+    /*
     const validation = validateDirectDepositInput({
       accountHolderName: holder || defaultHolderName,
       bankName,
@@ -67,10 +78,12 @@ export default function DirectDepositForm({
       setError("Account numbers don't match.");
       return;
     }
+    */
     if (!authorized) {
       setError("Authorize direct deposit to continue.");
       return;
     }
+    /*
     if (isPreview) {
       setError("Direct deposit isn't saved in preview mode.");
       return;
@@ -79,9 +92,11 @@ export default function DirectDepositForm({
       setError("Missing applicant session. Return to the first onboarding step.");
       return;
     }
+    */
 
     setSaving(true);
     try {
+      /*
       const res = await fetch("/api/onboarding/direct-deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,8 +121,12 @@ export default function DirectDepositForm({
         { label: "Account number", value: summary.accountNumberMasked },
         { label: "Deposit authorization", value: "Authorized" },
       ]);
+      */
+      await submit([
+        { label: "Deposit authorization", value: "Authorized" },
+      ]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save your direct deposit");
+      setError(e instanceof Error ? e.message : "Could not complete this step");
     } finally {
       setSaving(false);
     }
@@ -115,6 +134,7 @@ export default function DirectDepositForm({
 
   return (
     <>
+      {/* Bank account fields commented out per request - only showing authorization checkbox
       <Section title="Bank account">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <TextField
@@ -191,6 +211,7 @@ export default function DirectDepositForm({
           Your account number is encrypted. HR only sees the last four digits here.
         </p>
       </Section>
+      */}
 
       <Section>
         <CheckboxRow id="dd-authorize" checked={authorized} onChange={setAuthorized}>

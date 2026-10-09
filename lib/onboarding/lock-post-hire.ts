@@ -51,10 +51,13 @@ export function isAgreementEsignStep(step: {
     snapshotId === "employee-agreement" ||
     snapshotId === "agreement-esign" ||
     snapshotId === "agreement_signature" ||
+    snapshotId.includes("agreement") ||
     key === "employee-agreement" ||
     key === "agreement-esign" ||
     key === "agreement_signature" ||
-    key === "agreement-signature"
+    key === "agreement-signature" ||
+    key === "authorizations_2" ||
+    key.includes("agreement")
   ) {
     return true;
   }
@@ -63,10 +66,12 @@ export function isAgreementEsignStep(step: {
     title.includes("agreement esign") ||
     title.includes("agreement e-sign") ||
     title.includes("employee agreement") ||
+    title.includes("employment agreement") ||
     title.includes("contract esign") ||
     title.includes("contract e-sign") ||
     title.includes("agreement signature") ||
-    title.includes("agreement / signature")
+    title.includes("agreement / signature") ||
+    (title.includes("agreement") && (title.includes("sign") || title.includes("w2") || title.includes("nexus") || title.includes("employment")))
   );
 }
 

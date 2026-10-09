@@ -6,7 +6,7 @@ import type { StepSettings } from "@/app/components/workflow-builder/types";
 import { readFirmaTemplateSettings } from "@/lib/onboarding/firma-step-settings";
 import type { PostHireSubmissionField } from "@/lib/onboarding/post-hire-step-screens";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
-import { ActionRow, CheckboxRow, Section, type ActionRowProps } from "./fields";
+import { ActionRow, CheckboxRow, type ActionRowProps } from "./fields";
 
 /** Steps with an attached Firma template are signed in the embedded Firma document instead of the built-in form. */
 export default function FirmaSignedForm({
@@ -65,11 +65,11 @@ export default function FirmaSignedForm({
 
   return (
     <>
-      <Section>
+      <div className="mt-4">
         <CheckboxRow id="firma-agree" checked={agreed} onChange={(v) => !signed && setAgreed(v)}>
           {acknowledgmentText}
         </CheckboxRow>
-      </Section>
+      </div>
       <div className="mt-4">
         <AuthorizationsFirmaAgreementPanel
           applicantId={applicantId}

@@ -212,7 +212,7 @@ export function CheckboxRow({
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         style={{ accentColor: "var(--brand-secondary)" }}
-        className="mt-[3px] h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[4px] accent-[color:var(--brand-secondary)]"
+        className="mt-[3px] h-[18px] w-[18px] shrink-0 cursor-pointer rounded-[6px] accent-[color:var(--brand-secondary)]"
       />
       <span>{children}</span>
     </label>

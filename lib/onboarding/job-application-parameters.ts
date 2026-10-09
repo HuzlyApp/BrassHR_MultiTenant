@@ -50,6 +50,7 @@ export function isJobScreeningProgressData(
   data: Record<string, unknown> | null | undefined
 ): boolean {
   if (!data || typeof data !== "object") return false;
+  if (data.post_hire_submission != null) return false;
   if (asText(data.source) === "job_screening_answers") return true;
   return data.system_completed === true && asText(data.reason) === "non_navigable_placeholder";
 }

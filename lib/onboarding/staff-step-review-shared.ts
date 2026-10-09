@@ -147,7 +147,7 @@ export function allowedStaffActions(
     return ["complete", "reject"];
   }
   if (value === "completed" || value === "skipped") return ["reopen"];
-  if (value === "failed") return ["complete", "reopen"];
+  if (value === "failed") return ["reopen"];
   return ["complete", "reject"];
 }
 
