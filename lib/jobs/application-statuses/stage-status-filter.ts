@@ -23,3 +23,13 @@ export function filterStatusesForAssignedGroups<T extends StageScopedStatus>(
     return Boolean(status.groupId && allowed.has(status.groupId));
   });
 }
+
+/** True when this status's catalog group is attached to the stage being edited. */
+export function statusGroupIsOnStage(input: {
+  groupId?: string | null;
+  groupSystemKey?: string | null;
+  assignedGroupIds: readonly string[];
+}): boolean {
+  if (isSharedClosedGroupKey(input.groupSystemKey)) return true;
+  return Boolean(input.groupId && input.assignedGroupIds.includes(input.groupId));
+}

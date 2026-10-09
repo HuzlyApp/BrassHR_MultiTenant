@@ -59,8 +59,8 @@ type CandidateApplicationStatusControlProps = {
   /** Override chip classes (e.g. AI Analysis Overview header). */
   buttonClassName?: string;
   /**
-   * When set, the menu only lists statuses from groups assigned to this stage
-   * in Settings, plus the shared Closed group.
+   * Pre-Hire stage or AI analysis step. The menu lists statuses from the groups
+   * assigned to this stage in Settings, plus Closed. Job source does not remove them.
    */
   stageName?: string | null;
   onStatusChanged?: (next: { statusName: string; statusId: string }) => void;
@@ -393,6 +393,7 @@ export function CandidateApplicationStatusControl({
           body: JSON.stringify({
             statusId: pending.id,
             note: note.trim() || undefined,
+            stageName: stageFilter || undefined,
           }),
         }
       );
@@ -432,12 +433,14 @@ export function CandidateApplicationStatusControl({
 
   const canChangeStatus = Boolean(ctx?.applicationId) && !ctx?.ambiguous && !loading && !busy;
   const visibleOptions = useMemo(() => {
-    const forSource = filterApplicationStatusesForSource(options, ctx?.jobSourceType, ctx?.statusId);
-    if (!stageFilter) return forSource;
-    const assignedGroupIds = (stageAssignments ?? [])
+    if (!stageFilter) {
+      return filterApplicationStatusesForSource(options, ctx?.jobSourceType, ctx?.statusId);
+    }
+    if (stageAssignments == null) return [];
+    const assignedGroupIds = stageAssignments
       .filter((row) => row.stageName === stageFilter)
       .map((row) => row.groupId);
-    return filterStatusesForAssignedGroups(forSource, assignedGroupIds, ctx?.statusId);
+    return filterStatusesForAssignedGroups(options, assignedGroupIds, ctx?.statusId);
   }, [options, ctx?.jobSourceType, ctx?.statusId, stageFilter, stageAssignments]);
 
   return (
@@ -477,7 +480,9 @@ export function CandidateApplicationStatusControl({
             currentStatusId={ctx?.statusId ?? null}
             emptyLabel={
               stageFilter
-                ? "No statuses assigned to this step yet. Add a status group in Settings. Closed stays available once those statuses exist."
+                ? stageAssignments == null
+                  ? "Loading statuses for this step…"
+                  : "No statuses assigned to this step yet. Add a status group in Settings. Closed stays available once those statuses exist."
                 : undefined
             }
             onSelect={beginChange}

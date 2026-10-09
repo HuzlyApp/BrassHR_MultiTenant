@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aiMatchStatusStageName, isAssignableStatusStageName } from "./stage-assignments";
-import { filterStatusesForAssignedGroups } from "./stage-status-filter";
+import { filterStatusesForAssignedGroups, statusGroupIsOnStage } from "./stage-status-filter";
 
 describe("AI analysis status stages", () => {
   it("maps progression steps onto settings stage names", () => {
@@ -29,5 +29,30 @@ describe("filterStatusesForAssignedGroups", () => {
       (status) => status.id
     );
     expect(visible).toEqual(["start", "closed", "current"]);
+  });
+
+  it("keeps a status on every stage its group is attached to", () => {
+    const interview = statuses.find((status) => status.id === "interview");
+    expect(
+      statusGroupIsOnStage({
+        groupId: interview?.groupId,
+        groupSystemKey: interview?.groupSystemKey,
+        assignedGroupIds: ["g-interview"],
+      })
+    ).toBe(true);
+    expect(
+      statusGroupIsOnStage({
+        groupId: interview?.groupId,
+        groupSystemKey: interview?.groupSystemKey,
+        assignedGroupIds: ["g-start"],
+      })
+    ).toBe(false);
+    expect(
+      statusGroupIsOnStage({
+        groupId: "g-closed",
+        groupSystemKey: "closed",
+        assignedGroupIds: [],
+      })
+    ).toBe(true);
   });
 });

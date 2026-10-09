@@ -235,6 +235,8 @@ export function planApplicationStatusChange(input: {
   currentStatusId: string | null;
   targetStatusId: string;
   hasMspSubmission: boolean;
+  /** Status group is assigned to the Pre-Hire stage or AI step the recruiter is on. */
+  assignedToStage?: boolean;
 }):
   | { ok: true }
   | { ok: false; status: number; code: "VALIDATION" | "CONFLICT"; message: string } {
@@ -242,23 +244,27 @@ export function planApplicationStatusChange(input: {
     return { ok: true };
   }
 
-  const audience = applicationStageAudience(input.targetName, input.targetSystemKey);
-  const source = jobSourceKind(input.sourceType);
-  if (source === "internal" && audience === "msp") {
-    return {
-      ok: false,
-      status: 400,
-      code: "VALIDATION",
-      message: `${input.targetName} is an MSP stage and is hidden on Internal requisitions.`,
-    };
-  }
-  if (source === "msp" && audience === "internal") {
-    return {
-      ok: false,
-      status: 400,
-      code: "VALIDATION",
-      message: `${input.targetName} is an Internal stage and is hidden on MSP requisitions.`,
-    };
+  // Stage menus follow Settings group attachments. Job source still applies
+  // when the change is not tied to one of those stages.
+  if (!input.assignedToStage) {
+    const audience = applicationStageAudience(input.targetName, input.targetSystemKey);
+    const source = jobSourceKind(input.sourceType);
+    if (source === "internal" && audience === "msp") {
+      return {
+        ok: false,
+        status: 400,
+        code: "VALIDATION",
+        message: `${input.targetName} is an MSP stage and is hidden on Internal requisitions.`,
+      };
+    }
+    if (source === "msp" && audience === "internal") {
+      return {
+        ok: false,
+        status: 400,
+        code: "VALIDATION",
+        message: `${input.targetName} is an Internal stage and is hidden on MSP requisitions.`,
+      };
+    }
   }
   if (isMspSubmissionStatusName(input.targetName) && !input.hasMspSubmission) {
     return {

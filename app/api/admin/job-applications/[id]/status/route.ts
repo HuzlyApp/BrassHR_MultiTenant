@@ -38,6 +38,7 @@ export async function PATCH(
       statusId?: unknown;
       status?: unknown;
       note?: unknown;
+      stageName?: unknown;
     } | null;
 
     const note =
@@ -50,6 +51,7 @@ export async function PATCH(
     const statusId = typeof body?.statusId === "string" ? body.statusId.trim() : "";
     const legacyStatus =
       typeof body?.status === "string" ? body.status.trim().toLowerCase() : "";
+    const stageName = typeof body?.stageName === "string" ? body.stageName.trim() : "";
     const origin = resolveApplicantEmailAppOrigin(req);
 
     if (statusId || isApplicationPipelineStatus(legacyStatus)) {
@@ -58,6 +60,7 @@ export async function PATCH(
         applicationId,
         statusId: statusId || undefined,
         systemKey: statusId ? undefined : legacyStatus,
+        stageName: stageName || undefined,
       });
     }
 

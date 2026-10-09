@@ -5,7 +5,9 @@ import {
   ApplicationStatusError,
   changeApplicationStatus,
   listApplicationStatuses,
+  statusGroupIsOnStage,
 } from "@/lib/jobs/application-statuses";
+import { isAssignableStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 import {
   SUBMITTED_FOR_MSP_REVIEW_STATUS_NAME,
   SUBMITTED_TO_MSP_STATUS_NAME,
@@ -385,6 +387,13 @@ export async function submitCandidateToMsp(
   return { ...committed, statusName: target.name };
 }
 
+function oneGroupKey(
+  value: { system_key?: string | null } | { system_key?: string | null }[] | null | undefined
+): string | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  return typeof row?.system_key === "string" ? row.system_key : null;
+}
+
 export async function guardJobApplicationStatusChange(
   supabase: SupabaseClient,
   input: {
@@ -392,10 +401,13 @@ export async function guardJobApplicationStatusChange(
     applicationId: string;
     statusId?: string;
     systemKey?: string;
+    /** Pre-Hire stage or AI analysis step whose Settings groups may include this status. */
+    stageName?: string;
   }
 ): Promise<void> {
   const statusId = input.statusId?.trim() ?? "";
   const systemKey = input.systemKey?.trim().toLowerCase() ?? "";
+  const stageName = input.stageName?.trim() ?? "";
 
   const { data: application, error: appError } = await supabase
     .from("job_applications")
@@ -410,7 +422,7 @@ export async function guardJobApplicationStatusChange(
 
   let statusQuery = supabase
     .from("application_statuses")
-    .select("id, name, system_key, is_active")
+    .select("id, name, system_key, is_active, group_id, application_status_groups(system_key)")
     .eq("tenant_id", input.tenantId);
   statusQuery = statusId ? statusQuery.eq("id", statusId) : statusQuery.eq("system_key", systemKey);
   const { data: statusRow, error: statusError } = await statusQuery.maybeSingle();
@@ -422,6 +434,41 @@ export async function guardJobApplicationStatusChange(
     throw new ApplicationStatusError("Status is inactive", "INACTIVE", 400);
   }
 
+  const status = statusRow as {
+    id: string;
+    name: string;
+    system_key: string | null;
+    group_id: string | null;
+    application_status_groups?: { system_key?: string | null } | { system_key?: string | null }[] | null;
+  };
+
+  let assignedToStage = false;
+  if (stageName) {
+    if (!isAssignableStatusStageName(stageName)) {
+      throw new ApplicationStatusError(`Unknown stage: ${stageName}`, "VALIDATION");
+    }
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from("application_status_group_stage_assignments")
+      .select("group_id")
+      .eq("tenant_id", input.tenantId)
+      .eq("stage_name", stageName);
+    if (assignmentError) throw assignmentError;
+    const assignedGroupIds = ((assignmentRows ?? []) as Array<{ group_id?: string | null }>)
+      .map((row) => row.group_id)
+      .filter((groupId): groupId is string => Boolean(groupId));
+    assignedToStage = statusGroupIsOnStage({
+      groupId: status.group_id,
+      groupSystemKey: oneGroupKey(status.application_status_groups),
+      assignedGroupIds,
+    });
+    if (!assignedToStage) {
+      throw new ApplicationStatusError(
+        `${status.name} is not assigned to ${stageName}.`,
+        "VALIDATION"
+      );
+    }
+  }
+
   const existing = await loadExisting(supabase, input.tenantId, input.applicationId);
   const job = one(
     (application as { job_requisitions?: { source_type?: string | null } | { source_type?: string | null }[] })
@@ -429,11 +476,12 @@ export async function guardJobApplicationStatusChange(
   );
   const plan = planApplicationStatusChange({
     sourceType: job?.source_type ?? null,
-    targetName: String(statusRow.name ?? ""),
-    targetSystemKey: statusRow.system_key ?? null,
+    targetName: String(status.name ?? ""),
+    targetSystemKey: status.system_key ?? null,
     currentStatusId: (application as { status_id?: string | null }).status_id ?? null,
-    targetStatusId: String(statusRow.id),
+    targetStatusId: String(status.id),
     hasMspSubmission: Boolean(existing),
+    assignedToStage,
   });
 
   if (!plan.ok) {

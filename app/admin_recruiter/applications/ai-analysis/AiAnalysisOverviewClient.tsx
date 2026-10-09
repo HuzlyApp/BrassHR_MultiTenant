@@ -59,6 +59,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
+import { aiMatchStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import {
   DeepMatchConfirmDialog,
@@ -1580,14 +1581,26 @@ export function AiAnalysisOverviewClient({
                     <span>Advanced - Correction only</span>
                   </button>
                   {advancedOpen && (
-                    <CandidateApplicationStatusControl
-                      applicationId={applicationId}
-                      buttonClassName="h-9 min-w-[180px] flex items-center justify-between gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm font-medium text-[#101828] shadow-sm transition hover:bg-gray-50"
-                      onStatusChanged={(next) => {
-                        setStatusName(next.statusName);
-                        setStatusSystemKey(null);
-                      }}
-                    />
+                    <div className="flex flex-col items-start gap-1">
+                      <CandidateApplicationStatusControl
+                        applicationId={applicationId}
+                        stageName={
+                          progressionStep ? aiMatchStatusStageName(progressionStep.id) : null
+                        }
+                        buttonClassName="h-9 min-w-[180px] flex items-center justify-between gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm font-medium text-[#101828] shadow-sm transition hover:bg-gray-50"
+                        onStatusChanged={(next) => {
+                          setStatusName(next.statusName);
+                          setStatusSystemKey(null);
+                        }}
+                      />
+                      {progressionStep ? (
+                        <p className="text-xs text-[#667085]">
+                          Statuses assigned to{" "}
+                          {aiMatchStatusStageName(progressionStep.id) ?? progressionStep.label} in
+                          Settings, plus Closed.
+                        </p>
+                      ) : null}
+                    </div>
                   )}
                 </div>
                 <div className="flex h-6 items-center justify-end text-sm font-semibold text-[color:var(--brand-primary)]">

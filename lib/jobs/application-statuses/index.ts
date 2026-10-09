@@ -69,4 +69,4 @@ export type {
   StatusStageName,
   ApplicationStatusGroupStageAssignmentRecord,
 } from "./stage-assignments";
-export { filterStatusesForAssignedGroups } from "./stage-status-filter";
+export { filterStatusesForAssignedGroups, statusGroupIsOnStage } from "./stage-status-filter";

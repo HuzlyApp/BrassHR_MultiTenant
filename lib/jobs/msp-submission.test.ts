@@ -461,4 +461,28 @@ describe("planApplicationStatusChange", () => {
       }).ok
     ).toBe(true);
   });
+
+  it("keeps a status that Settings attached to the current stage", () => {
+    expect(
+      planApplicationStatusChange({
+        sourceType: "Internal",
+        targetName: "Presented to Client",
+        currentStatusId: "ready",
+        targetStatusId: "presented",
+        hasMspSubmission: false,
+        assignedToStage: true,
+      }).ok
+    ).toBe(true);
+
+    expect(
+      planApplicationStatusChange({
+        sourceType: "MSP",
+        targetName: "Internal Select",
+        currentStatusId: "ready",
+        targetStatusId: "internal",
+        hasMspSubmission: false,
+        assignedToStage: true,
+      }).ok
+    ).toBe(true);
+  });
 });
