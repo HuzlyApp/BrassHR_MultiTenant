@@ -551,7 +551,7 @@ export default function JobScreeningPage() {
                                         return { ...current, [item.id]: nextValues };
                                       });
                                     }}
-                                    className="h-[18px] w-[18px] rounded-[4px] cursor-pointer accent-[color:var(--brand-secondary)]"
+                                    className="h-[18px] w-[18px] rounded-[6px] cursor-pointer accent-[color:var(--brand-secondary)]"
                                     style={
                                       selected.includes(option.value)
                                         ? { accentColor: branding.secondaryHex || "var(--brand-secondary)" }

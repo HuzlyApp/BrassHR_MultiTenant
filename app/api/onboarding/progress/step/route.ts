@@ -33,6 +33,7 @@ import {
   commitOnboardingStepProgress,
   StepProgressConflictError,
 } from "@/lib/onboarding/step-progress-write";
+import { autoConvertCandidateAfterAgreement } from "@/lib/onboarding/auto-convert-after-agreement";
 
 export const runtime = "nodejs";
 
@@ -425,6 +426,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let postHireConversion: Awaited<ReturnType<typeof autoConvertCandidateAfterAgreement>> | null = null;
+    if (status === "completed") {
+      try {
+        postHireConversion = await autoConvertCandidateAfterAgreement(supabase, {
+          tenantId: ctx.tenantId,
+          workerId: ctx.workerId,
+          applicationId: applicationId || null,
+          step: stepRow,
+          origin: req.nextUrl.origin,
+        });
+      } catch (conversionError) {
+        console.error("[onboarding/progress/step] auto conversion failed", conversionError);
+      }
+    }
+
     const progress = await ensureWorkerOnboardingProgress(
       supabase,
       ctx.workerId,
@@ -432,7 +448,7 @@ export async function POST(req: NextRequest) {
       applicationId || null,
       unscopedOnly
     );
-    return NextResponse.json({ progress });
+    return NextResponse.json({ progress, postHireConversion });
   } catch (err: unknown) {
     if (err instanceof StepProgressConflictError) {
       return NextResponse.json({ error: err.message }, { status: 409 });

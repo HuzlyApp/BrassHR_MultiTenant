@@ -4,6 +4,9 @@ import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   APPLICANT_SHELL_TALL_CLASS,
   APPLICANT_TITLE_CLASS,
@@ -67,6 +70,8 @@ function statusDescription(status: ApplicationStatusKey): string {
 }
 
 export default function ApplicationStatusPage() {
+  const searchParams = useSearchParams();
+  const branding = useTenantBranding();
   const emailSentRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [applicationStatus, setApplicationStatus] = useState<ApplicationStatusKey>("pending");
@@ -134,6 +139,46 @@ export default function ApplicationStatusPage() {
 
   const isApproved = applicationStatus === "approved";
   const submittedDateLabel = formatSubmittedDate(submittedAt);
+  const completion = searchParams.get("completion");
+  const isPreHireComplete = completion === "pre_hire";
+  const isPostHireComplete = completion === "post_hire";
+  const completionTitle = isPostHireComplete
+    ? "Congratulations"
+    : "Pre-hire steps are completed";
+  const completionMessage = isPostHireComplete
+    ? "You have completed all post-hire steps. Your onboarding is complete and you are ready for work. Please watch your email for any final details from your recruiter."
+    : "Your pre-hire steps are complete. The post-hire part will be ready next, and your recruiter will email you when it is time to continue.";
+
+  if (isPreHireComplete || isPostHireComplete) {
+    return (
+      <OnboardingLayout
+        cardClassName="min-[700px]:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)] min-[1200px]:grid-cols-[minmax(0,1.65fr)_minmax(220px,1fr)]"
+        rightPanelImageClassName="object-cover object-center grayscale opacity-60"
+        rightPanelOverlayClassName="bg-white/65"
+      >
+        <div className={APPLICANT_SHELL_TALL_CLASS}>
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <div
+              className="mb-5 flex h-16 w-16 items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: isPostHireComplete ? "#16a34a" : branding.primaryHex }}
+            >
+              <CheckCircle2 className="h-8 w-8" strokeWidth={2.5} />
+            </div>
+            <h1
+              className={`${APPLICANT_TITLE_CLASS} ${
+                isPostHireComplete ? "text-green-700" : "text-slate-900"
+              }`}
+            >
+              {completionTitle}
+            </h1>
+            <p className="mt-4 max-w-[520px] text-base leading-7 text-slate-600">
+              {completionMessage}
+            </p>
+          </div>
+        </div>
+      </OnboardingLayout>
+    );
+  }
 
   return (
     <OnboardingLayout

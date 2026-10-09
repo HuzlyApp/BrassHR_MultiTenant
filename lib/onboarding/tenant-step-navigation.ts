@@ -14,6 +14,7 @@ import type {
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { filterApplicantVisibleSteps } from "@/lib/onboarding/filter-applicant-steps";
 import { withTenant } from "@/lib/tenant/with-tenant";
+import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 import { computeMaxAllowedStepIndexFromProgress } from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-onboarding-projection";
 import { resolveApplicantNavBoundaries } from "@/lib/onboarding/farthest-reached-step";
@@ -135,7 +136,11 @@ export function resolvePostStepContinueRoute(
     return routeForApplicantStep(reviewStep, tenantSlug);
   }
 
-  return withTenant(APPLICATION_ROUTES.applicationStatus, tenantSlug);
+  const completion =
+    current && readStepLifecyclePhase(current) === "post_hire" ? "post_hire" : "pre_hire";
+  const statusUrl = new URLSearchParams({ completion });
+  if (tenantSlug?.trim()) statusUrl.set("tenant", tenantSlug.trim().toLowerCase());
+  return `${APPLICATION_ROUTES.applicationStatus}?${statusUrl.toString()}`;
 }
 
 export function firstOnboardingStepRoute(
