@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { aiScreeningQuestionKey } from "./workspace";
 import {
   FOLLOW_UP_QA_HEADING,
+  INTERVIEW_NOTES_HEADING,
   SCREENING_RESPONSES_HEADING,
   buildSubmissionEnrichmentFromRows,
   loadSubmissionEnrichment,
@@ -58,6 +59,31 @@ describe("submission enrichment rows", () => {
     expect(pack.evidenceNotes).not.toContain(followUpQuestion);
   });
 
+  it("includes hire-stage interview notes beside screening and follow-up answers", () => {
+    const pack = buildSubmissionEnrichmentFromRows({
+      analysis: null,
+      aiAnswers: [
+        {
+          question_key: aiScreeningQuestionKey(1, screeningQuestion),
+          question_text: screeningQuestion,
+          answer_text: screeningAnswer,
+        },
+      ],
+      interviewNotes: [
+        {
+          label: "Interview",
+          body: "Direct matches: Snowflake masking and named dataset owners. Partial: Redshift retention policies still need examples.",
+        },
+      ],
+    });
+
+    expect(pack.promptNotes).toContain(SCREENING_RESPONSES_HEADING);
+    expect(pack.promptNotes).toContain(screeningAnswer);
+    expect(pack.promptNotes).toContain(INTERVIEW_NOTES_HEADING);
+    expect(pack.promptNotes).toContain("Snowflake masking");
+    expect(pack.evidenceNotes).toContain("Snowflake masking");
+  });
+
   it("includes a follow-up answer even when the saved question text no longer matches the analysis", () => {
     const pack = buildSubmissionEnrichmentFromRows({
       analysis: {
@@ -103,6 +129,22 @@ describe("submission enrichment rows", () => {
       ],
       job_application_verified_information: [],
       worker_notes: [],
+      interview_schedules: [
+        {
+          notes:
+            "Direct matches: 11. Partial matches: 6. Confirmed Snowflake masking on 15 critical datasets.",
+        },
+      ],
+      stage_context_notes: [],
+      applicant_workflow_instances: [{ id: "inst-1" }],
+      applicant_workflow_step_records: [
+        {
+          title: "Interview",
+          step_type: "interview",
+          phase: "interview",
+          review_note: "Strong on ownership rules; payments dataset example was concrete.",
+        },
+      ],
     };
     const supabase = {
       from(table: string) {
@@ -110,6 +152,8 @@ describe("submission enrichment rows", () => {
         const chain = {
           select: () => chain,
           eq: () => chain,
+          in: () => chain,
+          not: () => chain,
           order: () => chain,
           limit: () => chain,
           then: (
@@ -140,7 +184,11 @@ describe("submission enrichment rows", () => {
     expect(pack.promptNotes).toContain("B.S. Computer Science");
     expect(pack.promptNotes).toContain(screeningAnswer);
     expect(pack.promptNotes).toContain(followUpAnswer);
+    expect(pack.promptNotes).toContain(INTERVIEW_NOTES_HEADING);
+    expect(pack.promptNotes).toContain("Direct matches: 11");
+    expect(pack.promptNotes).toContain("payments dataset example");
     expect(pack.evidenceNotes).toContain(screeningAnswer);
     expect(pack.evidenceNotes).toContain(followUpAnswer);
+    expect(pack.evidenceNotes).toContain("Direct matches: 11");
   });
 });
