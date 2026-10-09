@@ -15,11 +15,17 @@ const MAX_ENRICHMENT_CHARS = 24_000;
 
 export const SCREENING_RESPONSES_HEADING = "Screening question responses:";
 export const FOLLOW_UP_QA_HEADING = "Follow-up questions and answers:";
+export const INTERVIEW_NOTES_HEADING = "Interview notes:";
 
 export type SubmissionAiAnswerRow = {
   question_key: string;
   question_text?: string | null;
   answer_text?: string | null;
+};
+
+export type SubmissionInterviewNoteRow = {
+  label?: string | null;
+  body?: string | null;
 };
 
 export type SubmissionEnrichmentPack = {
@@ -151,6 +157,33 @@ function orphanPairs(
   return pairs;
 }
 
+/** Hire-stage / calendar / AI-step interview notes for the Step 5 model. */
+export function formatInterviewNotesForSubmission(
+  rows: SubmissionInterviewNoteRow[] | null | undefined
+): string {
+  const lines = (rows ?? [])
+    .map((row) => {
+      const body = String(row.body ?? "").trim();
+      if (!body) return null;
+      const label = String(row.label ?? "").trim();
+      return label ? `- [${label}] ${body}` : `- ${body}`;
+    })
+    .filter((line): line is string => Boolean(line));
+  if (!lines.length) return "";
+  return `${INTERVIEW_NOTES_HEADING}\n${lines.join("\n")}`;
+}
+
+function isInterviewRelatedStep(row: {
+  title?: string | null;
+  step_type?: string | null;
+  phase?: string | null;
+}): boolean {
+  const haystack = [row.title, row.step_type, row.phase]
+    .map((part) => String(part ?? "").toLowerCase())
+    .join(" ");
+  return /interview|screening|verif/.test(haystack);
+}
+
 /**
  * Build the Step 5 enrichment payload from the rows Step 5 actually has.
  * Screening responses and follow-up Q&A are separate so neither can be dropped
@@ -164,6 +197,7 @@ export function buildSubmissionEnrichmentFromRows(args: {
   aiAnswers?: SubmissionAiAnswerRow[] | null;
   jobScreeningAnswers?: Array<{ question_text?: string | null; answer?: unknown }> | null;
   verifiedItems?: Array<{ category?: string | null; title?: string | null; details?: string | null }> | null;
+  interviewNotes?: SubmissionInterviewNoteRow[] | null;
   recruiterNotes?: string | null;
 }): SubmissionEnrichmentPack {
   const byKey = new Map(
@@ -193,10 +227,12 @@ export function buildSubmissionEnrichmentFromRows(args: {
   ];
 
   const callContext = String(byKey.get(CALL_CONTEXT_QUESTION_KEY)?.answer_text ?? "").trim();
+  const interviewNotes = formatInterviewNotesForSubmission(args.interviewNotes);
   const blocks = [
     screeningSection(screeningPairs, callContext),
     qaSection(FOLLOW_UP_QA_HEADING, followUpPairs),
   ];
+  if (interviewNotes) blocks.push(interviewNotes);
   const verified = formatVerifiedInfoForSubmission(args.verifiedItems ?? []);
   if (verified) blocks.push(verified);
   const notes = String(args.recruiterNotes ?? "").trim();
@@ -206,6 +242,9 @@ export function buildSubmissionEnrichmentFromRows(args: {
     callContext,
     ...screeningPairs.map((pair) => pair.answer),
     ...followUpPairs.map((pair) => pair.answer),
+    ...(args.interviewNotes ?? [])
+      .map((row) => String(row.body ?? "").trim())
+      .filter(Boolean),
     verified,
     notes,
   ].filter(Boolean);
@@ -247,9 +286,86 @@ export function submissionEvidenceCorpus(args: {
   return notes;
 }
 
+export async function loadInterviewNotesForSubmission(args: {
+  supabase: SupabaseClient;
+  tenantId: string;
+  applicationId: string;
+  workerId?: string | null;
+}): Promise<SubmissionInterviewNoteRow[]> {
+  const { supabase, tenantId, applicationId } = args;
+  const notes: SubmissionInterviewNoteRow[] = [];
+
+  const { data: scheduleRows } = await supabase
+    .from("interview_schedules")
+    .select("notes")
+    .eq("tenant_id", tenantId)
+    .eq("application_id", applicationId)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+  for (const row of scheduleRows ?? []) {
+    const body = String(row.notes ?? "").trim();
+    if (body) notes.push({ label: "Interview schedule", body });
+  }
+
+  const { data: stageRows } = await supabase
+    .from("stage_context_notes")
+    .select("context_kind, context_key, body")
+    .eq("tenant_id", tenantId)
+    .eq("application_id", applicationId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  for (const row of stageRows ?? []) {
+    const body = String(row.body ?? "").trim();
+    if (!body) continue;
+    const kind = String(row.context_kind ?? "").trim();
+    const key = String(row.context_key ?? "").trim();
+    const label =
+      kind === "ai_match_step"
+        ? key || "AI Match note"
+        : key
+          ? `Workflow note (${key.slice(0, 8)})`
+          : "Workflow note";
+    notes.push({ label, body });
+  }
+
+  const { data: instances } = await supabase
+    .from("applicant_workflow_instances")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("application_id", applicationId)
+    .limit(5);
+  const instanceIds = (instances ?? [])
+    .map((row) => String(row.id ?? "").trim())
+    .filter(Boolean);
+  if (instanceIds.length) {
+    const { data: stepRows } = await supabase
+      .from("applicant_workflow_step_records")
+      .select("title, step_type, phase, review_note")
+      .in("workflow_instance_id", instanceIds)
+      .order("updated_at", { ascending: false })
+      .limit(40);
+    for (const row of stepRows ?? []) {
+      const body = String(row.review_note ?? "").trim();
+      if (!body || !isInterviewRelatedStep(row)) continue;
+      const label = String(row.title ?? row.step_type ?? "Interview step").trim() || "Interview step";
+      notes.push({ label, body });
+    }
+  }
+
+  // Dedupe identical bodies so schedule + review copies do not double-count.
+  const seen = new Set<string>();
+  return notes.filter((row) => {
+    const key = `${String(row.label ?? "").trim().toLowerCase()}::${String(row.body ?? "").trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * Step 5 sources: original résumé is loaded separately.
- * This loads screening-question responses and follow-up Q&A, plus verified info and notes.
+ * This loads screening-question responses, follow-up Q&A, interview notes,
+ * verified info, and recruiter notes.
  */
 export async function loadSubmissionEnrichment(args: {
   supabase: SupabaseClient;
@@ -260,25 +376,36 @@ export async function loadSubmissionEnrichment(args: {
 }): Promise<SubmissionEnrichmentPack> {
   const { supabase, tenantId, applicationId, analysis } = args;
 
-  const { data: screeningRows } = await supabase
-    .from("job_application_ai_screening_answers")
-    .select("question_key, question_text, answer_text")
-    .eq("tenant_id", tenantId)
-    .eq("application_id", applicationId);
-
-  const { data: jobScreeningRows } = await supabase
-    .from("application_screening_answers")
-    .select("question_text, answer")
-    .eq("tenant_id", tenantId)
-    .eq("application_id", applicationId);
-
-  const { data: verifiedRows } = await supabase
-    .from("job_application_verified_information")
-    .select("category, title, details")
-    .eq("tenant_id", tenantId)
-    .eq("application_id", applicationId)
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const [
+    { data: screeningRows },
+    { data: jobScreeningRows },
+    { data: verifiedRows },
+    interviewNotes,
+  ] = await Promise.all([
+    supabase
+      .from("job_application_ai_screening_answers")
+      .select("question_key, question_text, answer_text")
+      .eq("tenant_id", tenantId)
+      .eq("application_id", applicationId),
+    supabase
+      .from("application_screening_answers")
+      .select("question_text, answer")
+      .eq("tenant_id", tenantId)
+      .eq("application_id", applicationId),
+    supabase
+      .from("job_application_verified_information")
+      .select("category, title, details")
+      .eq("tenant_id", tenantId)
+      .eq("application_id", applicationId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    loadInterviewNotesForSubmission({
+      supabase,
+      tenantId,
+      applicationId,
+      workerId: args.workerId,
+    }),
+  ]);
 
   let recruiterNotes = "";
   if (args.workerId) {
@@ -300,6 +427,7 @@ export async function loadSubmissionEnrichment(args: {
     aiAnswers: screeningRows ?? [],
     jobScreeningAnswers: jobScreeningRows ?? [],
     verifiedItems: verifiedRows ?? [],
+    interviewNotes,
     recruiterNotes,
   });
 }
