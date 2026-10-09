@@ -8,6 +8,7 @@ import {
   type HireLifecycle,
 } from "@/lib/onboarding/hire-stage-catalog";
 import { isInterviewStep } from "@/lib/onboarding/interview-step";
+import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
 
 export { POST_HIRE_FIGMA_STAGES, PRE_HIRE_FIGMA_STAGES };
 
@@ -368,17 +369,11 @@ export function groupStepsIntoHireStages(
   lifecycle: HireStageLifecycle
 ): HireStageGroup[] {
   const buckets = new Map<string, CandidateWorkflowStepView[]>();
-  let isBlocked = false;
   for (const step of steps) {
-    if (isBlocked) break;
     const name = resolveStageName(step, lifecycle, readExplicitStage(step));
     const list = buckets.get(name) ?? [];
     list.push(step);
     buckets.set(name, list);
-    
-    if ((step.displayStatus === "rejected" || step.displayStatus === "blocked") && step.required) {
-      isBlocked = true;
-    }
   }
 
   const orderedNames = Array.from(buckets.keys()).sort((a, b) => {
@@ -439,6 +434,59 @@ export function groupStepsIntoHireStages(
   }
 
   return groups;
+}
+
+const SCREENING_SUBSTEP_ORDER = [
+  RECRUITER_SCREENING_STEP_TYPE,
+  "skill-qualification-assessment",
+  "reference-verification",
+] as const;
+
+function stepLibraryKeys(step: CandidateWorkflowStepView): string[] {
+  return [step.stepType, step.stepKey, step.snapshotStepId]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isRecruiterScreeningStep(step: CandidateWorkflowStepView): boolean {
+  return stepLibraryKeys(step).includes(RECRUITER_SCREENING_STEP_TYPE);
+}
+
+export function recruiterScreeningIsRejected(steps: CandidateWorkflowStepView[]): boolean {
+  const screening = steps.find(isRecruiterScreeningStep);
+  return screening?.displayStatus === "rejected" || screening?.displayStatus === "blocked";
+}
+
+function screeningSubstepRank(step: CandidateWorkflowStepView): number | null {
+  const keys = stepLibraryKeys(step);
+  for (let i = 0; i < SCREENING_SUBSTEP_ORDER.length; i += 1) {
+    if (keys.includes(SCREENING_SUBSTEP_ORDER[i]!)) return i;
+  }
+  return null;
+}
+
+/**
+ * When staff reject Recruiter Screening, later pre-hire steps must not be actionable
+ * (Skill Assessment, Reference Verification, Interview, etc.).
+ */
+export function isStepLockedAfterScreeningRejection(
+  step: CandidateWorkflowStepView,
+  allSteps: CandidateWorkflowStepView[]
+): boolean {
+  if (!recruiterScreeningIsRejected(allSteps)) return false;
+  if (isRecruiterScreeningStep(step)) return false;
+
+  const screeningIdx = allSteps.findIndex(isRecruiterScreeningStep);
+  const stepIdx = allSteps.findIndex((item) => item.id === step.id);
+  if (screeningIdx >= 0 && stepIdx >= 0 && stepIdx > screeningIdx) return true;
+
+  const screeningRank = screeningSubstepRank(
+    allSteps.find(isRecruiterScreeningStep) ?? ({} as CandidateWorkflowStepView)
+  );
+  const stepRank = screeningSubstepRank(step);
+  if (screeningRank != null && stepRank != null && stepRank > screeningRank) return true;
+
+  return false;
 }
 
 export function hireStageProgressMeta(groups: HireStageGroup[]): {

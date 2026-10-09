@@ -15,6 +15,7 @@ import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/
 import {
   type HireStageGroup,
   type HireStageLifecycle,
+  isStepLockedAfterScreeningRejection,
   shouldShowInterviewScheduleAction,
 } from "@/lib/onboarding/hire-stage-groups";
 import {
@@ -88,12 +89,15 @@ function defaultOpenIds(stages: HireStageGroup[]): Set<string> {
 
 export function HireStageAccordion({
   stages,
+  workflowSteps,
   lifecycle = "pre_hire",
   onInspectStep,
   onScheduleInterview,
   onRefresh,
 }: {
   stages: HireStageGroup[];
+  /** Full phase step list (workflow order) for screening-rejection locks. */
+  workflowSteps?: CandidateWorkflowStepView[];
   lifecycle?: HireStageLifecycle;
   onInspectStep: (step: CandidateWorkflowStepView) => void;
   onScheduleInterview?: (step: CandidateWorkflowStepView) => void;
@@ -103,6 +107,7 @@ export function HireStageAccordion({
   const seed = useMemo(() => defaultOpenIds(stages), [stages]);
   const [openIds, setOpenIds] = useState<Set<string>>(seed);
   const { refreshingId, refreshStep } = useStepStatusRefresh(onRefresh);
+  const lockContextSteps = workflowSteps ?? stages.flatMap((stage) => stage.steps);
 
   useEffect(() => {
     setOpenIds(defaultOpenIds(stages));
@@ -263,8 +268,9 @@ export function HireStageAccordion({
                 }}
               >
                 {stage.steps.map((step) => {
+                  const lockedByScreening = isStepLockedAfterScreeningRejection(step, lockContextSteps);
                   const done = isStepDone(step);
-                  const pill = stepStatusPill(step);
+                  const pill = lockedByScreening ? null : stepStatusPill(step);
                   const rejected = step.displayStatus === "rejected" || step.displayStatus === "blocked";
                   const settled = done || rejected || stepDecision(step) != null;
                   const completedLabel = done
@@ -282,30 +288,37 @@ export function HireStageAccordion({
                     .filter(Boolean)
                     .join(" · ");
                   const showSchedule =
+                    !lockedByScreening &&
                     Boolean(onScheduleInterview) &&
                     shouldShowInterviewScheduleAction(stage, step);
 
                   return (
                     <div
                       key={step.id}
-                      className="mx-4 mb-3 flex items-center gap-3 rounded-xl border bg-white px-3 py-3 last:mb-4 sm:mx-5 sm:px-4"
+                      className={`mx-4 mb-3 flex items-center gap-3 rounded-xl border bg-white px-3 py-3 last:mb-4 sm:mx-5 sm:px-4 ${lockedByScreening ? "opacity-60" : ""}`}
                       style={{
-                        borderColor: settled
-                          ? "#E8ECF0"
-                          : "color-mix(in srgb, var(--brand-primary) 40%, #E8ECF0)",
+                        borderColor:
+                          lockedByScreening || settled
+                            ? "#E8ECF0"
+                            : "color-mix(in srgb, var(--brand-primary) 40%, #E8ECF0)",
                       }}
                     >
                       <button
                         type="button"
-                        onClick={() => onInspectStep(step)}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-90"
+                        disabled={lockedByScreening}
+                        aria-disabled={lockedByScreening}
+                        onClick={() => {
+                          if (lockedByScreening) return;
+                          onInspectStep(step);
+                        }}
+                        className={`flex min-w-0 flex-1 items-center gap-3 text-left transition ${lockedByScreening ? "cursor-not-allowed" : "hover:opacity-90"}`}
                       >
-                        <HireStepTypeIcon step={step} done={settled} />
+                        <HireStepTypeIcon step={step} done={settled && !lockedByScreening} />
                         <div className="min-w-0 flex-1">
                           <p
                             className="truncate"
                             style={{
-                              color: "#000000",
+                              color: lockedByScreening ? "#64748B" : "#000000",
                               fontFamily:
                                 "var(--font-tenant-branding-inter), Inter, sans-serif",
                               fontSize: 16.1,
@@ -315,7 +328,9 @@ export function HireStageAccordion({
                           >
                             {step.title}
                           </p>
-                          {subtitle ? (
+                          {lockedByScreening ? (
+                            <p className="mt-0.5 text-xs text-[#64748B]">Locked — recruiter screening rejected</p>
+                          ) : subtitle ? (
                             <p className="mt-0.5 text-xs text-[#64748B]">{subtitle}</p>
                           ) : null}
                           {(step.displayStatus === "rejected" || step.displayStatus === "blocked") && step.reviewNote ? (
@@ -347,6 +362,13 @@ export function HireStageAccordion({
                         >
                           {pill.label}
                         </span>
+                      ) : lockedByScreening ? (
+                        <HireFigmaIcon
+                          src={PRE_HIRE_UI_ICONS.stageLocked}
+                          width={28}
+                          height={28}
+                          className="shrink-0"
+                        />
                       ) : done ? (
                         <HireFigmaIcon
                           src={PRE_HIRE_UI_ICONS.stageCheckFilledGreen}
