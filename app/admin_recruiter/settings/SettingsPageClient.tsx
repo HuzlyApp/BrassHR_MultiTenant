@@ -54,7 +54,7 @@ function SettingsContent() {
 
       <section aria-labelledby="prehire-status-catalog-heading">
         <h2 id="prehire-status-catalog-heading" className="sr-only">
-          Pre-Hire Status Catalog
+          Status catalog
         </h2>
         <CandidateStatusesPanel />
       </section>

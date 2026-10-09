@@ -4,6 +4,7 @@ import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import {
   ApplicationStatusError,
+  deleteApplicationStatus,
   listApplicationStatuses,
   updateApplicationStatus,
 } from "@/lib/jobs/application-statuses";
@@ -116,6 +117,53 @@ export async function PATCH(
     });
 
     return NextResponse.json({ status });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+/** DELETE — remove one status from its group (admin only). */
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+
+  try {
+    const tenantId = await resolveStaffTenantId(supabase, auth);
+    if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    const { id } = await context.params;
+    const statusId = id?.trim();
+    if (!statusId) {
+      return NextResponse.json({ error: "Status id is required" }, { status: 400 });
+    }
+
+    const before = (await listApplicationStatuses(supabase, tenantId, { ensureDefaults: false })).find(
+      (row) => row.id === statusId
+    );
+
+    await deleteApplicationStatus(supabase, { tenantId, statusId });
+
+    await writeActivityLog({
+      actorUserId: auth.userId,
+      action: "application_status_catalog.deleted",
+      entityType: "application_status",
+      entityId: statusId,
+      tenantId,
+      metadata: before
+        ? { name: before.name, groupId: before.groupId, groupSystemKey: before.groupSystemKey }
+        : null,
+      request: req,
+    });
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return handleError(error);
   }

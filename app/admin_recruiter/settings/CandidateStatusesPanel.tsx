@@ -8,11 +8,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown, ListChecks, Plus, Pencil, Layers3, X } from "lucide-react";
+import { ChevronDown, Plus, Pencil, Layers3, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   APPLICATION_STATUS_GROUP_KEYS,
-  closedGroupPickerLabel,
   formatGroupStatusSummary,
   groupStatuses,
   isSharedClosedGroupKey,
@@ -20,9 +19,7 @@ import {
 import { AI_MATCH_STATUS_STAGES } from "@/lib/jobs/application-statuses/stage-assignments";
 import {
   normalizeStageStatusLane,
-  resolveGroupStatusLanes,
   resolveStageStatusLanes,
-  STAGE_STATUS_LANES,
   type SavedStageStatusLane,
   type StageStatusLane,
 } from "@/lib/jobs/application-statuses/stage-status-lanes";
@@ -64,8 +61,17 @@ type GroupStageAssignment = {
 
 type SavedLane = SavedStageStatusLane & { stageName: string };
 
-const fieldClass = "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm";
 const PIPELINE_GROUP_KEYS = new Set<string>(APPLICATION_STATUS_GROUP_KEYS);
+const fieldClass = "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm";
+
+function statusesForGroup(statuses: StatusItem[], groupId: string): StatusItem[] {
+  return statuses
+    .filter((status) => status.groupId === groupId)
+    .sort((a, b) => {
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name);
+    });
+}
 
 function mapStatus(row: Record<string, unknown>): StatusItem {
   return {
@@ -134,6 +140,184 @@ function preHireStepsByStage(): Array<{ stage: string; steps: string[] }> {
   }));
 }
 
+function GroupStatusManager({
+  groupId,
+  groupName,
+  statuses,
+  groups,
+  saving,
+  onAdd,
+  onSave,
+  onDelete,
+  onMove,
+}: {
+  groupId: string;
+  groupName: string;
+  statuses: StatusItem[];
+  groups: StatusGroup[];
+  saving: boolean;
+  onAdd: (groupId: string, name: string, description: string) => Promise<boolean>;
+  onSave: (statusId: string, name: string, description: string) => Promise<boolean>;
+  onDelete: (status: StatusItem) => Promise<void>;
+  onMove: (statusId: string, groupId: string) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
+  return (
+    <div className="space-y-3">
+      <ul className="space-y-2">
+        {statuses.length === 0 ? (
+          <li className="text-xs text-[#94A3B8]">No statuses in this group yet.</li>
+        ) : (
+          statuses.map((status) => (
+            <li
+              key={status.id}
+              className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2"
+            >
+              {editingId === status.id ? (
+                <div className="flex flex-col gap-2">
+                  <input
+                    value={editName}
+                    onChange={(event) => setEditName(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Status name"
+                    aria-label={`Name for ${status.name}`}
+                  />
+                  <input
+                    value={editDescription}
+                    onChange={(event) => setEditDescription(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Description (optional)"
+                    aria-label={`Description for ${status.name}`}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        void onSave(status.id, editName, editDescription).then((saved) => {
+                          if (saved) setEditingId(null);
+                        });
+                      }}
+                      className="rounded-lg bg-[#012352] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setEditingId(null)}
+                      className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-medium text-[#334155]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#0F172A]">
+                      {status.name}
+                      {!status.isActive ? (
+                        <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-[#94A3B8]">
+                          Inactive
+                        </span>
+                      ) : null}
+                    </p>
+                    {status.description ? (
+                      <p className="mt-0.5 text-xs text-[#64748B]">{status.description}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <label className="sr-only" htmlFor={`move-${groupId}-${status.id}`}>
+                      Move {status.name} to another group
+                    </label>
+                    <select
+                      id={`move-${groupId}-${status.id}`}
+                      value={status.groupId ?? ""}
+                      disabled={saving}
+                      onChange={(event) => void onMove(status.id, event.target.value)}
+                      className="h-8 rounded-md border border-[#CBD5E1] bg-white px-2 text-xs text-[#334155]"
+                    >
+                      {groups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setEditingId(status.id);
+                        setEditName(status.name);
+                        setEditDescription(status.description ?? "");
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-[#CBD5E1] bg-white px-2 py-1 text-xs text-[#334155]"
+                    >
+                      <Pencil className="h-3 w-3" aria-hidden />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving || status.isDefault}
+                      onClick={() => {
+                        const confirmed = window.confirm(`Delete "${status.name}" from ${groupName}?`);
+                        if (!confirmed) return;
+                        void onDelete(status);
+                      }}
+                      className="rounded-md border border-[#FECACA] bg-white px-2 py-1 text-xs text-[#991B1B] disabled:opacity-40"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))
+        )}
+      </ul>
+
+      <div className="space-y-2 rounded-lg border border-dashed border-[#CBD5E1] bg-white p-3">
+        <p className="text-sm font-semibold text-[#0F172A]">Add status to {groupName}</p>
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className={fieldClass}
+          placeholder="Name"
+          aria-label={`New status name for ${groupName}`}
+        />
+        <input
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          className={fieldClass}
+          placeholder="Description (optional)"
+          aria-label={`New status description for ${groupName}`}
+        />
+        <button
+          type="button"
+          disabled={saving || !name.trim()}
+          onClick={() => {
+            void onAdd(groupId, name, description).then((saved) => {
+              if (!saved) return;
+              setName("");
+              setDescription("");
+            });
+          }}
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#012352] px-3 text-sm font-medium text-white disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          Add status
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StageAssignmentCard({
   stage,
   detail,
@@ -193,10 +377,9 @@ function StageAssignmentCard({
         </span>
       </button>
 
-      {laneEditor ? <div className="border-t border-[#E2E8F0] bg-white px-4 py-3">{laneEditor}</div> : null}
-
       {open ? (
         <div className="space-y-3 border-t border-[#E2E8F0] bg-white px-4 py-3">
+          {laneEditor}
           <p className="text-[11px] leading-5 text-[#94A3B8]">{detail}</p>
 
           {stageGroups.length === 0 ? (
@@ -284,6 +467,36 @@ function StageAssignmentCard({
   );
 }
 
+function CatalogSection({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[#012352]">
+          <Layers3 className="h-4 w-4 shrink-0" aria-hidden />
+          {title}
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-[#64748B] transition ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {open ? <div className="space-y-2 border-t border-[#E2E8F0] px-4 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
 export default function CandidateStatusesPanel() {
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [groups, setGroups] = useState<StatusGroup[]>([]);
@@ -296,16 +509,17 @@ export default function CandidateStatusesPanel() {
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(
     null
   );
-  const [openStage, setOpenStage] = useState<string | null>(PRE_HIRE_FIGMA_STAGES[0] ?? null);
-  const [catalogOpen, setCatalogOpen] = useState(true);
-  const [manageOpen, setManageOpen] = useState(false);
-  const [draftName, setDraftName] = useState("");
-  const [draftDescription, setDraftDescription] = useState("");
-  const [draftGroupId, setDraftGroupId] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [openStage, setOpenStage] = useState<string | null>(null);
   const [assignPicker, setAssignPicker] = useState<Record<string, string>>({});
+  const [managingGroupIds, setManagingGroupIds] = useState<Set<string>>(() => new Set());
+  const [openCatalogs, setOpenCatalogs] = useState<Set<string>>(() => new Set());
+  const [openGroupIds, setOpenGroupIds] = useState<Set<string>>(() => new Set());
+  const [addGroupOpen, setAddGroupOpen] = useState(false);
+  const [draftGroupName, setDraftGroupName] = useState("");
+  const [draftGroupNotes, setDraftGroupNotes] = useState("");
+  const [draftGroupStatuses, setDraftGroupStatuses] = useState<Array<{ name: string; note: string }>>([
+    { name: "", note: "" },
+  ]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -334,7 +548,6 @@ export default function CandidateStatusesPanel() {
           .filter((row): row is SavedLane => row != null)
       );
       setCanManage(Boolean(statusPayload.canManage || assignPayload.canManage));
-      setDraftGroupId((current) => current || nextGroups[0]?.id || "");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load statuses";
       setLoadError(message);
@@ -447,37 +660,6 @@ export default function CandidateStatusesPanel() {
     }
   }
 
-  async function saveGroupLanes(groupId: string, lanes: Record<StageStatusLane, string[]>) {
-    setStatuses((current) =>
-      current.map((status) => {
-        for (const lane of STAGE_STATUS_LANES) {
-          const index = lanes[lane].indexOf(status.id);
-          if (index >= 0) return { ...status, buttonLane: lane, sortOrder: index };
-        }
-        return status;
-      })
-    );
-    setSaving(true);
-    try {
-      const response = await fetch("/api/admin/application-statuses", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "setGroupLanes", groupId, lanes }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to save status categories");
-      if (Array.isArray(payload.statuses)) {
-        setStatuses((payload.statuses as Array<Record<string, unknown>>).map(mapStatus));
-      }
-      flash("success", "Status categories saved for this group");
-    } catch (error) {
-      flash("error", error instanceof Error ? error.message : "Failed to save status categories");
-      await load();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function saveStageLanes(stageName: string, lanes: Record<StageStatusLane, string[]>) {
     setSaving(true);
     try {
@@ -520,10 +702,21 @@ export default function CandidateStatusesPanel() {
     }
   }
 
-  async function addStatus() {
-    if (!draftName.trim()) {
+  function upsertStatus(row: Record<string, unknown>) {
+    const next = mapStatus(row);
+    setStatuses((current) => {
+      const index = current.findIndex((status) => status.id === next.id);
+      if (index < 0) return [...current, next];
+      const copy = [...current];
+      copy[index] = next;
+      return copy;
+    });
+  }
+
+  async function addStatus(groupId: string, name: string, description: string): Promise<boolean> {
+    if (!name.trim()) {
       flash("error", "Status name is required");
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -531,28 +724,30 @@ export default function CandidateStatusesPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: draftName.trim(),
-          description: draftDescription.trim() || null,
-          groupId: draftGroupId || null,
+          name: name.trim(),
+          description: description.trim() || null,
+          groupId,
         }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to create status");
-      setDraftName("");
-      setDraftDescription("");
+      if (payload.status && typeof payload.status === "object") {
+        upsertStatus(payload.status as Record<string, unknown>);
+      }
       flash("success", "Status created");
-      await load();
+      return true;
     } catch (error) {
       flash("error", error instanceof Error ? error.message : "Failed to create status");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveEdit(statusId: string) {
-    if (!editName.trim()) {
+  async function saveStatus(statusId: string, name: string, description: string): Promise<boolean> {
+    if (!name.trim()) {
       flash("error", "Status name is required");
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -560,56 +755,147 @@ export default function CandidateStatusesPanel() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: editName.trim(),
-          description: editDescription.trim() || null,
+          name: name.trim(),
+          description: description.trim() || null,
         }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to update status");
-      setEditingId(null);
+      if (payload.status && typeof payload.status === "object") {
+        upsertStatus(payload.status as Record<string, unknown>);
+      }
       flash("success", "Status updated");
-      await load();
+      return true;
     } catch (error) {
       flash("error", error instanceof Error ? error.message : "Failed to update status");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  async function toggleActive(status: StatusItem) {
+  async function deleteStatus(status: StatusItem) {
     setSaving(true);
     try {
       const response = await fetch(`/api/admin/application-statuses/${encodeURIComponent(status.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !status.isActive }),
+        method: "DELETE",
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to update status");
-      flash("success", status.isActive ? "Status deactivated" : "Status activated");
-      await load();
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Failed to delete status");
+      setStatuses((current) => current.filter((row) => row.id !== status.id));
+      flash("success", "Status deleted");
     } catch (error) {
-      flash("error", error instanceof Error ? error.message : "Failed to update status");
+      flash("error", error instanceof Error ? error.message : "Failed to delete status");
     } finally {
       setSaving(false);
     }
   }
 
   async function moveToGroup(statusId: string, groupId: string) {
+    if (!groupId) return;
     setSaving(true);
     try {
       const response = await fetch(`/api/admin/application-statuses/${encodeURIComponent(statusId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupId: groupId || null }),
+        body: JSON.stringify({ groupId }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to move status");
-      flash("success", "Status catalog group saved");
-      await load();
+      if (payload.status && typeof payload.status === "object") {
+        upsertStatus(payload.status as Record<string, unknown>);
+      }
+      flash("success", "Status moved to its group");
     } catch (error) {
       flash("error", error instanceof Error ? error.message : "Failed to move status");
-      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleCatalog(id: string) {
+    setOpenCatalogs((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleGroupCard(id: string) {
+    setOpenGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function createGroup() {
+    const name = draftGroupName.trim();
+    if (!name) {
+      flash("error", "Group name is required");
+      return;
+    }
+    const notes = draftGroupStatuses
+      .map((row) => ({ name: row.name.trim(), note: row.note.trim() }))
+      .filter((row) => row.name);
+    let groupCreated = false;
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/application-status-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          description: draftGroupNotes.trim() || null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to create status group");
+      const group = mapGroup(payload.group as Record<string, unknown>);
+      setGroups((current) => [...current, group].sort((a, b) => a.sortOrder - b.sortOrder));
+      groupCreated = true;
+      for (const note of notes) {
+        const statusResponse = await fetch("/api/admin/application-statuses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: note.name,
+            description: note.note || null,
+            groupId: group.id,
+          }),
+        });
+        const statusPayload = await statusResponse.json();
+        if (!statusResponse.ok) {
+          throw new Error(statusPayload.error || `Failed to add ${note.name}`);
+        }
+        if (statusPayload.status && typeof statusPayload.status === "object") {
+          upsertStatus(statusPayload.status as Record<string, unknown>);
+        }
+      }
+      setOpenGroupIds((current) => new Set(current).add(group.id));
+      setDraftGroupName("");
+      setDraftGroupNotes("");
+      setDraftGroupStatuses([{ name: "", note: "" }]);
+      setAddGroupOpen(false);
+      flash("success", notes.length > 0 ? "Status group created with its statuses" : "Status group created");
+    } catch (error) {
+      flash(
+        "error",
+        groupCreated
+          ? error instanceof Error
+            ? `${error.message} The group was still created.`
+            : "The group was created, but a status could not be added."
+          : error instanceof Error
+            ? error.message
+            : "Failed to create status group"
+      );
+      if (!groupCreated) return;
+      setDraftGroupName("");
+      setDraftGroupNotes("");
+      setDraftGroupStatuses([{ name: "", note: "" }]);
+      setAddGroupOpen(false);
     } finally {
       setSaving(false);
     }
@@ -680,19 +966,6 @@ export default function CandidateStatusesPanel() {
 
   return (
     <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-5 flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F1F5F9] text-[#012352]">
-          <ListChecks className="h-4 w-4" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-[#0F172A]">Pre-Hire Status Catalog</h3>
-          <p className="mt-0.5 text-sm text-[#64748B]">
-            Open a status group below and set its three categories: recommended, follow up, and
-            closed / stop. Each AI analysis step below has the same three lists for that step.
-          </p>
-        </div>
-      </div>
-
       {saveMessage ? (
         <div
           role="status"
@@ -720,118 +993,216 @@ export default function CandidateStatusesPanel() {
           </button>
         </div>
       ) : (
-        <>
-          <div className="mb-4 rounded-xl border border-[#FCD34D] bg-[#FFFBEB] px-4 py-3">
-            <p className="text-sm font-semibold text-[#92400E]">
-              {closedGroupPickerLabel(closedGroup?.name || "Closed")} — shared on every stage
-            </p>
-            <p className="mt-0.5 text-xs text-[#A16207]">
-              You do not assign Closed per stage. Open the Closed group below to set the Closed /
-              stop dropdown. Those statuses stay available on every Pre-Hire stage and AI analysis step.
-            </p>
-            <p className="mt-2 text-xs text-[#92400E]">
-              {formatGroupStatusSummary(closedStatuses.map((status) => status.name), 8)}
-            </p>
-          </div>
-
-          <div className="mb-6">
-            <button
-              type="button"
-              aria-expanded={catalogOpen}
-              onClick={() => setCatalogOpen((value) => !value)}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-left"
-            >
-              <span>
-                <span className="block text-sm font-semibold text-[#012352]">
-                  Status groups (Start → Closed)
-                </span>
-                <span className="mt-0.5 block text-xs text-[#64748B]">
-                  Open a group to set its recommended, follow up, and closed / stop order.
-                </span>
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 text-[#64748B] transition ${catalogOpen ? "rotate-180" : ""}`}
-                aria-hidden
-              />
-            </button>
-            {catalogOpen ? (
-              <div className="mt-2 space-y-2">
-                {sections.map((section) => {
-                  const shared = section.shared || isSharedClosedGroupKey(section.systemKey);
-                  const stagesUsing = assignments
-                    .filter((row) => row.groupId === section.id)
-                    .map((row) => row.stageName);
-                  const activeStatuses = section.statuses.filter((status) => status.isActive);
-                  return (
-                    <div
-                      key={section.key}
-                      className={`overflow-hidden rounded-xl border ${
-                        shared ? "border-[#FCD34D] bg-[#FFFBEB]" : "border-[#E2E8F0] bg-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3 px-4 py-3">
-                        <span className="min-w-0 text-left">
-                          <span className="block text-sm font-semibold text-[#012352]">
-                            {shared ? closedGroupPickerLabel(section.name) : section.name}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-[#64748B]">
-                            {shared
-                              ? "Closed / stop dropdown on every stage"
-                              : stagesUsing.length > 0
-                                ? `On stages: ${stagesUsing.join(", ")}`
-                                : "Not assigned to any stage yet"}
-                          </span>
-                        </span>
-                        <span className="text-xs text-[#64748B]">{activeStatuses.length} statuses</span>
-                      </div>
-                      <div className="border-t border-[#E2E8F0]/60 px-3 py-3">
-                        {section.id ? (
-                          <StageStatusLaneEditor
-                            lanes={resolveGroupStatusLanes(activeStatuses)}
-                            canManage={canManage}
-                            saving={saving}
-                            onChange={(next) => void saveGroupLanes(section.id as string, next)}
+        <div className="space-y-3">
+          <CatalogSection
+            title="Status groups"
+            open={openCatalogs.has("groups")}
+            onToggle={() => toggleCatalog("groups")}
+          >
+            {canManage ? (
+              <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC]">
+                <button
+                  type="button"
+                  aria-expanded={addGroupOpen}
+                  onClick={() => setAddGroupOpen((value) => !value)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                >
+                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#012352]">
+                    <Plus className="h-4 w-4" aria-hidden />
+                    Add status group
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 text-[#64748B] transition ${addGroupOpen ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                </button>
+                {addGroupOpen ? (
+                  <div className="space-y-2 border-t border-[#E2E8F0] px-4 py-3">
+                    <input
+                      value={draftGroupName}
+                      onChange={(event) => setDraftGroupName(event.target.value)}
+                      className={fieldClass}
+                      placeholder="Group name"
+                      aria-label="New status group name"
+                    />
+                    <textarea
+                      value={draftGroupNotes}
+                      onChange={(event) => setDraftGroupNotes(event.target.value)}
+                      className="min-h-20 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm"
+                      placeholder="Notes for this group (optional)"
+                      aria-label="Notes for the new status group"
+                    />
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-[#334155]">Statuses in this group</p>
+                      {draftGroupStatuses.map((row, index) => (
+                        <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                          <input
+                            value={row.name}
+                            onChange={(event) =>
+                              setDraftGroupStatuses((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, name: event.target.value } : item
+                                )
+                              )
+                            }
+                            className={fieldClass}
+                            placeholder="Status name"
+                            aria-label={`Status ${index + 1} name`}
                           />
-                        ) : (
-                          <p className="text-xs text-[#94A3B8]">
-                            Move these statuses into a group to set their button order.
-                          </p>
-                        )}
-                      </div>
+                          <input
+                            value={row.note}
+                            onChange={(event) =>
+                              setDraftGroupStatuses((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, note: event.target.value } : item
+                                )
+                              )
+                            }
+                            className={fieldClass}
+                            placeholder="Note (optional)"
+                            aria-label={`Status ${index + 1} note`}
+                          />
+                          <button
+                            type="button"
+                            disabled={draftGroupStatuses.length === 1}
+                            onClick={() =>
+                              setDraftGroupStatuses((current) =>
+                                current.filter((_, itemIndex) => itemIndex !== index)
+                              )
+                            }
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-[#CBD5E1] bg-white px-2 text-xs text-[#334155] disabled:opacity-40"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraftGroupStatuses((current) => [...current, { name: "", note: "" }])
+                        }
+                        className="text-xs font-medium text-[#012352]"
+                      >
+                        Add another status
+                      </button>
                     </div>
-                  );
-                })}
+                    <button
+                      type="button"
+                      disabled={saving || !draftGroupName.trim()}
+                      onClick={() => void createGroup()}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#012352] px-3 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Create group
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
-          </div>
 
-          <div className="space-y-2">
-            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#012352]">
-              <Layers3 className="h-4 w-4" aria-hidden />
-              Pre-Hire workflow stages
-            </div>
-            <p className="mb-2 text-xs text-[#64748B]">
-              Assign catalog groups (Start, Interview, MSP, Client, Hire). The stage buttons use
-              the recommended, follow up, and closed / stop order saved on each group.
-            </p>
+            {sections.map((section) => {
+              const shared = section.shared || isSharedClosedGroupKey(section.systemKey);
+              const stagesUsing = assignments
+                .filter((row) => row.groupId === section.id)
+                .map((row) => row.stageName);
+              const groupStatusesList = section.id ? statusesForGroup(statuses, section.id) : [];
+              const activeStatuses = groupStatusesList.filter((status) => status.isActive);
+              const managing = Boolean(section.id && managingGroupIds.has(section.id));
+              const groupOpen = openGroupIds.has(section.key);
+              return (
+                <div
+                  key={section.key}
+                  className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={groupOpen}
+                    onClick={() => toggleGroupCard(section.key)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="min-w-0 text-left">
+                      <span className="block text-sm font-semibold text-[#012352]">{section.name}</span>
+                      <span className="mt-0.5 block text-xs text-[#64748B]">
+                        {shared
+                          ? "On every Pre-Hire stage and AI analysis step"
+                          : stagesUsing.length > 0
+                            ? `On stages: ${stagesUsing.join(", ")}`
+                            : "Not assigned to any stage yet"}
+                      </span>
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-2 text-xs text-[#64748B]">
+                      {activeStatuses.length}
+                      <ChevronDown
+                        className={`h-4 w-4 transition ${groupOpen ? "rotate-180" : ""}`}
+                        aria-hidden
+                      />
+                    </span>
+                  </button>
+                  {groupOpen ? (
+                    <div className="space-y-3 border-t border-[#E2E8F0]/60 px-4 py-3">
+                      {canManage && section.id ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setManagingGroupIds((current) => {
+                              const next = new Set(current);
+                              if (!section.id) return next;
+                              if (next.has(section.id)) next.delete(section.id);
+                              else next.add(section.id);
+                              return next;
+                            })
+                          }
+                          className="inline-flex h-8 items-center gap-1 rounded-md border border-[#CBD5E1] bg-white px-2 text-xs font-medium text-[#334155]"
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden />
+                          {managing ? "Done" : "Manage"}
+                        </button>
+                      ) : null}
+                      {managing && section.id ? (
+                        <GroupStatusManager
+                          groupId={section.id}
+                          groupName={section.name}
+                          statuses={groupStatusesList}
+                          groups={groups}
+                          saving={saving}
+                          onAdd={addStatus}
+                          onSave={saveStatus}
+                          onDelete={deleteStatus}
+                          onMove={moveToGroup}
+                        />
+                      ) : activeStatuses.length === 0 ? (
+                        <p className="text-xs text-[#94A3B8]">No statuses in this group.</p>
+                      ) : (
+                        <p className="text-xs leading-5 text-[#475569]">
+                          {activeStatuses.map((status) => status.name).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </CatalogSection>
 
+          <CatalogSection
+            title="Pre-Hire workflow status catalog"
+            open={openCatalogs.has("prehire")}
+            onToggle={() => toggleCatalog("prehire")}
+          >
             {workflowStages.map(({ stage, steps }) =>
               stageCard(
                 stage,
-                `Workflow steps: ${steps.length > 0 ? steps.join(", ") : "None mapped"}`
+                `Workflow steps: ${steps.length > 0 ? steps.join(", ") : "None mapped"}`,
+                true
               )
             )}
-          </div>
+          </CatalogSection>
 
-          <div className="mt-6 space-y-2">
-            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#012352]">
-              <Layers3 className="h-4 w-4" aria-hidden />
-              AI analysis steps
-            </div>
-            <p className="mb-2 text-xs text-[#64748B]">
-              Set Recommended, Follow up, and Closed for each AI analysis step. Expand a step to
-              choose which status groups feed that list.
-            </p>
+          <CatalogSection
+            title="AI analysis workflow status catalog"
+            open={openCatalogs.has("ai")}
+            onToggle={() => toggleCatalog("ai")}
+          >
             {AI_MATCH_STATUS_STAGES.map((stage) =>
               stageCard(
                 stage,
@@ -839,159 +1210,8 @@ export default function CandidateStatusesPanel() {
                 true
               )
             )}
-          </div>
-        </>
-      )}
-
-      {canManage && !loadError ? (
-        <div className="mt-5 space-y-3">
-          <button
-            type="button"
-            onClick={() => setManageOpen((value) => !value)}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#334155]"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {manageOpen ? "Hide status management" : "Manage status labels"}
-          </button>
-
-          {manageOpen ? (
-            <div className="space-y-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-              <div className="space-y-2 rounded-lg border border-dashed border-[#CBD5E1] bg-white p-3">
-                <p className="text-sm font-semibold text-[#0F172A]">Add status</p>
-                <input
-                  value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"
-                  placeholder="Name"
-                />
-                <input
-                  value={draftDescription}
-                  onChange={(event) => setDraftDescription(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"
-                  placeholder="Description (optional)"
-                />
-                <select
-                  value={draftGroupId}
-                  onChange={(event) => setDraftGroupId(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"
-                  aria-label="Catalog group for the new status"
-                >
-                  <option value="">Ungrouped</option>
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void addStatus()}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#012352] px-4 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Status
-                </button>
-              </div>
-
-              <ul className="space-y-2">
-                {statuses.map((status) => (
-                  <li
-                    key={status.id}
-                    className="flex flex-col gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    {editingId === status.id ? (
-                      <div className="flex min-w-0 flex-1 flex-col gap-2">
-                        <input
-                          value={editName}
-                          onChange={(event) => setEditName(event.target.value)}
-                          className={fieldClass}
-                          placeholder="Status name"
-                        />
-                        <input
-                          value={editDescription}
-                          onChange={(event) => setEditDescription(event.target.value)}
-                          className={fieldClass}
-                          placeholder="Description (optional)"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => void saveEdit(status.id)}
-                            className="rounded-lg bg-[#012352] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => setEditingId(null)}
-                            className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-medium text-[#334155]"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-[#0F172A]">{status.name}</p>
-                        <p className="text-xs text-[#64748B]">
-                          {status.groupName || "Ungrouped"}
-                          {status.systemKey ? ` · ${status.systemKey}` : ""}
-                        </p>
-                      </div>
-                    )}
-
-                    {editingId !== status.id ? (
-                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                        <select
-                          value={status.groupId ?? ""}
-                          disabled={saving}
-                          onChange={(event) => void moveToGroup(status.id, event.target.value)}
-                          className="h-8 rounded-md border border-[#CBD5E1] bg-white px-2 text-xs text-[#334155]"
-                          aria-label={`Catalog group for ${status.name}`}
-                        >
-                          <option value="">Ungrouped</option>
-                          {groups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => {
-                            setEditingId(status.id);
-                            setEditName(status.name);
-                            setEditDescription(status.description ?? "");
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md border border-[#CBD5E1] bg-white px-2 py-1 text-xs text-[#334155]"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          disabled={saving || (status.isDefault && status.isActive)}
-                          onClick={() => void toggleActive(status)}
-                          className="rounded-md border border-[#CBD5E1] bg-white px-2 py-1 text-xs text-[#334155] disabled:opacity-40"
-                        >
-                          {status.isActive ? "Deactivate" : "Activate"}
-                        </button>
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          </CatalogSection>
         </div>
-      ) : loadError ? null : (
-        <p className="mt-4 text-xs text-[#64748B]">
-          Only administrators can create or edit status definitions.
-        </p>
       )}
     </section>
   );

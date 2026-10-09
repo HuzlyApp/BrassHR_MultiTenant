@@ -157,6 +157,14 @@ export async function ensureDefaultApplicationStatuses(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<void> {
+  const { count, error: countError } = await supabase
+    .from("application_statuses")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+  if (countError) throw countError;
+  // Once a tenant has a catalog, do not recreate statuses an admin deleted.
+  if ((count ?? 0) > 0) return;
+
   const { error } = await supabase.rpc("ensure_default_application_statuses", {
     p_tenant_id: tenantId,
   });
@@ -404,6 +412,40 @@ export async function updateApplicationStatus(
   }
   if (!data) throw new ApplicationStatusError("Status not found", "NOT_FOUND", 404);
   return mapStatus(data as StatusRow);
+}
+
+export async function deleteApplicationStatus(
+  supabase: SupabaseClient,
+  input: { tenantId: string; statusId: string }
+): Promise<void> {
+  const existing = await getStatusOrThrow(supabase, input.tenantId, input.statusId);
+  if (existing.isDefault) {
+    throw new ApplicationStatusError(
+      "The default status can't be deleted. Choose another default first.",
+      "VALIDATION"
+    );
+  }
+
+  const { count, error: countError } = await supabase
+    .from("job_applications")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", input.tenantId)
+    .eq("status_id", input.statusId);
+  if (countError) throw countError;
+  if ((count ?? 0) > 0) {
+    throw new ApplicationStatusError(
+      "This status is still used by applications and can't be deleted.",
+      "CONFLICT",
+      409
+    );
+  }
+
+  const { error } = await supabase
+    .from("application_statuses")
+    .delete()
+    .eq("id", input.statusId)
+    .eq("tenant_id", input.tenantId);
+  if (error) throw error;
 }
 
 export async function reorderApplicationStatuses(

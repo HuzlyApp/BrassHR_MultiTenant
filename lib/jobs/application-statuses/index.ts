@@ -5,6 +5,7 @@ export {
   getStatusBySystemKey,
   createApplicationStatus,
   updateApplicationStatus,
+  deleteApplicationStatus,
   reorderApplicationStatuses,
   listApplicationStatusGroups,
   createApplicationStatusGroup,
