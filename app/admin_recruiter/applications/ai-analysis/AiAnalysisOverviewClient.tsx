@@ -59,6 +59,7 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
 import { CandidateApplicationStatusControl } from "@/app/admin_recruiter/components/CandidateApplicationStatusControl";
+import { StageStatusSequenceButtons } from "@/app/admin_recruiter/components/StageStatusSequenceButtons";
 import { aiMatchStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import {
@@ -713,6 +714,7 @@ export function AiAnalysisOverviewClient({
   const [askCandidateNote, setAskCandidateNote] = useState<VerificationNote | null>(null);
   const [statusName, setStatusName] = useState("");
   const [statusSystemKey, setStatusSystemKey] = useState<string | null>(null);
+  const [statusRevision, setStatusRevision] = useState(0);
   const [viewedStep, setViewedStep] = useState(0);
   const [userPickedStep, setUserPickedStep] = useState(false);
   const [confirmDeepOpen, setConfirmDeepOpen] = useState(false);
@@ -1536,15 +1538,37 @@ export function AiAnalysisOverviewClient({
 
           <section className="overflow-hidden rounded-[12px] border border-[color:var(--brand-primary)] bg-[#FFFDFC] p-5 shadow-sm">
             <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
+              <div>
                 <h2 className="text-xl font-bold text-[#101828]">This Job</h2>
+                {progressionStep ? (
+                  <p className="mt-2 text-sm text-[#475467]">
+                    Stage · <span className="font-semibold text-[#101828]">{progressionStep.label}</span>
+                  </p>
+                ) : null}
                 {statusName ? (
-                  <div className="flex items-center gap-2 text-sm text-[#475467]">
-                    <span>Status :</span>
-                    <span className="font-bold text-[#101828]">{statusName}</span>
-                  </div>
+                  <p className="mt-1 text-sm text-[#475467]">
+                    Status · <span className="font-semibold text-[#101828]">{statusName}</span>
+                  </p>
                 ) : null}
               </div>
+              {progressionStep && aiMatchStatusStageName(progressionStep.id) ? (
+                <StageStatusSequenceButtons
+                  key={`${aiMatchStatusStageName(progressionStep.id)}-${statusRevision}`}
+                  applicationId={applicationId}
+                  stageName={aiMatchStatusStageName(progressionStep.id) ?? ""}
+                  onStatusChanged={(next) => {
+                    setStatusName(next.statusName);
+                    setStatusSystemKey(null);
+                    setStatusRevision((revision) => revision + 1);
+                  }}
+                  onException={async (status) => {
+                    if (!status.name.toLowerCase().includes("talent pool")) return false;
+                    await handleTalentPool();
+                    setStatusRevision((revision) => revision + 1);
+                    return true;
+                  }}
+                />
+              ) : null}
               <div className="mt-1">
                 {primaryAction && primaryAction.kind !== "advance" ? (
                   <button
@@ -1580,65 +1604,25 @@ export function AiAnalysisOverviewClient({
                     <span className="text-[10px] transition-transform duration-200" style={{ transform: advancedOpen ? 'rotate(90deg)' : 'none' }}>▶</span>
                     <span>Advanced - Correction only</span>
                   </button>
-                  {advancedOpen && (
-                    <div className="flex flex-col items-start gap-1">
-                      <CandidateApplicationStatusControl
-                        applicationId={applicationId}
-                        stageName={
-                          progressionStep ? aiMatchStatusStageName(progressionStep.id) : null
-                        }
-                        buttonClassName="h-9 min-w-[180px] flex items-center justify-between gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm font-medium text-[#101828] shadow-sm transition hover:bg-gray-50"
-                        onStatusChanged={(next) => {
-                          setStatusName(next.statusName);
-                          setStatusSystemKey(null);
-                        }}
-                      />
-                      {progressionStep ? (
-                        <p className="text-xs text-[#667085]">
-                          Statuses assigned to{" "}
-                          {aiMatchStatusStageName(progressionStep.id) ?? progressionStep.label} in
-                          Settings, plus Closed.
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
+                  {advancedOpen && progressionStep && aiMatchStatusStageName(progressionStep.id) ? (
+                    <CandidateApplicationStatusControl
+                      key={`status-${aiMatchStatusStageName(progressionStep.id)}-${statusRevision}`}
+                      applicationId={applicationId}
+                      stageName={aiMatchStatusStageName(progressionStep.id)}
+                      buttonClassName="h-9 min-w-[180px] flex items-center justify-between gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 text-sm font-medium text-[#101828] shadow-sm transition hover:bg-gray-50"
+                      onStatusChanged={(next) => {
+                        setStatusName(next.statusName);
+                        setStatusSystemKey(null);
+                        setStatusRevision((revision) => revision + 1);
+                      }}
+                    />
+                  ) : null}
                 </div>
-                <div className="flex h-6 items-center justify-end text-sm font-semibold text-[color:var(--brand-primary)]">
-                  {parkedInTalentPool ? (
-                    <span>In Talent Pool</span>
-                  ) : talentPoolBusy ? (
-                    <span>Moving…</span>
-                  ) : (
-                    <div className="flex items-center justify-end gap-3">
-                      <button
-                        type="button"
-                        disabled={savingDecision}
-                        onClick={() => void handleTalentPool()}
-                        className="transition hover:opacity-80 disabled:opacity-60"
-                      >
-                        Not a fit
-                      </button>
-                      <span className="font-normal text-[#D0D5DD]">|</span>
-                      <button
-                        type="button"
-                        disabled={savingDecision}
-                        onClick={() => void handleTalentPool()}
-                        className="transition hover:opacity-80 disabled:opacity-60"
-                      >
-                        Talent Pool
-                      </button>
-                      <span className="font-normal text-[#D0D5DD]">|</span>
-                      <button
-                        type="button"
-                        disabled={savingDecision}
-                        onClick={() => void handleTalentPool()}
-                        className="transition hover:opacity-80 disabled:opacity-60"
-                      >
-                        Withdraw
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {parkedInTalentPool ? (
+                  <div className="flex h-6 items-center text-sm font-semibold text-[color:var(--brand-primary)]">
+                    In Talent Pool
+                  </div>
+                ) : null}
               </div>
             </div>
           </section>

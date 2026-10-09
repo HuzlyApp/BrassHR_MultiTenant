@@ -26,6 +26,8 @@ export type ApplicationStatusRecord = {
   groupDescription: string | null;
   groupSortOrder: number | null;
   groupSystemKey: string | null;
+  /** Recommended, alternate, or closed. Null uses the name default. */
+  buttonLane: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

@@ -29,6 +29,7 @@ export type StatusOption = {
   groupDescription?: string | null;
   groupSortOrder?: number | null;
   groupSystemKey?: string | null;
+  buttonLane?: string | null;
 };
 
 type StatusHistoryItem = {
@@ -81,6 +82,7 @@ export function mapApplicationStatusOptions(payload: unknown): StatusOption[] {
     name: String(row.name),
     systemKey: typeof row.systemKey === "string" ? row.systemKey : null,
     sortOrder: Number(row.sortOrder ?? 0),
+    buttonLane: typeof row.buttonLane === "string" ? row.buttonLane : null,
     ...readStatusGroupFields(row),
   }));
 }

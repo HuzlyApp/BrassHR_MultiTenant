@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { aiMatchStatusStageName, isAssignableStatusStageName } from "./stage-assignments";
-import { filterStatusesForAssignedGroups, statusGroupIsOnStage } from "./stage-status-filter";
+import {
+  filterStatusesForAssignedGroups,
+  sequenceStatusesForStage,
+  statusGroupIsOnStage,
+} from "./stage-status-filter";
 
 describe("AI analysis status stages", () => {
   it("maps progression steps onto settings stage names", () => {
@@ -54,5 +58,30 @@ describe("filterStatusesForAssignedGroups", () => {
         assignedGroupIds: [],
       })
     ).toBe(true);
+  });
+});
+
+describe("sequenceStatusesForStage", () => {
+  const statuses = [
+    { id: "applied", name: "New / Applied", sortOrder: 0, groupId: "g-start", groupSortOrder: 0, groupSystemKey: "start" },
+    { id: "attempted", name: "Attempted Contact", sortOrder: 1, groupId: "g-start", groupSortOrder: 0, groupSystemKey: "start" },
+    { id: "followup", name: "Follow-up Needed", sortOrder: 2, groupId: "g-start", groupSortOrder: 0, groupSystemKey: "start" },
+    { id: "screen", name: "Screening Complete", sortOrder: 0, groupId: "g-interview", groupSortOrder: 1, groupSystemKey: "interview" },
+    { id: "closed", name: "Not a Fit", sortOrder: 0, groupId: "g-closed", groupSortOrder: 5, groupSystemKey: "closed" },
+  ];
+
+  it("offers the next attached status first, then the rest of those groups", () => {
+    const sequence = sequenceStatusesForStage(statuses, ["g-start", "g-interview"], "attempted");
+    expect(sequence.next?.id).toBe("followup");
+    expect(sequence.actions.map((status) => status.name)).toEqual([
+      "Follow-up Needed",
+      "New / Applied",
+      "Screening Complete",
+    ]);
+  });
+
+  it("starts at the first status when the candidate is outside this stage", () => {
+    const sequence = sequenceStatusesForStage(statuses, ["g-interview"], "attempted");
+    expect(sequence.actions.map((status) => status.id)).toEqual(["screen"]);
   });
 });

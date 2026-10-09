@@ -17,6 +17,9 @@ export {
   listApplicationStatusGroupStageAssignments,
   assignGroupToPreHireStage,
   unassignGroupFromPreHireStage,
+  listApplicationStatusStageLanes,
+  replaceApplicationStatusStageLanes,
+  replaceGroupButtonLanes,
 } from "./service";
 export {
   getApplicationStatusSummariesForWorkers,
@@ -42,6 +45,7 @@ export {
   formatGroupStatusSummary,
   closedGroupPickerLabel,
   isSharedClosedGroupKey,
+  isSharedFollowUpStatusName,
   normalizeStatusCatalogName,
 } from "./groups";
 export type {
@@ -69,4 +73,19 @@ export type {
   StatusStageName,
   ApplicationStatusGroupStageAssignmentRecord,
 } from "./stage-assignments";
-export { filterStatusesForAssignedGroups, statusGroupIsOnStage } from "./stage-status-filter";
+export {
+  filterStatusesForAssignedGroups,
+  sequenceStatusesForStage,
+  statusGroupIsOnStage,
+} from "./stage-status-filter";
+export {
+  STAGE_STATUS_LANES,
+  defaultStageStatusLane,
+  isDefaultFollowUpStatusName,
+  isStageStatusLane,
+  normalizeStageStatusLane,
+  resolveGroupStatusLanes,
+  resolveStageStatusLanes,
+  sequenceOrderedStatuses,
+} from "./stage-status-lanes";
+export type { SavedStageStatusLane, StageLaneStatus, StageStatusLane } from "./stage-status-lanes";

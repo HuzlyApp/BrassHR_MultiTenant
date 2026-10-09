@@ -12,7 +12,13 @@ import { isSharedClosedGroupKey } from "./groups";
 import {
   isAssignableStatusStageName,
   type ApplicationStatusGroupStageAssignmentRecord,
+  type StatusStageName,
 } from "./stage-assignments";
+import {
+  STAGE_STATUS_LANES,
+  normalizeStageStatusLane,
+  type StageStatusLane,
+} from "./stage-status-lanes";
 import {
   ApplicationStatusError,
   type ApplicationStatusChangeSource,
@@ -23,7 +29,7 @@ import {
 } from "./types";
 
 const STATUS_COLUMNS =
-  "id, tenant_id, name, description, color, sort_order, is_active, is_default, system_key, group_id, created_by, created_at, updated_at, application_status_groups(id, name, description, sort_order, system_key)";
+  "id, tenant_id, name, description, color, sort_order, is_active, is_default, system_key, group_id, button_lane, created_by, created_at, updated_at, application_status_groups(id, name, description, sort_order, system_key)";
 
 const GROUP_COLUMNS =
   "id, tenant_id, name, description, sort_order, system_key, created_at, updated_at";
@@ -47,6 +53,7 @@ type StatusRow = {
   is_default: boolean;
   system_key: string | null;
   group_id?: string | null;
+  button_lane?: string | null;
   application_status_groups?: GroupJoin | GroupJoin[] | null;
   created_by: string | null;
   created_at: string;
@@ -139,6 +146,7 @@ function mapStatus(row: StatusRow): ApplicationStatusRecord {
     groupDescription: group?.description ?? null,
     groupSortOrder: group?.sort_order ?? null,
     groupSystemKey: group?.system_key ?? null,
+    buttonLane: row.button_lane ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1017,6 +1025,143 @@ export async function unassignGroupFromPreHireStage(
   return listApplicationStatusGroupStageAssignments(supabase, input.tenantId, {
     ensureDefaults: false,
   });
+}
+
+export type ApplicationStatusStageLaneRecord = {
+  id: string;
+  tenantId: string;
+  stageName: StatusStageName;
+  statusId: string;
+  lane: StageStatusLane;
+  sortOrder: number;
+};
+
+type StageLaneRow = {
+  id: string;
+  tenant_id: string;
+  stage_name: string;
+  status_id: string;
+  lane: string;
+  sort_order: number;
+};
+
+function mapStageLane(row: StageLaneRow): ApplicationStatusStageLaneRecord | null {
+  const lane = normalizeStageStatusLane(row.lane);
+  if (!isAssignableStatusStageName(row.stage_name) || !lane) return null;
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    stageName: row.stage_name,
+    statusId: row.status_id,
+    lane,
+    sortOrder: row.sort_order,
+  };
+}
+
+export async function listApplicationStatusStageLanes(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<ApplicationStatusStageLaneRecord[]> {
+  const { data, error } = await supabase
+    .from("application_status_stage_lanes")
+    .select("id, tenant_id, stage_name, status_id, lane, sort_order")
+    .eq("tenant_id", tenantId)
+    .order("stage_name", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (error) {
+    const message = String((error as { message?: string }).message ?? error);
+    if (/application_status_stage_lanes|schema cache|Could not find/i.test(message)) return [];
+    throw error;
+  }
+  return ((data ?? []) as StageLaneRow[])
+    .map(mapStageLane)
+    .filter((row): row is ApplicationStatusStageLaneRecord => row != null);
+}
+
+export async function replaceApplicationStatusStageLanes(
+  supabase: SupabaseClient,
+  input: {
+    tenantId: string;
+    stageName: string;
+    lanes: Record<StageStatusLane, string[]>;
+  }
+): Promise<ApplicationStatusStageLaneRecord[]> {
+  if (!isAssignableStatusStageName(input.stageName)) {
+    throw new ApplicationStatusError(`Unknown stage: ${input.stageName}`, "VALIDATION");
+  }
+  const rows = STAGE_STATUS_LANES.flatMap((lane) =>
+    input.lanes[lane].map((statusId, sortOrder) => ({
+      tenant_id: input.tenantId,
+      stage_name: input.stageName,
+      status_id: statusId,
+      lane,
+      sort_order: sortOrder,
+    }))
+  );
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (seen.has(row.status_id)) {
+      throw new ApplicationStatusError("A status can only be in one order on a stage.", "VALIDATION");
+    }
+    seen.add(row.status_id);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("application_status_stage_lanes")
+    .delete()
+    .eq("tenant_id", input.tenantId)
+    .eq("stage_name", input.stageName);
+  if (deleteError) throw deleteError;
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase.from("application_status_stage_lanes").insert(rows);
+    if (insertError) throw insertError;
+  }
+  return listApplicationStatusStageLanes(supabase, input.tenantId);
+}
+
+/** Save the three button categories for one status group. */
+export async function replaceGroupButtonLanes(
+  supabase: SupabaseClient,
+  input: {
+    tenantId: string;
+    groupId: string;
+    lanes: Record<StageStatusLane, string[]>;
+  }
+): Promise<void> {
+  await assertGroupInTenant(supabase, input.tenantId, input.groupId);
+  const rows = STAGE_STATUS_LANES.flatMap((lane) =>
+    input.lanes[lane].map((statusId, sortOrder) => ({ statusId, lane, sortOrder }))
+  );
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (seen.has(row.statusId)) {
+      throw new ApplicationStatusError("A status can only be in one category.", "VALIDATION");
+    }
+    seen.add(row.statusId);
+  }
+
+  for (const row of rows) {
+    const existing = await getStatusOrThrow(supabase, input.tenantId, row.statusId);
+    if (existing.groupId !== input.groupId) {
+      throw new ApplicationStatusError("That status is not in this group.", "VALIDATION");
+    }
+    const { error } = await supabase
+      .from("application_statuses")
+      .update({ button_lane: row.lane, sort_order: row.sortOrder })
+      .eq("tenant_id", input.tenantId)
+      .eq("id", row.statusId);
+    if (error) {
+      const message = String((error as { message?: string }).message ?? error);
+      if (/button_lane|schema cache|Could not find/i.test(message)) {
+        throw new ApplicationStatusError(
+          "Status categories are not available until the latest database migration is applied.",
+          "VALIDATION",
+          503
+        );
+      }
+      throw error;
+    }
+  }
 }
 
 /** @deprecated Use group-stage assignment APIs. */

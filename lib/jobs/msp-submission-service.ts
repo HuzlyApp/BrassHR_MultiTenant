@@ -459,8 +459,26 @@ export async function guardJobApplicationStatusChange(
     assignedToStage = statusGroupIsOnStage({
       groupId: status.group_id,
       groupSystemKey: oneGroupKey(status.application_status_groups),
+      statusName: status.name,
       assignedGroupIds,
     });
+    if (!assignedToStage) {
+      const { data: laneRow, error: laneError } = await supabase
+        .from("application_status_stage_lanes")
+        .select("id")
+        .eq("tenant_id", input.tenantId)
+        .eq("stage_name", stageName)
+        .eq("status_id", status.id)
+        .maybeSingle();
+      if (laneError) {
+        const message = String((laneError as { message?: string }).message ?? laneError);
+        if (!/application_status_stage_lanes|schema cache|Could not find/i.test(message)) {
+          throw laneError;
+        }
+      } else if (laneRow) {
+        assignedToStage = true;
+      }
+    }
     if (!assignedToStage) {
       throw new ApplicationStatusError(
         `${status.name} is not assigned to ${stageName}.`,

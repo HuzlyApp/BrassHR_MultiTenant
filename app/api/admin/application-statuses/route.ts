@@ -8,6 +8,9 @@ import {
   countApplicationsByStatus,
   listApplicationStatusGroups,
   listApplicationStatuses,
+  replaceGroupButtonLanes,
+  STAGE_STATUS_LANES,
+  type StageStatusLane,
 } from "@/lib/jobs/application-statuses";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -117,6 +120,61 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ status }, { status: 201 });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+function readLaneIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+}
+
+/** PATCH — save the three button categories on one status group (admin only). */
+export async function PATCH(req: NextRequest) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+
+  try {
+    const tenantId = await resolveStaffTenantId(supabase, auth);
+    if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    const body = (await req.json().catch(() => null)) as {
+      action?: unknown;
+      groupId?: unknown;
+      lanes?: unknown;
+    } | null;
+    if (body?.action !== "setGroupLanes" || typeof body.groupId !== "string" || !body.groupId) {
+      return NextResponse.json({ error: "Unknown status update" }, { status: 400 });
+    }
+    const rawLanes =
+      body.lanes && typeof body.lanes === "object" ? (body.lanes as Record<string, unknown>) : {};
+    const lanes = Object.fromEntries(
+      STAGE_STATUS_LANES.map((lane) => [lane, readLaneIds(rawLanes[lane])])
+    ) as Record<StageStatusLane, string[]>;
+
+    await replaceGroupButtonLanes(supabase, { tenantId, groupId: body.groupId, lanes });
+    await writeActivityLog({
+      actorUserId: auth.userId,
+      action: "application_status_catalog.group_lanes_updated",
+      entityType: "application_status_group",
+      entityId: body.groupId,
+      tenantId,
+      metadata: {
+        happyPath: lanes.happy_path.length,
+        alternate: lanes.alternate.length,
+        closed: lanes.closed.length,
+      },
+      request: req,
+    });
+
+    const statuses = await listApplicationStatuses(supabase, tenantId, { ensureDefaults: false });
+    return NextResponse.json({ statuses });
   } catch (error) {
     return handleError(error);
   }

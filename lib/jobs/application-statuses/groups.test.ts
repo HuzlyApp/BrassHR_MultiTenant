@@ -12,6 +12,7 @@ describe("defaultStatusGroupKey", () => {
     expect(defaultStatusGroupKey("New / Applied", "new")).toBe("start");
     expect(defaultStatusGroupKey("Attempted Contact", null)).toBe("start");
     expect(defaultStatusGroupKey("Follow-up Needed", null)).toBe("start");
+    expect(defaultStatusGroupKey("Follow up", null)).toBe("start");
     expect(defaultStatusGroupKey("Unreachable", null)).toBe("start");
 
     expect(defaultStatusGroupKey("Screening Complete", "reviewing")).toBe("interview");

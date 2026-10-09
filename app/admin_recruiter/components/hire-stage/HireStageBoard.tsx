@@ -311,9 +311,11 @@ export function HireStageBoard({
                 stages={stages}
                 workflowSteps={steps}
                 lifecycle={lifecycle}
+                applicationId={applicationId}
                 onInspectStep={openStep}
                 onScheduleInterview={openSchedule}
                 onRefresh={onWorkflowChanged}
+                onStatusChanged={() => void onWorkflowChanged?.()}
               />
             </div>
 

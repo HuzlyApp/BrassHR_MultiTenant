@@ -61,6 +61,7 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [licenseType, setLicenseType] = useState<string>("nursing_license");
+  const [certificationName, setCertificationName] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -116,6 +117,10 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
 
   async function handleUpload(event: FormEvent) {
     event.preventDefault();
+    if (licenseType === "other_certification" && !certificationName.trim()) {
+      setError("Enter the certification name.");
+      return;
+    }
     if (!selectedFile) {
       setError("Choose a license file to upload.");
       return;
@@ -127,6 +132,9 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
       if (!headers) throw new Error("You need to sign in again.");
       const form = new FormData();
       form.append("licenseType", licenseType);
+      if (licenseType === "other_certification") {
+        form.append("certificationName", certificationName.trim());
+      }
       form.append("expiresAt", expiresAt);
       if (licenseNumber.trim()) form.append("licenseNumber", licenseNumber.trim());
       form.append("file", selectedFile);
@@ -134,6 +142,7 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
       const payload = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(payload.error || "Could not upload license.");
       setSelectedFile(null);
+      setCertificationName("");
       setExpiresAt("");
       setLicenseNumber("");
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -181,11 +190,17 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
           ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">License type</label>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+                License or certification
+              </label>
               <div className="relative">
                 <select
                   value={licenseType}
-                  onChange={(event) => setLicenseType(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setLicenseType(next);
+                    if (next !== "other_certification") setCertificationName("");
+                  }}
                   className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white py-2 pl-3 pr-10 text-sm text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
                 >
                   {LICENSE_TYPES.map((type) => (
@@ -200,6 +215,21 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
                 />
               </div>
             </div>
+            {licenseType === "other_certification" ? (
+              <div className="md:col-span-2">
+                <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+                  Certification name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={certificationName}
+                  onChange={(event) => setCertificationName(event.target.value)}
+                  required
+                  maxLength={120}
+                  placeholder="Name of the certification this position requires"
+                  className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
+                />
+              </div>
+            ) : null}
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
                 Expiration date <span className="text-red-500">*</span>

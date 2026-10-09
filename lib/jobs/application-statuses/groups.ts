@@ -35,7 +35,7 @@ export const DEFAULT_APPLICATION_STATUS_GROUPS: Array<{
   {
     systemKey: "start",
     name: "Start",
-    description: "New / Applied, Attempted Contact, Follow-up Needed, Unreachable",
+    description: "New / Applied, Attempted Contact, Follow up, Follow-up Needed, Unreachable",
     sortOrder: 0,
   },
   {
@@ -92,6 +92,8 @@ const START_NAMES = new Set([
   "attempted contact",
   "follow-up needed",
   "follow up needed",
+  "follow up",
+  "follow-up",
   "unreachable",
   "callback - not available",
 ]);
@@ -155,6 +157,12 @@ export function normalizeStatusCatalogName(name: string): string {
 
 export function isSharedClosedGroupKey(systemKey: string | null | undefined): boolean {
   return (systemKey ?? "").trim().toLowerCase() === SHARED_CLOSED_STATUS_GROUP_KEY;
+}
+
+/** Follow up is an Exception choice on every Pre-Hire stage and AI analysis step. */
+export function isSharedFollowUpStatusName(name: string | null | undefined): boolean {
+  const normalized = normalizeStatusCatalogName(name ?? "");
+  return normalized === "follow up" || normalized === "follow-up";
 }
 
 /**

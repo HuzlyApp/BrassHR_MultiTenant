@@ -4,7 +4,9 @@ import {
   formatDateOnly,
   LEGACY_DOCUMENT_KEY_BY_LICENSE_TYPE,
   LICENSE_TYPE_LABELS,
+  licenseTypeDisplayLabel,
   licenseUrgency,
+  normalizeOtherCertificationName,
   type LicenseType,
 } from "@/lib/applicant-portal/documents";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
@@ -17,6 +19,7 @@ type LicenseRow = {
   worker_id: string;
   tenant_id: string;
   license_type: LicenseType;
+  certification_name: string | null;
   license_number: string | null;
   expires_at: string | null;
   file_url: string | null;
@@ -38,7 +41,8 @@ function serializeLicense(row: LicenseRow) {
   return {
     id: row.id,
     licenseType: row.license_type,
-    licenseTypeLabel: LICENSE_TYPE_LABELS[row.license_type] ?? row.license_type,
+    certificationName: row.certification_name,
+    licenseTypeLabel: licenseTypeDisplayLabel(row.license_type, row.certification_name),
     licenseNumber: row.license_number,
     expiresAt: row.expires_at,
     expiresAtLabel: row.expires_at ? formatDateOnly(row.expires_at) : null,
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
     const licensesRes = await auth.supabase
       .from("worker_license_records")
       .select(
-        "id, worker_id, tenant_id, license_type, license_number, expires_at, file_url, storage_path, original_file_name, status, review_notes, uploaded_at"
+        "id, worker_id, tenant_id, license_type, certification_name, license_number, expires_at, file_url, storage_path, original_file_name, status, review_notes, uploaded_at"
       )
       .eq("worker_id", auth.applicant.id)
       .order("uploaded_at", { ascending: false });
@@ -97,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
     const licenseTypeRaw = String(form.get("licenseType") ?? "").trim();
+    const certificationNameRaw = form.get("certificationName");
     const expiresAtRaw = String(form.get("expiresAt") ?? "").trim();
     const licenseNumber = String(form.get("licenseNumber") ?? "").trim() || null;
     const file = form.get("file");
@@ -115,6 +120,15 @@ export async function POST(req: NextRequest) {
     }
 
     const licenseType = licenseTypeRaw as LicenseType;
+    let certificationName: string | null = null;
+    if (licenseType === "other_certification") {
+      const parsedName = normalizeOtherCertificationName(certificationNameRaw);
+      if (!parsedName.ok) {
+        return NextResponse.json({ error: parsedName.error }, { status: 400 });
+      }
+      certificationName = parsedName.value;
+    }
+
     const { storagePath, publicUrl } = await uploadApplicantPortalFile(
       auth.supabase,
       file,
@@ -128,6 +142,7 @@ export async function POST(req: NextRequest) {
         worker_id: auth.applicant.id,
         tenant_id: auth.applicant.tenant_id,
         license_type: licenseType,
+        certification_name: certificationName,
         license_number: licenseNumber,
         expires_at: expiresAtRaw,
         file_url: publicUrl,
@@ -138,7 +153,7 @@ export async function POST(req: NextRequest) {
         status: "under_review",
       })
       .select(
-        "id, worker_id, tenant_id, license_type, license_number, expires_at, file_url, storage_path, original_file_name, status, review_notes, uploaded_at"
+        "id, worker_id, tenant_id, license_type, certification_name, license_number, expires_at, file_url, storage_path, original_file_name, status, review_notes, uploaded_at"
       )
       .single();
     if (insertRes.error) throw insertRes.error;

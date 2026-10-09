@@ -26,6 +26,8 @@ import {
 } from "./hire-figma-assets";
 import { HireStepTypeIcon } from "./HireStepTypeIcon";
 import { StepRefreshButton, useStepStatusRefresh } from "./StepStatusRefresh";
+import { StageStatusSequenceButtons } from "@/app/admin_recruiter/components/StageStatusSequenceButtons";
+import { isPreHireStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 
 function formatCompletedOn(value: string | null | undefined, prefix = "Completed"): string | null {
   if (!value) return null;
@@ -91,18 +93,22 @@ export function HireStageAccordion({
   stages,
   workflowSteps,
   lifecycle = "pre_hire",
+  applicationId,
   onInspectStep,
   onScheduleInterview,
   onRefresh,
+  onStatusChanged,
 }: {
   stages: HireStageGroup[];
   /** Full phase step list (workflow order) for screening-rejection locks. */
   workflowSteps?: CandidateWorkflowStepView[];
   lifecycle?: HireStageLifecycle;
+  applicationId?: string | null;
   onInspectStep: (step: CandidateWorkflowStepView) => void;
   onScheduleInterview?: (step: CandidateWorkflowStepView) => void;
   /** Reloads the journey; the pending-step icon becomes a refresh button when set. */
   onRefresh?: () => void | Promise<void>;
+  onStatusChanged?: () => void;
 }) {
   const seed = useMemo(() => defaultOpenIds(stages), [stages]);
   const [openIds, setOpenIds] = useState<Set<string>>(seed);
@@ -267,6 +273,18 @@ export function HireStageAccordion({
                     : "1px solid #F1F5F9",
                 }}
               >
+                {lifecycle === "pre_hire" &&
+                applicationId &&
+                isPreHireStatusStageName(stage.name) ? (
+                  <div className="px-4 pb-3 sm:px-5">
+                    <p className="mb-2 text-xs font-medium text-[#64748B]">Application status</p>
+                    <StageStatusSequenceButtons
+                      applicationId={applicationId}
+                      stageName={stage.name}
+                      onStatusChanged={() => onStatusChanged?.()}
+                    />
+                  </div>
+                ) : null}
                 {stage.steps.map((step) => {
                   const lockedByScreening = isStepLockedAfterScreeningRejection(step, lockContextSteps);
                   const done = isStepDone(step);

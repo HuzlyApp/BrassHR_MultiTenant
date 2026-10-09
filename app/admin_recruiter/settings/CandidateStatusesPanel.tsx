@@ -17,6 +17,12 @@ import {
   isSharedClosedGroupKey,
 } from "@/lib/jobs/application-statuses/groups";
 import { AI_MATCH_STATUS_STAGES } from "@/lib/jobs/application-statuses/stage-assignments";
+import {
+  resolveGroupStatusLanes,
+  STAGE_STATUS_LANES,
+  type StageStatusLane,
+} from "@/lib/jobs/application-statuses/stage-status-lanes";
+import { StageStatusLaneEditor } from "./StageStatusLaneEditor";
 import { HIRE_STAGE_BY_STEP_KEY } from "@/lib/onboarding/hire-stage-catalog";
 import { PRE_HIRE_FIGMA_STAGES } from "@/lib/onboarding/hire-stage-groups";
 
@@ -42,6 +48,7 @@ type StatusItem = {
   groupDescription: string | null;
   groupSortOrder: number | null;
   groupSystemKey: string | null;
+  buttonLane: string | null;
 };
 
 type GroupStageAssignment = {
@@ -69,6 +76,7 @@ function mapStatus(row: Record<string, unknown>): StatusItem {
     groupDescription: typeof row.groupDescription === "string" ? row.groupDescription : null,
     groupSortOrder: Number.isFinite(Number(row.groupSortOrder)) ? Number(row.groupSortOrder) : null,
     groupSystemKey: typeof row.groupSystemKey === "string" ? row.groupSystemKey : null,
+    buttonLane: typeof row.buttonLane === "string" ? row.buttonLane : null,
   };
 }
 
@@ -264,8 +272,7 @@ export default function CandidateStatusesPanel() {
     null
   );
   const [openStage, setOpenStage] = useState<string | null>(PRE_HIRE_FIGMA_STAGES[0] ?? null);
-  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
-  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(true);
   const [manageOpen, setManageOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
@@ -405,6 +412,37 @@ export default function CandidateStatusesPanel() {
       flash("success", `Group assigned to ${stageName}`);
     } catch (error) {
       flash("error", error instanceof Error ? error.message : "Failed to assign group");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveGroupLanes(groupId: string, lanes: Record<StageStatusLane, string[]>) {
+    setStatuses((current) =>
+      current.map((status) => {
+        for (const lane of STAGE_STATUS_LANES) {
+          const index = lanes[lane].indexOf(status.id);
+          if (index >= 0) return { ...status, buttonLane: lane, sortOrder: index };
+        }
+        return status;
+      })
+    );
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/application-statuses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setGroupLanes", groupId, lanes }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to save status categories");
+      if (Array.isArray(payload.statuses)) {
+        setStatuses((payload.statuses as Array<Record<string, unknown>>).map(mapStatus));
+      }
+      flash("success", "Status categories saved for this group");
+    } catch (error) {
+      flash("error", error instanceof Error ? error.message : "Failed to save status categories");
+      await load();
     } finally {
       setSaving(false);
     }
@@ -582,9 +620,9 @@ export default function CandidateStatusesPanel() {
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-[#0F172A]">Pre-Hire Status Catalog</h3>
           <p className="mt-0.5 text-sm text-[#64748B]">
-            Assign status <span className="font-medium text-[#0F172A]">groups</span> to Pre-Hire
-            stages and AI analysis steps 1–5. The same group can be available on multiple stages.
-            Closed is shared on every stage automatically.
+            Open a status group below and set its three categories: recommended, exception, and
+            closed / stop. Assign that group to a Pre-Hire stage or AI analysis step, and the stage
+            shows those three buttons.
           </p>
         </div>
       </div>
@@ -622,12 +660,83 @@ export default function CandidateStatusesPanel() {
               {closedGroupPickerLabel(closedGroup?.name || "Closed")} — shared on every stage
             </p>
             <p className="mt-0.5 text-xs text-[#A16207]">
-              You do not assign Closed per stage. Its statuses stay available on every Pre-Hire
-              stage and every AI analysis step.
+              You do not assign Closed per stage. Open the Closed group below to set the Closed /
+              stop dropdown. Those statuses stay available on every Pre-Hire stage and AI analysis step.
             </p>
             <p className="mt-2 text-xs text-[#92400E]">
               {formatGroupStatusSummary(closedStatuses.map((status) => status.name), 8)}
             </p>
+          </div>
+
+          <div className="mb-6">
+            <button
+              type="button"
+              aria-expanded={catalogOpen}
+              onClick={() => setCatalogOpen((value) => !value)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-left"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-[#012352]">
+                  Status groups (Start → Closed)
+                </span>
+                <span className="mt-0.5 block text-xs text-[#64748B]">
+                  Open a group to set its recommended, exception, and closed / stop order.
+                </span>
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-[#64748B] transition ${catalogOpen ? "rotate-180" : ""}`}
+                aria-hidden
+              />
+            </button>
+            {catalogOpen ? (
+              <div className="mt-2 space-y-2">
+                {sections.map((section) => {
+                  const shared = section.shared || isSharedClosedGroupKey(section.systemKey);
+                  const stagesUsing = assignments
+                    .filter((row) => row.groupId === section.id)
+                    .map((row) => row.stageName);
+                  const activeStatuses = section.statuses.filter((status) => status.isActive);
+                  return (
+                    <div
+                      key={section.key}
+                      className={`overflow-hidden rounded-xl border ${
+                        shared ? "border-[#FCD34D] bg-[#FFFBEB]" : "border-[#E2E8F0] bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3 px-4 py-3">
+                        <span className="min-w-0 text-left">
+                          <span className="block text-sm font-semibold text-[#012352]">
+                            {shared ? closedGroupPickerLabel(section.name) : section.name}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-[#64748B]">
+                            {shared
+                              ? "Closed / stop dropdown on every stage"
+                              : stagesUsing.length > 0
+                                ? `On stages: ${stagesUsing.join(", ")}`
+                                : "Not assigned to any stage yet"}
+                          </span>
+                        </span>
+                        <span className="text-xs text-[#64748B]">{activeStatuses.length} statuses</span>
+                      </div>
+                      <div className="border-t border-[#E2E8F0]/60 px-3 py-3">
+                        {section.id ? (
+                          <StageStatusLaneEditor
+                            lanes={resolveGroupStatusLanes(activeStatuses)}
+                            canManage={canManage}
+                            saving={saving}
+                            onChange={(next) => void saveGroupLanes(section.id as string, next)}
+                          />
+                        ) : (
+                          <p className="text-xs text-[#94A3B8]">
+                            Move these statuses into a group to set their button order.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -636,8 +745,8 @@ export default function CandidateStatusesPanel() {
               Pre-Hire workflow stages
             </div>
             <p className="mb-2 text-xs text-[#64748B]">
-              Expand a stage and assign catalog groups (Start, Interview, MSP, Client, Hire). One
-              group can sit on many stages.
+              Assign catalog groups (Start, Interview, MSP, Client, Hire). The stage buttons use
+              the recommended, exception, and closed / stop order saved on each group.
             </p>
 
             {workflowStages.map(({ stage, steps }) =>
@@ -654,8 +763,8 @@ export default function CandidateStatusesPanel() {
               AI analysis steps
             </div>
             <p className="mb-2 text-xs text-[#64748B]">
-              Assign status groups to Quick Match through Submission. On each AI analysis step,
-              recruiters only see statuses from the groups assigned there, plus Closed.
+              Assign status groups to Quick Match through Submission. Each step uses the three
+              categories from those groups, plus Closed / stop.
             </p>
             {AI_MATCH_STATUS_STAGES.map((stage) =>
               stageCard(
@@ -663,80 +772,6 @@ export default function CandidateStatusesPanel() {
                 "Statuses from the groups assigned here appear on this AI analysis step."
               )
             )}
-          </div>
-
-
-          <div className="mt-5">
-            <button
-              type="button"
-              aria-expanded={catalogOpen}
-              onClick={() => setCatalogOpen((value) => !value)}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-left"
-            >
-              <span>
-                <span className="block text-sm font-semibold text-[#012352]">
-                  Status groups (Start → Closed)
-                </span>
-                <span className="mt-0.5 block text-xs text-[#64748B]">
-                  Edit which statuses belong in each group. Then assign groups to stages above.
-                </span>
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 text-[#64748B] transition ${catalogOpen ? "rotate-180" : ""}`}
-                aria-hidden
-              />
-            </button>
-            {catalogOpen ? (
-              <div className="mt-2 space-y-2">
-                {sections.map((section) => {
-                  const shared = section.shared || isSharedClosedGroupKey(section.systemKey);
-                  const open = openGroupId === section.key;
-                  const stagesUsing = assignments
-                    .filter((row) => row.groupId === section.id)
-                    .map((row) => row.stageName);
-                  return (
-                    <div
-                      key={section.key}
-                      className={`overflow-hidden rounded-xl border ${
-                        shared ? "border-[#FCD34D] bg-[#FFFBEB]" : "border-[#E2E8F0] bg-white"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        aria-expanded={open}
-                        onClick={() =>
-                          setOpenGroupId((current) => (current === section.key ? null : section.key))
-                        }
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                      >
-                        <span className="min-w-0 text-left">
-                          <span className="block text-sm font-semibold text-[#012352]">
-                            {shared ? closedGroupPickerLabel(section.name) : section.name}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-[#64748B]">
-                            {shared
-                            ? "Shared on every Pre-Hire stage and AI analysis step"
-                              : stagesUsing.length > 0
-                                ? `On stages: ${stagesUsing.join(", ")}`
-                                : "Not assigned to any stage yet"}
-                          </span>
-                        </span>
-                        <span className="text-xs text-[#64748B]">{section.statuses.length}</span>
-                      </button>
-                      {open ? (
-                        <ul className="space-y-1 border-t border-[#E2E8F0]/60 px-3 py-2">
-                          {section.statuses.map((status) => (
-                            <li key={status.id} className="rounded-lg bg-[#F8FAFC] px-2.5 py-2 text-sm">
-                              {status.name}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
           </div>
         </>
       )}
