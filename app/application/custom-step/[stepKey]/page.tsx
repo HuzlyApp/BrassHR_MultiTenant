@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import ApplicantWorkflowStepRedirect from "@/app/components/onboarding/ApplicantWorkflowStepRedirect";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -242,19 +243,39 @@ export default function CustomOnboardingStepPage() {
               ) : null}
 
               {isGenericCustom || showCustomForm ? (
-                <div className="mt-6 space-y-3">
-                  <label className="block text-sm font-medium text-slate-800" htmlFor="custom-answer">
-                    Your response {settings?.required ? <span className="text-red-600">*</span> : null}
-                  </label>
-                  <textarea
-                    id="custom-answer"
-                    rows={5}
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-primary)]"
-                    placeholder="Enter information for this step"
-                  />
-                </div>
+                step?.step_key === "i9-right-to-work-verification" ? (
+                  <div className="mt-6">
+                    <OnboardingCheckbox
+                      checked={answer === "I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge."}
+                      onChange={(checked) => {
+                        if (checked) {
+                          setAnswer("I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge.");
+                        } else {
+                          setAnswer("");
+                        }
+                      }}
+                    >
+                      <span className="text-sm text-slate-700">
+                        I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge.
+                        {settings?.required ? <span className="text-red-600"> *</span> : null}
+                      </span>
+                    </OnboardingCheckbox>
+                  </div>
+                ) : (
+                  <div className="mt-6 space-y-3">
+                    <label className="block text-sm font-medium text-slate-800" htmlFor="custom-answer">
+                      Your response {settings?.required ? <span className="text-red-600">*</span> : null}
+                    </label>
+                    <textarea
+                      id="custom-answer"
+                      rows={5}
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-primary)]"
+                      placeholder="Enter information for this step"
+                    />
+                  </div>
+                )
               ) : (
                 <p className="mt-6 text-sm text-slate-600">
                   This step uses a dedicated application screen in your onboarding workflow.

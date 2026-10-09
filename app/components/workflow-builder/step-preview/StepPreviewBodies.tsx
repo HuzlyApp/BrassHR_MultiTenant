@@ -547,13 +547,26 @@ function CustomQuestionBody({ model, previewState }: { model: StepPreviewModel; 
         </p>
       ) : null}
       <div className="mt-4">
-        <PreviewTextarea
-          label="Your response"
-          required={required}
-          error={showError(previewState)}
-          value={sampleValue(previewState, "", "Sample response for this onboarding step.")}
-          placeholder={model.prompt || "Enter information for this step"}
-        />
+        {model.step.step_key === "i9-right-to-work-verification" ? (
+          <OnboardingCheckbox
+            checked={filled(previewState)}
+            onChange={() => undefined}
+            disabled
+          >
+            <span className="text-sm text-slate-700">
+              I confirm that I have completed Section 1 of Form I-9 and that the information provided is true and accurate to the best of my knowledge.
+              {required ? <span className="text-red-600"> *</span> : null}
+            </span>
+          </OnboardingCheckbox>
+        ) : (
+          <PreviewTextarea
+            label="Your response"
+            required={required}
+            error={showError(previewState)}
+            value={sampleValue(previewState, "", "Sample response for this onboarding step.")}
+            placeholder={model.prompt || "Enter information for this step"}
+          />
+        )}
       </div>
       <PreviewActionRow primaryLabel="Continue" />
     </>
