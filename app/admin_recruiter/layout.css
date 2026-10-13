@@ -46,21 +46,6 @@
     width: calc(100% - var(--admin-sidebar-width, 272px));
     transition: margin-left 200ms ease-in-out, width 200ms ease-in-out;
   }
-
-  /*
-   * Desktop uses the fixed sidebar only. The mobile rail and the full-viewport
-   * drawer must not remain in the hit-test tree: a closed drawer is z-50, and
-   * pointer-events:none on the backdrop does not disable its child aside.
-   */
-  .admin-recruiter-shell .admin-recruiter-sidebar-desktop {
-    display: block !important;
-  }
-
-  .admin-recruiter-shell .admin-recruiter-sidebar-mobile-rail,
-  .admin-recruiter-shell .admin-recruiter-sidebar-drawer {
-    display: none !important;
-    pointer-events: none !important;
-  }
 }
 
 .admin-recruiter-main-wrap {
@@ -308,27 +293,18 @@
 }
 
 /*
- * Settings tree: first submenu level is 40px in from the nav padding,
- * nested links sit 16px further in. 12px between groups, 10px between leaves.
+ * Submenu label aligns with parent row text (20px icon + 12px gap).
+ * Figma spacing: 14px parent→first child, 14px between children, 24px before next parent
+ * (parent rows are 44px tall with 12px above/below the 20px label).
  */
 .admin-recruiter-sidebar-submenu {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 12px;
-  padding-left: 40px;
+  margin-top: -5px;
+  padding-bottom: 5px;
+  padding-left: 2rem;
 }
 
 .admin-recruiter-sidebar-submenu-item {
-  padding: 0;
-}
-
-.admin-recruiter-sidebar-submenu-nested {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-  padding-left: 16px;
+  padding: 7px 0.75rem 7px 0;
 }
 
 /* Tenant branding remap for legacy utility colors in recruiter pages. */
