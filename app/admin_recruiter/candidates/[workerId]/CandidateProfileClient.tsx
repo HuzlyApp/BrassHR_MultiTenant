@@ -17,7 +17,11 @@ import { formatPhoneForDisplay } from "@/lib/admin/worker-profile-field-client";
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 import { profileMatchRingColor } from "@/lib/jobs/match-analysis/display";
 import { workTypeLabel } from "@/lib/admin/candidate-profile-view";
-import type { CandidateProfileActivity, CandidateProfilePayload } from "@/lib/admin/candidate-profile-view";
+import type {
+  CandidateProfileActivity,
+  CandidateProfilePayload,
+  CandidateProfileResume,
+} from "@/lib/admin/candidate-profile-view";
 import { exportRowsAsCsv } from "@/lib/admin/export-list-download";
 import { CandidateProfileDocumentsTab } from "./CandidateProfileDocumentsTab";
 import {
@@ -542,12 +546,13 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
     });
   }, [applications, statusFilter, workTypeFilter]);
 
-  function openResume(applicationId: string, resumeId: string) {
+  function openResume(applicationId: string, resume: CandidateProfileResume) {
     window.open(
       adminWorkerResumePreviewHref({
         workerId,
-        resumeId,
-        applicationId,
+        resumeId: resume.id,
+        // A fallback résumé is bound to another application; the preview route rejects a mismatch.
+        applicationId: resume.jobApplicationId?.trim() || applicationId,
       }),
       "_blank",
       "noopener,noreferrer"
@@ -893,7 +898,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                             {row.resume ? (
                               <button
                                 type="button"
-                                onClick={() => void openResume(row.id, row.resume!.id)}
+                                onClick={() => void openResume(row.id, row.resume!)}
                                 className="flex min-w-0 cursor-pointer items-start gap-2 text-left"
                               >
                                 <BrandedFileTypeIcon
