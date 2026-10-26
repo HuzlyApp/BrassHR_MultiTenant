@@ -248,13 +248,22 @@ const AUTOMATION_ACTIVE_PREFIXES = [
   `${DASHBOARD_BASE}/workflowlibrary`,
 ];
 
+const FACILITIES_ROUTE = "/admin_recruiter/facilities";
+
 const ORGANIZATION_CHILDREN: SidebarLink[] = [
   {
     label: "Locations",
-    href: "/admin_recruiter/facilities",
-    matchPrefixes: ["/admin_recruiter/facilities"],
+    href: FACILITIES_ROUTE,
+    matchPrefixes: [FACILITIES_ROUTE],
   },
 ];
+
+const ORGANIZATION_MENU: SidebarLink = {
+  label: "Organization",
+  href: "#",
+  matchPrefixes: [FACILITIES_ROUTE],
+  children: ORGANIZATION_CHILDREN,
+};
 
 const JOBS_ROUTE = "/admin_recruiter/jobs";
 
@@ -373,6 +382,42 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
   },
 ];
 
+const SETTINGS_MATCH_PREFIXES = [
+  SETTINGS_ROUTE,
+  "/admin_recruiter/account",
+  HELP_SUPPORT_ROUTE,
+  NOTIFICATIONS_ROUTE,
+  REPORTS_BASE,
+];
+
+/** Company admin: Organization, Automation, and Templates live under Settings, with their existing submenus. */
+const ADMIN_SETTINGS_CHILDREN: SidebarLink[] = [
+  ...SETTINGS_CHILDREN,
+  ORGANIZATION_MENU,
+  {
+    label: "Automation",
+    href: "#",
+    matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
+    children: AUTOMATION_CHILDREN,
+  },
+  {
+    label: "Templates",
+    href: "#",
+    matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
+    children: TEMPLATES_CHILDREN,
+  },
+];
+
+function settingsSection(children: SidebarLink[], matchPrefixes: string[]): SidebarSection {
+  return {
+    label: "Settings",
+    href: "#",
+    iconType: ICON.settings,
+    matchPrefixes,
+    children,
+  };
+}
+
 const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
   // {
   //   label: "Help & Support",
@@ -380,14 +425,15 @@ const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
   //   iconType: ICON.help,
   //   matchPrefixes: ["/admin_recruiter/help-support"],
   // }, // Moved under Settings.
-  {
-    label: "Settings",
-    href: "#",
-    iconType: ICON.settings,
-    matchPrefixes: [SETTINGS_ROUTE, "/admin_recruiter/account", HELP_SUPPORT_ROUTE, NOTIFICATIONS_ROUTE, REPORTS_BASE],
-    children: SETTINGS_CHILDREN,
-  },
+  settingsSection(SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES),
 ];
+
+const ADMIN_SETTINGS_SECTION = settingsSection(ADMIN_SETTINGS_CHILDREN, [
+  ...SETTINGS_MATCH_PREFIXES,
+  FACILITIES_ROUTE,
+  ...AUTOMATION_ACTIVE_PREFIXES,
+  ...TEMPLATES_ACTIVE_PREFIXES,
+]);
 
 /** Company owner / admin recruiter (client login). */
 export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
@@ -446,13 +492,13 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   //   matchPrefixes: [],
   //   children: PAY_CHILDREN,
   // }, // Hidden for now — routes are not built yet.
-  {
-    label: "Automation",
-    href: "#",
-    iconType: ICON.automation,
-    matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
-    children: AUTOMATION_CHILDREN,
-  },
+  // {
+  //   label: "Automation",
+  //   href: "#",
+  //   iconType: ICON.automation,
+  //   matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
+  //   children: AUTOMATION_CHILDREN,
+  // }, // Moved under Settings.
   // {
   //   label: "Reports",
   //   href: "#",
@@ -460,13 +506,13 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   //   matchPrefixes: ["/admin_recruiter/reports"],
   //   children: REPORTS_CHILDREN,
   // }, // Moved under Settings.
-  {
-    label: "Templates",
-    href: "#",
-    iconType: ICON.templateBuilder,
-    matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
-    children: TEMPLATES_CHILDREN,
-  },
+  // {
+  //   label: "Templates",
+  //   href: "#",
+  //   iconType: ICON.templateBuilder,
+  //   matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
+  //   children: TEMPLATES_CHILDREN,
+  // }, // Moved under Settings.
   // {
   //   label: "Taskboard",
   //   href: "#",
@@ -498,7 +544,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   //   iconType: ICON.notifications,
   //   matchPrefixes: ["/admin_recruiter/notifications"],
   // }, // Moved under Settings.
-  ...SHARED_FOOTER_SECTIONS,
+  ADMIN_SETTINGS_SECTION,
 ];
 
 /** Brass HR platform god admin viewing admin recruiter. */
