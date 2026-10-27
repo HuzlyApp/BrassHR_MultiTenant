@@ -89,6 +89,7 @@ import {
   isApplicationRowArchived,
   matchesApplicationStatusTab,
 } from "@/lib/jobs/application-status-tab";
+import { isAnalyzedJobApplication } from "@/lib/jobs/job-list-application-metrics";
 import { isClosedPipelineApplication, isInProcessPipelineApplication } from "@/lib/jobs/pipeline-summary";
 import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -143,7 +144,9 @@ import { filterApplicationStatusesForSource } from "@/lib/jobs/msp-submission";
 
 type ApplicationStatus = string;
 
-type ApplicationTab = "all" | string;
+type ApplicationTab = "all" | "analyzed" | string;
+
+const ANALYZED_APPLICANTS_TAB = "analyzed";
 
 type ApplicationRow = {
   id: string;
@@ -454,6 +457,9 @@ function matchesTab(
   if (tab === "in_process" || tab === "in-process") {
     return isInProcessPipelineApplication(row);
   }
+  if (tab === ANALYZED_APPLICANTS_TAB || tab === "analyzed-applicants") {
+    return isAnalyzedJobApplication(row);
+  }
   return matchesApplicationStatusTab(row, tab, options);
 }
 
@@ -466,6 +472,7 @@ function resolveApplicationTabParam(
   if (!raw || raw === "all") return "all";
   if (raw === "closed") return "closed";
   if (raw === "in_process" || raw === "in-process") return "in_process";
+  if (raw === ANALYZED_APPLICANTS_TAB || raw === "analyzed-applicants") return ANALYZED_APPLICANTS_TAB;
 
   const byId = options.find((option) => option.id === raw);
   if (byId) return byId.id;
@@ -638,6 +645,7 @@ export default function JobApplicationsPage() {
     stages: string[];
     multiJobApplicantCount: number;
     scopeUnanalyzedCount: number;
+    analyzedCount: number;
   }>({
     paged: false,
     total: 0,
@@ -647,6 +655,7 @@ export default function JobApplicationsPage() {
     stages: [],
     multiJobApplicantCount: 0,
     scopeUnanalyzedCount: 0,
+    analyzedCount: 0,
   });
   const [job, setJob] = useState<JobHeader | null>(null);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
@@ -953,6 +962,7 @@ export default function JobApplicationsPage() {
           stages: Array.isArray(payload.stages) ? payload.stages.map(String) : [],
           multiJobApplicantCount: Number(payload.multiJobApplicantCount ?? 0),
           scopeUnanalyzedCount: Number(payload.scopeUnanalyzedCount ?? 0),
+          analyzedCount: Number(payload.analyzedCount ?? 0),
         });
         setError("");
       } catch (loadError) {
@@ -968,6 +978,7 @@ export default function JobApplicationsPage() {
           stages: [],
           multiJobApplicantCount: 0,
           scopeUnanalyzedCount: 0,
+          analyzedCount: 0,
         });
       } finally {
         if (!cancelled) setLoading(false);
@@ -1419,18 +1430,30 @@ export default function JobApplicationsPage() {
     router.replace(`${pathname}?${params.toString()}`);
   }, [resolvedActiveTab, listMeta.buckets, statusOptions, searchParams, router, pathname]);
 
-  /** When ?tab=in_process, jump to the in-process status tab with the most candidates. */
+  /**
+   * In Process links arrive as ?tab=in_process or a pipeline key such as reviewing.
+   * Those keys match the first catalog status, which can be empty. Open the
+   * in-process status that actually has this job's applicants.
+   */
   useEffect(() => {
-    if (resolvedActiveTab !== "in_process") return;
+    const rawTab = searchParams.get("tab")?.trim() || "";
+    const pipelineRedirect = new Set([
+      "in_process",
+      "in-process",
+      "reviewing",
+      "shortlisted",
+      "interviewing",
+    ]);
+    if (!pipelineRedirect.has(rawTab)) return;
     if (!listMeta.buckets.length || !statusOptions.length) return;
     const bestId = bestPipelineStatusId(listMeta.buckets, "in_process");
-    if (!bestId) return;
+    if (!bestId || bestId === rawTab) return;
 
     setActiveTab(bestId);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", bestId);
     router.replace(`${pathname}?${params.toString()}`);
-  }, [resolvedActiveTab, listMeta.buckets, statusOptions, searchParams, router, pathname]);
+  }, [listMeta.buckets, statusOptions, searchParams, router, pathname]);
 
   useLayoutEffect(() => {
     const scroller = statusTabsScrollRef.current;
@@ -1465,11 +1488,17 @@ export default function JobApplicationsPage() {
   );
 
   const tabCounts = useMemo(() => {
-    if (listMeta.paged) return tabCountsFromBuckets(listMeta.buckets, statusOptions);
-    const counts: Record<string, number> = { all: 0 };
+    if (listMeta.paged) {
+      return {
+        ...tabCountsFromBuckets(listMeta.buckets, statusOptions),
+        [ANALYZED_APPLICANTS_TAB]: listMeta.analyzedCount,
+      };
+    }
+    const counts: Record<string, number> = { all: 0, [ANALYZED_APPLICANTS_TAB]: 0 };
     for (const option of statusOptions) counts[option.id] = 0;
     for (const row of rows) {
       counts.all += 1;
+      if (isAnalyzedJobApplication(row)) counts[ANALYZED_APPLICANTS_TAB] += 1;
 
       const archived = isRowArchived(row, statusOptions);
       const statusId = rowStatusId(row);
@@ -1486,7 +1515,7 @@ export default function JobApplicationsPage() {
       if (byKey) counts[byKey.id] += 1;
     }
     return counts;
-  }, [rows, statusOptions, listMeta.paged, listMeta.buckets]);
+  }, [rows, statusOptions, listMeta.paged, listMeta.buckets, listMeta.analyzedCount]);
 
   const baseFilteredRows = useMemo(() => {
     if (listMeta.paged) return rows;
@@ -2930,6 +2959,37 @@ export default function JobApplicationsPage() {
                 </button>
               );
             })}
+          <button
+            ref={resolvedActiveTab === ANALYZED_APPLICANTS_TAB ? activeStatusTabRef : undefined}
+            type="button"
+            onClick={() => {
+              setActiveTab(ANALYZED_APPLICANTS_TAB);
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("tab", ANALYZED_APPLICANTS_TAB);
+              router.replace(`${pathname}?${params.toString()}`);
+            }}
+            className={`relative inline-flex shrink-0 flex-col items-center px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+              resolvedActiveTab === ANALYZED_APPLICANTS_TAB
+                ? "text-[color:var(--brand-primary)]"
+                : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
+            }`}
+            aria-current={resolvedActiveTab === ANALYZED_APPLICANTS_TAB ? "page" : undefined}
+          >
+            <span className="inline-flex items-center gap-2">
+              <span>Analyzed applicants</span>
+              <span className="admin-recruiter-tab-count rounded-sm">
+                {tabCounts[ANALYZED_APPLICANTS_TAB] ?? 0}
+              </span>
+            </span>
+            <span
+              className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
+                resolvedActiveTab === ANALYZED_APPLICANTS_TAB
+                  ? "bg-[color:var(--brand-primary)]"
+                  : "bg-transparent"
+              }`}
+              aria-hidden
+            />
+          </button>
           {pipelineTabSections.map((section) => (
             <div key={section.key} className="flex items-end gap-4 border-l border-[#E5E7EB] pl-4">
               <span
