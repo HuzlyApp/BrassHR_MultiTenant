@@ -135,6 +135,7 @@ export type MatchAnalysisWorkspacePayload = {
     display_category: string | null;
     model: string | null;
     analyzed_at: string;
+    quick_route?: string | null;
     analysis?: MatchAnalysisResponse | null;
   }>;
   extractedResume?: { text: string; fileName: string | null } | null;
@@ -158,7 +159,7 @@ export type TeamMember = { id: string; name: string; email: string };
 export type UploadedResumeItem = {
   id: string;
   fileName: string;
-  fileIconType?: "pdf" | "jpeg";
+  fileIconType?: "pdf" | "jpeg" | "docx";
   uploadedAt?: string;
   uploadedAtLabel?: string;
   improvementSummary?: unknown;
@@ -923,7 +924,12 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
-  async function downloadSubmissionDocx(resumeId: string, preferredName?: string) {
+  async function downloadSubmissionResume(resumeId: string, preferredName?: string) {
+    const lower = String(preferredName ?? "").toLowerCase();
+    const isPdf = lower.endsWith(".pdf");
+    const isDocx = lower.endsWith(".docx") || lower.endsWith(".doc");
+    const fallbackName = isPdf ? "submission-resume.pdf" : "submission-resume.docx";
+    const label = isPdf ? "PDF" : "Word";
     try {
       const res = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
@@ -931,20 +937,26 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       );
       const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
       if (!res.ok || !json.url) {
-        throw new Error(json.error || "Could not download the Word résumé.");
+        throw new Error(json.error || `Could not download the ${label} résumé.`);
       }
       const fileRes = await fetch(json.url);
-      if (!fileRes.ok) throw new Error("Could not download the Word résumé.");
+      if (!fileRes.ok) throw new Error(`Could not download the ${label} résumé.`);
       const blob = await fileRes.blob();
-      const fileName = preferredName?.endsWith(".docx")
-        ? preferredName
-        : preferredName
-          ? `${preferredName}.docx`
-          : "submission-resume.docx";
+      const fileName =
+        preferredName && (isPdf || isDocx)
+          ? preferredName
+          : preferredName
+            ? `${preferredName}${isPdf ? ".pdf" : ".docx"}`
+            : fallbackName;
       triggerBlobDownload(blob, fileName);
+      toast.success(`${label} résumé downloaded.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not download the Word résumé.");
+      toast.error(error instanceof Error ? error.message : `Could not download the ${label} résumé.`);
     }
+  }
+
+  async function downloadSubmissionDocx(resumeId: string, preferredName?: string) {
+    return downloadSubmissionResume(resumeId, preferredName);
   }
 
   async function advanceMatchProgress(
@@ -1224,6 +1236,7 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     resumes,
     viewResume,
     downloadSubmissionDocx,
+    downloadSubmissionResume,
     improvementSummary,
     load,
     runAnalyze,

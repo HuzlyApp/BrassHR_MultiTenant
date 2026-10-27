@@ -1852,13 +1852,16 @@ export default function JobApplicationsPage() {
         stage?: string | null;
         requirementCounts?: ListingRequirementOutcomeCounts | null;
       } | null;
+      parseStatus?: string | null;
+      parseError?: string | null;
+      previousResumeKept?: boolean;
+      reused?: boolean;
     }
   ) {
     const match = result.resumeUploaded ? result.autoQuickMatch : null;
     const matchOk = match?.status === "ANALYZED";
-    const matchFailed = Boolean(
-      result.resumeUploaded && match && match.status !== "ANALYZED"
-    );
+    const matchPending = match?.status === "ANALYZING";
+    const matchFailed = Boolean(result.resumeUploaded && match && !matchOk && !matchPending);
 
     setRows((current) =>
       current.map((row) => {
@@ -1889,6 +1892,19 @@ export default function JobApplicationsPage() {
             ai_requirement_counts: match.requirementCounts ?? null,
           };
         }
+        if (matchPending) {
+          return {
+            ...renamed,
+            ai_match_status: "ANALYZING",
+            ai_match_score: null,
+            ai_match_category: null,
+            ai_match_action: null,
+            ai_match_readiness: null,
+            ai_match_display_category: null,
+            ai_match_stage: null,
+            ai_requirement_counts: null,
+          };
+        }
         return {
           ...renamed,
           ai_match_status: matchFailed ? "FAILED" : "READY",
@@ -1914,6 +1930,15 @@ export default function JobApplicationsPage() {
         toast.success(`${candidateLabel}: Quick Match complete`, {
           duration: ACTION_TOAST_DURATION_MS,
         });
+      } else if (matchPending) {
+        toast.success(`${candidateLabel}: Quick Match is running in the background`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
+      } else if (result.previousResumeKept) {
+        toast.error(
+          result.parseError?.trim() ||
+            "The new file was saved, but it could not be read. The previous resume is unchanged."
+        );
       } else if (matchFailed) {
         toast.error(
           match?.error?.trim() ||
