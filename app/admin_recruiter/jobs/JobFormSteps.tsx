@@ -1522,6 +1522,80 @@ export function JobFormStepCompensation({
             ) : null}
           </div>
         </section>
+
+        <hr className="border-[#E5E7EB]" />
+
+        <section className="space-y-4">
+          <BenefitsChipSelect
+            labelClassName={JOB_FORM_SECTION_TITLE_CLASS}
+            options={benefitOptions}
+            selected={ui.selectedBenefits}
+            onToggle={toggleBenefit}
+            customBenefits={ui.customBenefits}
+            onRemoveCustom={(benefit) => {
+              onUiChange({
+                customBenefits: ui.customBenefits.filter((item) => item !== benefit),
+                selectedBenefits: ui.selectedBenefits.filter((item) => item !== benefit),
+              });
+            }}
+            headerAction={
+              !creatingBenefit ? (
+                <button
+                  type="button"
+                  onClick={() => setCreatingBenefit(true)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-[color:var(--brand-secondary)] transition hover:opacity-90"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Benefit
+                </button>
+              ) : null
+            }
+          />
+
+          {creatingBenefit ? (
+            <div className="flex w-full flex-col gap-2 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center">
+              <input
+                autoFocus
+                className={`${JOB_FORM_INPUT_CLASS} w-full min-[700px]:max-w-xs`}
+                value={newBenefitName}
+                onChange={(event) => setNewBenefitName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustomBenefit();
+                  }
+                  if (event.key === "Escape") {
+                    setCreatingBenefit(false);
+                    setNewBenefitName("");
+                  }
+                }}
+                placeholder="Enter benefit name"
+                aria-label="New benefit name"
+              />
+              <button
+                type="button"
+                onClick={addCustomBenefit}
+                className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+                style={{
+                  backgroundColor: "var(--brand-primary)",
+                  borderColor: "var(--brand-primary)",
+                }}
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatingBenefit(false);
+                  setNewBenefitName("");
+                }}
+                className={JOB_FORM_OUTLINE_BUTTON_CLASS}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : null}
+        </section>
       </div>
     );
   }
@@ -2490,14 +2564,13 @@ export function JobFormStepReview({
                 />
               ) : null}
             </>
-          ) : (
-            <ReviewRow
-              label="Benefits"
-              value={ui.selectedBenefits.join(", ")}
-              addLabel="benefits"
-              onEdit={() => onEditField("benefits")}
-            />
-          )}
+          ) : null}
+          <ReviewRow
+            label="Benefits"
+            value={ui.selectedBenefits.join(", ")}
+            addLabel="benefits"
+            onEdit={() => onEditField("benefits")}
+          />
         </>
       ) : null}
       {job.sourceType !== "MSP" ? (
@@ -2507,10 +2580,11 @@ export function JobFormStepReview({
           onEdit={() => onEditField("compensation")}
         />
       ) : null}
-      {job.sourceType !== "MSP" && !isMspRnr ? (
+      {job.sourceType !== "MSP" ? (
         <ReviewRow
           label="Benefits"
           value={ui.selectedBenefits.join(", ")}
+          addLabel="benefits"
           onEdit={() => onEditField("benefits")}
         />
       ) : null}
