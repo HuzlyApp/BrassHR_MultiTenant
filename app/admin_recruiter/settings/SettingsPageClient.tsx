@@ -73,12 +73,10 @@ function TemplatesSection() {
 
 function SettingsBody({ section, canEdit, canDelete }: { section: string; canEdit: boolean; canDelete: boolean }) {
   if (section === "roles") {
-    return (
-      <div className="space-y-6">
-        <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />
-        <AdminConsolePanel />
-      </div>
-    );
+    return <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />;
+  }
+  if (section === "admin-console") {
+    return <AdminConsolePanel />;
   }
   if (section === "departments") {
     return (
@@ -161,7 +159,7 @@ function SettingsContent({ section }: { section: string }) {
       <SettingsSidebar />
       <main
         className={`min-w-0 flex-1 ${
-          section === "roles" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
+          section === "roles" || section === "admin-console" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
         }`}
       >
         <fieldset disabled={!company.canEdit} className="min-w-0 border-0 p-0 disabled:opacity-80">
