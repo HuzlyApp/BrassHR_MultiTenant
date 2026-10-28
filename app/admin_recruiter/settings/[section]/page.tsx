@@ -1,18 +1,26 @@
 import { notFound, redirect } from "next/navigation";
-import SettingsPageClient from "@/app/admin_recruiter/settings/SettingsPageClient";
-import { isSettingsSectionSlug } from "@/app/admin_recruiter/settings/settings-nav";
+import SettingsSectionClient from "@/app/admin_recruiter/settings/SettingsSectionClient";
+import {
+  SETTINGS_SECTION_SLUGS,
+  isSettingsSectionSlug,
+  type SettingsSectionSlug,
+} from "@/app/admin_recruiter/settings/settings-nav";
 
 type PageProps = {
   params: Promise<{ section: string }>;
 };
 
+export function generateStaticParams() {
+  return SETTINGS_SECTION_SLUGS.map((section) => ({ section }));
+}
+
 export default async function SettingsSectionPage({ params }: PageProps) {
   const { section } = await params;
-  if (section === "branding") {
-    redirect("/admin_recruiter/settings");
+  if (section === "company") {
+    redirect("/admin_recruiter/settings/branding");
   }
   if (!isSettingsSectionSlug(section)) {
     notFound();
   }
-  return <SettingsPageClient section={section} />;
+  return <SettingsSectionClient section={section as SettingsSectionSlug} />;
 }

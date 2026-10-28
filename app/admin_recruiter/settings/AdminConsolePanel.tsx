@@ -220,7 +220,11 @@ function RowActionMenu({
   );
 }
 
-export default function AdminConsolePanel() {
+export default function AdminConsolePanel({
+  embedInSettingsPage = false,
+}: {
+  embedInSettingsPage?: boolean;
+} = {}) {
   const [users, setUsers] = useState<StaffDirectoryRow[]>([]);
   const [roleOptions, setRoleOptions] = useState<StaffRoleOption[]>([]);
   const [visible, setVisible] = useState(false);
@@ -415,18 +419,24 @@ export default function AdminConsolePanel() {
       className="flex flex-col gap-5"
       style={{ fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif" }}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold leading-7 text-black">Admin Console</h1>
-          <p className="text-xs font-normal leading-4 text-[#6B7280]">
-            Manage system-wide settings, users, and administrative controls.
-          </p>
-        </div>
+      <div
+        className={`flex flex-col gap-3 sm:flex-row sm:items-start ${
+          embedInSettingsPage ? "sm:justify-end" : "sm:justify-between"
+        }`}
+      >
+        {embedInSettingsPage ? null : (
+          <div>
+            <h1 className="text-xl font-semibold leading-7 text-black">Admin Console</h1>
+            <p className="text-xs font-normal leading-4 text-[#6B7280]">
+              Manage system-wide settings, users, and administrative controls.
+            </p>
+          </div>
+        )}
         <button
           type="button"
           onClick={openInvite}
           disabled={loading}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#BC8B41] px-4 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60"
         >
           <UserPlus className="h-4 w-4" aria-hidden />
           Invite User
