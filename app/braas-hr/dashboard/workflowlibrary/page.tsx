@@ -7,7 +7,18 @@ import toast from "react-hot-toast";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import { useOnboardingLibraries } from "@/lib/onboarding/hooks/use-onboarding-libraries";
 import { useOnboardingFlows } from "@/lib/onboarding/hooks/use-onboarding-flows";
-import { BRAND_SECONDARY_BG, GOLD_GRADIENT, NAVY_GRADIENT } from "../constants";
+import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { GOLD_GRADIENT, NAVY_GRADIENT } from "../constants";
+
+const CREATE_FOLDER_ICONS = {
+  close: "/icons/create-folder/icon-outline-x.svg",
+  folder: "/icons/create-folder/folder-open.svg",
+  chevron: "/icons/create-folder/chevron-down.svg",
+  search: "/icons/create-folder/search.svg",
+  flows: "/icons/create-folder/flows.svg",
+  flowsActive: "/icons/create-folder/flows-alt.svg",
+  check: "/icons/create-folder/check.svg",
+} as const;
 
 const BRAND_PRIMARY = "var(--brand-primary)";
 const PAGE_BG = "#f8f8f8";
@@ -98,78 +109,6 @@ function CloseIcon() {
   );
 }
 
-function ChevronDownIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M4 6L8 10L12 6"
-        stroke={TEXT_SECONDARY}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ChevronUpIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M4 10L8 6L12 10"
-        stroke={TEXT_SECONDARY}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <circle cx="7" cy="7" r="4.25" stroke={TEXT_MUTED} strokeWidth="1.5" />
-      <path
-        d="M10 10L13 13"
-        stroke={TEXT_MUTED}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function FlowNodeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <rect x="1.5" y="5.5" width="4" height="4" rx="1" stroke={TEXT_SECONDARY} strokeWidth="1.25" />
-      <rect x="10.5" y="1.5" width="4" height="4" rx="1" stroke={TEXT_SECONDARY} strokeWidth="1.25" />
-      <rect x="10.5" y="10.5" width="4" height="4" rx="1" stroke={TEXT_SECONDARY} strokeWidth="1.25" />
-      <path
-        d="M5.5 7.5H8M8 7.5V4.5M8 7.5V11.5"
-        stroke={TEXT_SECONDARY}
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-      <path
-        d="M2 5L4.25 7.25L8 3.25"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 type FlowOption = {
   id: string;
   label: string;
@@ -218,63 +157,48 @@ function FlowMultiSelect({ id, selectedIds, onChange, options }: FlowMultiSelect
   const addedCount = selectedIds.length;
 
   return (
-    <div ref={containerRef}>
-      <div className="relative">
-        <button
-          type="button"
-          id={id}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          onClick={() => setOpen((v) => !v)}
-          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] ${
-            open ? "rounded-b-none border-b-0" : ""
-          }`}
-          style={{
-            borderColor: CARD_BORDER,
-            color: TEXT_MUTED,
-          }}
-        >
-          <span>Select flows</span>
-          <span className="shrink-0">{open ? <ChevronUpIcon /> : <ChevronDownIcon />}</span>
-        </button>
+    <div ref={containerRef} className="w-full">
+      <button
+        type="button"
+        id={id}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between rounded-lg border border-[#cbd5e1] bg-white py-3.5 pl-3.5 pr-1.5 text-left outline-none"
+      >
+        <span className="text-sm font-normal leading-5 text-[#94a3b8]">Select flow</span>
+        <img src={CREATE_FOLDER_ICONS.chevron} width={20} height={20} alt="" />
+      </button>
 
-        {open ? (
-          <div
-            className="absolute left-0 right-0 top-full z-10 overflow-hidden rounded-b-lg border border-t-0 bg-white shadow-sm"
-            style={{ borderColor: CARD_BORDER }}
-          >
-            <div className="border-b px-3 py-2.5" style={{ borderColor: CARD_BORDER }}>
-              <div className="relative">
+      {open ? (
+        <div className="flex w-full items-stretch gap-0.5 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white p-1">
+          <div className="min-w-0 flex-1">
+            <div className="border-b border-[#e5e7eb] py-1">
+              <div className="flex h-9 items-center justify-between rounded-lg bg-white px-2.5 py-1">
                 <input
-                  type="search"
+                  type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search flow"
-                  className="h-9 w-full rounded-md border bg-white py-2 pl-3 pr-9 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
-                  style={{
-                    borderColor: CARD_BORDER,
-                    color: TEXT_PRIMARY,
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
                   }}
+                  placeholder="Search flow..."
                   aria-label="Search flow"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-black outline-none placeholder:text-[#94a3b8]"
                 />
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
-                  <SearchIcon />
-                </span>
+                <img src={CREATE_FOLDER_ICONS.search} width={16} height={16} alt="" />
               </div>
             </div>
-
             <ul
               id={listboxId}
               role="listbox"
               aria-multiselectable="true"
               aria-label="Flows"
-              className="max-h-[180px] overflow-y-auto py-1"
+              className="max-h-[72px] overflow-y-auto [scrollbar-color:#cbd5e1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#cbd5e1]"
             >
               {filteredFlows.length === 0 ? (
-                <li className="px-3.5 py-3 text-sm" style={{ color: TEXT_MUTED }}>
-                  No flows found
-                </li>
+                <li className="px-2 py-2 text-sm leading-5 text-[#94a3b8]">No flows found</li>
               ) : (
                 filteredFlows.map((flow) => {
                   const checked = selectedIds.includes(flow.id);
@@ -283,29 +207,45 @@ function FlowMultiSelect({ id, selectedIds, onChange, options }: FlowMultiSelect
                       <button
                         type="button"
                         onClick={() => toggleFlow(flow.id)}
-                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm transition hover:bg-[#f9fafb]"
-                        style={{
-                          backgroundColor: checked ? "#f2f4f7" : undefined,
-                          color: TEXT_PRIMARY,
-                        }}
+                        className="group flex w-full items-center justify-between p-2 text-left hover:bg-[#f4f4f4]"
                       >
-                        <FlowNodeIcon />
-                        <span className="min-w-0 flex-1 truncate">{flow.label}</span>
-                        <span
-                          className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border transition ${
-                            checked ? "" : "border-[#d0d5dd] bg-white"
-                          }`}
-                          style={
-                            checked
-                              ? {
-                                  borderColor: BRAND_SECONDARY_BG,
-                                  backgroundColor: BRAND_SECONDARY_BG,
-                                }
-                              : undefined
-                          }
-                          aria-hidden
-                        >
-                          {checked ? <CheckIcon /> : null}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <img
+                            src={CREATE_FOLDER_ICONS.flows}
+                            width={18}
+                            height={18}
+                            alt=""
+                            className="group-hover:hidden"
+                          />
+                          <img
+                            src={CREATE_FOLDER_ICONS.flowsActive}
+                            width={18}
+                            height={18}
+                            alt=""
+                            className="hidden group-hover:block"
+                          />
+                          <span className="truncate text-sm font-normal leading-5 text-[#374151]">
+                            {flow.label}
+                          </span>
+                        </span>
+                        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
+                          <span
+                            className={`relative size-4 overflow-hidden rounded-[4px] border ${
+                              checked
+                                ? "border-[#012352] bg-[#012352]"
+                                : "border-[#cbd5e1] bg-white"
+                            }`}
+                          >
+                            {checked ? (
+                              <img
+                                src={CREATE_FOLDER_ICONS.check}
+                                width={12}
+                                height={12}
+                                alt=""
+                                className="absolute left-px top-px"
+                              />
+                            ) : null}
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -314,11 +254,11 @@ function FlowMultiSelect({ id, selectedIds, onChange, options }: FlowMultiSelect
               )}
             </ul>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {addedCount > 0 ? (
-        <p className="mt-1.5 text-right text-xs leading-[18px]" style={{ color: TEXT_MUTED }}>
+        <p className="flex justify-end p-1 text-[10px] font-normal leading-[15px] text-[#374151]">
           {addedCount} added
         </p>
       ) : null}
@@ -443,7 +383,7 @@ function FolderCreatedSuccessModal({
 type CreateFolderModalProps = {
   open: boolean;
   onClose: () => void;
-  onCreated: (folderName: string) => void | Promise<void>;
+  onCreated: (folderName: string, flowIds: string[]) => void | Promise<void>;
   flowOptions: FlowOption[];
   saving?: boolean;
 };
@@ -451,7 +391,6 @@ type CreateFolderModalProps = {
 function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = false }: CreateFolderModalProps) {
   const [folderName, setFolderName] = useState("");
   const [selectedFlowIds, setSelectedFlowIds] = useState<string[]>([]);
-  const [isPrivate, setIsPrivate] = useState(true);
 
   useEffect(() => {
     if (!open) return;
@@ -470,135 +409,127 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
     if (open) return;
     setFolderName("");
     setSelectedFlowIds([]);
-    setIsPrivate(true);
   }, [open]);
 
   const handleCreate = useCallback(async () => {
     const name = folderName.trim();
-    if (!name) return;
-    await onCreated(name);
-    onClose();
-  }, [folderName, onCreated, onClose]);
+    if (!name || saving) return;
+    try {
+      await onCreated(name, selectedFlowIds);
+      onClose();
+    } catch {
+      // The caller reports the error and leaves the dialog open.
+    }
+  }, [folderName, onCreated, onClose, saving, selectedFlowIds]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 px-3 py-4 sm:items-center sm:px-4 sm:py-8"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/20 px-4 py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-folder-title"
       onClick={onClose}
     >
       <div
-        className="relative my-auto w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-xl"
+        className="my-auto w-full max-w-[600px] overflow-hidden rounded-[20px] border border-[#e5e7eb] bg-white shadow-[0_10px_10px_-5px_rgba(0,0,0,0.04),0_20px_25px_-5px_rgba(0,0,0,0.1)]"
+        style={{ fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110 sm:right-5 sm:top-5"
-          aria-label="Close"
-        >
-          <CloseIcon />
-        </button>
-
-        <div className="max-h-[min(92dvh,760px)] overflow-y-auto p-5 max-[369px]:p-4 sm:p-8">
-        <div className="mb-5 flex items-center gap-2.5 pr-9 sm:mb-8 sm:gap-3">
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-11 sm:w-11"
-            style={{ backgroundColor: ICON_BOX_BG }}
+        <div className="flex items-center justify-end border-b border-[#e5e7eb] px-3.5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-6 items-center justify-center rounded-full bg-black"
+            aria-label="Close"
           >
-            <FolderIcon className="h-6 w-6" />
-          </div>
-          <h2
-            id="create-folder-title"
-            className="min-w-0 text-base font-semibold leading-6 sm:text-xl sm:leading-7"
-            style={{ color: TEXT_PRIMARY }}
-          >
-            Create folder
-          </h2>
+            <img src={CREATE_FOLDER_ICONS.close} width={18} height={18} alt="" />
+          </button>
         </div>
 
         <form
-          className="flex flex-col gap-4 sm:gap-5"
+          className="flex max-h-[min(92dvh,760px)] flex-col gap-5 overflow-y-auto p-5"
           onSubmit={(e) => {
             e.preventDefault();
-            handleCreate();
+            void handleCreate();
           }}
         >
-          <div className="min-w-0">
-            <label
-              htmlFor="folder-name"
-              className="mb-1.5 block text-sm font-medium leading-5"
-              style={{ color: TEXT_PRIMARY }}
-            >
-              Folder Name
-            </label>
-            <input
-              id="folder-name"
-              type="text"
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              placeholder="Enter folder name"
-              required
-              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm outline-none transition max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] sm:h-11 sm:px-3.5"
-              style={{
-                borderColor: CARD_BORDER,
-                color: TEXT_PRIMARY,
-              }}
-            />
-          </div>
-
-          <div className="min-w-0">
-            <label
-              htmlFor="add-flows"
-              className="mb-1.5 block text-sm font-medium leading-5"
-              style={{ color: TEXT_PRIMARY }}
-            >
-              Add flows to library
-            </label>
-            <FlowMultiSelect
-              id="add-flows"
-              selectedIds={selectedFlowIds}
-              onChange={setSelectedFlowIds}
-              options={flowOptions}
-            />
-          </div>
-
           <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[#bc8b41] bg-[#f4f4f4] p-2">
+              <img src={CREATE_FOLDER_ICONS.folder} width={20} height={20} alt="" />
+            </div>
+            <h2 id="create-folder-title" className="text-2xl font-semibold leading-8 text-black">
+              Create a folder
+            </h2>
+          </div>
+
+          <div className="flex flex-col gap-[30px]">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="folder-name" className="text-sm font-normal leading-5 text-[#374151]">
+                Folder Name
+              </label>
+              <input
+                id="folder-name"
+                type="text"
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                required
+                className="h-11 w-full rounded-lg border border-[#cbd5e1] bg-white px-3.5 text-sm font-normal leading-5 text-black outline-none placeholder:text-[#94a3b8]"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="save-templates-to" className="text-sm font-normal leading-5 text-[#374151]">
+                  Save templates to
+                </label>
+                <span className="text-xs font-normal leading-4 text-[#94a3b8]">Optional</span>
+              </div>
+              <FlowMultiSelect
+                id="save-templates-to"
+                selectedIds={selectedFlowIds}
+                onChange={setSelectedFlowIds}
+                options={flowOptions}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
-              role="switch"
-              aria-checked={isPrivate}
-              aria-label="Set as private"
-              onClick={() => setIsPrivate((v) => !v)}
-              className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
-              style={{ backgroundColor: isPrivate ? BRAND_SECONDARY_BG : "#d0d5dd" }}
+              onClick={onClose}
+              className="flex flex-1 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2.5 text-xs font-semibold leading-4 text-[#374151]"
             >
-              <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                  isPrivate ? "translate-x-5" : "translate-x-0.5"
-                }`}
-              />
+              Cancel
             </button>
-            <span className="text-sm font-medium leading-5" style={{ color: BRAND_SECONDARY_BG }}>
-              Set as private
-            </span>
+            <button
+              type="submit"
+              disabled={saving || !folderName.trim()}
+              className="flex flex-1 items-center justify-center rounded-lg bg-[#bc8b41] px-3.5 py-2.5 text-xs font-semibold leading-4 text-white disabled:opacity-60"
+            >
+              {saving ? "Creating…" : "Create"}
+            </button>
           </div>
-
-          <button
-            type="submit"
-            disabled={saving || !folderName.trim()}
-            className="mt-2 h-10 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60 max-[369px]:h-9 sm:h-11"
-            style={{ background: GOLD_GRADIENT }}
-          >
-            {saving ? "Creating…" : "Create"}
-          </button>
         </form>
-        </div>
       </div>
     </div>
+  );
+}
+
+async function assignFlowsToLibrary(libraryId: string, flowIds: string[]) {
+  await Promise.all(
+    flowIds.map(async (flowId) => {
+      const res = await fetch(`/api/admin/onboarding-flows/${flowId}`, {
+        ...(await staffFetchInit({ "Content-Type": "application/json" })),
+        method: "PATCH",
+        body: JSON.stringify({ libraryId }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Failed to save templates to this folder");
+      }
+    })
   );
 }
 
@@ -687,6 +618,7 @@ export function WorkflowLibraryPage({
     error: librariesError,
     createLibrary,
     isCreating: creatingLibrary,
+    refetch: refetchLibraries,
   } = useOnboardingLibraries();
 
   const { flows: allFlows } = useOnboardingFlows();
@@ -855,15 +787,29 @@ export function WorkflowLibraryPage({
         onClose={() => setCreateFolderModalOpen(false)}
         flowOptions={flowOptions}
         saving={creatingLibrary}
-        onCreated={async (name) => {
+        onCreated={async (name, flowIds) => {
+          let library: Awaited<ReturnType<typeof createLibrary>>;
           try {
-            const library = await createLibrary({ name });
-            setCreatedFolderName(name);
-            setCreatedLibraryId(library.id);
-            setSuccessModalOpen(true);
+            library = await createLibrary({ name });
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Failed to create library");
+            throw e;
           }
+          if (flowIds.length > 0) {
+            try {
+              await assignFlowsToLibrary(library.id, flowIds);
+              await refetchLibraries();
+            } catch (e) {
+              toast.error(
+                e instanceof Error
+                  ? e.message
+                  : "Folder was created, but the selected templates could not be saved"
+              );
+            }
+          }
+          setCreatedFolderName(name);
+          setCreatedLibraryId(library.id);
+          setSuccessModalOpen(true);
         }}
       />
 

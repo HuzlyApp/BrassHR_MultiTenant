@@ -267,13 +267,13 @@ export function AdminRecruiterSidebar({
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
 
-  /** Figma rows: 20px content + 24px gap → 44px pitch when expanded. */
+  /** Expanded rows are 20px with a 24px gap between top-level items. */
   const collapsedRowClass = (isCollapsed: boolean, isMobileRail: boolean) =>
     isCollapsed
       ? isMobileRail
         ? "min-h-[36px] w-full justify-center px-0 py-1.5"
         : "min-h-[36px] w-full justify-center px-0 py-2"
-      : "min-h-[44px] gap-3 pl-0 pr-3";
+      : "min-h-5 gap-3 pl-0 pr-3";
 
   const navTextClass = adminNavTextClass;
 
@@ -359,12 +359,12 @@ export function AdminRecruiterSidebar({
 
       <nav
         ref={navRef}
-        className={`admin-recruiter-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden ${
+        className={`admin-recruiter-sidebar-nav flex flex-1 flex-col overflow-y-auto overflow-x-hidden ${
           isMobileRail
-            ? "flex flex-col items-center py-2 px-0"
+            ? "items-center gap-1 px-0 py-2"
             : isCollapsed
-              ? "py-3 px-0"
-              : "pt-2 pb-7 pl-5 pr-0"
+              ? "gap-1 px-0 py-3"
+              : "gap-6 py-5 pr-1 pb-10 pl-5"
         }`}
       >
         {renderedSections.map((section) => {
@@ -376,7 +376,7 @@ export function AdminRecruiterSidebar({
           /** Selected icon and the active line belong to the open page, not a parent that only has a submenu. */
 
           return (
-          <div key={section.label} className={isMobileRail || isCollapsed ? "mb-1 w-full" : ""}>
+          <div key={section.label} className={isMobileRail || isCollapsed ? "w-full" : ""}>
             {section.children?.length ? (
               collapsedNavHref ? (
                 <Link
@@ -410,7 +410,7 @@ export function AdminRecruiterSidebar({
                   className={`group relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ${navTextClass(false)} ${
                     isCollapsed || isMobileRail
                       ? collapsedRowClass(isCollapsed, isMobileRail)
-                      : "min-h-[44px] pl-0 pr-[6px]"
+                      : "min-h-5 pl-0 pr-1.5"
                   }`}
                   aria-expanded={isSectionOpen(section)}
                   aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
@@ -452,7 +452,7 @@ export function AdminRecruiterSidebar({
                             <button
                               type="button"
                               onClick={(event) => handleSectionToggleClick(child.label, event)}
-                              className={`admin-recruiter-sidebar-submenu-item flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left font-normal text-[14px] leading-5 tracking-normal ${submenuTextClass(false)}`}
+                              className={`admin-recruiter-sidebar-submenu-item flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left font-normal text-[14px] leading-5 tracking-normal ${submenuTextClass(child.active)}`}
                               aria-expanded={groupOpen}
                               aria-label={`${groupOpen ? "Collapse" : "Expand"} ${child.label}`}
                             >
@@ -598,7 +598,7 @@ export function AdminRecruiterSidebar({
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] leading-5 font-semibold text-[#012352]">{profileName}</p>
-              <p className="truncate text-[10px] leading-[15px] font-normal text-[#94A3B8]">{profileRole}</p>
+              <p className="truncate text-[10px] leading-[15px] font-normal text-[#6B7280]">{profileRole}</p>
             </div>
           ) : null}
           <button
