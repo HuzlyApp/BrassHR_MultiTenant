@@ -81,7 +81,13 @@ describe("AdminConsolePanel resend invitation", () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({ users: [pendingRecruiter, pendingAdmin, activeMember] }),
+            json: async () => ({
+              users: [pendingRecruiter, pendingAdmin, activeMember],
+              roles: [
+                { key: "admin", label: "Admin", isAdmin: true },
+                { key: "recruiter", label: "Recruiter", isAdmin: false },
+              ],
+            }),
           };
         }
         return {
@@ -98,17 +104,26 @@ describe("AdminConsolePanel resend invitation", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows a resend invitation link for pending admins and recruiters", async () => {
+  it("splits admins and recruiters and keeps resend in the row menu", async () => {
+    const user = userEvent.setup();
     render(<AdminConsolePanel />);
 
     await waitFor(() => {
-      expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+      expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
     });
+    expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Invite User" })).toBeInTheDocument();
 
-    const resendLinks = screen.getAllByRole("button", { name: "Resend invitation" });
-    expect(resendLinks.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Actions for Grace Hopper" }));
+    expect(screen.getByRole("menuitem", { name: "Resend invitation" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Recruiters" }));
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getByText("Pat Lee")).toBeInTheDocument();
+    expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Actions for Ada Lovelace" }));
+    expect(screen.getByRole("menuitem", { name: "Resend invitation" })).toBeInTheDocument();
   });
 
   it("posts the invitation id when resend is clicked", async () => {
@@ -116,11 +131,12 @@ describe("AdminConsolePanel resend invitation", () => {
     render(<AdminConsolePanel />);
 
     await waitFor(() => {
-      expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+      expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
     });
 
-    const resendLinks = screen.getAllByRole("button", { name: "Resend invitation" });
-    await user.click(resendLinks[0]);
+    await user.click(screen.getByRole("button", { name: "Recruiters" }));
+    await user.click(screen.getByRole("button", { name: "Actions for Ada Lovelace" }));
+    await user.click(screen.getByRole("menuitem", { name: "Resend invitation" }));
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
