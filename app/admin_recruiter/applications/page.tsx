@@ -3710,6 +3710,7 @@ export default function JobApplicationsPage() {
           applications={jobsPopover.applications}
           loading={jobsPopover.loading}
           onClose={() => setJobsPopover(null)}
+          resolveStage={(appRow) => rowStageName(appRow as ApplicationRow, statusOptions, stageLanes)}
         />
       ) : null}
 
