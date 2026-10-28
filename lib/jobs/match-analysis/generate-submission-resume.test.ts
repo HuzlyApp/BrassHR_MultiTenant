@@ -293,6 +293,8 @@ describe("Step 5 model input", () => {
     expect(system.indexOf("CONTENT RULES")).toBeLessThan(system.indexOf("PRIMARY DUTY"));
     expect(system).toContain("add it as an extra bullet");
     expect(system).toContain(SUBMISSION_RESUME_CONTENT_RULES);
+    expect(system).toContain("Never put negative callouts on the résumé");
+    expect(system).toContain("not certified");
     expect(system).toContain("Do not invent employers");
     expect(system).not.toContain("Preserve the source résumé. Reorganize and tighten.");
     expect(enrichment.evidenceNotes).toContain(SCREENING_FACT);

@@ -89,6 +89,8 @@ Leave summaryHeading, skillsHeading, experienceHeading, educationHeading, and li
 Put certification and license names in licenses[], not in skills[].
 Set headline to the target job title.
 When a screening response, follow-up answer, or interview note states a concrete project, tool, responsibility, metric, certification, or education detail that is not already on the résumé, add it as an extra bullet under the employer the candidate named, or as an extra skill line. Use the candidate's wording. Do not replace or rewrite an existing bullet.
+Only add enrichment facts the candidate affirmatively claimed (yes / used / completed / certified / experienced). Never paste raw phone-screen notes, recruiter notes, or verification checklists into skills[] or experience bullets.
+Never put negative callouts on the résumé — including "not certified", "no certification", "lacks", "no experience", "does not have", or anything that highlights a gap. Gaps stay in recruiter notes only, never in Core Qualifications.
 If they named no employer, put the new fact in the summary or as a short skill only when they explicitly claimed that skill or tool.
 A concrete start date, schedule, or location commitment the candidate stated may be one short summary line. Do not turn that into a skill keyword.
 A bare yes or no, with no concrete detail, is not a new skill or achievement. Leave it off the résumé.
@@ -160,7 +162,8 @@ export function ensureSubmissionSystemPrompt(catalogSystem: string): string {
 }
 
 export const SUBMISSION_RESUME_USER_PREAMBLE = `Use the original résumé plus screening responses, follow-up answers, and interview notes below.
-Keep the original wording, employers, objectives, and bullets. Add a fact only when those responses state it and it is not already on the résumé.
+Keep the original wording, employers, objectives, and bullets. Add a fact only when those responses affirmatively state it and it is not already on the résumé.
+Never paste raw recruiter or phone-screen notes into Core Qualifications / skills[]. Never include negative callouts such as "not certified" or other gaps.
 If a response section says (none), do not invent details.`;
 
 /** User prompt for Step 5 draft — includes Deep Match + Steps 2–3 enrichment. */

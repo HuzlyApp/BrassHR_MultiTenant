@@ -121,6 +121,39 @@ describe("submission resume evidence filter", () => {
     expect(resume.skills).not.toContain("Kubernetes");
     expect(evidence.removedSkills).toContain("Kubernetes");
   });
+
+  it("drops raw phone-screen notes and negative certification callouts from Core Qualifications", () => {
+    const enrichment = [
+      "Interview notes:",
+      "- SAP Oil and Gas training (upstream/downstream, production and revenue accounting, transportation products); not certified",
+      "- Microsoft Power BI (KPI dashboards, charts, tables, interactive analysis)",
+      "Screening question responses:",
+      "Q: Confirm Jira experience?",
+      "A: Yes — daily Jira for sprint planning.",
+    ].join("\n");
+
+    const { resume, evidence } = applySkillEvidenceFilter(
+      optimizedFixture({
+        skills: [
+          "Agile",
+          "Jira",
+          "SAP Oil and Gas training (upstream/downstream, production and revenue accounting, transportation products); not certified",
+          "Microsoft Power BI (KPI dashboards, charts, tables, interactive analysis)",
+        ],
+      }),
+      {
+        resumeText: ORIGINAL_RESUME,
+        enrichmentNotes: enrichment,
+      }
+    );
+
+    expect(resume.skills).toEqual(expect.arrayContaining(["Agile", "Jira"]));
+    expect(resume.skills.some((skill) => /not certified/i.test(skill))).toBe(false);
+    expect(resume.skills.some((skill) => /SAP Oil and Gas/i.test(skill))).toBe(false);
+    expect(resume.skills.some((skill) => /Power BI/i.test(skill))).toBe(false);
+    expect(evidence.removedSkills.some((skill) => /not certified/i.test(skill))).toBe(true);
+    expect(evidence.removedSkills.some((skill) => /Power BI/i.test(skill))).toBe(true);
+  });
 });
 
 describe("submission resume deliverables", () => {
