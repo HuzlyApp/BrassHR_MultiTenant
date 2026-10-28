@@ -216,13 +216,8 @@ export function validatePublishableJob(
     if (requiresWorkflow && !workflowId) {
       errors.workflowId = "A matching published workflow is required.";
     }
-    const hasCommission =
-      (input.commissionPercent != null && input.commissionPercent > 0) ||
-      (input.commissionFixedAmount != null && input.commissionFixedAmount > 0);
-    if (!hasCommission) {
-      errors.commissionPercent = "Select a commission fee type and enter the amount.";
-      errors.commissionFixedAmount = "Select a commission fee type and enter the amount.";
-    }
+    // Commission fees are optional. Validate ranges only when values are provided.
+    // commissionFixedAmount (Fixed Commission Amount) may be left blank.
     if (
       input.commissionPercent != null &&
       (input.commissionPercent < 0 || input.commissionPercent > 100)
