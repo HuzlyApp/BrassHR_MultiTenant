@@ -52,6 +52,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         section: "branding",
       },
       {
+        label: "Admin Console",
+        href: `${SETTINGS_HOME_HREF}/admin-console`,
+        icon: ICON.roles,
+        resourceKey: "settings_company",
+        matchPrefixes: [`${SETTINGS_HOME_HREF}/admin-console`],
+        section: "admin-console",
+      },
+      {
         label: "Roles & Permissions",
         href: `${SETTINGS_HOME_HREF}/roles`,
         icon: ICON.roles,
