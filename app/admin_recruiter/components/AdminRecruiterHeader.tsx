@@ -313,14 +313,14 @@ export function AdminRecruiterHeader({
 
         <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 sm:flex">
           <GodAdminTenantSwitcher />
-          <label className="hidden w-[317px] min-w-0 max-w-full cursor-text items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-2 transition focus-within:border-[color:var(--brand-primary)] md:flex">
+          <label className="hidden h-9 min-w-0 flex-1 cursor-text items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2.5 transition focus-within:border-[color:var(--brand-primary)] md:flex">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={HEADER_SEARCH_ICON} alt="" width={20} height={20} className="size-5 shrink-0" aria-hidden />
+            <img src={HEADER_SEARCH_ICON} alt="" width={14} height={14} className="size-3.5 shrink-0" aria-hidden />
             <input
               type="search"
               placeholder="Search anything"
               aria-label="Search anything"
-              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] leading-4 font-light text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:ring-0"
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] leading-4 font-normal text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:ring-0"
             />
           </label>
         </div>
@@ -528,7 +528,7 @@ export function AdminRecruiterHeader({
               />
             </Link>
 
-            <div ref={profileAreaRef} className="relative ml-2 sm:ml-[14px]">
+            <div ref={profileAreaRef} className="relative ml-5">
             <button
               type="button"
               onClick={() => {
@@ -541,17 +541,20 @@ export function AdminRecruiterHeader({
               aria-expanded={showProfileMenu}
             >
             <span className="flex min-w-0 items-center gap-2">
-              <StaffProfileAvatar
-                name={displayName ?? "Account"}
-                photoUrl={profilePhoto}
-                size="sm"
-                className="text-[14px]!"
-              />
+              <span className="relative shrink-0">
+                <StaffProfileAvatar
+                  name={displayName ?? "Account"}
+                  photoUrl={profilePhoto}
+                  size="sm"
+                  className="text-[14px]!"
+                />
+                <span className="absolute right-0 bottom-0 size-1.5 rounded-full bg-[#6CE778]" aria-hidden />
+              </span>
               <span className="hidden min-w-0 flex-col text-left sm:flex">
                 <span className="-mb-[3px] max-w-[88px] truncate text-[14px] leading-5 font-semibold text-black md:max-w-[140px]">
                   {profileNameLoading ? "Loading..." : displayName ?? "Account"}
                 </span>
-                <span className="max-w-[88px] truncate text-[10px] leading-[15px] font-light text-[#64748B] md:max-w-[140px]">
+                <span className="max-w-[88px] truncate text-[10px] leading-[15px] font-light text-[#6B7280] md:max-w-[140px]">
                   {displayRole}
                 </span>
               </span>
