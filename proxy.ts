@@ -771,6 +771,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  regions: ["iad1"],
   matcher: [
     "/",
     "/login",
