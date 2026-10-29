@@ -210,6 +210,16 @@ export function isSettingsSectionSlug(section: string): boolean {
   return SETTINGS_SECTION_SLUGS.has(section);
 }
 
+/** Catalog resource key for an in-settings section slug (from nav metadata). */
+export function settingsResourceKeyForSection(section: string): string {
+  for (const group of SETTINGS_NAV_GROUPS) {
+    for (const item of group.items) {
+      if (item.section === section && item.resourceKey) return item.resourceKey;
+    }
+  }
+  return "settings_company";
+}
+
 export function isSettingsNavItemActive(pathname: string, item: SettingsNavItem): boolean {
   return item.matchPrefixes.some((prefix) =>
     item.matchExact ? pathname === prefix || pathname === `${prefix}/` : pathname === prefix || pathname.startsWith(`${prefix}/`)

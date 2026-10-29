@@ -5,6 +5,7 @@ import { Clock3, Search, UserPlus, Users, X } from "lucide-react";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import GroupStackedAvatars, { SingleChatAvatar } from "@/app/admin_recruiter/messages/GroupStackedAvatars";
 import type { GroupMemberRow } from "@/lib/messaging/group-conversations";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 type WorkerOption = {
   id: string;
@@ -38,6 +39,7 @@ export default function GroupChatProfilePanel({
   onRemoved: () => void;
   onMembersChanged: () => void;
 }) {
+  const { canEdit: canEditChat, canDelete: canDeleteChat } = useModulePermission("chat");
   const [members, setMembers] = useState<GroupMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
@@ -200,14 +202,16 @@ export default function GroupChatProfilePanel({
                 </div>
               </div>
 
-              <button
-                type="button"
-                disabled={removing}
-                onClick={() => void handleRemoveGroup()}
-                className="flex h-10 w-full items-center justify-center rounded-xl border border-[#E2E8F0] text-sm font-semibold text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-50"
-              >
-                {removing ? "Removing..." : "Remove Group"}
-              </button>
+              {canDeleteChat ? (
+                <button
+                  type="button"
+                  disabled={removing}
+                  onClick={() => void handleRemoveGroup()}
+                  className="flex h-10 w-full items-center justify-center rounded-xl border border-[#E2E8F0] text-sm font-semibold text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+                >
+                  {removing ? "Removing..." : "Remove Group"}
+                </button>
+              ) : null}
 
               <div className="border-t border-[#E8EDF2] pt-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -231,14 +235,16 @@ export default function GroupChatProfilePanel({
                   ) : null}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(true)}
-                  className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Add workers
-                </button>
+                {canEditChat ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add workers
+                  </button>
+                ) : null}
 
                 <div className="space-y-2">
                   {visibleMembers.map((member) => (
@@ -253,14 +259,16 @@ export default function GroupChatProfilePanel({
                           <p className="text-xs text-[#64748B]">Worker</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${member.user_name}`}
-                        onClick={() => void handleRemoveMember(member.user_id)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      {canDeleteChat ? (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${member.user_name}`}
+                          onClick={() => void handleRemoveMember(member.user_id)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>

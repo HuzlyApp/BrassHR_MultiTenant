@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProp
 import { createPortal } from "react-dom";
 import { ChevronRight } from "lucide-react";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 import { MatchAnalyzeMenuItems } from "./MatchAnalyzeButton";
 
 const PRIMARY_MENU_WIDTH = 200;
@@ -67,6 +68,7 @@ export function CandidateRowActionsMenu({
   onDeleteCandidate,
   onMarkAsHired,
 }: CandidateRowActionsMenuProps) {
+  const { canEdit, canDelete } = useModulePermission("hiring");
   const menuRef = useRef<HTMLDivElement>(null);
   const moreItemRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -173,40 +175,46 @@ export function CandidateRowActionsMenu({
         style={style}
         className="z-[200] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 text-left shadow-lg"
       >
-        <MatchAnalyzeMenuItems
-          analyzing={analyzing}
-          isAnalyzed={isAnalyzed}
-          onAnalyze={onAnalyze}
-          onClose={onClose}
-        />
-        <button
-          type="button"
-          role="menuitem"
-          disabled={resumeUploading}
-          onClick={() => runAndClose(onUpdateResume)}
-          className={`${menuItemClassName()} disabled:opacity-50`}
-        >
-          Update Resume
-        </button>
-        {archived ? (
+        {canEdit ? (
+          <MatchAnalyzeMenuItems
+            analyzing={analyzing}
+            isAnalyzed={isAnalyzed}
+            onAnalyze={onAnalyze}
+            onClose={onClose}
+          />
+        ) : null}
+        {canEdit ? (
           <button
             type="button"
             role="menuitem"
-            onClick={() => runAndClose(onUnarchive)}
-            className={menuItemClassName()}
+            disabled={resumeUploading}
+            onClick={() => runAndClose(onUpdateResume)}
+            className={`${menuItemClassName()} disabled:opacity-50`}
           >
-            Unarchive
+            Update Resume
           </button>
-        ) : (
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => runAndClose(onArchive)}
-            className={menuItemClassName()}
-          >
-            Archive
-          </button>
-        )}
+        ) : null}
+        {canEdit ? (
+          archived ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAndClose(onUnarchive)}
+              className={menuItemClassName()}
+            >
+              Unarchive
+            </button>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAndClose(onArchive)}
+              className={menuItemClassName()}
+            >
+              Archive
+            </button>
+          )
+        ) : null}
         <button
           ref={moreItemRef}
           type="button"
@@ -246,15 +254,17 @@ export function CandidateRowActionsMenu({
           >
             Call
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => runAndClose(onSetupInterview)}
-            className={menuItemClassName()}
-          >
-            Set up interview
-          </button>
-          {onAssignRecruiter ? (
+          {canEdit ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAndClose(onSetupInterview)}
+              className={menuItemClassName()}
+            >
+              Set up interview
+            </button>
+          ) : null}
+          {canEdit && onAssignRecruiter ? (
             <button
               type="button"
               role="menuitem"
@@ -272,23 +282,27 @@ export function CandidateRowActionsMenu({
           >
             Status history
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => runAndClose(onDeleteCandidate)}
-            className={menuItemClassName()}
-          >
-            Delete candidate
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={hired}
-            onClick={() => runAndClose(onMarkAsHired)}
-            className={`${menuItemClassName({ highlight: true })} disabled:opacity-50`}
-          >
-            Mark as hired
-          </button>
+          {canDelete ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAndClose(onDeleteCandidate)}
+              className={menuItemClassName()}
+            >
+              Delete candidate
+            </button>
+          ) : null}
+          {canEdit ? (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={hired}
+              onClick={() => runAndClose(onMarkAsHired)}
+              className={`${menuItemClassName({ highlight: true })} disabled:opacity-50`}
+            >
+              Mark as hired
+            </button>
+          ) : null}
         </div>
       ) : null}
     </>,

@@ -21,6 +21,10 @@ type JobsBulkSelectionSnackbarProps = {
   archiveDisabled?: boolean;
   deleteDisabled?: boolean;
   exportDisabled?: boolean;
+  /** When false, hide Unpublish / Archive / Import (jobs edit grant). Default true. */
+  canEdit?: boolean;
+  /** When false, hide Delete (jobs delete grant). Default true. */
+  canDelete?: boolean;
   busy?: boolean;
   onUnpublish: () => void;
   onArchive: () => void;
@@ -55,6 +59,8 @@ export function JobsBulkSelectionSnackbar({
   archiveDisabled = false,
   deleteDisabled = false,
   exportDisabled = false,
+  canEdit = true,
+  canDelete = true,
   busy = false,
   onUnpublish,
   onArchive,
@@ -76,50 +82,58 @@ export function JobsBulkSelectionSnackbar({
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onUnpublish}
-          disabled={busy || unpublishDisabled}
-          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
-        >
-          <SnackbarGlyph src={JOBS_UNPUBLISH_ICON_SRC} className="h-[9.33px] w-[14px]" />
-          Unpublish
-        </button>
-        <button
-          type="button"
-          onClick={onArchive}
-          disabled={busy || archiveDisabled}
-          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
-        >
-          <SnackbarGlyph src={JOBS_ARCHIVE_ICON_SRC} className="size-3.5" />
-          Archive
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={busy || deleteDisabled}
-          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
-        >
-          <SnackbarGlyph src={JOBS_DELETE_ICON_SRC} className="size-4" />
-          Delete
-        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={onUnpublish}
+            disabled={busy || unpublishDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={JOBS_UNPUBLISH_ICON_SRC} className="h-[9.33px] w-[14px]" />
+            Unpublish
+          </button>
+        ) : null}
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={onArchive}
+            disabled={busy || archiveDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={JOBS_ARCHIVE_ICON_SRC} className="size-3.5" />
+            Archive
+          </button>
+        ) : null}
+        {canDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy || deleteDisabled}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={JOBS_DELETE_ICON_SRC} className="size-4" />
+            Delete
+          </button>
+        ) : null}
         <ListExportDropdown
           variant="snackbar"
           onExportCsv={onExportCsv}
           onExportXls={onExportXls}
           disabled={busy || exportDisabled}
         />
-        <button
-          type="button"
-          onClick={onImportFromMsp}
-          disabled={busy}
-          className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
-        >
-          <SnackbarGlyph src={JOBS_IMPORT_MSP_ICON_SRC} className="h-[11.87px] w-[13.2px]" />
-          <span className="whitespace-nowrap">
-            Import <span className="hidden sm:inline">from </span>MSP
-          </span>
-        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={onImportFromMsp}
+            disabled={busy}
+            className={BULK_SELECTION_SNACKBAR_ACTION_CLASS}
+          >
+            <SnackbarGlyph src={JOBS_IMPORT_MSP_ICON_SRC} className="h-[11.87px] w-[13.2px]" />
+            <span className="whitespace-nowrap">
+              Import <span className="hidden sm:inline">from </span>MSP
+            </span>
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onClear}
