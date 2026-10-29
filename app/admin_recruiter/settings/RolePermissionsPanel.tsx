@@ -4,6 +4,7 @@ import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
 import { applyGrantSelection, withRequiredView } from "@/lib/auth/permission-catalog";
+import { useInvalidateStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
 
 type ResourceRow = {
   key: string;
@@ -107,6 +108,7 @@ function grantsForRole(role: RoleRow, resources: ResourceRow[]): Grant[] {
 }
 
 export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: boolean }) {
+  const invalidateModuleAccess = useInvalidateStaffModuleAccess();
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [resources, setResources] = useState<ResourceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -215,6 +217,7 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
       if (!response.ok) throw new Error(body.error || "Could not save role");
       toast.success(editing ? "Role updated" : "Role created");
       setOpen(false);
+      invalidateModuleAccess();
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save role");
@@ -232,6 +235,7 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
       return false;
     }
     toast.success("Role deleted");
+    invalidateModuleAccess();
     await load();
     return true;
   }

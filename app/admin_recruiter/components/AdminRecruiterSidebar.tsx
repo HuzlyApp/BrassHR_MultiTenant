@@ -27,6 +27,7 @@ import {
   getOrganizationDisplayName,
 } from "@/lib/account/display-name";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
+import { useStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 import { SIDEBAR_NAV_ACTIVE_TEXT_CLASS } from "@/lib/sidebar/sidebar-nav-styles";
@@ -123,36 +124,16 @@ export function AdminRecruiterSidebar({
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
   const { viewer } = useEffectiveBranding();
   const isGodAdmin = viewer?.godAdmin === true;
-  const [accessKeys, setAccessKeys] = useState<Set<string> | null>(null);
+  const { viewKeySet, godAdmin: accessGodAdmin } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
   const sidebarSections = useMemo(() => {
-    if (isGodAdmin || accessKeys?.has("*")) return isGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
-    return visibleSidebarSections(CLIENT_SIDEBAR_SECTIONS, accessKeys ?? new Set(["dashboard"]), false);
-  }, [accessKeys, isGodAdmin]);
-
-  useEffect(() => {
-    if (isGodAdmin) return;
-    let cancelled = false;
-    void fetch("/api/admin/access")
-      .then(async (response) => {
-        if (!response.ok) return;
-        const body = (await response.json()) as { godAdmin?: boolean; viewKeys?: string[] };
-        if (cancelled) return;
-        if (body.godAdmin) {
-          setAccessKeys(new Set(["*"]));
-          return;
-        }
-        setAccessKeys(new Set(body.viewKeys ?? ["dashboard"]));
-      })
-      .catch(() => {
-        if (!cancelled) setAccessKeys(new Set(["dashboard"]));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isGodAdmin]);
+    if (isGodAdmin || accessGodAdmin || viewKeySet.has("*")) {
+      return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
+    }
+    return visibleSidebarSections(CLIENT_SIDEBAR_SECTIONS, viewKeySet, false);
+  }, [accessGodAdmin, isGodAdmin, viewKeySet]);
 
   const handleNavClick = () => {
     onMobileClose?.();

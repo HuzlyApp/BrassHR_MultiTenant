@@ -25,6 +25,7 @@ import type {
   SupportTicketListItem,
   SupportTicketStatus,
 } from "@/lib/support-tickets/types";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 type ChatTab = "worker" | "group" | "support";
 
@@ -113,6 +114,7 @@ export default function AdminRecruiterMessagesClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { canEdit: canEditChat } = useModulePermission("chat");
   const [activeTab, setActiveTab] = useState<ChatTab>("worker");
   const {
     conversations,
@@ -359,7 +361,7 @@ export default function AdminRecruiterMessagesClient({
             </div>
           </div>
 
-          {activeTab === "group" ? (
+          {activeTab === "group" && canEditChat ? (
             <div className="border-b border-[#E8EDF2] px-4 py-3.5">
               <button
                 type="button"
@@ -459,18 +461,20 @@ export default function AdminRecruiterMessagesClient({
               <>
                 <div className="flex items-center justify-between gap-2 border-b border-[#F1F5F9] px-4 py-3">
                   <p className="text-sm font-semibold text-[#0F172A]">Support tickets</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateTicket(true)}
-                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                    }}
-                  >
-                    <Plus className="h-3.5 w-3.5" aria-hidden />
-                    Create ticket
-                  </button>
+                  {canEditChat ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTicket(true)}
+                      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                      Create ticket
+                    </button>
+                  ) : null}
                 </div>
                 {supportLoading ? (
                   <CandidateDetailLoader label="Loading support tickets..." className="min-h-[240px] py-10" />
@@ -483,7 +487,7 @@ export default function AdminRecruiterMessagesClient({
                         ? "No support tickets match your search."
                         : "Create a ticket for a worker or wait for applicants to open one."}
                     </p>
-                    {!searchQuery.trim() ? (
+                    {!searchQuery.trim() && canEditChat ? (
                       <button
                         type="button"
                         onClick={() => setShowCreateTicket(true)}

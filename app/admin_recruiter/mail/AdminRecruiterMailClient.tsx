@@ -23,6 +23,7 @@ import type { CommunicationThread } from "@/lib/communication/conversation-clien
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { MailFolderListRow } from "@/app/admin_recruiter/components/MailFolderListRow";
 import { MailDraftListRow } from "@/app/admin_recruiter/components/MailDraftListRow";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 type MailApiResponse = {
   items?: TenantMailInboxItem[];
@@ -51,6 +52,7 @@ function formatMailTime(iso: string) {
 export default function AdminRecruiterMailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { canEdit: canEditMail, canDelete: canDeleteMail } = useModulePermission("mail");
   const workerFromUrl = searchParams.get("workerId")?.trim() || null;
   const composeFromUrl =
     searchParams.get("compose") === "1" || searchParams.get("compose") === "true";
@@ -327,7 +329,7 @@ export default function AdminRecruiterMailClient() {
                       timeLabel={formatMailTime(draft.updatedAt)}
                       deleting={deletingDraftId === draft.id}
                       onOpen={() => openDraft(draft)}
-                      onDelete={() => void deleteDraft(draft)}
+                      onDelete={canDeleteMail ? () => void deleteDraft(draft) : undefined}
                     />
                   </li>
                 ))}
@@ -481,7 +483,7 @@ export default function AdminRecruiterMailClient() {
             sentCount={sentCount}
             draftsCount={drafts.length}
             emailConfigured={Boolean(emailConfigured)}
-            composeDisabled={!emailConfigured}
+            composeDisabled={!emailConfigured || !canEditMail}
             onCompose={() => openCompose()}
             onFolderChange={(next) => {
               setError(null);

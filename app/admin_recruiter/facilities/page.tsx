@@ -18,6 +18,7 @@ import {
 import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge";
 import { filterFacilitiesBySearch } from "@/lib/facilities/facility-management-service";
 import type { FacilityAssignedWorker, FacilityManagementItem } from "@/lib/facilities/types";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 const BRAND_ICON = "var(--brand-primary)";
 const FACILITY_CARD_GRID_CLASS = "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3";
@@ -321,6 +322,7 @@ function AssignedCandidateCard({ worker }: { worker: FacilityAssignedWorker }) {
 }
 
 export default function FacilitiesPage() {
+  const { canEdit: canEditOrganization } = useModulePermission("organization");
   const [facilities, setFacilities] = useState<FacilityManagementItem[]>([]);
   const [loadingFacilities, setLoadingFacilities] = useState(true);
   const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
@@ -420,14 +422,16 @@ export default function FacilitiesPage() {
             View locations and assigned candidates
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="hidden h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-(--brand-primary) px-4 text-sm font-semibold text-white transition hover:opacity-90 sm:inline-flex"
-        >
-          <Plus className="h-4 w-4 shrink-0" />
-          Create Facility
-        </button>
+        {canEditOrganization ? (
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="hidden h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-(--brand-primary) px-4 text-sm font-semibold text-white transition hover:opacity-90 sm:inline-flex"
+          >
+            <Plus className="h-4 w-4 shrink-0" />
+            Create Facility
+          </button>
+        ) : null}
       </div>
 
       <div className="mb-4 flex flex-col gap-2 min-[500px]:flex-row min-[500px]:items-center sm:mb-5 sm:justify-between sm:gap-3">
@@ -441,15 +445,17 @@ export default function FacilitiesPage() {
             className="h-11 w-full rounded-lg border border-[#D8E0EA] py-2 pl-9 pr-3 text-base text-[#0F172A] outline-none focus:border-(--brand-primary) sm:h-10 sm:text-sm"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-3 text-sm font-semibold text-white transition hover:opacity-90 min-[500px]:w-auto min-[500px]:px-4 sm:hidden"
-          aria-label="Create Facility"
-        >
-          <Plus className="h-4 w-4 shrink-0" />
-          <span>Create Facility</span>
-        </button>
+        {canEditOrganization ? (
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-3 text-sm font-semibold text-white transition hover:opacity-90 min-[500px]:w-auto min-[500px]:px-4 sm:hidden"
+            aria-label="Create Facility"
+          >
+            <Plus className="h-4 w-4 shrink-0" />
+            <span>Create Facility</span>
+          </button>
+        ) : null}
         <div className="hidden text-sm text-[#64748B] sm:block sm:shrink-0">
           {loadingFacilities ? "Loading..." : `${filteredFacilities.length} facilities`}
         </div>
@@ -545,13 +551,15 @@ export default function FacilitiesPage() {
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                    <button
-                      type="button"
-                      onClick={() => setShowAssignCandidateModal(true)}
-                      className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
-                    >
-                      Assign Candidate
-                    </button>
+                    {canEditOrganization ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAssignCandidateModal(true)}
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
+                      >
+                        Assign Candidate
+                      </button>
+                    ) : null}
                     <CandidatesViewToggle
                       view={assignedCandidatesView}
                       onViewChange={setAssignedCandidatesView}

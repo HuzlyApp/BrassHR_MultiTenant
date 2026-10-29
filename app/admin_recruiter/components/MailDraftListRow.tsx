@@ -15,7 +15,7 @@ type MailDraftListRowProps = {
   timeLabel: string;
   deleting?: boolean;
   onOpen: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 };
 
 export function MailDraftListRow({
@@ -50,22 +50,24 @@ export function MailDraftListRow({
           </span>
         </span>
       </button>
-      <div className="flex shrink-0 items-center px-3 sm:px-4">
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={deleting}
-          className={`${deleteButtonClass} h-10 w-10`}
-          aria-label={`Delete draft for ${candidateName}`}
-          title="Delete draft"
-        >
-          {deleting ? (
-            <Loader2 className="h-5 w-5 animate-spin text-(--brand-primary)" />
-          ) : (
-            <BrandedDeleteIcon className="h-6 w-6" />
-          )}
-        </button>
-      </div>
+      {onDelete ? (
+        <div className="flex shrink-0 items-center px-3 sm:px-4">
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className={`${deleteButtonClass} h-10 w-10`}
+            aria-label={`Delete draft for ${candidateName}`}
+            title="Delete draft"
+          >
+            {deleting ? (
+              <Loader2 className="h-5 w-5 animate-spin text-(--brand-primary)" />
+            ) : (
+              <BrandedDeleteIcon className="h-6 w-6" />
+            )}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

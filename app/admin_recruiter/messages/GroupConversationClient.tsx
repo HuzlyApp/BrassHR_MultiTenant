@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import { formatChatTime, nameInitials } from "@/app/admin_recruiter/messages/chat-ui";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 import { relativeChatMinutes, type GroupMessageRow } from "@/lib/messaging/group-conversations";
 import { useGroupMessagesRealtime } from "@/lib/messaging/useGroupMessagesRealtime";
 import ChatEmojiPicker from "@/app/components/ChatEmojiPicker";
@@ -33,6 +34,7 @@ export default function GroupConversationClient({
   groupName: string;
   memberCount: number;
 }) {
+  const { canEdit: canEditChat } = useModulePermission("chat");
   const [messages, setMessages] = useState<GroupMessageRow[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -156,45 +158,51 @@ export default function GroupConversationClient({
           : null}
       </div>
 
-      <form onSubmit={handleSend} className="border-t border-[#E8EDF2] bg-white px-5 py-4">
-        {error ? (
-          <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-            {error}
-          </div>
-        ) : null}
-        <div className="flex min-h-[60px] w-full items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
-          <textarea
-            value={body}
-            onChange={(event) => {
-              setBody(event.target.value);
-              if (error) setError(null);
-            }}
-            placeholder="Write a message"
-            rows={1}
-            className="h-[54px] min-h-[54px] flex-1 resize-none border-0 bg-transparent py-[4px] text-sm leading-5 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
-          />
-          <div className="flex shrink-0 items-center gap-2">
-            <ChatEmojiPicker
-              onSelect={(emoji) => {
-                setBody((current) => current + emoji);
+      {canEditChat ? (
+        <form onSubmit={handleSend} className="border-t border-[#E8EDF2] bg-white px-5 py-4">
+          {error ? (
+            <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          ) : null}
+          <div className="flex min-h-[60px] w-full items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
+            <textarea
+              value={body}
+              onChange={(event) => {
+                setBody(event.target.value);
                 if (error) setError(null);
               }}
+              placeholder="Write a message"
+              rows={1}
+              className="h-[54px] min-h-[54px] flex-1 resize-none border-0 bg-transparent py-[4px] text-sm leading-5 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
             />
-            <button
-              type="submit"
-              disabled={sending || !body.trim()}
-              aria-label="Send message"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-              }}
-            >
-              <Image src={CHAT_SEND_ICON} alt="" width={16} height={16} className="h-4 w-4 shrink-0" aria-hidden />
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <ChatEmojiPicker
+                onSelect={(emoji) => {
+                  setBody((current) => current + emoji);
+                  if (error) setError(null);
+                }}
+              />
+              <button
+                type="submit"
+                disabled={sending || !body.trim()}
+                aria-label="Send message"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                }}
+              >
+                <Image src={CHAT_SEND_ICON} alt="" width={16} height={16} className="h-4 w-4 shrink-0" aria-hidden />
+              </button>
+            </div>
           </div>
+        </form>
+      ) : (
+        <div className="border-t border-[#E8EDF2] bg-white px-5 py-4 text-sm text-[#64748B]">
+          Messaging is view-only for your role.
         </div>
-      </form>
+      )}
     </div>
   );
 }
