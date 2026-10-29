@@ -1,19 +1,42 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Suspense } from "react";
-import AdminConsolePanel from "@/app/admin_recruiter/settings/AdminConsolePanel";
-import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
-import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
-import HireJourneyThemePanel from "@/app/admin_recruiter/settings/HireJourneyThemePanel";
-import ProfessionDocumentsPanel from "@/app/admin_recruiter/settings/ProfessionDocumentsPanel";
-import RolePermissionsPanel from "@/app/admin_recruiter/settings/RolePermissionsPanel";
-import { SettingsSidebar } from "@/app/admin_recruiter/settings/SettingsSidebar";
 import { settingsResourceKeyForSection } from "@/app/admin_recruiter/settings/settings-nav";
 import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
+
+function SettingsPanelFallback() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading section</span>
+      <div className="h-5 w-40 rounded bg-[#E5E7EB] motion-safe:animate-pulse" />
+      <div className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
+      <div className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
+    </div>
+  );
+}
+
+const RolePermissionsPanel = dynamic(() => import("@/app/admin_recruiter/settings/RolePermissionsPanel"), {
+  loading: SettingsPanelFallback,
+});
+const AdminConsolePanel = dynamic(() => import("@/app/admin_recruiter/settings/AdminConsolePanel"), {
+  loading: SettingsPanelFallback,
+});
+const ProfessionDocumentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/ProfessionDocumentsPanel"), {
+  loading: SettingsPanelFallback,
+});
+const CandidateStatusesPanel = dynamic(() => import("@/app/admin_recruiter/settings/CandidateStatusesPanel"), {
+  loading: SettingsPanelFallback,
+});
+const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/AssessmentSettingsPanel"), {
+  loading: SettingsPanelFallback,
+});
+const HireJourneyThemePanel = dynamic(() => import("@/app/admin_recruiter/settings/HireJourneyThemePanel"), {
+  loading: SettingsPanelFallback,
+});
 
 function SettingsSectionIntro({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -140,30 +163,24 @@ function SettingsContent({ section }: { section: string }) {
 
   if (!loading && !canView) {
     return (
-      <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
-        <SettingsSidebar />
-        <main className="min-w-0 flex-1 px-5 py-5 lg:px-8 lg:py-6">
-          <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-16 text-center text-sm text-[#6B7280]">
-            You do not have permission to view this settings section.
-          </div>
-        </main>
-      </div>
+      <main className="min-w-0 flex-1 px-5 py-5 lg:px-8 lg:py-6">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-16 text-center text-sm text-[#6B7280]">
+          You do not have permission to view this settings section.
+        </div>
+      </main>
     );
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
-      <SettingsSidebar />
-      <main
-        className={`min-w-0 flex-1 ${
-          section === "roles" || section === "admin-console" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
-        }`}
-      >
-        <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0 disabled:opacity-80">
-          <SettingsBody section={section} canEdit={canEdit} canDelete={canDelete} />
-        </fieldset>
-      </main>
-    </div>
+    <main
+      className={`min-w-0 flex-1 ${
+        section === "roles" || section === "admin-console" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
+      }`}
+    >
+      <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0 disabled:opacity-80">
+        <SettingsBody section={section} canEdit={canEdit} canDelete={canDelete} />
+      </fieldset>
+    </main>
   );
 }
 
