@@ -18,6 +18,10 @@ import {
   type SidebarLink,
   type SidebarSection,
 } from "@/app/admin_recruiter/components/sidebar-config";
+import {
+  SETTINGS_LANDING_HREF,
+  isSettingsMiniSidebarPath,
+} from "@/app/admin_recruiter/settings/settings-nav";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
@@ -204,6 +208,15 @@ export function AdminRecruiterSidebar({
     });
   }, [pathname, sidebarSections]);
 
+  /** Leaving Settings routes closes the Settings accordion in the main sidebar. */
+  useEffect(() => {
+    if (isSettingsMiniSidebarPath(pathname)) return;
+    setOpenSectionLabels((prev) => {
+      if (!prev.includes("Settings")) return prev;
+      return prev.filter((label) => label !== "Settings");
+    });
+  }, [pathname]);
+
   useEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
@@ -353,9 +366,17 @@ export function AdminRecruiterSidebar({
             (isCollapsed || isMobileRail) && section.children?.length
               ? getFirstNavigableChildHref(section.children)
               : null;
-          const sectionExpandedOpen = !isCollapsed && !isMobileRail && isSectionOpen(section);
-          /** Figma: an open parent uses the selected icon + brand label, same as an active child. */
-          const parentHighlighted = section.childActive || sectionExpandedOpen;
+          /** Settings children live in the mini-sidebar — never expand them in the main rail. */
+          const sectionExpandedOpen =
+            !isCollapsed &&
+            !isMobileRail &&
+            section.label !== "Settings" &&
+            isSectionOpen(section);
+          /** Figma: open parent uses selected icon + brand label; Settings highlights when a child route is active. */
+          const parentHighlighted =
+            section.label === "Settings"
+              ? Boolean(section.childActive || section.active)
+              : Boolean(section.childActive || sectionExpandedOpen);
 
           return (
           <div key={section.label} className={isMobileRail || isCollapsed ? "mb-1 w-full" : ""}>
@@ -386,6 +407,13 @@ export function AdminRecruiterSidebar({
                   title={section.disabled ? `${section.label} (Coming soon)` : section.label}
                   onClick={(event) => {
                     if (isCollapsed || isMobileRail) return;
+                    // Settings submenus live in the mini-sidebar: open Settings landing + collapse main rail.
+                    if (section.label === "Settings") {
+                      event.preventDefault();
+                      router.push(SETTINGS_LANDING_HREF);
+                      handleNavClick();
+                      return;
+                    }
                     handleSectionToggleClick(section.label, event);
                   }}
                   onMouseDown={(event) => event.preventDefault()}
@@ -395,8 +423,12 @@ export function AdminRecruiterSidebar({
                       ? collapsedRowClass(isCollapsed, isMobileRail)
                       : "min-h-[44px] pl-0 pr-[6px]"
                   }`}
-                  aria-expanded={isSectionOpen(section)}
-                  aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                  aria-expanded={section.label === "Settings" ? false : isSectionOpen(section)}
+                  aria-label={
+                    section.label === "Settings"
+                      ? "Open Settings"
+                      : `${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`
+                  }
                 >
                   <div
                     className={`flex min-w-0 flex-1 items-center gap-3 ${
@@ -414,7 +446,7 @@ export function AdminRecruiterSidebar({
                       </span>
                     ) : null}
                   </div>
-                  {!isCollapsed && !isMobileRail ? (
+                  {!isCollapsed && !isMobileRail && section.label !== "Settings" ? (
                     <span className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
                       <SidebarSubmenuToggleIcon
                         open={isSectionOpen(section)}
