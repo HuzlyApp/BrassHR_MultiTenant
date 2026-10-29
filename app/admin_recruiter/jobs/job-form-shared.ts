@@ -590,7 +590,8 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
       : null,
     hoursPerWeek: job.hoursPerWeek ?? null,
     shiftDetails: ui.hoursShowBy.trim() || job.shiftDetails || null,
-    benefits: isMspRecruitAndRelease(job) ? null : ui.selectedBenefits.join(", "),
+    // Benefits are optional for all job types, including MSP Recruit & Release.
+    benefits: ui.selectedBenefits.join(", ") || null,
     publicTitle:
       job.sourceType === "MSP"
         ? job.sourceJobTitle?.trim() || job.publicTitle?.trim() || null
