@@ -1,11 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { AdminTenantBrandingProvider } from "@/app/components/tenant/AdminTenantBrandingProvider";
 import { AccountDataProvider } from "@/app/admin_recruiter/account/AccountDataProvider";
+import { StaffAccessSeed } from "@/lib/admin/hooks/use-staff-module-access";
+import type { StaffAccessRecord } from "@/lib/admin/staff-access-cache";
 import {
   AdminRecruiterSidebar,
   SIDEBAR_COLLAPSED_WIDTH,
@@ -23,13 +25,7 @@ import "./layout.css";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
 
-/**
- * Default body copy color for recruiter admin; pages still set explicit colors
- * (e.g. sidebar `text-white`, links `text-teal-*`) where needed.
- */
-export default function AdminRecruiterShell({ children }: { children: ReactNode }) {
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+function AccessDeniedNotice() {
   const pathname = usePathname();
 
   useEffect(() => {
@@ -41,9 +37,39 @@ export default function AdminRecruiterShell({ children }: { children: ReactNode 
     window.history.replaceState(null, "", next);
   }, [pathname]);
 
+  return null;
+}
+
+function CloseMobileNavOnNavigate({ onClose }: { onClose: () => void }) {
+  const pathname = usePathname();
+
   useEffect(() => {
-    setMobileSidebarOpen(false);
-  }, [pathname]);
+    onClose();
+  }, [pathname, onClose]);
+
+  return null;
+}
+
+function CandidateDetailFrame({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "";
+  if (!isCandidateDetailPage(pathname)) return children;
+  return <div className="admin-candidate-detail-shell">{children}</div>;
+}
+
+/**
+ * Default body copy color for recruiter admin; pages still set explicit colors
+ * (e.g. sidebar `text-white`, links `text-teal-*`) where needed.
+ */
+export default function AdminRecruiterShell({
+  children,
+  initialAccess,
+}: {
+  children: ReactNode;
+  initialAccess?: StaffAccessRecord | null;
+}) {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const closeMobileNav = useCallback(() => setMobileSidebarOpen(false), []);
 
   useEffect(() => {
     try {
@@ -68,12 +94,14 @@ export default function AdminRecruiterShell({ children }: { children: ReactNode 
   };
 
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
-  const candidateDetailRoute = isCandidateDetailPage(pathname ?? "");
 
   return (
     <AdminTenantBrandingProvider>
+      <StaffAccessSeed initialAccess={initialAccess ?? null}>
       <AdminStaffAuthGuard>
       <AccountDataProvider>
+      <AccessDeniedNotice />
+      <CloseMobileNavOnNavigate onClose={closeMobileNav} />
       <div
         className="admin-recruiter-shell min-h-screen text-gray-600"
         style={{
@@ -87,7 +115,7 @@ export default function AdminRecruiterShell({ children }: { children: ReactNode 
         <AdminRecruiterSidebar
           collapsed={sidebarCollapsed}
           isMobileOpen={mobileSidebarOpen}
-          onMobileClose={() => setMobileSidebarOpen(false)}
+          onMobileClose={closeMobileNav}
         />
         <div
           className="admin-recruiter-content admin-recruiter-main-wrap min-h-screen"
@@ -102,16 +130,13 @@ export default function AdminRecruiterShell({ children }: { children: ReactNode 
           />
           <WorkflowDashboardHeaderProvider>
             <AdminRecruiterDashboardSubNav />
-            {candidateDetailRoute ? (
-              <div className="admin-candidate-detail-shell">{children}</div>
-            ) : (
-              children
-            )}
+            <CandidateDetailFrame>{children}</CandidateDetailFrame>
           </WorkflowDashboardHeaderProvider>
         </div>
       </div>
       </AccountDataProvider>
       </AdminStaffAuthGuard>
+      </StaffAccessSeed>
     </AdminTenantBrandingProvider>
   );
 }
