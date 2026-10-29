@@ -131,6 +131,8 @@ type JobsDashboardProps = {
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
   onUnarchive: (jobId: string) => void;
+  canEditJobs?: boolean;
+  canDeleteJobs?: boolean;
 };
 
 function JobsKpiIcon({ src, bg, leafWidth, leafHeight }: KpiIcon) {
@@ -249,6 +251,8 @@ export function JobsDashboard({
   onDelete,
   onArchive,
   onUnarchive,
+  canEditJobs = true,
+  canDeleteJobs = true,
 }: JobsDashboardProps) {
   const [appliedSearchTags, setAppliedSearchTags] = useState<string[]>([]);
   const [kpiCardsExpanded, setKpiCardsExpanded] = useState(false);
@@ -406,16 +410,18 @@ export function JobsDashboard({
 
         <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
-              <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
-                <BrandedSvgIcon
-                  src={JOBS_CREATE_PLUS_ICON_SRC}
-                  className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
-                  color="#FFFFFF"
-                />
-              </span>
-              Create a job
-            </Link>
+            {canEditJobs ? (
+              <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
+                <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+                  <BrandedSvgIcon
+                    src={JOBS_CREATE_PLUS_ICON_SRC}
+                    className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
+                    color="#FFFFFF"
+                  />
+                </span>
+                Create a job
+              </Link>
+            ) : null}
             <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
               View All Jobs
             </Link>
@@ -431,6 +437,8 @@ export function JobsDashboard({
             unpublishDisabled={selectedPublishedCount === 0}
             archiveDisabled={archiveBusy || selectedArchivableCount === 0}
             exportDisabled={exportDisabled}
+            canEdit={canEditJobs}
+            canDelete={canDeleteJobs}
             busy={archiveBusy || deleteBusy}
             onUnpublish={onBulkUnpublish}
             onArchive={onBulkArchive}
@@ -481,6 +489,8 @@ export function JobsDashboard({
             onDelete={onDelete}
             onArchive={onArchive}
             onUnarchive={onUnarchive}
+            canEditJobs={canEditJobs}
+            canDeleteJobs={canDeleteJobs}
           />
         </div>
       </section>

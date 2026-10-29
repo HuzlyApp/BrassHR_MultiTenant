@@ -26,6 +26,7 @@ import { normalizeJobRequisitionStatus, jobStatusDisplayLabel } from "@/lib/jobs
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
 import { prefetchJobDetails } from "@/lib/admin/staff-detail-fetch-cache";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import { useStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
 import { toPersistedJobListRow } from "@/lib/lists/staff-list-cache-rows";
 import {
   invalidateJobsListCache,
@@ -589,6 +590,7 @@ function JobActionsMenuPortal({
   anchor,
   tenantSlug,
   duplicateBusy = false,
+  canEditJobs = true,
   onClose,
   onImportFromMsp,
   onAddCandidate,
@@ -602,6 +604,7 @@ function JobActionsMenuPortal({
   anchor: HTMLElement;
   tenantSlug: string | null;
   duplicateBusy?: boolean;
+  canEditJobs?: boolean;
   onClose: () => void;
   onImportFromMsp: () => void;
   onAddCandidate: (job: JobListRow) => void;
@@ -706,17 +709,19 @@ function JobActionsMenuPortal({
       >
         Copy apply link
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onTags(job);
-          onClose();
-        }}
-        className={menuItemClass}
-      >
-        Tags
-      </button>
+      {canEditJobs ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onTags(job);
+            onClose();
+          }}
+          className={menuItemClass}
+        >
+          Tags
+        </button>
+      ) : null}
       {/* Assign recruiter — hidden for now; restore later
       <button
         type="button"
@@ -730,18 +735,20 @@ function JobActionsMenuPortal({
         Assign recruiter
       </button>
       */}
-      <button
-        type="button"
-        role="menuitem"
-        disabled={duplicateBusy}
-        onClick={() => {
-          onDuplicate(job);
-        }}
-        className={`${menuItemClass} disabled:opacity-60`}
-      >
-        {duplicateBusy ? "Duplicating…" : "Duplicate"}
-      </button>
-      {status !== "archived" ? (
+      {canEditJobs ? (
+        <button
+          type="button"
+          role="menuitem"
+          disabled={duplicateBusy}
+          onClick={() => {
+            onDuplicate(job);
+          }}
+          className={`${menuItemClass} disabled:opacity-60`}
+        >
+          {duplicateBusy ? "Duplicating…" : "Duplicate"}
+        </button>
+      ) : null}
+      {status !== "archived" && canEditJobs ? (
         <Link
           href={`/admin_recruiter/jobs/${job.id}/edit`}
           role="menuitem"
@@ -763,17 +770,19 @@ function JobActionsMenuPortal({
           View Public Listing
         </Link>
       ) : null}
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onImportFromMsp();
-          onClose();
-        }}
-        className={menuItemClass}
-      >
-        Import from MSP
-      </button>
+      {canEditJobs ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onImportFromMsp();
+            onClose();
+          }}
+          className={menuItemClass}
+        >
+          Import from MSP
+        </button>
+      ) : null}
     </>
   );
 
@@ -808,6 +817,9 @@ export default function AdminRecruiterJobsPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const showListing = searchParams.get("view") === "all";
+  const { canEdit, canDelete } = useStaffModuleAccess();
+  const canEditJobs = canEdit("jobs");
+  const canDeleteJobs = canDelete("jobs");
 
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [totalCandidateCount, setTotalCandidateCount] = useState<number | null>(null);
@@ -1819,6 +1831,7 @@ export default function AdminRecruiterJobsPage() {
       publishBusyIds,
       onPublishToggle: handlePublishToggle,
       onStatusChange: handleStatusChange,
+      canEditJobs,
     };
   }, [
     branding.secondaryHex,
@@ -1827,6 +1840,7 @@ export default function AdminRecruiterJobsPage() {
     openActionsMenu?.job.id,
     publishBusyIds,
     toggleJobHot,
+    canEditJobs,
   ]);
 
   if (!showListing) {
@@ -1880,6 +1894,8 @@ export default function AdminRecruiterJobsPage() {
           onUnarchive={(jobId) => {
             void transition(jobId, "unarchive");
           }}
+          canEditJobs={canEditJobs}
+          canDeleteJobs={canDeleteJobs}
         />
         <AddCandidateModal
           open={Boolean(addCandidateJob)}
@@ -1919,9 +1935,9 @@ export default function AdminRecruiterJobsPage() {
           onClose={() => setActionErrorModal(null)}
           title={actionErrorModal?.title ?? "Unable to update job"}
           message={actionErrorModal?.message ?? ""}
-          actionLabel={actionErrorModal?.editJobId ? "Edit job" : "Close"}
+          actionLabel={actionErrorModal?.editJobId && canEditJobs ? "Edit job" : "Close"}
           onAction={
-            actionErrorModal?.editJobId
+            actionErrorModal?.editJobId && canEditJobs
               ? () => router.push(`/admin_recruiter/jobs/${actionErrorModal.editJobId}/edit`)
               : undefined
           }
@@ -2042,17 +2058,19 @@ export default function AdminRecruiterJobsPage() {
             </div>
 
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3 max-[419px]:flex-nowrap max-[419px]:gap-1.5">
-              <Link href="/admin_recruiter/jobs/new" className={`${JOBS_CREATE_BUTTON_CLASS} max-[419px]:px-2`}>
-                <span className="relative size-4 overflow-hidden" aria-hidden>
-                  <BrandedSvgIcon
-                    src={JOBS_CREATE_PLUS_ICON_SRC}
-                    className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
-                    color="#FFFFFF"
-                  />
-                </span>
-                <span className="hidden min-[420px]:inline">Create a job</span>
-                <span className="min-[420px]:hidden">Create</span>
-              </Link>
+              {canEditJobs ? (
+                <Link href="/admin_recruiter/jobs/new" className={`${JOBS_CREATE_BUTTON_CLASS} max-[419px]:px-2`}>
+                  <span className="relative size-4 overflow-hidden" aria-hidden>
+                    <BrandedSvgIcon
+                      src={JOBS_CREATE_PLUS_ICON_SRC}
+                      className="absolute left-1/2 top-1/2 h-[9.33px] w-[9.33px] -translate-x-1/2 -translate-y-1/2"
+                      color="#FFFFFF"
+                    />
+                  </span>
+                  <span className="hidden min-[420px]:inline">Create a job</span>
+                  <span className="min-[420px]:hidden">Create</span>
+                </Link>
+              ) : null}
               <Link href="/admin_recruiter/applications" className={`${JOBS_OUTLINE_ACTION_BUTTON_CLASS} max-[419px]:hidden`}>
                 View Candidates
               </Link>
@@ -2148,6 +2166,8 @@ export default function AdminRecruiterJobsPage() {
             unpublishDisabled={selectedPublishedCount === 0}
             archiveDisabled={archiveBusy || selectedArchivableCount === 0}
             exportDisabled={exportJobs.length === 0}
+            canEdit={canEditJobs}
+            canDelete={canDeleteJobs}
             busy={archiveBusy || deleteBusy}
             onUnpublish={() => void handleBulkUnpublish()}
             onArchive={() => void handleBulkArchive()}
@@ -2209,6 +2229,8 @@ export default function AdminRecruiterJobsPage() {
               onUnarchive={(jobId) => {
                 void transition(jobId, "unarchive");
               }}
+              canEditJobs={canEditJobs}
+              canDeleteJobs={canDeleteJobs}
             />
           </div>
         ) : loading ? (
@@ -2333,6 +2355,7 @@ export default function AdminRecruiterJobsPage() {
           anchor={openActionsMenu.anchor}
           tenantSlug={tenantSlug}
           duplicateBusy={duplicateBusyId === openActionsMenu.job.id}
+          canEditJobs={canEditJobs}
           onClose={() => setOpenActionsMenu(null)}
           onImportFromMsp={handleImportFromMsp}
           onAddCandidate={(job) => {
@@ -2463,9 +2486,9 @@ export default function AdminRecruiterJobsPage() {
         onClose={() => setActionErrorModal(null)}
         title={actionErrorModal?.title ?? "Unable to update job"}
         message={actionErrorModal?.message ?? ""}
-        actionLabel={actionErrorModal?.editJobId ? "Edit job" : "Close"}
+        actionLabel={actionErrorModal?.editJobId && canEditJobs ? "Edit job" : "Close"}
         onAction={
-          actionErrorModal?.editJobId
+          actionErrorModal?.editJobId && canEditJobs
             ? () => router.push(`/admin_recruiter/jobs/${actionErrorModal.editJobId}/edit`)
             : undefined
         }

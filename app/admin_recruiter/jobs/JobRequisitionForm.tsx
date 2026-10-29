@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { useStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
@@ -80,6 +81,8 @@ const initialJob: JobRequisitionInput = {
 export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const router = useRouter();
   const branding = useTenantBranding();
+  const { canEdit, loading: accessLoading } = useStaffModuleAccess();
+  const canEditJobs = canEdit("jobs");
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const brandStyle = primaryButtonStyle(brandVars);
 
@@ -806,6 +809,40 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               : "Job Requisition";
   const showPublishActions = step === "review";
   const requiresWorkflow = jobRequiresWorkflow(buildPayloadJob());
+
+  if (accessLoading) {
+    return (
+      <main className="w-full min-w-0 overflow-x-hidden px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
+        <div className={JOB_FORM_PAGE_CARD_CLASS} style={brandVars}>
+          <p className="p-6 text-sm text-[#64748B]">Checking permissions…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!canEditJobs) {
+    return (
+      <main className="w-full min-w-0 overflow-x-hidden px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
+        <div className={JOB_FORM_PAGE_CARD_CLASS} style={brandVars}>
+          <div className={`${JOB_FORM_CENTER_COLUMN_CLASS} space-y-4 p-6`}>
+            <h1 className={JOB_POSTING_PAGE_TITLE_CLASS}>
+              {jobId ? "Editing not available" : "Creating jobs not available"}
+            </h1>
+            <p className={JOB_POSTING_HELPER_CLASS}>
+              Your role can view jobs but does not include edit permission for this module.
+            </p>
+            <Link
+              href={jobId ? `/admin_recruiter/jobs/${jobId}` : "/admin_recruiter/jobs"}
+              className="inline-flex text-sm font-medium no-underline transition hover:opacity-80"
+              style={{ color: branding.secondaryHex || "#012352" }}
+            >
+              {jobId ? "Back to job details" : "Back to jobs"}
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="w-full min-w-0 overflow-x-hidden px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
