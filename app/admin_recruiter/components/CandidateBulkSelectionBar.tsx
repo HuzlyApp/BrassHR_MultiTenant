@@ -8,6 +8,7 @@ import {
   BULK_SELECTION_SNACKBAR_ICON_BTN_CLASS,
   BULK_SELECTION_SNACKBAR_LABEL_CLASS,
 } from "@/app/admin_recruiter/components/bulk-selection-snackbar-styles";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 import { RefreshCw, RotateCcw, Sparkles } from "lucide-react";
 
 const CANDIDATE_ARCHIVE_ICON_SRC = "/icons/jobs-icons/archived.svg";
@@ -80,6 +81,7 @@ export function CandidateBulkSelectionBar({
   onExportXls,
   onClear,
 }: CandidateBulkSelectionBarProps) {
+  const { canEdit, canDelete } = useModulePermission("hiring");
   if (selectedCount <= 0) return null;
 
   const selectedLabel =
@@ -88,6 +90,8 @@ export function CandidateBulkSelectionBar({
   const claimLabel = eligibleCount === 1 ? "Claim Candidate" : "Claim Candidates";
   const busy = claimBusy || archiveBusy || deleteBusy || analyzeBusy;
   const showExport = Boolean(onExportCsv && onExportXls);
+  const showEditActions = canEdit;
+  const showDeleteActions = canDelete;
 
   return (
     <div
@@ -113,7 +117,7 @@ export function CandidateBulkSelectionBar({
             disabled={busy || exportDisabled}
           />
         ) : null}
-        {onAnalyze ? (
+        {showEditActions && onAnalyze ? (
           <button
             type="button"
             onClick={onAnalyze}
@@ -125,7 +129,7 @@ export function CandidateBulkSelectionBar({
             {analyzeBusy ? "Analyzing…" : "Analyze"}
           </button>
         ) : null}
-        {onReanalyze ? (
+        {showEditActions && onReanalyze ? (
           <button
             type="button"
             onClick={onReanalyze}
@@ -137,7 +141,7 @@ export function CandidateBulkSelectionBar({
             Reanalyze
           </button>
         ) : null}
-        {onArchive ? (
+        {showEditActions && onArchive ? (
           <button
             type="button"
             onClick={onArchive}
@@ -148,7 +152,7 @@ export function CandidateBulkSelectionBar({
             {archiveBusy ? "Archiving…" : archiveLabel}
           </button>
         ) : null}
-        {onDelete ? (
+        {showDeleteActions && onDelete ? (
           <button
             type="button"
             onClick={onDelete}
@@ -159,7 +163,7 @@ export function CandidateBulkSelectionBar({
             Delete
           </button>
         ) : null}
-        {!hideClaim && onClaim ? (
+        {showEditActions && !hideClaim && onClaim ? (
           <button
             type="button"
             onClick={onClaim}

@@ -30,6 +30,7 @@ import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/Scrolla
 import { parseSkillsFilterParam } from "@/lib/jobs/application-skills-filter";
 import { buildAssigneeFilterOptions } from "@/lib/candidates/assignee-filter";
 import { CANDIDATES_PAGE_SIZE_OPTIONS } from "@/lib/workers/candidate-list-params";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -380,7 +381,9 @@ export function CandidatesListShell({
   onAnalysisProviderChange,
   children,
 }: CandidatesListShellProps) {
+  const { canEdit: canEditHiring } = useModulePermission("hiring");
   const isAllCandidatesLayout = layoutVariant === "all-candidates";
+  const allowAddCandidate = Boolean(onAddCandidate) && canEditHiring && !hideAddCandidate;
   const resolvedKpiCards =
     kpiCards && kpiCards.length > 0
       ? kpiCards
@@ -575,10 +578,10 @@ export function CandidatesListShell({
         subtitle="Manage candidates in one place"
         actions={
           !isAllCandidatesLayout &&
-          ((!hideAddCandidate && onAddCandidate) ||
+          (allowAddCandidate ||
             (!exportInToolbar && !hideAddCandidate && onExportCsv && onExportXls)) ? (
             <>
-              {!hideAddCandidate && onAddCandidate ? (
+              {allowAddCandidate ? (
                 <button type="button" onClick={onAddCandidate} className={PRIMARY_HEADER_BUTTON_CLASS}>
                   <AddPlusIcon />
                   Add Candidate
@@ -622,7 +625,7 @@ export function CandidatesListShell({
             }}
             onOpenFilters={() => setFiltersModalOpen(true)}
             onEditColumns={onEditColumns}
-            onAddCandidate={onAddCandidate}
+            onAddCandidate={allowAddCandidate ? onAddCandidate : undefined}
             onMatchExistingCandidate={onMatchExistingCandidate}
             activeFilterCount={activeFilterCount}
             view={view}

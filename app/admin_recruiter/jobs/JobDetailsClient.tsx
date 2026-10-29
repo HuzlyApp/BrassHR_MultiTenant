@@ -19,6 +19,7 @@ import {
 } from "@/app/admin_recruiter/candidates/AssignRecruiterModal";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { useStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
 import {
   formatStoredJobDescriptionHtml,
   JobDescriptionHtml,
@@ -183,6 +184,8 @@ function CandidateCard({
 export default function JobDetailsClient({ jobId }: Props) {
   const router = useRouter();
   const branding = useTenantBranding();
+  const { canEdit } = useStaffModuleAccess();
+  const canEditJobs = canEdit("jobs");
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const primaryColor = branding.primaryHex || "#BC8B41";
   const outlineBrandStyle: CSSProperties = {
@@ -525,6 +528,22 @@ export default function JobDetailsClient({ jobId }: Props) {
       <div className="flex w-full min-w-0 shrink-0 items-center gap-2 min-[500px]:w-auto">
         {(() => {
           const currentStatus = normalizeJobRequisitionStatus(String(job.status ?? ""));
+          if (!canEditJobs) {
+            return (
+              <div
+                className={`inline-flex h-9 min-w-0 flex-1 items-center gap-2 py-0 pl-3 pr-3 text-sm text-[#334155] min-[500px]:flex-none min-[500px]:min-w-[9.5rem] ${JOB_FORM_SURFACE_CLASS}`}
+                aria-label={`Job status: ${jobDetailsStatusLabel(currentStatus)}`}
+              >
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${jobDetailsStatusDotClass(currentStatus)}`}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {jobDetailsStatusLabel(currentStatus)}
+                </span>
+              </div>
+            );
+          }
           const allowed = new Set<JobStatus>([
             currentStatus,
             ...allowedJobStatusTransitions(currentStatus),
@@ -629,31 +648,37 @@ export default function JobDetailsClient({ jobId }: Props) {
                 label="Copy apply link"
                 onClick={() => void copyApplyLink()}
               />
-              <ActionMenuItem
-                iconSrc={`${JOB_DETAILS_ICON_BASE}/add-remove-tags.svg`}
-                label="Add/remove tags"
-                onClick={() => {
-                  setActionsOpen(false);
-                  setTagsError(null);
-                  setTagsOpen(true);
-                }}
-              />
-              <ActionMenuItem
-                iconSrc={`${JOB_DETAILS_ICON_BASE}/assign-recruiter.svg`}
-                label="Assign recruiter"
-                onClick={() => {
-                  setActionsOpen(false);
-                  setAssignError(null);
-                  setAssignOpen(true);
-                  void loadTeamMembers();
-                }}
-              />
-              <ActionMenuItem
-                iconSrc={`${JOB_DETAILS_ICON_BASE}/duplicate-job.svg`}
-                label={duplicateBusy ? "Duplicating…" : "Duplicate job"}
-                disabled={duplicateBusy}
-                onClick={() => void duplicateJob()}
-              />
+              {canEditJobs ? (
+                <ActionMenuItem
+                  iconSrc={`${JOB_DETAILS_ICON_BASE}/add-remove-tags.svg`}
+                  label="Add/remove tags"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    setTagsError(null);
+                    setTagsOpen(true);
+                  }}
+                />
+              ) : null}
+              {canEditJobs ? (
+                <ActionMenuItem
+                  iconSrc={`${JOB_DETAILS_ICON_BASE}/assign-recruiter.svg`}
+                  label="Assign recruiter"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    setAssignError(null);
+                    setAssignOpen(true);
+                    void loadTeamMembers();
+                  }}
+                />
+              ) : null}
+              {canEditJobs ? (
+                <ActionMenuItem
+                  iconSrc={`${JOB_DETAILS_ICON_BASE}/duplicate-job.svg`}
+                  label={duplicateBusy ? "Duplicating…" : "Duplicate job"}
+                  disabled={duplicateBusy}
+                  onClick={() => void duplicateJob()}
+                />
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -776,18 +801,20 @@ export default function JobDetailsClient({ jobId }: Props) {
                 })()}
 
                 <div className="mt-auto flex w-full flex-col gap-2.5 pt-4 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap min-[500px]:items-center">
-                  <Link
-                    href={`/admin_recruiter/jobs/${job.id}/edit`}
-                    className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
-                    style={outlineBrandStyle}
-                  >
-                    <BrandedSvgIcon
-                      src={`${JOB_DETAILS_ICON_BASE}/edit-job.svg`}
-                      className="h-4 w-4 shrink-0"
-                      color={primaryColor}
-                    />
-                    Edit Job
-                  </Link>
+                  {canEditJobs ? (
+                    <Link
+                      href={`/admin_recruiter/jobs/${job.id}/edit`}
+                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
+                      style={outlineBrandStyle}
+                    >
+                      <BrandedSvgIcon
+                        src={`${JOB_DETAILS_ICON_BASE}/edit-job.svg`}
+                        className="h-4 w-4 shrink-0"
+                        color={primaryColor}
+                      />
+                      Edit Job
+                    </Link>
+                  ) : null}
                   <JobPublicViewLink
                     href={publicJobPath}
                     variant="button"
