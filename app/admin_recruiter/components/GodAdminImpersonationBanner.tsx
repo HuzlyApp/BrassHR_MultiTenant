@@ -2,12 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { clearStaffAccessCache } from "@/lib/admin/staff-access-cache";
 import { clearStaffListSessionCache } from "@/lib/lists/staff-list-session-cache";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 
 export default function GodAdminImpersonationBanner() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { viewer } = useEffectiveBranding();
   const [exiting, setExiting] = useState(false);
 
@@ -26,6 +29,7 @@ export default function GodAdminImpersonationBanner() {
       },
       body: JSON.stringify({ tenantId: null }),
     });
+    clearStaffAccessCache(queryClient);
     clearStaffListSessionCache();
     router.push("/godadmin/tenants");
     router.refresh();

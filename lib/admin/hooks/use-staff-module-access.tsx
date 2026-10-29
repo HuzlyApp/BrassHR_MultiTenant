@@ -1,8 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { createContext, useContext, useLayoutEffect, useMemo, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  clearStaffAccessCache,
+  isStaffAccessRecord,
+  staffAccessQueryKey,
+  staffAccessRevision,
+  writeStaffAccessCache,
+  type StaffAccessGrant,
+  type StaffAccessRecord,
+} from "@/lib/admin/staff-access-cache";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
 import {
   classifyProtectedPath,
@@ -10,29 +19,25 @@ import {
   type StoredGrant,
 } from "@/lib/auth/permission-catalog";
 
-export type StaffModuleGrant = { key: string } & StoredGrant;
+export type StaffModuleGrant = StaffAccessGrant;
+export type StaffModuleAccessPayload = StaffAccessRecord;
 
-export type StaffModuleAccessPayload = {
-  godAdmin: boolean;
-  grants: StaffModuleGrant[];
-  viewKeys: string[];
-};
-
-export const STAFF_MODULE_ACCESS_QUERY_KEY = ["admin-staff-module-access"] as const;
+const StaffAccessSeedContext = createContext<StaffAccessRecord | null>(null);
 
 const EMPTY_GRANT: StoredGrant = { canView: false, canEdit: false, canDelete: false };
 const FULL_GRANT: StoredGrant = { canView: true, canEdit: true, canDelete: true };
 
-async function fetchStaffModuleAccess(): Promise<StaffModuleAccessPayload> {
+async function fetchStaffModuleAccess(): Promise<StaffAccessRecord> {
   const res = await fetch("/api/admin/access", {
     ...(await staffFetchInit()),
     cache: "no-store",
   });
-  const payload = (await res.json()) as StaffModuleAccessPayload & { error?: string };
-  if (!res.ok) {
+  const payload = (await res.json()) as StaffAccessRecord & { error?: string };
+  if (!res.ok || !isStaffAccessRecord(payload)) {
     throw new Error(payload.error || `Access request failed (${res.status})`);
   }
   return {
+    tenantId: payload.tenantId,
     godAdmin: payload.godAdmin === true,
     grants: Array.isArray(payload.grants) ? payload.grants : [],
     viewKeys: Array.isArray(payload.viewKeys) ? payload.viewKeys : [],
@@ -55,15 +60,57 @@ export function staffModuleGrantFor(
 
 /** Drop cached grants after an admin updates Roles & Permissions. */
 export function invalidateStaffModuleAccess(queryClient: QueryClient): void {
-  void queryClient.invalidateQueries({ queryKey: STAFF_MODULE_ACCESS_QUERY_KEY });
+  void queryClient.invalidateQueries({ queryKey: ["staff-access"] });
+}
+
+export { clearStaffAccessCache, writeStaffAccessCache };
+
+/**
+ * Puts the server-rendered access record into React Query so the sidebar can paint
+ * without waiting on `/api/admin/access`. A missing seed keeps the client fetch.
+ */
+export function StaffAccessSeed({
+  initialAccess,
+  children,
+}: {
+  initialAccess: StaffAccessRecord | null;
+  children: ReactNode;
+}) {
+  const queryClient = useQueryClient();
+  const tenantId = initialAccess?.tenantId ?? "unknown";
+
+  useLayoutEffect(() => {
+    if (!initialAccess) return;
+    const key = staffAccessQueryKey(initialAccess.tenantId);
+    const cached = queryClient.getQueryData<StaffAccessRecord>(key);
+    if (!cached || staffAccessRevision(cached) !== staffAccessRevision(initialAccess)) {
+      queryClient.setQueryData(key, initialAccess);
+    }
+  }, [initialAccess, queryClient]);
+
+  useQuery({
+    queryKey: staffAccessQueryKey(tenantId),
+    queryFn: fetchStaffModuleAccess,
+    initialData: initialAccess ?? undefined,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: true,
+  });
+
+  return <StaffAccessSeedContext.Provider value={initialAccess}>{children}</StaffAccessSeedContext.Provider>;
 }
 
 /** Live module grants from `/api/admin/access` (source of truth for UI gates). */
 export function useStaffModuleAccess() {
+  const seeded = useContext(StaffAccessSeedContext);
+  const tenantId = seeded?.tenantId ?? "unknown";
   const query = useQuery({
-    queryKey: STAFF_MODULE_ACCESS_QUERY_KEY,
+    queryKey: staffAccessQueryKey(tenantId),
     queryFn: fetchStaffModuleAccess,
+    initialData: seeded ?? undefined,
     staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: true,
   });
 
   const godAdmin = query.data?.godAdmin === true;
@@ -88,7 +135,7 @@ export function useStaffModuleAccess() {
     grants: query.data?.grants ?? [],
     viewKeys: query.data?.viewKeys ?? [],
     viewKeySet,
-    loading: query.isLoading,
+    loading: query.isLoading && query.data == null,
     error: query.error,
     grantFor,
     canView: (resourceKey: string) => grantFor(resourceKey).canView,

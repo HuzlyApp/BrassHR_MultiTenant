@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { clearStaffAccessCache } from "@/lib/admin/staff-access-cache";
 import { clearStaffListSessionCache } from "@/lib/lists/staff-list-session-cache";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 
@@ -27,6 +28,7 @@ async function fetchAdminTenants(): Promise<TenantRow[]> {
  * Cookie is HTTP-only — selection syncs via `reload` after POST.
  */
 export default function GodAdminTenantSwitcher() {
+  const queryClient = useQueryClient();
   const { branding, viewer } = useEffectiveBranding();
   const isGodAdmin = viewer?.godAdmin === true;
 
@@ -68,6 +70,7 @@ export default function GodAdminTenantSwitcher() {
               tenantId: tenantId ? tenantId : null,
             }),
           });
+          clearStaffAccessCache(queryClient);
           clearStaffListSessionCache();
           window.location.reload();
         }}

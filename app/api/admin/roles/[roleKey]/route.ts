@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadFreshViewerStaffAccess } from "@/lib/auth/cached-session-grants";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireUserManagement } from "@/lib/auth/user-management";
 import { withRequiredView, type StoredGrant } from "@/lib/auth/permission-catalog";
@@ -118,7 +119,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   );
   if (insertError) return NextResponse.json({ error: "Forbidden", detail: "Permission data unavailable" }, { status: 403 });
 
-  return NextResponse.json({ ok: true });
+  const access = await loadFreshViewerStaffAccess();
+  return NextResponse.json({ ok: true, ...(access ? { access } : {}) });
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {

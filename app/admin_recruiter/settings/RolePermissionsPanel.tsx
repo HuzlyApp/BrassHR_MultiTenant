@@ -1,10 +1,15 @@
 "use client";
 
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
 import { applyGrantSelection, withRequiredView } from "@/lib/auth/permission-catalog";
-import { useInvalidateStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
+import {
+  useInvalidateStaffModuleAccess,
+  writeStaffAccessCache,
+} from "@/lib/admin/hooks/use-staff-module-access";
+import { isStaffAccessRecord, staffAccessQueryKey } from "@/lib/admin/staff-access-cache";
 
 type ResourceRow = {
   key: string;
@@ -108,6 +113,7 @@ function grantsForRole(role: RoleRow, resources: ResourceRow[]): Grant[] {
 }
 
 export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: boolean }) {
+  const queryClient = useQueryClient();
   const invalidateModuleAccess = useInvalidateStaffModuleAccess();
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [resources, setResources] = useState<ResourceRow[]>([]);
@@ -213,11 +219,16 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      const body = (await response.json().catch(() => ({}))) as { error?: string; access?: unknown };
       if (!response.ok) throw new Error(body.error || "Could not save role");
       toast.success(editing ? "Role updated" : "Role created");
       setOpen(false);
-      invalidateModuleAccess();
+      if (isStaffAccessRecord(body.access)) {
+        writeStaffAccessCache(queryClient, body.access);
+        if (queryClient.getQueryState(staffAccessQueryKey("unknown"))) {
+          queryClient.setQueryData(staffAccessQueryKey("unknown"), body.access);
+        }
+      } else invalidateModuleAccess();
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save role");

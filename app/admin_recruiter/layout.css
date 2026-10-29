@@ -63,6 +63,13 @@
   transition: width 200ms ease-in-out;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .admin-recruiter-main-wrap,
+  .admin-recruiter-sidebar {
+    transition: none;
+  }
+}
+
 /* Mobile collapsed rail — default 80px (500px–999px); overridden in narrower breakpoints below */
 .admin-recruiter-sidebar-mobile-rail {
   width: var(--admin-sidebar-collapsed-width, 80px);

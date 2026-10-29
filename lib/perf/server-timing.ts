@@ -60,7 +60,7 @@ export function recordServerTiming(name: string, durMs: number, desc?: string): 
   });
 }
 
-export async function timeSpan<T>(name: string, fn: () => Promise<T>): Promise<T> {
+export async function timeSpan<T>(name: string, fn: () => PromiseLike<T>): Promise<T> {
   const start = performance.now();
   try {
     return await fn();
