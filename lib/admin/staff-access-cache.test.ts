@@ -64,7 +64,9 @@ describe("staff access cache", () => {
 describe("sidebarLinkIsActive", () => {
   it("highlights the clicked href before the pathname changes", () => {
     const link = { href: "/admin_recruiter/jobs", matchPrefixes: ["/admin_recruiter/jobs"] };
+    const current = { href: "/admin_recruiter/home", matchPrefixes: ["/admin_recruiter/home"] };
     expect(sidebarLinkIsActive(link, "/admin_recruiter/home", "/admin_recruiter/jobs")).toBe(true);
+    expect(sidebarLinkIsActive(current, "/admin_recruiter/home", "/admin_recruiter/jobs")).toBe(false);
     expect(sidebarLinkIsActive(link, "/admin_recruiter/home", null)).toBe(false);
   });
 
