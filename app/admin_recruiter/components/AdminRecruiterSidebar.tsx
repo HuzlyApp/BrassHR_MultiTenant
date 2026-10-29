@@ -180,7 +180,8 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const isLinkActive = (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) =>
     sidebarLinkIsActive(link, pathname, pendingHref);
 
-  const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => pathname.startsWith(prefix));
+  const activePath = pendingHref ?? pathname;
+  const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => activePath.startsWith(prefix));
 
   const renderedSections = useMemo(
     () =>

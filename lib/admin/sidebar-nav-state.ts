@@ -4,7 +4,7 @@ export function sidebarLinkIsActive(
   pathname: string,
   pendingHref: string | null
 ): boolean {
-  if (pendingHref && link.href && pendingHref === link.href) return true;
+  if (pendingHref) return Boolean(link.href && pendingHref === link.href);
   return link.matchPrefixes.some((prefix) =>
     link.matchExact ? pathname === prefix || pathname === `${prefix}/` : pathname.startsWith(prefix)
   );

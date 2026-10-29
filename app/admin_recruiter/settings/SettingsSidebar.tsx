@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   SETTINGS_NAV_GROUPS,
@@ -52,11 +52,16 @@ function visibleSettingsNavGroups(
 export function SettingsSidebar() {
   const pathname = usePathname() ?? "";
   const { viewKeySet, godAdmin, loading } = useStaffModuleAccess();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const groups = useMemo(
     () => visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, godAdmin),
     [viewKeySet, godAdmin]
   );
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   return (
     <aside className="w-full shrink-0 border-y border-[#E5E7EB] bg-white px-3.5 py-5 lg:sticky lg:top-[var(--admin-recruiter-header-height,4rem)] lg:h-[calc(100dvh-var(--admin-recruiter-header-height,4rem))] lg:w-[220px] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:border-x lg:border-y-0">
@@ -71,11 +76,14 @@ export function SettingsSidebar() {
               <p className="text-xs font-semibold uppercase leading-[18px] text-[#4B5563]">{group.label}</p>
               <div className="flex flex-col">
                 {group.items.map((item) => {
-                  const active = isSettingsNavItemActive(pathname, item);
+                  const active = pendingHref
+                    ? item.href === pendingHref
+                    : isSettingsNavItemActive(pathname, item);
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => setPendingHref(item.href)}
                       aria-current={active ? "page" : undefined}
                       className={`flex w-full items-center gap-2 rounded px-2 py-1.5 ${
                         active ? "border border-[#BC8B41] bg-white" : "border border-transparent"

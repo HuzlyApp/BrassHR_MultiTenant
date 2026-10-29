@@ -3,10 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, Palette, RefreshCw, Type } from "lucide-react";
-import {
-  AccountErrorBanner,
-  AccountLoadingSkeleton,
-} from "@/app/admin_recruiter/account/components/AccountFormStatus";
+import { AccountErrorBanner } from "@/app/admin_recruiter/account/components/AccountFormStatus";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import BrandingColorField from "@/app/tenant-onboarding/BrandingColorField";
 import {
@@ -27,7 +24,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPreview";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffFetchInit } from "@/lib/staff-auth-headers";
 import toast from "react-hot-toast";
 
 type PreviewMode = "login" | "signup";
@@ -213,20 +210,13 @@ function LogoUploadBlock({
   );
 }
 
-async function authHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-}
-
 async function uploadLogo(field: LogoField, file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("field", field);
   const uploadRes = await fetch("/api/admin/branding/logo", {
     method: "POST",
-    headers: await authHeaders(),
+    ...(await staffFetchInit()),
     body: formData,
   });
   const uploadPayload = (await uploadRes.json().catch(() => ({}))) as {
@@ -241,7 +231,8 @@ async function uploadLogo(field: LogoField, file: File): Promise<string> {
 export default function BrandingSettingsPanel() {
   const queryClient = useQueryClient();
   const currentBranding = useTenantBranding();
-  const [loading, setLoading] = useState(true);
+  const editedRef = useRef(false);
+  const [phase, setPhase] = useState<"refreshing" | "ready" | "error" | "empty">("refreshing");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -311,12 +302,14 @@ export default function BrandingSettingsPanel() {
   }, []);
 
   const loadBranding = useCallback(async () => {
-    setLoading(true);
+    setPhase("refreshing");
     setLoadError(null);
     setError(null);
     try {
-      const headers = await authHeaders();
-      const res = await fetch("/api/admin/branding", { cache: "no-store", headers });
+      const res = await fetch("/api/admin/branding", {
+        ...(await staffFetchInit()),
+        cache: "no-store",
+      });
       const payload = (await res.json().catch(() => ({}))) as {
         branding?: TenantBranding;
         tenantId?: string | null;
@@ -324,14 +317,14 @@ export default function BrandingSettingsPanel() {
       };
       if (!res.ok) throw new Error(payload.error || "Could not load branding.");
       if (payload.branding) {
-        applyBranding(payload.branding);
+        if (!editedRef.current) applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
       }
       setTenantId(payload.tenantId ?? null);
+      setPhase(payload.tenantId ? "ready" : "empty");
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Could not load branding.");
-    } finally {
-      setLoading(false);
+      setPhase("error");
     }
   }, [applyBranding, queryClient]);
 
@@ -462,10 +455,7 @@ export default function BrandingSettingsPanel() {
     setError(null);
 
     try {
-      const headers = {
-        ...(await authHeaders()),
-        "Content-Type": "application/json",
-      };
+      const saveInit = await staffFetchInit({ "Content-Type": "application/json" });
 
       let nextLogoUrl = clearedLogos.logo ? "" : logoUrl;
       let nextLoginLogoUrl = clearedLogos.login ? "" : loginLogoUrl;
@@ -499,7 +489,7 @@ export default function BrandingSettingsPanel() {
         bgFormData.append("file", backgroundFile);
         const bgUploadRes = await fetch("/api/admin/branding/background", {
           method: "POST",
-          headers: await authHeaders(),
+          ...(await staffFetchInit()),
           body: bgFormData,
         });
         const bgUploadPayload = (await bgUploadRes.json().catch(() => ({}))) as {
@@ -516,7 +506,7 @@ export default function BrandingSettingsPanel() {
 
       const res = await fetch("/api/admin/branding", {
         method: "PUT",
-        headers,
+        ...saveInit,
         body: JSON.stringify({
           primaryColor: primaryHex,
           secondaryColor: secondaryHex,
@@ -561,11 +551,7 @@ export default function BrandingSettingsPanel() {
     }
   };
 
-  if (loading) {
-    return <AccountLoadingSkeleton rows={6} />;
-  }
-
-  if (loadError) {
+  if (phase === "error") {
     return (
       <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-6">
         <p className="text-base font-semibold text-[#991B1B]">Could not load branding</p>
@@ -582,7 +568,7 @@ export default function BrandingSettingsPanel() {
     );
   }
 
-  if (!tenantId) {
+  if (phase === "empty") {
     return (
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
         <p className="text-base font-semibold text-[#0F172A]">No organization selected</p>
@@ -594,7 +580,19 @@ export default function BrandingSettingsPanel() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form
+      onSubmit={handleSubmit}
+      onChange={() => {
+        editedRef.current = true;
+      }}
+      onClick={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("[data-branding-ignore-edit]")) return;
+        if (target.closest("button")) editedRef.current = true;
+      }}
+      className="space-y-6"
+    >
       {error ? <AccountErrorBanner message={error} /> : null}
 
       <div className="flex flex-col gap-[30px]">
@@ -674,6 +672,7 @@ export default function BrandingSettingsPanel() {
                         <button
                           key={mode}
                           type="button"
+                          data-branding-ignore-edit=""
                           onClick={() => setPreviewMode(mode)}
                           className={`cursor-pointer text-[10px] leading-[15px] ${
                             previewMode === mode ? "font-semibold text-[#012352]" : "font-normal text-[#6B7280]"
@@ -900,7 +899,11 @@ export default function BrandingSettingsPanel() {
         </button>
         <button
           type="button"
-          onClick={() => void loadBranding()}
+          data-branding-ignore-edit=""
+          onClick={() => {
+            editedRef.current = false;
+            void loadBranding();
+          }}
           disabled={saving}
           className={actionButtonClass("secondary", saving)}
         >
