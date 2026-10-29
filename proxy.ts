@@ -39,6 +39,7 @@ import {
   isIdleSessionExpired,
   parseLastActivityMs,
 } from "@/lib/auth/idle-session";
+import { runWithServerTiming, timeSpan } from "@/lib/perf/server-timing";
 
 function resolveRequestTenantSlug(request: NextRequest, hostTenantLabel: string | null): string | null {
   const fromQuery = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
@@ -236,7 +237,7 @@ function isPublicApiPath(pathname: string): boolean {
 /**
  * Refreshes Supabase Auth cookies; enforces login + `app_metadata.platform === nexus` for protected UI/APIs.
  */
-export async function proxy(request: NextRequest) {
+async function proxyInner(request: NextRequest) {
   const url = getSupabaseUrl();
   const anon = getSupabaseAnonKey();
   const pathname = request.nextUrl.pathname;
@@ -268,7 +269,7 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = hasAuthCredential
-    ? await supabase.auth.getUser()
+    ? await timeSpan("session", () => supabase.auth.getUser())
     : { data: { user: null } };
   const isAnonymousUser = isAnonymousAuthUser(user);
 
@@ -428,7 +429,9 @@ export async function proxy(request: NextRequest) {
       // and fail closed when the token is missing, invalid, or anonymous.
       if (requestHasBearerToken(request)) {
         const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
-        const bearerResult = token ? await supabase.auth.getUser(token) : { data: { user: null } };
+        const bearerResult = token
+          ? await timeSpan("session", () => supabase.auth.getUser(token))
+          : { data: { user: null } };
         const bearerUser = bearerResult.data.user ?? null;
         if (!bearerUser || isAnonymousAuthUser(bearerUser)) {
           return denyApiRequest(request, 401, "invalid_bearer", null);
@@ -753,6 +756,18 @@ export async function proxy(request: NextRequest) {
   }
 
   return response;
+}
+
+export async function proxy(request: NextRequest) {
+  return runWithServerTiming(
+    {
+      scope: "middleware",
+      route: request.nextUrl.pathname,
+      method: request.method,
+      tenantSlug: request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value ?? null,
+    },
+    () => proxyInner(request),
+  );
 }
 
 export const config = {

@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { timeSpan } from "@/lib/perf/server-timing";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 
@@ -47,11 +48,13 @@ export async function fetchOwnerOnboardingStatus(
   user: User
 ): Promise<OwnerOnboardingStatus> {
   const godAdminFromAuth = isGodAdminUser(user);
-  const { data, error } = await supabase
-    .from("users")
-    .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin, signup_waitlist_pending")
-    .eq("id", user.id)
-    .maybeSingle();
+  const { data, error } = await timeSpan("db-users-onboarding", () =>
+    supabase
+      .from("users")
+      .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin, signup_waitlist_pending")
+      .eq("id", user.id)
+      .maybeSingle(),
+  );
 
   if (error) {
     console.warn("[owner-onboarding-status] users lookup failed", error.message);
