@@ -1,4 +1,10 @@
 {
+  "regions": ["iad1"],
+  "functions": {
+    "proxy.ts": {
+      "regions": ["iad1"]
+    }
+  },
   "git": {
     "deploymentEnabled": {
       "**": false,

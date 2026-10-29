@@ -1,25 +1,15 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { loadSessionGrants } from "@/lib/auth/module-access.server";
-import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import { getCachedStaffAccessSeed } from "@/lib/auth/cached-session-grants";
+import { getCachedStaffApiSession } from "@/lib/auth/cached-staff-auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const auth = await requireStaffApiSession();
+  const auth = await getCachedStaffApiSession();
   if (auth instanceof NextResponse) return auth;
-  const jar = await cookies();
-  const result = await loadSessionGrants({
-    user: auth.authUser,
-    tenantSlug: jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value ?? null,
-  });
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error, detail: result.detail }, { status: result.status });
+  const result = await getCachedStaffAccessSeed();
+  if (!result) {
+    return NextResponse.json({ error: "Forbidden", detail: "Insufficient permission" }, { status: 403 });
   }
-  return NextResponse.json({
-    godAdmin: result.godAdmin,
-    grants: result.grants,
-    viewKeys: result.grants.filter((grant) => grant.canView).map((grant) => grant.key),
-  });
+  return NextResponse.json(result);
 }

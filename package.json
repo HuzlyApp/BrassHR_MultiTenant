@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build",
+    "analyze": "next build --experimental-analyze",
     "start": "next start",
     "lint": "eslint",
     "perf:test": "node scripts/perf-benchmark.mjs",
