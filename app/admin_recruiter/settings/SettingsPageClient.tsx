@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -12,6 +12,8 @@ import HireJourneyThemePanel from "@/app/admin_recruiter/settings/HireJourneyThe
 import ProfessionDocumentsPanel from "@/app/admin_recruiter/settings/ProfessionDocumentsPanel";
 import RolePermissionsPanel from "@/app/admin_recruiter/settings/RolePermissionsPanel";
 import { SettingsSidebar } from "@/app/admin_recruiter/settings/SettingsSidebar";
+import { settingsResourceKeyForSection } from "@/app/admin_recruiter/settings/settings-nav";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 function SettingsSectionIntro({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -127,7 +129,8 @@ function SettingsContent({ section }: { section: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const legacyTab = searchParams.get("tab");
-  const [company, setCompany] = useState({ canEdit: false, canDelete: false });
+  const resourceKey = settingsResourceKeyForSection(section);
+  const { canView, canEdit, canDelete, loading } = useModulePermission(resourceKey);
 
   useEffect(() => {
     if (legacyTab) {
@@ -135,24 +138,18 @@ function SettingsContent({ section }: { section: string }) {
     }
   }, [legacyTab, router]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/admin/access")
-      .then(async (response) => {
-        if (!response.ok) return;
-        const body = (await response.json()) as {
-          grants?: Array<{ key: string; canEdit?: boolean; canDelete?: boolean }>;
-        };
-        const grant = body.grants?.find((item) => item.key === "settings_company");
-        if (!cancelled && grant) {
-          setCompany({ canEdit: grant.canEdit === true, canDelete: grant.canDelete === true });
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  if (!loading && !canView) {
+    return (
+      <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
+        <SettingsSidebar />
+        <main className="min-w-0 flex-1 px-5 py-5 lg:px-8 lg:py-6">
+          <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-16 text-center text-sm text-[#6B7280]">
+            You do not have permission to view this settings section.
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
@@ -162,8 +159,8 @@ function SettingsContent({ section }: { section: string }) {
           section === "roles" || section === "admin-console" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
         }`}
       >
-        <fieldset disabled={!company.canEdit} className="min-w-0 border-0 p-0 disabled:opacity-80">
-          <SettingsBody section={section} canEdit={company.canEdit} canDelete={company.canDelete} />
+        <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0 disabled:opacity-80">
+          <SettingsBody section={section} canEdit={canEdit} canDelete={canDelete} />
         </fieldset>
       </main>
     </div>
