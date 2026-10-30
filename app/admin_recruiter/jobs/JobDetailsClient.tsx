@@ -782,41 +782,45 @@ export default function JobDetailsClient({ jobId }: Props) {
                       {sourceJobId}
                     </>
                   ) : null}
-                  {createdByLabel ? (
-                    <>
-                      <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
-                      <span className="font-semibold text-[#1D2739]">Created By:</span>{" "}
-                      {createdByLabel}
-                    </>
-                  ) : null}
                 </p>
                 {(() => {
                   const flow = job.onboarding_flows;
                   const workflowName = Array.isArray(flow)
                     ? flow[0]?.name
                     : flow?.name;
-                  if (!workflowName && !job.workflow_assignment_error) return null;
+                  const hasWorkflow = Boolean(workflowName || job.workflow_assignment_error);
+                  if (!hasWorkflow && !createdByLabel) return null;
                   return (
-                    <p className="mt-2 break-words text-sm text-[#475569]">
-                      Assigned workflow:{" "}
-                      <span className="font-semibold text-[#111827]">
-                        {workflowName || "Unmapped"}
-                      </span>
-                      {job.workflow_assignment_mode === "manual" ? (
-                        <span className="ml-2 text-xs font-medium uppercase tracking-wide text-[#64748B]">
-                          (manual override)
-                        </span>
-                      ) : workflowName ? (
-                        <span className="ml-2 text-xs font-medium uppercase tracking-wide text-[#64748B]">
-                          (automatic)
-                        </span>
+                    <div className="mt-2 flex flex-col gap-1.5 break-words text-sm text-[#475569] min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-baseline min-[700px]:gap-x-3">
+                      {hasWorkflow ? (
+                        <p className="min-w-0">
+                          Assigned workflow:{" "}
+                          <span className="font-semibold text-[#111827]">
+                            {workflowName || "Unmapped"}
+                          </span>
+                          {job.workflow_assignment_mode === "manual" ? (
+                            <span className="ml-2 text-xs font-medium uppercase tracking-wide text-[#64748B]">
+                              (manual override)
+                            </span>
+                          ) : workflowName ? (
+                            <span className="ml-2 text-xs font-medium uppercase tracking-wide text-[#64748B]">
+                              (automatic)
+                            </span>
+                          ) : null}
+                          {job.workflow_assignment_error ? (
+                            <span className="mt-1 block text-xs text-amber-700 whitespace-pre-line">
+                              {job.workflow_assignment_error}
+                            </span>
+                          ) : null}
+                        </p>
                       ) : null}
-                      {job.workflow_assignment_error ? (
-                        <span className="mt-1 block text-xs text-amber-700 whitespace-pre-line">
-                          {job.workflow_assignment_error}
-                        </span>
+                      {createdByLabel ? (
+                        <p className="min-w-0 shrink-0">
+                          <span className="font-semibold text-[#1D2739]">Created By:</span>{" "}
+                          {createdByLabel}
+                        </p>
                       ) : null}
-                    </p>
+                    </div>
                   );
                 })()}
 
