@@ -49,8 +49,11 @@ describe("visibleJobColumnsForTab", () => {
     expect(visibleJobColumnsForTab(saved, "msp")).toEqual(saved);
   });
 
-  it("does not include Assignee in default columns", () => {
-    expect(DEFAULT_JOB_COLUMNS).not.toContain("assignee");
-    expect(visibleJobColumnsForTab(DEFAULT_JOB_COLUMNS, "all")).not.toContain("assignee");
+  it("includes Created By in default columns after Date Posted", () => {
+    expect(DEFAULT_JOB_COLUMNS).toContain("assignee");
+    expect(DEFAULT_JOB_COLUMNS.indexOf("assignee")).toBe(
+      DEFAULT_JOB_COLUMNS.indexOf("datePosted") + 1
+    );
+    expect(visibleJobColumnsForTab(DEFAULT_JOB_COLUMNS, "all")).toContain("assignee");
   });
 });

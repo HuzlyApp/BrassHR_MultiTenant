@@ -17,6 +17,7 @@ import { JobValidationError, jobValidationHttpStatus } from "@/lib/jobs/types";
 import { parseJobRequisitionPatch, normalizeJobTags } from "@/lib/jobs/job-requisition-patch";
 import { patchJobRequisition } from "@/lib/jobs/service";
 import { createPerfTimer, logPerf } from "@/lib/perf";
+import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,7 @@ const JOB_DETAILS_SELECT = [
   "msp_client",
   "msp_client_name",
   "external_requisition_id",
+  "created_by",
   "tags",
   "assigned_recruiter_user_id",
   "is_hot",
@@ -70,6 +72,7 @@ type JobRequisitionRow = {
   tags?: unknown;
   assigned_recruiter_user_id?: string | null;
   is_hot?: boolean | null;
+  created_by?: string | null;
 };
 
 function formatApiError(error: unknown, fallback: string): string {
@@ -144,6 +147,15 @@ export async function GET(
         ? buildPublicJobSharePath(tenantSlug, publicToken)
         : null;
 
+    const createdByUserId =
+      typeof jobRow.created_by === "string" ? jobRow.created_by.trim() : "";
+    const creatorsById = createdByUserId
+      ? await loadStaffUsersByIds(supabase, tenantId, [createdByUserId])
+      : new Map();
+    const createdBy = createdByUserId
+      ? creatorsById.get(createdByUserId) ?? null
+      : null;
+
     logPerf("jobs.details.load", {
       totalMs: timer.elapsedMs(),
       jobId: id,
@@ -159,6 +171,7 @@ export async function GET(
         tags: normalizeJobTags(jobRow.tags),
         assigned_recruiter_user_id: jobRow.assigned_recruiter_user_id ?? null,
         is_hot: Boolean(jobRow.is_hot),
+        createdBy,
       },
       tenant: tenant
         ? {

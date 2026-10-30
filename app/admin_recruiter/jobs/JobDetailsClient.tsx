@@ -38,6 +38,7 @@ import {
 import { JobPublicViewLink } from "./JobPublicViewLink";
 import { JobTagsModal } from "./JobTagsModal";
 import {
+  formatJobDetailsCreatedBy,
   formatJobDetailsDate,
   formatJobDetailsClientName,
   formatJobDetailsLocation,
@@ -419,6 +420,7 @@ export default function JobDetailsClient({ jobId }: Props) {
   const mspName = job ? formatJobDetailsMspName(job) : "";
   const clientName = job ? formatJobDetailsClientName(job) : "";
   const sourceJobId = job ? formatJobDetailsSourceJobId(job) : "";
+  const createdByLabel = job ? formatJobDetailsCreatedBy(job) : "";
   const pay = job ? formatJobDetailsPay(job) : "—";
   const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";
   const responsibilities = useMemo(
@@ -778,6 +780,13 @@ export default function JobDetailsClient({ jobId }: Props) {
                       <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
                       <span className="font-semibold text-[#1D2739]">Source Job-ID:</span>{" "}
                       {sourceJobId}
+                    </>
+                  ) : null}
+                  {createdByLabel ? (
+                    <>
+                      <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
+                      <span className="font-semibold text-[#1D2739]">Created By:</span>{" "}
+                      {createdByLabel}
                     </>
                   ) : null}
                 </p>
