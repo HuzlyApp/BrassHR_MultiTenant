@@ -175,6 +175,5 @@ export async function readAuthenticatorChallengeState(
   const listed = await client.auth.mfa.listFactors();
   if (listed.error || !listed.data) return "unavailable";
   if (!listed.data.totp?.[0]) return "ready";
-  if (data?.currentLevel === "aal2") return "ready";
   return "challenge";
 }
