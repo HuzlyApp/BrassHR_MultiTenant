@@ -37,6 +37,9 @@ const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/sett
 const HireJourneyThemePanel = dynamic(() => import("@/app/admin_recruiter/settings/HireJourneyThemePanel"), {
   loading: SettingsPanelFallback,
 });
+const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/DepartmentsPanel"), {
+  loading: SettingsPanelFallback,
+});
 
 function SettingsSectionIntro({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -103,14 +106,7 @@ function SettingsBody({ section, canEdit, canDelete }: { section: string; canEdi
   if (section === "admin-console") {
     return <AdminConsolePanel />;
   }
-  if (section === "departments") {
-    return (
-      <SettingsEmptySection
-        title="Departments"
-        subtitle="Organize people and work by department."
-      />
-    );
-  }
+  if (section === "departments") return <DepartmentsPanel />;
   if (section === "professions") return <ProfessionDocumentsPanel />;
   if (section === "statuses") return <CandidateStatusesPanel />;
   if (section === "assessment") {

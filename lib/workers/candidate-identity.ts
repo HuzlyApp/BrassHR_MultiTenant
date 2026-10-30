@@ -349,6 +349,7 @@ export function collapseWorkersToCandidateProfiles(
     let bestEmail = typeof profile.email === "string" ? profile.email.trim() : "";
     let bestApplicationSibling: Record<string, unknown> | null = null;
     let bestMatchSibling: Record<string, unknown> | null = null;
+    let directDepartmentName = "";
     const mergedJobAssignees: Array<{
       application_id: string;
       job_title: string;
@@ -365,6 +366,13 @@ export function collapseWorkersToCandidateProfiles(
         if (title.trim()) titleSet.add(title.trim());
       }
       const sibling = group.find((row) => row.id === id);
+      const siblingDirectDepartment =
+        typeof sibling?.direct_department_name === "string"
+          ? sibling.direct_department_name.trim()
+          : "";
+      if (siblingDirectDepartment && !directDepartmentName) {
+        directDepartmentName = siblingDirectDepartment;
+      }
       const siblingEmail =
         typeof sibling?.email === "string" ? sibling.email.trim() : "";
       if (!bestEmail && siblingEmail) bestEmail = siblingEmail;
@@ -493,6 +501,10 @@ export function collapseWorkersToCandidateProfiles(
                 ? bestApplicationSibling.application_job_title
                 : primaryTitle) || null,
             application_client_name: bestApplicationSibling.application_client_name,
+            application_department:
+              typeof bestApplicationSibling.application_department === "string"
+                ? bestApplicationSibling.application_department
+                : null,
           }
         : primaryTitle
           ? { application_job_title: primaryTitle }
@@ -517,6 +529,7 @@ export function collapseWorkersToCandidateProfiles(
             ai_requirement_counts: bestMatchSibling.ai_requirement_counts,
           }
         : {}),
+      ...(directDepartmentName ? { direct_department_name: directDepartmentName } : {}),
       ...(siblingIds.length > 1
         ? { candidate_profile_sibling_ids: siblingIds.filter((id) => id !== profileId) }
         : {}),
