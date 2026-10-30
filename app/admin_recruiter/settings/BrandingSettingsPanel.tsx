@@ -2,11 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDownIcon, ImageIcon, Palette, RefreshCw, Type } from "lucide-react";
-import {
-  AccountErrorBanner,
-  AccountLoadingSkeleton,
-} from "@/app/admin_recruiter/account/components/AccountFormStatus";
+import { ChevronDownIcon, Palette, RefreshCw, Type } from "lucide-react";
+import { AccountErrorBanner } from "@/app/admin_recruiter/account/components/AccountFormStatus";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import BrandingColorField from "@/app/tenant-onboarding/BrandingColorField";
 import {
@@ -27,7 +24,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPreview";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffFetchInit } from "@/lib/staff-auth-headers";
 import toast from "react-hot-toast";
 
 type PreviewMode = "login" | "signup";
@@ -150,83 +147,67 @@ function FontSelect({
   );
 }
 
-function fileNameFromUrl(url: string): string | null {
-  const trimmed = url.trim();
-  if (!trimmed || trimmed.startsWith("blob:")) return null;
-
-  try {
-    const pathname = new URL(trimmed, window.location.origin).pathname;
-    const segment = pathname.split("/").filter(Boolean).pop();
-    return segment ? decodeURIComponent(segment) : null;
-  } catch {
-    const segment = trimmed.split("/").filter(Boolean).pop();
-    if (!segment) return null;
-    return decodeURIComponent(segment.split("?")[0] ?? segment);
-  }
-}
+const LOGO_ACTION_CLASS =
+  "inline-flex h-[30px] shrink-0 cursor-pointer items-center rounded-lg px-2.5 text-[10px] font-semibold leading-[15px]";
 
 function LogoUploadBlock({
   label,
   hint,
   previewSrc,
-  selectedFile,
   onFileChange,
+  onRemove,
 }: {
   label: string;
   hint: string;
   previewSrc: string;
-  selectedFile: File | null;
   onFileChange: (file: File | null) => void;
+  onRemove: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const uploadedFileName = useMemo(() => fileNameFromUrl(previewSrc), [previewSrc]);
-  const displayFileName = selectedFile?.name ?? uploadedFileName ?? "No file chosen";
+  const hasImage = previewSrc.trim().length > 0;
 
   return (
-    <div className="space-y-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={previewSrc}
-          alt=""
-          className="h-16 max-w-[200px] rounded-lg border border-[#E2E8F0] bg-white object-contain p-2"
-        />
-        <div>
-          <p className="text-sm font-semibold text-[#0F172A]">{label}</p>
-          <p className="text-xs text-[#64748B]">{hint}</p>
+    <div className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-1 items-center gap-3 sm:max-w-[350px]">
+        {hasImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={previewSrc}
+            alt=""
+            className="size-11 shrink-0 rounded-full bg-white object-contain"
+          />
+        ) : (
+          <span className="size-11 shrink-0 rounded-full border border-[#E5E7EB] bg-[#F8FAFC]" aria-hidden />
+        )}
+        <div className="min-w-0">
+          <p className="text-xs font-semibold leading-4 text-black">{label}</p>
+          <p className="text-[10px] leading-[15px] text-[#6B7280]">{hint}</p>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex shrink-0 gap-2.5">
+        <button type="button" onClick={onRemove} className={`${LOGO_ACTION_CLASS} border border-[#012352] bg-white text-[#012352]`}>
+          Remove
+        </button>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-4 text-sm font-medium text-white transition hover:brightness-110"
+          className={`${LOGO_ACTION_CLASS} bg-[#012352] text-white`}
         >
           Choose file
         </button>
-        <span
-          className="min-w-0 flex-1 truncate text-sm text-[#475569]"
-          title={displayFileName}
-        >
-          {displayFileName}
-        </span>
       </div>
       <input
         ref={inputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.png,.jpg,.jpeg,.webp,.svg,.ico"
-        onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+        onChange={(event) => {
+          onFileChange(event.target.files?.[0] ?? null);
+          event.target.value = "";
+        }}
         className="sr-only"
       />
     </div>
   );
-}
-
-async function authHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
 async function uploadLogo(field: LogoField, file: File): Promise<string> {
@@ -235,7 +216,7 @@ async function uploadLogo(field: LogoField, file: File): Promise<string> {
   formData.append("field", field);
   const uploadRes = await fetch("/api/admin/branding/logo", {
     method: "POST",
-    headers: await authHeaders(),
+    ...(await staffFetchInit()),
     body: formData,
   });
   const uploadPayload = (await uploadRes.json().catch(() => ({}))) as {
@@ -250,7 +231,8 @@ async function uploadLogo(field: LogoField, file: File): Promise<string> {
 export default function BrandingSettingsPanel() {
   const queryClient = useQueryClient();
   const currentBranding = useTenantBranding();
-  const [loading, setLoading] = useState(true);
+  const editedRef = useRef(false);
+  const [phase, setPhase] = useState<"refreshing" | "ready" | "error" | "empty">("refreshing");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -283,6 +265,12 @@ export default function BrandingSettingsPanel() {
   const [signupLogoFile, setSignupLogoFile] = useState<File | null>(null);
   const [faviconFile, setFaviconFile] = useState<File | null>(null);
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
+  const [clearedLogos, setClearedLogos] = useState<Record<LogoField, boolean>>({
+    logo: false,
+    login: false,
+    signup: false,
+    favicon: false,
+  });
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [loginLogoPreview, setLoginLogoPreview] = useState<string | null>(null);
@@ -314,12 +302,14 @@ export default function BrandingSettingsPanel() {
   }, []);
 
   const loadBranding = useCallback(async () => {
-    setLoading(true);
+    setPhase("refreshing");
     setLoadError(null);
     setError(null);
     try {
-      const headers = await authHeaders();
-      const res = await fetch("/api/admin/branding", { cache: "no-store", headers });
+      const res = await fetch("/api/admin/branding", {
+        ...(await staffFetchInit()),
+        cache: "no-store",
+      });
       const payload = (await res.json().catch(() => ({}))) as {
         branding?: TenantBranding;
         tenantId?: string | null;
@@ -327,14 +317,14 @@ export default function BrandingSettingsPanel() {
       };
       if (!res.ok) throw new Error(payload.error || "Could not load branding.");
       if (payload.branding) {
-        applyBranding(payload.branding);
+        if (!editedRef.current) applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
       }
       setTenantId(payload.tenantId ?? null);
+      setPhase(payload.tenantId ? "ready" : "empty");
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Could not load branding.");
-    } finally {
-      setLoading(false);
+      setPhase("error");
     }
   }, [applyBranding, queryClient]);
 
@@ -403,10 +393,22 @@ export default function BrandingSettingsPanel() {
       signupHeadline: signupHeadline.trim() || currentBranding.signupHeadline,
       signupSubheadline: signupSubheadline.trim() || currentBranding.signupSubheadline,
       loginBackgroundSrc: backgroundPreview || loginBackgroundSrc,
-      logoUrl: logoPreview || logoUrl,
-      loginLogoUrl: loginLogoPreview || loginLogoUrl || logoPreview || logoUrl,
-      signupLogoUrl: signupLogoPreview || signupLogoUrl || logoPreview || logoUrl,
-      faviconUrl: faviconPreview || faviconUrl || logoPreview || logoUrl,
+      logoUrl: clearedLogos.logo ? logoPreview || "" : logoPreview || logoUrl,
+      loginLogoUrl: clearedLogos.login
+        ? clearedLogos.logo
+          ? logoPreview || ""
+          : logoPreview || logoUrl
+        : loginLogoPreview || loginLogoUrl || (clearedLogos.logo ? logoPreview || "" : logoPreview || logoUrl),
+      signupLogoUrl: clearedLogos.signup
+        ? clearedLogos.logo
+          ? logoPreview || ""
+          : logoPreview || logoUrl
+        : signupLogoPreview || signupLogoUrl || (clearedLogos.logo ? logoPreview || "" : logoPreview || logoUrl),
+      faviconUrl: clearedLogos.favicon
+        ? clearedLogos.logo
+          ? logoPreview || ""
+          : logoPreview || logoUrl
+        : faviconPreview || faviconUrl || (clearedLogos.logo ? logoPreview || "" : logoPreview || logoUrl),
       primaryFontId,
       headingFontId,
       bodyFontId,
@@ -422,6 +424,7 @@ export default function BrandingSettingsPanel() {
       bodyFontId,
       buttonColor,
       buttonText,
+      clearedLogos,
       currentBranding,
       faviconPreview,
       faviconUrl,
@@ -452,15 +455,12 @@ export default function BrandingSettingsPanel() {
     setError(null);
 
     try {
-      const headers = {
-        ...(await authHeaders()),
-        "Content-Type": "application/json",
-      };
+      const saveInit = await staffFetchInit({ "Content-Type": "application/json" });
 
-      let nextLogoUrl = logoUrl;
-      let nextLoginLogoUrl = loginLogoUrl;
-      let nextSignupLogoUrl = signupLogoUrl;
-      let nextFaviconUrl = faviconUrl;
+      let nextLogoUrl = clearedLogos.logo ? "" : logoUrl;
+      let nextLoginLogoUrl = clearedLogos.login ? "" : loginLogoUrl;
+      let nextSignupLogoUrl = clearedLogos.signup ? "" : signupLogoUrl;
+      let nextFaviconUrl = clearedLogos.favicon ? "" : faviconUrl;
       let nextBackgroundUrl = loginBackgroundSrc;
 
       if (logoFile) {
@@ -489,7 +489,7 @@ export default function BrandingSettingsPanel() {
         bgFormData.append("file", backgroundFile);
         const bgUploadRes = await fetch("/api/admin/branding/background", {
           method: "POST",
-          headers: await authHeaders(),
+          ...(await staffFetchInit()),
           body: bgFormData,
         });
         const bgUploadPayload = (await bgUploadRes.json().catch(() => ({}))) as {
@@ -506,7 +506,7 @@ export default function BrandingSettingsPanel() {
 
       const res = await fetch("/api/admin/branding", {
         method: "PUT",
-        headers,
+        ...saveInit,
         body: JSON.stringify({
           primaryColor: primaryHex,
           secondaryColor: secondaryHex,
@@ -542,6 +542,7 @@ export default function BrandingSettingsPanel() {
 
       void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
       notifyBrandingUpdated();
+      setClearedLogos({ logo: false, login: false, signup: false, favicon: false });
       toast.success("Saved! Your team and workers will see the new look.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save branding.");
@@ -550,11 +551,7 @@ export default function BrandingSettingsPanel() {
     }
   };
 
-  if (loading) {
-    return <AccountLoadingSkeleton rows={6} />;
-  }
-
-  if (loadError) {
+  if (phase === "error") {
     return (
       <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-6">
         <p className="text-base font-semibold text-[#991B1B]">Could not load branding</p>
@@ -571,7 +568,7 @@ export default function BrandingSettingsPanel() {
     );
   }
 
-  if (!tenantId) {
+  if (phase === "empty") {
     return (
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
         <p className="text-base font-semibold text-[#0F172A]">No organization selected</p>
@@ -583,10 +580,119 @@ export default function BrandingSettingsPanel() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form
+      onSubmit={handleSubmit}
+      onChange={() => {
+        editedRef.current = true;
+      }}
+      onClick={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("[data-branding-ignore-edit]")) return;
+        if (target.closest("button")) editedRef.current = true;
+      }}
+      className="space-y-6"
+    >
       {error ? <AccountErrorBanner message={error} /> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:items-start">
+      <div className="flex flex-col gap-[30px]">
+          <div>
+            <h3 className="text-sm font-semibold leading-5 text-black">Company Logo</h3>
+            <p className="text-[10px] leading-[15px] text-[#6B7280]">
+              Upload your company logo and optional login/signup variants
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-6 xl:flex-row">
+            <div className="flex w-full max-w-[634px] flex-col gap-5">
+              <LogoUploadBlock
+                label="Company logo"
+                hint="Used in the app shell and as a fallback. PNG, JPG, WEBP, or SVG. Max 2 MB."
+                previewSrc={clearedLogos.logo ? logoPreview || "" : logoPreview || logoUrl}
+                onFileChange={(file) => {
+                  setLogoFile(file);
+                  if (file) setClearedLogos((current) => ({ ...current, logo: false }));
+                }}
+                onRemove={() => {
+                  setLogoFile(null);
+                  setClearedLogos((current) => ({ ...current, logo: true }));
+                }}
+              />
+              <LogoUploadBlock
+                label="Login page logo"
+                hint="Shown on worker and recruiter sign-in. Falls back to company logo."
+                previewSrc={clearedLogos.login ? loginLogoPreview || "" : loginLogoPreview || loginLogoUrl}
+                onFileChange={(file) => {
+                  setLoginLogoFile(file);
+                  if (file) setClearedLogos((current) => ({ ...current, login: false }));
+                }}
+                onRemove={() => {
+                  setLoginLogoFile(null);
+                  setClearedLogos((current) => ({ ...current, login: true }));
+                }}
+              />
+              <LogoUploadBlock
+                label="Sign up page logo"
+                hint="Shown on tenant signup. Falls back to company logo."
+                previewSrc={clearedLogos.signup ? signupLogoPreview || "" : signupLogoPreview || signupLogoUrl}
+                onFileChange={(file) => {
+                  setSignupLogoFile(file);
+                  if (file) setClearedLogos((current) => ({ ...current, signup: false }));
+                }}
+                onRemove={() => {
+                  setSignupLogoFile(null);
+                  setClearedLogos((current) => ({ ...current, signup: true }));
+                }}
+              />
+              <LogoUploadBlock
+                label="Favicon"
+                hint="Small icon shown in the browser tab, sidebar, header, and applicant portal. Square image works best."
+                previewSrc={clearedLogos.favicon ? faviconPreview || "" : faviconPreview || faviconUrl}
+                onFileChange={(file) => {
+                  setFaviconFile(file);
+                  if (file) setClearedLogos((current) => ({ ...current, favicon: false }));
+                }}
+                onRemove={() => {
+                  setFaviconFile(null);
+                  setClearedLogos((current) => ({ ...current, favicon: true }));
+                }}
+              />
+            </div>
+            <aside className="flex h-[286px] w-full min-w-0 flex-1 flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3.5">
+              <div className="flex items-start gap-2.5">
+                <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#FBF8F2] p-2">
+                  <span className="flex size-5 items-center justify-center">
+                    <img src="/icons/settings-nav/preview-mark.svg" alt="" width={15.1667} height={15.1667} />
+                  </span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold leading-5 text-black">Preview</p>
+                    <div className="flex gap-2">
+                      {(["login", "signup"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          data-branding-ignore-edit=""
+                          onClick={() => setPreviewMode(mode)}
+                          className={`cursor-pointer text-[10px] leading-[15px] ${
+                            previewMode === mode ? "font-semibold text-[#012352]" : "font-normal text-[#6B7280]"
+                          }`}
+                        >
+                          {mode === "login" ? "Login" : "Signup"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[10px] leading-[15px] text-[#6B7280]">Live preview of login and signup styling.</p>
+                </div>
+              </div>
+              <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+                <BrandingAuthPreview branding={preview} mode={previewMode} />
+              </div>
+            </aside>
+          </div>
+        </div>
+
         <div className="space-y-6">
           <SectionCard
             title="Colors"
@@ -665,43 +771,6 @@ export default function BrandingSettingsPanel() {
                   onChange={setAccentHex}
                 />
               </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Logo"
-            description="Upload your company logo and optional login/signup variants."
-            icon={ImageIcon}
-          >
-            <div className="space-y-4">
-              <LogoUploadBlock
-                label="Company logo"
-                hint="Used in the app shell and as a fallback. PNG, JPG, WEBP, or SVG. Max 2 MB."
-                previewSrc={logoPreview || logoUrl}
-                selectedFile={logoFile}
-                onFileChange={setLogoFile}
-              />
-              <LogoUploadBlock
-                label="Login page logo"
-                hint="Shown on worker and recruiter sign-in. Falls back to company logo."
-                previewSrc={loginLogoPreview || loginLogoUrl || logoPreview || logoUrl}
-                selectedFile={loginLogoFile}
-                onFileChange={setLoginLogoFile}
-              />
-              <LogoUploadBlock
-                label="Signup page logo"
-                hint="Shown on tenant signup. Falls back to company logo."
-                previewSrc={signupLogoPreview || signupLogoUrl || logoPreview || logoUrl}
-                selectedFile={signupLogoFile}
-                onFileChange={setSignupLogoFile}
-              />
-              <LogoUploadBlock
-                label="Favicon"
-                hint="Small icon shown in the browser tab, sidebar, header, and applicant portal. Square image works best. Falls back to company logo."
-                previewSrc={faviconPreview || faviconUrl || logoPreview || logoUrl}
-                selectedFile={faviconFile}
-                onFileChange={setFaviconFile}
-              />
             </div>
           </SectionCard>
 
@@ -819,30 +888,6 @@ export default function BrandingSettingsPanel() {
           </SectionCard>
         </div>
 
-        <div className="xl:sticky xl:top-6">
-          <SectionCard title="Preview" description="Live preview of login and signup styling." icon={ImageIcon}>
-            <div className="mb-4 flex gap-2 rounded-lg bg-[#F1F5F9] p-1">
-              {(["login", "signup"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPreviewMode(mode)}
-                  className={`flex-1 cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition ${
-                    previewMode === mode
-                      ? "bg-white text-[#012352] shadow-sm"
-                      : "text-[#64748B] hover:text-[#012352]"
-                  }`}
-                >
-                  {mode === "login" ? "Login" : "Signup"}
-                </button>
-              ))}
-            </div>
-
-            <BrandingAuthPreview branding={preview} mode={previewMode} />
-          </SectionCard>
-        </div>
-      </div>
-
       <div className="grid w-full grid-cols-2 items-center gap-3 border-t border-[#E5E7EB] pt-6 min-[500px]:flex min-[500px]:justify-center">
         <button
           type="submit"
@@ -854,7 +899,11 @@ export default function BrandingSettingsPanel() {
         </button>
         <button
           type="button"
-          onClick={() => void loadBranding()}
+          data-branding-ignore-edit=""
+          onClick={() => {
+            editedRef.current = false;
+            void loadBranding();
+          }}
           disabled={saving}
           className={actionButtonClass("secondary", saving)}
         >

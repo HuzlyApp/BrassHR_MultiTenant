@@ -6,7 +6,7 @@ import JobPublishToggle from "./JobPublishToggle"
 import { JobListStatusDropdown } from "./JobListStatusDropdown"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
 import { buildPublicJobSharePath } from "@/lib/jobs/public-job-share"
-import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
+import { jobStatusDisplayLabel, normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { JobStatus, SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
@@ -158,7 +158,13 @@ export type JobListRow = {
   /** User-facing industry key from industry_catalog. */
   industry_key?: string | null
   created_by?: string | null
-  createdBy?: { id: string; name: string; profilePhotoUrl: string | null } | null
+  createdBy?: {
+    id: string
+    name: string
+    profilePhotoUrl: string | null
+    role?: string | null
+    roleLabel?: string | null
+  } | null
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
@@ -514,6 +520,7 @@ export type JobListCellContext = {
   publishBusyIds: Set<string>
   onPublishToggle: (job: JobListRow) => void
   onStatusChange: (job: JobListRow, nextStatus: JobStatus) => void
+  canEditJobs?: boolean
 }
 
 export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
@@ -560,19 +567,22 @@ export function renderJobListCell(
     }
     case "candidates":
       if (job.status === "draft") {
+        const canFinish = ctx.canEditJobs !== false
         return (
           <div className="box-border flex h-full min-h-full w-full min-w-0 items-center gap-2 bg-[#FEF2F2] px-3 py-4">
             <DraftJobIncompleteInfoIcon />
             <span className="min-w-0 flex-1 truncate text-left text-sm text-[#334155]">
               Your job post is incomplete
             </span>
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}/edit`}
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95"
-            >
-              Finish posting
-            </Link>
+            {canFinish ? (
+              <Link
+                href={`/admin_recruiter/jobs/${job.id}/edit`}
+                onClick={(event) => event.stopPropagation()}
+                className="inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95"
+              >
+                Finish posting
+              </Link>
+            ) : null}
           </div>
         )
       }
@@ -622,6 +632,13 @@ export function renderJobListCell(
       );
     }
     case "jobStatus":
+      if (ctx.canEditJobs === false) {
+        return (
+          <span className="text-sm font-medium text-[#334155]">
+            {jobStatusDisplayLabel(String(job.status ?? ""))}
+          </span>
+        )
+      }
       return (
         <JobListStatusDropdown
           status={String(job.status ?? "")}
@@ -684,13 +701,15 @@ export function renderJobListCell(
     case "actions":
       return (
         <div className="flex min-h-[36px] items-center justify-center gap-3 overflow-visible px-2 py-2.5">
-          <JobPublishToggle
-            checked={isPublishToggleChecked(job.status)}
-            disabled={isPublishToggleDisabled(job)}
-            busy={ctx.publishBusyIds.has(job.id)}
-            activeColor={ctx.brandingSecondaryHex}
-            onChange={() => ctx.onPublishToggle(job)}
-          />
+          {ctx.canEditJobs !== false ? (
+            <JobPublishToggle
+              checked={isPublishToggleChecked(job.status)}
+              disabled={isPublishToggleDisabled(job)}
+              busy={ctx.publishBusyIds.has(job.id)}
+              activeColor={ctx.brandingSecondaryHex}
+              onChange={() => ctx.onPublishToggle(job)}
+            />
+          ) : null}
           <button
             type="button"
             onClick={(event) => {

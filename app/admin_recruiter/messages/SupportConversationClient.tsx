@@ -14,6 +14,7 @@ import type {
   SupportTicketMessageWithAttachments,
   SupportTicketStatus,
 } from "@/lib/support-tickets/types";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
 const POLL_INTERVAL_MS = 15_000;
@@ -42,6 +43,7 @@ export default function SupportConversationClient({
   compact?: boolean;
   ticketStatus?: SupportTicketStatus;
 }) {
+  const { canEdit: canEditChat } = useModulePermission("chat");
   const [messages, setMessages] = useState<SupportTicketMessageWithAttachments[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function SupportConversationClient({
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isClosed = ticketStatus === "Closed";
+  const canReply = viewerRole === "applicant" || canEditChat;
 
   const buildFetchInit = useCallback(
     async (init?: RequestInit): Promise<RequestInit> => {
@@ -242,6 +245,10 @@ export default function SupportConversationClient({
       {isClosed ? (
         <div className="border-t border-[#E8EDF2] bg-[#F8FAFC] px-5 py-4 text-sm text-[#64748B]">
           This ticket is closed. Open a new ticket if you need more help.
+        </div>
+      ) : !canReply ? (
+        <div className="border-t border-[#E8EDF2] bg-white px-5 py-4 text-sm text-[#64748B]">
+          Messaging is view-only for your role.
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="border-t border-[#E8EDF2] bg-white px-5 py-4">

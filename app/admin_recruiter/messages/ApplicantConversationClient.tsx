@@ -15,6 +15,7 @@ import {
 import { useApplicantMessagesRealtime } from "@/lib/messaging/useApplicantMessagesRealtime";
 import ChatEmojiPicker from "@/app/components/ChatEmojiPicker";
 import ChatImagePreviewModal from "@/app/components/ChatImagePreviewModal";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 const CHAT_ATTACH_ICON = "/icons/chat-icons/attach_file.svg";
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
@@ -69,6 +70,7 @@ export default function ApplicantConversationClient({
   appliedOnLabel?: string | null;
 }) {
   const branding = useTenantBranding();
+  const { canEdit: canEditChat } = useModulePermission("chat");
   const recruiterLabel = branding.companyName?.trim() || "Recruiter";
   const [messages, setMessages] = useState<ApplicantMessage[]>([]);
   const [body, setBody] = useState("");
@@ -454,6 +456,17 @@ export default function ApplicantConversationClient({
         </div>
       ) : null}
 
+      {!canEditChat ? (
+        <div
+          className={
+            popupMode
+              ? "shrink-0 border-t border-[#E8EDF2] bg-white px-3 py-3 text-sm text-[#64748B]"
+              : "border-t border-[#E8EDF2] bg-white px-5 py-4 text-sm text-[#64748B]"
+          }
+        >
+          Messaging is view-only for your role.
+        </div>
+      ) : (
       <form
         onSubmit={handleSend}
         className={
@@ -608,6 +621,7 @@ export default function ApplicantConversationClient({
           }}
         />
       </form>
+      )}
 
       <ChatImagePreviewModal
         open={Boolean(previewImage)}

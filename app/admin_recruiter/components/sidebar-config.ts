@@ -1,5 +1,10 @@
 import type { SidebarIconType } from "@/app/admin_recruiter/components/sidebar-icons";
 import { CANDIDATE_ROUTE_PREFIXES } from "@/app/admin_recruiter/components/candidates-tabs-config";
+import {
+  SETTINGS_NAV_GROUPS,
+  settingsNavMatchPrefixes,
+  type SettingsNavItem,
+} from "@/app/admin_recruiter/settings/settings-nav";
 
 export type SidebarLink = {
   label: string;
@@ -395,24 +400,25 @@ const SETTINGS_MATCH_PREFIXES = [
   REPORTS_BASE,
 ];
 
-/** Company admin: Organization, Automation, and Templates live under Settings, with their existing submenus. */
-const ADMIN_SETTINGS_CHILDREN: SidebarLink[] = [
-  ...SETTINGS_CHILDREN,
-  {
-    label: "Automation",
-    href: "#",
-    resourceKey: "settings_automation",
-    matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
-    children: AUTOMATION_CHILDREN,
-  },
-  {
-    label: "Templates",
-    href: "#",
-    resourceKey: "settings_templates",
-    matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
-    children: TEMPLATES_CHILDREN,
-  },
-];
+function settingsNavItemToLink(item: SettingsNavItem): SidebarLink {
+  return {
+    label: item.label,
+    href: item.href,
+    resourceKey: item.resourceKey,
+    matchPrefixes: item.matchPrefixes,
+    matchExact: item.matchExact,
+  };
+}
+
+/** Company app settings tree from the branding settings sidebar. */
+const CLIENT_SETTINGS_CHILDREN: SidebarLink[] = SETTINGS_NAV_GROUPS.map((group) => ({
+  label: group.label,
+  href: "#",
+  matchPrefixes: [],
+  children: group.items.map(settingsNavItemToLink),
+}));
+
+const CLIENT_SETTINGS_MATCH_PREFIXES = settingsNavMatchPrefixes();
 
 function settingsSection(children: SidebarLink[], matchPrefixes: string[]): SidebarSection {
   return {
@@ -434,29 +440,34 @@ const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
   settingsSection(SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES),
 ];
 
-const ADMIN_SETTINGS_SECTION = settingsSection(ADMIN_SETTINGS_CHILDREN, [
-  ...SETTINGS_MATCH_PREFIXES,
-  ...AUTOMATION_ACTIVE_PREFIXES,
-  ...TEMPLATES_ACTIVE_PREFIXES,
-]);
+const ADMIN_SETTINGS_SECTION = settingsSection(CLIENT_SETTINGS_CHILDREN, CLIENT_SETTINGS_MATCH_PREFIXES);
 
 /** Company owner / admin recruiter (client login). */
 export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     label: "Dashboard",
-    href: "#",
+    href: ADMIN_RECRUITER_HOME_ROUTE,
     resourceKey: "dashboard",
     iconType: ICON.dashboard,
-    matchPrefixes: DASHBOARD_ACTIVE_PREFIXES,
-    children: DASHBOARD_CHILDREN,
+    matchPrefixes: [ADMIN_RECRUITER_HOME_ROUTE, DASHBOARD_OVERVIEW_BASE, "/admin_recruiter/dashboard/home"],
   },
   {
     label: "Hiring",
     href: "#",
-    resourceKey: "hiring",
     iconType: ICON.candidates,
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
-    children: RECRUITMENT_CHILDREN,
+    matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
+    children: [
+      ...RECRUITMENT_CHILDREN.map((child) => ({
+        ...child,
+        resourceKey: child.resourceKey ?? "hiring",
+      })),
+      {
+        label: "Jobs",
+        href: JOBS_ROUTE,
+        resourceKey: "jobs",
+        matchPrefixes: [JOBS_ROUTE],
+      },
+    ],
   },
   {
     label: "People",
@@ -467,70 +478,50 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: WORKFORCE_CHILDREN,
   },
   {
-    label: "Organization",
+    label: "Clients",
     href: "#",
     resourceKey: "organization",
-    iconType: ICON.organization,
+    iconType: ICON.clients,
     matchPrefixes: ["/admin_recruiter/facilities"],
     children: ORGANIZATION_CHILDREN,
   },
   {
-    label: "Jobs",
-    href: JOBS_ROUTE,
-    resourceKey: "jobs",
-    iconType: ICON.jobs,
-    matchPrefixes: [JOBS_ROUTE],
-  },
-  {
-    label: "Scheduling",
+    label: "Schedule",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
     matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
     children: SCHEDULING_CHILDREN,
   },
-  // {
-  //   label: "Time",
-  //   href: "#",
-  //   iconType: ICON.time,
-  //   matchPrefixes: [],
-  //   children: TIME_CHILDREN,
-  // }, // Hidden for now — routes are not built yet.
-  // {
-  //   label: "Pay",
-  //   href: "#",
-  //   iconType: ICON.pay,
-  //   matchPrefixes: [],
-  //   children: PAY_CHILDREN,
-  // }, // Hidden for now — routes are not built yet.
-  // {
-  //   label: "Automation",
-  //   href: "#",
-  //   iconType: ICON.automation,
-  //   matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
-  //   children: AUTOMATION_CHILDREN,
-  // }, // Moved under Settings.
-  // {
-  //   label: "Reports",
-  //   href: "#",
-  //   iconType: ICON.reports,
-  //   matchPrefixes: ["/admin_recruiter/reports"],
-  //   children: REPORTS_CHILDREN,
-  // }, // Moved under Settings.
-  // {
-  //   label: "Templates",
-  //   href: "#",
-  //   iconType: ICON.templateBuilder,
-  //   matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
-  //   children: TEMPLATES_CHILDREN,
-  // }, // Moved under Settings.
-  // {
-  //   label: "Taskboard",
-  //   href: "#",
-  //   iconType: ICON.taskboard,
-  //   matchPrefixes: TASKBOARD_ACTIVE_PREFIXES,
-  //   children: TASKBOARD_CHILDREN,
-  // }, // Hidden for now — Interviews moved under Candidates.
+  {
+    label: "Time",
+    href: "#",
+    iconType: ICON.time,
+    matchPrefixes: [],
+    children: [
+      { label: "Clock-ins", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Timesheets", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Approvals", href: "#", matchPrefixes: [], disabled: true },
+    ],
+  },
+  {
+    label: "Pay",
+    href: "#",
+    iconType: ICON.pay,
+    matchPrefixes: [],
+    children: [
+      { label: "Payroll Export", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Bill / Pay Rates", href: "#", matchPrefixes: [], disabled: true },
+    ],
+  },
+  {
+    label: "Reports",
+    href: "#",
+    resourceKey: "settings_reports",
+    iconType: ICON.reports,
+    matchPrefixes: [REPORTS_BASE],
+    children: REPORTS_CHILDREN,
+  },
   {
     label: "Mail",
     href: MAIL_ROUTE,
@@ -545,18 +536,13 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.chat,
     matchPrefixes: ["/admin_recruiter/messages"],
   },
-  // {
-  //   label: "Profile",
-  //   href: "/admin_recruiter/account/personal",
-  //   iconType: ICON.account,
-  //   matchPrefixes: ["/admin_recruiter/account"],
-  // }, // Moved under Settings.
-  // {
-  //   label: "Notifications",
-  //   href: "/admin_recruiter/notifications",
-  //   iconType: ICON.notifications,
-  //   matchPrefixes: ["/admin_recruiter/notifications"],
-  // }, // Moved under Settings.
+  {
+    label: "Help & Support",
+    href: HELP_SUPPORT_ROUTE,
+    resourceKey: "settings_help",
+    iconType: ICON.help,
+    matchPrefixes: [HELP_SUPPORT_ROUTE],
+  },
   ADMIN_SETTINGS_SECTION,
 ];
 

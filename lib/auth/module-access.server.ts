@@ -11,6 +11,7 @@ import {
   type PermissionAction,
   type StoredGrant,
 } from "@/lib/auth/permission-catalog";
+import { noteServerTimingTenant, timeSpan } from "@/lib/perf/server-timing";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 const UUID_RE =
@@ -61,16 +62,20 @@ function sameId(left: string | null, right: string | null): boolean {
 
 async function userIsGodAdmin(supabase: SupabaseClient, user: User): Promise<boolean | "error"> {
   if (isGodAdminUser(user)) return true;
-  const { data, error } = await supabase.from("users").select("god_admin").eq("id", user.id).maybeSingle();
+  const { data, error } = await timeSpan("db-users-god", () =>
+    supabase.from("users").select("god_admin").eq("id", user.id).maybeSingle(),
+  );
   if (error) return "error";
   return (data as { god_admin?: boolean } | null)?.god_admin === true;
 }
 
 async function loadResources(supabase: SupabaseClient): Promise<ResourceRow[] | null> {
-  const { data, error } = await supabase
-    .from("permission_resources")
-    .select("key, page_prefixes, api_prefixes, always_granted")
-    .order("sort_order", { ascending: true });
+  const { data, error } = await timeSpan("db-permission-resources", () =>
+    supabase
+      .from("permission_resources")
+      .select("key, page_prefixes, api_prefixes, always_granted")
+      .order("sort_order", { ascending: true }),
+  );
   if (error || !data?.length) return null;
   return data as ResourceRow[];
 }
@@ -105,29 +110,41 @@ async function resolveTenantId(
   const slug = tenantSlug?.trim().toLowerCase() ?? "";
   const safeSlug = /^[a-z0-9-]{2,63}$/.test(slug) ? slug : "";
   if (safeSlug) {
-    const { data, error } = await supabase
-      .from("tenants")
-      .select("id")
-      .or(`slug.eq.${safeSlug},subdomain.eq.${safeSlug}`)
-      .eq("is_active", true)
-      .maybeSingle();
+    const { data, error } = await timeSpan("db-tenants", () =>
+      supabase
+        .from("tenants")
+        .select("id")
+        .or(`slug.eq.${safeSlug},subdomain.eq.${safeSlug}`)
+        .eq("is_active", true)
+        .maybeSingle(),
+    );
     if (error) return null;
     const fromSlug = normalizeId((data as { id?: string } | null)?.id ?? null);
-    if (fromSlug && (sameId(jwtTenantId, fromSlug) || sameId(profileTenantId, fromSlug))) return fromSlug;
+    if (fromSlug && (sameId(jwtTenantId, fromSlug) || sameId(profileTenantId, fromSlug))) {
+      noteServerTimingTenant(fromSlug);
+      return fromSlug;
+    }
     if (fromSlug) {
-      const { data: memberships, error: memberError } = await supabase
-        .from("user_roles")
-        .select("tenant_id, role, is_active")
-        .eq("user_id", user.id)
-        .eq("tenant_id", fromSlug);
+      const { data: memberships, error: memberError } = await timeSpan("db-user-roles-member", () =>
+        supabase
+          .from("user_roles")
+          .select("tenant_id, role, is_active")
+          .eq("user_id", user.id)
+          .eq("tenant_id", fromSlug),
+      );
       if (memberError) return null;
       const member = (memberships ?? []).some((row: { role?: string | null; is_active?: boolean | null }) => {
         return row.is_active !== false && typeof row.role === "string" && row.role.trim().length > 0;
       });
-      if (member) return fromSlug;
+      if (member) {
+        noteServerTimingTenant(fromSlug);
+        return fromSlug;
+      }
     }
   }
-  return jwtTenantId ?? profileTenantId;
+  const resolved = jwtTenantId ?? profileTenantId;
+  noteServerTimingTenant(resolved);
+  return resolved;
 }
 
 function canonicalRoleKey(raw: string | null | undefined, aliases: AliasRow[], tenantRoleKeys: Set<string>): string | null {
@@ -150,13 +167,15 @@ async function loadGrant(
   roleKey: string,
   resourceKey: string
 ): Promise<StoredGrant | null | "error"> {
-  const { data, error } = await supabase
-    .from("tenant_role_permissions")
-    .select("can_view, can_edit, can_delete")
-    .eq("tenant_id", tenantId)
-    .eq("role_key", roleKey)
-    .eq("resource_key", resourceKey)
-    .maybeSingle();
+  const { data, error } = await timeSpan("db-grant", () =>
+    supabase
+      .from("tenant_role_permissions")
+      .select("can_view, can_edit, can_delete")
+      .eq("tenant_id", tenantId)
+      .eq("role_key", roleKey)
+      .eq("resource_key", resourceKey)
+      .maybeSingle(),
+  );
   if (error) return "error";
   if (!data) return null;
   const row = data as { can_view?: boolean; can_edit?: boolean; can_delete?: boolean };
@@ -174,6 +193,16 @@ export async function authorizeStaffHttpAccess(input: {
   tenantSlug?: string | null;
   viewAsTenantId?: string | null;
 }): Promise<AccessDecision> {
+  return timeSpan("authz", () => authorizeStaffHttpAccessUncached(input));
+}
+
+async function authorizeStaffHttpAccessUncached(input: {
+  user: User;
+  pathname: string;
+  method: string;
+  tenantSlug?: string | null;
+  viewAsTenantId?: string | null;
+}): Promise<AccessDecision> {
   const supabase = createServiceRoleClient();
   if (!supabase) return forbidden("Permission data unavailable", "unavailable");
 
@@ -181,11 +210,9 @@ export async function authorizeStaffHttpAccess(input: {
   if (godAdmin === "error") return forbidden("Permission data unavailable", "unavailable");
   if (godAdmin) return { ok: true };
 
-  const { data: profile, error: profileError } = await supabase
-    .from("users")
-    .select("tenant_id, role, is_active")
-    .eq("id", input.user.id)
-    .maybeSingle();
+  const { data: profile, error: profileError } = await timeSpan("db-users-profile", () =>
+    supabase.from("users").select("tenant_id, role, is_active").eq("id", input.user.id).maybeSingle(),
+  );
   if (profileError) return forbidden("Permission data unavailable", "unavailable");
   const profileRow = profile as { tenant_id?: string | null; role?: string | null; is_active?: boolean | null } | null;
   if (profileRow?.is_active === false) return forbidden("This account has been disabled.");
@@ -207,14 +234,18 @@ export async function authorizeStaffHttpAccess(input: {
 
   const [{ data: aliasData, error: aliasError }, { data: roleData, error: roleError }, { data: membership, error: membershipError }] =
     await Promise.all([
-      supabase.from("staff_roles").select("key, storage_key, aliases").eq("is_active", true),
-      supabase.from("tenant_roles").select("role_key").eq("tenant_id", tenantId),
-      supabase
-        .from("user_roles")
-        .select("role, is_active")
-        .eq("user_id", input.user.id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle(),
+      timeSpan("db-staff-roles", () =>
+        supabase.from("staff_roles").select("key, storage_key, aliases").eq("is_active", true),
+      ),
+      timeSpan("db-tenant-roles", () => supabase.from("tenant_roles").select("role_key").eq("tenant_id", tenantId)),
+      timeSpan("db-user-roles", () =>
+        supabase
+          .from("user_roles")
+          .select("role, is_active")
+          .eq("user_id", input.user.id)
+          .eq("tenant_id", tenantId)
+          .maybeSingle(),
+      ),
     ]);
   if (aliasError || roleError || membershipError) return forbidden("Permission data unavailable", "unavailable");
 
@@ -274,11 +305,9 @@ export async function loadSessionGrants(input: {
   });
   if (!opened.ok) return opened;
 
-  const { data: profile, error: profileError } = await supabase
-    .from("users")
-    .select("tenant_id, role")
-    .eq("id", input.user.id)
-    .maybeSingle();
+  const { data: profile, error: profileError } = await timeSpan("db-users-profile", () =>
+    supabase.from("users").select("tenant_id, role").eq("id", input.user.id).maybeSingle(),
+  );
   if (profileError) return forbidden("Permission data unavailable", "unavailable");
   const profileRow = profile as { tenant_id?: string | null; role?: string | null } | null;
   const tenantId = await resolveTenantId(
@@ -291,9 +320,18 @@ export async function loadSessionGrants(input: {
 
   const [{ data: aliasData, error: aliasError }, { data: roleData, error: roleError }, { data: membership, error: membershipError }] =
     await Promise.all([
-      supabase.from("staff_roles").select("key, storage_key, aliases").eq("is_active", true),
-      supabase.from("tenant_roles").select("role_key").eq("tenant_id", tenantId),
-      supabase.from("user_roles").select("role, is_active").eq("user_id", input.user.id).eq("tenant_id", tenantId).maybeSingle(),
+      timeSpan("db-staff-roles", () =>
+        supabase.from("staff_roles").select("key, storage_key, aliases").eq("is_active", true),
+      ),
+      timeSpan("db-tenant-roles", () => supabase.from("tenant_roles").select("role_key").eq("tenant_id", tenantId)),
+      timeSpan("db-user-roles", () =>
+        supabase
+          .from("user_roles")
+          .select("role, is_active")
+          .eq("user_id", input.user.id)
+          .eq("tenant_id", tenantId)
+          .maybeSingle(),
+      ),
     ]);
   if (aliasError || roleError || membershipError) return forbidden("Permission data unavailable", "unavailable");
 
@@ -311,11 +349,13 @@ export async function loadSessionGrants(input: {
   );
   if (!roleKey) return forbidden("Insufficient permission", "not_staff");
 
-  const { data: ownGrants, error: ownError } = await supabase
-    .from("tenant_role_permissions")
-    .select("resource_key, can_view, can_edit, can_delete")
-    .eq("tenant_id", tenantId)
-    .eq("role_key", roleKey);
+  const { data: ownGrants, error: ownError } = await timeSpan("db-grants", () =>
+    supabase
+      .from("tenant_role_permissions")
+      .select("resource_key, can_view, can_edit, can_delete")
+      .eq("tenant_id", tenantId)
+      .eq("role_key", roleKey),
+  );
   if (ownError) return forbidden("Permission data unavailable", "unavailable");
 
   const grantMap = new Map(

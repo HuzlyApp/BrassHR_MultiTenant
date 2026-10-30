@@ -57,6 +57,8 @@ type JobsGridViewProps = {
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
   onUnarchive: (jobId: string) => void;
+  canEditJobs?: boolean;
+  canDeleteJobs?: boolean;
 };
 
 const MENU_WIDTH = 196;
@@ -92,6 +94,8 @@ function JobGridCardMenu({
   onDelete,
   onArchive,
   onUnarchive,
+  canEditJobs = true,
+  canDeleteJobs = true,
 }: {
   job: JobListRow;
   anchor: HTMLElement;
@@ -101,6 +105,8 @@ function JobGridCardMenu({
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
   onUnarchive: (jobId: string) => void;
+  canEditJobs?: boolean;
+  canDeleteJobs?: boolean;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const branding = useTenantBranding();
@@ -189,7 +195,7 @@ function JobGridCardMenu({
         <UserPlus className={MENU_ICON_CLASS} aria-hidden />
         Import Candidates
       </button>
-      {!archived ? (
+      {!archived && canEditJobs ? (
         <Link
           href={`/admin_recruiter/jobs/${job.id}/edit`}
           role="menuitem"
@@ -200,31 +206,35 @@ function JobGridCardMenu({
           Edit Job
         </Link>
       ) : null}
-      <button
-        type="button"
-        role="menuitem"
-        className={MENU_ITEM_CLASS}
-        onClick={() => {
-          onClose();
-          onDelete(job.id);
-        }}
-      >
-        <Trash2 className={MENU_ICON_CLASS} aria-hidden />
-        Delete Job
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className={MENU_ITEM_CLASS}
-        onClick={() => {
-          onClose();
-          if (archived) onUnarchive(job.id);
-          else onArchive(job.id);
-        }}
-      >
-        <Archive className={MENU_ICON_CLASS} aria-hidden />
-        {archived ? "Unarchive Job" : "Archive Job"}
-      </button>
+      {canDeleteJobs ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={MENU_ITEM_CLASS}
+          onClick={() => {
+            onClose();
+            onDelete(job.id);
+          }}
+        >
+          <Trash2 className={MENU_ICON_CLASS} aria-hidden />
+          Delete Job
+        </button>
+      ) : null}
+      {canEditJobs ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={MENU_ITEM_CLASS}
+          onClick={() => {
+            onClose();
+            if (archived) onUnarchive(job.id);
+            else onArchive(job.id);
+          }}
+        >
+          <Archive className={MENU_ICON_CLASS} aria-hidden />
+          {archived ? "Unarchive Job" : "Archive Job"}
+        </button>
+      ) : null}
     </div>,
     document.body
   );
@@ -456,6 +466,8 @@ export function JobsGridView({
   onDelete,
   onArchive,
   onUnarchive,
+  canEditJobs = true,
+  canDeleteJobs = true,
 }: JobsGridViewProps) {
   const [openMenu, setOpenMenu] = useState<{ job: JobListRow; anchor: HTMLElement } | null>(null);
 
@@ -592,6 +604,8 @@ export function JobsGridView({
           onDelete={onDelete}
           onArchive={onArchive}
           onUnarchive={onUnarchive}
+          canEditJobs={canEditJobs}
+          canDeleteJobs={canDeleteJobs}
         />
       ) : null}
     </>

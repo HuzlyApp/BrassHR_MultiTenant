@@ -28,7 +28,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "candidates", label: "Applicants" },
   { id: "datePosted", label: "Date Posted" },
   /** Shows Created By (job.createdBy) — not assigned recruiter. */
-  { id: "assignee", label: "Assignee" },
+  { id: "assignee", label: "Created By" },
   { id: "jobStatus", label: "Job Status" },
   { id: "payRate", label: "Pay Rate" },
   { id: "commissionFee", label: "Commission Fee" },
@@ -54,6 +54,7 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobStatus",
   "payRate",
   "datePosted",
+  "assignee",
   "actions",
 ]
 
@@ -106,13 +107,14 @@ export function visibleJobColumnsForTab(
 
 const STORAGE_KEY = "nexus-jobs-list-columns"
 /** Bump when default visible columns change (Figma Client listing defaults). */
-const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v8-figma-defaults"
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v9-created-by"
 
 /** Columns added after initial release — inject into saved layouts once. */
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
   // Default MSP/Client after Location for All / MSP / Hot layouts.
   { id: "contractGroup", after: "location" },
   { id: "sourceJobId", after: "contractGroup" },
+  { id: "assignee", after: "datePosted" },
 ]
 
 export function loadJobColumnOrder(): JobColumnId[] {

@@ -46,21 +46,6 @@
     width: calc(100% - var(--admin-sidebar-width, 272px));
     transition: margin-left 200ms ease-in-out, width 200ms ease-in-out;
   }
-
-  /*
-   * Desktop uses the fixed sidebar only. The mobile rail and the full-viewport
-   * drawer must not remain in the hit-test tree: a closed drawer is z-50, and
-   * pointer-events:none on the backdrop does not disable its child aside.
-   */
-  .admin-recruiter-shell .admin-recruiter-sidebar-desktop {
-    display: block !important;
-  }
-
-  .admin-recruiter-shell .admin-recruiter-sidebar-mobile-rail,
-  .admin-recruiter-shell .admin-recruiter-sidebar-drawer {
-    display: none !important;
-    pointer-events: none !important;
-  }
 }
 
 .admin-recruiter-main-wrap {
@@ -76,6 +61,13 @@
 
 .admin-recruiter-sidebar {
   transition: width 200ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-recruiter-main-wrap,
+  .admin-recruiter-sidebar {
+    transition: none;
+  }
 }
 
 /* Mobile collapsed rail — default 80px (500px–999px); overridden in narrower breakpoints below */
@@ -320,10 +312,6 @@
 
 .admin-recruiter-sidebar-submenu-item {
   padding: 7px 0.75rem 7px 0;
-}
-
-.admin-recruiter-sidebar-submenu-nested {
-  padding-left: 1rem;
 }
 
 /* Tenant branding remap for legacy utility colors in recruiter pages. */

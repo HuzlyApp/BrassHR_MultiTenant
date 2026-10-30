@@ -2,9 +2,10 @@
 
 /* eslint-disable react-hooks/static-components */
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -27,6 +28,8 @@ import {
   getOrganizationDisplayName,
 } from "@/lib/account/display-name";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
+import { clearStaffAccessCache, useStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
+import { sidebarLinkIsActive } from "@/lib/admin/sidebar-nav-state";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 import { SIDEBAR_NAV_ACTIVE_TEXT_CLASS } from "@/lib/sidebar/sidebar-nav-styles";
@@ -84,7 +87,7 @@ function isNavigableHref(href: string | null | undefined): href is string {
 
 function linkOrNestedIsActive(
   link: SidebarLink,
-  isActive: (link: Pick<SidebarLink, "matchPrefixes" | "matchExact">) => boolean
+  isActive: (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) => boolean
 ): boolean {
   if (isActive(link)) return true;
   return link.children?.some((child) => linkOrNestedIsActive(child, isActive)) ?? false;
@@ -97,7 +100,7 @@ type RenderedSidebarLink = SidebarLink & {
 
 function decorateSidebarLink(
   link: SidebarLink,
-  isActive: (link: Pick<SidebarLink, "matchPrefixes" | "matchExact">) => boolean
+  isActive: (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) => boolean
 ): RenderedSidebarLink {
   const children = link.children?.map((child) => decorateSidebarLink(child, isActive));
   return {
@@ -110,7 +113,13 @@ function decorateSidebarLink(
 const DEFAULT_TENANT_LOGO = BRAAS_PLATFORM_FAVICON;
 const DASHBOARD_HOME_HREF = ADMIN_RECRUITER_HOME_ROUTE;
 
-export function AdminRecruiterSidebar({
+function NavPendingCue() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return <span className="sr-only">Loading</span>;
+}
+
+export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   isMobileOpen = false,
   onMobileClose,
   collapsed = false,
@@ -120,49 +129,38 @@ export function AdminRecruiterSidebar({
   const [logoSrc, setLogoSrc] = useState(branding.faviconUrl || branding.logoUrl || DEFAULT_TENANT_LOGO);
   const pathname = usePathname() ?? "";
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const { viewer } = useEffectiveBranding();
   const isGodAdmin = viewer?.godAdmin === true;
-  const [accessKeys, setAccessKeys] = useState<Set<string> | null>(null);
+  const { viewKeySet, godAdmin: accessGodAdmin } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
   const sidebarSections = useMemo(() => {
-    if (isGodAdmin || accessKeys?.has("*")) return isGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
-    return visibleSidebarSections(CLIENT_SIDEBAR_SECTIONS, accessKeys ?? new Set(["dashboard"]), false);
-  }, [accessKeys, isGodAdmin]);
+    if (isGodAdmin || accessGodAdmin || viewKeySet.has("*")) {
+      return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
+    }
+    return visibleSidebarSections(CLIENT_SIDEBAR_SECTIONS, viewKeySet, false);
+  }, [accessGodAdmin, isGodAdmin, viewKeySet]);
 
-  useEffect(() => {
-    if (isGodAdmin) return;
-    let cancelled = false;
-    void fetch("/api/admin/access")
-      .then(async (response) => {
-        if (!response.ok) return;
-        const body = (await response.json()) as { godAdmin?: boolean; viewKeys?: string[] };
-        if (cancelled) return;
-        if (body.godAdmin) {
-          setAccessKeys(new Set(["*"]));
-          return;
-        }
-        setAccessKeys(new Set(body.viewKeys ?? ["dashboard"]));
-      })
-      .catch(() => {
-        if (!cancelled) setAccessKeys(new Set(["dashboard"]));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isGodAdmin]);
-
-  const handleNavClick = () => {
-    onMobileClose?.();
-  };
+  const handleNavClick = useCallback(
+    (href?: string) => {
+      if (href) setPendingHref(href);
+      onMobileClose?.();
+    },
+    [onMobileClose]
+  );
 
   useEffect(() => {
     setLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.faviconUrl, branding.logoUrl]);
 
   const handleLogout = async () => {
+    clearStaffAccessCache(queryClient);
     const { error } = await supabaseBrowser.auth.signOut();
     if (error) return;
     onMobileClose?.();
@@ -179,12 +177,11 @@ export function AdminRecruiterSidebar({
   const sidebarCompanyName = getOrganizationDisplayName(organization, profile, user);
   const profilePhoto = profile?.avatar_url ?? null;
 
-  const isLinkActive = (link: Pick<SidebarLink, "matchPrefixes" | "matchExact">) =>
-    link.matchPrefixes.some((prefix) =>
-      link.matchExact ? pathname === prefix || pathname === `${prefix}/` : pathname.startsWith(prefix)
-    );
+  const isLinkActive = (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) =>
+    sidebarLinkIsActive(link, pathname, pendingHref);
 
-  const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => pathname.startsWith(prefix));
+  const activePath = pendingHref ?? pathname;
+  const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => activePath.startsWith(prefix));
 
   const renderedSections = useMemo(
     () =>
@@ -193,7 +190,9 @@ export function AdminRecruiterSidebar({
           section.children?.some((child) => linkOrNestedIsActive(child, isLinkActive)) ?? false;
         const sectionPathActive = isPathActive(section.matchPrefixes);
         const sectionActive =
-          section.controlsActiveState === false ? false : sectionPathActive || childActive;
+          section.controlsActiveState === false
+            ? false
+            : sectionPathActive || childActive || pendingHref === section.href;
 
         return {
           ...section,
@@ -202,8 +201,31 @@ export function AdminRecruiterSidebar({
           children: section.children?.map((child) => decorateSidebarLink(child, isLinkActive)) ?? [],
         };
       }),
-    [pathname, sidebarSections]
+    [pathname, pendingHref, sidebarSections]
   );
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isMobileOpen) {
+      restoreFocusRef.current?.focus();
+      restoreFocusRef.current = null;
+      return;
+    }
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    drawerRef.current?.querySelector<HTMLElement>("[data-sidebar-drawer-close]")?.focus();
+  }, [isMobileOpen]);
+
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onMobileClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isMobileOpen, onMobileClose]);
 
   useEffect(() => {
     const labels: string[] = [];
@@ -221,7 +243,7 @@ export function AdminRecruiterSidebar({
       if (labels.every((label) => prev.includes(label))) return prev;
       return Array.from(new Set([...prev, ...labels]));
     });
-  }, [pathname, sidebarSections]);
+  }, [pathname, pendingHref, sidebarSections]);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -312,7 +334,8 @@ export function AdminRecruiterSidebar({
         >
           <Link
             href={DASHBOARD_HOME_HREF}
-            onClick={handleNavClick}
+            onClick={() => handleNavClick(DASHBOARD_HOME_HREF)}
+            aria-current={pathname === DASHBOARD_HOME_HREF || pendingHref === DASHBOARD_HOME_HREF ? "page" : undefined}
             aria-label="Go to home"
             title="Home"
             className={`flex min-w-0 items-center transition hover:opacity-90 ${
@@ -343,10 +366,12 @@ export function AdminRecruiterSidebar({
                 </p>
               </div>
             ) : null}
-          </Link>
+              <NavPendingCue />
+            </Link>
           {showMobileClose ? (
             <button
               type="button"
+              data-sidebar-drawer-close=""
               onClick={onMobileClose}
               className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[#0F3B76]"
               aria-label="Close menu"
@@ -373,7 +398,8 @@ export function AdminRecruiterSidebar({
               ? getFirstNavigableChildHref(section.children)
               : null;
           const sectionExpandedOpen = !isCollapsed && !isMobileRail && isSectionOpen(section);
-          /** Selected icon and the active line belong to the open page, not a parent that only has a submenu. */
+          /** Figma: an open parent uses the selected icon + brand label, same as an active child. */
+          const parentHighlighted = section.childActive || sectionExpandedOpen;
 
           return (
           <div key={section.label} className={isMobileRail || isCollapsed ? "mb-1 w-full" : ""}>
@@ -381,7 +407,8 @@ export function AdminRecruiterSidebar({
               collapsedNavHref ? (
                 <Link
                   href={collapsedNavHref}
-                  onClick={handleNavClick}
+                  onClick={() => handleNavClick(collapsedNavHref)}
+                  aria-current={section.childActive ? "page" : undefined}
                   title={section.label}
                   className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                     isCollapsed,
@@ -396,6 +423,7 @@ export function AdminRecruiterSidebar({
                   {section.childActive ? (
                     <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                   ) : null}
+                  <NavPendingCue />
                 </Link>
               ) : (
               <>
@@ -406,8 +434,9 @@ export function AdminRecruiterSidebar({
                     if (isCollapsed || isMobileRail) return;
                     handleSectionToggleClick(section.label, event);
                   }}
+                  onMouseDown={(event) => event.preventDefault()}
                   disabled={isCollapsed || isMobileRail}
-                  className={`group relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ${navTextClass(false)} ${
+                  className={`group relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ${navTextClass(parentHighlighted)} ${
                     isCollapsed || isMobileRail
                       ? collapsedRowClass(isCollapsed, isMobileRail)
                       : "min-h-[44px] pl-0 pr-[6px]"
@@ -422,7 +451,7 @@ export function AdminRecruiterSidebar({
                   >
                     <SidebarNavIcon
                       iconType={section.iconType}
-                      active={false}
+                      active={parentHighlighted}
                       colorHex={iconTintHex}
                     />
                     {!isCollapsed && !isMobileRail ? (
@@ -452,7 +481,7 @@ export function AdminRecruiterSidebar({
                             <button
                               type="button"
                               onClick={(event) => handleSectionToggleClick(child.label, event)}
-                              className={`admin-recruiter-sidebar-submenu-item flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left font-normal text-[14px] leading-5 tracking-normal ${submenuTextClass(false)}`}
+                              className={`admin-recruiter-sidebar-submenu-item flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left font-normal text-[14px] leading-5 tracking-normal ${submenuTextClass(child.active)}`}
                               aria-expanded={groupOpen}
                               aria-label={`${groupOpen ? "Collapse" : "Expand"} ${child.label}`}
                             >
@@ -475,13 +504,15 @@ export function AdminRecruiterSidebar({
                                     <Link
                                       key={`${child.label}-${nested.label}`}
                                       href={nested.href}
-                                      onClick={handleNavClick}
+                                      onClick={() => handleNavClick(nested.href)}
+                                      aria-current={nested.active ? "page" : undefined}
                                       className={`admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal transition-colors hover:text-[color:var(--brand-primary)] ${submenuTextClass(nested.active)}`}
                                     >
                                       <span>{nested.label}</span>
                                       {nested.active ? (
                                         <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                                       ) : null}
+                                      <NavPendingCue />
                                     </Link>
                                   )
                                 )}
@@ -504,13 +535,15 @@ export function AdminRecruiterSidebar({
                         <Link
                           key={`${section.label}-${child.label}`}
                           href={child.href}
-                          onClick={handleNavClick}
+                          onClick={() => handleNavClick(child.href)}
+                          aria-current={child.active ? "page" : undefined}
                           className={`admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal transition-colors hover:text-[color:var(--brand-primary)] ${submenuTextClass(child.active)}`}
                         >
                           <span>{child.label}</span>
                           {child.active ? (
                             <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                           ) : null}
+                          <NavPendingCue />
                         </Link>
                       );
                     })}
@@ -538,7 +571,8 @@ export function AdminRecruiterSidebar({
             ) : (
               <Link
                 href={section.href}
-                onClick={handleNavClick}
+                onClick={() => handleNavClick(section.href)}
+                aria-current={section.active ? "page" : undefined}
                 title={isCollapsed ? section.label : undefined}
                 className={`group relative flex items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                   isCollapsed,
@@ -555,9 +589,10 @@ export function AdminRecruiterSidebar({
                     {section.label}
                   </span>
                 ) : null}
-                {section.active ? (
+                {isCollapsed && section.active ? (
                   <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                 ) : null}
+                <NavPendingCue />
               </Link>
             )}
           </div>
@@ -582,7 +617,7 @@ export function AdminRecruiterSidebar({
           {!isCollapsed || isMobileRail ? (
             <Link
               href="/admin_recruiter/account/personal"
-              onClick={handleNavClick}
+              onClick={() => handleNavClick("/admin_recruiter/account/personal")}
               title="Profile"
               aria-label="Open profile"
               className="shrink-0 rounded-full transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]"
@@ -593,6 +628,7 @@ export function AdminRecruiterSidebar({
                 size="sm"
                 className="text-[14px]!"
               />
+              <NavPendingCue />
             </Link>
           ) : null}
           {!isCollapsed ? (
@@ -627,7 +663,7 @@ export function AdminRecruiterSidebar({
   return (
     <>
       <aside
-        className={`admin-recruiter-sidebar admin-recruiter-sidebar-desktop fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#ECF1F9] admin-recruiter-chrome-border-r bg-white transition-[width] duration-200 ease-in-out min-[1000px]:block ${sidebarHoverClass}`}
+        className={`admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#ECF1F9] admin-recruiter-chrome-border-r bg-white transition-[width] duration-200 ease-in-out min-[1000px]:block ${sidebarHoverClass}`}
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
         {...sidebarHoverProps}
@@ -645,28 +681,34 @@ export function AdminRecruiterSidebar({
         {renderSidebarContent(true, { isMobileRail: true })}
       </aside>
 
-      {isMobileOpen ? (
-        <div
-          className="admin-recruiter-sidebar-drawer fixed inset-0 z-50 bg-black/30 min-[1000px]:hidden"
-          data-open="true"
-          onClick={onMobileClose}
+      <div
+        className={`fixed inset-0 z-50 bg-black/30 transition-opacity min-[1000px]:hidden ${
+          isMobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={onMobileClose}
+        aria-hidden={!isMobileOpen}
+      >
+        <aside
+          ref={drawerRef}
+          role="dialog"
+          aria-modal={isMobileOpen}
+          aria-label="Navigation"
+          className={`admin-recruiter-sidebar h-full border-r border-[#ECF1F9] bg-white transition-transform duration-200 ease-in-out motion-reduce:transition-none ${sidebarHoverClass} ${
+            isMobileOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+          style={{
+            width: SIDEBAR_EXPANDED_WIDTH,
+            maxWidth: "min(90vw, 272px)",
+          }}
+          onClick={(event) => event.stopPropagation()}
+          {...sidebarHoverProps}
         >
-          <aside
-            className={`admin-recruiter-sidebar h-full border-r border-[#ECF1F9] bg-white ${sidebarHoverClass}`}
-            style={{
-              width: SIDEBAR_EXPANDED_WIDTH,
-              maxWidth: "min(90vw, 272px)",
-            }}
-            onClick={(event) => event.stopPropagation()}
-            {...sidebarHoverProps}
-          >
-            {renderSidebarContent(false, { showMobileClose: true })}
-          </aside>
-        </div>
-      ) : null}
+          {renderSidebarContent(false, { showMobileClose: true })}
+        </aside>
+      </div>
     </>
   );
-}
+});
 
 export {
   SIDEBAR_COLLAPSED_WIDTH,
