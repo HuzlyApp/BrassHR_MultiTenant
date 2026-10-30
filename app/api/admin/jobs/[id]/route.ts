@@ -56,6 +56,7 @@ const JOB_DETAILS_SELECT = [
   "msp_name",
   "msp_client",
   "msp_client_name",
+  "external_requisition_id",
   "tags",
   "assigned_recruiter_user_id",
   "is_hot",
