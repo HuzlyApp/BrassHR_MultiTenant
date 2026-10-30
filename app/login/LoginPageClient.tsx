@@ -17,6 +17,7 @@ import { useLoginInitialBranding } from "@/app/login/LoginBrandingBootstrap";
 import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, loginFormOptionsStackClass, loginFormStackClass, loginInputClass, loginPageStackClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
+import AuthenticatorChallengeCard from "@/app/components/auth/AuthenticatorChallengeCard";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import {
@@ -60,6 +61,7 @@ import {
   usesBraasFigmaLoginUi,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
+import { readAuthenticatorChallengeState } from "@/lib/auth/authenticator-mfa";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   clearAdminLoginDraft,
@@ -101,7 +103,7 @@ type RecruiterOnboardingStatusResponse = {
   redirectUrl?: string;
 };
 
-type LoginStep = "credentials" | "otp";
+type LoginStep = "credentials" | "otp" | "authenticator";
 
 const OTP_SUCCESS_REDIRECT_DELAY_MS = 900;
 
@@ -429,6 +431,21 @@ function LoginPageContent() {
     login: PendingLogin,
     options?: { godAdmin?: boolean }
   ) => {
+    if (step !== "authenticator") {
+      let challengeState: "ready" | "challenge" | "unavailable" = "unavailable";
+      try {
+        challengeState = await readAuthenticatorChallengeState(supabaseBrowser);
+      } catch {
+        challengeState = "unavailable";
+      }
+      if (challengeState === "challenge") {
+        setShowRedirecting(false);
+        setOtpVerified(false);
+        setStep("authenticator");
+        return false;
+      }
+    }
+
     try {
       if (login.rememberMe) {
         writeHostnameScopedItem("braasLoginEmail", login.email);
@@ -782,6 +799,26 @@ function LoginPageContent() {
     await completeLogin();
   };
 
+  const handleAuthenticatorVerified = async () => {
+    const login = pendingLogin;
+    if (!login) return;
+    setSubmitting(true);
+    clearAuthError();
+    const ok = await finishAuthenticatedSession(login);
+    setSubmitting(false);
+    if (!ok) setShowRedirecting(false);
+  };
+
+  const handleAuthenticatorCancel = async () => {
+    clearAuthError();
+    setShowRedirecting(false);
+    setOtpVerified(false);
+    setSubmitting(false);
+    await supabaseBrowser.auth.signOut();
+    setPendingLogin(null);
+    setStep("credentials");
+  };
+
   const handleClassicSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.email.trim() || !form.password) return;
@@ -806,6 +843,9 @@ function LoginPageContent() {
           showPassword={showPassword}
           submitting={submitting}
           error={authError?.error ?? null}
+          authenticatorStep={step === "authenticator" && pendingLogin != null}
+          onAuthenticatorVerified={handleAuthenticatorVerified}
+          onAuthenticatorCancel={handleAuthenticatorCancel}
           otpStep={step === "otp" && pendingLogin != null}
           otpEmail={pendingLogin?.email ?? ""}
           otpVerified={otpVerified}
@@ -835,7 +875,12 @@ function LoginPageContent() {
         {showRedirecting ? <RedirectionProgressModal /> : null}
         <LoginBrandHeader brand={brand} />
 
-        {step === "otp" && pendingLogin ? (
+        {step === "authenticator" && pendingLogin ? (
+          <AuthenticatorChallengeCard
+            onVerified={handleAuthenticatorVerified}
+            onCancel={handleAuthenticatorCancel}
+          />
+        ) : step === "otp" && pendingLogin ? (
           <LoginOtpStep
             email={pendingLogin.email}
             submitting={submitting}
