@@ -41,7 +41,9 @@ import {
   formatJobDetailsDate,
   formatJobDetailsClientName,
   formatJobDetailsLocation,
+  formatJobDetailsMspName,
   formatJobDetailsPay,
+  formatJobDetailsSourceJobId,
   formatWorkLocationLabel,
   jobDetailsStatusDotClass,
   jobDetailsStatusLabel,
@@ -414,7 +416,9 @@ export default function JobDetailsClient({ jobId }: Props) {
     return job.public_title?.trim() || "Untitled job";
   })();
   const location = job ? formatJobDetailsLocation(job) : "—";
+  const mspName = job ? formatJobDetailsMspName(job) : "";
   const clientName = job ? formatJobDetailsClientName(job) : "";
+  const sourceJobId = job ? formatJobDetailsSourceJobId(job) : "";
   const pay = job ? formatJobDetailsPay(job) : "—";
   const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";
   const responsibilities = useMemo(
@@ -755,11 +759,11 @@ export default function JobDetailsClient({ jobId }: Props) {
                 <p className={`mt-1.5 break-words ${JOB_POSTING_METADATA_CLASS}`}>
                   <span className="font-semibold text-[#1D2739]">Location:</span>{" "}
                   {location}
-                  {branding.companyName?.trim() ? (
+                  {mspName ? (
                     <>
                       <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
-                      <span className="font-semibold text-[#1D2739]">Company:</span>{" "}
-                      {branding.companyName.trim()}
+                      <span className="font-semibold text-[#1D2739]">MSP:</span>{" "}
+                      {mspName}
                     </>
                   ) : null}
                   {clientName ? (
@@ -767,6 +771,13 @@ export default function JobDetailsClient({ jobId }: Props) {
                       <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
                       <span className="font-semibold text-[#1D2739]">Client:</span>{" "}
                       {clientName}
+                    </>
+                  ) : null}
+                  {sourceJobId ? (
+                    <>
+                      <span className="mx-1.5 font-semibold text-[#1D2739]">•</span>
+                      <span className="font-semibold text-[#1D2739]">Source Job-ID:</span>{" "}
+                      {sourceJobId}
                     </>
                   ) : null}
                 </p>
