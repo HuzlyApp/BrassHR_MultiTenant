@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
+import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
 import { settingsResourceKeyForSection } from "@/app/admin_recruiter/settings/settings-nav";
 import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
@@ -135,7 +136,7 @@ function SettingsBody({ section, canEdit, canDelete }: { section: string; canEdi
     return <SettingsEmptySection title="Plan & Billing" subtitle="Review your plan and billing details." />;
   }
   if (section === "security") {
-    return <SettingsEmptySection title="Security" subtitle="Sign-in and account protection for your organization." />;
+    return <SecuritySettingsPanel />;
   }
   if (section === "audit-log") {
     return <SettingsEmptySection title="Audit Log" subtitle="Review changes made across your organization." />;
@@ -173,7 +174,10 @@ function SettingsContent({ section }: { section: string }) {
         section === "roles" || section === "admin-console" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
       }`}
     >
-      <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0 disabled:opacity-80">
+      <fieldset
+        disabled={!canEdit && section !== "security"}
+        className="min-w-0 border-0 p-0 disabled:opacity-80"
+      >
         <SettingsBody section={section} canEdit={canEdit} canDelete={canDelete} />
       </fieldset>
     </main>
