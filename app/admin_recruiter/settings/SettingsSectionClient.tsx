@@ -1,12 +1,7 @@
 "use client";
 
-import AdminConsolePanel from "@/app/admin_recruiter/settings/AdminConsolePanel";
-import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
+import dynamic from "next/dynamic";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
-import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
-import HireJourneyThemePanel from "@/app/admin_recruiter/settings/HireJourneyThemePanel";
-import ProfessionDocumentsPanel from "@/app/admin_recruiter/settings/ProfessionDocumentsPanel";
-import RolePermissionsPanel from "@/app/admin_recruiter/settings/RolePermissionsPanel";
 import SettingsSectionHeader from "@/app/admin_recruiter/settings/SettingsSectionHeader";
 import {
   SETTINGS_SECTION_META,
@@ -17,6 +12,36 @@ import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 type SettingsSectionClientProps = {
   section: SettingsSectionSlug;
 };
+
+function SettingsPanelFallback() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading section</span>
+      <div className="h-5 w-40 rounded bg-[#E5E7EB] motion-safe:animate-pulse" />
+      <div className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
+      <div className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
+    </div>
+  );
+}
+
+const RolePermissionsPanel = dynamic(() => import("@/app/admin_recruiter/settings/RolePermissionsPanel"), {
+  loading: SettingsPanelFallback,
+});
+const AdminConsolePanel = dynamic(() => import("@/app/admin_recruiter/settings/AdminConsolePanel"), {
+  loading: SettingsPanelFallback,
+});
+const ProfessionDocumentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/ProfessionDocumentsPanel"), {
+  loading: SettingsPanelFallback,
+});
+const CandidateStatusesPanel = dynamic(() => import("@/app/admin_recruiter/settings/CandidateStatusesPanel"), {
+  loading: SettingsPanelFallback,
+});
+const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/AssessmentSettingsPanel"), {
+  loading: SettingsPanelFallback,
+});
+const HireJourneyThemePanel = dynamic(() => import("@/app/admin_recruiter/settings/HireJourneyThemePanel"), {
+  loading: SettingsPanelFallback,
+});
 
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {

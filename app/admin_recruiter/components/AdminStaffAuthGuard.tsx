@@ -1,20 +1,19 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getBrowserSession, isAuthLockContentionError } from "@/lib/auth/browser-session";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 
 /**
- * Blocks anonymous / missing sessions on recruiter admin routes.
- * Applicant onboarding used to replace staff cookies — this sends users back to sign in.
+ * Sends anonymous sessions back to sign-in. The proxy already rejected them
+ * before this HTML was produced, so the shell renders immediately and this
+ * check does not sit on the navigation path.
  */
 export function AdminStaffAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,7 +23,6 @@ export function AdminStaffAuthGuard({ children }: { children: ReactNode }) {
       try {
         session = await getBrowserSession();
       } catch (error) {
-        // Unreadable is not signed out: check again shortly instead of logging out.
         if (!isAuthLockContentionError(error)) {
           console.warn("[admin-staff-auth-guard] could not read session", error);
         }
@@ -37,10 +35,7 @@ export function AdminStaffAuthGuard({ children }: { children: ReactNode }) {
         if (!cancelled) {
           router.replace(recruiterLogoutLoginHref());
         }
-        return;
       }
-
-      if (!cancelled) setAllowed(true);
     };
 
     void verify();
@@ -56,15 +51,7 @@ export function AdminStaffAuthGuard({ children }: { children: ReactNode }) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [pathname, router]);
+  }, [router]);
 
-  if (!allowed) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6 text-sm text-slate-600">
-        Checking sign-in…
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+  return children;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { AdminTenantBrandingProvider } from "@/app/components/tenant/AdminTenantBrandingProvider";
@@ -9,6 +9,8 @@ import { AccountDataProvider } from "@/app/admin_recruiter/account/AccountDataPr
 import SettingsMobileNav from "@/app/admin_recruiter/settings/SettingsMobileNav";
 import SettingsSidebar from "@/app/admin_recruiter/settings/SettingsSidebar";
 import { isSettingsMiniSidebarPath } from "@/app/admin_recruiter/settings/settings-nav";
+import { StaffAccessSeed } from "@/lib/admin/hooks/use-staff-module-access";
+import type { StaffAccessRecord } from "@/lib/admin/staff-access-cache";
 import {
   AdminRecruiterSidebar,
   SIDEBAR_COLLAPSED_WIDTH,
@@ -34,17 +36,8 @@ function persistSidebarCollapsed(next: boolean) {
   }
 }
 
-/**
- * Default body copy color for recruiter admin; pages still set explicit colors
- * (e.g. sidebar `text-white`, links `text-teal-*`) where needed.
- */
-export default function AdminRecruiterShell({ children }: { children: ReactNode }) {
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const pathname = usePathname() ?? "";
-  const inSettingsArea = isSettingsMiniSidebarPath(pathname);
-  const wasInSettingsAreaRef = useRef<boolean | null>(null);
-  const settingsCollapseReadyRef = useRef(false);
+function AccessDeniedNotice() {
+  const pathname = usePathname();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -55,9 +48,43 @@ export default function AdminRecruiterShell({ children }: { children: ReactNode 
     window.history.replaceState(null, "", next);
   }, [pathname]);
 
+  return null;
+}
+
+function CloseMobileNavOnNavigate({ onClose }: { onClose: () => void }) {
+  const pathname = usePathname();
+
   useEffect(() => {
-    setMobileSidebarOpen(false);
-  }, [pathname]);
+    onClose();
+  }, [pathname, onClose]);
+
+  return null;
+}
+
+function CandidateDetailFrame({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "";
+  if (!isCandidateDetailPage(pathname)) return children;
+  return <div className="admin-candidate-detail-shell">{children}</div>;
+}
+
+/**
+ * Default body copy color for recruiter admin; pages still set explicit colors
+ * (e.g. sidebar `text-white`, links `text-teal-*`) where needed.
+ */
+export default function AdminRecruiterShell({
+  children,
+  initialAccess,
+}: {
+  children: ReactNode;
+  initialAccess?: StaffAccessRecord | null;
+}) {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const pathname = usePathname() ?? "";
+  const inSettingsArea = isSettingsMiniSidebarPath(pathname);
+  const wasInSettingsAreaRef = useRef<boolean | null>(null);
+  const settingsCollapseReadyRef = useRef(false);
+  const closeMobileNav = useCallback(() => setMobileSidebarOpen(false), []);
 
   useEffect(() => {
     try {
@@ -103,65 +130,62 @@ export default function AdminRecruiterShell({ children }: { children: ReactNode 
   };
 
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
-  const candidateDetailRoute = isCandidateDetailPage(pathname);
-
-  const pageBody = candidateDetailRoute ? (
-    <div className="admin-candidate-detail-shell">{children}</div>
-  ) : (
-    children
-  );
 
   return (
     <AdminTenantBrandingProvider>
-      <AdminStaffAuthGuard>
-      <AccountDataProvider>
-      <div
-        className="admin-recruiter-shell min-h-screen text-gray-600"
-        style={{
-          backgroundColor: "#F4F4F4",
-          ["--admin-sidebar-width" as string]: `${sidebarWidth}px`,
-          ["--admin-sidebar-collapsed-width" as string]: `${SIDEBAR_COLLAPSED_WIDTH}px`,
-          ["--admin-sidebar-collapsed-width-narrow" as string]: `${SIDEBAR_COLLAPSED_WIDTH_NARROW}px`,
-          ["--admin-sidebar-collapsed-width-mobile" as string]: `${SIDEBAR_COLLAPSED_WIDTH_MOBILE}px`,
-        }}
-      >
-        <AdminRecruiterSidebar
-          collapsed={sidebarCollapsed}
-          isMobileOpen={mobileSidebarOpen}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-        />
-        <div
-          className={`admin-recruiter-content admin-recruiter-main-wrap ${
-            inSettingsArea ? "h-dvh max-h-dvh overflow-hidden" : "min-h-screen"
-          }`}
-          data-mobile-nav-open={mobileSidebarOpen ? "true" : "false"}
-          data-settings-area={inSettingsArea ? "true" : "false"}
-        >
-          <GodAdminImpersonationBanner />
-          <AdminRecruiterHeader
-            onMenuClick={() => setMobileSidebarOpen(true)}
-            mobileNavOpen={mobileSidebarOpen}
-            sidebarCollapsed={sidebarCollapsed}
-            onSidebarToggle={toggleSidebarCollapsed}
-          />
-          <WorkflowDashboardHeaderProvider>
-            <AdminRecruiterDashboardSubNav />
-            {inSettingsArea ? (
-              <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-hidden">
-                <SettingsSidebar />
-                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-8 pt-5 lg:px-6">
-                  <SettingsMobileNav />
-                  {pageBody}
-                </div>
+      <StaffAccessSeed initialAccess={initialAccess ?? null}>
+        <AdminStaffAuthGuard>
+          <AccountDataProvider>
+            <AccessDeniedNotice />
+            <CloseMobileNavOnNavigate onClose={closeMobileNav} />
+            <div
+              className="admin-recruiter-shell min-h-screen text-gray-600"
+              style={{
+                backgroundColor: "#F4F4F4",
+                ["--admin-sidebar-width" as string]: `${sidebarWidth}px`,
+                ["--admin-sidebar-collapsed-width" as string]: `${SIDEBAR_COLLAPSED_WIDTH}px`,
+                ["--admin-sidebar-collapsed-width-narrow" as string]: `${SIDEBAR_COLLAPSED_WIDTH_NARROW}px`,
+                ["--admin-sidebar-collapsed-width-mobile" as string]: `${SIDEBAR_COLLAPSED_WIDTH_MOBILE}px`,
+              }}
+            >
+              <AdminRecruiterSidebar
+                collapsed={sidebarCollapsed}
+                isMobileOpen={mobileSidebarOpen}
+                onMobileClose={closeMobileNav}
+              />
+              <div
+                className={`admin-recruiter-content admin-recruiter-main-wrap ${
+                  inSettingsArea ? "h-dvh max-h-dvh overflow-hidden" : "min-h-screen"
+                }`}
+                data-mobile-nav-open={mobileSidebarOpen ? "true" : "false"}
+                data-settings-area={inSettingsArea ? "true" : "false"}
+              >
+                <GodAdminImpersonationBanner />
+                <AdminRecruiterHeader
+                  onMenuClick={() => setMobileSidebarOpen(true)}
+                  mobileNavOpen={mobileSidebarOpen}
+                  sidebarCollapsed={sidebarCollapsed}
+                  onSidebarToggle={toggleSidebarCollapsed}
+                />
+                <WorkflowDashboardHeaderProvider>
+                  <AdminRecruiterDashboardSubNav />
+                  {inSettingsArea ? (
+                    <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-hidden">
+                      <SettingsSidebar />
+                      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-8 pt-5 lg:px-6">
+                        <SettingsMobileNav />
+                        <CandidateDetailFrame>{children}</CandidateDetailFrame>
+                      </div>
+                    </div>
+                  ) : (
+                    <CandidateDetailFrame>{children}</CandidateDetailFrame>
+                  )}
+                </WorkflowDashboardHeaderProvider>
               </div>
-            ) : (
-              pageBody
-            )}
-          </WorkflowDashboardHeaderProvider>
-        </div>
-      </div>
-      </AccountDataProvider>
-      </AdminStaffAuthGuard>
+            </div>
+          </AccountDataProvider>
+        </AdminStaffAuthGuard>
+      </StaffAccessSeed>
     </AdminTenantBrandingProvider>
   );
 }

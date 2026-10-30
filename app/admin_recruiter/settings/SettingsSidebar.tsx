@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   SETTINGS_NAV_GROUPS,
@@ -29,11 +29,20 @@ const NAV_ITEM_RESOURCE_KEY: Partial<Record<SettingsNavItem["id"], string>> = {
   reports: "settings_reports",
 };
 
-function NavItemLink({ item, active }: { item: SettingsNavItem; active: boolean }) {
+function NavItemLink({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: SettingsNavItem;
+  active: boolean;
+  onNavigate: () => void;
+}) {
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
+      onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={`flex w-full items-center gap-1.5 overflow-hidden rounded px-2 py-1.5 text-xs leading-4 transition-colors ${
         active
@@ -75,11 +84,16 @@ function visibleSettingsNavGroups(
 export default function SettingsSidebar() {
   const pathname = usePathname() ?? "";
   const { viewKeySet, godAdmin, loading } = useStaffModuleAccess();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const groups = useMemo(
     () => visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, godAdmin),
     [viewKeySet, godAdmin]
   );
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   return (
     <aside
@@ -88,7 +102,7 @@ export default function SettingsSidebar() {
     >
       <nav className="flex flex-col gap-3">
         {loading && groups.length === 0 ? (
-          <p className="px-2 text-xs text-[#6B7280]">Loading?</p>
+          <p className="px-2 text-xs text-[#6B7280]">Loading…</p>
         ) : null}
         {groups.map((group, groupIndex) => (
           <div key={group.id} className="flex flex-col gap-3">
@@ -100,13 +114,19 @@ export default function SettingsSidebar() {
                 </p>
               ) : null}
               <div className="flex flex-col gap-1">
-                {group.items.map((item) => (
-                  <NavItemLink
-                    key={item.id}
-                    item={item}
-                    active={isSettingsNavItemActive(item, pathname)}
-                  />
-                ))}
+                {group.items.map((item) => {
+                  const active = pendingHref
+                    ? item.href === pendingHref
+                    : isSettingsNavItemActive(item, pathname);
+                  return (
+                    <NavItemLink
+                      key={item.id}
+                      item={item}
+                      active={active}
+                      onNavigate={() => setPendingHref(item.href)}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>

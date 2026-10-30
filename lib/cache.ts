@@ -2,6 +2,7 @@ import "server-only";
 
 import { Redis as UpstashRedis } from "@upstash/redis";
 import { logPerf } from "@/lib/perf";
+import { noteServerTimingCache, timeSpan } from "@/lib/perf/server-timing";
 import {
   buildCacheKey,
   CACHE_TTL_SECONDS,
@@ -204,19 +205,25 @@ export async function getCache<T>(key: string): Promise<T | null> {
   try {
     const memoryCached = memoryGet(key);
     if (memoryCached != null) {
+      noteServerTimingCache(true, "memory");
       logCache("hit", `${key} source=memory`);
       return JSON.parse(memoryCached) as T;
     }
 
     const adapter = await getAdapter();
-    if (!adapter) return null;
+    if (!adapter) {
+      noteServerTimingCache(false, "miss");
+      return null;
+    }
 
-    const cached = await withRedisTimeout(adapter.get(key), "get");
+    const cached = await timeSpan("redis", () => withRedisTimeout(adapter.get(key), "get"));
     if (cached == null) {
+      noteServerTimingCache(false, "miss");
       logCache("miss", key);
       return null;
     }
 
+    noteServerTimingCache(true, "redis");
     logCache("hit", key);
     return JSON.parse(cached) as T;
   } catch (error) {

@@ -47,6 +47,9 @@ const tenantBrandingUbuntu = Ubuntu({
   display: "swap",
 });
 
+/** Supabase is in us-east-1. Pin rendering to Washington, D.C. instead of the visitor region. */
+export const preferredRegion = "iad1";
+
 export const metadata: Metadata = {
   title: "Brass HR",
   description: "Configurable applicant and recruiter onboarding for healthcare staffing teams.",

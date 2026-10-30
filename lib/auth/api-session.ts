@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { headers, cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
@@ -16,6 +16,13 @@ import {
   jsonUnauthorized,
   logAuthDebug,
 } from "@/lib/auth/platform";
+import {
+  completeHandlerTiming,
+  enterHandlerServerTiming,
+  installHandlerResponseTiming,
+  recordServerTiming,
+  timeSpan,
+} from "@/lib/perf/server-timing";
 
 const DEV_BYPASS_USER = "00000000-0000-0000-0000-000000000001";
 
@@ -117,21 +124,21 @@ async function getSessionUser(): Promise<{ user: User | null; error: unknown }> 
   const bearer = await extractBearerToken();
 
   if (bearer) {
-    const bearerResult = await supabase.auth.getUser(bearer);
+    const bearerResult = await timeSpan("session", () => supabase.auth.getUser(bearer));
     const bearerUser = bearerResult.data.user ?? null;
     if (bearerUser?.id && !isAnonymousAuthUser(bearerUser)) {
       return { user: bearerUser, error: bearerResult.error };
     }
   }
 
-  const cookieResult = await supabase.auth.getUser();
+  const cookieResult = await timeSpan("session", () => supabase.auth.getUser());
   const cookieUser = cookieResult.data.user ?? null;
   if (cookieUser?.id) {
     return { user: cookieUser, error: cookieResult.error };
   }
 
   if (bearer) {
-    const bearerResult = await supabase.auth.getUser(bearer);
+    const bearerResult = await timeSpan("session", () => supabase.auth.getUser(bearer));
     return { user: bearerResult.data.user ?? null, error: bearerResult.error ?? cookieResult.error };
   }
 
@@ -221,6 +228,30 @@ export function requireRole(ctx: ApiAuthContext, allowed: AppRole[]): NextRespon
 
 /** Recruiter, support, or admin — pipeline / roster APIs. */
 export async function requireStaffApiSession(): Promise<StaffApiAuthContext | NextResponse> {
+  let route = "";
+  let method = "GET";
+  let tenantSlug: string | null = null;
+  try {
+    const requestHeaders = await headers();
+    route = requestHeaders.get("x-brass-pathname") ?? "";
+    method = requestHeaders.get("x-brass-method") ?? "GET";
+    const jar = await cookies();
+    tenantSlug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value ?? null;
+  } catch {
+    /* Request context can be missing in tests and scripts. */
+  }
+  const timingStore = enterHandlerServerTiming({ route, method, tenantSlug });
+  let finishAfterResponse = false;
+  if (timingStore) {
+    installHandlerResponseTiming();
+    try {
+      after(() => completeHandlerTiming(timingStore));
+      finishAfterResponse = true;
+    } catch (error) {
+      console.error("[server-timing] handler finish skipped", error instanceof Error ? error.message : "unknown");
+    }
+  }
+  const authStarted = performance.now();
   try {
     const { user, error } = await getSessionUser();
     if (error || !user?.id) {
@@ -335,5 +366,8 @@ export async function requireStaffApiSession(): Promise<StaffApiAuthContext | Ne
   } catch (e) {
     console.error("[auth] requireStaffApiSession", e);
     return rejectAuth(401, "auth_check_failed");
+  } finally {
+    recordServerTiming("handler-auth", performance.now() - authStarted);
+    if (timingStore && !finishAfterResponse) completeHandlerTiming(timingStore);
   }
 }

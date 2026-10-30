@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadFreshViewerStaffAccess } from "@/lib/auth/cached-session-grants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireStaffApiSession, type StaffApiAuthContext } from "@/lib/auth/api-session";
 import { requireUserManagement } from "@/lib/auth/user-management";
@@ -232,5 +233,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden", detail: "Permission data unavailable" }, { status: 403 });
   }
 
-  return NextResponse.json({ ok: true, roleKey });
+  const access = await loadFreshViewerStaffAccess();
+  return NextResponse.json({ ok: true, roleKey, ...(access ? { access } : {}) });
 }
