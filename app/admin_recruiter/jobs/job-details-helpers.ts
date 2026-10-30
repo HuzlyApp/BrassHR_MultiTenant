@@ -38,6 +38,14 @@ export type JobDetailsRow = {
   msp_client_name?: string | null;
   /** MSP Internal Reference / Source Job ID captured on job create. */
   external_requisition_id?: string | null;
+  created_by?: string | null;
+  createdBy?: {
+    id: string;
+    name: string;
+    profilePhotoUrl: string | null;
+    role?: string | null;
+    roleLabel?: string | null;
+  } | null;
   tags?: string[] | null;
   assigned_recruiter_user_id?: string | null;
   is_hot?: boolean | null;
@@ -170,6 +178,14 @@ export function formatJobDetailsSourceJobId(job: JobDetailsRow): string {
   const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
   if (!isMsp) return "";
   return job.external_requisition_id?.trim() || "";
+}
+
+/** "Jane Doe (Recruiter)" from job.createdBy — empty when unknown. */
+export function formatJobDetailsCreatedBy(job: JobDetailsRow): string {
+  const name = job.createdBy?.name?.trim() || "";
+  if (!name) return "";
+  const role = job.createdBy?.roleLabel?.trim() || "";
+  return role ? `${name} (${role})` : name;
 }
 
 export function formatWorkLocationLabel(job: JobDetailsRow): string {
