@@ -13,6 +13,8 @@ export type WorkerApplicationStatusSummary = {
   sourceJobId: string | null;
   /** Job requisition source, used to hide MSP-only or Internal-only stages. */
   sourceType: string | null;
+  /** Department label copied from the job. A direct candidate department overrides this. */
+  departmentName?: string | null;
   ambiguous: boolean;
 };
 

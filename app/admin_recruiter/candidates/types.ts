@@ -61,4 +61,6 @@ export type CandidateRow = {
     mandatory?: number
     blocking?: number
   } | null
+  department?: string | null
+  departmentSource?: "candidate" | "job" | null
 }
