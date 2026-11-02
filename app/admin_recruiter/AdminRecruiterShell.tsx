@@ -152,6 +152,7 @@ export default function AdminRecruiterShell({
                 collapsed={sidebarCollapsed}
                 isMobileOpen={mobileSidebarOpen}
                 onMobileClose={closeMobileNav}
+                onToggleCollapsed={toggleSidebarCollapsed}
               />
               <div
                 className={`admin-recruiter-content admin-recruiter-main-wrap ${
@@ -172,7 +173,7 @@ export default function AdminRecruiterShell({
                   {inSettingsArea ? (
                     <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-hidden">
                       <SettingsSidebar />
-                      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-8 pt-5 lg:px-6">
+                      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-8 pt-5 sm:px-6 lg:px-8">
                         <SettingsMobileNav />
                         <CandidateDetailFrame>{children}</CandidateDetailFrame>
                       </div>
