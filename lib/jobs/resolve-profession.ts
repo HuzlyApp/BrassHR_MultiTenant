@@ -15,28 +15,51 @@ function isUniqueViolation(error: { code?: string; message?: string } | null): b
   return String(error.message ?? "").toLowerCase().includes("duplicate");
 }
 
-async function findProfessionIdByName(
+async function tenantProfessionName(
+  supabase: DbClient,
+  tenantId: string,
+  professionId: string | null,
+  name: string | null
+): Promise<string | null> {
+  if (professionId) {
+    const { data, error } = await supabase
+      .from("tenant_professions")
+      .select("name")
+      .eq("id", professionId)
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.name) return String(data.name);
+  }
+
+  if (!name) return null;
+  const { data, error } = await supabase
+    .from("tenant_professions")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{ id: string; name: string }>;
+  const matchId = matchProfessionIdByName(rows, name);
+  return rows.find((row) => row.id === matchId)?.name ?? null;
+}
+
+async function professionIdForTenantName(
   supabase: DbClient,
   tenantId: string,
   name: string
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("professions")
-    .select("id, tenant_id, name")
-    .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
+    .select("id, name")
+    .eq("tenant_id", tenantId)
     .eq("is_active", true);
   if (error) throw error;
-
-  const rows = (data ?? []) as Array<{ id: string; tenant_id: string | null; name: string }>;
-  const tenantMatch = matchProfessionIdByName(
-    rows.filter((row) => row.tenant_id === tenantId),
-    name
-  );
-  if (tenantMatch) return tenantMatch;
-  return matchProfessionIdByName(rows, name);
+  return matchProfessionIdByName((data ?? []) as Array<{ id: string; name: string }>, name);
 }
 
-async function createTenantProfession(
+async function createProfessionForTenant(
   supabase: DbClient,
   tenantId: string,
   name: string
@@ -59,21 +82,48 @@ async function createTenantProfession(
     if (!error && data?.id) return String(data.id);
     lastError = error;
     if (!isUniqueViolation(error)) break;
+    const existing = await professionIdForTenantName(supabase, tenantId, name);
+    if (existing) return existing;
   }
 
   throw lastError ?? new Error("Failed to save profession.");
 }
 
+async function existingProfessionId(
+  supabase: DbClient,
+  tenantId: string,
+  professionId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("professions")
+    .select("id")
+    .eq("id", professionId)
+    .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ? String(data.id) : null;
+}
+
+/**
+ * The job form lists tenant_professions. job_requisitions.profession_id still
+ * references professions, so a chosen tenant profession is stored as the
+ * tenant's professions row with the same name.
+ */
 export async function resolveProfessionIdForSave(
   supabase: DbClient,
   tenantId: string,
   input: Pick<JobRequisitionInput, "profession" | "professionId">
 ): Promise<string | null> {
+  const professionId = clean(input.professionId);
   const name = clean(input.profession);
-  if (name) {
-    const existing = await findProfessionIdByName(supabase, tenantId, name);
+  const tenantName = await tenantProfessionName(supabase, tenantId, professionId, name);
+  if (tenantName) {
+    const existing = await professionIdForTenantName(supabase, tenantId, tenantName);
     if (existing) return existing;
-    return createTenantProfession(supabase, tenantId, name);
+    return createProfessionForTenant(supabase, tenantId, tenantName);
   }
-  return clean(input.professionId);
+
+  if (professionId) return existingProfessionId(supabase, tenantId, professionId);
+  return null;
 }
