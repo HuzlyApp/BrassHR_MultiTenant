@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
 import SettingsSectionHeader from "@/app/admin_recruiter/settings/SettingsSectionHeader";
@@ -39,9 +40,6 @@ const CandidateStatusesPanel = dynamic(() => import("@/app/admin_recruiter/setti
   loading: SettingsPanelFallback,
 });
 const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/AssessmentSettingsPanel"), {
-  loading: SettingsPanelFallback,
-});
-const HireJourneyThemePanel = dynamic(() => import("@/app/admin_recruiter/settings/HireJourneyThemePanel"), {
   loading: SettingsPanelFallback,
 });
 const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/DepartmentsPanel"), {
@@ -104,8 +102,16 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           disabled={!canEdit && section !== "security"}
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
-          {section === "branding" ? <BrandingSettingsPanel /> : null}
-          {section === "hiring-theme" ? <HireJourneyThemePanel /> : null}
+          {section === "branding" ? (
+            <Suspense fallback={<SettingsPanelFallback />}>
+              <BrandingSettingsPanel />
+            </Suspense>
+          ) : null}
+          {section === "hiring-theme" ? (
+            <Suspense fallback={<SettingsPanelFallback />}>
+              <BrandingSettingsPanel initialMainTab="hiring-journey" />
+            </Suspense>
+          ) : null}
           {section === "admin-console" ? <AdminConsolePanel embedInSettingsPage /> : null}
           {section === "departments" ? <DepartmentsPanel /> : null}
           {section === "assessment" ? <AssessmentSettingsPanel /> : null}

@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   UserCircle,
   UserCog,
-  UserPlus,
+  Shield,
   Wand2,
   Workflow,
 } from "lucide-react";
@@ -76,7 +76,8 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         href: "/admin_recruiter/account/personal",
         icon: UserCircle,
         resourceKey: "settings_profile",
-        matchPrefixes: ["/admin_recruiter/account/personal", "/admin_recruiter/account"],
+        // Only personal — do not use /admin_recruiter/account or Account routes also highlight.
+        matchPrefixes: ["/admin_recruiter/account/personal"],
       },
       {
         id: "account",
@@ -117,7 +118,11 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         href: "/admin_recruiter/settings/security",
         icon: ShieldCheck,
         resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/security"],
+        // settings/security redirects to account/security
+        matchPrefixes: [
+          "/admin_recruiter/settings/security",
+          "/admin_recruiter/account/security",
+        ],
       },
     ],
   },
@@ -199,7 +204,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         id: "roles",
         label: "Roles & Permissions",
         href: "/admin_recruiter/settings/roles",
-        icon: UserPlus,
+        icon: Shield,
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/roles"],
       },

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 import {
   EMPTY_HIRE_JOURNEY_THEME,
   hireJourneyOverrideForSave,
@@ -109,6 +110,9 @@ export async function PUT(req: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Bust effective-branding cache so recruiters and other staff see the new colors.
+  await invalidateTenantBrandingCache(tenantId);
 
   return Response.json({ ok: true, theme });
 }

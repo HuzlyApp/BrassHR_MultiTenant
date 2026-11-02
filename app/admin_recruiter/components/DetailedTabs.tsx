@@ -82,6 +82,7 @@ function tabHref(tab: TabName, applicantId?: string) {
     case "Onboarded Applicant":
       return `/admin_recruiter/new/onboard-applicant/${id}`;
     case "Applications":
+      return `/admin_recruiter/new/applications/${id}`;
     case "Licenses & Certifications":
       return `/admin_recruiter/new/profile/${id}`;
   }

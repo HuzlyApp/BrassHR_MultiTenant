@@ -71,7 +71,7 @@ describe("invalidateTenantBrandingCache", () => {
       const prefix = cachePrefix();
       await invalidateTenantBrandingCache({ tenantId, slug, subdomain });
 
-      expect(deleteCache).toHaveBeenCalledTimes(1);
+      expect(deleteCache).toHaveBeenCalledTimes(2);
       expect(deleteByPattern).toHaveBeenCalledWith(
         `${prefix}:admin_effective_branding:*:tenant:${tenantId}:*`
       );

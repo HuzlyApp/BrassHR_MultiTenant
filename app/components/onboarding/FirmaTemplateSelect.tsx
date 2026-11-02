@@ -93,7 +93,7 @@ export function FirmaTemplateSelect({
         aria-label={E_SIGNATURE_TEMPLATE_LABEL}
       >
         <option value="">
-          {loading ? "Loading templates..." : "Select a published signature template"}
+          {loading ? "Loading templates..." : "None (optional)"}
         </option>
         {value && templateName && !options.some((option) => option.id === value) ? (
           <option value={value}>{templateName}</option>
@@ -122,7 +122,9 @@ export function FirmaTemplateSelect({
         </p>
       ) : (
         <p className="mt-1.5 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
-          Applicants will sign this template inside onboarding using embedded e-signature.
+          {value
+            ? "Applicants will sign this template inside onboarding using embedded e-signature."
+            : "No signature template selected. E-signature will not appear for this step."}
         </p>
       )}
     </div>

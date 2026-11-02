@@ -99,6 +99,27 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/personal")
     ).toBe(true);
 
+    const accountItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "account"
+    );
+    expect(accountItem).toBeDefined();
+    expect(
+      isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/account-settings")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/business-info")
+    ).toBe(true);
+    // Profile must not stay active on Account routes (shared /account prefix bug).
+    expect(
+      isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/account-settings")
+    ).toBe(false);
+    expect(
+      isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/business-info")
+    ).toBe(false);
+    expect(
+      isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/personal")
+    ).toBe(false);
+
     const templatesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "templates"
     );
