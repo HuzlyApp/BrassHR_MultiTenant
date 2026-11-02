@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 
 const menuItems = [
   { icon: '🏠', label: 'Dashboard', href: '/admin_recruiter/home' },
-  { icon: '👥', label: 'Candidates', href: '/admin_recruiter/candidates' },
+  // { icon: '👥', label: 'Candidates', href: '/admin_recruiter/candidates' },
+  { icon: '👥', label: 'Applicants', href: '/admin_recruiter/applications' },
   { icon: '🆕', label: 'New', href: '/admin_recruiter/new' },
   { icon: '⏳', label: 'Pending', href: '/admin_recruiter/pending' },
   { icon: '✅', label: 'Approved', href: '/admin_recruiter/approved' },
@@ -14,7 +15,7 @@ const menuItems = [
   { icon: '📋', label: 'Applications', href: '/admin_recruiter/applications' },
   { icon: '🛎️', label: 'Notifications', href: '/admin_recruiter/notifications' },
   { icon: '🎯', label: 'Skills', href: '/admin_recruiter/skills' },
-  { icon: '⚙️', label: 'Settings', href: '/admin_recruiter/settings' },
+  { icon: '⚙️', label: 'Settings', href: '/admin_recruiter/settings/branding' },
 ];
 
 export default function Sidebar() {

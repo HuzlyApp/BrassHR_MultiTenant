@@ -1,231 +1,360 @@
-export type SettingsNavIcon = {
-  src: string;
-  width: number;
-  height: number;
-};
+import type { LucideIcon } from "lucide-react";
+import {
+  BarChart3,
+  Bell,
+  Briefcase,
+  Building2,
+  ClipboardList,
+  FileStack,
+  LifeBuoy,
+  ListChecks,
+  Monitor,
+  ShieldCheck,
+  UserCircle,
+  UserCog,
+  UserPlus,
+  Wand2,
+  Workflow,
+} from "lucide-react";
+
+export type SettingsNavItemId =
+  | "profile"
+  | "account"
+  | "branding"
+  | "notifications"
+  | "security"
+  | "automation"
+  | "profession"
+  | "assessment"
+  | "statuses"
+  | "templates"
+  | "admin-console"
+  | "roles"
+  | "departments"
+  | "help"
+  | "reports";
+
+export type SettingsSectionSlug =
+  | "branding"
+  | "admin-console"
+  | "roles"
+  | "departments"
+  | "profession"
+  | "assessment"
+  | "statuses"
+  | "security"
+  | "templates"
+  | "hiring-theme";
 
 export type SettingsNavItem = {
+  id: SettingsNavItemId;
   label: string;
   href: string;
-  icon: SettingsNavIcon;
-  resourceKey?: string;
+  icon: LucideIcon;
+  /** Permission resource required to show this item (see permission-catalog). */
+  resourceKey: string;
+  /** Highlight when pathname matches any of these prefixes. */
   matchPrefixes: string[];
   matchExact?: boolean;
-  /** In-settings page slug. Omitted when the item opens another app route. */
-  section?: string;
 };
 
 export type SettingsNavGroup = {
-  label: string;
+  id: string;
+  label: string | null;
   items: SettingsNavItem[];
 };
 
-const ICON = {
-  branding: { src: "/icons/settings-nav/branding.svg", width: 20, height: 20 },
-  roles: { src: "/icons/settings-nav/roles.svg", width: 20, height: 20 },
-  departments: { src: "/icons/settings-nav/departments.svg", width: 12, height: 12 },
-  professions: { src: "/icons/settings-nav/professions.svg", width: 11.8907, height: 12.5 },
-  statuses: { src: "/icons/settings-nav/statuses.svg", width: 20, height: 20 },
-  assessment: { src: "/icons/settings-nav/assessment.svg", width: 20, height: 20 },
-  templates: { src: "/icons/settings-nav/templates.svg", width: 20, height: 20 },
-  workflows: { src: "/icons/settings-nav/workflows.svg", width: 20, height: 20 },
-  notifications: { src: "/icons/settings-nav/notifications.svg", width: 20, height: 20 },
-  integrations: { src: "/icons/settings-nav/integrations.svg", width: 20, height: 20 },
-  billing: { src: "/icons/settings-nav/billing.svg", width: 20, height: 20 },
-  security: { src: "/icons/settings-nav/security.svg", width: 11, height: 13 },
-  auditLog: { src: "/icons/settings-nav/audit-log.svg", width: 20, height: 20 },
-} as const satisfies Record<string, SettingsNavIcon>;
-
-export const SETTINGS_HOME_HREF = "/admin_recruiter/settings";
-
+/** Secondary Settings sidebar — only items that already exist in the app. */
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   {
-    label: "Company",
+    id: "personal",
+    label: "Personal Settings",
     items: [
       {
+        id: "profile",
+        label: "Profile",
+        href: "/admin_recruiter/account/personal",
+        icon: UserCircle,
+        resourceKey: "settings_profile",
+        matchPrefixes: ["/admin_recruiter/account/personal", "/admin_recruiter/account"],
+      },
+      {
+        id: "account",
+        label: "Account",
+        href: "/admin_recruiter/account/account-settings",
+        icon: UserCog,
+        resourceKey: "settings_profile",
+        matchPrefixes: [
+          "/admin_recruiter/account/account-settings",
+          "/admin_recruiter/account/business-info",
+        ],
+      },
+    ],
+  },
+  {
+    id: "app",
+    label: "App Settings",
+    items: [
+      {
+        id: "branding",
         label: "Branding",
-        href: SETTINGS_HOME_HREF,
-        icon: ICON.branding,
+        href: "/admin_recruiter/settings/branding",
+        icon: Wand2,
         resourceKey: "settings_company",
-        matchPrefixes: [SETTINGS_HOME_HREF],
-        matchExact: true,
-        section: "branding",
+        matchPrefixes: ["/admin_recruiter/settings/branding", "/admin_recruiter/settings/hiring-theme"],
       },
       {
-        label: "Admin Console",
-        href: `${SETTINGS_HOME_HREF}/admin-console`,
-        icon: ICON.roles,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/admin-console`],
-        section: "admin-console",
-      },
-      {
-        label: "Roles & Permissions",
-        href: `${SETTINGS_HOME_HREF}/roles`,
-        icon: ICON.roles,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/roles`],
-        section: "roles",
-      },
-      {
-        label: "Departments",
-        href: `${SETTINGS_HOME_HREF}/departments`,
-        icon: ICON.departments,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/departments`],
-        section: "departments",
-      },
-    ],
-  },
-  {
-    label: "Hiring Setup",
-    items: [
-      {
-        label: "Professions",
-        href: `${SETTINGS_HOME_HREF}/professions`,
-        icon: ICON.professions,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/professions`],
-        section: "professions",
-      },
-      {
-        label: "Statuses",
-        href: `${SETTINGS_HOME_HREF}/statuses`,
-        icon: ICON.statuses,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/statuses`],
-        section: "statuses",
-      },
-      {
-        label: "Assessment",
-        href: `${SETTINGS_HOME_HREF}/assessment`,
-        icon: ICON.assessment,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/assessment`],
-        section: "assessment",
-      },
-      {
-        label: "Templates",
-        href: `${SETTINGS_HOME_HREF}/templates`,
-        icon: ICON.templates,
-        resourceKey: "settings_templates",
-        matchPrefixes: [
-          `${SETTINGS_HOME_HREF}/templates`,
-          "/admin_recruiter/template-builder",
-          "/admin_recruiter/email-templates",
-          "/admin_recruiter/dashboard/templates",
-        ],
-        section: "templates",
-      },
-    ],
-  },
-  {
-    label: "Workflows",
-    items: [
-      {
-        label: "Workflows",
-        href: "/admin_recruiter/dashboard/onboarding-flows",
-        icon: ICON.workflows,
-        resourceKey: "settings_automation",
-        matchPrefixes: [
-          "/admin_recruiter/dashboard/onboarding-flows",
-          "/admin_recruiter/dashboard/onboarding-builder",
-          "/admin_recruiter/dashboard/workflow-mappings",
-          "/admin_recruiter/dashboard/workflowlibrary",
-        ],
-      },
-      {
-        label: "Schedule & PTO",
-        href: `${SETTINGS_HOME_HREF}/schedule`,
-        icon: ICON.workflows,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/schedule`],
-        section: "schedule",
-      },
-    ],
-  },
-  {
-    label: "Alerts & Connections",
-    items: [
-      {
+        id: "notifications",
         label: "Notifications",
         href: "/admin_recruiter/notifications",
-        icon: ICON.notifications,
+        icon: Bell,
         resourceKey: "settings_notifications",
         matchPrefixes: ["/admin_recruiter/notifications"],
       },
       {
-        label: "Integrations",
-        href: `${SETTINGS_HOME_HREF}/integrations`,
-        icon: ICON.integrations,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/integrations`],
-        section: "integrations",
-      },
-    ],
-  },
-  {
-    label: "Billing",
-    items: [
-      {
-        label: "Plan & Billing",
-        href: `${SETTINGS_HOME_HREF}/billing`,
-        icon: ICON.billing,
-        resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/billing`],
-        section: "billing",
-      },
-    ],
-  },
-  {
-    label: "Security",
-    items: [
-      {
+        id: "security",
         label: "Security",
-        href: `${SETTINGS_HOME_HREF}/security`,
-        icon: ICON.security,
+        href: "/admin_recruiter/settings/security",
+        icon: ShieldCheck,
         resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/security`],
-        section: "security",
+        matchPrefixes: ["/admin_recruiter/settings/security"],
+      },
+    ],
+  },
+  {
+    id: "workflow",
+    label: "Workflow",
+    items: [
+      {
+        id: "automation",
+        label: "Automation",
+        href: "/admin_recruiter/dashboard/onboarding-flows",
+        icon: Workflow,
+        resourceKey: "settings_automation",
+        matchPrefixes: [
+          "/admin_recruiter/dashboard/onboarding-flows",
+          "/admin_recruiter/dashboard/workflow-mappings",
+          "/admin_recruiter/dashboard/workflowlibrary",
+          "/admin_recruiter/dashboard/onboarding-builder",
+        ],
+      },
+    ],
+  },
+  {
+    id: "recruitment",
+    label: "Recruitment",
+    items: [
+      {
+        id: "profession",
+        label: "Profession",
+        href: "/admin_recruiter/settings/profession",
+        icon: Briefcase,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/profession"],
       },
       {
-        label: "Audit Log",
-        href: `${SETTINGS_HOME_HREF}/audit-log`,
-        icon: ICON.auditLog,
+        id: "assessment",
+        label: "Assessment",
+        href: "/admin_recruiter/settings/assessment",
+        icon: ClipboardList,
         resourceKey: "settings_company",
-        matchPrefixes: [`${SETTINGS_HOME_HREF}/audit-log`],
-        section: "audit-log",
+        matchPrefixes: ["/admin_recruiter/settings/assessment"],
+      },
+      {
+        id: "statuses",
+        label: "Statuses",
+        href: "/admin_recruiter/settings/statuses",
+        icon: ListChecks,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/statuses"],
+      },
+      {
+        id: "templates",
+        label: "Templates",
+        href: "/admin_recruiter/settings/templates",
+        icon: FileStack,
+        resourceKey: "settings_templates",
+        matchPrefixes: [
+          "/admin_recruiter/settings/templates",
+          "/admin_recruiter/template-builder",
+          "/admin_recruiter/email-templates",
+          "/admin_recruiter/dashboard/templates",
+        ],
+      },
+    ],
+  },
+  {
+    id: "administration",
+    label: "Administration",
+    items: [
+      {
+        id: "admin-console",
+        label: "Admin Console",
+        href: "/admin_recruiter/settings/admin-console",
+        icon: Monitor,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/admin-console"],
+      },
+      {
+        id: "roles",
+        label: "Roles & Permissions",
+        href: "/admin_recruiter/settings/roles",
+        icon: UserPlus,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/roles"],
+      },
+      {
+        id: "departments",
+        label: "Departments",
+        href: "/admin_recruiter/settings/departments",
+        icon: Building2,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/departments"],
+      },
+    ],
+  },
+  {
+    id: "help",
+    label: null,
+    items: [
+      {
+        id: "help",
+        label: "Help & Support",
+        href: "/admin_recruiter/help-support",
+        icon: LifeBuoy,
+        resourceKey: "settings_help",
+        matchPrefixes: ["/admin_recruiter/help-support"],
+      },
+    ],
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    items: [
+      {
+        id: "reports",
+        label: "Reports",
+        href: "/admin_recruiter/reports",
+        icon: BarChart3,
+        resourceKey: "settings_reports",
+        matchPrefixes: ["/admin_recruiter/reports", "/admin_recruiter/settings/reports"],
       },
     ],
   },
 ];
 
-const SETTINGS_SECTION_SLUGS = new Set(
-  SETTINGS_NAV_GROUPS.flatMap((group) =>
-    group.items.flatMap((item) => (item.section && item.section !== "branding" ? [item.section] : []))
-  )
-);
+/** In-app settings sections rendered under /admin_recruiter/settings/[section]. */
+export const SETTINGS_SECTION_META: Record<
+  SettingsSectionSlug,
+  { title: string; description: string }
+> = {
+  branding: {
+    title: "Branding",
+    description: "Customized your branding.",
+  },
+  "admin-console": {
+    title: "Admin Console",
+    description: "Manage system-wide settings, users, and administrative controls.",
+  },
+  roles: {
+    title: "Roles & Permissions",
+    description: "Manage users, roles, and access permissions.",
+  },
+  departments: {
+    title: "Departments",
+    description: "Create departments and map them to jobs or candidates.",
+  },
+  profession: {
+    title: "Profession",
+    description: "Configure profession document requirements for applicants.",
+  },
+  assessment: {
+    title: "Assessment",
+    description: "Build and manage skill assessments for your hiring flow.",
+  },
+  statuses: {
+    title: "Statuses",
+    description: "Manage statuses used in your recruitment pipeline. Customize labels, colors, and workflows.",
+  },
+  security: {
+    title: "Security",
+    description: "Authenticator app codes for staff sign-in.",
+  },
+  templates: {
+    title: "Templates",
+    description: "Document, email, and onboarding templates.",
+  },
+  "hiring-theme": {
+    title: "Hiring journey",
+    description: "Customize colors used across the hiring journey experience.",
+  },
+};
 
-export function isSettingsSectionSlug(section: string): boolean {
-  return SETTINGS_SECTION_SLUGS.has(section);
+export const SETTINGS_SECTION_SLUGS = Object.keys(SETTINGS_SECTION_META) as SettingsSectionSlug[];
+
+export function isSettingsSectionSlug(value: string): value is SettingsSectionSlug {
+  return SETTINGS_SECTION_SLUGS.includes(value as SettingsSectionSlug);
 }
 
-/** Catalog resource key for an in-settings section slug (from nav metadata). */
-export function settingsResourceKeyForSection(section: string): string {
-  for (const group of SETTINGS_NAV_GROUPS) {
-    for (const item of group.items) {
-      if (item.section === section && item.resourceKey) return item.resourceKey;
-    }
+export function settingsSectionHref(slug: SettingsSectionSlug): string {
+  return `/admin_recruiter/settings/${slug}`;
+}
+
+export function isSettingsNavItemActive(item: SettingsNavItem, pathname: string): boolean {
+  if (item.matchExact) {
+    return item.matchPrefixes.some((prefix) => pathname === prefix);
   }
-  return "settings_company";
-}
-
-export function isSettingsNavItemActive(pathname: string, item: SettingsNavItem): boolean {
-  return item.matchPrefixes.some((prefix) =>
-    item.matchExact ? pathname === prefix || pathname === `${prefix}/` : pathname === prefix || pathname.startsWith(`${prefix}/`)
+  return item.matchPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 }
 
-export function settingsNavMatchPrefixes(): string[] {
-  return SETTINGS_NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.matchPrefixes));
+/** Hide Settings mini-sidebar rows the signed-in role cannot view. */
+export function visibleSettingsNavGroups(
+  groups: SettingsNavGroup[],
+  viewKeys: ReadonlySet<string> | null,
+  unrestricted = false
+): SettingsNavGroup[] {
+  if (unrestricted || viewKeys?.has("*") || viewKeys === null) return groups;
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => viewKeys.has(item.resourceKey)),
+    }))
+    .filter((group) => group.items.length > 0);
 }
+
+/** Default landing page when opening Settings from the main sidebar. */
+export const SETTINGS_LANDING_HREF = "/admin_recruiter/settings/branding";
+
+/** All path prefixes covered by the settings mini-sidebar. */
+export const SETTINGS_MINI_SIDEBAR_PREFIXES: string[] = Array.from(
+  new Set(
+    SETTINGS_NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.matchPrefixes)).concat([
+      "/admin_recruiter/settings",
+      "/admin_recruiter/account",
+      "/admin_recruiter/notifications",
+      "/admin_recruiter/dashboard/onboarding-flows",
+      "/admin_recruiter/dashboard/workflow-mappings",
+      "/admin_recruiter/dashboard/workflowlibrary",
+      "/admin_recruiter/dashboard/workflow-builder",
+      "/admin_recruiter/dashboard/workflows",
+      "/admin_recruiter/dashboard/templates",
+      "/admin_recruiter/dashboard/onboarding-builder",
+      "/admin_recruiter/template-builder",
+      "/admin_recruiter/email-templates",
+      "/admin_recruiter/help-support",
+      "/admin_recruiter/reports",
+    ])
+  )
+);
+
+/** True while the settings mini-sidebar should stay open for this route. */
+export function isSettingsMiniSidebarPath(pathname: string): boolean {
+  const path = pathname.trim();
+  if (!path) return false;
+  return SETTINGS_MINI_SIDEBAR_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+  );
+}
+

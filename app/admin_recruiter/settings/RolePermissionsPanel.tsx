@@ -4,7 +4,11 @@ import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { applyGrantSelection, withRequiredView } from "@/lib/auth/permission-catalog";
+import {
+  applyGrantSelection,
+  seededGrantForRole,
+  withRequiredView,
+} from "@/lib/auth/permission-catalog";
 import {
   useInvalidateStaffModuleAccess,
   writeStaffAccessCache,
@@ -101,12 +105,25 @@ function emptyGrants(resources: ResourceRow[]): Grant[] {
 function grantsForRole(role: RoleRow, resources: ResourceRow[]): Grant[] {
   return resources.map((resource) => {
     const existing = role.permissions.find((permission) => permission.resourceKey === resource.key);
+    if (existing) {
+      return {
+        resourceKey: resource.key,
+        ...withRequiredView({
+          canView: existing.canView === true,
+          canEdit: existing.canEdit === true,
+          canDelete: existing.canDelete === true,
+        }),
+      };
+    }
+    // Missing rows default to the seed matrix so saving a role does not silently
+    // revoke newly added resources (e.g. settings_reports) as all-false.
+    const seeded = seededGrantForRole(role.isAdmin, resource.key);
     return {
       resourceKey: resource.key,
       ...withRequiredView({
-        canView: existing?.canView === true,
-        canEdit: existing?.canEdit === true,
-        canDelete: existing?.canDelete === true,
+        canView: seeded?.canView === true,
+        canEdit: seeded?.canEdit === true,
+        canDelete: seeded?.canDelete === true,
       }),
     };
   });
