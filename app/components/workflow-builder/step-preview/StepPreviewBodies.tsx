@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CheckCircle2, CircleAlert, Upload } from "lucide-react";
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
@@ -297,6 +298,43 @@ function OfferAcceptanceBody({ model, previewState }: { model: StepPreviewModel;
   );
 }
 
+/** Shown in step preview only when a signature template is assigned in settings. */
+function PreviewESignAttached({
+  name,
+  previewState,
+}: {
+  name: string;
+  previewState: StepPreviewState;
+}) {
+  const branding = useTenantBranding();
+  const signed = previewState === "completed";
+  return (
+    <div
+      className="mt-4 rounded-xl border p-3"
+      style={{ borderColor: branding.primaryHex, backgroundColor: hexToRgba(branding.primaryHex, 0.04) }}
+      data-testid="preview-esign-attached"
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">E-Signature</p>
+      <p className="mt-1 text-sm font-medium text-slate-800">{name}</p>
+      <p className="mt-1 text-[11px] leading-4 text-slate-500">
+        Applicants sign this published template with embedded e-signature.
+      </p>
+      <div
+        className="mt-3 rounded-lg border border-dashed px-3 py-5 text-center text-xs text-slate-500"
+        style={{ borderColor: branding.primaryHex }}
+      >
+        {signed ? (
+          <span className="font-medium text-slate-800">
+            Signed by {STEP_PREVIEW_SAMPLE.firstName} {STEP_PREVIEW_SAMPLE.lastName}
+          </span>
+        ) : (
+          "Signature area"
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AgreementBody({ model, previewState }: { model: StepPreviewModel; previewState: StepPreviewState }) {
   const branding = useTenantBranding();
   const acknowledged = filled(previewState) || previewState === "completed";
@@ -308,7 +346,7 @@ function AgreementBody({ model, previewState }: { model: StepPreviewModel; previ
         description={model.step.description || "Review the agreement, acknowledge, and sign to continue."}
       />
       {model.firmaTemplateName ? (
-        <p className="mt-3 text-[11px] text-slate-500">E-sign template: {model.firmaTemplateName}</p>
+        <PreviewESignAttached name={model.firmaTemplateName} previewState={previewState} />
       ) : null}
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
         <p className="text-sm font-semibold text-slate-800">{model.step.title || "Agreement"}</p>
@@ -324,18 +362,20 @@ function AgreementBody({ model, previewState }: { model: StepPreviewModel; previ
             </span>
           </OnboardingCheckbox>
         </div>
-        <div
-          className="mt-4 rounded-lg border border-dashed px-3 py-6 text-center text-xs text-slate-500"
-          style={{ borderColor: branding.primaryHex }}
-        >
-          {signed ? (
-            <span className="font-medium text-slate-800">
-              Signed by {STEP_PREVIEW_SAMPLE.firstName} {STEP_PREVIEW_SAMPLE.lastName}
-            </span>
-          ) : (
-            "Signature area"
-          )}
-        </div>
+        {!model.firmaTemplateName ? (
+          <div
+            className="mt-4 rounded-lg border border-dashed px-3 py-6 text-center text-xs text-slate-500"
+            style={{ borderColor: branding.primaryHex }}
+          >
+            {signed ? (
+              <span className="font-medium text-slate-800">
+                Signed by {STEP_PREVIEW_SAMPLE.firstName} {STEP_PREVIEW_SAMPLE.lastName}
+              </span>
+            ) : (
+              "Signature area"
+            )}
+          </div>
+        ) : null}
       </div>
       {showError(previewState) ? (
         <p className="mt-3 text-sm text-rose-600">Acknowledgement and signature are required.</p>
@@ -817,37 +857,66 @@ export function StepPreviewBody({
   model: StepPreviewModel;
   previewState: StepPreviewState;
 }) {
+  let body: ReactNode;
   switch (model.kind) {
     case "resume_upload":
-      return <ResumeUploadBody model={model} previewState={previewState} />;
+      body = <ResumeUploadBody model={model} previewState={previewState} />;
+      break;
     case "profile_form":
-      return <ProfileFormBody model={model} previewState={previewState} />;
+      body = <ProfileFormBody model={model} previewState={previewState} />;
+      break;
     case "job_application":
-      return <JobApplicationBody model={model} previewState={previewState} />;
+      body = <JobApplicationBody model={model} previewState={previewState} />;
+      break;
     case "offer_acceptance":
-      return <OfferAcceptanceBody model={model} previewState={previewState} />;
+      body = <OfferAcceptanceBody model={model} previewState={previewState} />;
+      break;
     case "agreement":
-      return <AgreementBody model={model} previewState={previewState} />;
+      body = <AgreementBody model={model} previewState={previewState} />;
+      break;
     case "approval":
-      return <ApprovalBody model={model} previewState={previewState} />;
+      body = <ApprovalBody model={model} previewState={previewState} />;
+      break;
     case "document_upload":
-      return <DocumentUploadBody model={model} previewState={previewState} />;
+      body = <DocumentUploadBody model={model} previewState={previewState} />;
+      break;
     case "references":
-      return <ReferencesBody model={model} previewState={previewState} />;
+      body = <ReferencesBody model={model} previewState={previewState} />;
+      break;
     case "skills_intro":
-      return <SkillsIntroBody model={model} previewState={previewState} />;
+      body = <SkillsIntroBody model={model} previewState={previewState} />;
+      break;
     case "custom_question":
-      return <CustomQuestionBody model={model} previewState={previewState} />;
+      body = <CustomQuestionBody model={model} previewState={previewState} />;
+      break;
     case "checkbox_confirmation":
-      return <CheckboxConfirmationBody model={model} previewState={previewState} />;
+      body = <CheckboxConfirmationBody model={model} previewState={previewState} />;
+      break;
     case "waiting_gate":
     case "screening":
-      return <WaitingOrScreeningBody model={model} previewState={previewState} />;
+      body = <WaitingOrScreeningBody model={model} previewState={previewState} />;
+      break;
     case "summary":
-      return <SummaryBody model={model} previewState={previewState} />;
+      body = <SummaryBody model={model} previewState={previewState} />;
+      break;
     case "notification":
-      return <NotificationBody model={model} />;
+      body = <NotificationBody model={model} />;
+      break;
     default:
-      return <UnsupportedBody model={model} />;
+      body = <UnsupportedBody model={model} />;
+      break;
   }
+
+  // Agreement body already embeds the e-sign block when a template is assigned.
+  const showSharedESign =
+    Boolean(model.firmaTemplateName) && model.kind !== "agreement";
+
+  return (
+    <>
+      {body}
+      {showSharedESign && model.firmaTemplateName ? (
+        <PreviewESignAttached name={model.firmaTemplateName} previewState={previewState} />
+      ) : null}
+    </>
+  );
 }
