@@ -393,9 +393,10 @@ export function buildStepPreviewModel(
     isApplicantFacing: CANDIDATE_KINDS.has(kind) && isWorkerVisibleStep(selectedStep),
     availableStates: previewStatesForKind(kind),
     requiredDocuments: documentsForDraft(selectedDraft),
+    // Only surface e-sign in preview when a template ID is actually assigned.
     firmaTemplateName: stepUsesFirmaSigning(selectedStep)
       ? settings.firmaRecruiterTemplateName?.trim() || "Attached e-sign template"
-      : settings.firmaRecruiterTemplateName?.trim() || null,
+      : null,
     stepperSteps,
     preHireSteps,
     postHireSteps,
