@@ -51,6 +51,13 @@ vi.mock("@/lib/supabase-browser", () => ({
   supabaseBrowser: {
     auth: {
       updateUser: (...args: unknown[]) => mockUpdateUser(...args),
+      mfa: {
+        listFactors: vi.fn(async () => ({ data: { all: [], totp: [] }, error: null })),
+        enroll: vi.fn(),
+        challengeAndVerify: vi.fn(),
+        unenroll: vi.fn(),
+        getAuthenticatorAssuranceLevel: vi.fn(),
+      },
     },
     from: (...args: unknown[]) => mockFrom(...args),
   },
@@ -85,6 +92,15 @@ describe("SecurityTab", () => {
 
     expect(screen.getByText("John Doe")).toBeInTheDocument();
     expect(screen.getByText("zipstaffcom@gmail.com")).toBeInTheDocument();
+  });
+
+  it("shows password and authenticator together on one security card", async () => {
+    render(<SecurityTab />);
+
+    expect(screen.getByRole("heading", { name: "Security" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Update Password" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Authenticator app" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Set up authenticator" })).toBeInTheDocument();
   });
 
   it("keeps submit disabled when passwords do not match", async () => {

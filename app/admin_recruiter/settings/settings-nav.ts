@@ -115,10 +115,10 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       {
         id: "security",
         label: "Security",
-        href: "/admin_recruiter/settings/security",
+        // Password + authenticator live on account Security (settings/security redirects there).
+        href: "/admin_recruiter/account/security",
         icon: ShieldCheck,
         resourceKey: "settings_company",
-        // settings/security redirects to account/security
         matchPrefixes: [
           "/admin_recruiter/settings/security",
           "/admin_recruiter/account/security",
