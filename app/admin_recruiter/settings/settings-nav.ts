@@ -43,6 +43,7 @@ export type SettingsSectionSlug =
   | "assessment"
   | "statuses"
   | "security"
+  | "templates"
   | "hiring-theme";
 
 export type SettingsNavItem = {
@@ -50,6 +51,8 @@ export type SettingsNavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Permission resource required to show this item (see permission-catalog). */
+  resourceKey: string;
   /** Highlight when pathname matches any of these prefixes. */
   matchPrefixes: string[];
   matchExact?: boolean;
@@ -72,13 +75,15 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Profile",
         href: "/admin_recruiter/account/personal",
         icon: UserCircle,
-        matchPrefixes: ["/admin_recruiter/account/personal"],
+        resourceKey: "settings_profile",
+        matchPrefixes: ["/admin_recruiter/account/personal", "/admin_recruiter/account"],
       },
       {
         id: "account",
         label: "Account",
         href: "/admin_recruiter/account/account-settings",
         icon: UserCog,
+        resourceKey: "settings_profile",
         matchPrefixes: [
           "/admin_recruiter/account/account-settings",
           "/admin_recruiter/account/business-info",
@@ -95,6 +100,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Branding",
         href: "/admin_recruiter/settings/branding",
         icon: Wand2,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/branding", "/admin_recruiter/settings/hiring-theme"],
       },
       {
@@ -102,6 +108,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Notifications",
         href: "/admin_recruiter/notifications",
         icon: Bell,
+        resourceKey: "settings_notifications",
         matchPrefixes: ["/admin_recruiter/notifications"],
       },
       {
@@ -109,6 +116,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Security",
         href: "/admin_recruiter/settings/security",
         icon: ShieldCheck,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/security"],
       },
     ],
@@ -122,11 +130,11 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Automation",
         href: "/admin_recruiter/dashboard/onboarding-flows",
         icon: Workflow,
+        resourceKey: "settings_automation",
         matchPrefixes: [
           "/admin_recruiter/dashboard/onboarding-flows",
           "/admin_recruiter/dashboard/workflow-mappings",
           "/admin_recruiter/dashboard/workflowlibrary",
-          "/admin_recruiter/dashboard/templates",
           "/admin_recruiter/dashboard/onboarding-builder",
         ],
       },
@@ -141,6 +149,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Profession",
         href: "/admin_recruiter/settings/profession",
         icon: Briefcase,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/profession"],
       },
       {
@@ -148,6 +157,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Assessment",
         href: "/admin_recruiter/settings/assessment",
         icon: ClipboardList,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/assessment"],
       },
       {
@@ -155,14 +165,21 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Statuses",
         href: "/admin_recruiter/settings/statuses",
         icon: ListChecks,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/statuses"],
       },
       {
         id: "templates",
         label: "Templates",
-        href: "/admin_recruiter/template-builder",
+        href: "/admin_recruiter/settings/templates",
         icon: FileStack,
-        matchPrefixes: ["/admin_recruiter/template-builder", "/admin_recruiter/email-templates"],
+        resourceKey: "settings_templates",
+        matchPrefixes: [
+          "/admin_recruiter/settings/templates",
+          "/admin_recruiter/template-builder",
+          "/admin_recruiter/email-templates",
+          "/admin_recruiter/dashboard/templates",
+        ],
       },
     ],
   },
@@ -175,6 +192,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Admin Console",
         href: "/admin_recruiter/settings/admin-console",
         icon: Monitor,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/admin-console"],
       },
       {
@@ -182,6 +200,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Roles & Permissions",
         href: "/admin_recruiter/settings/roles",
         icon: UserPlus,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/roles"],
       },
       {
@@ -189,6 +208,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Departments",
         href: "/admin_recruiter/settings/departments",
         icon: Building2,
+        resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/departments"],
       },
     ],
@@ -202,6 +222,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Help & Support",
         href: "/admin_recruiter/help-support",
         icon: LifeBuoy,
+        resourceKey: "settings_help",
         matchPrefixes: ["/admin_recruiter/help-support"],
       },
     ],
@@ -215,7 +236,8 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         label: "Reports",
         href: "/admin_recruiter/reports",
         icon: BarChart3,
-        matchPrefixes: ["/admin_recruiter/reports"],
+        resourceKey: "settings_reports",
+        matchPrefixes: ["/admin_recruiter/reports", "/admin_recruiter/settings/reports"],
       },
     ],
   },
@@ -258,6 +280,10 @@ export const SETTINGS_SECTION_META: Record<
     title: "Security",
     description: "Authenticator app codes for staff sign-in.",
   },
+  templates: {
+    title: "Templates",
+    description: "Document, email, and onboarding templates.",
+  },
   "hiring-theme": {
     title: "Hiring journey",
     description: "Customize colors used across the hiring journey experience.",
@@ -283,6 +309,21 @@ export function isSettingsNavItemActive(item: SettingsNavItem, pathname: string)
   );
 }
 
+/** Hide Settings mini-sidebar rows the signed-in role cannot view. */
+export function visibleSettingsNavGroups(
+  groups: SettingsNavGroup[],
+  viewKeys: ReadonlySet<string> | null,
+  unrestricted = false
+): SettingsNavGroup[] {
+  if (unrestricted || viewKeys?.has("*") || viewKeys === null) return groups;
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => viewKeys.has(item.resourceKey)),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
 /** Default landing page when opening Settings from the main sidebar. */
 export const SETTINGS_LANDING_HREF = "/admin_recruiter/settings/branding";
 
@@ -291,6 +332,19 @@ export const SETTINGS_MINI_SIDEBAR_PREFIXES: string[] = Array.from(
   new Set(
     SETTINGS_NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.matchPrefixes)).concat([
       "/admin_recruiter/settings",
+      "/admin_recruiter/account",
+      "/admin_recruiter/notifications",
+      "/admin_recruiter/dashboard/onboarding-flows",
+      "/admin_recruiter/dashboard/workflow-mappings",
+      "/admin_recruiter/dashboard/workflowlibrary",
+      "/admin_recruiter/dashboard/workflow-builder",
+      "/admin_recruiter/dashboard/workflows",
+      "/admin_recruiter/dashboard/templates",
+      "/admin_recruiter/dashboard/onboarding-builder",
+      "/admin_recruiter/template-builder",
+      "/admin_recruiter/email-templates",
+      "/admin_recruiter/help-support",
+      "/admin_recruiter/reports",
     ])
   )
 );
@@ -303,3 +357,4 @@ export function isSettingsMiniSidebarPath(pathname: string): boolean {
     (prefix) => path === prefix || path.startsWith(`${prefix}/`)
   );
 }
+

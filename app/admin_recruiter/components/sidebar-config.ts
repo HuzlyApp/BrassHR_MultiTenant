@@ -182,9 +182,22 @@ const TEMPLATES_CHILDREN: SidebarLink[] = [
     href: EMAIL_TEMPLATES_ROUTE,
     matchPrefixes: [EMAIL_TEMPLATES_ROUTE],
   },
+  {
+    label: "Onboarding Templates",
+    href: "/admin_recruiter/dashboard/templates",
+    matchPrefixes: ["/admin_recruiter/dashboard/templates"],
+  },
 ];
 
-const TEMPLATES_ACTIVE_PREFIXES = [EMAIL_TEMPLATES_ROUTE, TEMPLATE_BUILDER_ROUTE];
+const TEMPLATES_ACTIVE_PREFIXES = [
+  EMAIL_TEMPLATES_ROUTE,
+  TEMPLATE_BUILDER_ROUTE,
+  "/admin_recruiter/settings/templates",
+  "/admin_recruiter/dashboard/templates",
+];
+
+const JOBS_ROUTE = "/admin_recruiter/jobs";
+
 
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
   {
@@ -197,6 +210,12 @@ const RECRUITMENT_CHILDREN: SidebarLink[] = [
     href: "/admin_recruiter/calendar",
     matchPrefixes: ["/admin_recruiter/calendar"],
     matchExact: true,
+  },
+  {
+    label: "Jobs",
+    href: JOBS_ROUTE,
+    resourceKey: "jobs",
+    matchPrefixes: [JOBS_ROUTE],
   },
 ];
 
@@ -261,7 +280,7 @@ const ORGANIZATION_CHILDREN: SidebarLink[] = [
   },
 ];
 
-const JOBS_ROUTE = "/admin_recruiter/jobs";
+// Jobs moved under Hiring
 
 const DASHBOARD_ACTIVE_PREFIXES = [DASHBOARD_OVERVIEW_BASE];
 
@@ -513,18 +532,10 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "#",
     iconType: ICON.candidates,
     matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
-    children: [
-      ...RECRUITMENT_CHILDREN.map((child) => ({
-        ...child,
-        resourceKey: child.resourceKey ?? "hiring",
-      })),
-      {
-        label: "Jobs",
-        href: JOBS_ROUTE,
-        resourceKey: "jobs",
-        matchPrefixes: [JOBS_ROUTE],
-      },
-    ],
+    children: RECRUITMENT_CHILDREN.map((child) => ({
+      ...child,
+      resourceKey: child.resourceKey ?? "hiring",
+    })),
   },
   {
     label: "People",
@@ -543,7 +554,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: ORGANIZATION_CHILDREN,
   },
   {
-    label: "Schedule",
+    label: "Scheduling",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
@@ -640,13 +651,6 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.organization,
     matchPrefixes: ["/admin_recruiter/facilities"],
     children: ORGANIZATION_CHILDREN,
-  },
-  {
-    label: "Jobs",
-    href: JOBS_ROUTE,
-    resourceKey: "jobs",
-    iconType: ICON.jobs,
-    matchPrefixes: [JOBS_ROUTE],
   },
   {
     label: "Automation",

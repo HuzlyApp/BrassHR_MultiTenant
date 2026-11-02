@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
 import SettingsSectionHeader from "@/app/admin_recruiter/settings/SettingsSectionHeader";
+import TemplatesSettingsPanel from "@/app/admin_recruiter/settings/TemplatesSettingsPanel";
 import {
   SETTINGS_SECTION_META,
   type SettingsSectionSlug,
@@ -59,6 +60,8 @@ function resourceKeyForSection(section: SettingsSectionSlug): string {
     case "statuses":
     case "security":
       return "settings_company";
+    case "templates":
+      return "settings_templates";
     default:
       return "settings_company";
   }
@@ -87,13 +90,15 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
   }
 
   return (
-    <div className="mx-auto w-full max-w-[960px] space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       {showPageHeader ? (
         <SettingsSectionHeader title={meta.title} description={meta.description} />
       ) : null}
 
       {section === "roles" ? (
         <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />
+      ) : section === "templates" ? (
+        <TemplatesSettingsPanel />
       ) : (
         <fieldset
           disabled={!canEdit && section !== "security"}

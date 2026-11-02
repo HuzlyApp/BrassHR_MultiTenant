@@ -11,25 +11,6 @@ import {
 } from "@/app/admin_recruiter/settings/settings-nav";
 import { useStaffModuleAccess } from "@/lib/admin/hooks/use-staff-module-access";
 
-/** Map settings nav ids to MultiTenant permission resource keys. */
-const NAV_ITEM_RESOURCE_KEY: Partial<Record<SettingsNavItem["id"], string>> = {
-  profile: "settings_profile",
-  account: "settings_profile",
-  branding: "settings_company",
-  notifications: "settings_notifications",
-  security: "settings_company",
-  automation: "settings_automation",
-  profession: "settings_company",
-  assessment: "settings_company",
-  statuses: "settings_company",
-  templates: "settings_company",
-  "admin-console": "settings_company",
-  roles: "settings_company",
-  departments: "settings_company",
-  help: "settings_help",
-  reports: "settings_reports",
-};
-
 function NavItemLink({
   item,
   active,
@@ -64,9 +45,7 @@ function NavItemLink({
 
 function itemVisible(item: SettingsNavItem, viewKeys: ReadonlySet<string>, godAdmin: boolean): boolean {
   if (godAdmin || viewKeys.has("*")) return true;
-  const resourceKey = NAV_ITEM_RESOURCE_KEY[item.id];
-  if (!resourceKey) return true;
-  return viewKeys.has(resourceKey);
+  return viewKeys.has(item.resourceKey);
 }
 
 function visibleSettingsNavGroups(
@@ -99,7 +78,7 @@ export default function SettingsSidebar() {
   return (
     <aside
       aria-label="Settings sections"
-      className="z-10 hidden h-full min-h-0 w-[195px] shrink-0 overflow-y-auto overscroll-y-contain border-x border-[#E5E7EB] bg-white px-3.5 py-5 lg:block"
+      className="z-10 hidden h-full min-h-0 w-[195px] shrink-0 overflow-y-auto overscroll-y-contain border-x border-[#E5E7EB] bg-white px-3.5 py-5 md:block"
     >
       <nav className="flex flex-col gap-3">
         {loading && groups.length === 0 ? (
