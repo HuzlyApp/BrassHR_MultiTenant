@@ -398,12 +398,21 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const name = job.profession?.trim();
     if (!name || !options?.professions?.length) return;
     const nextId = matchProfessionIdByName(options.professions, name);
-    if ((job.professionId || null) === (nextId || null)) return;
+    if (!nextId || (job.professionId || null) === nextId) return;
     setJob((current) => ({
       ...current,
       professionId: nextId ?? "",
       specialtyId: (current.professionId || null) === (nextId || null) ? current.specialtyId : null,
     }));
+  }, [job.profession, job.professionId, options?.professions]);
+
+  const professionChoices = useMemo(() => {
+    const rows = options?.professions ?? [];
+    const currentId = job.professionId?.trim();
+    if (!currentId || rows.some((item) => item.id === currentId)) return rows;
+    const name = job.profession?.trim();
+    if (!name) return rows;
+    return [...rows, { id: currentId, name }];
   }, [job.profession, job.professionId, options?.professions]);
 
   function updateJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
@@ -948,7 +957,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   job={job}
                   ui={ui}
                   fieldErrors={fieldErrors}
-                  professions={options?.professions ?? []}
+                  professions={professionChoices}
                   employmentTypes={options?.employmentTypes ?? ["W2", "1099"]}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
@@ -989,7 +998,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   job={job}
                   ui={ui}
                   fieldErrors={fieldErrors}
-                  professions={options?.professions ?? []}
+                  professions={professionChoices}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
                   onServiceAreaBlockedChange={onServiceAreaBlockedChange}
@@ -1137,7 +1146,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ui={ui}
         brandStyle={brandStyle}
         brandVars={brandVars}
-        professions={options?.professions ?? []}
+        professions={professionChoices}
         employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
         sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
         employerOfRecordOptions={options?.employerOfRecordOptions ?? []}

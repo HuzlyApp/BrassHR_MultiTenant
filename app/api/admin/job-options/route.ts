@@ -17,11 +17,10 @@ export async function GET() {
 
     const [professions, specialties, workflows, tenant] = await Promise.all([
       supabase
-        .from("professions")
-        .select("id, name, code")
-        .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
+        .from("tenant_professions")
+        .select("id, name")
+        .eq("tenant_id", tenantId)
         .eq("is_active", true)
-        .order("sort_order", { ascending: true })
         .order("name"),
       supabase
         .from("specialties")
