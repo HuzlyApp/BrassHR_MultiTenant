@@ -2,7 +2,7 @@ export const CANDIDATE_DETAIL_BASE_TABS = [
   // "Checklist", // Commented out for now; will be used in future
   "Profile",
   "Resume",
-  // "Applications", // Figma tab — no dedicated candidate-detail route yet
+  "Applications",
   "AI Analysis",
   "Skill Assessments",
   // "Licenses & Certifications", // Figma tab — content lives on Profile for now

@@ -3,7 +3,7 @@ import { normalizeBrandingFontId } from "@/lib/tenant/tenant-branding";
 import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 
 export const TENANT_BRANDING_SELECT =
-  "id, name, slug, logo_url, login_logo_url, signup_logo_url, favicon_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color";
+  "id, name, slug, logo_url, login_logo_url, signup_logo_url, favicon_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color, hire_journey_theme";
 
 export type TenantBrandingUpdateInput = {
   primaryColor?: string | null;

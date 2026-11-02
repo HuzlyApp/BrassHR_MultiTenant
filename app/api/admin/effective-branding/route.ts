@@ -8,11 +8,16 @@ import { resolveEffectiveAdminTenantIdCached } from "@/lib/auth/resolve-effectiv
 import { buildCacheKey, CACHE_TTL_SECONDS, getCache, getOrSetCache, setCache } from "@/lib/cache";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 import type { StaffApiAuthContext } from "@/lib/auth/api-session";
+import {
+  EMPTY_HIRE_JOURNEY_THEME,
+  parseHireJourneyTheme,
+  type HireJourneyThemeOverrides,
+} from "@/lib/tenant/hire-journey-theme";
 
 async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
   return getOrSetCache(
     buildCacheKey("tenants", ["tenant", id, "branding"], {
-      fields: "branding",
+      fields: "branding+hire_journey_theme",
     }),
     async () => {
       const sb = createServiceRoleClient();
@@ -30,6 +35,7 @@ async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
 
 type EffectiveBrandingResponse = {
   branding: ReturnType<typeof defaultTenantBranding>;
+  hireJourneyTheme: HireJourneyThemeOverrides;
   viewer: {
     godAdmin: boolean;
     scoped: boolean;
@@ -43,6 +49,7 @@ function buildUnscopedPayload(auth: StaffApiAuthContext): EffectiveBrandingRespo
   const branding = defaultTenantBranding();
   return {
     branding,
+    hireJourneyTheme: EMPTY_HIRE_JOURNEY_THEME,
     viewer: { godAdmin: auth.godAdmin, scoped: false, tenantId: null, tenantName: null },
     ...(process.env.NODE_ENV !== "production"
       ? {
@@ -54,6 +61,7 @@ function buildUnscopedPayload(auth: StaffApiAuthContext): EffectiveBrandingRespo
             tenantId: null,
             tenantName: null,
             branding,
+            hireJourneyTheme: EMPTY_HIRE_JOURNEY_THEME,
           },
         }
       : {}),
@@ -66,8 +74,10 @@ function buildScopedPayload(
   row: TenantBrandingRow | null,
 ): EffectiveBrandingResponse {
   const branding = brandingFromTenantRow(row);
+  const hireJourneyTheme = parseHireJourneyTheme(row?.hire_journey_theme);
   return {
     branding,
+    hireJourneyTheme,
     viewer: {
       godAdmin: auth.godAdmin,
       scoped: true,
@@ -84,6 +94,7 @@ function buildScopedPayload(
             tenantId,
             tenantName: row?.name ?? null,
             branding,
+            hireJourneyTheme,
           },
         }
       : {}),

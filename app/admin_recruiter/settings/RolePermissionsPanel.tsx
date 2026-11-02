@@ -48,10 +48,10 @@ const ROLE_ICONS = {
   plus: "/icons/roles-permissions/plus.svg",
   crown: "/icons/roles-permissions/crown.svg",
   users: "/icons/roles-permissions/users.svg",
-  userSearch: "/icons/roles-permissions/user-search.svg",
-  personSupport: "/icons/roles-permissions/person-support.svg",
-  receipt: "/icons/roles-permissions/receipt.svg",
+  person: "/icons/roles-permissions/person.svg",
   headset: "/icons/roles-permissions/headset.svg",
+  building: "/icons/roles-permissions/building.svg",
+  gear: "/icons/roles-permissions/gear.svg",
 } as const;
 
 type RoleIconName = keyof typeof ROLE_ICONS;
@@ -66,24 +66,29 @@ type RoleVisual = {
 };
 
 const ROLE_VISUALS: RoleVisual[] = [
-  { typeLabel: "Admin", tint: "rgba(66,133,244,0.15)", color: "#4285f4", icon: "crown", iconWidth: 14.5334, iconHeight: 12.6561 },
+  { typeLabel: "Admin", tint: "rgba(66,133,244,0.15)", color: "#4285f4", icon: "crown", iconWidth: 14.5, iconHeight: 12.7 },
   { typeLabel: "Recruitment", tint: "rgba(244,93,72,0.15)", color: "#f45d48", icon: "users", iconWidth: 16, iconHeight: 16 },
-  { typeLabel: "HR", tint: "rgba(0,181,70,0.15)", color: "#00b546", icon: "userSearch", iconWidth: 12.5334, iconHeight: 13.8667 },
-  { typeLabel: "Support", tint: "rgba(255,187,0,0.15)", color: "#bc8b41", icon: "personSupport", iconWidth: 16, iconHeight: 16 },
-  { typeLabel: "Finance", tint: "rgba(54,197,240,0.15)", color: "#36c5f0", icon: "receipt", iconWidth: 16, iconHeight: 16 },
-  { typeLabel: "Support", tint: "rgba(124,58,237,0.15)", color: "#7c3aed", icon: "headset", iconWidth: 13.1984, iconHeight: 13.9677 },
+  { typeLabel: "HR", tint: "rgba(0,181,70,0.15)", color: "#00b546", icon: "person", iconWidth: 14, iconHeight: 14 },
+  { typeLabel: "Support", tint: "rgba(255,187,0,0.15)", color: "#bc8b41", icon: "headset", iconWidth: 14, iconHeight: 14 },
+  { typeLabel: "Finance", tint: "rgba(54,197,240,0.15)", color: "#36c5f0", icon: "building", iconWidth: 14, iconHeight: 14 },
+  { typeLabel: "Support", tint: "rgba(124,58,237,0.15)", color: "#7c3aed", icon: "gear", iconWidth: 14, iconHeight: 14 },
 ];
 
 const PAGE_SIZES = [6, 10, 20] as const;
 
 function visualForRole(role: RoleRow, index: number): RoleVisual {
   const key = role.roleKey.toLowerCase();
-  if (role.isAdmin || key === "admin" || key.includes("administrator")) return ROLE_VISUALS[0];
-  if (key.includes("recruit")) return ROLE_VISUALS[1];
-  if (key === "hr" || key.includes("human")) return ROLE_VISUALS[2];
-  if (key.includes("finance") || key.includes("billing")) return ROLE_VISUALS[4];
-  if (key.includes("customer") || key.includes("service")) return ROLE_VISUALS[3];
-  if (key.includes("support") || key.includes("system")) return ROLE_VISUALS[5];
+  const label = role.label.toLowerCase();
+  if (role.isAdmin || key === "admin" || key.includes("administrator") || label.includes("administrator")) {
+    return ROLE_VISUALS[0];
+  }
+  if (key.includes("recruit") || label.includes("recruiter")) return ROLE_VISUALS[1];
+  if (key === "hr" || key.includes("human") || label.includes("human resource")) return ROLE_VISUALS[2];
+  if (key.includes("finance") || key.includes("billing") || label.includes("finance")) return ROLE_VISUALS[4];
+  if (key.includes("customer") || label.includes("customer service")) return ROLE_VISUALS[3];
+  if (key.includes("system") || label.includes("system support") || key.includes("support")) {
+    return ROLE_VISUALS[5];
+  }
   return ROLE_VISUALS[index % ROLE_VISUALS.length];
 }
 
@@ -143,6 +148,7 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
   const [grants, setGrants] = useState<Grant[]>([]);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
+  const [roleTypeFilter, setRoleTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(6);
   const [page, setPage] = useState(1);
@@ -178,14 +184,22 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
 
   const filteredRoles = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return roles.filter((role) => {
+    return roles.filter((role, index) => {
       const matchesQuery =
         !needle ||
         role.label.toLowerCase().includes(needle) ||
         role.description.toLowerCase().includes(needle);
-      return statusFilter === "inactive" ? false : matchesQuery;
+      const matchesType =
+        roleTypeFilter === "all" || visualForRole(role, index).typeLabel === roleTypeFilter;
+      const matchesStatus = statusFilter !== "inactive";
+      return matchesQuery && matchesType && matchesStatus;
     });
-  }, [query, roles, statusFilter]);
+  }, [query, roleTypeFilter, roles, statusFilter]);
+
+  const roleTypeOptions = useMemo(
+    () => Array.from(new Set(ROLE_VISUALS.map((visual) => visual.typeLabel))),
+    []
+  );
 
   const pageCount = Math.max(1, Math.ceil(filteredRoles.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -193,7 +207,7 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
 
   useEffect(() => {
     setPage(1);
-  }, [query, statusFilter, pageSize]);
+  }, [query, roleTypeFilter, statusFilter, pageSize]);
 
   function openCreate() {
     setEditing(null);
@@ -281,29 +295,64 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
       className="flex flex-col gap-6"
       style={{ fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif" }}
     >
-      <div>
-        <h1 className="text-xl font-semibold leading-7 text-black">Roles & Permissions</h1>
-        <p className="text-xs font-normal leading-4 text-[#6B7280]">Manage users, roles, and access permissions.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold leading-7 text-black">Roles & Permissions</h1>
+          <p className="text-xs font-normal leading-4 text-[#6B7280]">
+            Manage users, roles, and access permissions.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openCreate}
+          disabled={!canEdit || loading}
+          className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#012352] px-4 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          <img src={ROLE_ICONS.plus} width={14} height={14} alt="" />
+          Create Custom Role
+        </button>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex h-[30px] w-full items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 sm:w-[200px]">
-          <img src={ROLE_ICONS.search} width={12} height={12} alt="" />
+        <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-3 sm:max-w-[320px]">
+          <img src={ROLE_ICONS.search} width={14} height={14} alt="" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search roles..."
             aria-label="Search roles"
-            className="min-w-0 flex-1 bg-transparent text-[10px] font-normal leading-[15px] text-black outline-none placeholder:text-[#94A3B8]"
+            className="min-w-0 flex-1 bg-transparent text-sm font-normal text-black outline-none placeholder:text-[#94A3B8]"
           />
         </label>
-        <div className="flex items-center gap-2.5">
-          <div className="relative w-[200px]">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative w-[160px]">
+            <select
+              value={roleTypeFilter}
+              onChange={(event) => setRoleTypeFilter(event.target.value)}
+              aria-label="All Roles"
+              className="h-10 w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-8 text-sm font-normal text-black outline-none"
+            >
+              <option value="all">All Roles</option>
+              {roleTypeOptions.map((typeLabel) => (
+                <option key={typeLabel} value={typeLabel}>
+                  {typeLabel}
+                </option>
+              ))}
+            </select>
+            <img
+              src={ROLE_ICONS.chevron}
+              width={16}
+              height={16}
+              alt=""
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
+            />
+          </div>
+          <div className="relative w-[160px]">
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}
               aria-label="All statuses"
-              className="h-[30px] w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-2.5 pr-8 text-[10px] font-normal leading-[15px] text-black outline-none"
+              className="h-10 w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-8 text-sm font-normal text-black outline-none"
             >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
@@ -317,15 +366,6 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
               className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
             />
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            disabled={!canEdit || loading}
-            className="flex h-[30px] shrink-0 items-center gap-1 rounded-lg bg-[#012352] px-2.5 text-[10px] font-semibold leading-[15px] text-white disabled:opacity-60"
-          >
-            <img src={ROLE_ICONS.plus} width={12} height={12} alt="" />
-            Create Custom Role
-          </button>
         </div>
       </div>
 
@@ -403,7 +443,7 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
                             onClick={() => openEdit(role)}
                             className="text-[10px] font-semibold leading-[15px] text-[#012352]"
                           >
-                            Edit Permission
+                            View Details
                           </button>
                         </div>
                       </Fragment>

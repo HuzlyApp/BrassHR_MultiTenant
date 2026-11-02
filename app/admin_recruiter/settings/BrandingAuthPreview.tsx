@@ -47,7 +47,7 @@ function PreviewRightPanel({
   const logo = normalizeBrandingImageSrc(logoSrc, "/images/new-logo-nexus.svg", { allowBlob: true });
 
   return (
-    <div className="relative hidden min-h-[260px] overflow-hidden sm:block">
+    <div className="relative hidden min-h-[220px] h-full overflow-hidden sm:block">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={panelSrc} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60 grayscale" />
       <div className="absolute inset-0 bg-white/65" />
@@ -199,7 +199,7 @@ function SignupPreview({ branding }: { branding: TenantBranding }) {
   return (
     <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white" style={shellStyle}>
       <div className="grid items-stretch sm:grid-cols-[56%_44%]">
-        <div className="flex flex-col p-5 pb-6">
+        <div className="flex flex-col p-4 pb-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={signupLogo} alt="" className="h-6 w-auto max-w-[88px] object-contain object-left" />
 

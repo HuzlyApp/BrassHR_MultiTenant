@@ -68,6 +68,11 @@ export async function invalidateTenantBrandingCache(
         fields: "branding",
       })
     ),
+    deleteCache(
+      buildCacheKey("tenants", ["tenant", tenantId, "branding"], {
+        fields: "branding+hire_journey_theme",
+      })
+    ),
     ...patterns.map((pattern) => deleteByPattern(pattern)),
   ]);
 }

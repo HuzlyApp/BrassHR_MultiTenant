@@ -4,6 +4,18 @@ import {
   normalizeApplicationStatus,
 } from "@/lib/jobs/application-status";
 import { formatMatchCategory, isStrongAiMatchScore } from "@/lib/jobs/match-analysis/display";
+import {
+  matchWorkspaceIsAnalyzed,
+  publicMatchScore,
+} from "@/lib/jobs/match-analysis/match-stage";
+import {
+  fitBandFromQuickRoute,
+  quickRouteFromAnalysis,
+} from "@/lib/jobs/match-analysis/quick-route";
+import {
+  fitBandLabel,
+  listingDisplayFitBand,
+} from "@/lib/jobs/match-analysis/progression";
 import { isConvertedPipelineStatus } from "@/lib/workers/candidate-status-label";
 
 export type CandidateProfileResume = {
@@ -19,7 +31,13 @@ export type CandidateProfileApplication = {
   jobRequisitionId: string;
   jobTitle: string;
   companyName: string;
+  clientName: string;
+  facilityName: string;
   workType: string;
+  location: string;
+  billRate: string | null;
+  agreedPayRate: string | null;
+  jobStatus: string | null;
   appliedAt: string;
   status: string;
   statusName: string;
@@ -31,6 +49,10 @@ export type CandidateProfileApplication = {
   matchScore: number | null;
   matchCategory: string | null;
   matchStatus: string | null;
+  /** Strong / Review / Low — derived for Figma Applications table. */
+  matchFitLabel: string | null;
+  matchStage?: string | null;
+  matchDisplayCategory?: string | null;
   resume?: CandidateProfileResume | null;
 };
 
@@ -253,6 +275,107 @@ export function isActiveApplicant(
     const status = normalizeApplicationStatus(row.status);
     return status !== "rejected" && status !== "archived";
   });
+}
+
+/** Figma Applications table Match Status (Strong / Review / Low / …). */
+export function formatProfileMatchStatusLabel(
+  category: string | null | undefined,
+  score?: number | null
+): string {
+  if (category?.trim()) {
+    const label = formatMatchCategory(category);
+    return label.replace(/\s+Match$/i, "").trim() || label;
+  }
+  if (score != null && Number.isFinite(score)) {
+    if (isStrongAiMatchScore(score)) return "Strong";
+    if (score >= 50) return "Review";
+    return "Low";
+  }
+  return "—";
+}
+
+function analysisCandidateMatch(analysis: unknown): {
+  match_category?: string | null;
+  display_category?: string | null;
+  recommended_overall_match_score?: number | null;
+} | null {
+  if (!analysis || typeof analysis !== "object") return null;
+  const match = (analysis as { candidate_match?: unknown }).candidate_match;
+  if (!match || typeof match !== "object") return null;
+  return match as {
+    match_category?: string | null;
+    display_category?: string | null;
+    recommended_overall_match_score?: number | null;
+  };
+}
+
+/**
+ * Resolve Figma Match Status + Match Score from denormalized columns and/or ai_analysis.
+ * Quick Match clears ai_match_score by design; status still comes from quick_route / fit band.
+ */
+export function resolveProfileApplicationMatchDisplay(input: {
+  matchStatus: string | null | undefined;
+  matchStage: string | null | undefined;
+  matchScore: number | null | undefined;
+  matchCategory: string | null | undefined;
+  matchDisplayCategory: string | null | undefined;
+  aiAnalysis?: unknown;
+}): { statusLabel: string; score: number | null; category: string | null } {
+  const analysisMatch = analysisCandidateMatch(input.aiAnalysis);
+  const hasAnalysis = Boolean(input.aiAnalysis && typeof input.aiAnalysis === "object");
+  const analyzed = matchWorkspaceIsAnalyzed({
+    status: input.matchStatus,
+    stage: input.matchStage,
+    hasAnalysis,
+  });
+
+  const category =
+    input.matchCategory?.trim() ||
+    analysisMatch?.match_category?.trim() ||
+    null;
+  const displayCategory =
+    input.matchDisplayCategory?.trim() ||
+    analysisMatch?.display_category?.trim() ||
+    null;
+  const analysisScore =
+    analysisMatch?.recommended_overall_match_score == null ||
+    !Number.isFinite(Number(analysisMatch.recommended_overall_match_score))
+      ? null
+      : Number(analysisMatch.recommended_overall_match_score);
+  const rawScore =
+    input.matchScore == null || !Number.isFinite(Number(input.matchScore))
+      ? analysisScore
+      : Number(input.matchScore);
+  const score = publicMatchScore(input.matchStage, rawScore);
+
+  if (!analyzed) {
+    return { statusLabel: "—", score: null, category };
+  }
+
+  const route = quickRouteFromAnalysis(input.aiAnalysis);
+  const band = listingDisplayFitBand({
+    analyzed: true,
+    stage: input.matchStage,
+    category,
+    displayCategory,
+    score: rawScore,
+    counts: { quickRoute: route },
+  });
+  if (band) {
+    return { statusLabel: fitBandLabel(band), score, category };
+  }
+  if (route) {
+    return { statusLabel: fitBandLabel(fitBandFromQuickRoute(route)), score, category };
+  }
+  if (displayCategory) {
+    const short = displayCategory.replace(/\s+match$/i, "").trim();
+    return { statusLabel: short || displayCategory, score, category };
+  }
+  return {
+    statusLabel: formatProfileMatchStatusLabel(category, score ?? rawScore),
+    score,
+    category,
+  };
 }
 
 export function pickBestMatch(
