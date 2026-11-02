@@ -182,6 +182,17 @@ export type CandidateStepReview = {
   canComplete: boolean;
 };
 
+/** Hire-journey Mark as complete on behalf of the candidate while the step is still open. */
+export function recruiterCanCompleteOpenCandidateStep(params: {
+  status: string | null | undefined;
+  authorizationEsign: boolean;
+  authorizationConfirmation: boolean;
+}): boolean {
+  if (!(params.authorizationConfirmation || !params.authorizationEsign)) return false;
+  const status = String(params.status ?? "").trim().toLowerCase();
+  return status !== "completed" && status !== "skipped";
+}
+
 export const CANDIDATE_STEP_AWAITING_REVIEW_MESSAGE =
   "The candidate submitted this step. Review their submission below, then click Mark as complete to verify it.";
 
@@ -360,7 +371,7 @@ const CANDIDATE_SCREEN_BY_KIND: Partial<Record<WorkflowStepInspectionKind, strin
   form: "answers it on this step's screen",
 };
 
-/** Candidate-owned step with nothing submitted yet: who does it and where, since staff have no buttons. */
+/** Candidate-owned step with nothing submitted yet: who does it and where; staff can still Mark as complete. */
 export function candidateWaitingMessage(
   kind: WorkflowStepInspectionKind,
   status: OnboardingStepStatus,
@@ -1640,18 +1651,22 @@ export async function loadCandidateWorkflowStepInspection(
   const staffDecisionBy = staffDecision
     ? reviewerLabel(staffDecision.reviewedByUserId, staffDecision.reviewedByName, reviewerById)
     : null;
+  // Stale review_decision/verifiedAt must not block Mark as complete when progress still
+  // shows the step open (e.g. an earlier on-behalf complete updated the record only).
+  const verificationHolds = Boolean(mapped.verifiedAt) && mapped.status === "completed";
   const candidateReview: CandidateStepReview | null = candidateStep
     ? {
-        verified: Boolean(mapped.verifiedAt),
-        verifiedAt: mapped.verifiedAt ?? null,
-        verifiedBy: mapped.verifiedAt
+        verified: verificationHolds,
+        verifiedAt: verificationHolds ? mapped.verifiedAt ?? null : null,
+        verifiedBy: verificationHolds
           ? reviewerLabel(verifiedByUserId, mapped.verifiedByName, reviewerById)
           : null,
         canVerify,
-        canComplete:
-          authorizationConfirmation || !authorizationEsign
-            ? mapped.status !== "completed" && !mapped.verifiedAt
-            : false,
+        canComplete: recruiterCanCompleteOpenCandidateStep({
+          status: mapped.status,
+          authorizationEsign,
+          authorizationConfirmation,
+        }),
       }
     : null;
   // A recruiter verifying a candidate step doesn't make them its completer; completing it
