@@ -108,7 +108,6 @@ import {
 } from "@/lib/onboarding/offer-acceptance";
 import {
   getFirmaRecruiterTemplateId,
-  isFirmaAttachableWorkflowStepId,
   isFirmaSigningComplete,
   workflowStepIdFromMetadata,
 } from "@/lib/onboarding/firma-step-settings";
@@ -759,12 +758,10 @@ export async function loadCandidateWorkflowStepInspection(
       : recordReview ?? progressReview;
   const staffDecision =
     staffReview && staffReview.decision !== "reopen" ? staffReview : null;
-  const usesESign =
-    isFirmaAttachableWorkflowStepId(mapped.stepType) &&
-    Boolean(
-      asText(recordSettings.firmaRecruiterTemplateId) ??
-        (tenantStep ? getFirmaRecruiterTemplateId(tenantStep) : null)
-    );
+  const usesESign = Boolean(
+    asText(recordSettings.firmaRecruiterTemplateId) ??
+      (tenantStep ? getFirmaRecruiterTemplateId(tenantStep) : null)
+  );
   const kind = inspectionKindForStep({
     stepType: mapped.stepType,
     onboardingType: mapped.onboardingType || workflowStepIdToOnboardingType(mapped.stepType),

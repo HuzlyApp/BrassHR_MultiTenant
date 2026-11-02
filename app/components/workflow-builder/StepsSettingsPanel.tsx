@@ -14,7 +14,6 @@ import {
   WORKFLOW_DATE_PRIORITY_OPTIONS,
   WORKFLOW_PROVIDER_OPTIONS,
 } from "@/lib/onboarding/normalize-workflow-settings";
-import { isFirmaAttachableWorkflowStepId } from "@/lib/onboarding/firma-step-settings";
 import {
   COMPLETION_OWNER_OPTIONS,
   isInternalLibraryStepId,
@@ -195,7 +194,6 @@ function SettingsBody({
   const providerOptions = integrationEnabled
     ? [...WORKFLOW_PROVIDER_OPTIONS]
     : (["Manual", "Third-party API"] as const);
-  const showFirmaTemplatePicker = isFirmaAttachableWorkflowStepId(node.data.stepId);
   const checkboxConfirmationStep = isCandidateCheckboxStep({
     metadata: { workflow_step_id: node.data.stepId },
     title: node.data.label,
@@ -286,33 +284,31 @@ function SettingsBody({
           onChange={(v) => onUpdate(node.id, { description: v }, { skipHistory: true })}
           onCommit={(v) => onUpdate(node.id, { description: v })}
         />
-        {showFirmaTemplatePicker ? (
-          <div
-            className="rounded-xl border p-3"
-            style={{ borderColor: "#BC8B41", backgroundColor: "rgba(188, 139, 65, 0.06)" }}
-            data-testid="firma-esign-settings"
-          >
-            <p className="mb-1 text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>
-              E-Signature (Sign Document)
-            </p>
-            <p className="mb-3 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
-              {candidateScreenKind
-                ? "Attach a published signature template to have candidates sign it on this step's screen instead of the built-in form."
-                : "Attach a published signature template so applicants see Sign Document on Authorizations & Documents."}
-            </p>
-            <FirmaTemplateSelect
-              value={settings.firmaRecruiterTemplateId ?? ""}
-              templateName={settings.firmaRecruiterTemplateName}
-              disabled={readOnly}
-              onChange={({ id, name }) =>
-                patchSettings({
-                  firmaRecruiterTemplateId: id,
-                  firmaRecruiterTemplateName: name,
-                })
-              }
-            />
-          </div>
-        ) : null}
+        <div
+          className="rounded-xl border p-3"
+          style={{ borderColor: "#BC8B41", backgroundColor: "rgba(188, 139, 65, 0.06)" }}
+          data-testid="firma-esign-settings"
+        >
+          <p className="mb-1 text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>
+            E-Signature (Sign Document)
+          </p>
+          <p className="mb-3 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
+            {candidateScreenKind
+              ? "Optional. Attach a published signature template to have candidates sign it on this step's screen instead of the built-in form. Leave blank to skip e-signature."
+              : "Optional. Attach a published signature template if applicants should sign a document on this step. Leave blank to skip e-signature."}
+          </p>
+          <FirmaTemplateSelect
+            value={settings.firmaRecruiterTemplateId ?? ""}
+            templateName={settings.firmaRecruiterTemplateName}
+            disabled={readOnly}
+            onChange={({ id, name }) =>
+              patchSettings({
+                firmaRecruiterTemplateId: id,
+                firmaRecruiterTemplateName: name,
+              })
+            }
+          />
+        </div>
         <div
           className="rounded-xl border p-3"
           style={{ borderColor: CARD_BORDER, backgroundColor: "rgba(255, 255, 255, 0.7)" }}

@@ -1,7 +1,11 @@
 import type { StepSettings } from "@/app/components/workflow-builder/types";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
-/** Workflow library steps that can attach a Firma template for embedded signing. */
+/**
+ * Primary workflow library steps that historically shipped with e-sign.
+ * Settings UI allows attaching a Firma template on any step (optional);
+ * this list is still used by seed/snapshot helpers for recommended defaults.
+ */
 export const FIRMA_ATTACHABLE_WORKFLOW_STEP_IDS = [
   "background-check",
   "welcome-packet-esign",
