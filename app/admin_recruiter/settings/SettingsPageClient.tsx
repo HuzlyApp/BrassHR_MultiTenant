@@ -1,193 +1,29 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { Suspense, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
-import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
-import { settingsResourceKeyForSection } from "@/app/admin_recruiter/settings/settings-nav";
-import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import SettingsSectionClient from "@/app/admin_recruiter/settings/SettingsSectionClient";
+import {
+  isSettingsSectionSlug,
+  type SettingsSectionSlug,
+} from "@/app/admin_recruiter/settings/settings-nav";
 
-function SettingsPanelFallback() {
-  return (
-    <div className="space-y-4" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading section</span>
-      <div className="h-5 w-40 rounded bg-[#E5E7EB] motion-safe:animate-pulse" />
-      <div className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
-      <div className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
-    </div>
-  );
-}
-
-const RolePermissionsPanel = dynamic(() => import("@/app/admin_recruiter/settings/RolePermissionsPanel"), {
-  loading: SettingsPanelFallback,
-});
-const AdminConsolePanel = dynamic(() => import("@/app/admin_recruiter/settings/AdminConsolePanel"), {
-  loading: SettingsPanelFallback,
-});
-const ProfessionDocumentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/ProfessionDocumentsPanel"), {
-  loading: SettingsPanelFallback,
-});
-const CandidateStatusesPanel = dynamic(() => import("@/app/admin_recruiter/settings/CandidateStatusesPanel"), {
-  loading: SettingsPanelFallback,
-});
-const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/AssessmentSettingsPanel"), {
-  loading: SettingsPanelFallback,
-});
-const HireJourneyThemePanel = dynamic(() => import("@/app/admin_recruiter/settings/HireJourneyThemePanel"), {
-  loading: SettingsPanelFallback,
-});
-const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/DepartmentsPanel"), {
-  loading: SettingsPanelFallback,
-});
-
-function SettingsSectionIntro({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="mb-[30px]">
-      <h1 className="text-sm font-semibold leading-5 text-black">{title}</h1>
-      <p className="text-[10px] leading-[15px] text-[#6B7280]">{subtitle}</p>
-    </div>
-  );
-}
-
-function SettingsEmptySection({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <section>
-      <SettingsSectionIntro title={title} subtitle={subtitle} />
-      <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-16 text-center text-sm text-[#6B7280]">
-        This section is not set up yet.
-      </div>
-    </section>
-  );
-}
-
-function TemplatesSection() {
-  const links = [
-    {
-      href: "/admin_recruiter/template-builder",
-      title: "Document templates",
-      body: "Build offer letters and other documents.",
-    },
-    {
-      href: "/admin_recruiter/email-templates",
-      title: "Email templates",
-      body: "Edit messages sent to candidates and staff.",
-    },
-    {
-      href: "/admin_recruiter/dashboard/templates",
-      title: "Onboarding templates",
-      body: "Manage templates used in hiring workflows.",
-    },
-  ];
-
-  return (
-    <section>
-      <SettingsSectionIntro title="Templates" subtitle="Document, email, and onboarding templates." />
-      <div className="flex max-w-[634px] flex-col gap-5">
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="rounded-xl border border-[#E5E7EB] bg-white p-3.5 transition hover:border-[#012352]"
-          >
-            <p className="text-xs font-semibold leading-4 text-black">{link.title}</p>
-            <p className="mt-0.5 text-[10px] leading-[15px] text-[#6B7280]">{link.body}</p>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SettingsBody({ section, canEdit, canDelete }: { section: string; canEdit: boolean; canDelete: boolean }) {
-  if (section === "roles") {
-    return <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />;
-  }
-  if (section === "admin-console") {
-    return <AdminConsolePanel />;
-  }
-  if (section === "departments") return <DepartmentsPanel />;
-  if (section === "professions") return <ProfessionDocumentsPanel />;
-  if (section === "statuses") return <CandidateStatusesPanel />;
-  if (section === "assessment") {
-    return (
-      <div className="space-y-6">
-        <AssessmentSettingsPanel />
-        <HireJourneyThemePanel />
-      </div>
-    );
-  }
-  if (section === "templates") return <TemplatesSection />;
-  if (section === "schedule") {
-    return (
-      <SettingsEmptySection
-        title="Schedule & PTO"
-        subtitle="Time off and scheduling rules for your organization."
-      />
-    );
-  }
-  if (section === "integrations") {
-    return (
-      <SettingsEmptySection title="Integrations" subtitle="Connect outside tools to your organization." />
-    );
-  }
-  if (section === "billing") {
-    return <SettingsEmptySection title="Plan & Billing" subtitle="Review your plan and billing details." />;
-  }
-  if (section === "security") {
-    return <SecuritySettingsPanel />;
-  }
-  if (section === "audit-log") {
-    return <SettingsEmptySection title="Audit Log" subtitle="Review changes made across your organization." />;
-  }
-
-  return <BrandingSettingsPanel />;
-}
-
-function SettingsContent({ section }: { section: string }) {
+/**
+ * Legacy entry for /admin_recruiter/settings and older callers that pass a section.
+ * Company settings live under /settings/[section] via SettingsSectionClient.
+ */
+export default function SettingsPageClient({ section }: { section?: string } = {}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const legacyTab = searchParams.get("tab");
-  const resourceKey = settingsResourceKeyForSection(section);
-  const { canView, canEdit, canDelete, loading } = useModulePermission(resourceKey);
 
   useEffect(() => {
-    if (legacyTab) {
-      router.replace("/admin_recruiter/settings");
+    if (!section) {
+      router.replace("/admin_recruiter/settings/branding");
     }
-  }, [legacyTab, router]);
+  }, [section, router]);
 
-  if (!loading && !canView) {
-    return (
-      <main className="min-w-0 flex-1 px-5 py-5 lg:px-8 lg:py-6">
-        <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-16 text-center text-sm text-[#6B7280]">
-          You do not have permission to view this settings section.
-        </div>
-      </main>
-    );
+  if (section && isSettingsSectionSlug(section)) {
+    return <SettingsSectionClient section={section as SettingsSectionSlug} />;
   }
 
-  return (
-    <main
-      className={`min-w-0 flex-1 ${
-        section === "roles" || section === "admin-console" ? "bg-[#F8FAFC] p-6" : "px-5 py-5 lg:px-8 lg:py-6"
-      }`}
-    >
-      <fieldset
-        disabled={!canEdit && section !== "security"}
-        className="min-w-0 border-0 p-0 disabled:opacity-80"
-      >
-        <SettingsBody section={section} canEdit={canEdit} canDelete={canDelete} />
-      </fieldset>
-    </main>
-  );
-}
-
-export default function SettingsPageClient({ section = "branding" }: { section?: string }) {
-  return (
-    <Suspense fallback={null}>
-      <SettingsContent section={section} />
-    </Suspense>
-  );
+  return null;
 }

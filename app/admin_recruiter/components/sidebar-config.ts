@@ -1,10 +1,5 @@
 import type { SidebarIconType } from "@/app/admin_recruiter/components/sidebar-icons";
 import { CANDIDATE_ROUTE_PREFIXES } from "@/app/admin_recruiter/components/candidates-tabs-config";
-import {
-  SETTINGS_NAV_GROUPS,
-  settingsNavMatchPrefixes,
-  type SettingsNavItem,
-} from "@/app/admin_recruiter/settings/settings-nav";
 
 export type SidebarLink = {
   label: string;
@@ -187,9 +182,22 @@ const TEMPLATES_CHILDREN: SidebarLink[] = [
     href: EMAIL_TEMPLATES_ROUTE,
     matchPrefixes: [EMAIL_TEMPLATES_ROUTE],
   },
+  {
+    label: "Onboarding Templates",
+    href: "/admin_recruiter/dashboard/templates",
+    matchPrefixes: ["/admin_recruiter/dashboard/templates"],
+  },
 ];
 
-const TEMPLATES_ACTIVE_PREFIXES = [EMAIL_TEMPLATES_ROUTE, TEMPLATE_BUILDER_ROUTE];
+const TEMPLATES_ACTIVE_PREFIXES = [
+  EMAIL_TEMPLATES_ROUTE,
+  TEMPLATE_BUILDER_ROUTE,
+  "/admin_recruiter/settings/templates",
+  "/admin_recruiter/dashboard/templates",
+];
+
+const JOBS_ROUTE = "/admin_recruiter/jobs";
+
 
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
   {
@@ -202,6 +210,12 @@ const RECRUITMENT_CHILDREN: SidebarLink[] = [
     href: "/admin_recruiter/calendar",
     matchPrefixes: ["/admin_recruiter/calendar"],
     matchExact: true,
+  },
+  {
+    label: "Jobs",
+    href: JOBS_ROUTE,
+    resourceKey: "jobs",
+    matchPrefixes: [JOBS_ROUTE],
   },
 ];
 
@@ -266,7 +280,7 @@ const ORGANIZATION_CHILDREN: SidebarLink[] = [
   },
 ];
 
-const JOBS_ROUTE = "/admin_recruiter/jobs";
+// Jobs moved under Hiring
 
 const DASHBOARD_ACTIVE_PREFIXES = [DASHBOARD_OVERVIEW_BASE];
 
@@ -347,16 +361,73 @@ const EXTRA_TOP_SECTIONS: SidebarSection[] = [
 
 const PROFILE_ROUTE = "/admin_recruiter/account/personal";
 const SETTINGS_ROUTE = "/admin_recruiter/settings";
+const SETTINGS_BRANDING_ROUTE = `${SETTINGS_ROUTE}/branding`;
 const HELP_SUPPORT_ROUTE = "/admin_recruiter/help-support";
 const NOTIFICATIONS_ROUTE = "/admin_recruiter/notifications";
 
 /** Admins see Personal Settings > Profile. Recruiters get Profile as a direct Settings item. */
 const SETTINGS_CHILDREN: SidebarLink[] = [
   {
-    label: "Company settings",
-    href: SETTINGS_ROUTE,
+    label: "Company",
+    href: "#",
     resourceKey: "settings_company",
-    matchPrefixes: [SETTINGS_ROUTE],
+    matchPrefixes: [
+      SETTINGS_BRANDING_ROUTE,
+      `${SETTINGS_ROUTE}/admin-console`,
+      `${SETTINGS_ROUTE}/roles`,
+      `${SETTINGS_ROUTE}/hiring-theme`,
+    ],
+    children: [
+      {
+        label: "Branding",
+        href: SETTINGS_BRANDING_ROUTE,
+        matchPrefixes: [SETTINGS_BRANDING_ROUTE, `${SETTINGS_ROUTE}/hiring-theme`],
+      },
+      {
+        label: "Admin Console",
+        href: `${SETTINGS_ROUTE}/admin-console`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/admin-console`],
+      },
+      {
+        label: "User Roles",
+        href: `${SETTINGS_ROUTE}/roles`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/roles`],
+      },
+    ],
+  },
+  {
+    label: "Hiring Setup",
+    href: "#",
+    resourceKey: "settings_company",
+    matchPrefixes: [
+      `${SETTINGS_ROUTE}/profession`,
+      `${SETTINGS_ROUTE}/assessment`,
+      `${SETTINGS_ROUTE}/statuses`,
+      ...TEMPLATES_ACTIVE_PREFIXES,
+    ],
+    children: [
+      {
+        label: "Professions",
+        href: `${SETTINGS_ROUTE}/profession`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/profession`],
+      },
+      {
+        label: "Statuses",
+        href: `${SETTINGS_ROUTE}/statuses`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/statuses`],
+      },
+      {
+        label: "Assessment",
+        href: `${SETTINGS_ROUTE}/assessment`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/assessment`],
+      },
+      {
+        label: "Templates",
+        href: "#",
+        matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
+        children: TEMPLATES_CHILDREN,
+      },
+    ],
   },
   {
     label: "Personal Settings",
@@ -367,7 +438,20 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
       {
         label: "Profile",
         href: PROFILE_ROUTE,
-        matchPrefixes: ["/admin_recruiter/account"],
+        matchPrefixes: ["/admin_recruiter/account/personal"],
+      },
+      {
+        label: "Account",
+        href: "/admin_recruiter/account/account-settings",
+        matchPrefixes: [
+          "/admin_recruiter/account/account-settings",
+          "/admin_recruiter/account/business-info",
+        ],
+      },
+      {
+        label: "Security",
+        href: "/admin_recruiter/account/security",
+        matchPrefixes: ["/admin_recruiter/account/security"],
       },
     ],
   },
@@ -400,25 +484,17 @@ const SETTINGS_MATCH_PREFIXES = [
   REPORTS_BASE,
 ];
 
-function settingsNavItemToLink(item: SettingsNavItem): SidebarLink {
-  return {
-    label: item.label,
-    href: item.href,
-    resourceKey: item.resourceKey,
-    matchPrefixes: item.matchPrefixes,
-    matchExact: item.matchExact,
-  };
-}
-
-/** Company app settings tree from the branding settings sidebar. */
-const CLIENT_SETTINGS_CHILDREN: SidebarLink[] = SETTINGS_NAV_GROUPS.map((group) => ({
-  label: group.label,
-  href: "#",
-  matchPrefixes: [],
-  children: group.items.map(settingsNavItemToLink),
-}));
-
-const CLIENT_SETTINGS_MATCH_PREFIXES = settingsNavMatchPrefixes();
+/** Company admin: Automation lives under Settings (Templates already under Hiring Setup). */
+const ADMIN_SETTINGS_CHILDREN: SidebarLink[] = [
+  ...SETTINGS_CHILDREN,
+  {
+    label: "Workflows",
+    href: "#",
+    resourceKey: "settings_automation",
+    matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
+    children: AUTOMATION_CHILDREN,
+  },
+];
 
 function settingsSection(children: SidebarLink[], matchPrefixes: string[]): SidebarSection {
   return {
@@ -440,7 +516,7 @@ const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
   settingsSection(SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES),
 ];
 
-const ADMIN_SETTINGS_SECTION = settingsSection(CLIENT_SETTINGS_CHILDREN, CLIENT_SETTINGS_MATCH_PREFIXES);
+const ADMIN_SETTINGS_SECTION = settingsSection(ADMIN_SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES);
 
 /** Company owner / admin recruiter (client login). */
 export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
@@ -456,18 +532,10 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "#",
     iconType: ICON.candidates,
     matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
-    children: [
-      ...RECRUITMENT_CHILDREN.map((child) => ({
-        ...child,
-        resourceKey: child.resourceKey ?? "hiring",
-      })),
-      {
-        label: "Jobs",
-        href: JOBS_ROUTE,
-        resourceKey: "jobs",
-        matchPrefixes: [JOBS_ROUTE],
-      },
-    ],
+    children: RECRUITMENT_CHILDREN.map((child) => ({
+      ...child,
+      resourceKey: child.resourceKey ?? "hiring",
+    })),
   },
   {
     label: "People",
@@ -486,7 +554,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: ORGANIZATION_CHILDREN,
   },
   {
-    label: "Schedule",
+    label: "Scheduling",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
@@ -583,13 +651,6 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.organization,
     matchPrefixes: ["/admin_recruiter/facilities"],
     children: ORGANIZATION_CHILDREN,
-  },
-  {
-    label: "Jobs",
-    href: JOBS_ROUTE,
-    resourceKey: "jobs",
-    iconType: ICON.jobs,
-    matchPrefixes: [JOBS_ROUTE],
   },
   {
     label: "Automation",

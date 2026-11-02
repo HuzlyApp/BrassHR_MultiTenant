@@ -1,5 +1,5 @@
-import SettingsPageClient from "@/app/admin_recruiter/settings/SettingsPageClient";
+import { redirect } from "next/navigation";
 
-export default function SettingsPage() {
-  return <SettingsPageClient section="branding" />;
+export default function SettingsIndexPage() {
+  redirect("/admin_recruiter/settings/branding");
 }
