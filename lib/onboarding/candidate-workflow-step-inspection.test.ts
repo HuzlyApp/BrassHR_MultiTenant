@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   esignInspectionHasSignatureFields,
   inspectionKindForStep,
+  recruiterCanCompleteOpenCandidateStep,
   resumeUploaderLabel,
   reviewerLabel,
   storedFileName,
@@ -145,5 +146,58 @@ describe("reviewerLabel", () => {
   it("falls back to the stored reviewer name", () => {
     expect(reviewerLabel("user-gone", "Test User", staffById)).toBe("Test User");
     expect(reviewerLabel(null, null, staffById)).toBeNull();
+  });
+});
+
+describe("recruiterCanCompleteOpenCandidateStep", () => {
+  it("lets recruiters mark open candidate steps complete, including skill assessment", () => {
+    expect(
+      recruiterCanCompleteOpenCandidateStep({
+        status: "pending",
+        authorizationEsign: false,
+        authorizationConfirmation: false,
+      })
+    ).toBe(true);
+    expect(
+      recruiterCanCompleteOpenCandidateStep({
+        status: "in_progress",
+        authorizationEsign: false,
+        authorizationConfirmation: false,
+      })
+    ).toBe(true);
+  });
+
+  it("hides Mark as complete once the step is finished", () => {
+    expect(
+      recruiterCanCompleteOpenCandidateStep({
+        status: "completed",
+        authorizationEsign: false,
+        authorizationConfirmation: false,
+      })
+    ).toBe(false);
+    expect(
+      recruiterCanCompleteOpenCandidateStep({
+        status: "skipped",
+        authorizationEsign: false,
+        authorizationConfirmation: false,
+      })
+    ).toBe(false);
+  });
+
+  it("blocks Agreement e-sign until the candidate signs, but allows Authorization confirmation", () => {
+    expect(
+      recruiterCanCompleteOpenCandidateStep({
+        status: "pending",
+        authorizationEsign: true,
+        authorizationConfirmation: false,
+      })
+    ).toBe(false);
+    expect(
+      recruiterCanCompleteOpenCandidateStep({
+        status: "pending",
+        authorizationEsign: true,
+        authorizationConfirmation: true,
+      })
+    ).toBe(true);
   });
 });

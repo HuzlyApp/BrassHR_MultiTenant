@@ -33,7 +33,10 @@ import { canStaffAccessPostHireSteps } from "@/lib/onboarding/resolve-candidate-
 import { ensureCandidateConvertedIfAgreementCompleted } from "@/lib/onboarding/auto-convert-after-agreement";
 import { isAgreementEsignStep } from "@/lib/onboarding/lock-post-hire";
 import { loadApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
-import { resolveInstanceApplicationId } from "@/lib/onboarding/scoped-step-progress";
+import {
+  loadScopedStepProgress,
+  resolveInstanceApplicationId,
+} from "@/lib/onboarding/scoped-step-progress";
 import { RECRUITER_SCREENING_STEP_TYPE } from "@/lib/onboarding/recruiter-screening-progress";
 import { advanceApplicationToScreeningComplete } from "@/lib/onboarding/recruiter-screening-status";
 import { isInterviewStep } from "@/lib/onboarding/interview-step";
@@ -286,14 +289,22 @@ export async function loadStaffStepContext(
     }),
   ]);
   const tenantSteps = config?.steps ?? [];
+  // Match the same tenant step the hire-journey inspection uses (prefer the row with
+  // progress). Completing without progress often left the record done and the portal open.
+  const progressByStepId = await loadScopedStepProgress(supabase, {
+    tenantId,
+    workerId,
+    applicationId,
+  });
 
   const mapped = await mapInstanceStepRecord(supabase, {
     tenantId,
     instanceId: String(instance.id),
     recordId: String(record.id),
     tenantSteps,
-    progressByStepId: new Map(),
+    progressByStepId,
     assignedAt: asText(instance.started_at) ?? asText(instance.created_at),
+    applicationId,
   });
   if (!mapped) return { ok: false, status: 404, error: "Workflow step not found" };
 
