@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
+import AuthenticatorChallengeCard from "@/app/components/auth/AuthenticatorChallengeCard";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { cn } from "@/lib/cn";
@@ -25,6 +26,9 @@ type ClassicTenantLoginProps = {
   showPassword: boolean;
   submitting: boolean;
   error: string | null;
+  authenticatorStep?: boolean;
+  onAuthenticatorVerified?: () => void | Promise<void>;
+  onAuthenticatorCancel?: () => void | Promise<void>;
   otpStep?: boolean;
   otpEmail?: string;
   otpVerified?: boolean;
@@ -48,6 +52,9 @@ export default function ClassicTenantLogin({
   showPassword,
   submitting,
   error,
+  authenticatorStep = false,
+  onAuthenticatorVerified,
+  onAuthenticatorCancel,
   otpStep = false,
   otpEmail = "",
   otpVerified = false,
@@ -84,7 +91,12 @@ export default function ClassicTenantLogin({
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >
       <div className="flex flex-col overflow-y-auto p-6 pb-8 md:p-10 md:pb-10 lg:min-h-full lg:p-12 lg:pb-12">
-        {otpStep && otpEmail && onOtpVerify && onOtpSendAgain ? (
+        {authenticatorStep && onAuthenticatorVerified ? (
+          <AuthenticatorChallengeCard
+            onVerified={onAuthenticatorVerified}
+            onCancel={onAuthenticatorCancel}
+          />
+        ) : otpStep && otpEmail && onOtpVerify && onOtpSendAgain ? (
           <LoginOtpStep
             email={otpEmail}
             submitting={submitting}

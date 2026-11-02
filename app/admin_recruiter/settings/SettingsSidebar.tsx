@@ -25,6 +25,7 @@ const NAV_ITEM_RESOURCE_KEY: Partial<Record<SettingsNavItem["id"], string>> = {
   templates: "settings_company",
   "admin-console": "settings_company",
   roles: "settings_company",
+  departments: "settings_company",
   help: "settings_help",
   reports: "settings_reports",
 };

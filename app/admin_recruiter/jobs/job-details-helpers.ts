@@ -36,6 +36,16 @@ export type JobDetailsRow = {
   msp_name?: string | null;
   msp_client?: string | null;
   msp_client_name?: string | null;
+  /** MSP Internal Reference / Source Job ID captured on job create. */
+  external_requisition_id?: string | null;
+  created_by?: string | null;
+  createdBy?: {
+    id: string;
+    name: string;
+    profilePhotoUrl: string | null;
+    role?: string | null;
+    roleLabel?: string | null;
+  } | null;
   tags?: string[] | null;
   assigned_recruiter_user_id?: string | null;
   is_hot?: boolean | null;
@@ -149,11 +159,33 @@ export function formatJobDetailsLocation(job: JobDetailsRow): string {
 }
 
 
-/** MSP "Contract Group / Client" from job create — never tenant/company fallback. */
+/** MSP Name (`msp_client`) from job create — never tenant/company fallback. */
+export function formatJobDetailsMspName(job: JobDetailsRow): string {
+  const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
+  if (!isMsp) return "";
+  return job.msp_client?.trim() || job.msp_client_name?.trim() || "";
+}
+
+/** MSP "Contract Group / Client" (`msp_name`) from job create — never tenant/company fallback. */
 export function formatJobDetailsClientName(job: JobDetailsRow): string {
   const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
   if (!isMsp) return "";
   return job.msp_name?.trim() || "";
+}
+
+/** MSP Source Job ID (`external_requisition_id`) from job create. */
+export function formatJobDetailsSourceJobId(job: JobDetailsRow): string {
+  const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
+  if (!isMsp) return "";
+  return job.external_requisition_id?.trim() || "";
+}
+
+/** "Jane Doe (Recruiter)" from job.createdBy — empty when unknown. */
+export function formatJobDetailsCreatedBy(job: JobDetailsRow): string {
+  const name = job.createdBy?.name?.trim() || "";
+  if (!name) return "";
+  const role = job.createdBy?.roleLabel?.trim() || "";
+  return role ? `${name} (${role})` : name;
 }
 
 export function formatWorkLocationLabel(job: JobDetailsRow): string {

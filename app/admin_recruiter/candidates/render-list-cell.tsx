@@ -399,6 +399,12 @@ export function renderListCell(
       return <span className="text-sm text-[#4B5563]">{c.firstName || "—"}</span>
     case "lastName":
       return <span className="text-sm text-[#4B5563]">{c.lastName || "—"}</span>
+    case "department":
+      return (
+        <span className="text-sm text-[#4B5563]" title={c.departmentSource === "candidate" ? "Assigned on the candidate" : c.departmentSource === "job" ? "From the job" : undefined}>
+          {c.department?.trim() || "—"}
+        </span>
+      )
     default:
       return <span className="text-sm text-[#4B5563]">—</span>
   }

@@ -36,6 +36,7 @@ type BundleAppRow = {
         source_type?: string | null;
         msp_name?: string | null;
         external_requisition_id?: string | null;
+        department?: string | null;
       }
     | {
         public_title: string | null;
@@ -43,6 +44,7 @@ type BundleAppRow = {
         source_type?: string | null;
         msp_name?: string | null;
         external_requisition_id?: string | null;
+        department?: string | null;
       }[]
     | null;
 };
@@ -107,6 +109,7 @@ function toStatusSummary(
     clientName: clientNameFromJob(job),
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
+    departmentName: job?.department?.trim() || null,
     ambiguous,
   };
 }
@@ -163,7 +166,7 @@ export async function loadCandidateListApplicationBundle(
           "updated_at",
           "created_at",
           "application_statuses(id, name, system_key)",
-          "job_requisitions(public_title, source_job_title, source_type, msp_name, external_requisition_id)",
+          "job_requisitions(public_title, source_job_title, source_type, msp_name, external_requisition_id, department)",
         ].join(", ")
       )
       .in("worker_id", chunk);

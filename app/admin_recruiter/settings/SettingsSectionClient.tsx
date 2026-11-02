@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
+import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
 import SettingsSectionHeader from "@/app/admin_recruiter/settings/SettingsSectionHeader";
 import {
   SETTINGS_SECTION_META,
@@ -42,6 +43,9 @@ const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/sett
 const HireJourneyThemePanel = dynamic(() => import("@/app/admin_recruiter/settings/HireJourneyThemePanel"), {
   loading: SettingsPanelFallback,
 });
+const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/DepartmentsPanel"), {
+  loading: SettingsPanelFallback,
+});
 
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
@@ -49,9 +53,11 @@ function resourceKeyForSection(section: SettingsSectionSlug): string {
     case "hiring-theme":
     case "admin-console":
     case "roles":
+    case "departments":
     case "profession":
     case "assessment":
     case "statuses":
+    case "security":
       return "settings_company";
     default:
       return "settings_company";
@@ -63,7 +69,12 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
   const resourceKey = resourceKeyForSection(section);
   const { canView, canEdit, canDelete, loading } = useModulePermission(resourceKey);
 
-  const showPageHeader = section !== "branding" && section !== "hiring-theme";
+  // Panels that already render their own page title.
+  const showPageHeader =
+    section !== "branding" &&
+    section !== "hiring-theme" &&
+    section !== "departments" &&
+    section !== "security";
 
   if (!loading && !canView) {
     return (
@@ -84,13 +95,18 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
       {section === "roles" ? (
         <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />
       ) : (
-        <fieldset disabled={!canEdit} className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80">
+        <fieldset
+          disabled={!canEdit && section !== "security"}
+          className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
+        >
           {section === "branding" ? <BrandingSettingsPanel /> : null}
           {section === "hiring-theme" ? <HireJourneyThemePanel /> : null}
           {section === "admin-console" ? <AdminConsolePanel embedInSettingsPage /> : null}
+          {section === "departments" ? <DepartmentsPanel /> : null}
           {section === "assessment" ? <AssessmentSettingsPanel /> : null}
           {section === "profession" ? <ProfessionDocumentsPanel /> : null}
           {section === "statuses" ? <CandidateStatusesPanel /> : null}
+          {section === "security" ? <SecuritySettingsPanel /> : null}
         </fieldset>
       )}
     </div>

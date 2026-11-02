@@ -75,6 +75,7 @@ import {
   type CandidateListSortState,
 } from "@/lib/admin/candidate-list-sort";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import { resolvedCandidateDepartment } from "@/lib/departments/resolve-department";
 import { usePageSelection } from "../hooks/usePageSelection";
 import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
@@ -174,6 +175,8 @@ type WorkerProfile = {
   application_job_titles_text?: string | null;
   application_search_text?: string | null;
   application_client_name?: string | null;
+  application_department?: string | null;
+  direct_department_name?: string | null;
   application_applied_jobs?: Array<{
     job_id?: string | null;
     title?: string | null;
@@ -473,6 +476,7 @@ export default function CandidatesPage() {
 
   const mapWorkerToRow = useCallback((item: WorkerProfile): CandidateRow => {
     const { email, phone } = resolveCandidateContact(item);
+    const department = resolvedCandidateDepartment(item);
     return {
       id: item.id,
       name: `${item.first_name || ""} ${item.last_name || ""}`.trim(),
@@ -483,6 +487,8 @@ export default function CandidatesPage() {
       applicationJobTitlesText: item.application_job_titles_text ?? null,
       applicationSearchText: item.application_search_text ?? null,
       applicationClientName: item.application_client_name ?? null,
+      department: department.name,
+      departmentSource: department.source,
       appliedJobs: Array.isArray(item.application_applied_jobs)
         ? item.application_applied_jobs
             .map((entry) => {

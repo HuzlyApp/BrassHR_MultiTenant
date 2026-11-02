@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Briefcase,
+  Building2,
   ClipboardList,
   FileStack,
   LifeBuoy,
@@ -29,6 +30,7 @@ export type SettingsNavItemId =
   | "templates"
   | "admin-console"
   | "roles"
+  | "departments"
   | "help"
   | "reports";
 
@@ -36,9 +38,11 @@ export type SettingsSectionSlug =
   | "branding"
   | "admin-console"
   | "roles"
+  | "departments"
   | "profession"
   | "assessment"
   | "statuses"
+  | "security"
   | "hiring-theme";
 
 export type SettingsNavItem = {
@@ -103,9 +107,9 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       {
         id: "security",
         label: "Security",
-        href: "/admin_recruiter/account/security",
+        href: "/admin_recruiter/settings/security",
         icon: ShieldCheck,
-        matchPrefixes: ["/admin_recruiter/account/security"],
+        matchPrefixes: ["/admin_recruiter/settings/security"],
       },
     ],
   },
@@ -180,6 +184,13 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: UserPlus,
         matchPrefixes: ["/admin_recruiter/settings/roles"],
       },
+      {
+        id: "departments",
+        label: "Departments",
+        href: "/admin_recruiter/settings/departments",
+        icon: Building2,
+        matchPrefixes: ["/admin_recruiter/settings/departments"],
+      },
     ],
   },
   {
@@ -227,6 +238,10 @@ export const SETTINGS_SECTION_META: Record<
     title: "Roles & Permissions",
     description: "Manage users, roles, and access permissions.",
   },
+  departments: {
+    title: "Departments",
+    description: "Create departments and map them to jobs or candidates.",
+  },
   profession: {
     title: "Profession",
     description: "Configure profession document requirements for applicants.",
@@ -238,6 +253,10 @@ export const SETTINGS_SECTION_META: Record<
   statuses: {
     title: "Statuses",
     description: "Manage statuses used in your recruitment pipeline. Customize labels, colors, and workflows.",
+  },
+  security: {
+    title: "Security",
+    description: "Authenticator app codes for staff sign-in.",
   },
   "hiring-theme": {
     title: "Hiring journey",

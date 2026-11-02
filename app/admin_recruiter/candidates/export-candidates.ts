@@ -123,6 +123,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   },
   firstName: { header: columnLabel("firstName"), value: (row) => row.firstName || "—" },
   lastName: { header: columnLabel("lastName"), value: (row) => row.lastName || "—" },
+  department: {
+    header: columnLabel("department"),
+    value: (row) => row.department?.trim() || "—",
+  },
   assignee: {
     header: columnLabel("assignee"),
     value: (row) => row.assignedRecruiterName?.trim() || "Not assign yet",

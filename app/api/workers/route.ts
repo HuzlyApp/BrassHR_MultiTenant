@@ -10,6 +10,7 @@ import {
   listingCountsForAnalyzedApplication,
   loadRequirementOutcomeCountsByApplication,
 } from "@/lib/jobs/match-analysis/load-requirement-outcome-counts";
+import { attachDirectCandidateDepartments } from "@/lib/departments/attach-candidate-departments";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
@@ -932,6 +933,7 @@ export async function GET(req: Request) {
                       application_status_ambiguous: summary.ambiguous,
                       application_job_title: primaryJobTitle,
                       application_client_name: summary.clientName,
+                      application_department: summary.departmentName ?? null,
                       application_source_job_id: summary.sourceJobId,
                       application_source_type: summary.sourceType,
                     }
@@ -960,6 +962,10 @@ export async function GET(req: Request) {
               };
             });
 
+            await attachDirectCandidateDepartments(
+              supabase,
+              workersOut as Array<Record<string, unknown>>
+            );
             const beforeCollapse = workersOut.length;
             workersOut = collapseWorkersToCandidateProfiles(workersOut, {
               jobTitlesByWorker,
