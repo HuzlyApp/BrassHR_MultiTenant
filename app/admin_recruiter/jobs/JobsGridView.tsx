@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Archive, ChevronDown, ExternalLink, Loader2, MoreHorizontal, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
+import { Archive, ExternalLink, Loader2, MoreHorizontal, PlusSquare, SquarePen, Trash2, UserPlus } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CandidatesListSkeleton } from "@/app/admin_recruiter/candidates/CandidatesListSkeleton";
@@ -51,8 +51,8 @@ type JobsGridViewProps = {
   selectionMode?: boolean;
   padded?: boolean;
   /**
-   * When set, render this many cards first and load the next batch on scroll
-   * (Show more + loader). Omit on paginated list views.
+   * When set, render this many cards first and load the next batch on scroll.
+   * Omit on paginated list views.
    */
   infiniteScrollPageSize?: number;
   onAddCandidate: (job: JobListRow) => void;
@@ -441,7 +441,7 @@ export function JobsGridView({
   const infiniteEnabled = pageSize != null;
   const [visibleCount, setVisibleCount] = useState(pageSize ?? jobs.length);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLButtonElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadLockRef = useRef(false);
   const jobsSignature = jobs.map((job) => job.id).join("|");
 
@@ -529,34 +529,30 @@ export function JobsGridView({
         ))}
       </div>
 
-      <div className="flex w-full items-center justify-center py-6">
-        {infiniteEnabled && (hasMore || isLoadingMore) ? (
-          <button
-            ref={sentinelRef}
-            type="button"
-            onClick={loadNextPage}
-            disabled={isLoadingMore}
-            className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-5 py-2 text-xs font-semibold text-gray-700 shadow-xs transition hover:bg-gray-50 disabled:opacity-60"
-            aria-live="polite"
-            aria-busy={isLoadingMore}
-          >
-            <span>Show more</span>
-            {isLoadingMore ? (
-              <Loader2 className="size-3.5 shrink-0 animate-spin text-[color:var(--brand-primary)]" />
-            ) : (
-              <ChevronDown className="size-3.5 shrink-0 text-gray-500" />
-            )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-5 py-2 text-xs font-semibold text-gray-700 shadow-xs transition hover:bg-gray-50"
-          >
-            <span>Show more</span>
-            <ChevronDown className="size-3.5 shrink-0 text-gray-500" />
-          </button>
-        )}
-      </div>
+      {infiniteEnabled && (hasMore || isLoadingMore) ? (
+        <div
+          ref={sentinelRef}
+          className="flex w-full items-center justify-center gap-2 py-5"
+          aria-live="polite"
+          aria-busy={isLoadingMore}
+        >
+          {isLoadingMore ? (
+            <>
+              <span className="font-[Inter,sans-serif] text-sm font-medium leading-5 text-[#94A3B8]">
+                Loading more
+              </span>
+              <Loader2
+                className="size-4 shrink-0 animate-spin text-[#CBD5E1]"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span className="sr-only">Loading more jobs</span>
+            </>
+          ) : (
+            <span className="h-4 w-px" aria-hidden />
+          )}
+        </div>
+      ) : null}
 
       {openMenu ? (
         <JobGridCardMenu
