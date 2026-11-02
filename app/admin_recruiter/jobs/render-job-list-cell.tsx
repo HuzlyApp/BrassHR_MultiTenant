@@ -158,7 +158,13 @@ export type JobListRow = {
   /** User-facing industry key from industry_catalog. */
   industry_key?: string | null
   created_by?: string | null
-  createdBy?: { id: string; name: string; profilePhotoUrl: string | null } | null
+  createdBy?: {
+    id: string
+    name: string
+    profilePhotoUrl: string | null
+    role?: string | null
+    roleLabel?: string | null
+  } | null
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
