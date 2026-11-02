@@ -30,7 +30,15 @@ function messageFrom(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
-export default function SecuritySettingsPanel() {
+type SecuritySettingsPanelProps = {
+  /**
+   * Account Security embeds this under Update Password in one card.
+   * Skips the settings intro, outer card, and duplicate email line.
+   */
+  embedded?: boolean;
+};
+
+export default function SecuritySettingsPanel({ embedded = false }: SecuritySettingsPanelProps) {
   const { user, organization } = useAccountData();
   const codeId = useId();
   const pendingFactorId = useRef<string | null>(null);
@@ -181,146 +189,163 @@ export default function SecuritySettingsPanel() {
     }
   }
 
+  const body = (
+    <>
+      <h2
+        className={
+          embedded
+            ? "text-base font-semibold text-[#012352]"
+            : "text-sm font-semibold leading-5 text-black"
+        }
+      >
+        Authenticator app
+      </h2>
+      <p className={embedded ? "mt-1 text-sm text-[#64748B]" : "mt-1 text-[13px] leading-5 text-[#6B7280]"}>
+        Add an authenticator app for the account you are signed in with. After it is on, sign-in asks
+        for a 6-digit code from that app.
+      </p>
+      {!embedded && email ? <p className="mt-2 text-xs text-[#374151]">{email}</p> : null}
+
+      {error ? (
+        <p role="alert" className="mt-4 text-sm text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p role="status" className="mt-4 text-sm text-[#166534]">
+          {notice}
+        </p>
+      ) : null}
+
+      {loading ? (
+        <div className="mt-5 h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
+      ) : enrolling && qrSrc && secret ? (
+        <form onSubmit={(event) => void enableAuthenticator(event)} className="mt-5 flex flex-col gap-4">
+          <p className="text-[13px] leading-5 text-[#374151]">
+            Scan this QR code with your authenticator app. If you can&apos;t scan it, enter the key
+            instead.
+          </p>
+          <img
+            src={qrSrc}
+            alt="Authenticator QR code"
+            width={180}
+            height={180}
+            className="h-[180px] w-[180px] rounded-lg border border-[#E5E7EB] bg-white object-contain p-2"
+          />
+          <div>
+            <p className="text-xs font-medium text-[#374151]">Setup key</p>
+            <p className="mt-1 break-all font-mono text-sm text-[#111827]">
+              {formatAuthenticatorSecret(secret)}
+            </p>
+            <button
+              type="button"
+              onClick={() => void copySecret()}
+              className="mt-2 text-xs font-medium text-[#012352] underline"
+            >
+              {copied ? "Copied" : "Copy key"}
+            </button>
+          </div>
+          <div>
+            <label htmlFor={codeId} className="mb-1.5 block text-xs font-medium text-[#374151]">
+              Verification code
+            </label>
+            <input
+              id={codeId}
+              value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="000000"
+              className={inputClassName}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={busy || code.length !== 6}
+              className="h-9 rounded-lg bg-[#012352] px-3 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {busy ? "Checking..." : "Enable authenticator"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void cancelEnrollment()}
+              disabled={busy}
+              className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : verified ? (
+        <div className="mt-5">
+          <p className="text-sm font-medium text-[#166534]">Authenticator app is on.</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6B7280]">
+            Sign-in asks for a code from {verified.friendlyName ?? "your authenticator app"}.
+          </p>
+          {confirmOff ? (
+            <div className="mt-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3">
+              <p className="text-sm text-[#7F1D1D]">
+                Turning this off removes the authenticator from this account.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void turnOff()}
+                  disabled={busy}
+                  className="h-9 rounded-lg bg-[#B91C1C] px-3 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {busy ? "Turning off..." : "Turn off"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmOff(false)}
+                  disabled={busy}
+                  className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151]"
+                >
+                  Keep on
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setNotice(null);
+                setConfirmOff(true);
+              }}
+              className="mt-4 h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151]"
+            >
+              Turn off authenticator
+            </button>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void startEnrollment()}
+          disabled={busy}
+          className="mt-5 h-9 rounded-lg bg-[#012352] px-3 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {busy ? "Starting..." : "Set up authenticator"}
+        </button>
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="mt-8 border-t border-[#E5E7EB] pt-8">{body}</div>;
+  }
+
   return (
     <section>
       <SettingsSectionIntro
         title="Security"
         subtitle="Sign-in and account protection for your organization."
       />
-
-      <div className="max-w-[634px] rounded-xl border border-[#E5E7EB] bg-white p-5 sm:p-6">
-        <h2 className="text-sm font-semibold leading-5 text-black">Authenticator app</h2>
-        <p className="mt-1 text-[13px] leading-5 text-[#6B7280]">
-          Add an authenticator app for the account you are signed in with. After it is on, sign-in
-          asks for a 6-digit code from that app.
-        </p>
-        {email ? <p className="mt-2 text-xs text-[#374151]">{email}</p> : null}
-
-        {error ? (
-          <p role="alert" className="mt-4 text-sm text-[#B91C1C]">
-            {error}
-          </p>
-        ) : null}
-        {notice ? (
-          <p role="status" className="mt-4 text-sm text-[#166534]">
-            {notice}
-          </p>
-        ) : null}
-
-        {loading ? (
-          <div className="mt-5 h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
-        ) : enrolling && qrSrc && secret ? (
-          <form onSubmit={(event) => void enableAuthenticator(event)} className="mt-5 flex flex-col gap-4">
-            <p className="text-[13px] leading-5 text-[#374151]">
-              Scan this QR code with your authenticator app. If you can&apos;t scan it, enter the key
-              instead.
-            </p>
-            <img
-              src={qrSrc}
-              alt="Authenticator QR code"
-              width={180}
-              height={180}
-              className="h-[180px] w-[180px] rounded-lg border border-[#E5E7EB] bg-white object-contain p-2"
-            />
-            <div>
-              <p className="text-xs font-medium text-[#374151]">Setup key</p>
-              <p className="mt-1 break-all font-mono text-sm text-[#111827]">{formatAuthenticatorSecret(secret)}</p>
-              <button
-                type="button"
-                onClick={() => void copySecret()}
-                className="mt-2 text-xs font-medium text-[#012352] underline"
-              >
-                {copied ? "Copied" : "Copy key"}
-              </button>
-            </div>
-            <div>
-              <label htmlFor={codeId} className="mb-1.5 block text-xs font-medium text-[#374151]">
-                Verification code
-              </label>
-              <input
-                id={codeId}
-                value={code}
-                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="000000"
-                className={inputClassName}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="submit"
-                disabled={busy || code.length !== 6}
-                className="h-9 rounded-lg bg-[#012352] px-3 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {busy ? "Checking..." : "Enable authenticator"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void cancelEnrollment()}
-                disabled={busy}
-                className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : verified ? (
-          <div className="mt-5">
-            <p className="text-sm font-medium text-[#166534]">Authenticator app is on.</p>
-            <p className="mt-1 text-[13px] leading-5 text-[#6B7280]">
-              Sign-in asks for a code from {verified.friendlyName ?? "your authenticator app"}.
-            </p>
-            {confirmOff ? (
-              <div className="mt-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3">
-                <p className="text-sm text-[#7F1D1D]">
-                  Turning this off removes the authenticator from this account.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void turnOff()}
-                    disabled={busy}
-                    className="h-9 rounded-lg bg-[#B91C1C] px-3 text-sm font-medium text-white disabled:opacity-50"
-                  >
-                    {busy ? "Turning off..." : "Turn off"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmOff(false)}
-                    disabled={busy}
-                    className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151]"
-                  >
-                    Keep on
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setNotice(null);
-                  setConfirmOff(true);
-                }}
-                className="mt-4 h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151]"
-              >
-                Turn off authenticator
-              </button>
-            )}
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void startEnrollment()}
-            disabled={busy}
-            className="mt-5 h-9 rounded-lg bg-[#012352] px-3 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy ? "Starting..." : "Set up authenticator"}
-          </button>
-        )}
-      </div>
+      <div className="max-w-[634px] rounded-xl border border-[#E5E7EB] bg-white p-5 sm:p-6">{body}</div>
     </section>
   );
 }
