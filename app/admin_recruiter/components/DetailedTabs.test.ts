@@ -11,10 +11,11 @@ describe("candidate detail Post-Hire visibility", () => {
     ).not.toContain("Post-Hire");
   });
 
-  it("shows AI Analysis beside Profile", () => {
+  it("shows Applications between Resume and AI Analysis", () => {
     const tabs = candidateDetailTabs({ postHireVisible: false, showOnboarded: false });
-    const profileIndex = tabs.indexOf("Profile");
-    expect(tabs[profileIndex + 1]).toBe("AI Analysis");
+    const resumeIndex = tabs.indexOf("Resume");
+    expect(tabs[resumeIndex + 1]).toBe("Applications");
+    expect(tabs[resumeIndex + 2]).toBe("AI Analysis");
   });
 
   it("does not render Post-Hire for Approved without a worker conversion", () => {

@@ -3,8 +3,10 @@ import {
   buildSmartInsight,
   countWorkTypes,
   formatCandidateLocation,
+  formatProfileMatchStatusLabel,
   isActiveApplicant,
   pickBestMatch,
+  resolveProfileApplicationMatchDisplay,
   pickProfessionalSummaryText,
   resolveOverallApplicationStatus,
   summarizeApplicationStatuses,
@@ -19,7 +21,13 @@ function app(
     jobRequisitionId: "job-1",
     jobTitle: "Registered Nurse",
     companyName: "Oklahoma Medical Center",
+    clientName: "Oklahoma Medical",
+    facilityName: "Oklahoma Medical Center",
     workType: "W2",
+    location: "Oklahoma City, OK",
+    billRate: "$45/hr",
+    agreedPayRate: "$40/hr",
+    jobStatus: "open",
     appliedAt: "2026-07-20T12:00:00.000Z",
     status: "reviewing",
     statusName: "Under Review",
@@ -28,6 +36,9 @@ function app(
     matchScore: null,
     matchCategory: null,
     matchStatus: null,
+    matchFitLabel: null,
+    matchStage: null,
+    matchDisplayCategory: null,
     ...overrides,
   };
 }
@@ -87,6 +98,52 @@ describe("candidate profile view", () => {
   it("marks converted workers as inactive applicants", () => {
     expect(isActiveApplicant("converted", [app({ id: "a1", status: "reviewing" })])).toBe(false);
     expect(isActiveApplicant("new", [app({ id: "a1", status: "reviewing" })])).toBe(true);
+  });
+
+  it("formats Figma match status labels from category or score", () => {
+    expect(formatProfileMatchStatusLabel("STRONG_MATCH")).toBe("Strong");
+    expect(formatProfileMatchStatusLabel("GOOD_MATCH")).toBe("Good");
+    expect(formatProfileMatchStatusLabel(null, 95)).toBe("Strong");
+    expect(formatProfileMatchStatusLabel(null, null)).toBe("—");
+  });
+
+  it("resolves Quick Match fit label when score columns are null", () => {
+    const resolved = resolveProfileApplicationMatchDisplay({
+      matchStatus: "ANALYZED",
+      matchStage: "quick",
+      matchScore: null,
+      matchCategory: null,
+      matchDisplayCategory: null,
+      aiAnalysis: {
+        quick_match: { quick_route: "LOW_MATCH" },
+        candidate_match: {
+          match_category: "NOT_A_MATCH",
+          display_category: "Low match",
+          recommended_overall_match_score: 0,
+        },
+      },
+    });
+    expect(resolved.statusLabel).toBe("Low");
+    expect(resolved.score).toBeNull();
+  });
+
+  it("exposes Deep Match score for the Applications table", () => {
+    const resolved = resolveProfileApplicationMatchDisplay({
+      matchStatus: "ANALYZED",
+      matchStage: "deep",
+      matchScore: 91,
+      matchCategory: "STRONG_MATCH",
+      matchDisplayCategory: "Strong Match",
+      aiAnalysis: {
+        candidate_match: {
+          match_category: "STRONG_MATCH",
+          display_category: "Strong Match",
+          recommended_overall_match_score: 91,
+        },
+      },
+    });
+    expect(resolved.statusLabel).toBe("Strong");
+    expect(resolved.score).toBe(91);
   });
 
   it("picks the strongest AI match and writes a dual-work-type insight", () => {

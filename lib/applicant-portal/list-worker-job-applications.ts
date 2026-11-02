@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveProfileApplicationMatchDisplay } from "@/lib/admin/candidate-profile-view";
 import { applicationStatusLabel } from "@/lib/jobs/application-status";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
@@ -17,8 +18,12 @@ export type WorkerJobApplicationListItem = {
   jobRequisitionId: string;
   jobTitle: string;
   companyName: string;
+  clientName: string;
+  facilityName: string;
   workType: string;
   location: string;
+  billRate: string | null;
+  agreedPayRate: string | null;
   jobStatus: string | null;
   appliedAt: string;
   status: string;
@@ -32,6 +37,9 @@ export type WorkerJobApplicationListItem = {
   matchScore: number | null;
   matchCategory: string | null;
   matchStatus: string | null;
+  matchFitLabel: string | null;
+  matchStage: string | null;
+  matchDisplayCategory: string | null;
 };
 
 type JobRequisitionJoin = {
@@ -43,6 +51,11 @@ type JobRequisitionJoin = {
   facility_name?: string | null;
   location?: string | null;
   status?: string | null;
+  msp_client?: string | null;
+  msp_client_name?: string | null;
+  bill_rate?: number | string | null;
+  pay_rate_min?: number | string | null;
+  pay_rate_max?: number | string | null;
 };
 
 type StatusGroupJoin = {
@@ -68,9 +81,12 @@ type ApplicationRow = {
   status?: string | null;
   created_at?: string | null;
   submitted_at?: string | null;
-  ai_match_score?: number | null;
+  ai_match_score?: number | string | null;
   ai_match_category?: string | null;
   ai_match_status?: string | null;
+  ai_match_stage?: string | null;
+  ai_match_display_category?: string | null;
+  ai_analysis?: unknown;
   application_statuses?: ApplicationStatusJoin | ApplicationStatusJoin[] | null;
   job_requisitions?: JobRequisitionJoin | JobRequisitionJoin[] | null;
   tenants?: TenantJoin | TenantJoin[] | null;
@@ -106,6 +122,41 @@ function companyNameFromJob(job: JobRequisitionJoin | null, tenantName: string):
   return job?.facility_name?.trim() || job?.facility?.trim() || tenantName || "Company";
 }
 
+function clientNameFromJob(job: JobRequisitionJoin | null): string {
+  return job?.msp_client_name?.trim() || job?.msp_client?.trim() || "";
+}
+
+function facilityNameFromJob(job: JobRequisitionJoin | null): string {
+  return job?.facility_name?.trim() || job?.facility?.trim() || "";
+}
+
+function asFiniteNumber(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatHourlyRateLabel(value: number | string | null | undefined): string | null {
+  const n = asFiniteNumber(value);
+  if (n == null) return null;
+  const formatted = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
+  return `$${formatted}/hr`;
+}
+
+function formatAgreedPayRate(job: JobRequisitionJoin | null): string | null {
+  const min = asFiniteNumber(job?.pay_rate_min);
+  const max = asFiniteNumber(job?.pay_rate_max);
+  if (min != null && max != null) {
+    if (min === max) return formatHourlyRateLabel(min);
+    const minLabel = formatHourlyRateLabel(min);
+    const maxLabel = formatHourlyRateLabel(max);
+    if (minLabel && maxLabel) return `${minLabel.replace("/hr", "")}-${maxLabel}`;
+  }
+  if (min != null) return formatHourlyRateLabel(min);
+  if (max != null) return formatHourlyRateLabel(max);
+  return null;
+}
+
 export async function listWorkerJobApplications(
   supabase: SupabaseClient,
   input: { workerId: string; tenantId: string },
@@ -128,8 +179,11 @@ export async function listWorkerJobApplications(
           "ai_match_score",
           "ai_match_category",
           "ai_match_status",
+          "ai_match_stage",
+          "ai_match_display_category",
+          "ai_analysis",
           "application_statuses(name, system_key, color, application_status_groups(name, description, sort_order))",
-          "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name, location, status)",
+          "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name, location, status, msp_client, msp_client_name, bill_rate, pay_rate_min, pay_rate_max)",
           "tenants:tenant_id(name)",
         ].join(", ")
       )
@@ -217,18 +271,30 @@ export async function listWorkerJobApplications(
     const tenantName = tenant?.name?.trim() || "Company";
     const note = (noteByApplication.get(applicationId) ?? "").trim();
 
-    const matchScore =
+    const rawMatchScore =
       row.ai_match_score == null || !Number.isFinite(Number(row.ai_match_score))
         ? null
         : Number(row.ai_match_score);
+    const matchDisplay = resolveProfileApplicationMatchDisplay({
+      matchStatus: row.ai_match_status?.trim() || null,
+      matchStage: row.ai_match_stage?.trim() || null,
+      matchScore: rawMatchScore,
+      matchCategory: row.ai_match_category?.trim() || null,
+      matchDisplayCategory: row.ai_match_display_category?.trim() || null,
+      aiAnalysis: row.ai_analysis,
+    });
 
     return {
       id: applicationId,
       jobRequisitionId: String(row.job_requisition_id ?? "").trim(),
       jobTitle: job ? publicJobDisplayTitle(job) || "Untitled job" : "Untitled job",
       companyName: companyNameFromJob(job, tenantName),
+      clientName: clientNameFromJob(job),
+      facilityName: facilityNameFromJob(job),
       workType: job?.employment_type?.trim() || "",
       location: job?.location?.trim() || "",
+      billRate: formatHourlyRateLabel(job?.bill_rate),
+      agreedPayRate: formatAgreedPayRate(job),
       jobStatus: job?.status?.trim() || null,
       appliedAt: String(row.submitted_at || row.created_at || ""),
       status,
@@ -240,9 +306,12 @@ export async function listWorkerJobApplications(
         statusGroup?.sort_order == null ? null : Number(statusGroup.sort_order),
       statusNote: note || null,
       resume: latestResumeByApplication.get(applicationId) ?? latestResume,
-      matchScore,
-      matchCategory: row.ai_match_category?.trim() || null,
+      matchScore: matchDisplay.score,
+      matchCategory: matchDisplay.category,
       matchStatus: row.ai_match_status?.trim() || null,
+      matchFitLabel: matchDisplay.statusLabel === "—" ? null : matchDisplay.statusLabel,
+      matchStage: row.ai_match_stage?.trim() || null,
+      matchDisplayCategory: row.ai_match_display_category?.trim() || null,
     };
   });
 }
