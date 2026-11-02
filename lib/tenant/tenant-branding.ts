@@ -24,6 +24,7 @@ export type TenantBrandingRow = {
   muted_text_color?: string | null;
   button_text?: string | null;
   button_color?: string | null;
+  hire_journey_theme?: unknown | null;
 };
 
 export type TenantBrandingFontId = "inter" | "impact" | "roboto" | "poppins" | "ubuntu";

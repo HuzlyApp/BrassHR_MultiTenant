@@ -3,6 +3,11 @@
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import {
+  EMPTY_HIRE_JOURNEY_THEME,
+  parseHireJourneyTheme,
+  type HireJourneyThemeOverrides,
+} from "@/lib/tenant/hire-journey-theme";
 import { BRANDING_UPDATED_EVENT } from "@/lib/tenant/branding-events";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
 
@@ -15,6 +20,7 @@ export type EffectiveBrandingViewer = {
 
 export type EffectiveBrandingPayload = {
   branding: TenantBranding;
+  hireJourneyTheme: HireJourneyThemeOverrides;
   viewer: EffectiveBrandingViewer;
   debug?: Record<string, unknown>;
 };
@@ -31,11 +37,29 @@ export const EFFECTIVE_BRANDING_QUERY_KEY = effectiveBrandingQueryKey();
 /** Apply fresh branding to the admin chrome cache without waiting for a refetch. */
 export function patchEffectiveBrandingCache(
   queryClient: QueryClient,
-  branding: TenantBranding
+  branding: TenantBranding,
+  hireJourneyTheme?: HireJourneyThemeOverrides
 ): void {
   queryClient.setQueryData<EffectiveBrandingPayload>(
     effectiveBrandingQueryKey(typeof window !== "undefined" ? window.location.hostname : null),
-    (prev) => (prev ? { ...prev, branding } : prev)
+    (prev) =>
+      prev
+        ? {
+            ...prev,
+            branding,
+            ...(hireJourneyTheme ? { hireJourneyTheme } : {}),
+          }
+        : prev
+  );
+}
+
+export function patchHireJourneyThemeCache(
+  queryClient: QueryClient,
+  hireJourneyTheme: HireJourneyThemeOverrides
+): void {
+  queryClient.setQueryData<EffectiveBrandingPayload>(
+    effectiveBrandingQueryKey(typeof window !== "undefined" ? window.location.hostname : null),
+    (prev) => (prev ? { ...prev, hireJourneyTheme } : prev)
   );
 }
 
@@ -51,7 +75,10 @@ async function fetchEffectiveBranding(): Promise<EffectiveBrandingPayload> {
   if (!payload.branding) {
     throw new Error(payload.error || "Branding payload missing");
   }
-  return payload;
+  return {
+    ...payload,
+    hireJourneyTheme: parseHireJourneyTheme(payload.hireJourneyTheme),
+  };
 }
 
 export function useEffectiveBranding() {
@@ -79,6 +106,7 @@ export function useEffectiveBranding() {
 
   return {
     branding: query.data?.branding ?? null,
+    hireJourneyTheme: query.data?.hireJourneyTheme ?? EMPTY_HIRE_JOURNEY_THEME,
     viewer: query.data?.viewer ?? null,
     debug: query.data?.debug,
     isLoading: query.isLoading,

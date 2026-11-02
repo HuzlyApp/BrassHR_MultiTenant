@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   UserCircle,
   UserCog,
-  UserPlus,
+  Shield,
   Wand2,
   Workflow,
 } from "lucide-react";
@@ -199,7 +199,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         id: "roles",
         label: "Roles & Permissions",
         href: "/admin_recruiter/settings/roles",
-        icon: UserPlus,
+        icon: Shield,
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/roles"],
       },
