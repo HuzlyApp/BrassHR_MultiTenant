@@ -1,7 +1,7 @@
 "use client";
 
 import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Briefcase, Check, ChevronDown, FileText, Plus, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   PROFESSION_DOCUMENT_KINDS,
@@ -43,7 +43,23 @@ type CatalogPayload = {
 };
 
 const fieldClassName =
-  "h-9 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white pl-3 pr-8 text-sm text-[#0F172A] outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F1F5F9]";
+  "h-9 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white pl-3 pr-8 text-sm text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F1F5F9]";
+
+const inputClassName =
+  "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:bg-[#F1F5F9]";
+
+function professionInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function shortProfessionLabel(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= 28) return trimmed;
+  return `${trimmed.slice(0, 26)}…`;
+}
 
 function readSelectOptions(children: ReactNode): Array<{ value: string; label: string }> {
   return Children.toArray(children).flatMap((child) => {
@@ -175,6 +191,56 @@ function RequiredCheckbox({
   );
 }
 
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  confirming,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirming?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profession-delete-title"
+        className="w-full max-w-md rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-xl"
+      >
+        <h3 id="profession-delete-title" className="text-base font-semibold text-[#0F172A]">
+          {title}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-[#64748B]">{message}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={confirming}
+            className="rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC] disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirming}
+            className="rounded-lg bg-[#B91C1C] px-4 py-2 text-sm font-medium text-white hover:bg-[#991B1B] disabled:opacity-60"
+          >
+            {confirming ? "Removing…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function newDocument(): DocumentDraft {
   return {
     id: `new-${crypto.randomUUID()}`,
@@ -200,6 +266,8 @@ export default function ProfessionDocumentsPanel() {
   const [availableProfessions, setAvailableProfessions] = useState<CatalogProfessionOption[]>([]);
   const [selectedCatalogKey, setSelectedCatalogKey] = useState("");
   const [addingProfession, setAddingProfession] = useState(false);
+  const [removingProfession, setRemovingProfession] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const applyPayload = useCallback((payload: CatalogPayload, preferId?: string) => {
     const rows = payload.professions ?? [];
@@ -262,17 +330,21 @@ export default function ProfessionDocumentsPanel() {
     }));
   }
 
+  function discardDirtyDraft() {
+    if (!selectedId || !dirty) return;
+    const snapshot = saved[selectedId];
+    setDrafts((current) => ({
+      ...current,
+      [selectedId]: snapshot ? (JSON.parse(snapshot) as DocumentDraft[]) : [],
+    }));
+  }
+
   function selectProfession(professionId: string) {
     if (professionId === selectedId) return;
     if (dirty && !window.confirm("Discard unsaved document changes for this profession?")) return;
-    if (selectedId && dirty) {
-      const snapshot = saved[selectedId];
-      setDrafts((current) => ({
-        ...current,
-        [selectedId]: snapshot ? (JSON.parse(snapshot) as DocumentDraft[]) : [],
-      }));
-    }
+    discardDirtyDraft();
     setSelectedId(professionId);
+    setConfirmRemove(false);
   }
 
   async function addProfession() {
@@ -289,12 +361,30 @@ export default function ProfessionDocumentsPanel() {
       const payload = (await response.json()) as { error?: string; profession?: { id?: string } };
       if (!response.ok) throw new Error(payload.error || "Could not add profession");
       setSelectedCatalogKey("");
+      setConfirmRemove(false);
       toast.success("Profession added");
       await load(payload.profession?.id, { silent: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add profession");
     } finally {
       setAddingProfession(false);
+    }
+  }
+
+  async function removeProfession() {
+    if (!selected || !canManage || removingProfession) return;
+    setRemovingProfession(true);
+    try {
+      const response = await fetch(`/api/admin/professions/${selected.id}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not delete profession");
+      setConfirmRemove(false);
+      toast.success("Profession removed");
+      await load(undefined, { silent: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete profession");
+    } finally {
+      setRemovingProfession(false);
     }
   }
 
@@ -365,24 +455,52 @@ export default function ProfessionDocumentsPanel() {
                   {professions.map((profession) => {
                     const active = profession.id === selectedId;
                     return (
-                      <button
+                      <div
                         key={profession.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        onClick={() => selectProfession(profession.id)}
-                        className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                        className={`group inline-flex items-center rounded-full ${
                           active
-                            ? "bg-[color:var(--brand-primary)] text-white"
+                            ? "bg-[color:var(--brand-primary)] text-white shadow-sm shadow-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
                             : "bg-[#F1F5F9] text-[#012352] hover:bg-[#E2E8F0]"
                         }`}
                       >
-                        {profession.name}
-                      </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => selectProfession(profession.id)}
+                          className="inline-flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3 text-sm font-medium"
+                        >
+                          <span
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
+                              active
+                                ? "bg-white/20 text-white"
+                                : "bg-white text-[color:var(--brand-primary)]"
+                            }`}
+                            aria-hidden
+                          >
+                            {professionInitials(profession.name)}
+                          </span>
+                          <span className="max-w-[10rem] truncate sm:max-w-[14rem]">
+                            {shortProfessionLabel(profession.name)}
+                          </span>
+                        </button>
+                        {canManage && active ? (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemove(true)}
+                            className="mr-1 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                            aria-label={`Delete ${profession.name}`}
+                            title="Delete profession"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>
               )}
+
               {canManage && availableProfessions.length > 0 ? (
                 <form
                   className="ml-auto flex shrink-0 items-center gap-2"
@@ -407,23 +525,43 @@ export default function ProfessionDocumentsPanel() {
                   <button
                     type="submit"
                     disabled={addingProfession || selectedCatalogKey.length === 0}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-[#012352] bg-white px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-secondary)] disabled:opacity-60"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#012352] bg-white px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-secondary)] disabled:opacity-60"
                   >
+                    <Plus className="h-4 w-4" aria-hidden />
                     {addingProfession ? "Adding…" : "Add profession"}
                   </button>
                 </form>
               ) : canManage ? (
-                <p className="ml-auto text-sm text-[#64748B]">Every catalog profession is already on this organization.</p>
+                <p className="ml-auto text-sm text-[#64748B]">
+                  Every catalog profession is already on this organization.
+                </p>
               ) : null}
             </div>
           </div>
 
+          {professions.length === 0 && canManage && availableProfessions.length > 0 ? (
+            <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 py-12 text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[color:var(--brand-primary)] shadow-sm">
+                <Briefcase className="h-5 w-5" aria-hidden />
+              </div>
+              <p className="mt-3 text-sm font-medium text-[#0F172A]">Add your first profession</p>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Pick one from the catalog above to start configuring document requirements.
+              </p>
+            </div>
+          ) : null}
+
           {selected ? (
             <div className="space-y-3">
               {documents.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-4 text-sm text-[#64748B]">
-                  No certificates or licenses for {selected.name} yet.
-                </p>
+                <div className="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-8 text-center">
+                  <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[#94A3B8] shadow-sm">
+                    <FileText className="h-4 w-4" aria-hidden />
+                  </div>
+                  <p className="text-sm text-[#64748B]">
+                    No certificates or licenses for {selected.name} yet.
+                  </p>
+                </div>
               ) : (
                 <ul className="space-y-2">
                   {documents.map((doc) => (
@@ -438,7 +576,7 @@ export default function ProfessionDocumentsPanel() {
                           disabled={!canManage}
                           onChange={(event) => updateDocument(doc.id, { name: event.target.value })}
                           placeholder="Certificate or license name"
-                          className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] disabled:bg-[#F1F5F9]"
+                          className={inputClassName}
                         />
                       </label>
                       <SelectField
@@ -530,6 +668,17 @@ export default function ProfessionDocumentsPanel() {
           ) : null}
         </div>
       )}
+
+      {confirmRemove && selected ? (
+        <ConfirmDialog
+          title={`Delete ${selected.name}?`}
+          message="This removes the profession from your organization and deactivates its document requirements. You can add it again later from the catalog. Onboarding flows that still use this profession must be updated first."
+          confirmLabel="Remove"
+          confirming={removingProfession}
+          onCancel={() => setConfirmRemove(false)}
+          onConfirm={() => void removeProfession()}
+        />
+      ) : null}
     </section>
   );
 }
