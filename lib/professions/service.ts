@@ -253,6 +253,45 @@ export async function addTenantProfessionFromCatalog(
   const name = String(catalog.name ?? "").trim();
   if (!name) throw new Error("That profession is not available.");
 
+  const [{ data: byKey, error: byKeyError }, { data: byName, error: byNameError }] = await Promise.all([
+    supabase
+      .from("tenant_professions")
+      .select("id, name, catalog_key, industry_key, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("industry_key", industryKey)
+      .eq("catalog_key", key)
+      .maybeSingle(),
+    supabase
+      .from("tenant_professions")
+      .select("id, name, catalog_key, industry_key, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("industry_key", industryKey)
+      .ilike("name", name)
+      .maybeSingle(),
+  ]);
+  if (byKeyError) throw byKeyError;
+  if (byNameError) throw byNameError;
+
+  const match = byKey ?? byName ?? null;
+
+  if (match) {
+    if (match.is_active === true) throw new Error("This profession already exists.");
+    const { data: reactivated, error: reactivateError } = await supabase
+      .from("tenant_professions")
+      .update({
+        is_active: true,
+        catalog_key: key,
+        name,
+        industry_key: industryKey,
+      })
+      .eq("id", match.id)
+      .eq("tenant_id", tenantId)
+      .select("id, name, catalog_key, industry_key, is_active")
+      .single();
+    if (reactivateError) throw reactivateError;
+    return reactivated;
+  }
+
   const { data, error } = await supabase
     .from("tenant_professions")
     .insert({
@@ -268,6 +307,58 @@ export async function addTenantProfessionFromCatalog(
     if (isDuplicateProfessionError(error)) throw new Error("This profession already exists.");
     throw error;
   }
+  return data;
+}
+
+/**
+ * Soft-deactivates a tenant profession and its document requirements.
+ * Blocks when onboarding flows still reference the profession.
+ */
+export async function deactivateTenantProfession(
+  supabase: Db,
+  tenantId: string,
+  professionId: string
+) {
+  const id = professionId.trim();
+  if (!PROFESSION_UUID.test(id)) throw new Error("Profession was not found.");
+
+  const { data: profession, error: professionError } = await supabase
+    .from("tenant_professions")
+    .select("id, name, is_active")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (professionError) throw professionError;
+  if (!profession || profession.is_active !== true) throw new Error("Profession was not found.");
+
+  const { count: flowCount, error: flowError } = await supabase
+    .from("onboarding_flows")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("profession_id", id);
+  if (flowError) throw flowError;
+  if ((flowCount ?? 0) > 0) {
+    throw new Error(
+      "Remove this profession from its onboarding flows before deleting it."
+    );
+  }
+
+  const { error: docsError } = await supabase
+    .from("tenant_profession_documents")
+    .update({ is_active: false })
+    .eq("tenant_id", tenantId)
+    .eq("profession_id", id)
+    .eq("is_active", true);
+  if (docsError) throw docsError;
+
+  const { data, error } = await supabase
+    .from("tenant_professions")
+    .update({ is_active: false })
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .select("id, name, catalog_key, industry_key, is_active")
+    .single();
+  if (error) throw error;
   return data;
 }
 

@@ -29,10 +29,11 @@ type AvailableProfession = {
   industryLabel: string | null;
 };
 
-describe("ProfessionDocumentsPanel add profession", () => {
+describe("ProfessionDocumentsPanel", () => {
   let professions: Profession[];
   let availableProfessions: AvailableProfession[];
   let savedBody: { professionId?: string; documents?: Array<{ name: string; documentKind: string }> } | null;
+  let deletedProfessionId: string | null;
 
   beforeEach(() => {
     professions = [{ id: "nursing", name: "Nursing", documents: [] }];
@@ -40,6 +41,7 @@ describe("ProfessionDocumentsPanel add profession", () => {
       { key: "it_support", name: "IT Support", industryKey: "technology", industryLabel: "Technology" },
     ];
     savedBody = null;
+    deletedProfessionId = null;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -61,6 +63,11 @@ describe("ProfessionDocumentsPanel add profession", () => {
           professions = [...professions, created];
           availableProfessions = availableProfessions.filter((option) => option.key !== body.catalogKey);
           return json({ profession: { id: created.id, name: created.name } });
+        }
+        if (url.includes("/api/admin/professions/") && method === "DELETE") {
+          deletedProfessionId = url.split("/").pop() ?? null;
+          professions = professions.filter((row) => row.id !== deletedProfessionId);
+          return json({ profession: { id: deletedProfessionId, is_active: false } });
         }
         if (url.endsWith("/api/admin/profession-documents") && method === "PUT") {
           savedBody = JSON.parse(String(init?.body ?? "{}"));
@@ -112,6 +119,25 @@ describe("ProfessionDocumentsPanel add profession", () => {
       expect.objectContaining({ name: "CompTIA A+", documentKind: "certificate" }),
       expect.objectContaining({ name: "IT Support license", documentKind: "license" }),
     ]);
+  });
+
+  it("deletes the selected profession from the master list", async () => {
+    const user = userEvent.setup();
+    render(<ProfessionDocumentsPanel />);
+
+    expect(await screen.findByRole("tab", { name: "Nursing" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Delete Nursing" }));
+    expect(screen.getByRole("dialog", { name: "Delete Nursing?" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => {
+      expect(deletedProfessionId).toBe("nursing");
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("tab", { name: "Nursing" })).toBeNull();
+    });
   });
 });
 
