@@ -28,6 +28,8 @@ import { sanitizeESignatureUserMessage } from "@/lib/e-signature/user-facing";
 type BuilderFrameProps = {
   templateId: string;
   onTemplateSynced?: (template: RecruiterTemplateDetail) => void;
+  /** Called when Firma Close is used (return to template details). */
+  onClose?: () => void;
 };
 
 type BuilderSessionResponse = {
@@ -78,11 +80,40 @@ type FirmaTemplateEditorGlobal =
 const FIRMA_EDITOR_EVENTS = new Set(["editor.saved", "editor.published", "editor.closed"]);
 const FIRMA_SCRIPT_TIMEOUT_MS = 20000;
 const FIRMA_GLOBAL_TIMEOUT_MS = 5000;
+/**
+ * Tall editor so Field Types + document are not clipped inside Firma.
+ * Page scroll shows form fields above and the full editor below.
+ */
+const FIRMA_BUILDER_MIN_HEIGHT_PX = 960;
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 function getFirmaTemplateEditor(): FirmaTemplateEditorGlobal | undefined {
   return (window as unknown as { FirmaTemplateEditor?: FirmaTemplateEditorGlobal })
     .FirmaTemplateEditor;
+}
+
+/** Prefer nearly full viewport height so Firm's left field list / document are usable. */
+function resolveFirmaTemplateBuilderHeightPx(): number {
+  const viewportBased = Math.round(window.innerHeight * 0.92);
+  return Math.max(FIRMA_BUILDER_MIN_HEIGHT_PX, viewportBased);
+}
+
+function applyFirmaEditorHostHeight(host: HTMLElement, heightPx: number) {
+  const height = `${heightPx}px`;
+  host.style.boxSizing = "border-box";
+  host.style.width = "100%";
+  host.style.minHeight = height;
+  host.style.height = height;
+  host.style.maxHeight = "none";
+  host.style.overflow = "visible";
+  const iframe = host.querySelector("iframe");
+  if (iframe) {
+    iframe.style.display = "block";
+    iframe.style.width = "100%";
+    iframe.style.height = height;
+    iframe.style.border = "0";
+    iframe.setAttribute("height", String(heightPx));
+  }
 }
 
 function hasFirmaInit(
@@ -118,9 +149,10 @@ function isPdfLoadError(message: string): boolean {
   );
 }
 
-function createFirmaEditorHost(wrapper: HTMLDivElement): HTMLDivElement {
+function createFirmaEditorHost(wrapper: HTMLDivElement, heightPx: number): HTMLDivElement {
   const host = document.createElement("div");
-  host.className = "min-h-[680px] w-full flex-1";
+  host.className = "w-full flex-1";
+  applyFirmaEditorHostHeight(host, heightPx);
   wrapper.replaceChildren(host);
   return host;
 }
@@ -196,6 +228,7 @@ async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTempla
 export default function FirmaTemplateBuilderFrame({
   templateId,
   onTemplateSynced,
+  onClose,
 }: BuilderFrameProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -206,6 +239,7 @@ export default function FirmaTemplateBuilderFrame({
   const pdfRepairAttemptedRef = useRef(false);
   const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
   const onTemplateSyncedRef = useRef(onTemplateSynced);
+  const onCloseRef = useRef(onClose);
   const [session, setSession] = useState<RecruiterTemplateBuilderSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState<"retry" | "refresh" | "rebuild" | "reset" | null>(
@@ -237,6 +271,10 @@ export default function FirmaTemplateBuilderFrame({
   useEffect(() => {
     onTemplateSyncedRef.current = onTemplateSynced;
   }, [onTemplateSynced]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const syncTemplate = useCallback(
     async (input: {
@@ -423,7 +461,13 @@ export default function FirmaTemplateBuilderFrame({
 
         setEditorPhase("Initializing signature template editor...");
         editorRef.current?.destroy?.();
-        const host = createFirmaEditorHost(activeWrapper);
+        await new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => resolve());
+        });
+        if (cancelled || mountGenerationRef.current !== generation) return;
+
+        const editorHeightPx = resolveFirmaTemplateBuilderHeightPx();
+        const host = createFirmaEditorHost(activeWrapper, editorHeightPx);
         containerRef.current = host;
 
         clearFirmaEditorTimer(initTimeoutRef);
@@ -450,6 +494,7 @@ export default function FirmaTemplateBuilderFrame({
           setEditorPhase(null);
           setError(null);
           clearFirmaEditorTimer(initTimeoutRef);
+          applyFirmaEditorHostHeight(host, resolveFirmaTemplateBuilderHeightPx());
           patchFirmaTemplateEditorBranding(
             editorRef.current,
             activeSession.embed_color_palette
@@ -457,6 +502,7 @@ export default function FirmaTemplateBuilderFrame({
           logBuilderPhase("editor-ready", {
             templateId,
             firmaTemplateId: activeSession.firma_template_id,
+            heightPx: host.style.height,
           });
         };
 
@@ -467,7 +513,7 @@ export default function FirmaTemplateBuilderFrame({
           theme: "light",
           readOnly: false,
           width: "100%",
-          height: "calc(100vh - 220px)",
+          height: `${editorHeightPx}px`,
           showCloseButton: true,
           onSave: (data) => {
             void syncTemplateRef.current({
@@ -477,6 +523,7 @@ export default function FirmaTemplateBuilderFrame({
           },
           onClose: () => {
             void syncTemplateRef.current({ event: "editor.closed" });
+            onCloseRef.current?.();
           },
           onError: (err) => {
             if (cancelled || mountGenerationRef.current !== generation) return;
@@ -499,6 +546,7 @@ export default function FirmaTemplateBuilderFrame({
         } else if (typeof FirmaTemplateEditor === "function") {
           editorRef.current = new FirmaTemplateEditor(options);
         }
+        applyFirmaEditorHostHeight(host, editorHeightPx);
         patchFirmaTemplateEditorBranding(
           editorRef.current,
           activeSession.embed_color_palette
@@ -506,6 +554,7 @@ export default function FirmaTemplateBuilderFrame({
         logBuilderPhase("editor-mounted", {
           templateId,
           firmaTemplateId: activeSession.firma_template_id,
+          heightPx: editorHeightPx,
         });
       } catch (err) {
         if (cancelled || mountGenerationRef.current !== generation) return;
@@ -521,8 +570,16 @@ export default function FirmaTemplateBuilderFrame({
 
     void mountEditor();
 
+    const syncHeightToViewport = () => {
+      const host = containerRef.current;
+      if (!host || cancelled || mountGenerationRef.current !== generation) return;
+      applyFirmaEditorHostHeight(host, resolveFirmaTemplateBuilderHeightPx());
+    };
+    window.addEventListener("resize", syncHeightToViewport);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("resize", syncHeightToViewport);
       restoreFetch();
       clearFirmaEditorTimer(initTimeoutRef);
       editorRef.current?.destroy?.();
@@ -553,6 +610,9 @@ export default function FirmaTemplateBuilderFrame({
           typeof data.payload?.updated_at === "string" ? data.payload.updated_at : undefined,
         draft: typeof data.payload?.draft === "boolean" ? data.payload.draft : undefined,
       });
+      if (eventName === "editor.closed") {
+        onCloseRef.current?.();
+      }
     }
 
     window.addEventListener("message", handleMessage);
@@ -611,24 +671,13 @@ export default function FirmaTemplateBuilderFrame({
     }
   };
 
-  const openBuilderWindow = () => {
-    if (!session?.editor_url || isBuilderSessionExpired(session.expires_at)) {
-      setError(TEMPLATE_BUILDER_ERRORS.session_expired);
-      toast.error(TEMPLATE_BUILDER_ERRORS.session_expired);
-      return;
-    }
-    const popup = window.open(session.editor_url, "_blank", "noopener,noreferrer");
-    if (!popup) {
-      toast.error(
-        "The browser blocked the new window. Allow popups for this site, or use the embedded editor."
-      );
-    }
-  };
-
   const busy = Boolean(actionBusy) || sessionLoading || syncing;
 
   return (
-    <div className="flex min-h-[720px] flex-col border border-[#EAECF0] bg-white">
+    <div
+      data-firma-builder-frame
+      className="flex scroll-mt-[var(--admin-recruiter-header-height,64px)] flex-col border border-[#EAECF0] bg-white"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAECF0] px-4 py-3">
         <div className="text-sm text-[#667085]">
           {sessionLoading
@@ -657,14 +706,6 @@ export default function FirmaTemplateBuilderFrame({
           >
             <RefreshCw className="h-4 w-4" />
             Rebuild document
-          </button>
-          <button
-            type="button"
-            disabled={busy || !session || expired}
-            onClick={openBuilderWindow}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] disabled:opacity-50"
-          >
-            Open signature template builder
           </button>
         </div>
       </div>
@@ -708,7 +749,7 @@ export default function FirmaTemplateBuilderFrame({
         </div>
       ) : null}
 
-      <div ref={wrapperRef} className="relative min-h-[680px] flex-1">
+      <div ref={wrapperRef} className="relative min-h-[960px] w-full">
         {sessionLoading ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 text-sm text-[#667085]">
             Starting signature template builder...

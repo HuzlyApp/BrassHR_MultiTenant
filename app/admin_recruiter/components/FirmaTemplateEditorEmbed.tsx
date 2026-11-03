@@ -68,8 +68,9 @@ export default function FirmaTemplateEditorEmbed({
           templateId,
           theme: "light",
           readOnly,
-          height: "720px",
+          height: "860px",
           width: "100%",
+          showCloseButton: true,
           onLoad: () => {
             patchFirmaTemplateEditorBranding(editorRef.current);
             onLoad?.();
@@ -96,7 +97,7 @@ export default function FirmaTemplateEditorEmbed({
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#EAECF0] bg-white">
-      <div ref={containerRef} className="min-h-[720px] w-full" />
+      <div ref={containerRef} className="min-h-[860px] w-full" />
     </div>
   );
 }
