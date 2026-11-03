@@ -209,6 +209,8 @@ export async function POST(req: NextRequest) {
       jobId: jobId || undefined,
       publish: parsed.data.action === "publish",
       confirmRoutingChange: rawRecord.confirmRoutingChange === true,
+      confirmWorkflowChange: rawRecord.confirmWorkflowChange === true,
+      updateExistingApplicantsWorkflow: rawRecord.updateExistingApplicantsWorkflow === true,
       resetToAutomatic: rawRecord.resetToAutomatic === true,
       overrideWorkflowId:
         typeof rawRecord.overrideWorkflowId === "string"
@@ -232,6 +234,7 @@ export async function POST(req: NextRequest) {
           messageKey,
           field,
           fieldErrors: error.fieldErrors,
+          details: error.details ?? undefined,
         },
         { status: jobValidationHttpStatus(error) }
       );

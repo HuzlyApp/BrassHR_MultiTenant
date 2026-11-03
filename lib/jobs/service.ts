@@ -73,6 +73,7 @@ import { embeddedRelationName } from "@/lib/jobs/profession-text";
 import { resolveProfessionIdForSave } from "@/lib/jobs/resolve-profession";
 import { jobRequirementsSourceFieldsChanged } from "@/lib/jobs/match-analysis/build-job-requirements";
 import { invalidateMatchCachesForJobDescriptionChange } from "@/lib/jobs/match-analysis/invalidate-on-job-change";
+import { reassignJobApplicantsToWorkflow } from "@/lib/jobs/reassign-applicants-workflow";
 
 type DbClient = SupabaseClient;
 
@@ -489,6 +490,16 @@ async function countActiveApplicantsForJob(
   return count ?? 0;
 }
 
+async function workflowDisplayName(
+  supabase: DbClient,
+  tenantId: string,
+  workflowId: string | null
+): Promise<string | null> {
+  if (!workflowId) return null;
+  const flow = await getOnboardingFlowById(supabase, tenantId, workflowId);
+  return flow?.name ? String(flow.name) : workflowId;
+}
+
 async function professionName(
   supabase: DbClient,
   tenantId: string,
@@ -552,6 +563,7 @@ export async function saveJobRequisition(
   options: {
     jobId?: string;
     publish: boolean;
+    /** @deprecated Prefer confirmWorkflowChange — kept for older clients. */
     confirmRoutingChange?: boolean;
     screeningQuestions?: JobScreeningQuestionInput[];
   } & JobWorkflowAssignmentOptions
@@ -560,11 +572,13 @@ export async function saveJobRequisition(
 
   let existingJobForMatchInvalidation: Record<string, unknown> | null = null;
 
+  let previousWorkflowId: string | null = null;
+
   if (options.jobId) {
     const { data: existingJob, error: existingJobError } = await supabase
       .from("job_requisitions")
       .select(
-        "status, workflow_assignment_mode, public_title, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty"
+        "status, workflow_id, workflow_assignment_mode, public_title, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty"
       )
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
@@ -576,25 +590,7 @@ export async function saveJobRequisition(
       }
     }
     existingJobForMatchInvalidation = existingJob as Record<string, unknown> | null;
-
-    if (isLiveJobRequisitionStatus(String(existingJob?.status ?? ""))) {
-      const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
-      const isManual = existingJob?.workflow_assignment_mode === "manual";
-      if (routingChanged && !isManual && !options.resetToAutomatic) {
-        const applicantCount = await countActiveApplicantsForJob(
-          supabase,
-          tenantId,
-          options.jobId
-        );
-        if (applicantCount > 0 && !options.confirmRoutingChange) {
-          throw new JobValidationError(
-            "Changing job attributes will assign a different workflow for new applicants. Existing applicants remain on their original workflow. Confirm to continue.",
-            { professionId: "Confirm routing change to update workflow assignment." },
-            "ROUTING_CHANGE_CONFIRMATION_REQUIRED"
-          );
-        }
-      }
-    }
+    previousWorkflowId = existingJob?.workflow_id ? String(existingJob.workflow_id) : null;
   }
 
   const { match, assignmentMode, assignmentError } = await resolveJobWorkflowAssignment(
@@ -604,6 +600,34 @@ export async function saveJobRequisition(
     options
   );
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
+
+  const nextWorkflowId = match?.workflowId ?? null;
+  const workflowChanged =
+    Boolean(options.jobId) && previousWorkflowId !== nextWorkflowId;
+  const confirmWorkflowChange =
+    options.confirmWorkflowChange === true || options.confirmRoutingChange === true;
+
+  if (workflowChanged && options.jobId) {
+    const applicantCount = await countActiveApplicantsForJob(supabase, tenantId, options.jobId);
+    if (applicantCount > 0 && !confirmWorkflowChange) {
+      const [previousWorkflowName, nextWorkflowName] = await Promise.all([
+        workflowDisplayName(supabase, tenantId, previousWorkflowId),
+        workflowDisplayName(supabase, tenantId, nextWorkflowId),
+      ]);
+      throw new JobValidationError(
+        "This job's assigned workflow is changing. Existing applicants still use the previous workflow. Choose whether to update their Pre-Hire and Post-Hire steps.",
+        { workflowId: "Confirm how to handle existing applicants for this workflow change." },
+        "WORKFLOW_CHANGE_CONFIRMATION_REQUIRED",
+        {
+          applicantCount,
+          previousWorkflowId,
+          nextWorkflowId,
+          previousWorkflowName,
+          nextWorkflowName,
+        }
+      );
+    }
+  }
 
   const serviceArea = await evaluateJobServiceArea(supabase, tenantId, input, {
     publish: options.publish,
@@ -746,11 +770,31 @@ export async function saveJobRequisition(
             questions: options.screeningQuestions,
           })
         : await loadJobScreeningQuestions(supabase, tenantId, savedJobId);
+
+    let applicantsReassigned: {
+      applications: number;
+      instances: number;
+      stepsPreserved: number;
+    } | null = null;
+    if (
+      workflowChanged &&
+      confirmWorkflowChange &&
+      options.updateExistingApplicantsWorkflow === true &&
+      nextWorkflowId
+    ) {
+      applicantsReassigned = await reassignJobApplicantsToWorkflow(supabase, {
+        tenantId,
+        jobId: savedJobId,
+        workflowId: nextWorkflowId,
+      });
+    }
+
     return {
       job: data,
       workflow: match,
       screeningQuestions: screeningQuestions.map(jobScreeningQuestionToInput),
       matchReanalysisScheduled,
+      applicantsReassigned,
     };
   }
 

@@ -128,6 +128,21 @@ export type JobWorkflowAssignmentOptions = {
   resetToAutomatic?: boolean;
   /** Explicit admin override of the assigned published workflow. */
   overrideWorkflowId?: string | null;
+  /**
+   * Admin acknowledged that saving will change the job's workflow while applicants exist.
+   * Required together with updateExistingApplicantsWorkflow when applicants > 0.
+   */
+  confirmWorkflowChange?: boolean;
+  /** When true (and confirmWorkflowChange), migrate existing applicants onto the new workflow. */
+  updateExistingApplicantsWorkflow?: boolean;
+};
+
+export type WorkflowChangeConfirmationDetails = {
+  applicantCount: number;
+  previousWorkflowId: string | null;
+  nextWorkflowId: string | null;
+  previousWorkflowName: string | null;
+  nextWorkflowName: string | null;
 };
 
 /** Job form fields plus admin Add-candidate and job-patch fields. */
@@ -151,12 +166,19 @@ export type FieldErrors = Partial<
 export class JobValidationError extends Error {
   readonly fieldErrors: FieldErrors;
   readonly code: string;
+  readonly details?: Record<string, unknown>;
 
-  constructor(message: string, fieldErrors: FieldErrors, code = "JOB_VALIDATION_FAILED") {
+  constructor(
+    message: string,
+    fieldErrors: FieldErrors,
+    code = "JOB_VALIDATION_FAILED",
+    details?: Record<string, unknown>
+  ) {
     super(message);
     this.name = "JobValidationError";
     this.fieldErrors = fieldErrors;
     this.code = code;
+    this.details = details;
   }
 }
 

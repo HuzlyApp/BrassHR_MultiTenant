@@ -2768,8 +2768,8 @@ export function JobFormWorkflowBanner({
                   </p>
                 ) : (
                   <p className="mt-1 text-xs leading-5 text-[#64748B]">
-                    New applicants for this job will follow this workflow. Existing applicants keep
-                    their current workflow.
+                    New applicants follow this workflow. If you change it later, you can choose
+                    whether existing applicants are updated too.
                   </p>
                 )}
               </>

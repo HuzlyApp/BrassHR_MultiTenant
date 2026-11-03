@@ -6,6 +6,10 @@ import { Loader2 } from "lucide-react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import HireJourneyClient from "@/app/admin_recruiter/candidates/[workerId]/hire-journey/HireJourneyClient";
+import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
 import type { CandidateWorkflowPhaseView } from "@/lib/onboarding/candidate-workflow-phase-view";
 
 type ProfilePayload = {
@@ -73,6 +77,18 @@ export default function CandidatePostHirePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!applicantId) return;
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId === applicantId) void load();
+    }
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    };
+  }, [applicantId, load]);
 
   const worker = profile?.worker;
   const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim();
