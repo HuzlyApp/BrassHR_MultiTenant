@@ -233,11 +233,11 @@ async function loadStaffMembers(
 
   // department_id is added by the analytics migration; fall back if not applied yet.
   if (userQuery.error && /department_id/i.test(userQuery.error.message)) {
-    userQuery = await supabase
+    userQuery = (await supabase
       .from("users")
       .select("id, email, first_name, last_name, role")
       .eq("tenant_id", tenantId)
-      .order("first_name", { ascending: true });
+      .order("first_name", { ascending: true })) as typeof userQuery;
   }
 
   if (userQuery.error) throw userQuery.error;
@@ -261,10 +261,10 @@ async function loadStaffMembers(
       .select("id, email, first_name, last_name, role, department_id")
       .in("id", missingIds);
     if (extraResult.error && /department_id/i.test(extraResult.error.message)) {
-      extraResult = await supabase
+      extraResult = (await supabase
         .from("users")
         .select("id, email, first_name, last_name, role")
-        .in("id", missingIds);
+        .in("id", missingIds)) as typeof extraResult;
     }
     extra = ((extraResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
       id: String(row.id),
@@ -286,7 +286,7 @@ async function loadStaffMembers(
       email: String(row.email ?? "").trim().toLowerCase(),
       name: `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || String(row.email ?? ""),
       role: String(row.role ?? ""),
-      roleLabel: labelForRole(row.role, catalog),
+      roleLabel: labelForRole(row.role, catalog) ?? String(row.role ?? "Staff"),
       departmentId: row.department_id ? String(row.department_id) : null,
     }))
     .filter((row) => row.email.includes("@"));
@@ -1074,7 +1074,7 @@ export async function buildEmployeeDetailPayload(
     employee,
     timeline,
     jobsWorked: [...jobsMap.entries()].map(([jobId, activityCount]) => ({ jobId, activityCount })),
-    sessions: sessions.data ?? [],
+    sessions: sessions ?? [],
     period: payload.period,
     disclosure: payload.disclosure,
     kpiExplanations: [
