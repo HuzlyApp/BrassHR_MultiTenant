@@ -249,11 +249,18 @@ export function AdminRecruiterHeader({
   const profilePhoto = profile?.avatar_url ?? null;
   /** Profile label should not stay on Loading… when only notifications fail. */
   const profileNameLoading = accountLoading && !displayName;
-  const showBackButton = isCandidateDetailPage(pathname ?? "");
+  const path = pathname ?? "";
+  const isDocumentTemplateEditorPage =
+    /^\/admin_recruiter\/template-builder\/(?:new|[^/]+)$/.test(path);
+  const showBackButton = isCandidateDetailPage(path) || isDocumentTemplateEditorPage;
 
   const handleBackClick = useCallback(() => {
-    navigateCandidateDetailBack(router, pathname ?? "");
-  }, [router, pathname]);
+    if (isDocumentTemplateEditorPage) {
+      router.push("/admin_recruiter/template-builder");
+      return;
+    }
+    navigateCandidateDetailBack(router, path);
+  }, [router, path, isDocumentTemplateEditorPage]);
 
   return (
     <header className="admin-recruiter-topbar sticky top-0 z-40 w-full bg-white max-[999px]:z-30">

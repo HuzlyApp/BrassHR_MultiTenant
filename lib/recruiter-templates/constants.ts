@@ -69,6 +69,15 @@ export const APP_DATA_SOURCE_LABELS: Record<AppDataSource, string> = {
 
 export const RECRUITER_TEMPLATE_DOCUMENT_BUCKET = "recruiter-template-documents";
 
+/**
+ * In-app path for the Firma template editor embed.
+ * Firma does not host a standalone `/template-editor` page on app.firma.dev —
+ * the editor is embed-only via `template-editor.js` (see Firma docs).
+ */
+export function buildRecruiterTemplateBuilderPath(templateId: string): string {
+  return `/admin_recruiter/template-builder/${encodeURIComponent(templateId)}?preview=1`;
+}
+
 export const RECRUITER_TEMPLATE_FIELD_TYPES = [
   "text",
   "date",

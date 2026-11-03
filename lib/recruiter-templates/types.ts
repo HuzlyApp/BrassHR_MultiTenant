@@ -98,6 +98,7 @@ export type RecruiterTemplateBuilderSession = {
   firma_template_id: string;
   builder_session_id: string | null;
   jwt: string;
+  /** In-app builder path (Firma has no hosted /template-editor page). */
   editor_url: string;
   editor_app_url: string;
   embed_script_url: string;

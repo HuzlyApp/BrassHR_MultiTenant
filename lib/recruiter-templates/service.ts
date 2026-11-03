@@ -32,7 +32,10 @@ import {
   tenantBrandingToFirmaEmbedColorPalette,
 } from "@/lib/firma/embed-color-palette";
 import { brandingFromTenantRow } from "@/lib/tenant/tenant-branding";
-import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
+import {
+  RECRUITER_TEMPLATE_DOCUMENT_BUCKET,
+  buildRecruiterTemplateBuilderPath,
+} from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import type {
   ListRecruiterTemplatesFilters,
@@ -669,8 +672,9 @@ export async function createRecruiterTemplateBuilderSession(
       workspaceId
     );
     const jwt = await generateFirmaTemplateJwt(firmaTemplateId, workspaceId);
-    const editorUrl = new URL("/template-editor", editorAppUrl);
-    editorUrl.searchParams.set("token", jwt.token);
+    // Firma has no hosted /template-editor?token= page (404 on app.firma.dev).
+    // Open our in-app embed route instead; JWT is used by FirmaTemplateEditor JS.
+    const editorUrl = buildRecruiterTemplateBuilderPath(templateId);
 
     await supabase
       .from("recruiter_templates")
@@ -686,7 +690,7 @@ export async function createRecruiterTemplateBuilderSession(
       firma_template_id: firmaTemplateId,
       builder_session_id: jwt.jwt_record_id ?? null,
       jwt: jwt.token,
-      editor_url: editorUrl.toString(),
+      editor_url: editorUrl,
       editor_app_url: editorAppUrl,
       embed_script_url: getFirmaEmbedScriptUrl(),
       expires_at: jwt.expires_at,
