@@ -27,6 +27,8 @@ export type WorkflowBuilderHeaderConfig = {
   savingTemplate?: boolean;
   savingPublish?: boolean;
   statusSuffix?: string;
+  /** Profession / employment meta for the open workflow, e.g. "IT Support · W2". */
+  metaLabel?: string;
 };
 
 type WorkflowDashboardHeaderContextValue = {
@@ -64,7 +66,8 @@ function headerConfigEqual(
     a.templateReadOnly === b.templateReadOnly &&
     a.savingTemplate === b.savingTemplate &&
     a.savingPublish === b.savingPublish &&
-    a.statusSuffix === b.statusSuffix
+    a.statusSuffix === b.statusSuffix &&
+    a.metaLabel === b.metaLabel
   );
 }
 

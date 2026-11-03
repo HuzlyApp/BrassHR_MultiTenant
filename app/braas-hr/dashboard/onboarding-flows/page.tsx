@@ -451,21 +451,11 @@ function CreateNewFlowModal({
         });
         const payload = (await res.json().catch(() => ({}))) as {
           professions?: Array<{ id: string; name: string }>;
-          catalogProfessions?: Array<{
-            key: string;
-            name: string;
-            industryLabel?: string | null;
-          }>;
         };
         if (!alive || !res.ok) return;
-        const catalog = payload.catalogProfessions ?? [];
+        // Use tenant_professions only (scoped to the tenant's industry), not the global catalog.
         setProfessions(
-          catalog.length
-            ? catalog.map((row) => ({
-                id: row.key,
-                label: row.industryLabel ? `${row.name} (${row.industryLabel})` : row.name,
-              }))
-            : (payload.professions ?? []).map((row) => ({ id: row.id, label: row.name }))
+          (payload.professions ?? []).map((row) => ({ id: row.id, label: row.name }))
         );
       } finally {
         if (alive) setProfessionsLoading(false);
