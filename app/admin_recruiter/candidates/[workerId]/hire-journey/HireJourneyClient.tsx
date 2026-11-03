@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HireStageBoard } from "@/app/admin_recruiter/components/hire-stage/HireStageBoard";
 import { HireJourneyThemeProvider } from "@/app/admin_recruiter/components/hire-stage/HireJourneyTheme";
-import { dispatchCandidatePipelineRefresh } from "@/lib/admin/candidate-pipeline-events";
+import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  dispatchCandidatePipelineRefresh,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
 import { fetchStaffDetailJson, prefetchStaffDetail } from "@/lib/admin/staff-detail-fetch-cache";
 import {
   APPLICATION_STAGE_ASSIGNMENTS_URL,
@@ -149,6 +153,19 @@ export default function HireJourneyClient({
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
   }, [load]);
+
+  useEffect(() => {
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId === workerId) {
+        void load({ silent: true, bust: true });
+      }
+    }
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    };
+  }, [load, workerId]);
 
   useEffect(() => {
     if (embeddedPhase) return;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { /* ClipboardList, */ Link2, Loader2, Mail } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
+import UpdateAssignedWorkflowControl from "./UpdateAssignedWorkflowControl";
 import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
 import {
   candidateDetailAiAnalysisHref,
@@ -109,6 +110,9 @@ export default function DetailedCandidateHeader({
               <span className="min-[480px]:hidden">Journey</span>
             </Link>
           ) : null} */}
+          {workerId?.trim() && !loading ? (
+            <UpdateAssignedWorkflowControl workerId={workerId.trim()} />
+          ) : null}
           {showResendStatus ? (
             <button
               type="button"
