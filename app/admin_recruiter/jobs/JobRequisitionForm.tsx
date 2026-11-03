@@ -19,6 +19,10 @@ import {
 } from "@/lib/jobs/placement";
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
+import {
+  WorkflowChangeConfirmModal,
+  type WorkflowChangeConfirmDetails,
+} from "./WorkflowChangeConfirmModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
 import { readServiceAreaApiMessage, SERVICE_AREA_COPY } from "@/lib/service-area/copy";
 import { invalidateJobsListCache } from "@/lib/lists/staff-list-session-cache";
@@ -113,6 +117,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [reviewEditField, setReviewEditField] = useState<ReviewEditFieldId | null>(null);
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
+  const [workflowChangeModal, setWorkflowChangeModal] = useState<{
+    details: WorkflowChangeConfirmDetails;
+    pendingAction: "save_draft" | "publish";
+  } | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -537,7 +545,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     return errors;
   }
 
-  async function save(action: "save_draft" | "publish", forceRoutingChange = false) {
+  async function save(
+    action: "save_draft" | "publish",
+    workflowChange?: {
+      confirmWorkflowChange: boolean;
+      updateExistingApplicantsWorkflow: boolean;
+    }
+  ) {
     setSaving(true);
     setMessage("");
     setFieldErrors({});
@@ -600,22 +614,35 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           job: payloadJob,
           jobId: persistedJobId,
           screeningQuestions,
-          confirmRoutingChange: forceRoutingChange || confirmRoutingChange,
+          confirmRoutingChange: confirmRoutingChange || workflowChange?.confirmWorkflowChange === true,
+          confirmWorkflowChange: workflowChange?.confirmWorkflowChange === true,
+          updateExistingApplicantsWorkflow:
+            workflowChange?.updateExistingApplicantsWorkflow === true,
           resetToAutomatic: assignmentMode === "automatic",
           overrideWorkflowId: assignmentMode === "manual" ? overrideWorkflowId : undefined,
         }),
       });
       const payload = await response.json();
       if (!response.ok) {
-        if (payload.code === "ROUTING_CHANGE_CONFIRMATION_REQUIRED") {
-          const confirmed = window.confirm(
-            `${payload.error}\n\nExisting applicants will keep their current workflow. Continue?`
-          );
-          if (confirmed) {
-            setConfirmRoutingChange(true);
-            await save(action, true);
-            return;
-          }
+        if (
+          payload.code === "WORKFLOW_CHANGE_CONFIRMATION_REQUIRED" ||
+          payload.code === "ROUTING_CHANGE_CONFIRMATION_REQUIRED"
+        ) {
+          const details = (payload.details ?? {}) as Record<string, unknown>;
+          const applicantCount = Number(details.applicantCount ?? 0);
+          setWorkflowChangeModal({
+            details: {
+              applicantCount: Number.isFinite(applicantCount) && applicantCount > 0 ? applicantCount : 1,
+              previousWorkflowName:
+                typeof details.previousWorkflowName === "string"
+                  ? details.previousWorkflowName
+                  : null,
+              nextWorkflowName:
+                typeof details.nextWorkflowName === "string" ? details.nextWorkflowName : null,
+            },
+            pendingAction: action,
+          });
+          return;
         }
         setFieldErrors(payload.fieldErrors ?? {});
         const apiFieldErrors = (payload.fieldErrors ?? {}) as Record<string, string>;
@@ -645,8 +672,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       }
       clearJobRequisitionFormDraft();
       invalidateJobsListCache();
+      setWorkflowChangeModal(null);
+      setConfirmRoutingChange(false);
       const reanalysisCount = Number(payload.matchReanalysisScheduled ?? 0);
-      if (Number.isFinite(reanalysisCount) && reanalysisCount > 0) {
+      const reassigned = Number(payload.applicantsReassigned?.applications ?? 0);
+      if (reassigned > 0) {
+        toast.success(
+          reassigned === 1
+            ? "Job updated. 1 existing applicant was moved to the new workflow."
+            : `Job updated. ${reassigned} existing applicants were moved to the new workflow.`
+        );
+      } else if (Number.isFinite(reanalysisCount) && reanalysisCount > 0) {
         toast.success(
           reanalysisCount === 1
             ? "Job updated. Re-analyzing 1 candidate against the new description."
@@ -1176,6 +1212,34 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         companyName={branding.companyName}
         brandStyle={brandStyle}
         brandVars={brandVars}
+      />
+
+      <WorkflowChangeConfirmModal
+        open={workflowChangeModal != null}
+        details={workflowChangeModal?.details ?? null}
+        busy={saving}
+        onCancel={() => {
+          if (saving) return;
+          setWorkflowChangeModal(null);
+        }}
+        onKeepExisting={() => {
+          const pending = workflowChangeModal?.pendingAction;
+          if (!pending) return;
+          setConfirmRoutingChange(true);
+          void save(pending, {
+            confirmWorkflowChange: true,
+            updateExistingApplicantsWorkflow: false,
+          });
+        }}
+        onUpdateExisting={() => {
+          const pending = workflowChangeModal?.pendingAction;
+          if (!pending) return;
+          setConfirmRoutingChange(true);
+          void save(pending, {
+            confirmWorkflowChange: true,
+            updateExistingApplicantsWorkflow: true,
+          });
+        }}
       />
     </main>
   );

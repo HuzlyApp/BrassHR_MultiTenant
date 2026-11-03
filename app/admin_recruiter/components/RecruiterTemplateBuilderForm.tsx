@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowLeft, ChevronDown, ExternalLink, Save, Send, Upload } from "lucide-react";
+import { ChevronDown, ExternalLink, Save, Send, Upload } from "lucide-react";
 import FirmaTemplateBuilderFrame from "@/app/admin_recruiter/components/FirmaTemplateBuilderFrame";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
 import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
@@ -186,6 +185,17 @@ export default function RecruiterTemplateBuilderForm({
     setBuilderOpen(true);
   };
 
+  useEffect(() => {
+    if (!builderOpen || !currentTemplateId) return;
+    // Form stays above; scroll so the Firma embed is in view.
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector("[data-firma-builder-frame]")
+        ?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [builderOpen, currentTemplateId]);
+
   const publishTemplate = async () => {
     const id = currentTemplateId;
     if (!id) {
@@ -257,13 +267,6 @@ export default function RecruiterTemplateBuilderForm({
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-4 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between lg:items-center">
         <div className="flex min-w-0 items-start gap-3">
-          <Link
-            href="/admin_recruiter/template-builder"
-            className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#D0D5DD] text-[#667085] hover:bg-[#F9FAFB]"
-            aria-label="Back to templates"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
           <div className="min-w-0">
             <h1 className="text-lg font-semibold leading-7 text-[#101828] min-[700px]:text-xl">
               {isNew && !currentTemplateId ? "New recruiting template" : name || "Template builder"}
@@ -412,6 +415,7 @@ export default function RecruiterTemplateBuilderForm({
         <FirmaTemplateBuilderFrame
           templateId={currentTemplateId}
           onTemplateSynced={handleTemplateSynced}
+          onClose={() => setBuilderOpen(false)}
         />
       ) : null}
     </div>
