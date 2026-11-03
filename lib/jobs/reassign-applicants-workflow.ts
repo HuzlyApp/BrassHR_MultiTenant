@@ -138,6 +138,225 @@ export function planApplicantWorkflowReassignment(params: {
   return { deleteIds, updates, inserts };
 }
 
+type PublishedFlowForReassign = {
+  nodes: ReturnType<typeof snapshotNodes>;
+  workflowName: string;
+  workflowVersion: string;
+  snapshot: unknown;
+};
+
+async function loadPublishedFlowForReassign(
+  supabase: DbClient,
+  tenantId: string,
+  workflowId: string
+): Promise<PublishedFlowForReassign> {
+  const flow = await getOnboardingFlowById(supabase, tenantId, workflowId);
+  if (!flow) {
+    throw new JobValidationError(
+      "The selected workflow is unavailable.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+  if (flow.status !== "published") {
+    throw new JobValidationError(
+      "Only published workflows can be assigned.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+  if (!flow.builderDraft || !Array.isArray(flow.builderDraft.nodes) || !flow.builderDraft.nodes.length) {
+    throw new JobValidationError(
+      "The selected workflow has no applicant steps.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+  return {
+    nodes: snapshotNodes(flow.builderDraft),
+    workflowName: String(flow.name ?? "Workflow"),
+    workflowVersion: String(flow.updatedAt ?? new Date().toISOString()),
+    snapshot: flow.builderDraft ?? { nodes: [], edges: [] },
+  };
+}
+
+/**
+ * Reassign one job application to a published workflow, preserving completed /
+ * in-progress status on matching Pre-Hire and Post-Hire steps.
+ */
+export async function reassignApplicantApplicationToWorkflow(
+  supabase: DbClient,
+  params: {
+    tenantId: string;
+    applicationId: string;
+    workflowId: string;
+    jobRequisitionId?: string | null;
+    workerId?: string | null;
+    instanceId?: string | null;
+    flow?: PublishedFlowForReassign;
+  }
+): Promise<{ stepsPreserved: number; workflowName: string }> {
+  const flow =
+    params.flow ??
+    (await loadPublishedFlowForReassign(supabase, params.tenantId, params.workflowId));
+  const { nodes, workflowName, workflowVersion, snapshot } = flow;
+
+  let instanceId = params.instanceId?.trim() || null;
+
+  const { error: appUpdateError } = await supabase
+    .from("job_applications")
+    .update({ workflow_id: params.workflowId })
+    .eq("id", params.applicationId)
+    .eq("tenant_id", params.tenantId);
+  if (appUpdateError) throw appUpdateError;
+
+  if (!instanceId) {
+    let created: { id: string } | null = null;
+    let createError: { message?: string } | null = null;
+    const fullInsert = await supabase
+      .from("applicant_workflow_instances")
+      .insert({
+        tenant_id: params.tenantId,
+        application_id: params.applicationId,
+        workflow_id: params.workflowId,
+        worker_id: params.workerId ?? null,
+        job_requisition_id: params.jobRequisitionId ?? null,
+        onboarding_flow_id: params.workflowId,
+        workflow_name: workflowName,
+        workflow_snapshot: snapshot,
+        workflow_version: workflowVersion,
+        status: "in_progress",
+        assignment_state: "active",
+      })
+      .select("id")
+      .single();
+    created = fullInsert.data;
+    createError = fullInsert.error;
+    if (
+      createError &&
+      /onboarding_flow_id|job_requisition_id|assignment_state|Could not find/i.test(
+        String(createError.message ?? "")
+      )
+    ) {
+      const retry = await supabase
+        .from("applicant_workflow_instances")
+        .insert({
+          tenant_id: params.tenantId,
+          application_id: params.applicationId,
+          workflow_id: params.workflowId,
+          workflow_name: workflowName,
+          workflow_snapshot: snapshot,
+          workflow_version: workflowVersion,
+          status: "in_progress",
+        })
+        .select("id")
+        .single();
+      created = retry.data;
+      createError = retry.error;
+    }
+    if (createError || !created?.id) {
+      throw createError ?? new Error("Failed to create workflow instance");
+    }
+    instanceId = String(created.id);
+    if (nodes.length) {
+      const { error: insertError } = await supabase
+        .from("applicant_workflow_step_records")
+        .insert(
+          nodes.map((node, index) =>
+            buildStepRecordRow(params.tenantId, instanceId!, node, index)
+          )
+        );
+      if (insertError) throw insertError;
+    }
+    await supabase
+      .from("job_applications")
+      .update({ applicant_workflow_instance_id: instanceId })
+      .eq("id", params.applicationId)
+      .eq("tenant_id", params.tenantId);
+    return { stepsPreserved: 0, workflowName };
+  }
+
+  const { data: oldRecords, error: stepsError } = await supabase
+    .from("applicant_workflow_step_records")
+    .select(STEP_SELECT)
+    .eq("tenant_id", params.tenantId)
+    .eq("workflow_instance_id", instanceId)
+    .order("position");
+  if (stepsError) throw stepsError;
+
+  const plan = planApplicantWorkflowReassignment({
+    tenantId: params.tenantId,
+    instanceId,
+    nodes,
+    oldRecords: (oldRecords ?? []) as ExistingStepRecord[],
+  });
+  const stepsPreserved = plan.updates.filter(
+    (row) => row.status === "completed" || row.status === "in_progress"
+  ).length;
+
+  for (const batch of chunk(plan.deleteIds)) {
+    const { error } = await supabase
+      .from("applicant_workflow_step_records")
+      .delete()
+      .in("id", batch);
+    if (error) throw error;
+  }
+  for (const batch of chunk(plan.updates)) {
+    const { error } = await supabase
+      .from("applicant_workflow_step_records")
+      .upsert(
+        batch.map((row) => ({ ...row, position: row.position + PARKED_POSITION_OFFSET })),
+        { onConflict: "id" }
+      );
+    if (error) throw error;
+  }
+  for (const batch of chunk(plan.updates)) {
+    const { error } = await supabase
+      .from("applicant_workflow_step_records")
+      .upsert(batch, { onConflict: "id" });
+    if (error) throw error;
+  }
+  for (const batch of chunk(plan.inserts)) {
+    const { error } = await supabase.from("applicant_workflow_step_records").insert(batch);
+    if (error) throw error;
+  }
+
+  const instancePatch: Record<string, unknown> = {
+    workflow_id: params.workflowId,
+    onboarding_flow_id: params.workflowId,
+    workflow_name: workflowName,
+    workflow_snapshot: snapshot,
+    workflow_version: workflowVersion,
+  };
+  if (params.jobRequisitionId) {
+    instancePatch.job_requisition_id = params.jobRequisitionId;
+  }
+  let { error: instanceError } = await supabase
+    .from("applicant_workflow_instances")
+    .update(instancePatch)
+    .eq("id", instanceId)
+    .eq("tenant_id", params.tenantId);
+  if (instanceError) {
+    const message = String(instanceError.message ?? "");
+    if (/onboarding_flow_id|job_requisition_id|Could not find/i.test(message)) {
+      const retry = await supabase
+        .from("applicant_workflow_instances")
+        .update({
+          workflow_id: params.workflowId,
+          workflow_name: workflowName,
+          workflow_snapshot: snapshot,
+          workflow_version: workflowVersion,
+        })
+        .eq("id", instanceId)
+        .eq("tenant_id", params.tenantId);
+      instanceError = retry.error;
+    }
+  }
+  if (instanceError) throw instanceError;
+
+  return { stepsPreserved, workflowName };
+}
+
 /**
  * Point every active applicant on a job at a newly assigned published workflow,
  * preserving completed / in-progress status on matching Pre-Hire and Post-Hire steps.
@@ -150,32 +369,11 @@ export async function reassignJobApplicantsToWorkflow(
     workflowId: string;
   }
 ): Promise<{ applications: number; instances: number; stepsPreserved: number }> {
-  const flow = await getOnboardingFlowById(supabase, params.tenantId, params.workflowId);
-  if (!flow) {
-    throw new JobValidationError(
-      "The workflow assigned to this job is unavailable.",
-      {},
-      "WORKFLOW_UNAVAILABLE"
-    );
-  }
-  if (flow.status !== "published") {
-    throw new JobValidationError(
-      "The workflow assigned to this job is not published.",
-      {},
-      "WORKFLOW_UNAVAILABLE"
-    );
-  }
-  if (!flow.builderDraft || !Array.isArray(flow.builderDraft.nodes) || !flow.builderDraft.nodes.length) {
-    throw new JobValidationError(
-      "The workflow assigned to this job has no applicant steps.",
-      {},
-      "WORKFLOW_UNAVAILABLE"
-    );
-  }
-  const nodes = snapshotNodes(flow.builderDraft);
-  const workflowName = String(flow.name ?? "Workflow");
-  const workflowVersion = String(flow.updatedAt ?? new Date().toISOString());
-  const snapshot = flow.builderDraft ?? { nodes: [], edges: [] };
+  const flow = await loadPublishedFlowForReassign(
+    supabase,
+    params.tenantId,
+    params.workflowId
+  );
 
   const { data: applications, error: appsError } = await supabase
     .from("job_applications")
@@ -188,166 +386,26 @@ export async function reassignJobApplicantsToWorkflow(
     return { applications: 0, instances: 0, stepsPreserved: 0 };
   }
 
-  let instancesUpdated = 0;
   let stepsPreserved = 0;
-
   for (const application of applications) {
-    const applicationId = String(application.id);
-    let instanceId =
-      application.applicant_workflow_instance_id != null
-        ? String(application.applicant_workflow_instance_id)
-        : null;
-
-    const { error: appUpdateError } = await supabase
-      .from("job_applications")
-      .update({ workflow_id: params.workflowId })
-      .eq("id", applicationId)
-      .eq("tenant_id", params.tenantId);
-    if (appUpdateError) throw appUpdateError;
-
-    if (!instanceId) {
-      let created: { id: string } | null = null;
-      let createError: { message?: string } | null = null;
-      const fullInsert = await supabase
-        .from("applicant_workflow_instances")
-        .insert({
-          tenant_id: params.tenantId,
-          application_id: applicationId,
-          workflow_id: params.workflowId,
-          worker_id: application.worker_id ?? null,
-          job_requisition_id: params.jobId,
-          onboarding_flow_id: params.workflowId,
-          workflow_name: workflowName,
-          workflow_snapshot: snapshot,
-          workflow_version: workflowVersion,
-          status: "in_progress",
-          assignment_state: "active",
-        })
-        .select("id")
-        .single();
-      created = fullInsert.data;
-      createError = fullInsert.error;
-      if (createError && /onboarding_flow_id|job_requisition_id|assignment_state|Could not find/i.test(String(createError.message ?? ""))) {
-        const retry = await supabase
-          .from("applicant_workflow_instances")
-          .insert({
-            tenant_id: params.tenantId,
-            application_id: applicationId,
-            workflow_id: params.workflowId,
-            workflow_name: workflowName,
-            workflow_snapshot: snapshot,
-            workflow_version: workflowVersion,
-            status: "in_progress",
-          })
-          .select("id")
-          .single();
-        created = retry.data;
-        createError = retry.error;
-      }
-      if (createError || !created?.id) {
-        throw createError ?? new Error("Failed to create workflow instance");
-      }
-      instanceId = String(created.id);
-      if (nodes.length) {
-        const { error: insertError } = await supabase
-          .from("applicant_workflow_step_records")
-          .insert(
-            nodes.map((node, index) =>
-              buildStepRecordRow(params.tenantId, instanceId!, node, index)
-            )
-          );
-        if (insertError) throw insertError;
-      }
-      await supabase
-        .from("job_applications")
-        .update({ applicant_workflow_instance_id: instanceId })
-        .eq("id", applicationId)
-        .eq("tenant_id", params.tenantId);
-      instancesUpdated += 1;
-      continue;
-    }
-
-    const { data: oldRecords, error: stepsError } = await supabase
-      .from("applicant_workflow_step_records")
-      .select(STEP_SELECT)
-      .eq("tenant_id", params.tenantId)
-      .eq("workflow_instance_id", instanceId)
-      .order("position");
-    if (stepsError) throw stepsError;
-
-    const plan = planApplicantWorkflowReassignment({
+    const result = await reassignApplicantApplicationToWorkflow(supabase, {
       tenantId: params.tenantId,
-      instanceId,
-      nodes,
-      oldRecords: (oldRecords ?? []) as ExistingStepRecord[],
+      applicationId: String(application.id),
+      workflowId: params.workflowId,
+      jobRequisitionId: params.jobId,
+      workerId: application.worker_id != null ? String(application.worker_id) : null,
+      instanceId:
+        application.applicant_workflow_instance_id != null
+          ? String(application.applicant_workflow_instance_id)
+          : null,
+      flow,
     });
-    stepsPreserved += plan.updates.filter(
-      (row) => row.status === "completed" || row.status === "in_progress"
-    ).length;
-
-    for (const batch of chunk(plan.deleteIds)) {
-      const { error } = await supabase
-        .from("applicant_workflow_step_records")
-        .delete()
-        .in("id", batch);
-      if (error) throw error;
-    }
-    for (const batch of chunk(plan.updates)) {
-      const { error } = await supabase
-        .from("applicant_workflow_step_records")
-        .upsert(
-          batch.map((row) => ({ ...row, position: row.position + PARKED_POSITION_OFFSET })),
-          { onConflict: "id" }
-        );
-      if (error) throw error;
-    }
-    for (const batch of chunk(plan.updates)) {
-      const { error } = await supabase
-        .from("applicant_workflow_step_records")
-        .upsert(batch, { onConflict: "id" });
-      if (error) throw error;
-    }
-    for (const batch of chunk(plan.inserts)) {
-      const { error } = await supabase.from("applicant_workflow_step_records").insert(batch);
-      if (error) throw error;
-    }
-
-    const instancePatch: Record<string, unknown> = {
-      workflow_id: params.workflowId,
-      onboarding_flow_id: params.workflowId,
-      workflow_name: workflowName,
-      workflow_snapshot: snapshot,
-      workflow_version: workflowVersion,
-      job_requisition_id: params.jobId,
-    };
-    let { error: instanceError } = await supabase
-      .from("applicant_workflow_instances")
-      .update(instancePatch)
-      .eq("id", instanceId)
-      .eq("tenant_id", params.tenantId);
-    if (instanceError) {
-      const message = String(instanceError.message ?? "");
-      if (/onboarding_flow_id|job_requisition_id|Could not find/i.test(message)) {
-        const retry = await supabase
-          .from("applicant_workflow_instances")
-          .update({
-            workflow_id: params.workflowId,
-            workflow_name: workflowName,
-            workflow_snapshot: snapshot,
-            workflow_version: workflowVersion,
-          })
-          .eq("id", instanceId)
-          .eq("tenant_id", params.tenantId);
-        instanceError = retry.error;
-      }
-    }
-    if (instanceError) throw instanceError;
-    instancesUpdated += 1;
+    stepsPreserved += result.stepsPreserved;
   }
 
   return {
     applications: applications.length,
-    instances: instancesUpdated,
+    instances: applications.length,
     stepsPreserved,
   };
 }
