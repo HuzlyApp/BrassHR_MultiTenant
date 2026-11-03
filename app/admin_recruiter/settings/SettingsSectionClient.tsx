@@ -99,7 +99,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
         <TemplatesSettingsPanel />
       ) : (
         <fieldset
-          disabled={!canEdit && section !== "security"}
+          disabled={!canEdit && section !== "security" && section !== "profession"}
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
           {section === "branding" ? (
@@ -115,7 +115,11 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           {section === "admin-console" ? <AdminConsolePanel embedInSettingsPage /> : null}
           {section === "departments" ? <DepartmentsPanel /> : null}
           {section === "assessment" ? <AssessmentSettingsPanel /> : null}
-          {section === "profession" ? <ProfessionDocumentsPanel /> : null}
+          {section === "profession" ? (
+            <Suspense fallback={<SettingsPanelFallback />}>
+              <ProfessionDocumentsPanel />
+            </Suspense>
+          ) : null}
           {section === "statuses" ? <CandidateStatusesPanel /> : null}
           {section === "security" ? <SecuritySettingsPanel /> : null}
         </fieldset>

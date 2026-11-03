@@ -24,6 +24,7 @@ import { WorkflowDashboardHeaderProvider } from "./components/WorkflowDashboardH
 import GodAdminImpersonationBanner from "./components/GodAdminImpersonationBanner";
 import { AdminStaffAuthGuard } from "./components/AdminStaffAuthGuard";
 import { isCandidateDetailPage } from "./components/candidate-detail-navigation";
+import AnalyticsSessionTracker from "@/app/components/AnalyticsSessionTracker";
 import "./layout.css";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
@@ -137,6 +138,7 @@ export default function AdminRecruiterShell({
         <AdminStaffAuthGuard>
           <AccountDataProvider>
             <AccessDeniedNotice />
+            <AnalyticsSessionTracker />
             <CloseMobileNavOnNavigate onClose={closeMobileNav} />
             <div
               className="admin-recruiter-shell min-h-screen text-gray-600"
