@@ -14,6 +14,7 @@ type BuilderWorkflowHeaderSlotsProps = {
   savingTemplate?: boolean;
   savingPublish?: boolean;
   statusSuffix?: string;
+  metaLabel?: string;
   onSaveTemplate: () => void;
   onPreview: () => void;
   onPublish: () => void;
@@ -30,6 +31,7 @@ export default function BuilderWorkflowHeaderSlots({
   savingTemplate = false,
   savingPublish = false,
   statusSuffix,
+  metaLabel,
   onSaveTemplate,
   onPreview,
   onPublish,
@@ -73,11 +75,13 @@ export default function BuilderWorkflowHeaderSlots({
       savingTemplate,
       savingPublish,
       statusSuffix,
+      metaLabel,
     });
   }, [
     editableTitle,
     isDraft,
     isEditingTemplate,
+    metaLabel,
     savingPublish,
     savingTemplate,
     setHeaderConfig,

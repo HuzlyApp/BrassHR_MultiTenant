@@ -46,11 +46,32 @@ export type OnboardingFlowDetail = OnboardingFlowListItem & {
   builderDraft: SerializableWorkflowState;
   createdBy: string | null;
   updatedBy: string | null;
+  professionId: string | null;
+  professionName: string | null;
+  employmentType: string | null;
 };
+
+type OnboardingFlowRowWithProfession = OnboardingFlowRow & {
+  profession_id?: string | null;
+  employment_type?: string | null;
+  tenant_professions?: { name: string } | { name: string }[] | null;
+};
+
+const FLOW_DETAIL_SELECT =
+  "id, tenant_id, library_id, template_id, name, status, created_as_blank, builder_draft, created_by, updated_by, created_at, updated_at, profession_id, employment_type, tenant_professions(name)";
 
 function parseDraft(raw: unknown): SerializableWorkflowState {
   if (isSerializableWorkflowState(raw)) return raw;
   return { nodes: [], edges: [] };
+}
+
+function professionNameFromJoin(
+  joined: OnboardingFlowRowWithProfession["tenant_professions"]
+): string | null {
+  if (!joined) return null;
+  const row = Array.isArray(joined) ? joined[0] : joined;
+  const name = row?.name?.trim();
+  return name || null;
 }
 
 function toListItem(row: OnboardingFlowRow): OnboardingFlowListItem {
@@ -66,12 +87,15 @@ function toListItem(row: OnboardingFlowRow): OnboardingFlowListItem {
   };
 }
 
-function toDetail(row: OnboardingFlowRow): OnboardingFlowDetail {
+function toDetail(row: OnboardingFlowRowWithProfession): OnboardingFlowDetail {
   return {
     ...toListItem(row),
     builderDraft: parseDraft(row.builder_draft),
     createdBy: row.created_by,
     updatedBy: row.updated_by,
+    professionId: row.profession_id ? String(row.profession_id) : null,
+    professionName: professionNameFromJoin(row.tenant_professions),
+    employmentType: row.employment_type?.trim() || null,
   };
 }
 
@@ -541,9 +565,7 @@ export async function getOnboardingFlowById(
 ): Promise<OnboardingFlowDetail | null> {
   const { data, error } = await supabase
     .from("onboarding_flows")
-    .select(
-      "id, tenant_id, library_id, template_id, name, status, created_as_blank, builder_draft, created_by, updated_by, created_at, updated_at"
-    )
+    .select(FLOW_DETAIL_SELECT)
     .eq("id", flowId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -551,7 +573,7 @@ export async function getOnboardingFlowById(
   if (error) throw error;
   if (!data) return null;
 
-  const row = data as OnboardingFlowRow;
+  const row = data as OnboardingFlowRowWithProfession;
   const builderDraft = await loadFlowBuilderDraft(supabase, flowId, row.builder_draft);
   return { ...toDetail(row), builderDraft };
 }
@@ -626,9 +648,7 @@ export async function createOnboardingFlow(
       created_by: input.createdBy,
       updated_by: input.createdBy,
     })
-    .select(
-      "id, tenant_id, library_id, template_id, name, status, created_as_blank, builder_draft, created_by, updated_by, created_at, updated_at"
-    )
+    .select(FLOW_DETAIL_SELECT)
     .single();
 
   if (error) {
@@ -636,7 +656,7 @@ export async function createOnboardingFlow(
     throw new Error(message || "Failed to create onboarding flow");
   }
 
-  const detail = toDetail(data as OnboardingFlowRow);
+  const detail = toDetail(data as OnboardingFlowRowWithProfession);
   if (builderDraft.nodes.length) {
     await replaceFlowStepsFromDraft(supabase, detail.id, builderDraft);
   }
@@ -679,9 +699,7 @@ export async function updateOnboardingFlow(
     .update(patch)
     .eq("id", flowId)
     .eq("tenant_id", tenantId)
-    .select(
-      "id, tenant_id, library_id, template_id, name, status, created_as_blank, builder_draft, created_by, updated_by, created_at, updated_at"
-    )
+    .select(FLOW_DETAIL_SELECT)
     .single();
 
   if (error) {
@@ -691,7 +709,7 @@ export async function updateOnboardingFlow(
     );
   }
 
-  const detail = toDetail(data as OnboardingFlowRow);
+  const detail = toDetail(data as OnboardingFlowRowWithProfession);
   if (input.builderDraft) {
     await replaceFlowStepsFromDraft(supabase, flowId, input.builderDraft);
     detail.builderDraft = input.builderDraft;
