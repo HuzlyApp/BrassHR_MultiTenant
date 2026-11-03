@@ -276,14 +276,10 @@ export async function addTenantProfessionFromCatalog(
 
   if (match) {
     if (match.is_active === true) throw new Error("This profession already exists.");
+    // Identity is immutable in the DB; soft-delete reactivation only flips is_active.
     const { data: reactivated, error: reactivateError } = await supabase
       .from("tenant_professions")
-      .update({
-        is_active: true,
-        catalog_key: key,
-        name,
-        industry_key: industryKey,
-      })
+      .update({ is_active: true })
       .eq("id", match.id)
       .eq("tenant_id", tenantId)
       .select("id, name, catalog_key, industry_key, is_active")
@@ -314,6 +310,57 @@ export async function addTenantProfessionFromCatalog(
  * Soft-deactivates a tenant profession and its document requirements.
  * Blocks when onboarding flows still reference the profession.
  */
+export async function renameTenantProfession(
+  supabase: Db,
+  tenantId: string,
+  professionId: string,
+  name: string
+) {
+  const id = professionId.trim();
+  if (!PROFESSION_UUID.test(id)) throw new Error("Profession was not found.");
+
+  const label = name.trim();
+  if (!label) throw new Error("Profession name is required.");
+  if (label.length > 80) throw new Error("Profession name must be 80 characters or fewer.");
+
+  const { data: profession, error: professionError } = await supabase
+    .from("tenant_professions")
+    .select("id, name, catalog_key, industry_key, is_active")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (professionError) throw professionError;
+  if (!profession || profession.is_active !== true) throw new Error("Profession was not found.");
+
+  if (String(profession.name ?? "").trim().toLowerCase() === label.toLowerCase()) {
+    return profession;
+  }
+
+  const { data: clash, error: clashError } = await supabase
+    .from("tenant_professions")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("industry_key", profession.industry_key)
+    .neq("id", id)
+    .ilike("name", label)
+    .maybeSingle();
+  if (clashError) throw clashError;
+  if (clash?.id) throw new Error("This profession already exists.");
+
+  const { data, error } = await supabase
+    .from("tenant_professions")
+    .update({ name: label })
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .select("id, name, catalog_key, industry_key, is_active")
+    .single();
+  if (error) {
+    if (isDuplicateProfessionError(error)) throw new Error("This profession already exists.");
+    throw error;
+  }
+  return data;
+}
+
 export async function deactivateTenantProfession(
   supabase: Db,
   tenantId: string,
@@ -369,6 +416,7 @@ export async function addTenantProfession(
 ) {
   const label = name.trim();
   if (!label) throw new Error("Profession name is required.");
+  if (label.length > 80) throw new Error("Profession name must be 80 characters or fewer.");
 
   const { data: tenant, error: tenantError } = await supabase
     .from("tenants")
@@ -378,6 +426,29 @@ export async function addTenantProfession(
   if (tenantError) throw tenantError;
   const industryKey = (tenant?.primary_industry_key as string | null)?.trim();
   if (!industryKey) throw new Error("Set the tenant industry before adding a profession.");
+
+  const { data: existing, error: existingError } = await supabase
+    .from("tenant_professions")
+    .select("id, name, catalog_key, industry_key, is_active")
+    .eq("tenant_id", tenantId)
+    .eq("industry_key", industryKey)
+    .ilike("name", label)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  if (existing) {
+    if (existing.is_active === true) throw new Error("This profession already exists.");
+    // Identity is immutable in the DB; soft-delete reactivation only flips is_active.
+    const { data: reactivated, error: reactivateError } = await supabase
+      .from("tenant_professions")
+      .update({ is_active: true })
+      .eq("id", existing.id)
+      .eq("tenant_id", tenantId)
+      .select("id, name, catalog_key, industry_key, is_active")
+      .single();
+    if (reactivateError) throw reactivateError;
+    return reactivated;
+  }
 
   const { data, error } = await supabase
     .from("tenant_professions")
