@@ -4,6 +4,7 @@ import { ChevronDown, ChevronLeft, /* ClipboardList, Link2, Loader2, */ Mail, Ma
 import Link from "next/link";
 // import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
+import UpdateAssignedWorkflowControl from "./UpdateAssignedWorkflowControl";
 // import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
 // import {
 //   candidateDetailAiAnalysisHref,
@@ -44,7 +45,7 @@ export default function DetailedCandidateHeader({
   role,
   loading = false,
   profilePhotoUrl,
-  // workerId,
+  workerId,
   candidateEmail,
   phone,
   location,
@@ -100,6 +101,12 @@ export default function DetailedCandidateHeader({
           Back
         </Link>
         <div className="flex flex-wrap items-center justify-end gap-2">
+        {workerId?.trim() && !loading ? (
+          <UpdateAssignedWorkflowControl
+            workerId={workerId.trim()}
+            buttonClassName={outlineBtn}
+          />
+        ) : null}
         {/* Offer / Send Offer — no dedicated handlers in codebase yet; keep UI shell only. */}
         <button type="button" disabled className={outlineBtn} title="Offer actions coming soon">
           Offer
