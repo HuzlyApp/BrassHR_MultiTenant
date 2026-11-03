@@ -211,6 +211,8 @@ export default function TenantOnboardingWorkflowBuilder({
   const [editingFlow, setEditingFlow] = useState<{ id: string; updatedAt: string | null } | null>(
     null
   );
+  const [flowProfessionName, setFlowProfessionName] = useState<string | null>(null);
+  const [flowEmploymentType, setFlowEmploymentType] = useState<string | null>(null);
   const [templateUpdatedAt, setTemplateUpdatedAt] = useState<string | null>(null);
   const [pastingWorkflow, setPastingWorkflow] = useState(false);
   const [deletingWorkflow, setDeletingWorkflow] = useState(false);
@@ -322,6 +324,8 @@ export default function TenantOnboardingWorkflowBuilder({
   useEffect(() => {
     if (!flowIdFromUrl) {
       setEditingFlow(null);
+      setFlowProfessionName(null);
+      setFlowEmploymentType(null);
       return;
     }
     if (!tenantId) return;
@@ -340,6 +344,8 @@ export default function TenantOnboardingWorkflowBuilder({
             status: "draft" | "published" | "unpublished";
             builderDraft: unknown;
             updatedAt: string;
+            professionName?: string | null;
+            employmentType?: string | null;
           };
           error?: string;
         };
@@ -361,6 +367,8 @@ export default function TenantOnboardingWorkflowBuilder({
         setEditingFlow({ id: flow.id, updatedAt: flow.updatedAt });
         setEditingTemplate(null);
         setTemplateUpdatedAt(null);
+        setFlowProfessionName(flow.professionName?.trim() || null);
+        setFlowEmploymentType(flow.employmentType?.trim() || null);
         setInitialNodes(nodes);
         setInitialEdges(edges);
         setFlowTitle(flow.name);
@@ -474,6 +482,9 @@ export default function TenantOnboardingWorkflowBuilder({
           employmentType: template.employmentType ?? null,
           updatedAt: template.updatedAt ?? null,
         });
+        setEditingFlow(null);
+        setFlowProfessionName(null);
+        setFlowEmploymentType(null);
         setTemplateUpdatedAt(template.updatedAt ?? null);
         setInitialNodes(nodes);
         setInitialEdges(edges);
@@ -1175,6 +1186,19 @@ export default function TenantOnboardingWorkflowBuilder({
     .filter(Boolean)
     .join(" · ");
 
+  const flowMetaLabel = useMemo(() => {
+    if (editingFlow || flowIdFromUrl) {
+      return [flowProfessionName, flowEmploymentType].filter(Boolean).join(" · ") || undefined;
+    }
+    return editingTemplate?.employmentType || undefined;
+  }, [
+    editingFlow,
+    editingTemplate?.employmentType,
+    flowEmploymentType,
+    flowIdFromUrl,
+    flowProfessionName,
+  ]);
+
   const dashboardShellClass = "flex min-h-0 flex-1 flex-col overflow-hidden";
   const isDraft = publishStatus === "draft";
 
@@ -1253,6 +1277,7 @@ export default function TenantOnboardingWorkflowBuilder({
         savingTemplate={savingTemplate}
         savingPublish={savingPublish}
         statusSuffix={statusSuffix || undefined}
+        metaLabel={flowMetaLabel}
         onSaveTemplate={handleSaveTemplateFromHeader}
         onPreview={handlePreviewFromHeader}
         onPublish={handlePublishFromHeader}

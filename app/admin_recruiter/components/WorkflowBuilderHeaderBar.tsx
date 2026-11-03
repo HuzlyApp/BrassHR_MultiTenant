@@ -166,6 +166,15 @@ export function useWorkflowBuilderHeaderChrome() {
             ) : null}
           </>
         )}
+        {config.metaLabel ? (
+          <span
+            className="inline-flex max-w-[min(240px,28vw)] shrink-0 truncate rounded-full border bg-[#F9FAFB] px-2.5 py-0.5 text-xs font-medium text-[#667085] max-[999px]:max-w-[22vw] max-[999px]:px-1.5 max-[999px]:text-[10px]"
+            style={{ borderColor: CARD_BORDER }}
+            title={config.metaLabel}
+          >
+            {config.metaLabel}
+          </span>
+        ) : null}
       </div>
     );
 
