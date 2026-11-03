@@ -95,6 +95,22 @@ async function writeClaimAudits(input: {
     if (error) {
       console.error("[bulk-claim] recruiter_activity_logs insert failed:", error.message);
     }
+
+    const { recordAnalyticsActivityEvent } = await import("@/lib/analytics/activity-events");
+    for (const item of input.claimed) {
+      void recordAnalyticsActivityEvent(input.supabase, {
+        tenantId: input.tenantId,
+        actorUserId: input.recruiterUserId,
+        eventType: "candidate_claimed",
+        module: "recruiting",
+        entityType: input.entityType === "worker" ? "candidate" : input.entityType,
+        entityId: item.id,
+        source: "server",
+        attributionType: "actor",
+        idempotencyKey: `claim:${input.operationId}:${item.id}`,
+        metadata: { operationId: input.operationId },
+      });
+    }
   }
 
   for (const item of input.claimed) {

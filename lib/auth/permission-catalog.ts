@@ -239,7 +239,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     kind: "settings_section",
     parentKey: "settings",
     pagePrefixes: ["/admin_recruiter/reports"],
-    apiPrefixes: [],
+    apiPrefixes: ["/api/admin/reports"],
     sortOrder: 150,
     alwaysGranted: false,
   },

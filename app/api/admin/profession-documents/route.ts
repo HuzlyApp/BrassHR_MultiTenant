@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
       professions: catalog.professions.map((profession) => ({
         id: profession.id,
         name: profession.name,
+        catalogKey: profession.catalog_key ? String(profession.catalog_key) : null,
+        industryKey: profession.industry_key ? String(profession.industry_key) : catalog.industryKey,
         documents: documents.get(profession.id) ?? [],
       })),
     });
