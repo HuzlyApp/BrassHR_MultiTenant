@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { loadFreshViewerStaffAccess } from "@/lib/auth/cached-session-grants";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireUserManagement } from "@/lib/auth/user-management";
-import {
-  seededGrantForRole,
-  withRequiredView,
-  type StoredGrant,
-} from "@/lib/auth/permission-catalog";
+import { seededGrantForRole } from "@/lib/auth/permission-catalog";
+import { parseRolePermissionGrants } from "@/lib/auth/parse-role-permissions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadStaffRoles, matchStaffRole } from "@/lib/admin/staff-roles";
@@ -14,13 +11,6 @@ import { loadStaffRoles, matchStaffRole } from "@/lib/admin/staff-roles";
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ roleKey: string }> };
-
-type PermissionBody = {
-  resourceKey?: unknown;
-  canView?: unknown;
-  canEdit?: unknown;
-  canDelete?: unknown;
-};
 
 function cleanText(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
@@ -31,39 +21,21 @@ async function readPermissions(
   supabase: ReturnType<typeof createServiceRoleClient>,
   value: unknown,
   isAdmin: boolean
-): Promise<Array<{ resourceKey: string } & StoredGrant> | null> {
-  if (!supabase || !Array.isArray(value)) return null;
+) {
+  if (!supabase) return null;
   const { data, error } = await supabase.from("permission_resources").select("key").eq("always_granted", false);
   if (error || !data?.length) return null;
   const allowed = new Set((data as { key: string }[]).map((row) => row.key));
-  const seen = new Set<string>();
-  const grants = [];
-  for (const item of value as PermissionBody[]) {
-    const resourceKey = typeof item?.resourceKey === "string" ? item.resourceKey.trim() : "";
-    if (!allowed.has(resourceKey) || seen.has(resourceKey)) return null;
-    seen.add(resourceKey);
-    grants.push({
-      resourceKey,
-      ...withRequiredView({
-        canView: item.canView === true,
-        canEdit: item.canEdit === true,
-        canDelete: item.canDelete === true,
-      }),
-    });
-  }
   // Missing keys use the seed matrix so a partial save cannot silently revoke
-  // newly added resources (e.g. settings_reports) as all-false.
-  for (const key of allowed) {
-    if (seen.has(key)) continue;
-    const seeded = seededGrantForRole(isAdmin, key);
-    grants.push({
-      resourceKey: key,
+  // newly added resources as all-false. Always-granted / unknown keys are ignored.
+  return parseRolePermissionGrants(value, allowed, (resourceKey) => {
+    const seeded = seededGrantForRole(isAdmin, resourceKey);
+    return {
       canView: seeded?.canView === true,
       canEdit: seeded?.canEdit === true,
       canDelete: seeded?.canDelete === true,
-    });
-  }
-  return grants;
+    };
+  });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
