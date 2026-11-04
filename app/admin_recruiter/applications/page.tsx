@@ -11,10 +11,9 @@ import {
   X,
 } from "lucide-react";
 import { ApplicantJobsPopover } from "@/app/admin_recruiter/applications/ApplicantJobsPopover";
-import { FIGMA_DEMO_APPLICANTS } from "@/app/admin_recruiter/applications/figma-demo-data";
 import {
   ApplicantsMetricsCards,
-  type MetricCardKey,
+  buildTimeframeOptionsFromApi,
   type TimeframeKey,
 } from "@/app/admin_recruiter/applications/ApplicantsMetricsCards";
 import {
@@ -890,7 +889,7 @@ export default function JobApplicationsPage() {
     hired: "30_days",
   });
   const [metricsTimeframesData, setMetricsTimeframesData] = useState<Record<
-    TimeframeKey,
+    string,
     { total: number; shortlisted: number; review: number; hired: number }
   > | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
@@ -1208,10 +1207,7 @@ export default function JobApplicationsPage() {
         const payload = await response.json();
         if (cancelled) return;
         if (!response.ok) throw new Error(payload.error || "Failed to load applications");
-        let applications = (payload.applications ?? []) as ApplicationRow[];
-        if (applications.length === 0 && !candidateSearchQuery.trim() && !requestJobId && !listingJobFilter) {
-          applications = FIGMA_DEMO_APPLICANTS;
-        }
+        const applications = (payload.applications ?? []) as ApplicationRow[];
         setRows(applications);
         setListMeta({
           paged: Boolean(payload.paged),
@@ -1220,9 +1216,7 @@ export default function JobApplicationsPage() {
           locations: Array.isArray(payload.locations) ? payload.locations.map(String) : [],
           workflows: Array.isArray(payload.workflows) ? payload.workflows.map(String) : [],
           stages: Array.isArray(payload.stages) ? payload.stages.map(String) : [],
-          multiJobApplicantCount: Number(
-            payload.multiJobApplicantCount ?? (applications === FIGMA_DEMO_APPLICANTS ? 2 : 0)
-          ),
+          multiJobApplicantCount: Number(payload.multiJobApplicantCount ?? 0),
           scopeUnanalyzedCount: Number(payload.scopeUnanalyzedCount ?? 0),
           analyzedCount: Number(payload.analyzedCount ?? 0),
         });
@@ -1260,19 +1254,20 @@ export default function JobApplicationsPage() {
           ? `/api/admin/job-applications/metrics?jobId=${encodeURIComponent(jobId)}`
           : `/api/admin/job-applications/metrics`;
         const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setMetricsTimeframesData(null);
+          return;
+        }
         const payload = (await res.json().catch(() => ({}))) as {
           timeframes?: Record<
-            TimeframeKey,
+            string,
             { total: number; shortlisted: number; review: number; hired: number }
           >;
         };
         if (cancelled) return;
-        if (payload.timeframes) {
-          setMetricsTimeframesData(payload.timeframes);
-        }
+        setMetricsTimeframesData(payload.timeframes ?? null);
       } catch {
-        // Fallback gracefully computed from rows
+        if (!cancelled) setMetricsTimeframesData(null);
       }
     }
     void loadMetrics();
@@ -1281,80 +1276,39 @@ export default function JobApplicationsPage() {
     };
   }, [jobId, applicationsRefreshNonce]);
 
-  const dynamicMetricsCounts = useMemo(() => {
-    const getLocalCount = (cardId: MetricCardKey, timeframe: TimeframeKey) => {
-      const now = Date.now();
-      const cutoffs: Record<TimeframeKey, number | null> = {
-        "15_days": now - 15 * 86400000,
-        "30_days": now - 30 * 86400000,
-        "3_months": now - 90 * 86400000,
-        "6_months": now - 180 * 86400000,
-        "1_year": now - 365 * 86400000,
-        all_time: null,
-      };
-      const cutoff = cutoffs[timeframe];
-      const validRows = rows.filter((r) => {
-        const statusStr = String(r.status ?? "").toLowerCase().trim();
-        if (statusStr === "archived" || statusStr === "withdrawn") return false;
-        if (cutoff === null) return true;
-        const rawDate = r.submitted_at || r.created_at;
-        const createdAtMs = rawDate ? new Date(rawDate).getTime() : now;
-        return createdAtMs >= cutoff;
+  const metricTimeframeOptions = useMemo(
+    () => buildTimeframeOptionsFromApi(Object.keys(metricsTimeframesData ?? {})),
+    [metricsTimeframesData]
+  );
+
+  // Keep each card's selected timeframe valid against keys the API actually returned.
+  useEffect(() => {
+    if (metricTimeframeOptions.length === 0) return;
+    const available = new Set(metricTimeframeOptions.map((o) => o.key));
+    const fallback =
+      available.has("30_days") ? "30_days" : metricTimeframeOptions[0].key;
+    setMetricTimeframes((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      (Object.keys(next) as Array<keyof typeof next>).forEach((cardId) => {
+        if (!available.has(next[cardId])) {
+          next[cardId] = fallback;
+          changed = true;
+        }
       });
+      return changed ? next : prev;
+    });
+  }, [metricTimeframeOptions]);
 
-      if (cardId === "total") return validRows.length;
-      if (cardId === "shortlisted") {
-        return validRows.filter((r) => {
-          const joined = oneStatusJoin(r.application_statuses);
-          const sys = joined?.system_key || r.status;
-          return sys === "shortlisted";
-        }).length;
-      }
-      if (cardId === "review") {
-        return validRows.filter((r) => {
-          const joined = oneStatusJoin(r.application_statuses);
-          const sys = joined?.system_key || r.status;
-          return (
-            sys === "reviewing" ||
-            sys === "new" ||
-            sys === "interviewing" ||
-            r.status === "reviewing" ||
-            r.status === "new" ||
-            r.status === "submitted" ||
-            r.status === "in_progress"
-          );
-        }).length;
-      }
-      if (cardId === "hired") {
-        return validRows.filter((r) => {
-          const joined = oneStatusJoin(r.application_statuses);
-          const sys = joined?.system_key || r.status;
-          return (
-            sys === "hired" ||
-            r.status === "hired" ||
-            r.workflow_phase === "post_hire" ||
-            r.workflow_phase === "completed"
-          );
-        }).length;
-      }
-      return 0;
-    };
-
-    return {
-      total:
-        metricsTimeframesData?.[metricTimeframes.total]?.total ??
-        getLocalCount("total", metricTimeframes.total),
-      shortlisted:
-        metricsTimeframesData?.[metricTimeframes.shortlisted]?.shortlisted ??
-        getLocalCount("shortlisted", metricTimeframes.shortlisted),
-      review:
-        metricsTimeframesData?.[metricTimeframes.review]?.review ??
-        getLocalCount("review", metricTimeframes.review),
-      hired:
-        metricsTimeframesData?.[metricTimeframes.hired]?.hired ??
-        getLocalCount("hired", metricTimeframes.hired),
-    };
-  }, [metricsTimeframesData, metricTimeframes, rows]);
+  const dynamicMetricsCounts = useMemo(
+    () => ({
+      total: metricsTimeframesData?.[metricTimeframes.total]?.total ?? 0,
+      shortlisted: metricsTimeframesData?.[metricTimeframes.shortlisted]?.shortlisted ?? 0,
+      review: metricsTimeframesData?.[metricTimeframes.review]?.review ?? 0,
+      hired: metricsTimeframesData?.[metricTimeframes.hired]?.hired ?? 0,
+    }),
+    [metricsTimeframesData, metricTimeframes]
+  );
 
   function openAddCandidateModal() {
     if (!jobId) {
@@ -3388,6 +3342,7 @@ export default function JobApplicationsPage() {
       <ApplicantsMetricsCards
         counts={dynamicMetricsCounts}
         timeframes={metricTimeframes}
+        timeframeOptions={metricTimeframeOptions}
         onTimeframeChange={(cardId, timeframe) => {
           setMetricTimeframes((prev) => ({
             ...prev,

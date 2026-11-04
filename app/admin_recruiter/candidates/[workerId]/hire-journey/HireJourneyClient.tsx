@@ -74,16 +74,23 @@ function buildSidebarProfile(
 export default function HireJourneyClient({
   workerId,
   embeddedPhase,
+  layout = "page",
 }: {
   workerId: string;
   /** Render inside a candidate detail tab. Hides the standalone page chrome and phase pills. */
   embeddedPhase?: HireTab;
+  /**
+   * `page` — full hire-journey screen.
+   * `tab` — embed under worker/candidate profile tabs (keeps Pre/Post toggle, no page chrome).
+   */
+  layout?: "page" | "tab";
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = embeddedPhase ?? (searchParams.get("tab") === "post_hire" ? "post_hire" : "pre_hire");
   const [tab, setTab] = useState<HireTab>(initialTab);
   const embedded = embeddedPhase != null;
+  const compact = layout === "tab";
   const [profile, setProfile] = useState<CandidateProfilePayload | null>(null);
   const [view, setView] = useState<CandidateWorkflowPhaseView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,12 +181,12 @@ export default function HireJourneyClient({
   }, [embeddedPhase, searchParams]);
 
   const openPostHireTab = useCallback(() => {
-    if (embedded) {
+    if (embedded && !compact) {
       router.push(`/admin_recruiter/new/post-hire/${encodeURIComponent(workerId)}`);
       return;
     }
     setTab("post_hire");
-  }, [embedded, router, workerId]);
+  }, [compact, embedded, router, workerId]);
 
   const refreshJourney = useCallback(async () => {
     await load({ silent: true });
@@ -265,61 +272,74 @@ export default function HireJourneyClient({
       />
     );
 
-  if (embedded) {
+  const phaseToggle =
+    !embedded && workflowHasPostHire ? (
+      <div className="flex w-full justify-center">
+        <div
+          className="inline-flex rounded-full border border-[#E5E7EB] bg-white p-1 shadow-sm"
+          role="tablist"
+          aria-label="Hire phase"
+        >
+          {(
+            [
+              { id: "pre_hire" as const, label: "Pre hire" },
+              { id: "post_hire" as const, label: "Post hire" },
+            ] as const
+          ).map((item) => {
+            const active = activeTab === item.id;
+            const postLocked = item.id === "post_hire" && !postHireVisible && !loading;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-disabled={postLocked}
+                title={postLocked ? POST_HIRE_LOCKED_TAB_MESSAGE : undefined}
+                onClick={() => selectTab(item.id)}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  active
+                    ? "text-white shadow-sm"
+                    : postLocked
+                      ? "cursor-not-allowed text-[#CBD5E1]"
+                      : "text-[#64748B]"
+                }`}
+                style={
+                  active
+                    ? {
+                        backgroundColor: "var(--brand-primary)",
+                      }
+                    : undefined
+                }
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
+  if (embedded && !compact) {
     return <div className="space-y-4">{board}</div>;
+  }
+
+  if (compact) {
+    return (
+      <HireJourneyThemeProvider>
+        <div className="mt-5 space-y-4">
+          {phaseToggle}
+          {board}
+        </div>
+      </HireJourneyThemeProvider>
+    );
   }
 
   return (
     <HireJourneyThemeProvider>
     <div className="admin-recruiter-page-pad bg-[#F5F6F8]">
       <div className="admin-recruiter-content-width space-y-4">
-        {workflowHasPostHire ? (
-        <div className="flex w-full justify-center">
-          <div
-            className="inline-flex rounded-full border border-[#E5E7EB] bg-white p-1 shadow-sm"
-            role="tablist"
-            aria-label="Hire phase"
-          >
-            {(
-              [
-                { id: "pre_hire" as const, label: "Pre Hire" },
-                { id: "post_hire" as const, label: "Post Hire" },
-              ] as const
-            ).map((item) => {
-              const active = activeTab === item.id;
-              const postLocked = item.id === "post_hire" && !postHireVisible && !loading;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-disabled={postLocked}
-                  title={postLocked ? POST_HIRE_LOCKED_TAB_MESSAGE : undefined}
-                  onClick={() => selectTab(item.id)}
-                  className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
-                    active
-                      ? "text-white shadow-sm"
-                      : postLocked
-                        ? "cursor-not-allowed text-[#CBD5E1]"
-                        : "text-[#64748B]"
-                  }`}
-                  style={
-                    active
-                      ? {
-                          backgroundColor: "var(--brand-primary)",
-                        }
-                      : undefined
-                  }
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        ) : null}
-
+        {phaseToggle}
         {board}
       </div>
     </div>

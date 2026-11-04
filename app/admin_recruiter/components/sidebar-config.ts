@@ -270,15 +270,29 @@ const AUTOMATION_ACTIVE_PREFIXES = [
   `${DASHBOARD_BASE}/workflowlibrary`,
 ];
 
-const FACILITIES_ROUTE = "/admin_recruiter/facilities";
+export const CLIENTS_ROUTE = "/admin_recruiter/clients";
+export const FACILITIES_ROUTE = "/admin_recruiter/facilities";
 
-const ORGANIZATION_CHILDREN: SidebarLink[] = [
+export const CLIENT_CHILDREN: SidebarLink[] = [
   {
-    label: "Locations",
+    label: "Clients",
+    href: CLIENTS_ROUTE,
+    matchPrefixes: [CLIENTS_ROUTE],
+  },
+  {
+    label: "Facilities",
     href: FACILITIES_ROUTE,
     matchPrefixes: [FACILITIES_ROUTE],
   },
+  {
+    label: "Assignments",
+    href: "#",
+    matchPrefixes: [],
+    disabled: true,
+  },
 ];
+
+const ORGANIZATION_CHILDREN: SidebarLink[] = CLIENT_CHILDREN;
 
 // Jobs moved under Hiring
 
@@ -550,8 +564,8 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "#",
     resourceKey: "organization",
     iconType: ICON.clients,
-    matchPrefixes: ["/admin_recruiter/facilities"],
-    children: ORGANIZATION_CHILDREN,
+    matchPrefixes: [CLIENTS_ROUTE, FACILITIES_ROUTE],
+    children: CLIENT_CHILDREN,
   },
   {
     label: "Scheduling",
@@ -637,11 +651,12 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Clients",
     href: "#",
     iconType: ICON.clients,
-    matchPrefixes: ["/godadmin/tenants", "/godadmin"],
+    matchPrefixes: ["/godadmin/tenants", "/godadmin", CLIENTS_ROUTE, FACILITIES_ROUTE],
     children: [
       { label: "All Clients", href: "/godadmin/tenants", matchPrefixes: ["/godadmin/tenants", "/godadmin"] },
-      { label: "Organization", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Facilities", href: "/admin_recruiter/facilities", matchPrefixes: ["/admin_recruiter/facilities"] },
+      { label: "Clients", href: CLIENTS_ROUTE, matchPrefixes: [CLIENTS_ROUTE] },
+      { label: "Facilities", href: FACILITIES_ROUTE, matchPrefixes: [FACILITIES_ROUTE] },
+      { label: "Assignments", href: "#", matchPrefixes: [], disabled: true },
     ],
   },
   {
