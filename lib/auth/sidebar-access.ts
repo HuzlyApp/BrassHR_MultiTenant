@@ -1,8 +1,12 @@
 import type { SidebarLink, SidebarSection } from "@/app/admin_recruiter/components/sidebar-config";
 
+const ALWAYS_VISIBLE_SETTINGS_KEYS = new Set(["settings_help", "settings_reports"]);
+
 function keepLink(link: SidebarLink, viewKeys: ReadonlySet<string>, parentAllowed: boolean): SidebarLink | null {
   const allowed = link.resourceKey
-    ? link.resourceKey === "dashboard" || viewKeys.has(link.resourceKey)
+    ? link.resourceKey === "dashboard" ||
+      ALWAYS_VISIBLE_SETTINGS_KEYS.has(link.resourceKey) ||
+      viewKeys.has(link.resourceKey)
     : parentAllowed;
   const children = (link.children ?? [])
     .map((child) => keepLink(child, viewKeys, allowed))

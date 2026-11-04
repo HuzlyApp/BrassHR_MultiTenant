@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   isSettingsMiniSidebarPath,
   isSettingsNavItemActive,
+  resolveSettingsLandingHref,
+  SETTINGS_LANDING_HREF,
   SETTINGS_NAV_GROUPS,
   visibleSettingsNavGroups,
 } from "./settings-nav";
@@ -175,19 +177,30 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(isSettingsMiniSidebarPath("/admin_recruiter/account/security")).toBe(true);
   });
 
-  it("hides Reports in the mini-sidebar when settings_reports view is missing", () => {
-    const withoutReports = visibleSettingsNavGroups(
+  it("keeps Help & Support and Reports in Settings for every role", () => {
+    const limited = visibleSettingsNavGroups(
       SETTINGS_NAV_GROUPS,
-      new Set(["settings_company", "settings_profile", "settings_help"])
+      new Set(["settings_profile"])
     );
-    const ids = withoutReports.flatMap((group) => group.items.map((item) => item.id));
-    expect(ids).not.toContain("reports");
-    expect(ids).toContain("branding");
+    const ids = limited.flatMap((group) => group.items.map((item) => item.id));
+    expect(ids).toContain("help");
+    expect(ids).toContain("reports");
+    const helpItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find((item) => item.id === "help");
+    expect(helpItem?.href).toBe("/admin_recruiter/help-support");
+    const reportsItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "reports"
+    );
+    expect(reportsItem?.href).toBe("/admin_recruiter/reports");
+    const appGroup = SETTINGS_NAV_GROUPS.find((g) => g.id === "app");
+    expect(appGroup?.items.some((item) => item.id === "help")).toBe(true);
+  });
 
-    const withReports = visibleSettingsNavGroups(
-      SETTINGS_NAV_GROUPS,
-      new Set(["settings_reports", "settings_profile"])
-    );
-    expect(withReports.flatMap((group) => group.items.map((item) => item.id))).toContain("reports");
+  it("opens Settings to branding for admins and a permitted page for recruiters", () => {
+    expect(resolveSettingsLandingHref(new Set(["*"]), true)).toBe(SETTINGS_LANDING_HREF);
+    expect(
+      resolveSettingsLandingHref(
+        new Set(["settings_profile", "settings_notifications", "settings_help", "settings_reports"])
+      )
+    ).toBe("/admin_recruiter/account/personal");
   });
 });

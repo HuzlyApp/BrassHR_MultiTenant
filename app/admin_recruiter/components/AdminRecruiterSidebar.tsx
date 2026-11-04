@@ -20,8 +20,8 @@ import {
   type SidebarSection,
 } from "@/app/admin_recruiter/components/sidebar-config";
 import {
-  SETTINGS_LANDING_HREF,
   isSettingsMiniSidebarPath,
+  resolveSettingsLandingHref,
 } from "@/app/admin_recruiter/settings/settings-nav";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
@@ -153,6 +153,15 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
     }
     return visibleSidebarSections(CLIENT_SIDEBAR_SECTIONS, viewKeySet, false);
   }, [accessGodAdmin, isGodAdmin, viewKeySet]);
+
+  const settingsLandingHref = useMemo(
+    () =>
+      resolveSettingsLandingHref(
+        viewKeySet,
+        isGodAdmin || accessGodAdmin || viewKeySet.has("*")
+      ),
+    [accessGodAdmin, isGodAdmin, viewKeySet]
+  );
 
   const handleNavClick = useCallback(
     (href?: string) => {
@@ -494,8 +503,8 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                         onToggleCollapsed?.();
                         return;
                       }
-                      router.push(SETTINGS_LANDING_HREF);
-                      handleNavClick();
+                      router.push(settingsLandingHref);
+                      handleNavClick(settingsLandingHref);
                       return;
                     }
                     handleSectionToggleClick(section.label, event);

@@ -230,7 +230,8 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     pagePrefixes: ["/admin_recruiter/help-support", "/admin_recruiter/support-tickets", "/admin_recruiter/tickets"],
     apiPrefixes: ["/api/admin/faqs"],
     sortOrder: 140,
-    alwaysGranted: false,
+    // Settings mini-sidebar only — available to every authenticated staff role.
+    alwaysGranted: true,
   },
   {
     key: "settings_reports",
@@ -241,7 +242,8 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     pagePrefixes: ["/admin_recruiter/reports"],
     apiPrefixes: ["/api/admin/reports"],
     sortOrder: 150,
-    alwaysGranted: false,
+    // Settings mini-sidebar only — available to every authenticated staff role.
+    alwaysGranted: true,
   },
   {
     key: "settings_automation",
