@@ -1188,7 +1188,8 @@ export default function TenantOnboardingWorkflowBuilder({
 
   const flowMetaLabel = useMemo(() => {
     if (editingFlow || flowIdFromUrl) {
-      return [flowProfessionName, flowEmploymentType].filter(Boolean).join(" · ") || undefined;
+      // Header criteria chip: "W2, IT Support" (employment + profession from create).
+      return [flowEmploymentType, flowProfessionName].filter(Boolean).join(", ") || undefined;
     }
     return editingTemplate?.employmentType || undefined;
   }, [
