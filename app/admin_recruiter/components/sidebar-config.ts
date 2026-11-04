@@ -597,14 +597,6 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
-    label: "Reports",
-    href: "#",
-    resourceKey: "settings_reports",
-    iconType: ICON.reports,
-    matchPrefixes: [REPORTS_BASE],
-    children: REPORTS_CHILDREN,
-  },
-  {
     label: "Mail",
     href: MAIL_ROUTE,
     resourceKey: "mail",
@@ -618,13 +610,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.chat,
     matchPrefixes: ["/admin_recruiter/messages"],
   },
-  {
-    label: "Help & Support",
-    href: HELP_SUPPORT_ROUTE,
-    resourceKey: "settings_help",
-    iconType: ICON.help,
-    matchPrefixes: [HELP_SUPPORT_ROUTE],
-  },
+  // Help & Support + Reports live under Settings mini-sidebar only (SETTINGS_CHILDREN).
   ADMIN_SETTINGS_SECTION,
 ];
 

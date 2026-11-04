@@ -115,6 +115,15 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         matchPrefixes: ["/admin_recruiter/notifications"],
       },
       {
+        id: "help",
+        label: "Help & Support",
+        href: "/admin_recruiter/help-support",
+        icon: LifeBuoy,
+        // Visible to every staff role via settings mini-sidebar (not main rail).
+        resourceKey: "settings_help",
+        matchPrefixes: ["/admin_recruiter/help-support"],
+      },
+      {
         id: "security",
         label: "Security",
         // Password + authenticator live on account Security (settings/security redirects there).
@@ -224,20 +233,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     ],
   },
   {
-    id: "help",
-    label: null,
-    items: [
-      {
-        id: "help",
-        label: "Help & Support",
-        href: "/admin_recruiter/help-support",
-        icon: LifeBuoy,
-        resourceKey: "settings_help",
-        matchPrefixes: ["/admin_recruiter/help-support"],
-      },
-    ],
-  },
-  {
     id: "reports",
     label: "Reports",
     items: [
@@ -329,13 +324,42 @@ export function visibleSettingsNavGroups(
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => viewKeys.has(item.resourceKey)),
+      items: group.items.filter(
+        (item) =>
+          // Help & Support + Reports stay under Settings for every staff role.
+          item.resourceKey === "settings_help" ||
+          item.resourceKey === "settings_reports" ||
+          viewKeys.has(item.resourceKey)
+      ),
     }))
     .filter((group) => group.items.length > 0);
 }
 
-/** Default landing page when opening Settings from the main sidebar. */
+/** Default landing page when opening Settings from the main sidebar (admins). */
 export const SETTINGS_LANDING_HREF = "/admin_recruiter/settings/branding";
+
+const SETTINGS_LANDING_FALLBACK_HREF = "/admin_recruiter/account/personal";
+
+/**
+ * First Settings mini-sidebar page the signed-in role can open.
+ * Recruiters lack `settings_company`, so branding (/settings/*) returns "No access".
+ */
+export function resolveSettingsLandingHref(
+  viewKeys: ReadonlySet<string> | null,
+  unrestricted = false
+): string {
+  if (unrestricted || viewKeys?.has("*") || viewKeys === null) {
+    return SETTINGS_LANDING_HREF;
+  }
+  const groups = visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeys, false);
+  for (const group of groups) {
+    for (const item of group.items) {
+      const href = item.href?.trim();
+      if (href) return href;
+    }
+  }
+  return SETTINGS_LANDING_FALLBACK_HREF;
+}
 
 /** All path prefixes covered by the settings mini-sidebar. */
 export const SETTINGS_MINI_SIDEBAR_PREFIXES: string[] = Array.from(
