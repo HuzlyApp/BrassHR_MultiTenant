@@ -55,7 +55,7 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
     value: (row) => formatExportDate(row.published_at || row.created_at),
   },
   assignee: {
-    header: "Created by",
+    header: "Created By",
     value: (row) => row.createdBy?.name?.trim() || "—",
   },
   jobStatus: {
