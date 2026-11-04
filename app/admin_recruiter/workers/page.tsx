@@ -154,7 +154,7 @@ export default function WorkersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [clientFilter, setClientFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Active");
+  const [statusFilter, setStatusFilter] = useState("");
 
   // Selection & Columns
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -165,7 +165,6 @@ export default function WorkersPage() {
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [extendedFilters, setExtendedFilters] = useState<WorkersExtendedFilterValues>({
     ...EMPTY_WORKERS_EXTENDED_FILTERS,
-    status: "Active",
   });
 
   // Sorting

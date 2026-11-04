@@ -196,14 +196,14 @@ export function WorkersFilterBar({
               }}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium leading-4 text-[#334155] transition hover:bg-[#F8FAFC] cursor-pointer"
             >
-              <span>Status • {statusFilter || "Active"}</span>
+              <span>Status • {statusFilter || "All"}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
             </button>
             {statusMenuOpen && (
               <div className="absolute right-0 z-30 mt-1.5 w-44 rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg">
                 {statusOptions.map((opt) => {
                   const isAll = opt === "All";
-                  const isSelected = statusFilter ? statusFilter === opt : opt === "Active";
+                  const isSelected = statusFilter ? statusFilter === opt : isAll;
                   return (
                     <button
                       key={opt}

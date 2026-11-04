@@ -17,6 +17,7 @@ export type WorkerProfileFieldKey =
   | "hourly_rate"
   | "ssn_last_four"
   | "job_role"
+  | "about_me"
 
 export type ReferenceFieldValue = {
   first: string
@@ -39,6 +40,7 @@ const WORKER_COLUMN_MAP: Record<WorkerProfileFieldKey, string> = {
   hourly_rate: "hourly_rate",
   ssn_last_four: "ssn_last_four",
   job_role: "job_role",
+  about_me: "about_me",
 }
 
 export function isWorkerProfileFieldKey(value: string): value is WorkerProfileFieldKey {
@@ -184,6 +186,14 @@ export function normalizeWorkerFieldValue(
 
     case "job_role": {
       if (!value) return { ok: false, error: "Role is required." }
+      return { ok: true, dbValue: value }
+    }
+
+    case "about_me": {
+      if (!value) return { ok: true, dbValue: null }
+      if (value.length > 1000) {
+        return { ok: false, error: "About Me must be 1000 characters or fewer." }
+      }
       return { ok: true, dbValue: value }
     }
 
