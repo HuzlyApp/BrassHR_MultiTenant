@@ -945,7 +945,7 @@ export default function TenantOnboardingWorkflowBuilder({
       // Test workflow is draft/workflow-scoped — never open a live job application URL.
       const url = buildWorkflowTestUrl(config, tenantSlug);
       window.open(url, "_blank", "noopener,noreferrer");
-      toast.success("Test workflow opened in a new tab");
+      toast.success("Preview workflow opened in a new tab");
     },
     [data?.payload.config, tenantId, tenantSlug]
   );

@@ -213,8 +213,8 @@ export function useWorkflowBuilderHeaderChrome() {
               color: "var(--brand-primary)",
             }}
           >
-            <span className="max-[999px]:hidden">Test workflow</span>
-            <span className="hidden max-[999px]:inline">Test</span>
+            <span className="max-[999px]:hidden">Preview workflow</span>
+            <span className="hidden max-[999px]:inline">Preview</span>
           </button>
         ) : null}
         {!config.viewOnly ? (

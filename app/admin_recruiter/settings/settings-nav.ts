@@ -6,6 +6,7 @@ import {
   Building2,
   ClipboardList,
   FileStack,
+  Library,
   LifeBuoy,
   ListChecks,
   Monitor,
@@ -23,7 +24,8 @@ export type SettingsNavItemId =
   | "branding"
   | "notifications"
   | "security"
-  | "automation"
+  | "library"
+  | "workflow-mappings"
   | "profession"
   | "assessment"
   | "statuses"
@@ -131,17 +133,20 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     label: "Workflow",
     items: [
       {
-        id: "automation",
-        label: "Automation",
-        href: "/admin_recruiter/dashboard/onboarding-flows",
+        id: "library",
+        label: "Library",
+        href: "/admin_recruiter/dashboard/workflowlibrary",
+        icon: Library,
+        resourceKey: "settings_automation",
+        matchPrefixes: ["/admin_recruiter/dashboard/workflowlibrary"],
+      },
+      {
+        id: "workflow-mappings",
+        label: "Workflow Mappings",
+        href: "/admin_recruiter/dashboard/workflow-mappings",
         icon: Workflow,
         resourceKey: "settings_automation",
-        matchPrefixes: [
-          "/admin_recruiter/dashboard/onboarding-flows",
-          "/admin_recruiter/dashboard/workflow-mappings",
-          "/admin_recruiter/dashboard/workflowlibrary",
-          "/admin_recruiter/dashboard/onboarding-builder",
-        ],
+        matchPrefixes: ["/admin_recruiter/dashboard/workflow-mappings"],
       },
     ],
   },
