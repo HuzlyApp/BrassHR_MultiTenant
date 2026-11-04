@@ -451,12 +451,31 @@ function CreateNewFlowModal({
         });
         const payload = (await res.json().catch(() => ({}))) as {
           professions?: Array<{ id: string; name: string }>;
+          catalogProfessions?: Array<{
+            key: string;
+            name: string;
+            industryLabel?: string | null;
+            professionId: string | null;
+          }>;
         };
         if (!alive || !res.ok) return;
-        // Use tenant_professions only (scoped to the tenant's industry), not the global catalog.
-        setProfessions(
-          (payload.professions ?? []).map((row) => ({ id: row.id, label: row.name }))
+        // Full catalog + any custom tenant professions not already linked.
+        const catalog = payload.catalogProfessions ?? [];
+        const linkedIds = new Set(
+          catalog.flatMap((choice) => (choice.professionId ? [choice.professionId] : []))
         );
+        const options = [
+          ...catalog.map((choice) => ({
+            id: choice.professionId ?? choice.key,
+            label: choice.industryLabel
+              ? `${choice.name} (${choice.industryLabel})`
+              : choice.name,
+          })),
+          ...(payload.professions ?? [])
+            .filter((row) => !linkedIds.has(row.id))
+            .map((row) => ({ id: row.id, label: row.name })),
+        ].sort((a, b) => a.label.localeCompare(b.label));
+        setProfessions(options);
       } finally {
         if (alive) setProfessionsLoading(false);
       }

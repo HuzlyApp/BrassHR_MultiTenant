@@ -150,24 +150,27 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
   const [query, setQuery] = useState("");
   const [roleTypeFilter, setRoleTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(6);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(10);
   const [page, setPage] = useState(1);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<RoleRow[] | null> => {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/roles");
       if (response.status === 403) {
         setHidden(true);
-        return;
+        return null;
       }
       const body = (await response.json()) as { roles?: RoleRow[]; resources?: ResourceRow[]; error?: string };
       if (!response.ok) throw new Error(body.error || "Could not load roles");
-      setRoles(body.roles ?? []);
+      const nextRoles = body.roles ?? [];
+      setRoles(nextRoles);
       setResources(body.resources ?? []);
       setHidden(false);
+      return nextRoles;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load roles");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -244,13 +247,22 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
     if (!canEdit) return;
     setSaving(true);
     try {
-      const payload = { label, description, permissions: grants };
+      const editableKeys = new Set(resources.map((resource) => resource.key));
+      const payload = {
+        label,
+        description,
+        permissions: grants.filter((grant) => editableKeys.has(grant.resourceKey)),
+      };
       const response = await fetch(editing ? `/api/admin/roles/${editing.roleKey}` : "/api/admin/roles", {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = (await response.json().catch(() => ({}))) as { error?: string; access?: unknown };
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        access?: unknown;
+        roleKey?: string;
+      };
       if (!response.ok) throw new Error(body.error || "Could not save role");
       toast.success(editing ? "Role updated" : "Role created");
       setOpen(false);
@@ -260,7 +272,12 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
           queryClient.setQueryData(staffAccessQueryKey("unknown"), body.access);
         }
       } else invalidateModuleAccess();
-      await load();
+      const nextRoles = await load();
+      const focusKey = (editing?.roleKey ?? body.roleKey ?? "").trim().toLowerCase();
+      if (focusKey && nextRoles) {
+        const index = nextRoles.findIndex((role) => role.roleKey === focusKey);
+        if (index >= 0) setPage(Math.floor(index / pageSize) + 1);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save role");
     } finally {
@@ -295,13 +312,7 @@ export default function RolePermissionsPanel({ canEdit, canDelete }: { canEdit: 
       className="flex flex-col gap-6"
       style={{ fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif" }}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold leading-7 text-black">Roles & Permissions</h1>
-          <p className="text-xs font-normal leading-4 text-[#6B7280]">
-            Manage users, roles, and access permissions.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={openCreate}

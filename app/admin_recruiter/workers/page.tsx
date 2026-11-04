@@ -19,10 +19,7 @@ import {
 } from "./worker-columns";
 import { renderWorkerListCell } from "./render-worker-list-cell";
 import { exportWorkersCsv, exportWorkersXls } from "./export-workers";
-import {
-  FIGMA_DEMO_WORKERS,
-  type WorkerListRow,
-} from "./figma-demo-data";
+import { type WorkerListRow } from "./figma-demo-data";
 import { WorkersMetricsCards } from "./WorkersMetricsCards";
 import { WorkersFilterBar } from "./WorkersFilterBar";
 import {
@@ -157,7 +154,7 @@ export default function WorkersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [clientFilter, setClientFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Active");
+  const [statusFilter, setStatusFilter] = useState("");
 
   // Selection & Columns
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -168,7 +165,6 @@ export default function WorkersPage() {
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [extendedFilters, setExtendedFilters] = useState<WorkersExtendedFilterValues>({
     ...EMPTY_WORKERS_EXTENDED_FILTERS,
-    status: "Active",
   });
 
   // Sorting
@@ -217,10 +213,8 @@ export default function WorkersPage() {
             : Array.isArray(data?.workers)
               ? data.workers
               : [];
-          if (rows.length > 0) {
-            setWorkers(rows.map(mapApiWorkerToRow));
-            return;
-          }
+          setWorkers(rows.map(mapApiWorkerToRow));
+          return;
         }
       }
 
@@ -228,15 +222,14 @@ export default function WorkersPage() {
         cache: "no-store",
       });
       const data = await res.json();
-      if (res.ok && Array.isArray(data?.workers) && data.workers.length > 0) {
+      if (res.ok && Array.isArray(data?.workers)) {
         setWorkers(data.workers.map(mapApiWorkerToRow));
       } else {
-        // Fall back gracefully to Figma demo workers when database is empty
-        setWorkers(FIGMA_DEMO_WORKERS);
+        setWorkers([]);
       }
     } catch (err) {
-      console.error("Failed to load workers, using demo data:", err);
-      setWorkers(FIGMA_DEMO_WORKERS);
+      console.error("Failed to load workers:", err);
+      setWorkers([]);
     } finally {
       setLoading(false);
     }
@@ -246,13 +239,12 @@ export default function WorkersPage() {
     void loadWorkers();
   }, [loadWorkers]);
 
-  // Dynamic Metrics counts
+  // Dynamic Metrics counts from loaded workers (no hardcoded fallbacks)
   const dynamicMetricsCounts = useMemo(() => {
-    const list = workers.length > 0 ? workers : FIGMA_DEMO_WORKERS;
-    const active = list.filter((w) => (w.status || "").toLowerCase() === "active").length;
-    const inactive = list.filter((w) => (w.status || "").toLowerCase() === "inactive").length;
-    const assigned = list.filter((w) => Boolean(w.client && w.client !== "—")).length;
-    const newlyOnboarded = list.filter((w) => {
+    const active = workers.filter((w) => (w.status || "").toLowerCase() === "active").length;
+    const inactive = workers.filter((w) => (w.status || "").toLowerCase() === "inactive").length;
+    const assigned = workers.filter((w) => Boolean(w.client && w.client !== "—")).length;
+    const newlyOnboarded = workers.filter((w) => {
       if ((w.status || "").toLowerCase() === "new") return true;
       if (!w.createdAt) return false;
       const diffDays = (Date.now() - new Date(w.createdAt).getTime()) / (1000 * 60 * 60 * 24);
@@ -260,10 +252,10 @@ export default function WorkersPage() {
     }).length;
 
     return {
-      active: active || 128,
-      inactive: inactive || 79,
-      assigned: assigned || 18,
-      newlyOnboarded: newlyOnboarded || 25,
+      active,
+      inactive,
+      assigned,
+      newlyOnboarded,
     };
   }, [workers]);
 

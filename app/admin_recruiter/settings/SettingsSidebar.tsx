@@ -45,6 +45,10 @@ function NavItemLink({
 
 function itemVisible(item: SettingsNavItem, viewKeys: ReadonlySet<string>, godAdmin: boolean): boolean {
   if (godAdmin || viewKeys.has("*")) return true;
+  // Help & Support + Reports are Settings-only and shown for every staff role.
+  if (item.resourceKey === "settings_help" || item.resourceKey === "settings_reports") {
+    return true;
+  }
   return viewKeys.has(item.resourceKey);
 }
 

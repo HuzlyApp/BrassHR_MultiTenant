@@ -3,19 +3,13 @@ import { loadFreshViewerStaffAccess } from "@/lib/auth/cached-session-grants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireStaffApiSession, type StaffApiAuthContext } from "@/lib/auth/api-session";
 import { requireUserManagement } from "@/lib/auth/user-management";
-import { RESERVED_ROLE_KEYS, roleKeyFromLabel, withRequiredView, type StoredGrant } from "@/lib/auth/permission-catalog";
+import { RESERVED_ROLE_KEYS, roleKeyFromLabel } from "@/lib/auth/permission-catalog";
+import { parseRolePermissionGrants } from "@/lib/auth/parse-role-permissions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadStaffRoles, matchStaffRole } from "@/lib/admin/staff-roles";
 
 export const runtime = "nodejs";
-
-type PermissionBody = {
-  resourceKey?: unknown;
-  canView?: unknown;
-  canEdit?: unknown;
-  canDelete?: unknown;
-};
 
 type RoleBody = {
   label?: unknown;
@@ -36,29 +30,6 @@ async function editableResourceKeys(supabase: SupabaseClient): Promise<Set<strin
   if (error) return null;
   const keys = new Set(((data ?? []) as { key?: string }[]).map((row) => String(row.key ?? "")).filter(Boolean));
   return keys.size ? keys : null;
-}
-
-function readPermissions(value: unknown, allowed: Set<string>): Array<{ resourceKey: string } & StoredGrant> | null {
-  if (!Array.isArray(value)) return null;
-  const seen = new Set<string>();
-  const grants = [];
-  for (const item of value as PermissionBody[]) {
-    const resourceKey = typeof item?.resourceKey === "string" ? item.resourceKey.trim() : "";
-    if (!allowed.has(resourceKey) || seen.has(resourceKey)) return null;
-    seen.add(resourceKey);
-    grants.push({
-      resourceKey,
-      ...withRequiredView({
-        canView: item.canView === true,
-        canEdit: item.canEdit === true,
-        canDelete: item.canDelete === true,
-      }),
-    });
-  }
-  for (const key of allowed) {
-    if (!seen.has(key)) grants.push({ resourceKey: key, canView: false, canEdit: false, canDelete: false });
-  }
-  return grants;
 }
 
 async function countUsers(supabase: SupabaseClient, tenantId: string): Promise<Map<string, number> | null> {
@@ -200,7 +171,11 @@ export async function POST(request: Request) {
 
   const allowed = await editableResourceKeys(supabase);
   if (!allowed) return NextResponse.json({ error: "Forbidden", detail: "Permission data unavailable" }, { status: 403 });
-  const permissions = readPermissions(body?.permissions, allowed);
+  const permissions = parseRolePermissionGrants(body?.permissions, allowed, () => ({
+    canView: false,
+    canEdit: false,
+    canDelete: false,
+  }));
   if (!permissions) return NextResponse.json({ error: "Permissions are invalid." }, { status: 400 });
 
   const { error: insertError } = await supabase.from("tenant_roles").insert({

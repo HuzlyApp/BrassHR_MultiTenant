@@ -900,6 +900,7 @@ export async function GET(req: NextRequest) {
         reports_to: asTrimmedString(w.reports_to) ?? asTrimmedString(w.manager_name),
         converted_worker_type: asTrimmedString(w.converted_worker_type),
         converted_at: w.converted_at != null ? String(w.converted_at) : null,
+        about_me: asTrimmedString(w.about_me),
       },
       requirements: {
         resume_path: resumePathCanonical,
