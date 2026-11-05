@@ -42,6 +42,7 @@ import { resolveApplicationContextForWorker } from "@/lib/jobs/resolve-applicati
 import {
   buildFirmaFieldPrefillOverrides,
   buildFirmaRecipientPrefillPayload,
+  EMPTY_FIRMA_SIGNING_PREFILL,
   loadFirmaSigningTemplateFieldMappings,
   resolveFirmaSigningPrefillValues,
   type FirmaSigningAddressPrefill,
@@ -622,14 +623,7 @@ async function createFirmaSigningSessionFromTemplate(
   templateName: string,
   workspaceId: string
 ) {
-  const prefill: FirmaSigningPrefillValues = input.prefill ?? {
-    streetAddress: null,
-    city: null,
-    stateProvince: null,
-    postalCode: null,
-    fullAddress: null,
-    jobTitle: null,
-  };
+  const prefill: FirmaSigningPrefillValues = input.prefill ?? EMPTY_FIRMA_SIGNING_PREFILL;
   const recipientPrefill = buildFirmaRecipientPrefillPayload(prefill);
   const fieldOverrides = buildFirmaFieldPrefillOverrides(input.fieldMappings ?? [], {
     firstName: input.applicantFirstName,
