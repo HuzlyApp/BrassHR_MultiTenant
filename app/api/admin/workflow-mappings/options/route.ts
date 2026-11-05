@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { industryLabelForKey } from "@/lib/ai-catalog/industry-catalog";
 import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
-import { listCatalogProfessionChoices } from "@/lib/professions/service";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { listPublishedWorkflowOptions } from "@/lib/workflow-mappings/service";
 
@@ -27,13 +25,13 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const employmentType = url.searchParams.get("employmentType") || undefined;
 
-    const [catalogChoices, tenantProfessions, specialties, workflows] = await Promise.all([
-      listCatalogProfessionChoices(supabase, tenantId),
+    const [tenantProfessions, specialties, workflows] = await Promise.all([
       supabase
         .from("tenant_professions")
         .select("id, name")
         .eq("tenant_id", tenantId)
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .order("name"),
       supabase
         .from("specialties")
         .select("id, profession_id, name, code")
@@ -46,21 +44,9 @@ export async function GET(req: Request) {
     if (tenantProfessions.error) throw tenantProfessions.error;
     if (specialties.error) throw specialties.error;
 
-    const linkedIds = new Set(
-      catalogChoices.flatMap((choice) => (choice.professionId ? [choice.professionId] : []))
-    );
-    const professions = [
-      ...catalogChoices.map((choice) => {
-        const industryLabel = industryLabelForKey(choice.industryKey);
-        return {
-          id: choice.professionId ?? choice.key,
-          name: industryLabel ? `${choice.name} (${industryLabel})` : choice.name,
-        };
-      }),
-      ...(tenantProfessions.data ?? [])
-        .filter((row) => !linkedIds.has(String(row.id)))
-        .map((row) => ({ id: String(row.id), name: String(row.name) })),
-    ].sort((a, b) => a.name.localeCompare(b.name));
+    const professions = (tenantProfessions.data ?? [])
+      .map((row) => ({ id: String(row.id), name: String(row.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return NextResponse.json({
       professions,
