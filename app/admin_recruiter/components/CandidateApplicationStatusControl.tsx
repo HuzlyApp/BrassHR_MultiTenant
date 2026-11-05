@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
@@ -608,41 +609,50 @@ export function CandidateStatusHistoryPanel({
     return null;
   }
 
+  const bodyClassName = layout === "page" ? "p-4 sm:p-5" : "px-5 py-4";
+  const titleClassName =
+    layout === "page"
+      ? "border-b border-[#E5E7EB] px-5 py-3 text-sm font-semibold leading-5 text-[#111827]"
+      : "flex h-[45px] items-center border-b border-[#E5E7EB] px-5 text-sm font-semibold leading-5 text-[#111827]";
+  const sectionClassName =
+    layout === "page"
+      ? "mb-6 overflow-hidden rounded-lg bg-white"
+      : "overflow-hidden rounded-lg bg-white";
+
+  let historyBody: ReactNode;
+  if (loading) {
+    historyBody = <p className="text-xs text-[#94A3B8]">Loading history…</p>;
+  } else if (error) {
+    historyBody = <p className="text-xs text-[#B91C1C]">{error}</p>;
+  } else if (history.length === 0) {
+    historyBody = <p className="text-xs text-[#94A3B8]">No status changes yet.</p>;
+  } else {
+    historyBody = (
+      <div className="space-y-3">
+        {history.map((entry) => (
+          <div key={entry.id} className="border-l-2 border-[#CBD5E1] pl-3">
+            <p className="text-sm font-medium text-[#0F172A]">{entry.toStatus.name}</p>
+            <p className="mt-0.5 text-xs text-[#94A3B8]">
+              {formatHistoryDate(entry.changedAt)} · {entry.changedBy.name || "System"}
+            </p>
+            {entry.fromStatus.name ? (
+              <p className="mt-0.5 text-xs text-[#64748B]">From {entry.fromStatus.name}</p>
+            ) : (
+              <p className="mt-0.5 text-xs text-[#64748B]">Application created</p>
+            )}
+            {entry.note?.trim() ? (
+              <p className="mt-1 text-xs leading-5 text-[#475569]">{entry.note}</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <section
-      className={
-        layout === "page"
-          ? "mb-6 rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5"
-          : "mb-4 rounded-xl border border-[#E5E7EB] bg-white p-3"
-      }
-    >
-      <h3 className="text-sm font-semibold text-[#0F172A]">Status History</h3>
-      {loading ? (
-        <p className="mt-2 text-xs text-[#94A3B8]">Loading history…</p>
-      ) : error ? (
-        <p className="mt-2 text-xs text-[#B91C1C]">{error}</p>
-      ) : history.length === 0 ? (
-        <p className="mt-2 text-xs text-[#94A3B8]">No status changes yet.</p>
-      ) : (
-        <div className="mt-3 space-y-3">
-          {history.map((entry) => (
-            <div key={entry.id} className="border-l-2 border-[#CBD5E1] pl-3">
-              <p className="text-sm font-medium text-[#0F172A]">{entry.toStatus.name}</p>
-              <p className="mt-0.5 text-xs text-[#94A3B8]">
-                {formatHistoryDate(entry.changedAt)} · {entry.changedBy.name || "System"}
-              </p>
-              {entry.fromStatus.name ? (
-                <p className="mt-0.5 text-xs text-[#64748B]">From {entry.fromStatus.name}</p>
-              ) : (
-                <p className="mt-0.5 text-xs text-[#64748B]">Application created</p>
-              )}
-              {entry.note?.trim() ? (
-                <p className="mt-1 text-xs leading-5 text-[#475569]">{entry.note}</p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
+    <section className={sectionClassName}>
+      <h3 className={titleClassName}>Status History</h3>
+      <div className={bodyClassName}>{historyBody}</div>
     </section>
   );
 }
