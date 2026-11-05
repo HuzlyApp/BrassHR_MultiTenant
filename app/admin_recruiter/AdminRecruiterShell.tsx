@@ -24,6 +24,7 @@ import { WorkflowDashboardHeaderProvider } from "./components/WorkflowDashboardH
 import GodAdminImpersonationBanner from "./components/GodAdminImpersonationBanner";
 import { AdminStaffAuthGuard } from "./components/AdminStaffAuthGuard";
 import { isCandidateDetailPage } from "./components/candidate-detail-navigation";
+import CandidateDetailChrome from "./components/CandidateDetailChrome";
 import AnalyticsSessionTracker from "@/app/components/AnalyticsSessionTracker";
 import "./layout.css";
 
@@ -65,7 +66,11 @@ function CloseMobileNavOnNavigate({ onClose }: { onClose: () => void }) {
 function CandidateDetailFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   if (!isCandidateDetailPage(pathname)) return children;
-  return <div className="admin-candidate-detail-shell">{children}</div>;
+  return (
+    <div className="admin-candidate-detail-shell">
+      <CandidateDetailChrome>{children}</CandidateDetailChrome>
+    </div>
+  );
 }
 
 /**

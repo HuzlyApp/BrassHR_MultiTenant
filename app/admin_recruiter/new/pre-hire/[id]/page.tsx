@@ -3,10 +3,18 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import {
+  useCandidateDetailChrome,
+  useCandidateDetailChromeActive,
+} from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import HireJourneyClient from "@/app/admin_recruiter/candidates/[workerId]/hire-journey/HireJourneyClient";
+import {
+  fetchStaffDetailJson,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 
 type ProfilePayload = {
   worker?: {
@@ -25,12 +33,14 @@ type ProfilePayload = {
 export default function CandidatePreHirePage() {
   const params = useParams<{ id: string }>();
   const applicantId = params?.id?.trim() ?? "";
+  const chromeActive = useCandidateDetailChromeActive();
+  const chrome = useCandidateDetailChrome();
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!chromeActive);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!applicantId) {
+    if (!applicantId || chromeActive) {
       setLoading(false);
       return;
     }
@@ -40,13 +50,11 @@ export default function CandidatePreHirePage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`,
-          { cache: "no-store" }
+        const result = await fetchStaffDetailJson<ProfilePayload>(
+          workerProfileApiUrl(applicantId)
         );
-        const json = (await res.json()) as ProfilePayload;
-        if (!res.ok) throw new Error(json.error || "Failed to load candidate");
-        if (!cancelled) setProfile(json);
+        if (!result.ok) throw new Error(result.payload.error || "Failed to load candidate");
+        if (!cancelled) setProfile(result.payload);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load candidate");
@@ -61,9 +69,9 @@ export default function CandidatePreHirePage() {
     return () => {
       cancelled = true;
     };
-  }, [applicantId]);
+  }, [applicantId, chromeActive]);
 
-  const worker = profile?.worker;
+  const worker = chromeActive ? chrome?.profile?.worker : profile?.worker;
   const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim();
 
   if (!applicantId) {
@@ -74,6 +82,23 @@ export default function CandidatePreHirePage() {
         </div>
       </div>
     );
+  }
+
+  const journey = (
+    <Suspense
+      fallback={
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-6 text-sm text-[#667085]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading hiring journey…
+        </div>
+      }
+    >
+      <HireJourneyClient workerId={applicantId} embeddedPhase="pre_hire" />
+    </Suspense>
+  );
+
+  if (chromeActive) {
+    return journey;
   }
 
   return (
@@ -104,16 +129,7 @@ export default function CandidatePreHirePage() {
           </>
         )}
 
-        <Suspense
-          fallback={
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-4 py-6 text-sm text-[#667085]">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading hiring journey…
-            </div>
-          }
-        >
-          <HireJourneyClient workerId={applicantId} embeddedPhase="pre_hire" />
-        </Suspense>
+        {journey}
       </div>
     </div>
   );
