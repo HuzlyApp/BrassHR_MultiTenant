@@ -780,7 +780,29 @@ export async function GET(req: NextRequest) {
       console.warn("[admin/worker-profile] for_approval promotion", promoteErr)
     }
 
-    const statusLabel = formatPipelineStatusLabel(statusNorm)
+    let appSummary: import("@/lib/jobs/application-statuses/attach-worker-application-status").WorkerApplicationStatusSummary | null = null
+    if (tenantIdForWorker) {
+      try {
+        const { getApplicationStatusSummaryForWorker } = await import(
+          "@/lib/jobs/application-statuses/attach-worker-application-status"
+        )
+        appSummary = await getApplicationStatusSummaryForWorker(supabase, {
+          tenantId: tenantIdForWorker,
+          workerId,
+        })
+      } catch (appErr) {
+        console.warn("[admin/worker-profile] application summary lookup", appErr)
+      }
+    }
+
+    const rawWorkerSource = asTrimmedString(w.source) ?? asTrimmedString(w.lead_source)
+    const resolvedSource = rawWorkerSource || asTrimmedString(appSummary?.sourceType) || null
+    const resolvedJobId = asTrimmedString(appSummary?.sourceJobId) || null
+
+    const rawWorkerStatus = asTrimmedString(w.status) ?? asTrimmedString(w.worker_status)
+    const statusLabel =
+      asTrimmedString(appSummary?.statusName) ||
+      (rawWorkerStatus ? formatPipelineStatusLabel(statusNorm) : null)
 
     const resolvedDocumentUrl = await resolveDocUrl(docs?.document_url, storageAuthUrlFromFiles)
     const storageAuthUrl = resolvedDocumentUrl ?? firmaSigning?.iframe_url ?? null
@@ -887,6 +909,7 @@ export async function GET(req: NextRequest) {
         updated_at: updatedAt,
         status: statusNorm,
         status_label: statusLabel,
+        job_id: resolvedJobId,
         date_of_birth: w.date_of_birth != null ? String(w.date_of_birth) : null,
         years_experience:
           experienceYears,
@@ -994,8 +1017,9 @@ export async function GET(req: NextRequest) {
       legacy_document_reviews: legacyDocumentReviews,
       activity_logs: activityLogs,
       activity_history: activityLogs,
+      job_id: resolvedJobId,
       activity: {
-        source: "Onboarding application",
+        source: resolvedSource,
         created_at: createdAt,
         updated_at: updatedAt,
       },

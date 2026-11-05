@@ -148,6 +148,7 @@ export function HireStageSidebar({
               )}
             </dd>
           </div>
+          {/* Hidden from Pre-Hire candidate profile card for now
           <div className="flex items-center justify-between gap-3">
             <dt className="shrink-0 font-semibold text-black">Department</dt>
             <dd className="text-right text-[#6B7280]">{profile.department || "—"}</dd>
@@ -160,6 +161,7 @@ export function HireStageSidebar({
             <dt className="shrink-0 font-semibold text-black">Source</dt>
             <dd className="text-right text-[#6B7280]">{profile.source || "—"}</dd>
           </div>
+          */}
           <div className="flex items-center justify-between gap-3">
             <dt className="shrink-0 font-semibold text-black">Date Applied</dt>
             <dd className="text-right text-[#6B7280]">{profile.dateApplied || "—"}</dd>

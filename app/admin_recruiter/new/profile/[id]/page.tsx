@@ -67,6 +67,7 @@ type OnboardingStep = {
 };
 
 type ProfilePayload = {
+  job_id?: string | null;
   worker: {
     id: string;
     first_name: string | null;
@@ -83,6 +84,7 @@ type ProfilePayload = {
     updated_at: string | null;
     status: string;
     status_label: string;
+    job_id?: string | null;
     date_of_birth: string | null;
     years_experience: number | null;
     hourly_rate: string | null;
@@ -832,6 +834,7 @@ export default function NewApplicantProfilePage() {
               location={candidateLocation}
               statusLabel={w?.status_label ?? null}
               applicationDate={formatDate(w?.created_at)}
+              jobId={w?.job_id ?? data?.job_id ?? null}
               source={data?.activity?.source ?? null}
               progressPercent={data?.onboardingCompletion?.percent ?? null}
               progressInProgress={

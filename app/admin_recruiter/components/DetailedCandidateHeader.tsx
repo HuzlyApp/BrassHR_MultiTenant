@@ -90,7 +90,7 @@ export default function DetailedCandidateHeader({
   const displayEmail = candidateEmail?.trim() || "—";
   const displayPhone = phone?.trim() || "—";
   const displayLocation = location?.trim() || "—";
-  const displayStatus = statusLabel?.trim() || "Applicant";
+  const displayStatus = statusLabel?.trim() || null;
   const percent = Math.max(0, Math.min(100, Math.round(progressPercent ?? 0)));
 
   return (
@@ -195,12 +195,16 @@ export default function DetailedCandidateHeader({
             <div className="w-full shrink-0 space-y-2.5 border-t border-[#E5E7EB] pt-4 text-sm lg:w-[280px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <MetaRow label="Application Date" value={applicationDate?.trim() || "—"} />
               <MetaRow label="Job ID" value={jobId?.trim() || "—"} />
-              <MetaRow label="Source" value={source?.trim() || "—"} />
+              <MetaRow label="Source" value={source?.trim() && source.trim() !== "—" ? source.trim() : "—"} />
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[#6B7280]">Current Status</span>
-                <span className="inline-flex rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-medium text-[#166534]">
-                  {displayStatus}
-                </span>
+                {displayStatus && displayStatus !== "—" ? (
+                  <span className="inline-flex rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-medium text-[#166534]">
+                    {displayStatus}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-[#012352]">—</span>
+                )}
               </div>
             </div>
           </div>
