@@ -66,17 +66,8 @@ export function parseCandidateDetailRoute(
     };
   }
 
-  const workersProfile = path.match(
-    /^\/admin_recruiter\/workers\/([^/]+)\/profile(?:\/(resume|notes))?$/i
-  );
-  if (workersProfile) {
-    const applicantId = workersProfile[1];
-    const nested = (workersProfile[2] ?? "").toLowerCase();
-    return {
-      applicantId,
-      activeTab: nested === "resume" ? "Resume" : "Profile",
-    };
-  }
+  // Worker profile routes (/admin_recruiter/workers/[id]/...) use their own chrome —
+  // never treat them as candidate-detail tabs.
 
   const tabMatch = path.match(
     new RegExp(

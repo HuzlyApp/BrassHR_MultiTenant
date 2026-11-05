@@ -49,6 +49,19 @@ describe("parseCandidateDetailRoute", () => {
     expect(parseCandidateDetailRoute("/admin_recruiter/new/profile")).toBeNull();
     expect(parseCandidateDetailRoute("/admin_recruiter/new")).toBeNull();
   });
+
+  it("does not treat worker profile routes as candidate detail chrome", () => {
+    expect(
+      parseCandidateDetailRoute(
+        "/admin_recruiter/workers/359ef5c5-7630-4310-8ea1-f9ddf0bd2916/profile"
+      )
+    ).toBeNull();
+    expect(
+      parseCandidateDetailRoute(
+        "/admin_recruiter/workers/359ef5c5-7630-4310-8ea1-f9ddf0bd2916/profile/resume"
+      )
+    ).toBeNull();
+  });
 });
 
 describe("isCandidateDetailPage", () => {
