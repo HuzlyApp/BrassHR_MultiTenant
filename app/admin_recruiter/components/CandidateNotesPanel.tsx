@@ -251,13 +251,19 @@ export default function CandidateNotesPanel({
   }
 
   return (
-    <div className="relative w-full bg-white pr-px">
-      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Notes</div>
-        {addButton}
+    <div className="relative w-full min-w-0 overflow-hidden rounded-lg bg-white">
+      <div className="flex h-[45px] items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
+        <div className="text-sm font-semibold leading-5 text-[#111827]">Notes</div>
+        <button
+          type="button"
+          onClick={() => setShowNotePopup(true)}
+          className="inline-flex shrink-0 items-center text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition-opacity hover:opacity-80"
+        >
+          + Add
+        </button>
       </div>
 
-      <div className="p-5">
+      <div className="px-5 py-4">
         {actionError ? (
           <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {actionError}

@@ -10,7 +10,6 @@ import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 // import ProfileSubTabs from "../../../components/ProfileSubTabs";
-import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
 import AssignFacilityModal from "../../../components/AssignFacilityModal";
 import AddWorkerSkillModal from "../../../components/AddWorkerSkillModal";
 import { CandidateStatusHistoryPanel } from "../../../components/CandidateApplicationStatusControl";
@@ -52,7 +51,6 @@ import {
   Calendar,
   LogOut,
   Menu,
-  Plus,
   Settings,
   UserCheck,
   UserPlus,
@@ -69,6 +67,7 @@ type OnboardingStep = {
 };
 
 type ProfilePayload = {
+  job_id?: string | null;
   worker: {
     id: string;
     first_name: string | null;
@@ -85,6 +84,7 @@ type ProfilePayload = {
     updated_at: string | null;
     status: string;
     status_label: string;
+    job_id?: string | null;
     date_of_birth: string | null;
     years_experience: number | null;
     hourly_rate: string | null;
@@ -183,14 +183,6 @@ type ProfilePayload = {
   notes?: Array<Record<string, unknown>>;
 };
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
-
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -254,6 +246,14 @@ function formatYearsExperience(value: number | null | undefined) {
   return `${value} yrs`;
 }
 
+/** Figma profile cards: white surfaces, 8px radius, 14px semibold titles, 20px gutters. */
+const PROFILE_CARD_CLASS = "w-full min-w-0 overflow-hidden rounded-lg bg-white";
+const PROFILE_CARD_HEADER_CLASS =
+  "flex h-[45px] shrink-0 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5";
+const PROFILE_CARD_TITLE_CLASS = "text-sm font-semibold leading-5 text-[#111827]";
+const PROFILE_ADD_LINK_CLASS =
+  "inline-flex shrink-0 items-center text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition-opacity hover:opacity-80";
+
 function ProfileSectionNavLink({
   href,
   ariaLabel,
@@ -271,7 +271,7 @@ function ProfileSectionNavLink({
     <Link
       href={href}
       aria-label={ariaLabel}
-      className="inline-flex shrink-0 rounded-full transition-opacity hover:opacity-80"
+      className={PROFILE_ADD_LINK_CLASS}
       onClick={(event) => {
         if (!hash || typeof window === "undefined") return;
         if (window.location.pathname !== path) return;
@@ -279,7 +279,7 @@ function ProfileSectionNavLink({
         scrollToProfileField(hash, Boolean(openEditAnchorId && hash === openEditAnchorId));
       }}
     >
-      <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+      + Add
     </Link>
   );
 }
@@ -834,6 +834,7 @@ export default function NewApplicantProfilePage() {
               location={candidateLocation}
               statusLabel={w?.status_label ?? null}
               applicationDate={formatDate(w?.created_at)}
+              jobId={w?.job_id ?? data?.job_id ?? null}
               source={data?.activity?.source ?? null}
               progressPercent={data?.onboardingCompletion?.percent ?? null}
               progressInProgress={
@@ -891,44 +892,12 @@ export default function NewApplicantProfilePage() {
               />
             ) : null}
 
-            <div className="w-full min-w-0 admin-recruiter-content-width overflow-x-hidden rounded-lg border border-[#D1D5DB] bg-white">
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="text-lg font-semibold text-gray-600">
-                        {loading ? "Loading..." : candidateName}
-                      </div>
-                      <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                        {w?.status_label ?? "—"}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                    <div className="text-xs text-gray-600">{candidateLocation}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm"
-                  >
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-stretch">
-                <section className="min-w-0 space-y-0 border-b border-[#D1D5DB] lg:border-b-0 lg:border-r">
-                  <div className="overflow-hidden bg-white">
-                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                      <h2 className="text-[17px] font-semibold leading-7 text-[#012352] sm:text-[20px]">
-                        Applicant Details
-                      </h2>
+            <div className="w-full min-w-0 admin-recruiter-content-width overflow-x-hidden">
+              <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                <section className="flex min-w-0 flex-col gap-5">
+                  <div className={PROFILE_CARD_CLASS}>
+                    <div className={PROFILE_CARD_HEADER_CLASS}>
+                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Applicant Details</h2>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2">
@@ -1054,22 +1023,6 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("hourly_rate", value)}
                       />
-                      <CandidateDetailReferenceField
-                        label="Reference 1 (Name, Email, Phone, Relationship)"
-                        displayValue={formatReferenceDisplay(data?.references?.[0])}
-                        value={referenceToFormValue(data?.references?.[0])}
-                        isMissing={referenceIsMissing(data?.references?.[0])}
-                        saving={fieldSaving}
-                        onSave={(value) => saveReference(0, value)}
-                      />
-                      <CandidateDetailReferenceField
-                        label="Reference 2 (Name, Email, Phone, Relationship)"
-                        displayValue={formatReferenceDisplay(data?.references?.[1])}
-                        value={referenceToFormValue(data?.references?.[1])}
-                        isMissing={referenceIsMissing(data?.references?.[1])}
-                        saving={fieldSaving}
-                        onSave={(value) => saveReference(1, value)}
-                      />
                       <div className="contents">
                         <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
                           Primary Practice Setting
@@ -1133,11 +1086,41 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-[#E5E7EB] bg-white">
-                    <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
-                        Nursing Licenses
-                      </div>
+                  <div className={PROFILE_CARD_CLASS}>
+                    <div className={PROFILE_CARD_HEADER_CLASS}>
+                      <h2 className={PROFILE_CARD_TITLE_CLASS}>References</h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2">
+                      <CandidateDetailReferenceField
+                        label="Reference 1 (Name, Email, Phone, Relationship)"
+                        displayValue={formatReferenceDisplay(data?.references?.[0])}
+                        value={referenceToFormValue(data?.references?.[0])}
+                        isMissing={referenceIsMissing(data?.references?.[0])}
+                        saving={fieldSaving}
+                        onSave={(value) => saveReference(0, value)}
+                      />
+                      <CandidateDetailReferenceField
+                        label="Reference 2 (Name, Email, Phone, Relationship)"
+                        displayValue={formatReferenceDisplay(data?.references?.[1])}
+                        value={referenceToFormValue(data?.references?.[1])}
+                        isMissing={referenceIsMissing(data?.references?.[1])}
+                        saving={fieldSaving}
+                        onSave={(value) => saveReference(1, value)}
+                      />
+                      <CandidateDetailReferenceField
+                        label="Reference 3 (Name, Email, Phone, Relationship)"
+                        displayValue={formatReferenceDisplay(data?.references?.[2])}
+                        value={referenceToFormValue(data?.references?.[2])}
+                        isMissing={referenceIsMissing(data?.references?.[2])}
+                        saving={fieldSaving}
+                        onSave={(value) => saveReference(2, value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={PROFILE_CARD_CLASS}>
+                    <div className={PROFILE_CARD_HEADER_CLASS}>
+                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Nursing Licenses</h2>
                     </div>
                     <div className="flex flex-col px-3 py-3 sm:px-4">
                       <div className="overflow-x-auto overflow-y-hidden rounded-md border border-[#E5E7EB]">
@@ -1194,11 +1177,9 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-[#E5E7EB] bg-white">
-                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
-                        Activity Logs
-                      </div>
+                  <div className={PROFILE_CARD_CLASS}>
+                    <div className={PROFILE_CARD_HEADER_CLASS}>
+                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Activity Logs</h2>
                     </div>
                     <div className="p-3 sm:p-5">
                     <div className="overflow-hidden rounded-md border border-[#E5E7EB] text-xs">
@@ -1227,13 +1208,11 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-[#E5E7EB] bg-white">
-                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
-                        Activity History
-                      </div>
+                  <div className={PROFILE_CARD_CLASS}>
+                    <div className={PROFILE_CARD_HEADER_CLASS}>
+                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Activity History</h2>
                     </div>
-                    <div className="p-3 sm:p-5">
+                    <div className="px-5 py-3">
                     <div>
                       {(data?.activity_history ?? []).length === 0 ? (
                         <div className="py-3 text-xs text-[#6B7280]">No activity history found.</div>
@@ -1241,15 +1220,15 @@ export default function NewApplicantProfilePage() {
                         (data?.activity_history ?? []).slice(0, 6).map((entry, idx) => (
                           <div
                             key={entry.id ?? `history-${idx}`}
-                            className={`flex items-start gap-3 py-3 ${idx < (data?.activity_history ?? []).slice(0, 6).length - 1 ? "border-b border-[#E5E7EB]" : ""}`}
+                            className={`flex items-start gap-3 py-2.5 ${idx < (data?.activity_history ?? []).slice(0, 6).length - 1 ? "border-b border-[#E5E7EB]" : ""}`}
                           >
                             <BrandedHistoryIcon className="mt-0.5 h-6 w-6 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium leading-5 text-[color:var(--brand-primary)]">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                              <div className="text-sm font-medium leading-5 text-[#012352]">
                                 {entry.action ?? "Activity"}
                               </div>
-                              <div className="text-xs leading-4 text-[#6B7280]">
-                                {formatRelative(entry.created_at)} - {formatDateTimeLabel(entry.created_at)}
+                              <div className="text-[10px] leading-[15px] text-[#6B7280]">
+                                {formatRelative(entry.created_at)} • {formatDateTimeLabel(entry.created_at)}
                               </div>
                             </div>
                           </div>
@@ -1260,18 +1239,16 @@ export default function NewApplicantProfilePage() {
                   </div>
                 </section>
 
-                <section className="h-full w-full min-w-0 space-y-0 lg:border-l lg:border-[#D1D5DB]">
-                  <div className="w-full bg-white pr-px">
-                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                        <div className="text-[17px] font-semibold leading-7 text-[#012352] sm:text-[20px]">
-                          Education
-                        </div>
+                <section className="flex w-full min-w-0 flex-col gap-5">
+                  <div className={PROFILE_CARD_CLASS}>
+                      <div className={PROFILE_CARD_HEADER_CLASS}>
+                        <h2 className={PROFILE_CARD_TITLE_CLASS}>Education</h2>
                         <ProfileSectionNavLink
                           href={profileSectionLinks.education}
                           ariaLabel="Open resume and education"
                         />
                       </div>
-                      <div className="px-3 pb-5 pt-4 sm:px-5">
+                      <div className="px-5 pb-5 pt-4">
                       {educationSummaryLines.length > 0 ? (
                         <div className="space-y-2">
                           {educationSummaryLines.map((line) => (
@@ -1293,67 +1270,63 @@ export default function NewApplicantProfilePage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="text-xs text-gray-600">No education details on file yet.</div>
+                        <div className="text-xs text-[#6B7280]">No education details on file yet.</div>
                       )}
                       </div>
                   </div>
 
-                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                        <div className="text-[17px] font-semibold leading-7 text-[#012352] sm:text-[20px]">
-                          Experience
-                        </div>
+                    <div className={PROFILE_CARD_CLASS}>
+                      <div className={PROFILE_CARD_HEADER_CLASS}>
+                        <h2 className={PROFILE_CARD_TITLE_CLASS}>Experience</h2>
                         <ProfileSectionNavLink
                           href={profileSectionLinks.experience}
                           ariaLabel="Edit years of experience"
                           openEditAnchorId={PROFILE_YEARS_EXPERIENCE_ANCHOR_ID}
                         />
                       </div>
-                      <div className="px-3 pb-5 pt-4 sm:px-5">
-                      <div className="text-xs text-gray-600">Job role</div>
+                      <div className="px-5 pb-5 pt-4">
+                      <div className="text-xs text-[#6B7280]">Job role</div>
                       <div className="mt-2 break-words text-sm text-[#111827]">
                         {data?.experience?.job_role ?? candidateRole}
                       </div>
-                      <div className="mt-3 text-xs text-gray-600">Years in profession</div>
+                      <div className="mt-3 text-xs text-[#6B7280]">Years in profession</div>
                       <div className="mt-2 text-sm text-[#111827]">
                         {data?.experience?.years != null
                           ? formatYearsExperience(data.experience.years)
                           : formatYearsExperience(w?.years_experience)}
                       </div>
-                      <div className="mt-3 text-xs text-gray-600">Roles</div>
+                      <div className="mt-3 text-xs text-[#6B7280]">Roles</div>
                       <div className="mt-2 break-words text-sm text-[#111827]">
                         {experienceRoleLabels.length > 0 ? experienceRoleLabels.join(", ") : "N/A"}
                       </div>
                       </div>
                     </div>
 
-                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                        <div className="text-[17px] font-semibold leading-7 text-[#012352] sm:text-[20px]">
-                          Skills
-                        </div>
+                    <div className={PROFILE_CARD_CLASS}>
+                      <div className={PROFILE_CARD_HEADER_CLASS}>
+                        <h2 className={PROFILE_CARD_TITLE_CLASS}>Skills</h2>
                         <button
                           type="button"
                           onClick={() => setShowAddSkillModal(true)}
                           aria-label="Add skill"
-                          className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-80"
+                          className={PROFILE_ADD_LINK_CLASS}
                         >
-                          <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+                          + Add
                         </button>
                       </div>
-                      <div className="px-3 pb-5 pt-4 sm:px-5">
-                      <div className="text-xs text-gray-600">Positions</div>
+                      <div className="px-5 pb-5 pt-4">
+                      <div className="text-xs text-[#6B7280]">Positions</div>
                       <div className="mt-2 break-words text-sm text-[#111827]">
                         {data?.skills?.positions?.length ? data.skills.positions.join(", ") : "N/A"}
                       </div>
-                      <div className="mt-3 text-xs text-gray-600">Skills</div>
+                      <div className="mt-3 text-xs text-[#6B7280]">Skills</div>
                       <div className="mt-2">
                         {profileSkills.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
                             {profileSkills.map((skill) => (
                               <span
                                 key={skill.id}
-                                className="inline-flex rounded-full bg-[#DBEAFE] px-3 py-1 text-xs font-medium text-[#1D4ED8]"
+                                className="inline-flex rounded-md bg-[#F1F5F9] px-2.5 py-1 text-xs font-medium text-[#334155]"
                               >
                                 {skill.skill_name}
                               </span>
@@ -1366,18 +1339,28 @@ export default function NewApplicantProfilePage() {
                       </div>
                     </div>
 
-                    <div className="w-full border-t border-b border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                        <div className="min-w-0 truncate text-[17px] font-semibold leading-7 text-[#012352] sm:text-[20px]">
+                    <div className={PROFILE_CARD_CLASS}>
+                      <div className={PROFILE_CARD_HEADER_CLASS}>
+                        <h2 className={`${PROFILE_CARD_TITLE_CLASS} min-w-0 truncate`}>
                           Facilities Assigned
-                        </div>
-                        <ProfileSectionNavLink
-                          href={profileSectionLinks.facilities}
-                          ariaLabel="Open facility assignments"
-                        />
+                        </h2>
+                        {canAssignMoreFacilities ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAssignFacilityModal(true)}
+                            className={PROFILE_ADD_LINK_CLASS}
+                          >
+                            + Add
+                          </button>
+                        ) : (
+                          <ProfileSectionNavLink
+                            href={profileSectionLinks.facilities}
+                            ariaLabel="Open facility assignments"
+                          />
+                        )}
                       </div>
-                      <div className="flex flex-col gap-3 px-3 pb-5 pt-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
-                        <div className="min-w-0 flex-1 text-xs text-gray-600">
+                      <div className="px-5 pb-5 pt-4">
+                        <div className="min-w-0 text-xs text-[#6B7280]">
                           {data?.facilities_assigned?.length ? (
                             <div className="space-y-2">
                               {data.facilities_assigned.map((facility, index) => (
@@ -1394,38 +1377,28 @@ export default function NewApplicantProfilePage() {
                               ))}
                             </div>
                           ) : (
-                            "No facility assignments found"
+                            "This candidate is not added to facilities yet"
                           )}
                         </div>
-                        {canAssignMoreFacilities ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowAssignFacilityModal(true)}
-                            className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white sm:w-auto"
-                            style={{ backgroundColor: "var(--brand-primary)" }}
-                          >
-                            + Add
-                          </button>
-                        ) : null}
                       </div>
                     </div>
 
                     <div
-                      className="w-full border-t border-[#E5E7EB] bg-white pr-px lg:border-r lg:border-[#D1D5DB]"
+                      className={PROFILE_CARD_CLASS}
                       style={{ minHeight: `${onboardingSectionMinHeight}px` }}
                     >
-                      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 py-2 sm:px-5 sm:py-0">
-                        <div className="min-w-0 text-[16px] font-semibold leading-6 text-[#111827] sm:truncate sm:whitespace-nowrap sm:text-[18px]">
+                      <div className={PROFILE_CARD_HEADER_CLASS}>
+                        <h2 className={`${PROFILE_CARD_TITLE_CLASS} min-w-0 truncate`}>
                           Onboarding Progress
                           {data?.onboardingCompletion?.totalSteps ? (
-                            <span className="ml-2 inline-block text-sm font-normal text-[#6B7280]">
+                            <span className="ml-2 inline-block text-xs font-normal text-[#6B7280]">
                               {data.onboardingCompletion.completedSteps}/
                               {data.onboardingCompletion.totalSteps} (
                               {data.onboardingCompletion.percent}%)
                             </span>
                           ) : null}
-                        </div>
-                        <span className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1 text-[11px] font-medium text-white ${onboardingCompleted ? "bg-[#00B135]" : "bg-[#F59E0B]"}`}>
+                        </h2>
+                        <span className="shrink-0 whitespace-nowrap rounded-full bg-[#DCFCE7] px-2.5 py-1 text-[10px] font-semibold leading-[15px] text-[#15803D]">
                           {onboardingCompleted ? "Completed" : "In Progress"}
                         </span>
                       </div>
@@ -1472,27 +1445,29 @@ export default function NewApplicantProfilePage() {
                       </div>
                     </div>
 
-                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                        <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
-                          Skill assessments
-                        </div>
+                    <CandidateNotesPanel
+                      workerId={id}
+                      candidateName={candidateName}
+                      layout="sidebar"
+                    />
+
+                    <div className={PROFILE_CARD_CLASS}>
+                      <div className={PROFILE_CARD_HEADER_CLASS}>
+                        <h2 className={PROFILE_CARD_TITLE_CLASS}>Skill assessments</h2>
                       </div>
-                      <div className="p-3 sm:p-5">
-                      <div className="text-xs text-gray-600">
+                      <div className="px-5 py-4">
+                      <div className="text-xs text-[#6B7280]">
                         Completed {data?.skillAssessments.completed ?? 0} of {data?.skillAssessments.total ?? 0}{" "}
                         tracked quizzes.
                       </div>
                       </div>
                     </div>
 
-                  <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
-                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
-                        Remarks
-                      </div>
+                  <div className={PROFILE_CARD_CLASS}>
+                    <div className={PROFILE_CARD_HEADER_CLASS}>
+                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Remarks</h2>
                     </div>
-                    <div className="p-3 sm:p-5">
+                    <div className="px-5 py-4">
                     <div className="mb-4 text-xs text-[#6B7280]">For job recommendation</div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <button
@@ -1519,14 +1494,7 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="w-full space-y-3 border-t border-[#E5E7EB] p-3">
-                    <CandidateStatusHistoryPanel workerId={id} layout="sidebar" />
-                    <CandidateNotesPanel
-                      workerId={id}
-                      candidateName={candidateName}
-                      layout="sidebar"
-                    />
-                  </div>
+                  <CandidateStatusHistoryPanel workerId={id} layout="sidebar" />
                 </section>
               </div>
             </div>

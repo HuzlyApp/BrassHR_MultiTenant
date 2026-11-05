@@ -32,6 +32,7 @@ type ChromeWorker = {
   state?: string | null;
   status?: string | null;
   status_label?: string | null;
+  job_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   profile_photo_url?: string | null;
@@ -39,6 +40,7 @@ type ChromeWorker = {
 
 type ChromeProfilePayload = {
   worker?: ChromeWorker;
+  job_id?: string | null;
   activity?: { source?: string | null };
   onboardingSteps?: Array<{ state: "complete" | "in_progress" | "pending" }>;
   onboardingCompletion?: { percent?: number | null };
@@ -161,6 +163,7 @@ function CandidateDetailChromeInner({
             location={location}
             statusLabel={worker?.status_label ?? null}
             applicationDate={formatHeaderDate(worker?.created_at)}
+            jobId={worker?.job_id ?? profile?.job_id ?? null}
             source={profile?.activity?.source ?? null}
             progressPercent={profile?.onboardingCompletion?.percent ?? null}
             progressInProgress={progressInProgress}
