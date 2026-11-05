@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
+import {
+  useCandidateDetailChrome,
+  useCandidateDetailChromeActive,
+} from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
@@ -40,6 +44,8 @@ type WorkerProfilePayload = {
 export default function CandidateDetailApplicationsPage() {
   const params = useParams<{ id: string }>();
   const applicantId = params?.id?.trim() ?? "";
+  const chromeActive = useCandidateDetailChromeActive();
+  const chrome = useCandidateDetailChrome();
 
   const [headerProfile, setHeaderProfile] = useState<WorkerProfilePayload | null>(null);
   const [applications, setApplications] = useState<CandidateProfileApplication[]>([]);
@@ -62,32 +68,35 @@ export default function CandidateDetailApplicationsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [headerResult, profileResult] = await Promise.all([
-        fetchStaffDetailJson<WorkerProfilePayload>(workerProfileApiUrl(applicantId)),
-        fetchStaffDetailJson<CandidateProfilePayload & { error?: string }>(
-          candidateProfileApiUrl(applicantId)
-        ),
-      ]);
+      const profileResult = await fetchStaffDetailJson<CandidateProfilePayload & { error?: string }>(
+        candidateProfileApiUrl(applicantId)
+      );
 
-      if (!headerResult.ok) {
-        throw new Error(headerResult.payload.error || "Failed to load candidate");
+      if (!chromeActive) {
+        const headerResult = await fetchStaffDetailJson<WorkerProfilePayload>(
+          workerProfileApiUrl(applicantId)
+        );
+        if (!headerResult.ok) {
+          throw new Error(headerResult.payload.error || "Failed to load candidate");
+        }
+        setHeaderProfile(headerResult.payload);
       }
+
       if (!profileResult.ok) {
         throw new Error(profileResult.payload.error || "Failed to load applications");
       }
 
-      setHeaderProfile(headerResult.payload);
       setApplications(profileResult.payload.applications ?? []);
       setMatchApplicationId(profileResult.payload.match?.applicationId ?? null);
     } catch (err) {
-      setHeaderProfile(null);
+      if (!chromeActive) setHeaderProfile(null);
       setApplications([]);
       setMatchApplicationId(null);
       setError(err instanceof Error ? err.message : "Failed to load applications");
     } finally {
       setLoading(false);
     }
-  }, [applicantId]);
+  }, [applicantId, chromeActive]);
 
   useEffect(() => {
     void load();
@@ -145,7 +154,7 @@ export default function CandidateDetailApplicationsPage() {
     }
   }
 
-  const worker = headerProfile?.worker;
+  const worker = chromeActive ? chrome?.profile?.worker : headerProfile?.worker;
   const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim();
 
   if (!applicantId) {
@@ -155,6 +164,59 @@ export default function CandidateDetailApplicationsPage() {
           Missing candidate id.
         </div>
       </div>
+    );
+  }
+
+  const applicationsBody = (
+    <>
+      {error ? (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+        </div>
+      ) : null}
+      {loading ? (
+        <CandidateDetailLoader label="Loading applications..." />
+      ) : (
+        <CandidateProfileApplicationsTab
+          applications={applications}
+          onScheduleInterview={beginScheduleInterview}
+        />
+      )}
+    </>
+  );
+
+  const interviewModal = interviewTarget ? (
+    <ScheduleInterviewModal
+      open={interviewOpen}
+      applicants={[
+        {
+          id: applicantId,
+          name: name || "Candidate",
+          status: normalizeApplicationStatus(interviewTarget.status),
+        },
+      ]}
+      submitting={interviewSubmitting}
+      error={interviewError}
+      onClose={() => {
+        setInterviewOpen(false);
+        setInterviewError(null);
+        setInterviewTarget(null);
+      }}
+      onSubmit={(payload) => void handleScheduleInterview(payload)}
+      fixedWorkerId={applicantId}
+      fixedApplicantName={name || "Candidate"}
+      fixedApplicationId={interviewTarget.id}
+      fixedJobTitle={interviewTarget.jobTitle || undefined}
+      defaultTitle={name ? `Interview with ${name}` : undefined}
+    />
+  ) : null;
+
+  if (chromeActive) {
+    return (
+      <>
+        {applicationsBody}
+        {interviewModal}
+      </>
     );
   }
 
@@ -183,39 +245,19 @@ export default function CandidateDetailApplicationsPage() {
               activeTab="Applications"
               workerStatus={worker?.status ?? null}
             />
-            <CandidateProfileApplicationsTab
-              applications={applications}
-              onScheduleInterview={beginScheduleInterview}
-            />
+            {loading ? (
+              <CandidateDetailLoader label="Loading applications..." />
+            ) : (
+              <CandidateProfileApplicationsTab
+                applications={applications}
+                onScheduleInterview={beginScheduleInterview}
+              />
+            )}
           </>
         )}
       </div>
 
-      {interviewTarget ? (
-        <ScheduleInterviewModal
-          open={interviewOpen}
-          applicants={[
-            {
-              id: applicantId,
-              name: name || "Candidate",
-              status: normalizeApplicationStatus(interviewTarget.status),
-            },
-          ]}
-          submitting={interviewSubmitting}
-          error={interviewError}
-          onClose={() => {
-            setInterviewOpen(false);
-            setInterviewError(null);
-            setInterviewTarget(null);
-          }}
-          onSubmit={(payload) => void handleScheduleInterview(payload)}
-          fixedWorkerId={applicantId}
-          fixedApplicantName={name || "Candidate"}
-          fixedApplicationId={interviewTarget.id}
-          fixedJobTitle={interviewTarget.jobTitle || undefined}
-          defaultTitle={name ? `Interview with ${name}` : undefined}
-        />
-      ) : null}
+      {interviewModal}
     </div>
   );
 }

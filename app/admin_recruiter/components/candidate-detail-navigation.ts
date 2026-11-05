@@ -1,8 +1,16 @@
+import type { CandidateDetailTab } from "@/lib/onboarding/candidate-detail-tabs";
+
 const CANDIDATE_DETAIL_TABS =
-  "checklist|profile|applications|attachments|skill-assessments|authorization|activities|facility-assignments|agreement|final-approval|onboard-applicant|history";
+  "checklist|profile|applications|attachments|skill-assessments|authorization|activities|facility-assignments|agreement|final-approval|onboard-applicant|history|ai-analysis|pre-hire|post-hire";
 
 const UUID_SEGMENT = "[^/]+";
 
+export type ParsedCandidateDetailRoute = {
+  applicantId: string;
+  activeTab: CandidateDetailTab;
+};
+
+/** True when the route is any candidate-detail surface (list shell or a specific applicant). */
 export function isCandidateDetailPage(pathname: string): boolean {
   const path = (pathname.replace(/\/$/, "") || "/").toLowerCase();
 
@@ -35,6 +43,91 @@ export function isCandidateDetailPage(pathname: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * Resolve applicant id + active tab from a candidate-detail pathname.
+ * Returns null for list shells or non-detail routes.
+ */
+export function parseCandidateDetailRoute(
+  pathname: string
+): ParsedCandidateDetailRoute | null {
+  const path = pathname.replace(/\/$/, "") || "/";
+
+  const profileNested = path.match(
+    /^\/admin_recruiter\/new\/profile\/(resume|notes)\/([^/]+)/i
+  );
+  if (profileNested) {
+    const segment = profileNested[1].toLowerCase();
+    const applicantId = profileNested[2];
+    return {
+      applicantId,
+      activeTab: segment === "notes" ? "Profile" : "Resume",
+    };
+  }
+
+  const workersProfile = path.match(
+    /^\/admin_recruiter\/workers\/([^/]+)\/profile(?:\/(resume|notes))?$/i
+  );
+  if (workersProfile) {
+    const applicantId = workersProfile[1];
+    const nested = (workersProfile[2] ?? "").toLowerCase();
+    return {
+      applicantId,
+      activeTab: nested === "resume" ? "Resume" : "Profile",
+    };
+  }
+
+  const tabMatch = path.match(
+    new RegExp(
+      `^/admin_recruiter/new/(${CANDIDATE_DETAIL_TABS})/(${UUID_SEGMENT})$`,
+      "i"
+    )
+  );
+  if (!tabMatch) return null;
+
+  const segment = tabMatch[1].toLowerCase();
+  const applicantId = tabMatch[2];
+  const activeTab = candidateDetailTabFromSegment(segment);
+  if (!activeTab) return null;
+  return { applicantId, activeTab };
+}
+
+function candidateDetailTabFromSegment(segment: string): CandidateDetailTab | null {
+  switch (segment) {
+    case "checklist":
+      return "Checklist";
+    case "profile":
+      return "Profile";
+    case "applications":
+      return "Applications";
+    case "attachments":
+      return "Attachments";
+    case "skill-assessments":
+      return "Skill Assessments";
+    case "authorization":
+      return "Authorization";
+    case "activities":
+      return "Activities";
+    case "facility-assignments":
+      return "Facility Assignments";
+    case "agreement":
+      return "Agreement";
+    case "final-approval":
+      return "History";
+    case "onboard-applicant":
+      return "Onboarded Applicant";
+    case "history":
+      return "History";
+    case "ai-analysis":
+      return "AI Analysis";
+    case "pre-hire":
+      return "Pre-Hire";
+    case "post-hire":
+      return "Post-Hire";
+    default:
+      return null;
+  }
 }
 
 export function getCandidateDetailBackFallback(pathname: string): string {

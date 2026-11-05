@@ -25,11 +25,12 @@ describe("candidate detail Post-Hire visibility", () => {
     ).not.toContain("Post-Hire");
   });
 
-  it("reveals Post-Hire after successful worker conversion", () => {
+  it("keeps Post-Hire off the Figma tab strip even after worker conversion", () => {
     expect(canRevealPostHire({ workerStatus: "converted", convertedWorkerId: "w1" })).toBe(true);
+    // Post-Hire route still exists; nav strip hides it until Figma restores the tab.
     expect(
       candidateDetailTabs({ postHireVisible: true, showOnboarded: true })
-    ).toContain("Post-Hire");
+    ).not.toContain("Post-Hire");
   });
 
   it("uses the empty state copy when a hired worker has no Post-Hire assignment", () => {

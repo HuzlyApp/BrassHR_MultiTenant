@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
@@ -298,6 +299,7 @@ export default function NewApplicantProfilePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
+  const chromeActive = useCandidateDetailChromeActive();
 
   const isWorkerRoute = pathname?.startsWith("/admin_recruiter/workers/") ?? false;
   const base = "/admin_recruiter/new";
@@ -816,9 +818,11 @@ export default function NewApplicantProfilePage() {
               </div>
             ) : null}
 
-            {pageLoading ? (
+            {pageLoading && !chromeActive ? (
               <CandidateDetailLoader label="Loading profile..." />
             ) : (
+              <>
+            {!chromeActive ? (
               <>
             <DetailedCandidateHeader
               name={candidateName}
@@ -851,9 +855,6 @@ export default function NewApplicantProfilePage() {
               activeTab="Profile"
               workerStatus={w?.status ?? null}
             />
-            {/* Profile sub-tabs (Details / Resume / Notes) — Resume is a top-level Figma tab now.
-            <ProfileSubTabs applicantId={applicantId} activeTab="Details" />
-            */}
             <CandidateCommunicationDialog
               open={commOpen}
               onClose={() => setCommOpen(false)}
@@ -862,6 +863,15 @@ export default function NewApplicantProfilePage() {
               email={w?.email ?? null}
               phone={w?.phone ?? null}
             />
+              </>
+            ) : null}
+            {/* Profile sub-tabs (Details / Resume / Notes) — Resume is a top-level Figma tab now.
+            <ProfileSubTabs applicantId={applicantId} activeTab="Details" />
+            */}
+            {pageLoading ? (
+              <CandidateDetailLoader label="Loading profile..." />
+            ) : (
+              <>
             {applicantId ? (
               <AssignFacilityModal
                 open={showAssignFacilityModal}
@@ -1520,6 +1530,8 @@ export default function NewApplicantProfilePage() {
                 </section>
               </div>
             </div>
+              </>
+            )}
               </>
             )}
           </div>

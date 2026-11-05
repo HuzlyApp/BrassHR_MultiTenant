@@ -35,6 +35,8 @@ type DetailedCandidateHeaderProps = {
   resendingStatus?: boolean;
   /** Override AI analysis URL; defaults to worker AI overview when workerId is set. */
   aiAnalysisHref?: string | null;
+  /** Shell-owned chrome; page-level copies are hidden when shell chrome is active. */
+  persistent?: boolean;
 };
 
 const outlineBtn =
@@ -59,6 +61,7 @@ export default function DetailedCandidateHeader({
   progressDate,
   onMessageClick,
   messageDisabled = false,
+  persistent = false,
   // onResendStatusClick,
   // resendStatusDisabled,
   // resendingStatus,
@@ -91,7 +94,10 @@ export default function DetailedCandidateHeader({
   const percent = Math.max(0, Math.min(100, Math.round(progressPercent ?? 0)));
 
   return (
-    <div className="mb-5 w-full min-w-0 space-y-3">
+    <div
+      className="mb-5 w-full min-w-0 space-y-3"
+      {...(persistent ? { "data-candidate-detail-chrome": "header" } : { "data-candidate-page-header": "" })}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link
           href="/admin_recruiter/applications"

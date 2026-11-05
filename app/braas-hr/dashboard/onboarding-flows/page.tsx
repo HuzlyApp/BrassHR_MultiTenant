@@ -445,36 +445,17 @@ function CreateNewFlowModal({
     setProfessionsLoading(true);
     void (async () => {
       try {
-        const res = await fetch("/api/admin/professions", {
+        const res = await fetch("/api/admin/job-options", {
           ...(await staffFetchInit()),
           cache: "no-store",
         });
         const payload = (await res.json().catch(() => ({}))) as {
           professions?: Array<{ id: string; name: string }>;
-          catalogProfessions?: Array<{
-            key: string;
-            name: string;
-            industryLabel?: string | null;
-            professionId: string | null;
-          }>;
         };
         if (!alive || !res.ok) return;
-        // Full catalog + any custom tenant professions not already linked.
-        const catalog = payload.catalogProfessions ?? [];
-        const linkedIds = new Set(
-          catalog.flatMap((choice) => (choice.professionId ? [choice.professionId] : []))
-        );
-        const options = [
-          ...catalog.map((choice) => ({
-            id: choice.professionId ?? choice.key,
-            label: choice.industryLabel
-              ? `${choice.name} (${choice.industryLabel})`
-              : choice.name,
-          })),
-          ...(payload.professions ?? [])
-            .filter((row) => !linkedIds.has(row.id))
-            .map((row) => ({ id: row.id, label: row.name })),
-        ].sort((a, b) => a.label.localeCompare(b.label));
+        const options = (payload.professions ?? [])
+          .map((row) => ({ id: row.id, label: row.name }))
+          .sort((a, b) => a.label.localeCompare(b.label));
         setProfessions(options);
       } finally {
         if (alive) setProfessionsLoading(false);

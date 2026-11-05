@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useCandidateDetailChromeActive } from "../../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../../components/CandidateDetailLoader";
 // import ProfileSubTabs from "../../../../components/ProfileSubTabs";
+import {
+  fetchStaffDetailJson,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 import {
   Briefcase,
   Calendar,
@@ -29,6 +34,7 @@ type WorkerProfilePayload = {
     job_role: string | null;
     city: string | null;
     state: string | null;
+    status?: string | null;
     status_label?: string;
     profile_photo_url?: string | null;
   };
@@ -36,6 +42,7 @@ type WorkerProfilePayload = {
     resume_path: string | null;
     resume_url: string | null;
   } | null;
+  error?: string;
 };
 
 function initials(name: string) {
@@ -56,6 +63,7 @@ export default function NewApplicantProfileResumePage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
+  const chromeActive = useCandidateDetailChromeActive();
 
   const isWorkerRoute = pathname?.startsWith("/admin_recruiter/workers/") ?? false;
 
@@ -71,12 +79,11 @@ export default function NewApplicantProfileResumePage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+        const result = await fetchStaffDetailJson<WorkerProfilePayload>(
+          workerProfileApiUrl(applicantId)
         );
-        const json = (await res.json()) as WorkerProfilePayload & { error?: string };
-        if (!res.ok) throw new Error(json.error || "Failed to load profile");
-        setProfile(json);
+        if (!result.ok) throw new Error(result.payload.error || "Failed to load profile");
+        setProfile(result.payload);
       } catch (e) {
         console.error(e);
         setError(e instanceof Error ? e.message : "Failed to load");
@@ -85,7 +92,7 @@ export default function NewApplicantProfileResumePage() {
         setLoading(false);
       }
     }
-    run();
+    void run();
   }, [applicantId]);
 
   const w = profile?.worker;
@@ -233,22 +240,33 @@ export default function NewApplicantProfileResumePage() {
               </div>
             ) : null}
 
-            {pageLoading ? (
+            {pageLoading && !chromeActive ? (
               <CandidateDetailLoader label="Loading resume..." />
             ) : (
               <>
-            <DetailedCandidateHeader
-              name={candidateName}
-              role={candidateRole}
-              profilePhotoUrl={w?.profile_photo_url}
-              workerId={applicantId}
-              candidateEmail={w?.email ?? null}
-              location={candidateLocation}
-              statusLabel={candidateStatus}
-            />
-            <DetailedTabs applicantId={applicantId} activeTab="Resume" />
+            {!chromeActive ? (
+              <>
+                <DetailedCandidateHeader
+                  name={candidateName}
+                  role={candidateRole}
+                  profilePhotoUrl={w?.profile_photo_url}
+                  workerId={applicantId}
+                  candidateEmail={w?.email ?? null}
+                  location={candidateLocation}
+                  statusLabel={candidateStatus}
+                />
+                <DetailedTabs
+                  applicantId={applicantId}
+                  activeTab="Resume"
+                  workerStatus={w?.status ?? null}
+                />
+              </>
+            ) : null}
             {/* <ProfileSubTabs applicantId={applicantId} activeTab="Resume" /> */}
 
+            {pageLoading ? (
+              <CandidateDetailLoader label="Loading resume..." />
+            ) : (
             <div className="w-full min-w-0 admin-recruiter-content-width">
             <div className="hidden p-6 items-center justify-between">
               <div className="flex items-center gap-4">
@@ -363,6 +381,7 @@ export default function NewApplicantProfileResumePage() {
               ) : null}
 
             </div>
+            )}
               </>
             )}
           </div>

@@ -34,6 +34,8 @@ type DetailedTabsProps = {
   /** Live checklist payload from the Checklist tab — keeps the stepper in sync without a second fetch. */
   checklistPayload?: CandidatePipelineChecklistPayload | null;
   workflowView?: CandidateWorkflowPhaseView | null;
+  /** Shell-owned chrome; page-level copies are hidden when shell chrome is active. */
+  persistent?: boolean;
 };
 
 const ONBOARDED_CACHE_PREFIX = "brasshr-onboarded-worker:";
@@ -94,6 +96,7 @@ export default function DetailedTabs({
   workerStatus,
   checklistPayload,
   workflowView,
+  persistent = false,
 }: DetailedTabsProps) {
   const [isOnboarded, setIsOnboarded] = useState(() => {
     if (workerStatus != null) return isCandidateAlreadyConverted({ status: workerStatus });
@@ -127,6 +130,15 @@ export default function DetailedTabs({
 
     if (workerStatus == null && readOnboardedCache(applicantId)) {
       setIsOnboarded(true);
+    }
+
+    // Pipeline / journey chrome above tabs is currently hidden (Figma).
+    // When the parent already supplied workerStatus, skip the heavy remount fetches.
+    if (workerStatus != null && !checklistPayload && !workflowView) {
+      setProfilePayload(null);
+      setFetchedChecklist(null);
+      setFetchedWorkflowView(null);
+      return;
     }
 
     let cancelled = false;
@@ -180,7 +192,7 @@ export default function DetailedTabs({
     return () => {
       cancelled = true;
     };
-  }, [applicantId, workerStatus, pipelineRefreshToken, workflowView]);
+  }, [applicantId, workerStatus, pipelineRefreshToken, workflowView, checklistPayload]);
 
   useEffect(() => {
     if (!applicantId) return;
@@ -224,7 +236,10 @@ export default function DetailedTabs({
   void phaseView;
 
   return (
-    <div className="mb-6 w-full min-w-0">
+    <div
+      className="mb-6 w-full min-w-0"
+      {...(persistent ? { "data-candidate-detail-chrome": "tabs" } : { "data-candidate-page-tabs": "" })}
+    >
       {/* <CandidatePipelineStepper steps={pipelineSteps ?? undefined} applicantId={applicantId} className="mb-6" /> */}
 
       <nav className="w-full min-w-0" aria-label="Applicant sections">

@@ -571,6 +571,18 @@
   background-color: #f4f4f4;
 }
 
+/* Shell owns header + tabs; hide per-page duplicates so tab switches don't remount the summary card. */
+.admin-candidate-detail-chrome-active [data-candidate-page-header],
+.admin-candidate-detail-chrome-active [data-candidate-page-tabs] {
+  display: none !important;
+}
+
+/* Flatten nested page padding wrappers once shell chrome already provides page-pad. */
+.admin-candidate-detail-chrome-active .admin-recruiter-page-pad .admin-recruiter-page-pad {
+  padding: 0;
+  min-height: 0;
+}
+
 .admin-candidate-detail-shell .admin-recruiter-page-pad,
 .admin-candidate-detail-shell .admin-recruiter-content-width,
 .admin-candidate-detail-shell > .flex.min-h-screen,

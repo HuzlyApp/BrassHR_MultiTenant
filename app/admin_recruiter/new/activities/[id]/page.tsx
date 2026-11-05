@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
+import {
+  fetchStaffDetailJson,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 import CandidateCommunicationHistory, {
   InboxChannelTabButtons,
   type InboxChannel,
@@ -75,6 +80,7 @@ export default function NewApplicantActivitiesPage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
+  const chromeActive = useCandidateDetailChromeActive();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [active, setActive] = useState<ActivityTab>("Calls");
@@ -99,14 +105,13 @@ export default function NewApplicantActivitiesPage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+        const result = await fetchStaffDetailJson<WorkerProfileResponse & { error?: string }>(
+          workerProfileApiUrl(applicantId)
         );
-        const json = (await res.json()) as WorkerProfileResponse & { error?: string };
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
+        if (!result.ok) {
+          throw new Error(result.payload.error || `Failed to load profile (${result.status})`);
         }
-        setProfile(json);
+        setProfile(result.payload);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("Failed to fetch applicant for activities:", msg, e);
@@ -116,7 +121,7 @@ export default function NewApplicantActivitiesPage() {
         setLoading(false);
       }
     }
-    fetchApplicant();
+    void fetchApplicant();
   }, [applicantId]);
 
   const applicant = profile?.worker ?? null;
@@ -308,9 +313,11 @@ export default function NewApplicantActivitiesPage() {
               </div>
             ) : null}
 
-            {loading ? (
+            {loading && !chromeActive ? (
               <CandidateDetailLoader label="Loading activities..." />
             ) : (
+              <>
+            {!chromeActive ? (
               <>
             <DetailedCandidateHeader
               name={candidateName}
@@ -320,7 +327,13 @@ export default function NewApplicantActivitiesPage() {
               candidateEmail={applicant?.email ?? null}
             />
             <DetailedTabs applicantId={applicantId} activeTab="Activities" />
+              </>
+            ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading activities..." />
+            ) : (
+              <>
             <nav
               className="mb-3 w-full overflow-x-auto border-b border-[#E5E7EB]"
               aria-label="Activity sections"
@@ -617,6 +630,8 @@ export default function NewApplicantActivitiesPage() {
                 }}
               />
             ) : null}
+              </>
+            )}
               </>
             )}
           </div>
