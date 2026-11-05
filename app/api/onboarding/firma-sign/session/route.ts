@@ -88,6 +88,13 @@ export async function GET(req: NextRequest) {
       applicantEmail: profile.email,
       applicantFirstName: profile.firstName,
       applicantLastName: profile.lastName,
+      applicantAddress: {
+        streetAddress: profile.streetAddress,
+        city: profile.city,
+        stateProvince: profile.stateProvince,
+        postalCode: profile.postalCode,
+        fullAddress: profile.fullAddress,
+      },
       step: resolved.step,
       applicationId: applicationId || null,
     });
