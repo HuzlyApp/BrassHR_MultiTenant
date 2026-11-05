@@ -18,6 +18,7 @@ export type ApplicantSigningProfile = {
   lastName: string | null;
   email: string;
   streetAddress: string | null;
+  addressLine2: string | null;
   city: string | null;
   stateProvince: string | null;
   postalCode: string | null;
@@ -65,9 +66,11 @@ function addressFromResume(
   if (!resume?.parsed_data) {
     return {
       streetAddress: null,
+      addressLine2: null,
       city: null,
       stateProvince: null,
       postalCode: null,
+      country: null,
       fullAddress: null,
     };
   }
@@ -87,9 +90,11 @@ function mergeAddress(
 ): FirmaSigningAddressPrefill {
   const merged = {
     streetAddress: primary.streetAddress ?? fallback.streetAddress,
+    addressLine2: primary.addressLine2 ?? fallback.addressLine2,
     city: primary.city ?? fallback.city,
     stateProvince: primary.stateProvince ?? fallback.stateProvince,
     postalCode: primary.postalCode ?? fallback.postalCode,
+    country: primary.country ?? fallback.country,
   };
   return {
     ...merged,
@@ -174,6 +179,7 @@ export async function resolveApplicantSigningProfile(
     lastName: row?.last_name?.trim() || null,
     email: normalizeApplicantEmail(email),
     streetAddress: address.streetAddress,
+    addressLine2: address.addressLine2,
     city: address.city,
     stateProvince: address.stateProvince,
     postalCode: address.postalCode,

@@ -39,6 +39,7 @@ describe("resolveApplicantSigningProfile", () => {
       lastName: "Doe",
       email: "jane@example.com",
       streetAddress: null,
+      addressLine2: null,
       city: null,
       stateProvince: null,
       postalCode: null,
