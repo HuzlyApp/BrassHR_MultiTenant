@@ -340,6 +340,8 @@ export type CreateFirmaSigningRequestInput = {
   name?: string;
   description?: string;
   recipients?: Array<Record<string, unknown>>;
+  /** Partial field overrides when creating from a template (matched by template_field_id / variable_name). */
+  fields?: Array<Record<string, unknown>>;
 };
 
 export async function createFirmaSigningRequest(
