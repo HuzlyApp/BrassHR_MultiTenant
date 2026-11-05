@@ -5,6 +5,7 @@ import {
   firmaWorkspaceExistsInCompany,
   isFirmaConfigured,
 } from "@/lib/firma/client";
+import { ensureBrassHrFirmaWorkspaceSigningCustomFields } from "@/lib/firma/ensure-workspace-signing-custom-fields";
 import { FirmaError } from "@/lib/firma/errors";
 import { syncTenantBrandingToFirmaWorkspace } from "@/lib/firma/sync-workspace-branding";
 
@@ -207,6 +208,16 @@ export async function provisionFirmaWorkspaceForTenant(input: {
         tenantId: input.tenantId,
         workspaceId: created.id,
         error: brandingErr instanceof Error ? brandingErr.message : brandingErr,
+      });
+    }
+
+    try {
+      await ensureBrassHrFirmaWorkspaceSigningCustomFields(created.id);
+    } catch (customFieldsErr) {
+      console.error("[firma-provision] workspace signing custom fields ensure failed", {
+        tenantId: input.tenantId,
+        workspaceId: created.id,
+        error: customFieldsErr instanceof Error ? customFieldsErr.message : customFieldsErr,
       });
     }
 

@@ -475,7 +475,8 @@ export async function resolveFirmaSigningPrefillValues(
 }
 
 export function buildFirmaRecipientPrefillPayload(
-  prefill: FirmaSigningPrefillValues
+  prefill: FirmaSigningPrefillValues,
+  identity?: { firstName?: string | null; lastName?: string | null }
 ): Record<string, unknown> {
   const customFields: Record<string, string> = {};
 
@@ -484,10 +485,20 @@ export function buildFirmaRecipientPrefillPayload(
     if (cleaned) customFields[key] = cleaned;
   };
 
+  // Mirror palette custom-field keys into custom_fields so dragged workspace
+  // fields (First Name, Street Address, etc.) prefill even when the editor
+  // wires format_rules.prefilledData to the custom field name.
+  put("first_name", identity?.firstName);
+  put("last_name", identity?.lastName);
+  put("street_address", prefill.streetAddress);
+  put("address_line_2", prefill.addressLine2);
+  put("city", prefill.city);
+  put("state_province", prefill.stateProvince);
+  put("postal_code", prefill.postalCode);
+  put("country", prefill.country);
   put("job_title", prefill.jobTitle);
   put("position_title", prefill.jobTitle);
   put("candidate_address", prefill.fullAddress);
-  put("address_line_2", prefill.addressLine2);
   put("date_of_birth", prefill.dateOfBirth);
   put("ssn_last_four", prefill.ssnLastFour);
   put("employment_type", prefill.employmentType);
