@@ -585,6 +585,13 @@ async function ensureFirmaTemplateForBuilder(
         );
       } catch (err) {
         if (isMissingFirmaTemplateError(err)) {
+          console.warn("[firma-template-builder] provider template missing; recreating", {
+            tenantId,
+            templateId,
+            firmaTemplateId: template.firma_template_id,
+            workspaceId,
+            message: err instanceof Error ? err.message : String(err),
+          });
           return createAndPersistFirmaTemplate();
         }
         throw err;
@@ -595,6 +602,33 @@ async function ensureFirmaTemplateForBuilder(
   } catch (err) {
     if (err instanceof RecruiterTemplateError) throw err;
     if (err instanceof FirmaError) {
+      // Last-chance heal: some Firma endpoints surface missing templates as generic API errors.
+      if (
+        template.firma_template_id &&
+        !options.forceRecreate &&
+        isMissingFirmaTemplateError(err)
+      ) {
+        console.warn("[firma-template-builder] recreating after outer missing-template error", {
+          tenantId,
+          templateId,
+          firmaTemplateId: template.firma_template_id,
+          message: err.message,
+        });
+        try {
+          return await createAndPersistFirmaTemplate();
+        } catch (recreateErr) {
+          if (recreateErr instanceof RecruiterTemplateError) throw recreateErr;
+          if (recreateErr instanceof FirmaError) {
+            throw new RecruiterTemplateError(
+              "FIRMA_ERROR",
+              recreateErr.message,
+              recreateErr.status,
+              recreateErr.details
+            );
+          }
+          throw recreateErr;
+        }
+      }
       throw new RecruiterTemplateError("FIRMA_ERROR", err.message, err.status, err.details);
     }
     throw err;

@@ -450,6 +450,123 @@ describe("ensureFirmaSigningSession", () => {
     expect(upsert).toHaveBeenCalled();
   });
 
+  it("prefills Firma recipient address and job title from BrassHR tables", async () => {
+    const applicationRow = { id: "app-1", job_requisition_id: "job-1" };
+    const chainMaybeSingle = (data: unknown) => {
+      const terminal = {
+        maybeSingle: async () => ({ data, error: null }),
+        order: async () => ({ data: Array.isArray(data) ? data : [data], error: null }),
+        limit: async () => ({ data: Array.isArray(data) ? data : [data], error: null }),
+        not: () => terminal,
+      };
+      const eq = () => ({
+        eq,
+        ...terminal,
+      });
+      return { select: () => ({ eq, ...terminal }) };
+    };
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "job_applications") {
+          return chainMaybeSingle(applicationRow);
+        }
+        if (table === "job_requisitions") {
+          return chainMaybeSingle({
+            public_title: "Travel ICU RN",
+            source_job_title: null,
+          });
+        }
+        if (table === "worker") {
+          return chainMaybeSingle({
+            address1: "123 Main St",
+            address2: null,
+            city: "Austin",
+            state: "TX",
+            zip: "78701",
+          });
+        }
+        if (table === "recruiter_template_fields") {
+          return chainMaybeSingle([
+            {
+              variable_name: "candidate_address",
+              app_data_source: "candidate_address",
+              firma_field_id: null,
+            },
+            {
+              variable_name: "position_title",
+              app_data_source: "position_title",
+              firma_field_id: "fld-title",
+            },
+          ]);
+        }
+        return tenantSupabaseTable(table);
+      }),
+    };
+
+    await ensureFirmaSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      workerId: "worker-1",
+      applicantEmail: "applicant@example.com",
+      applicantFirstName: "Jane",
+      applicantLastName: "Doe",
+      applicationId: "app-1",
+      step: {
+        id: "step-1",
+        step_key: "employee_agreement",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
+          },
+        },
+      },
+    });
+
+    const createCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+      String(url).includes("/signing-requests/create-and-send")
+    );
+    expect(createCall).toBeDefined();
+    const body = JSON.parse(String((createCall![1] as RequestInit).body));
+    expect(body.recipients[0]).toMatchObject({
+      first_name: "Jane",
+      last_name: "Doe",
+      email: "applicant@example.com",
+      title: "Travel ICU RN",
+      street_address: "123 Main St",
+      city: "Austin",
+      state_province: "TX",
+      postal_code: "78701",
+      custom_fields: {
+        job_title: "Travel ICU RN",
+        position_title: "Travel ICU RN",
+        candidate_address: "123 Main St, Austin, TX 78701",
+      },
+    });
+    expect(body.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          variable_name: "candidate_address",
+          read_only: true,
+          read_only_value: "123 Main St, Austin, TX 78701",
+        }),
+        expect.objectContaining({
+          template_field_id: "fld-title",
+          variable_name: "position_title",
+          read_only: true,
+          read_only_value: "Travel ICU RN",
+        }),
+      ])
+    );
+  });
+
   it("refreshes an existing session when Firma GET omits recipients", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
