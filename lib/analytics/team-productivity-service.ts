@@ -13,6 +13,12 @@ import {
 import { parsePreset, resolvePeriod, toIso, type DateRangePreset } from "@/lib/analytics/period";
 import { expireStaleSessions } from "@/lib/analytics/sessions";
 import { RECRUITING_MEANINGFUL_EVENT_TYPES } from "@/lib/analytics/activity-events";
+import {
+  kpisForUser,
+  loadRecruiterProductivityKpis,
+  nullableCount,
+  type StageAdvanceBreakdown,
+} from "@/lib/analytics/recruiter-productivity-kpis";
 
 export type TeamProductivityFilters = {
   preset?: string | null;
@@ -52,11 +58,18 @@ export type EmployeePerformanceRow = {
   jobsWorked: number | null;
   tasksDone: number | null;
   activityCount: number | null;
+  statusUpdates: number | null;
+  stageAdvances: number | null;
+  stageAdvancesByStage: StageAdvanceBreakdown[];
+  candidateMatches: number | null;
   targetAttainment: number | null;
   availability: {
     engagedHours: MetricAvailability;
     jobsWorked: MetricAvailability;
     activityCount: MetricAvailability;
+    statusUpdates: MetricAvailability;
+    stageAdvances: MetricAvailability;
+    candidateMatches: MetricAvailability;
   };
 };
 
@@ -135,7 +148,11 @@ export type TeamProductivityPayload = {
       distinctJobsWorked: number | null;
       interviewsScheduled: number | null;
       hiresAttributed: number | null;
+      statusUpdates: number | null;
+      stageAdvances: number | null;
+      candidateMatches: number | null;
     };
+    stageAdvancesByStage: StageAdvanceBreakdown[];
   };
   hr: { available: boolean; note: string };
   finance: { available: boolean; note: string };
@@ -382,6 +399,8 @@ export async function buildTeamProductivityPayload(
     sessionsCurrent,
     sessionsActive,
     jobsAssigned,
+    recruiterKpisCurrent,
+    recruiterKpisPrevious,
   ] = await Promise.all([
     supabase
       .from("analytics_activity_events")
@@ -434,6 +453,18 @@ export async function buildTeamProductivityPayload(
       .eq("tenant_id", tenantId)
       .not("assigned_recruiter_user_id", "is", null)
       .limit(5000),
+    loadRecruiterProductivityKpis(supabase, tenantId, {
+      startIso,
+      endIso,
+      staffIds,
+      jobId: filters.jobId,
+    }),
+    loadRecruiterProductivityKpis(supabase, tenantId, {
+      startIso: prevStartIso,
+      endIso: prevEndIso,
+      staffIds,
+      jobId: filters.jobId,
+    }),
   ]);
 
   const missingRelation = (message: string | undefined) =>
@@ -566,6 +597,7 @@ export async function buildTeamProductivityPayload(
     const userSessions = sessionsByUser.get(member.id) ?? [];
     const userActs = activityByUser.get(member.id) ?? [];
     const userLogs = logsByUser.get(member.id) ?? [];
+    const pipeline = kpisForUser(recruiterKpisCurrent, member.id);
 
     const engagedSeconds =
       userSessions.length > 0
@@ -587,10 +619,15 @@ export async function buildTeamProductivityPayload(
 
     const activityCount =
       userActs.length + userLogs.length > 0 ? userActs.length + userLogs.length : null;
+    const statusUpdates = nullableCount(pipeline.statusUpdates);
+    const stageAdvances = nullableCount(pipeline.stageAdvances);
+    const candidateMatches = nullableCount(pipeline.candidateMatches);
 
     const meaningful =
       userActs.filter((a) => meaningfulSet.has(a.event_type)).length +
-      userLogs.length;
+      userLogs.length +
+      pipeline.statusUpdates +
+      pipeline.candidateMatches;
     const engagedHours = hoursFromSeconds(engagedSeconds);
     const activityRate = recruiterActivityRate(
       meaningful > 0 ? meaningful : null,
@@ -615,6 +652,10 @@ export async function buildTeamProductivityPayload(
       jobsWorked,
       tasksDone: null, // No general tasks table yet
       activityCount,
+      statusUpdates,
+      stageAdvances,
+      stageAdvancesByStage: pipeline.stageAdvancesByStage,
+      candidateMatches,
       targetAttainment:
         activityRate.value != null
           ? activityRate.value
@@ -623,6 +664,9 @@ export async function buildTeamProductivityPayload(
         engagedHours: availabilityFromNull(engagedHours),
         jobsWorked: availabilityFromNull(jobsWorked),
         activityCount: availabilityFromNull(activityCount),
+        statusUpdates: availabilityFromNull(statusUpdates),
+        stageAdvances: availabilityFromNull(stageAdvances),
+        candidateMatches: availabilityFromNull(candidateMatches),
       },
     };
   });
@@ -707,6 +751,27 @@ export async function buildTeamProductivityPayload(
       activeNow,
       null,
       "Sessions with a recent heartbeat that have not timed out",
+    ),
+    cardFromChange(
+      "status_updates",
+      "Status updates",
+      nullableCount(recruiterKpisCurrent.totals.statusUpdates),
+      nullableCount(recruiterKpisPrevious.totals.statusUpdates),
+      "Count of application_status_history rows attributed to recruiters in the period",
+    ),
+    cardFromChange(
+      "stage_advances",
+      "Stage advances",
+      nullableCount(recruiterKpisCurrent.totals.stageAdvances),
+      nullableCount(recruiterKpisPrevious.totals.stageAdvances),
+      "Status changes that move a candidate forward across Pre-Hire stages (from stage assignments)",
+    ),
+    cardFromChange(
+      "candidate_matches",
+      "Candidate matches",
+      nullableCount(recruiterKpisCurrent.totals.candidateMatches),
+      nullableCount(recruiterKpisPrevious.totals.candidateMatches),
+      "job_applications with ai_match_status = ANALYZED attributed via ai_analyzed_by",
     ),
     cardFromChange(
       "session_hours",
@@ -945,13 +1010,18 @@ export async function buildTeamProductivityPayload(
     },
     recruitment: {
       available: true,
-      note: "Recruitment metrics use recruiter_activity_logs and analytics_activity_events with actor attribution.",
+      note:
+        "Status updates and stage advances come from application_status_history + stage assignments. Candidate matches come from job_applications (ai_analyzed_by / ai_analyzed_at).",
       totals: {
         meaningfulActions: meaningfulActions > 0 ? meaningfulActions : null,
         distinctJobsWorked: currentJobs.size > 0 ? currentJobs.size : null,
         interviewsScheduled: interviewsScheduled > 0 ? interviewsScheduled : null,
         hiresAttributed: hires > 0 ? hires : null,
+        statusUpdates: nullableCount(recruiterKpisCurrent.totals.statusUpdates),
+        stageAdvances: nullableCount(recruiterKpisCurrent.totals.stageAdvances),
+        candidateMatches: nullableCount(recruiterKpisCurrent.totals.candidateMatches),
       },
+      stageAdvancesByStage: recruiterKpisCurrent.totals.stageAdvancesByStage,
     },
     hr: {
       available: false,
@@ -1095,6 +1165,24 @@ export async function buildEmployeeDetailPayload(
         explanation: "analytics_activity_events + recruiter_activity_logs attributed to this actor.",
         value: employee?.activityCount != null ? String(employee.activityCount) : "N/A",
       },
+      {
+        key: "status_updates",
+        explanation:
+          "application_status_history rows where changed_by_user_id is this recruiter.",
+        value: employee?.statusUpdates != null ? String(employee.statusUpdates) : "N/A",
+      },
+      {
+        key: "stage_advances",
+        explanation:
+          "Status updates that increase Pre-Hire stage rank (or within-stage sort) using application_status_stage_assignments.",
+        value: employee?.stageAdvances != null ? String(employee.stageAdvances) : "N/A",
+      },
+      {
+        key: "candidate_matches",
+        explanation:
+          "job_applications with ai_match_status = ANALYZED and ai_analyzed_by = this recruiter in the period.",
+        value: employee?.candidateMatches != null ? String(employee.candidateMatches) : "N/A",
+      },
     ],
   };
 }
@@ -1110,6 +1198,9 @@ export function employeesToCsv(rows: EmployeePerformanceRow[]): string {
     "Idle Hours",
     "Jobs Worked",
     "Activity Count",
+    "Status Updates",
+    "Stage Advances",
+    "Candidate Matches",
     "Target Attainment",
   ];
   const lines = [headers.join(",")];
@@ -1124,6 +1215,9 @@ export function employeesToCsv(rows: EmployeePerformanceRow[]): string {
       row.idleHours ?? "N/A",
       row.jobsWorked ?? "N/A",
       row.activityCount ?? "N/A",
+      row.statusUpdates ?? "N/A",
+      row.stageAdvances ?? "N/A",
+      row.candidateMatches ?? "N/A",
       row.targetAttainment ?? "N/A",
     ].map((cell) => {
       const s = String(cell);

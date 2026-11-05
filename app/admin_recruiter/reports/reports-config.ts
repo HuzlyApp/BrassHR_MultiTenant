@@ -66,7 +66,8 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   {
     id: "team-productivity",
     title: "Team Productivity KPI",
-    description: "Compare your teams performance for candidate processing actions.",
+    description:
+      "Compare recruiter productivity: status updates, stage advances, and candidate matches.",
     category: "recruiting",
     icon: Rocket,
     iconBg: "#FFECD6",
