@@ -39,6 +39,14 @@ import {
 } from "@/lib/onboarding/is-draft-preview";
 import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
 import { resolveApplicationContextForWorker } from "@/lib/jobs/resolve-application-context";
+import {
+  buildFirmaFieldPrefillOverrides,
+  buildFirmaRecipientPrefillPayload,
+  loadFirmaSigningTemplateFieldMappings,
+  resolveFirmaSigningPrefillValues,
+  type FirmaSigningAddressPrefill,
+  type FirmaSigningPrefillValues,
+} from "@/lib/onboarding/firma-signing-prefill";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type WorkerFirmaSigningSessionRow = {
@@ -77,6 +85,10 @@ export type EnsureFirmaSigningSessionInput = {
   applicantEmail: string;
   applicantFirstName: string;
   applicantLastName?: string | null;
+  /** Optional address seed (usually from worker / parsed resume). */
+  applicantAddress?: Partial<FirmaSigningAddressPrefill> | null;
+  /** Optional job title seed; otherwise resolved from the linked job requisition. */
+  jobTitle?: string | null;
   step: TenantOnboardingStep;
   /** Optional explicit job application id (multi-app tenants). */
   applicationId?: string | null;
@@ -599,11 +611,33 @@ async function createFirmaSigningSessionFromTemplate(
     applicantEmail: string;
     applicantFirstName: string;
     applicantLastName?: string | null;
+    prefill?: FirmaSigningPrefillValues | null;
+    fieldMappings?: Array<{
+      variable_name: string;
+      app_data_source: string;
+      firma_field_id?: string | null;
+    }>;
   },
   firmaTemplateId: string,
   templateName: string,
   workspaceId: string
 ) {
+  const prefill: FirmaSigningPrefillValues = input.prefill ?? {
+    streetAddress: null,
+    city: null,
+    stateProvince: null,
+    postalCode: null,
+    fullAddress: null,
+    jobTitle: null,
+  };
+  const recipientPrefill = buildFirmaRecipientPrefillPayload(prefill);
+  const fieldOverrides = buildFirmaFieldPrefillOverrides(input.fieldMappings ?? [], {
+    firstName: input.applicantFirstName,
+    lastName: input.applicantLastName,
+    email: input.applicantEmail,
+    prefill,
+  });
+
   const detail = await createAndSendFirmaSigningRequest(
     {
       template_id: firmaTemplateId,
@@ -615,8 +649,10 @@ async function createFirmaSigningSessionFromTemplate(
           email: input.applicantEmail.trim().toLowerCase(),
           designation: "Signer",
           order: 1,
+          ...recipientPrefill,
         },
       ],
+      ...(fieldOverrides.length > 0 ? { fields: fieldOverrides } : {}),
     },
     workspaceId
   );
@@ -842,8 +878,25 @@ async function createSessionFromTemplate(
   workspaceId: string,
   applicationId: string | null
 ): Promise<WorkerFirmaSigningSessionRow> {
+  const [prefill, fieldMappings] = await Promise.all([
+    resolveFirmaSigningPrefillValues(supabase, {
+      tenantId: input.tenantId,
+      workerId: input.workerId,
+      applicationId,
+      address: input.applicantAddress,
+      jobTitle: input.jobTitle,
+    }),
+    loadFirmaSigningTemplateFieldMappings(supabase, recruiterTemplateId),
+  ]);
+
   const created = await createFirmaSigningSessionFromTemplate(
-    input,
+    {
+      applicantEmail: input.applicantEmail,
+      applicantFirstName: input.applicantFirstName,
+      applicantLastName: input.applicantLastName,
+      prefill,
+      fieldMappings,
+    },
     firmaTemplateId,
     templateName,
     workspaceId

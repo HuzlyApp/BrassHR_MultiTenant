@@ -38,8 +38,82 @@ describe("resolveApplicantSigningProfile", () => {
       firstName: "Jane",
       lastName: "Doe",
       email: "jane@example.com",
+      streetAddress: null,
+      city: null,
+      stateProvince: null,
+      postalCode: null,
+      fullAddress: null,
     });
     expect(supabase.auth.admin.getUserById).not.toHaveBeenCalled();
+  });
+
+  it("returns worker address and falls back to parsed resume address gaps", async () => {
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "worker_resumes") {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({
+                      data: {
+                        parsed_data: {
+                          address1: "456 Resume Ave",
+                          city: "Austin",
+                          state: "TX",
+                          zip: "78702",
+                        },
+                      },
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  first_name: "Jane",
+                  last_name: "Doe",
+                  email: "jane@example.com",
+                  address1: "123 Main St",
+                  address2: null,
+                  city: null,
+                  state: null,
+                  zip: null,
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }),
+      auth: {
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+
+    const profile = await resolveApplicantSigningProfile(
+      supabase as never,
+      "worker-1",
+      "auth-user-1"
+    );
+
+    expect(profile).toMatchObject({
+      email: "jane@example.com",
+      streetAddress: "123 Main St",
+      city: "Austin",
+      stateProvince: "TX",
+      postalCode: "78702",
+      fullAddress: "123 Main St, Austin, TX 78702",
+    });
   });
 
   it("falls back to Supabase Auth email and backfills worker row", async () => {

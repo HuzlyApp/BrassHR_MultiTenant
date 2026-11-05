@@ -623,14 +623,22 @@ export default function FirmaTemplateBuilderFrame({
     if (actionBusy) return;
     setActionBusy("retry");
     try {
+      const missingProviderTemplate =
+        !session ||
+        /could not be found|rebuild the document|reset signature template/i.test(error ?? "");
       setError(null);
-      if (session && !isBuilderSessionExpired(session.expires_at)) {
+      if (session && !isBuilderSessionExpired(session.expires_at) && !missingProviderTemplate) {
         setEditorReady(false);
         editorReadyRef.current = false;
         setRemountNonce((value) => value + 1);
         return;
       }
-      await requestBuilderSession({ preserveOnFailure: true });
+      // Provider template ids can go missing (workspace wipe / expired docs). Heal by recreate.
+      await requestBuilderSession({
+        forceRecreate: missingProviderTemplate,
+        refreshDocument: !missingProviderTemplate,
+        preserveOnFailure: true,
+      });
     } finally {
       setActionBusy(null);
     }
@@ -640,7 +648,11 @@ export default function FirmaTemplateBuilderFrame({
     if (actionBusy) return;
     setActionBusy("refresh");
     try {
-      const ok = await requestBuilderSession({ preserveOnFailure: true });
+      const missingProviderTemplate = /could not be found|rebuild the document/i.test(error ?? "");
+      const ok = await requestBuilderSession({
+        forceRecreate: missingProviderTemplate,
+        preserveOnFailure: true,
+      });
       if (ok) toast.success("Signing session refreshed");
     } finally {
       setActionBusy(null);
@@ -652,7 +664,11 @@ export default function FirmaTemplateBuilderFrame({
     setConfirmRebuild(false);
     setActionBusy("rebuild");
     try {
-      const ok = await requestBuilderSession({ refreshDocument: true, preserveOnFailure: true });
+      // Prefer document replace; if the provider template is gone, recreate from the local PDF.
+      let ok = await requestBuilderSession({ refreshDocument: true, preserveOnFailure: true });
+      if (!ok) {
+        ok = await requestBuilderSession({ forceRecreate: true });
+      }
       if (ok) toast.success("Document rebuilt for the template builder");
     } finally {
       setActionBusy(null);
