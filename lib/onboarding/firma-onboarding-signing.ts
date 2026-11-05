@@ -624,7 +624,10 @@ async function createFirmaSigningSessionFromTemplate(
   workspaceId: string
 ) {
   const prefill: FirmaSigningPrefillValues = input.prefill ?? EMPTY_FIRMA_SIGNING_PREFILL;
-  const recipientPrefill = buildFirmaRecipientPrefillPayload(prefill);
+  const recipientPrefill = buildFirmaRecipientPrefillPayload(prefill, {
+    firstName: input.applicantFirstName,
+    lastName: input.applicantLastName,
+  });
   const fieldOverrides = buildFirmaFieldPrefillOverrides(input.fieldMappings ?? [], {
     firstName: input.applicantFirstName,
     lastName: input.applicantLastName,

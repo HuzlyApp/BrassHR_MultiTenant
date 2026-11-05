@@ -64,25 +64,28 @@ describe("firma signing prefill helpers", () => {
   });
 
   it("builds Firma recipient standard + custom_fields from table-backed prefill", () => {
-    const payload = buildFirmaRecipientPrefillPayload({
-      ...EMPTY_FIRMA_SIGNING_PREFILL,
-      streetAddress: "123 Main St",
-      addressLine2: "Apt 4",
-      city: "Austin",
-      stateProvince: "TX",
-      postalCode: "78701",
-      country: "US",
-      fullAddress: "123 Main St, Apt 4, Austin, TX 78701, US",
-      jobTitle: "Registered Nurse",
-      employmentType: "W2",
-      startDate: "2026-12-01",
-      payRate: "$56.00 – $58.00",
-      payFrequency: "Hourly",
-      managerName: "Alex Manager",
-      phone: "5125551212",
-      dateOfBirth: "1990-05-01",
-      ssnLastFour: "6789",
-    });
+    const payload = buildFirmaRecipientPrefillPayload(
+      {
+        ...EMPTY_FIRMA_SIGNING_PREFILL,
+        streetAddress: "123 Main St",
+        addressLine2: "Apt 4",
+        city: "Austin",
+        stateProvince: "TX",
+        postalCode: "78701",
+        country: "US",
+        fullAddress: "123 Main St, Apt 4, Austin, TX 78701, US",
+        jobTitle: "Registered Nurse",
+        employmentType: "W2",
+        startDate: "2026-12-01",
+        payRate: "$56.00 – $58.00",
+        payFrequency: "Hourly",
+        managerName: "Alex Manager",
+        phone: "5125551212",
+        dateOfBirth: "1990-05-01",
+        ssnLastFour: "6789",
+      },
+      { firstName: "Jane", lastName: "Doe" }
+    );
 
     expect(payload).toMatchObject({
       title: "Registered Nurse",
@@ -93,10 +96,17 @@ describe("firma signing prefill helpers", () => {
       postal_code: "78701",
       country: "US",
       custom_fields: {
+        first_name: "Jane",
+        last_name: "Doe",
+        street_address: "123 Main St",
+        address_line_2: "Apt 4",
+        city: "Austin",
+        state_province: "TX",
+        postal_code: "78701",
+        country: "US",
         job_title: "Registered Nurse",
         position_title: "Registered Nurse",
         candidate_address: "123 Main St, Apt 4, Austin, TX 78701, US",
-        address_line_2: "Apt 4",
         date_of_birth: "1990-05-01",
         ssn_last_four: "6789",
         employment_type: "W2",

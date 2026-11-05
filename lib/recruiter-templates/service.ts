@@ -15,6 +15,7 @@ import {
   updateFirmaTemplate,
 } from "@/lib/firma/client";
 import { isFirmaDocumentUrlStale } from "@/lib/firma/document-access";
+import { ensureBrassHrFirmaWorkspaceSigningCustomFields } from "@/lib/firma/ensure-workspace-signing-custom-fields";
 import { FirmaError } from "@/lib/firma/errors";
 import {
   isStoredFirmaWorkspaceMismatch,
@@ -694,6 +695,30 @@ export async function createRecruiterTemplateBuilderSession(
         },
         brandingErr
       );
+    }
+
+    // Best-effort: seed Field Types palette options (First Name, address, pay, etc.)
+    // before minting the editor JWT so they appear when the embed loads.
+    try {
+      const customFields = await ensureBrassHrFirmaWorkspaceSigningCustomFields(workspaceId);
+      if (customFields.created > 0 || customFields.skippedConflict > 0) {
+        console.info("[firma-template-builder] workspace signing custom fields ensured", {
+          tenantId,
+          workspaceId,
+          templateId,
+          existing: customFields.existing,
+          created: customFields.created,
+          skippedConflict: customFields.skippedConflict,
+        });
+      }
+    } catch (customFieldsErr) {
+      console.error("[firma-template-builder] workspace signing custom fields ensure failed", {
+        tenantId,
+        workspaceId,
+        templateId,
+        error:
+          customFieldsErr instanceof Error ? customFieldsErr.message : customFieldsErr,
+      });
     }
 
     await updateFirmaTemplate(

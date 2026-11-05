@@ -546,6 +546,9 @@ describe("ensureFirmaSigningSession", () => {
       postal_code: "78701",
       country: "US",
       custom_fields: expect.objectContaining({
+        first_name: "Jane",
+        last_name: "Doe",
+        street_address: "123 Main St",
         job_title: "Travel ICU RN",
         position_title: "Travel ICU RN",
         candidate_address: "123 Main St, Austin, TX 78701, US",
