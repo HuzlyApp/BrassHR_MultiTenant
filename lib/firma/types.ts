@@ -87,3 +87,21 @@ export type FirmaWorkspaceAppearanceSettings = {
   color_muted?: string | null;
   color_muted_fg?: string | null;
 };
+
+/** Workspace custom field definition (appears in embedded template editor Field Types). */
+export type FirmaWorkspaceCustomField = {
+  id: string;
+  field_name: string;
+  field_label: string;
+  is_preset?: boolean;
+  preset_value?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CreateFirmaWorkspaceCustomFieldInput = {
+  field_label: string;
+  field_name?: string;
+  is_preset?: boolean;
+  preset_value?: string;
+};

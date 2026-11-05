@@ -1,6 +1,7 @@
 import "server-only";
 import { FirmaError } from "@/lib/firma/errors";
 import type {
+  CreateFirmaWorkspaceCustomFieldInput,
   FirmaApiErrorBody,
   FirmaJwtTokenResponse,
   FirmaSigningRequest,
@@ -10,6 +11,7 @@ import type {
   FirmaTemplateSettings,
   FirmaTemplateUser,
   FirmaWorkspaceAppearanceSettings,
+  FirmaWorkspaceCustomField,
 } from "@/lib/firma/types";
 
 const DEFAULT_API_BASE = "https://api.firma.dev/functions/v1/signing-request-api";
@@ -87,7 +89,7 @@ function throwFirmaHttpError(status: number, errBody: FirmaApiErrorBody): never 
   if (status === 404) {
     throw new FirmaError("NOT_FOUND", message, status, errBody.details);
   }
-  if (status === 400 || status === 422) {
+  if (status === 400 || status === 409 || status === 422) {
     throw new FirmaError("VALIDATION_ERROR", message, status, errBody.details);
   }
   if (status === 429) {
@@ -333,6 +335,42 @@ export async function generateFirmaTemplateJwt(
     ...response,
     token: normalizeFirmaTemplateJwt(response.token),
   };
+}
+
+function normalizeFirmaWorkspaceCustomFields(
+  result: FirmaWorkspaceCustomField[] | { custom_fields?: FirmaWorkspaceCustomField[] }
+): FirmaWorkspaceCustomField[] {
+  if (Array.isArray(result)) return result;
+  return result.custom_fields ?? [];
+}
+
+export async function listFirmaWorkspaceCustomFields(
+  workspaceId: string
+): Promise<FirmaWorkspaceCustomField[]> {
+  // Workspace-scoped custom fields reject the company key with 403 — same as appearance settings.
+  const workspaceApiKey = await resolveFirmaWorkspaceApiKey(workspaceId);
+  const result = await firmaRequest<
+    FirmaWorkspaceCustomField[] | { custom_fields?: FirmaWorkspaceCustomField[] }
+  >(`/workspace/${workspaceId}/custom-fields`, {
+    workspaceId,
+    apiKey: workspaceApiKey,
+    retries: 1,
+  });
+  return normalizeFirmaWorkspaceCustomFields(result);
+}
+
+export async function createFirmaWorkspaceCustomField(
+  workspaceId: string,
+  input: CreateFirmaWorkspaceCustomFieldInput
+): Promise<FirmaWorkspaceCustomField> {
+  const workspaceApiKey = await resolveFirmaWorkspaceApiKey(workspaceId);
+  return firmaRequest<FirmaWorkspaceCustomField>(`/workspace/${workspaceId}/custom-fields`, {
+    method: "POST",
+    body: input,
+    workspaceId,
+    apiKey: workspaceApiKey,
+    retries: 0,
+  });
 }
 
 export type CreateFirmaSigningRequestInput = {
