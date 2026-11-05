@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { jsPDF } from "jspdf";
+import {
+  useCandidateDetailChrome,
+  useCandidateDetailChromeActive,
+} from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
@@ -257,6 +261,8 @@ export default function NewApplicantSkillAssessmentsPage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
+  const chromeActive = useCandidateDetailChromeActive();
+  const chrome = useCandidateDetailChrome();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -270,8 +276,13 @@ export default function NewApplicantSkillAssessmentsPage() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const pdfInputRef = useRef<HTMLInputElement>(null);
-  const { profilePhotoUrl, email: candidateEmail } =
-    useCandidateHeader(applicantId);
+  const fallbackHeader = useCandidateHeader(chromeActive ? undefined : applicantId);
+  const profilePhotoUrl = chromeActive
+    ? chrome?.profile?.worker?.profile_photo_url ?? null
+    : fallbackHeader.profilePhotoUrl;
+  const candidateEmail = chromeActive
+    ? chrome?.profile?.worker?.email ?? null
+    : fallbackHeader.email;
 
   const loadSkillPdfs = useCallback(async () => {
     if (!applicantId) return;
@@ -602,9 +613,11 @@ export default function NewApplicantSkillAssessmentsPage() {
               </div>
             ) : null}
 
-            {loading ? (
+            {loading && !chromeActive ? (
               <CandidateDetailLoader label="Loading skill assessments..." />
             ) : (
+              <>
+            {!chromeActive ? (
               <>
             <DetailedCandidateHeader
               name={candidateName}
@@ -614,7 +627,12 @@ export default function NewApplicantSkillAssessmentsPage() {
               candidateEmail={candidateEmail}
             />
             <DetailedTabs applicantId={applicantId} activeTab="Skill Assessments" />
+              </>
+            ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading skill assessments..." />
+            ) : (
             <div className="w-full min-w-0 admin-recruiter-content-width">
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-[20px] font-semibold leading-7 text-[#012352]">Skill Assessment</h2>
@@ -743,6 +761,7 @@ export default function NewApplicantSkillAssessmentsPage() {
                 </button>
               </div>
             </div>
+            )}
               </>
             )}
           </div>

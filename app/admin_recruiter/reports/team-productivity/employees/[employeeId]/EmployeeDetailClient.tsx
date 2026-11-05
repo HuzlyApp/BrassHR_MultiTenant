@@ -15,6 +15,10 @@ type DetailPayload = {
     engagedHours: number | null;
     jobsWorked: number | null;
     activityCount: number | null;
+    statusUpdates: number | null;
+    stageAdvances: number | null;
+    stageAdvancesByStage: Array<{ stageName: string; count: number }>;
+    candidateMatches: number | null;
     targetAttainment: number | null;
   } | null;
   timeline: Array<{
@@ -125,6 +129,9 @@ export default function EmployeeDetailClient({ employeeId }: { employeeId: strin
           [
             ["Engaged hours", emp.engagedHours],
             ["Jobs worked", emp.jobsWorked],
+            ["Status updates", emp.statusUpdates],
+            ["Stage advances", emp.stageAdvances],
+            ["Candidate matches", emp.candidateMatches],
             ["Activities", emp.activityCount],
             ["Target attainment", emp.targetAttainment],
           ] as const
@@ -140,6 +147,32 @@ export default function EmployeeDetailClient({ employeeId }: { employeeId: strin
           </div>
         ))}
       </div>
+
+      {emp.stageAdvancesByStage?.length ? (
+        <section className="rounded-md border border-[#E5E7EB] bg-white">
+          <div className="border-b border-[#E5E7EB] px-[14px] py-[10px]">
+            <h2 className="text-[16px] font-semibold text-[#012352]">Moved forward by stage</h2>
+          </div>
+          <div className="overflow-x-auto p-[14px]">
+            <table className="w-full min-w-[360px] text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-[#E5E7EB] text-[#6B7280]">
+                  <th className="pb-2 pr-3">Destination stage</th>
+                  <th className="pb-2">Advances</th>
+                </tr>
+              </thead>
+              <tbody>
+                {emp.stageAdvancesByStage.map((row) => (
+                  <tr key={row.stageName} className="border-b border-[#F3F4F6] text-[#374151]">
+                    <td className="py-2 pr-3 font-medium text-[#111827]">{row.stageName}</td>
+                    <td className="py-2">{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-md border border-[#E5E7EB] bg-white">
         <div className="border-b border-[#E5E7EB] px-[14px] py-[10px]">

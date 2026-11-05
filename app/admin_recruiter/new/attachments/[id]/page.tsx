@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
+import {
+  fetchStaffDetailJson,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import DocumentReviewActions from "../../../components/DocumentReviewActions";
 import { useWorkerDocumentReview } from "../../../hooks/useWorkerDocumentReview";
@@ -149,6 +154,7 @@ export default function NewApplicantAttachmentsFilledPage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
+  const chromeActive = useCandidateDetailChromeActive();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -178,14 +184,14 @@ export default function NewApplicantAttachmentsFilledPage() {
     if (!quiet) setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch(
-        `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+      const result = await fetchStaffDetailJson<WorkerProfileResponse & { error?: string }>(
+        workerProfileApiUrl(applicantId),
+        quiet ? { bust: true } : undefined
       );
-      const json = (await res.json()) as WorkerProfileResponse & { error?: string };
-      if (!res.ok) {
-        throw new Error(json.error || `Failed to load profile (${res.status})`);
+      if (!result.ok) {
+        throw new Error(result.payload.error || `Failed to load profile (${result.status})`);
       }
-      setProfile(json);
+      setProfile(result.payload);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("Failed to fetch applicant for attachments:", msg, e);
@@ -705,9 +711,11 @@ export default function NewApplicantAttachmentsFilledPage() {
               }}
             />
 
-            {loading ? (
+            {loading && !chromeActive ? (
               <CandidateDetailLoader label="Loading attachments..." />
             ) : (
+              <>
+            {!chromeActive ? (
               <>
             <DetailedCandidateHeader
               name={candidateName}
@@ -717,7 +725,12 @@ export default function NewApplicantAttachmentsFilledPage() {
               candidateEmail={applicant?.email ?? null}
             />
             <DetailedTabs applicantId={applicantId} activeTab="Attachments" />
+              </>
+            ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading attachments..." />
+            ) : (
             <div className="w-full min-w-0 admin-recruiter-content-width">
               {/* Top */}
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
@@ -1115,6 +1128,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                 </div>
               </div>
             </div>
+            )}
               </>
             )}
           </div>
