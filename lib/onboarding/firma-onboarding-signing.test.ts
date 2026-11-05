@@ -544,18 +544,19 @@ describe("ensureFirmaSigningSession", () => {
       city: "Austin",
       state_province: "TX",
       postal_code: "78701",
-      custom_fields: {
+      country: "US",
+      custom_fields: expect.objectContaining({
         job_title: "Travel ICU RN",
         position_title: "Travel ICU RN",
-        candidate_address: "123 Main St, Austin, TX 78701",
-      },
+        candidate_address: "123 Main St, Austin, TX 78701, US",
+      }),
     });
     expect(body.fields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           variable_name: "candidate_address",
           read_only: true,
-          read_only_value: "123 Main St, Austin, TX 78701",
+          read_only_value: "123 Main St, Austin, TX 78701, US",
         }),
         expect.objectContaining({
           template_field_id: "fld-title",
