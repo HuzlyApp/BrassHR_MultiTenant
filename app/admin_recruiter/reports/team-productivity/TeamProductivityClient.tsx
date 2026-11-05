@@ -412,7 +412,7 @@ export default function TeamProductivityClient() {
       {!loading && data && tab === "overview" ? (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {data.overview.cards.slice(0, 12).map((card) => (
+            {data.overview.cards.slice(0, 15).map((card) => (
               <MetricCard
                 key={card.key}
                 label={card.label}
@@ -624,22 +624,67 @@ export default function TeamProductivityClient() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {(
               [
-                ["Meaningful actions", data.recruitment.totals.meaningfulActions],
-                ["Jobs worked", data.recruitment.totals.distinctJobsWorked],
-                ["Interviews scheduled", data.recruitment.totals.interviewsScheduled],
-                ["Hires attributed", data.recruitment.totals.hiresAttributed],
+                [
+                  "Status updates",
+                  data.recruitment.totals.statusUpdates,
+                  "From application_status_history by changed_by_user_id",
+                ],
+                [
+                  "Stage advances",
+                  data.recruitment.totals.stageAdvances,
+                  "Forward moves across Pre-Hire stages",
+                ],
+                [
+                  "Candidate matches",
+                  data.recruitment.totals.candidateMatches,
+                  "ANALYZED applications attributed via ai_analyzed_by",
+                ],
+                ["Meaningful actions", data.recruitment.totals.meaningfulActions, "Attributed activity events"],
+                ["Jobs worked", data.recruitment.totals.distinctJobsWorked, "Distinct jobs with activity"],
+                [
+                  "Interviews scheduled",
+                  data.recruitment.totals.interviewsScheduled,
+                  "Interview-labeled recruiter activity logs",
+                ],
+                ["Hires attributed", data.recruitment.totals.hiresAttributed, "Hire-labeled activity events"],
               ] as const
-            ).map(([label, value]) => (
+            ).map(([label, value, explanation]) => (
               <MetricCard
                 key={label}
                 label={label}
                 display={value != null ? String(value) : "N/A"}
                 changePct={null}
                 direction="na"
-                explanation={label}
+                explanation={explanation}
               />
             ))}
           </div>
+          {data.recruitment.stageAdvancesByStage.length > 0 ? (
+            <div className="mt-6 overflow-x-auto">
+              <h3 className="mb-3 font-[Inter,sans-serif] text-[14px] font-semibold text-[#012352]">
+                Moved forward by stage
+              </h3>
+              <table className="w-full min-w-[420px] text-left">
+                <thead>
+                  <tr className="border-b border-[#E5E7EB] font-[Inter,sans-serif] text-[12px] font-semibold text-[#6B7280]">
+                    <th className="pb-3 pr-4">Destination stage</th>
+                    <th className="pb-3">Advances</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recruitment.stageAdvancesByStage.map((row) => (
+                    <tr
+                      key={row.stageName}
+                      className="border-b border-[#F3F4F6] font-[Inter,sans-serif] text-[12px] text-[#374151]"
+                    >
+                      <td className="py-3 pr-4 font-medium text-[#111827]">{row.stageName}</td>
+                      <td className="py-3">{row.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </SectionCard>
       ) : null}
 
@@ -744,7 +789,9 @@ function EmployeeTable({
                 <th className="pb-3 pr-4">Role</th>
                 <th className="pb-3 pr-4">Engaged hours</th>
                 <th className="pb-3 pr-4">Jobs worked</th>
-                <th className="pb-3 pr-4">Tasks done</th>
+                <th className="pb-3 pr-4">Status updates</th>
+                <th className="pb-3 pr-4">Stage advances</th>
+                <th className="pb-3 pr-4">Candidate matches</th>
                 <th className="pb-3 pr-4">Activity count</th>
                 <th className="pb-3">Target attainment</th>
               </tr>
@@ -767,7 +814,9 @@ function EmployeeTable({
                   <td className="py-3 pr-4">{row.roleLabel}</td>
                   <td className="py-3 pr-4">{row.engagedHours ?? "N/A"}</td>
                   <td className="py-3 pr-4">{row.jobsWorked ?? "N/A"}</td>
-                  <td className="py-3 pr-4">{row.tasksDone ?? "N/A"}</td>
+                  <td className="py-3 pr-4">{row.statusUpdates ?? "N/A"}</td>
+                  <td className="py-3 pr-4">{row.stageAdvances ?? "N/A"}</td>
+                  <td className="py-3 pr-4">{row.candidateMatches ?? "N/A"}</td>
                   <td className="py-3 pr-4">{row.activityCount ?? "N/A"}</td>
                   <td className="py-3">{row.targetAttainment ?? "N/A"}</td>
                 </tr>
