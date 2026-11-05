@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
       applicantLastName: profile.lastName,
       applicantAddress: {
         streetAddress: profile.streetAddress,
+        addressLine2: profile.addressLine2,
         city: profile.city,
         stateProvince: profile.stateProvince,
         postalCode: profile.postalCode,
