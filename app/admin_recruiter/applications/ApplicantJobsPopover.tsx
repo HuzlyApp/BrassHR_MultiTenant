@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { resolveApplicationApplicantName } from "@/lib/jobs/application-applicant-display";
+import {
+  resolveApplicationApplicantName,
+  resolveApplicationWorkerId,
+} from "@/lib/jobs/application-applicant-display";
+import {
+  candidateAiAnalysisHref,
+  candidateApplicantProfileHref,
+} from "@/app/admin_recruiter/candidates/candidate-links";
+import { applicationAiAnalysisHref } from "./CandidateAiAnalysisButton";
 
 type JobRecord = Record<string, unknown> | Record<string, unknown>[] | null | undefined;
 
@@ -12,6 +20,7 @@ export type ApplicantJobRow = {
   created_at: string;
   submitted_at?: string | null;
   job_requisition_id: string;
+  worker_id?: string | null;
   workflow_id?: string;
   applicant_workflow_instance_id?: string;
   workflow_phase?: string | null;
@@ -40,6 +49,9 @@ type ApplicantJobsPopoverProps = {
   loading: boolean;
   onClose: () => void;
   resolveStage?: (row: ApplicantJobRow) => string;
+  /** Currently open row-actions menu application id (highlights the ⋯ button). */
+  actionsMenuRowId?: string | null;
+  onOpenRowActions?: (row: ApplicantJobRow, anchor: HTMLElement) => void;
 };
 
 function one(value: JobRecord): Record<string, unknown> {
@@ -60,12 +72,12 @@ function clientName(row: ApplicantJobRow): string {
   return (
     String(
       job.facility_name ??
-      job.client_name ??
-      job.client ??
-      job.msp_name ??
-      job.facility ??
-      job.location ??
-      ""
+        job.client_name ??
+        job.client ??
+        job.msp_name ??
+        job.facility ??
+        job.location ??
+        ""
     ).trim() || "—"
   );
 }
@@ -206,6 +218,21 @@ function appliedTime(row: ApplicantJobRow): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+function aiAnalysisHrefForRow(row: ApplicantJobRow): string {
+  const workerId = resolveApplicationWorkerId(row) || row.worker_id?.trim() || "";
+  if (workerId) return candidateAiAnalysisHref(workerId, { applicationId: row.id });
+  return applicationAiAnalysisHref(row.id, row.job_requisition_id);
+}
+
+function candidateProfileHrefForRow(row: ApplicantJobRow): string | null {
+  const workerId = resolveApplicationWorkerId(row) || row.worker_id?.trim() || "";
+  if (!workerId) return null;
+  return candidateApplicantProfileHref(workerId, {
+    from: "candidates",
+    jobId: row.job_requisition_id || undefined,
+  });
+}
+
 export function ApplicantJobsPopover({
   anchor,
   applicantName,
@@ -213,6 +240,8 @@ export function ApplicantJobsPopover({
   loading,
   onClose,
   resolveStage,
+  actionsMenuRowId = null,
+  onOpenRowActions,
 }: ApplicantJobsPopoverProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -225,7 +254,7 @@ export function ApplicantJobsPopover({
 
   useLayoutEffect(() => {
     if (!anchor) return;
-    const width = 640;
+    const width = 720;
     const rect = anchor.getBoundingClientRect();
 
     // Position aligned with anchor, nicely bounded within screen
@@ -249,6 +278,9 @@ export function ApplicantJobsPopover({
     function onPointer(event: MouseEvent) {
       const target = event.target as Node;
       if (anchor.contains(target) || panelRef.current?.contains(target)) return;
+      // Keep open while interacting with the portaled row-actions menus.
+      const el = event.target as Element | null;
+      if (el?.closest?.('[role="menu"]')) return;
       onClose();
     }
     document.addEventListener("keydown", onKey);
@@ -266,7 +298,7 @@ export function ApplicantJobsPopover({
       ref={panelRef}
       role="dialog"
       aria-label={`${firstName}’s applications`}
-      className="fixed z-[80] w-[640px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_20px_50px_rgba(15,23,42,0.16)] animate-in fade-in zoom-in-95 duration-150"
+      className="fixed z-[80] w-[720px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_20px_50px_rgba(15,23,42,0.16)] animate-in fade-in zoom-in-95 duration-150"
       style={{ top: position.top, left: position.left }}
     >
       {/* Header */}
@@ -288,7 +320,7 @@ export function ApplicantJobsPopover({
               <th className="px-4 py-2.5 font-semibold text-left">Client</th>
               <th className="px-4 py-2.5 font-semibold text-center whitespace-nowrap">Stage</th>
               <th className="px-3 py-2.5 font-semibold text-center whitespace-nowrap">Match</th>
-              <th className="px-5 py-2.5 text-right w-[125px] whitespace-nowrap" />
+              <th className="px-5 py-2.5 text-center w-[88px] whitespace-nowrap">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#F1F5F9] bg-white">
@@ -296,11 +328,14 @@ export function ApplicantJobsPopover({
               const title = jobTitle(row);
               const stage = resolveStage ? resolveStage(row) : defaultStageLabel(row);
               const isLatest = row.id === latestId;
-              const subtitle = row.job_role_subtitle || (isLatest ? "Latest" : row.work_type || undefined);
-              const reviewHref = `/admin_recruiter/applications/review?jobId=${encodeURIComponent(row.job_requisition_id)}&applicationId=${encodeURIComponent(row.id)}`;
+              const subtitle =
+                row.job_role_subtitle || (isLatest ? "Latest" : row.work_type || undefined);
               const jobDetailHref = row.job_requisition_id
                 ? `/admin_recruiter/jobs/${encodeURIComponent(row.job_requisition_id)}`
-                : reviewHref;
+                : "#";
+              const aiHref = aiAnalysisHrefForRow(row);
+              const profileHref = candidateProfileHrefForRow(row);
+              const menuOpen = actionsMenuRowId === row.id;
 
               return (
                 <tr key={row.id} className="transition-colors hover:bg-[#FAFAFA]">
@@ -318,6 +353,15 @@ export function ApplicantJobsPopover({
                       <span className="block text-[11px] text-[#64748B] font-normal leading-tight mt-0.5">
                         {subtitle}
                       </span>
+                    ) : null}
+                    {profileHref ? (
+                      <Link
+                        href={profileHref}
+                        className="mt-1 inline-block text-[11px] font-medium text-[color:var(--brand-primary)] hover:underline"
+                        onClick={onClose}
+                      >
+                        View candidate
+                      </Link>
                     ) : null}
                   </td>
 
@@ -341,19 +385,48 @@ export function ApplicantJobsPopover({
                   </td>
 
                   {/* Match */}
-                  <td className={`px-3 py-3.5 text-center align-middle text-sm font-bold whitespace-nowrap ${matchScoreColor(row.ai_match_score)}`}>
+                  <td
+                    className={`px-3 py-3.5 text-center align-middle text-sm font-bold whitespace-nowrap ${matchScoreColor(row.ai_match_score)}`}
+                  >
                     {row.ai_match_score == null ? "—" : Math.round(row.ai_match_score)}
                   </td>
 
-                  {/* Open Job Action */}
-                  <td className="px-5 py-3.5 text-right align-middle whitespace-nowrap">
-                    <Link
-                      href={jobDetailHref}
-                      className="inline-flex shrink-0 whitespace-nowrap items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#334155] shadow-xs hover:bg-[#F8FAFC] hover:border-[#94A3B8] hover:text-[#0F172A] transition-colors"
-                      onClick={onClose}
-                    >
-                      Open job
-                    </Link>
+                  {/* AI Analysis + More actions */}
+                  <td className="px-5 py-3.5 text-center align-middle whitespace-nowrap">
+                    <div className="inline-flex items-center justify-center gap-1.5">
+                      <Link
+                        href={aiHref}
+                        className="inline-flex size-[23px] items-center justify-center rounded-md border border-[#E2E8F0] bg-white transition hover:bg-[#F8FAFC]"
+                        title="AI Analysis"
+                        aria-label={`Open AI analysis for ${title}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onClose();
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/icons/applicants/icon-review.svg" alt="" />
+                      </Link>
+                      {onOpenRowActions ? (
+                        <button
+                          type="button"
+                          className={`inline-flex size-[23px] items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9] ${
+                            menuOpen ? "bg-[#F1F5F9] ring-1 ring-[#CBD5E1]" : ""
+                          }`}
+                          aria-label="More actions"
+                          title="More actions"
+                          aria-expanded={menuOpen}
+                          aria-haspopup="menu"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenRowActions(row, event.currentTarget);
+                          }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src="/icons/applicants/icon-more.svg" alt="" />
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               );

@@ -119,17 +119,36 @@ const SHIFTS_CHILDREN: SidebarLink[] = [
   { label: "Unclaimed", href: "#", matchPrefixes: [], disabled: true },
 ];
 
+export const WHO_IS_OFF_ROUTE = "/admin_recruiter/scheduling/who-is-off";
+export const SHIFT_CALENDAR_ROUTE = "/admin_recruiter/calendar/shifts";
+export const CLOCK_INS_ROUTE = "/admin_recruiter/attendance";
+export const TIMESHEETS_ROUTE = "/admin_recruiter/timesheets";
+
 const SCHEDULING_CHILDREN: SidebarLink[] = [
   {
-    label: "Schedule",
-    href: "/admin_recruiter/calendar/shifts",
-    matchPrefixes: ["/admin_recruiter/calendar/shifts"],
+    label: "Week View",
+    href: SHIFT_CALENDAR_ROUTE,
+    matchPrefixes: [SHIFT_CALENDAR_ROUTE, "/admin_recruiter/scheduling"],
   },
   {
-    label: "Time & Attendance",
-    href: "/admin_recruiter/attendance",
-    matchPrefixes: ["/admin_recruiter/attendance"],
+    label: "Who is off",
+    href: WHO_IS_OFF_ROUTE,
+    matchPrefixes: [WHO_IS_OFF_ROUTE],
   },
+];
+
+const TIME_CHILDREN: SidebarLink[] = [
+  {
+    label: "Clock-ins",
+    href: CLOCK_INS_ROUTE,
+    matchPrefixes: [CLOCK_INS_ROUTE],
+  },
+  {
+    label: "Timesheets",
+    href: TIMESHEETS_ROUTE,
+    matchPrefixes: [TIMESHEETS_ROUTE],
+  },
+  { label: "Approvals", href: "#", matchPrefixes: [], disabled: true },
 ];
 
 // Time and Pay are hidden until those screens are built.
@@ -331,11 +350,11 @@ const FIGMA_PRIMARY_SECTIONS: SidebarSection[] = [
     children: SHIFTS_CHILDREN,
   },
   {
-    label: "Scheduling",
+    label: "Schedule",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
-    matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
+    matchPrefixes: [SHIFT_CALENDAR_ROUTE, WHO_IS_OFF_ROUTE, "/admin_recruiter/scheduling"],
     children: SCHEDULING_CHILDREN,
   },
 ];
@@ -574,23 +593,20 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: CLIENT_CHILDREN,
   },
   {
-    label: "Scheduling",
+    label: "Schedule",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
-    matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
+    matchPrefixes: [SHIFT_CALENDAR_ROUTE, WHO_IS_OFF_ROUTE, "/admin_recruiter/scheduling"],
     children: SCHEDULING_CHILDREN,
   },
   {
     label: "Time",
     href: "#",
+    resourceKey: "scheduling",
     iconType: ICON.time,
-    matchPrefixes: [],
-    children: [
-      { label: "Clock-ins", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Timesheets", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Approvals", href: "#", matchPrefixes: [], disabled: true },
-    ],
+    matchPrefixes: [CLOCK_INS_ROUTE, TIMESHEETS_ROUTE],
+    children: TIME_CHILDREN,
   },
   {
     label: "Pay",

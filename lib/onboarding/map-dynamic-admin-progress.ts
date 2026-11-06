@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
+import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 
 type StepState = "complete" | "in_progress" | "pending";
 
@@ -10,6 +11,7 @@ export type DynamicProgressStep = {
   label: string;
   state: StepState;
   detail?: string;
+  phase: "pre_hire" | "post_hire";
 };
 
 export type DynamicProgressResult = {
@@ -92,6 +94,7 @@ export async function mapDynamicAdminOnboardingProgress(
       label: step.title,
       state,
       detail,
+      phase: readStepLifecyclePhase(step),
     });
   }
 

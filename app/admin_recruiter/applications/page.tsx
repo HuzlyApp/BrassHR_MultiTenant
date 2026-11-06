@@ -75,7 +75,7 @@ import ErrorModal from "@/app/components/ErrorModal";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
 import {
   candidateAiAnalysisHref,
-  candidateProfileHref,
+  candidateApplicantProfileHref,
 } from "@/app/admin_recruiter/candidates/candidate-links";
 import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -2086,10 +2086,8 @@ export default function JobApplicationsPage() {
     ? rows
     : filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const displayRows = useMemo(() => {
-    if ((listMeta.paged || jobId) && !hasClientFilters) return paginatedRows;
-    return groupApplicantRows(paginatedRows);
-  }, [jobId, listMeta.paged, hasClientFilters, paginatedRows]);
+  // Always one row per applicant. Multi-job apps collapse; badge opens ApplicantJobsPopover.
+  const displayRows = useMemo(() => groupApplicantRows(paginatedRows), [paginatedRows]);
 
   const displayTotal = resultTotal;
 
@@ -2274,9 +2272,19 @@ export default function JobApplicationsPage() {
     }
   }
 
+  function findApplicationRow(applicationId: string): ApplicationRow | undefined {
+    const fromList = rows.find((item) => item.id === applicationId);
+    if (fromList) return fromList;
+    const fromGrouped = rows
+      .flatMap((item) => item.groupedApplications ?? [])
+      .find((item) => item.id === applicationId);
+    if (fromGrouped) return fromGrouped;
+    return jobsPopover?.applications.find((item) => item.id === applicationId);
+  }
+
   function actionRow(): ApplicationRow | null {
     if (!actionTargetRowId) return null;
-    return rows.find((row) => row.id === actionTargetRowId) ?? null;
+    return findApplicationRow(actionTargetRowId) ?? null;
   }
 
   function beginDeleteCandidate(applicationId: string) {
@@ -2320,7 +2328,7 @@ export default function JobApplicationsPage() {
   }
 
   function beginUpdateResume(applicationId: string) {
-    const row = rows.find((item) => item.id === applicationId);
+    const row = findApplicationRow(applicationId);
     if (!row) return;
     const workerId = resolveApplicationWorkerId(row);
     const profile = Array.isArray(row.applicant_profiles)
@@ -2461,7 +2469,7 @@ export default function JobApplicationsPage() {
       toast.error("Archived status is not configured for this organization.");
       return;
     }
-    const row = rows.find((item) => item.id === applicationId);
+    const row = findApplicationRow(applicationId);
     if (!row) return;
     if (isRowArchived(row, statusOptions)) {
       toast.success("Candidate is already archived");
@@ -2478,7 +2486,7 @@ export default function JobApplicationsPage() {
       toast.error("New status is not configured for this organization.");
       return;
     }
-    const row = rows.find((item) => item.id === applicationId);
+    const row = findApplicationRow(applicationId);
     if (!row) return;
     if (!isRowArchived(row, statusOptions)) {
       toast.success("Candidate is not archived");
@@ -2640,7 +2648,7 @@ export default function JobApplicationsPage() {
       toast.error("That status is not configured for this organization.");
       return;
     }
-    const row = rows.find((item) => item.id === applicationId);
+    const row = findApplicationRow(applicationId);
     if (!row) return;
     if (rowStatusId(row) === option.id) {
       toast.success(`Candidate is already ${option.name.toLowerCase()}`);
@@ -2806,7 +2814,7 @@ export default function JobApplicationsPage() {
     if (bulkAnalyzeBusy) return;
     setMatchAnalyzingId(applicationId);
     const candidateLabel = applicantName(
-      rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
+      findApplicationRow(applicationId) ?? ({ id: applicationId } as ApplicationRow)
     );
     try {
       const response = await fetch(
@@ -2880,13 +2888,14 @@ export default function JobApplicationsPage() {
     try {
       const params = new URLSearchParams({ page: "1", pageSize: "50" });
       const email = applicantEmail(row).trim().toLowerCase();
-      if (row.worker_id) params.set("workerId", row.worker_id);
+      const workerId = resolveApplicationWorkerId(row) || row.worker_id?.trim() || "";
+      if (workerId) params.set("workerId", workerId);
       else if (email) params.set("q", email);
       const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Failed to load applications");
       let applications = (payload.applications ?? []) as ApplicationRow[];
-      if (!row.worker_id && email) {
+      if (!workerId && email) {
         applications = applications.filter(
           (item) => applicantEmail(item).trim().toLowerCase() === email
         );
@@ -2907,7 +2916,7 @@ export default function JobApplicationsPage() {
       case "candidates": {
         const name = applicantName(row);
         const workerId = resolveApplicationWorkerId(row) || row.worker_id || row.id;
-        const profileHref = candidateProfileHref(workerId);
+        const profileHref = candidateApplicantProfileHref(workerId, { from: "candidates" });
         const appliedJobCount = Number(row.appliedJobCount ?? 1);
         const experience = experienceLabel(row);
         const multiJob = appliedJobCount > 1;
@@ -3460,7 +3469,7 @@ export default function JobApplicationsPage() {
                 String(one(row.job_requisitions).public_title ?? "").trim() ||
                 "—";
               const workerId = resolveApplicationWorkerId(row) || row.worker_id || row.id;
-              const profileHref = candidateProfileHref(workerId);
+              const profileHref = candidateApplicantProfileHref(workerId, { from: "candidates" });
               const exp = experienceLabel(row);
               const appliedJobCount = Number(row.appliedJobCount ?? 1);
               const multiJob = appliedJobCount > 1;
@@ -3693,8 +3702,18 @@ export default function JobApplicationsPage() {
           applicantName={jobsPopover.name}
           applications={jobsPopover.applications}
           loading={jobsPopover.loading}
-          onClose={() => setJobsPopover(null)}
+          onClose={() => {
+            setJobsPopover(null);
+            setRowActionsMenu(null);
+          }}
           resolveStage={(appRow) => rowStageName(appRow as ApplicationRow, statusOptions, stageLanes)}
+          actionsMenuRowId={rowActionsMenu?.rowId ?? null}
+          onOpenRowActions={(appRow, menuAnchor) => {
+            setStatusMenu(null);
+            setRowActionsMenu((current) =>
+              current?.rowId === appRow.id ? null : { rowId: appRow.id, anchor: menuAnchor }
+            );
+          }}
         />
       ) : null}
 
@@ -3748,13 +3767,13 @@ export default function JobApplicationsPage() {
             matchAnalyzingId === rowActionsMenu.rowId || bulkAnalyzingIds.has(rowActionsMenu.rowId)
           }
           isAnalyzed={
-            rows.find((item) => item.id === rowActionsMenu.rowId)?.ai_match_status === "ANALYZED"
+            findApplicationRow(rowActionsMenu.rowId)?.ai_match_status === "ANALYZED"
           }
           hired={normalizeApplicationStatus(
-            rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
+            findApplicationRow(rowActionsMenu.rowId)?.status ?? ""
           ) === "hired"}
           archived={(() => {
-            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            const row = findApplicationRow(rowActionsMenu.rowId);
             return row ? isRowArchived(row, statusOptions) : false;
           })()}
           resumeUploading={Boolean(updateResumeApplicationId)}
@@ -3766,7 +3785,7 @@ export default function JobApplicationsPage() {
           onArchive={() => beginArchiveCandidate(rowActionsMenu.rowId)}
           onUnarchive={() => beginUnarchiveCandidate(rowActionsMenu.rowId)}
           onMessage={() => {
-            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            const row = findApplicationRow(rowActionsMenu.rowId);
             if (!row) return;
             const workerId = resolveApplicationWorkerId(row);
             if (!workerId) {
@@ -3777,7 +3796,7 @@ export default function JobApplicationsPage() {
             setMessageOpen(true);
           }}
           onCall={() => {
-            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            const row = findApplicationRow(rowActionsMenu.rowId);
             if (!row) return;
             const workerId = resolveApplicationWorkerId(row);
             if (!workerId) {
@@ -3788,7 +3807,7 @@ export default function JobApplicationsPage() {
             setCallOpen(true);
           }}
           onSetupInterview={() => {
-            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            const row = findApplicationRow(rowActionsMenu.rowId);
             if (!row) return;
             const workerId = resolveApplicationWorkerId(row);
             if (!workerId) {
@@ -3800,12 +3819,12 @@ export default function JobApplicationsPage() {
             setInterviewOpen(true);
           }}
           onAssignRecruiter={() => {
-            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            const row = findApplicationRow(rowActionsMenu.rowId);
             if (!row) return;
             void openAssignRecruiter(row);
           }}
           onViewStatusHistory={() => {
-            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            const row = findApplicationRow(rowActionsMenu.rowId);
             if (!row) return;
             void openStatusHistory(row);
           }}
@@ -3928,7 +3947,7 @@ export default function JobApplicationsPage() {
 
       {(() => {
         const target = updateResumeApplicationId
-          ? rows.find((row) => row.id === updateResumeApplicationId) ?? null
+          ? findApplicationRow(updateResumeApplicationId) ?? null
           : null;
         if (!updateResumeApplicationId) return null;
         const nameParts = target
