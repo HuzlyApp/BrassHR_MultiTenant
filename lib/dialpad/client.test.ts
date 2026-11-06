@@ -90,4 +90,19 @@ describe("Dialpad client", () => {
       initiateDialpadCall("test-key", { phoneNumber: "+14155550123", userId: "12" })
     ).rejects.toMatchObject({ message: "No active device.", status: 400 });
   });
+
+  it("explains when Dialpad has no device that can ring", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: { message: "Unable to create call." } }),
+      })
+    );
+
+    await expect(
+      initiateDialpadCall("test-key", { phoneNumber: "+14155550123", userId: "12" })
+    ).rejects.toThrow(/no Dialpad app, desktop, or desk phone/i);
+  });
 });
