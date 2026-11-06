@@ -4,7 +4,7 @@ import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
-export type CallPhase = "sign-in" | "ringing" | "connected" | "ended";
+export type CallPhase = "sign-in" | "incoming" | "ringing" | "connected" | "ended";
 
 type CallScreenProps = {
   phoneLabel: string;
@@ -15,6 +15,8 @@ type CallScreenProps = {
   onToggleMute: () => void;
   onToggleSpeaker: () => void;
   onHangUp: () => void;
+  onAnswer: () => void;
+  onDecline: () => void;
 };
 
 function formatElapsed(seconds: number): string {
@@ -25,6 +27,7 @@ function formatElapsed(seconds: number): string {
 
 function statusLabel(phase: CallPhase, elapsedSeconds: number): string {
   if (phase === "sign-in") return "Sign in to Dialpad";
+  if (phase === "incoming") return "Incoming";
   if (phase === "connected") return formatElapsed(elapsedSeconds);
   if (phase === "ended") return "Call ended";
   return "Ringing";
@@ -39,22 +42,27 @@ export default function CallScreen({
   onToggleMute,
   onToggleSpeaker,
   onHangUp,
+  onAnswer,
+  onDecline,
 }: CallScreenProps) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onHangUp();
+      if (event.key !== "Escape") return;
+      if (phase === "incoming") onDecline();
+      else onHangUp();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onHangUp]);
+  }, [onDecline, onHangUp, phase]);
 
-  const ringing = phase === "ringing" || phase === "sign-in";
+  const ringing = phase === "ringing" || phase === "sign-in" || phase === "incoming";
+  const dialogLabel = phase === "incoming" ? `Incoming call from ${phoneLabel}` : `Calling ${phoneLabel}`;
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Calling ${phoneLabel}`}
+      aria-label={dialogLabel}
       className="fixed inset-0 z-[80] flex flex-col bg-[#0b141a] text-white"
     >
       <div className="flex flex-1 flex-col items-center justify-center px-6 pb-32">
@@ -81,46 +89,76 @@ export default function CallScreen({
       </div>
 
       <div className="flex items-start justify-center gap-12 pb-14">
-        <button
-          type="button"
-          aria-pressed={muted}
-          onClick={onToggleMute}
-          className="flex w-16 flex-col items-center gap-2 text-xs text-[#e9edef]"
-        >
-          <span
-            className={`flex size-14 items-center justify-center rounded-full ${
-              muted ? "bg-white text-[#111b21]" : "bg-[#1f2c34] text-white"
-            }`}
-          >
-            {muted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
-          </span>
-          Mute
-        </button>
+        {phase === "incoming" ? (
+          <>
+            <button
+              type="button"
+              onClick={onDecline}
+              aria-label="Decline"
+              className="flex w-16 flex-col items-center gap-2 text-xs text-[#e9edef]"
+            >
+              <span className="flex size-16 items-center justify-center rounded-full bg-[#ea0038] text-white">
+                <PhoneOff className="size-7" />
+              </span>
+              Decline
+            </button>
+            <button
+              type="button"
+              onClick={onAnswer}
+              aria-label="Answer"
+              className="flex w-16 flex-col items-center gap-2 text-xs text-[#e9edef]"
+            >
+              <span className="flex size-16 items-center justify-center rounded-full bg-[#00a884] text-white">
+                <Phone className="size-7" />
+              </span>
+              Answer
+            </button>
+          </>
+        ) : null}
+        {phase === "incoming" ? null : (
+          <>
+            <button
+              type="button"
+              aria-pressed={muted}
+              onClick={onToggleMute}
+              className="flex w-16 flex-col items-center gap-2 text-xs text-[#e9edef]"
+            >
+              <span
+                className={`flex size-14 items-center justify-center rounded-full ${
+                  muted ? "bg-white text-[#111b21]" : "bg-[#1f2c34] text-white"
+                }`}
+              >
+                {muted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
+              </span>
+              Mute
+            </button>
 
-        <button
-          type="button"
-          onClick={onHangUp}
-          aria-label="End call"
-          className="flex size-16 items-center justify-center rounded-full bg-[#ea0038] text-white"
-        >
-          <PhoneOff className="size-7" />
-        </button>
+            <button
+              type="button"
+              onClick={onHangUp}
+              aria-label="End call"
+              className="flex size-16 items-center justify-center rounded-full bg-[#ea0038] text-white"
+            >
+              <PhoneOff className="size-7" />
+            </button>
 
-        <button
-          type="button"
-          aria-pressed={speakerOn}
-          onClick={onToggleSpeaker}
-          className="flex w-16 flex-col items-center gap-2 text-xs text-[#e9edef]"
-        >
-          <span
-            className={`flex size-14 items-center justify-center rounded-full ${
-              speakerOn ? "bg-white text-[#111b21]" : "bg-[#1f2c34] text-white"
-            }`}
-          >
-            {speakerOn ? <Volume2 className="size-6" /> : <VolumeX className="size-6" />}
-          </span>
-          Speaker
-        </button>
+            <button
+              type="button"
+              aria-pressed={speakerOn}
+              onClick={onToggleSpeaker}
+              className="flex w-16 flex-col items-center gap-2 text-xs text-[#e9edef]"
+            >
+              <span
+                className={`flex size-14 items-center justify-center rounded-full ${
+                  speakerOn ? "bg-white text-[#111b21]" : "bg-[#1f2c34] text-white"
+                }`}
+              >
+                {speakerOn ? <Volume2 className="size-6" /> : <VolumeX className="size-6" />}
+              </span>
+              Speaker
+            </button>
+          </>
+        )}
       </div>
     </div>,
     document.body
