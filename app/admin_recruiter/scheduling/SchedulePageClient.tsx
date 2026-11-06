@@ -1,18 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Calendar, Building2, User, Clock, DollarSign, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar, X } from "lucide-react";
 import toast from "react-hot-toast";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
 import {
   addEasternDays,
   easternDateString,
-  getEasternParts,
-  startOfEasternDay,
   startOfEasternWeek,
 } from "@/lib/datetime/eastern";
-import type { ShiftCalendarEvent, ShiftCalendarResponse } from "@/lib/shifts/types";
+import {
+  formatShiftRange,
+  type EmployeeScheduleEmployee,
+  type EmployeeScheduleShift,
+  type EmployeeScheduleWeekResponse,
+} from "@/lib/scheduling/employee-schedule";
 
 type ShiftPillTheme = {
   bg: string;
@@ -34,44 +37,27 @@ function getThemeForShift(index: number): ShiftPillTheme {
   return THEMES[index % THEMES.length];
 }
 
-type EmployeeRow = {
+type DepartmentOption = {
   id: string;
   name: string;
-  jobRole: string;
 };
 
-// Initial employee roster matching Figma design
-const INITIAL_DEMO_EMPLOYEES: EmployeeRow[] = [
-  { id: "e1", name: "Aarav Sharma", jobRole: "Warehouse Staff" },
-  { id: "e2", name: "Priya Patel", jobRole: "HR Coordinator" },
-  { id: "e3", name: "Rahul Verma", jobRole: "Forklift Operator" },
-  { id: "e4", name: "Ananya Reddy", jobRole: "Administrative Assistant" },
-  { id: "e5", name: "Vikram Singh", jobRole: "Inventory Specialist" },
-  { id: "e6", name: "Michael Carter", jobRole: "Warehouse Supervisor" },
-  { id: "e7", name: "Sophia Martinez", jobRole: "Recruitment Specialist" },
-  { id: "e8", name: "Daniel Thompson", jobRole: "Maintenance Technician" },
-  { id: "e9", name: "Emily Johnson", jobRole: "Customer Service Staff" },
-  { id: "e10", name: "Kevin Anderson", jobRole: "Operations Manager" },
-  { id: "e11", name: "Arjun Mehta", jobRole: "Machine Operator" },
-];
-
 export default function SchedulePageClient() {
-  const [anchorDate, setAnchorDate] = useState<Date>(() => {
-    // Default to Sept 21, 2026 or current week
-    return new Date(2026, 8, 21);
-  });
+  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
 
   const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState<ShiftCalendarEvent[]>([]);
+  const [employees, setEmployees] = useState<EmployeeScheduleEmployee[]>([]);
+  const [shifts, setShifts] = useState<EmployeeScheduleShift[]>([]);
   const [facilities, setFacilities] = useState<Array<{ id: string; name: string }>>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<string>("all");
-  const [workersList, setWorkersList] = useState<Array<{ id: string; name: string; jobRole: string }>>([]);
   const [addShiftOpen, setAddShiftOpen] = useState(false);
   const [savingShift, setSavingShift] = useState(false);
 
   // New shift form state
   const [newShiftTitle, setNewShiftTitle] = useState("");
   const [newShiftFacilityId, setNewShiftFacilityId] = useState("");
+  const [newShiftDepartmentId, setNewShiftDepartmentId] = useState("");
   const [newShiftWorkerId, setNewShiftWorkerId] = useState("");
   const [newShiftDate, setNewShiftDate] = useState("");
   const [newShiftStartTime, setNewShiftStartTime] = useState("08:00");
@@ -120,198 +106,68 @@ export default function SchedulePageClient() {
     }
   }, [newShiftFacilityId]);
 
-  // Load workers for dropdown
-  const loadWorkers = useCallback(async () => {
+  const loadDepartments = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/workers");
+      const res = await fetch("/api/admin/departments");
       if (!res.ok) return;
       const data = await res.json();
-      const list = (data?.workers ?? data ?? []).map((w: { id: string; first_name?: string; last_name?: string; job_role?: string }) => ({
-        id: String(w.id),
-        name: `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Worker",
-        jobRole: w.job_role || "Warehouse Staff",
+      const list = (data?.departments ?? []).map((department: { id: string; name: string }) => ({
+        id: String(department.id),
+        name: department.name || "Department",
       }));
-      setWorkersList(list);
+      setDepartments(list);
     } catch (e) {
-      console.error("[Schedule] error loading workers", e);
+      console.error("[Schedule] error loading departments", e);
     }
   }, []);
 
-  // Fetch shifts for selected date range
-  const loadShifts = useCallback(async () => {
+  const loadSchedule = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/shift-calendar?start=${startDateStr}&end=${endDateStr}`);
-      if (res.ok) {
-        const data: ShiftCalendarResponse = await res.json().catch(() => ({}));
-        setEvents(data.events ?? []);
+      const params = new URLSearchParams({ start: startDateStr, end: endDateStr });
+      if (selectedFacility !== "all") params.set("facilityId", selectedFacility);
+      const res = await fetch(`/api/admin/scheduling/week?${params.toString()}`);
+      if (!res.ok) {
+        setEmployees([]);
+        setShifts([]);
+        return;
       }
+      const data = (await res.json().catch(() => ({}))) as EmployeeScheduleWeekResponse;
+      setEmployees(data.employees ?? []);
+      setShifts(data.shifts ?? []);
     } catch {
-      setEvents([]);
+      setEmployees([]);
+      setShifts([]);
     } finally {
       setLoading(false);
     }
-  }, [startDateStr, endDateStr]);
+  }, [startDateStr, endDateStr, selectedFacility]);
 
   useEffect(() => {
     void loadFacilities();
-    void loadWorkers();
-  }, [loadFacilities, loadWorkers]);
+    void loadDepartments();
+  }, [loadFacilities, loadDepartments]);
 
   useEffect(() => {
-    void loadShifts();
-  }, [loadShifts]);
+    void loadSchedule();
+  }, [loadSchedule]);
 
-  // Build employee list: combination of loaded workers / DB event workers, defaulting to Figma list
-  const employees: EmployeeRow[] = useMemo(() => {
-    const map = new Map<string, EmployeeRow>();
+  const visibleEmployees = useMemo(() => {
+    if (selectedFacility === "all") return employees;
+    const scheduled = new Set(shifts.map((shift) => shift.workerId));
+    return employees.filter((employee) => scheduled.has(employee.id));
+  }, [employees, shifts, selectedFacility]);
 
-    // Add workers from DB if available
-    for (const w of workersList) {
-      map.set(w.id, { id: w.id, name: w.name, jobRole: w.jobRole });
-    }
-
-    // Add workers seen in events
-    for (const ev of events) {
-      if (ev.workerName && ev.workerName !== "Unknown worker") {
-        const key = ev.workerId || ev.workerName;
-        if (!map.has(key)) {
-          map.set(key, { id: key, name: ev.workerName, jobRole: ev.jobRole || "Staff" });
-        }
-      }
-    }
-
-    // Fall back to demo list if empty
-    if (map.size === 0) {
-      for (const e of INITIAL_DEMO_EMPLOYEES) {
-        map.set(e.id, e);
-      }
-    }
-
-    return Array.from(map.values());
-  }, [workersList, events]);
-
-  // Map of shifts: employeeKey_dateKey -> ShiftInfo
   const shiftGrid = useMemo(() => {
-    const grid = new Map<string, Array<{ time: string; department: string; facility: string }>>();
-
-    // Populate with real events
-    for (const ev of events) {
-      const empKey = ev.workerId || ev.workerName;
-      const dateKey = ev.startDate?.slice(0, 10);
-      if (empKey && dateKey) {
-        const key = `${empKey}_${dateKey}`;
-        const existing = grid.get(key) || [];
-        const fmtHour = (h: number) => {
-          const ampm = h >= 12 ? "PM" : "AM";
-          const h12 = h % 12 || 12;
-          return `${h12}:00 ${ampm}`;
-        };
-        const timeStr = `${fmtHour(ev.startHour || 8)} - ${fmtHour(ev.endHour || 17)}`;
-        existing.push({
-          time: timeStr,
-          department: ev.jobRole || "Warehouse",
-          facility: ev.facility || "Main Facility",
-        });
-        grid.set(key, existing);
-      }
+    const grid = new Map<string, EmployeeScheduleShift[]>();
+    for (const shift of shifts) {
+      const key = `${shift.workerId}_${shift.workDate.slice(0, 10)}`;
+      const existing = grid.get(key) ?? [];
+      existing.push(shift);
+      grid.set(key, existing);
     }
-
-    // If no events in DB yet, populate matching Figma screenshot for visual fidelity
-    if (events.length === 0) {
-      const demoShifts: Record<string, Record<number, { time: string; department: string; facility: string }>> = {
-        e1: {
-          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-        e2: {
-          0: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
-          1: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-        e3: {
-          0: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-        e4: {
-          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          5: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-        },
-        e5: {
-          0: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          1: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-        e6: {
-          0: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
-          1: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
-          3: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
-          4: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
-        },
-        e7: {
-          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-          5: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-        e8: {
-          0: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
-          1: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
-          2: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
-          3: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
-          4: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
-          5: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
-        },
-        e9: {
-          1: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-        e10: {
-          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
-        },
-        e11: {
-          0: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          1: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          2: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          3: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-          4: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
-        },
-      };
-
-      for (const [empId, daysObj] of Object.entries(demoShifts)) {
-        for (const [dayIdx, shiftVal] of Object.entries(daysObj)) {
-          const targetDay = weekDays[Number(dayIdx)];
-          if (targetDay) {
-            const dateKey = easternDateString(targetDay);
-            grid.set(`${empId}_${dateKey}`, [shiftVal]);
-          }
-        }
-      }
-    }
-
     return grid;
-  }, [events, weekDays]);
+  }, [shifts]);
 
   const handlePrevWeek = () => {
     setAnchorDate((prev) => addEasternDays(prev, -7));
@@ -327,6 +183,10 @@ export default function SchedulePageClient() {
       toast.error("Please enter a shift title / job role.");
       return;
     }
+    if (!newShiftWorkerId) {
+      toast.error("Select an employee for this shift.");
+      return;
+    }
     if (!newShiftDate) {
       toast.error("Please select a date for the shift.");
       return;
@@ -334,17 +194,19 @@ export default function SchedulePageClient() {
 
     setSavingShift(true);
     try {
-      const res = await fetch("/api/admin/shift-calendar", {
+      const res = await fetch("/api/admin/scheduling/week", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: newShiftTitle.trim(),
           facilityId: newShiftFacilityId || null,
-          workerId: newShiftWorkerId || null,
-          startDate: newShiftDate,
-          endDate: newShiftDate,
+          departmentId: newShiftDepartmentId || null,
+          workerId: newShiftWorkerId,
+          workDate: newShiftDate,
+          startTime: newShiftStartTime,
+          endTime: newShiftEndTime,
           ratePerHour: newShiftRate ? parseFloat(newShiftRate) : null,
-          description: newShiftNotes.trim() || null,
+          notes: newShiftNotes.trim() || null,
         }),
       });
 
@@ -355,12 +217,10 @@ export default function SchedulePageClient() {
 
       toast.success("Shift created successfully!");
       setAddShiftOpen(false);
-      // Reset form
       setNewShiftTitle("");
       setNewShiftNotes("");
       setNewShiftRate("");
-      // Reload shifts
-      await loadShifts();
+      await loadSchedule();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error creating shift.");
     } finally {
@@ -474,14 +334,16 @@ export default function SchedulePageClient() {
                     <DashboardPageLoader />
                   </td>
                 </tr>
-              ) : employees.length === 0 ? (
+              ) : visibleEmployees.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-[#64748B]">
-                    No employees or shifts scheduled for this week.
+                    {employees.length === 0
+                      ? "No employees to schedule yet. Employees appear here after a candidate is converted."
+                      : "No shifts at this facility for this week."}
                   </td>
                 </tr>
               ) : (
-                employees.map((emp, empIdx) => (
+                visibleEmployees.map((emp, empIdx) => (
                   <tr key={emp.id} className="transition-colors hover:bg-[#F8FAFC]/60">
                     {/* Employee Info Col */}
                     <td className="w-[200px] px-4 py-4 align-top">
@@ -513,10 +375,10 @@ export default function SchedulePageClient() {
                                     className="font-bold leading-tight"
                                     style={{ color: theme.text }}
                                   >
-                                    {shift.time}
+                                    {formatShiftRange(shift.startTime, shift.endTime)}
                                   </div>
                                   <div className="mt-1 font-medium text-[#334155]">
-                                    {shift.department}
+                                    {shift.department || shift.title}
                                   </div>
                                   <div className="text-[11px] text-[#64748B]">
                                     {shift.facility}
@@ -593,20 +455,39 @@ export default function SchedulePageClient() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#334155]">Assign Worker</label>
+                  <label className="mb-1 block text-xs font-semibold text-[#334155]">
+                    Employee <span className="text-rose-500">*</span>
+                  </label>
                   <select
+                    required
                     value={newShiftWorkerId}
                     onChange={(e) => setNewShiftWorkerId(e.target.value)}
                     className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
                   >
-                    <option value="">Select Worker</option>
-                    {workersList.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.jobRole})
+                    <option value="">Select Employee</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name} ({employee.jobRole})
                       </option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#334155]">Department</label>
+                <select
+                  value={newShiftDepartmentId}
+                  onChange={(e) => setNewShiftDepartmentId(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                >
+                  <option value="">No department</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Date & Shift Times */}

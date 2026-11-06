@@ -1,60 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildClockInRows,
+  clockInMetrics,
+  type ClockInAttendanceLog,
+  type ClockInRow,
+  type ClockInScheduleShift,
+} from "@/lib/attendance/clock-ins";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { addEasternDays, easternDateString, startOfEasternWeek } from "@/lib/datetime/eastern";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import {
-  ATTENDANCE_BUCKETS,
-  type AttendanceBucket,
-  type AttendanceBucketCounts,
-  parseAttendanceBucket,
-} from "@/lib/attendance/attendance-buckets";
+import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
-import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
 import { getApplicationAppliedJobsByWorker } from "@/lib/workers/worker-application-job-titles";
 
 export const runtime = "nodejs";
 
-type AttendanceStatus = "clocked_in" | "clocked_out";
-type AttendanceLog = {
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const STATUS_OPTIONS = ["On Shift", "Not Clocked In", "On Break", "Completed"] as const;
+
+type NamedRow = { id: string; name: string | null };
+
+type EmploymentWorker = {
   id: string;
-  tenant_id: string;
+  candidate_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  job_role: string | null;
+};
+
+type CandidateWorker = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  job_role: string | null;
+};
+
+type ScheduleShiftRow = {
+  id: string;
+  worker_id: string;
+  facility_id: string | null;
+  department_id: string | null;
+  work_date: string;
+  start_time: string;
+  end_time: string;
+};
+
+type AttendanceLogRow = {
+  id: string;
   worker_id: string;
   attendance_date: string;
-  status: AttendanceStatus;
+  status: "clocked_in" | "clocked_out";
   clock_in_at: string;
   clock_out_at: string | null;
   total_seconds: number | null;
   break_started_at?: string | null;
   break_seconds?: number | null;
-  break_intervals?: Array<{ started_at: string; ended_at: string }> | null;
-  clock_in_ip: string;
-  clock_out_ip: string | null;
-  clock_in_latitude: number;
-  clock_in_longitude: number;
-  clock_out_latitude: number | null;
-  clock_out_longitude: number | null;
-  clock_in_location_timestamp: string;
-  clock_out_location_timestamp: string | null;
+  clock_in_latitude?: number | null;
+  clock_in_longitude?: number | null;
+  clock_in_address?: string | null;
+  clock_out_address?: string | null;
   claimed_at?: string | null;
-  claimed_by?: string | null;
 };
 
-type WorkerContact = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  profile_photo?: string | null;
-  profile_photo_url?: string | null;
-  job_role?: string | null;
-};
+function currentEasternWeek(): { start: string; end: string } {
+  const weekStart = startOfEasternWeek(new Date());
+  return {
+    start: easternDateString(weekStart),
+    end: easternDateString(addEasternDays(weekStart, 6)),
+  };
+}
 
-type SharedFilterOptions = {
-  scope: Awaited<ReturnType<typeof resolveStaffTenantScope>>;
-  workerId?: string;
-  date?: string;
-};
+function parseDateParam(value: string | null): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  return DATE_RE.test(trimmed) ? trimmed : null;
+}
+
+function personName(first: string | null | undefined, last: string | null | undefined): string {
+  return [first, last].filter(Boolean).join(" ").trim();
+}
 
 async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean> {
   const { error } = await supabase.from("applicant_attendance_logs").select("claimed_at").limit(0);
@@ -63,68 +91,13 @@ async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean>
   throw error;
 }
 
-function applyAttendanceFilters(
-  query: any,
-  options: SharedFilterOptions,
-  bucket: AttendanceBucket,
-  claimTrackingEnabled: boolean
-): any {
-  let next = query;
-  if (options.scope.mode === "scoped") next = next.eq("tenant_id", options.scope.tenantId);
-  if (options.workerId) next = next.eq("worker_id", options.workerId);
-  if (options.date) next = next.eq("attendance_date", options.date);
-
-  switch (bucket) {
-    case "ongoing":
-      next = next.eq("status", "clocked_in");
-      break;
-    case "completed":
-      next = claimTrackingEnabled
-        ? next.eq("status", "clocked_out").not("claimed_at", "is", null)
-        : next.eq("id", "00000000-0000-0000-0000-000000000000");
-      break;
-    case "unclaimed":
-      next = claimTrackingEnabled
-        ? next.eq("status", "clocked_out").is("claimed_at", null)
-        : next.eq("status", "clocked_out");
-      break;
-    default:
-      break;
-  }
-
-  return next;
-}
-
-async function countForBucket(
-  supabase: SupabaseClient,
-  bucket: AttendanceBucket,
-  options: SharedFilterOptions,
-  claimTrackingEnabled: boolean
-): Promise<number> {
-  const query = applyAttendanceFilters(
-    supabase.from("applicant_attendance_logs").select("id", { count: "exact", head: true }),
-    options,
-    bucket,
-    claimTrackingEnabled
-  );
-
-  const { count, error } = await query;
-  if (error) throw error;
-  return count ?? 0;
-}
-
-async function loadBucketCounts(
-  supabase: SupabaseClient,
-  options: SharedFilterOptions,
-  claimTrackingEnabled: boolean
-): Promise<AttendanceBucketCounts> {
-  const entries = await Promise.all(
-    ATTENDANCE_BUCKETS.map(
-      async (bucket) =>
-        [bucket, await countForBucket(supabase, bucket, options, claimTrackingEnabled)] as const
-    )
-  );
-  return Object.fromEntries(entries) as AttendanceBucketCounts;
+function matchesText(row: ClockInRow, search: string): boolean {
+  if (!search) return true;
+  const haystack = [row.applicant_name, row.applicant_email, row.job_role, row.facility_name, row.department_name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(search);
 }
 
 export async function GET(req: NextRequest) {
@@ -138,206 +111,202 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
     }
 
-    const claimTrackingEnabled = await supportsClaimTracking(supabase);
     const url = req.nextUrl;
-    const workerIdRaw = url.searchParams.get("workerId")?.trim() ?? "";
-    const date = url.searchParams.get("date")?.trim() ?? "";
-    const bucket = parseAttendanceBucket(url.searchParams.get("bucket"));
+    const fallbackWeek = currentEasternWeek();
+    const start = parseDateParam(url.searchParams.get("start")) ?? fallbackWeek.start;
+    const end = parseDateParam(url.searchParams.get("end")) ?? fallbackWeek.end;
+    if (start > end) {
+      return NextResponse.json({ error: "Start date must be on or before end date." }, { status: 400 });
+    }
+
     const search = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
-
-    let workerId: string | undefined;
-    if (workerIdRaw) {
-      const idCheck = parseRequiredUuid(workerIdRaw, "workerId");
-      if (!idCheck.ok) return NextResponse.json({ error: idCheck.error }, { status: 400 });
-      workerId = idCheck.value;
-    }
-
-    const sharedOptions: SharedFilterOptions = { scope, workerId, date: date || undefined };
-
-    const filteredQuery = applyAttendanceFilters(
-      supabase.from("applicant_attendance_logs").select("*"),
-      sharedOptions,
-      bucket,
-      claimTrackingEnabled
-    );
-
-    const [{ data, error }, counts] = await Promise.all([
-      filteredQuery.order("clock_in_at", { ascending: false }).limit(200),
-      loadBucketCounts(supabase, sharedOptions, claimTrackingEnabled),
-    ]);
-    if (error) throw error;
-
-    const logs = (data as AttendanceLog[] | null) ?? [];
-    const workerIds = Array.from(new Set(logs.map((log) => log.worker_id).filter(Boolean)));
-    let workersById = new Map<string, WorkerContact>();
-function formatTime12h(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("en-US", {
-    timeZone: "America/New_York",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-function formatDurationSeconds(sec: number | null | undefined): string {
-  if (sec == null || sec <= 0) return "0m";
-  const hours = Math.floor(sec / 3600);
-  const minutes = Math.floor((sec % 3600) / 60);
-  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${minutes}m`;
-}
-
-    // Tenant facilities for filter dropdown (attendance rows may not have facility yet).
-    let facilities: Array<{ id: string; name: string }> = [];
-    if (scope.mode === "scoped") {
-      const { data: facilityList } = await supabase
-        .from("facility")
-        .select("id, name")
-        .eq("tenant_id", scope.tenantId)
-        .order("name", { ascending: true });
-      facilities = (facilityList ?? [])
-        .map((f) => ({
-          id: String(f.id),
-          name: String(f.name ?? "").trim(),
-        }))
-        .filter((f) => Boolean(f.name));
-    }
-
-    const tenantIdForJobs = scope.mode === "scoped" ? scope.tenantId : null;
-    let appliedJobsByWorker = new Map<string, Array<{ jobId: string; title: string }>>();
-
-    if (workerIds.length > 0) {
-      const [{ data: workers, error: workerError }, appliedJobs] = await Promise.all([
-        supabase
-          .from("worker")
-          .select("id, first_name, last_name, email, profile_photo, job_role")
-          .in("id", workerIds),
-        getApplicationAppliedJobsByWorker(supabase, {
-          tenantId: tenantIdForJobs,
-          workerIds,
-        }),
-      ]);
-      if (workerError) throw workerError;
-      appliedJobsByWorker = appliedJobs;
-      workersById = new Map(
-        await Promise.all(
-          ((workers as WorkerContact[] | null) ?? []).map(async (worker) => {
-            const profile_photo_url = await resolveWorkerProfilePhotoUrl(
-              supabase,
-              worker.profile_photo
-            );
-            return [worker.id, { ...worker, profile_photo_url }] as const;
-          })
-        )
-      );
-    }
-
     const facilityFilter = url.searchParams.get("facility")?.trim() ?? "";
     const departmentFilter = url.searchParams.get("department")?.trim() ?? "";
     const statusParam = url.searchParams.get("status")?.trim() ?? "";
+    const tenantId = scope.mode === "scoped" ? scope.tenantId : null;
 
-    // Attendance logs do not store facility / scheduled shift yet — return null
-    // instead of inventing placeholder labels for the Clock-ins table.
-    const mappedRows = logs.map((log) => {
-      const worker = workersById.get(log.worker_id);
-      const name = [worker?.first_name, worker?.last_name].filter(Boolean).join(" ").trim();
-      const appliedJobs = appliedJobsByWorker.get(log.worker_id) ?? [];
-      const primaryJob = appliedJobs[0] ?? null;
-      const jobRole = worker?.job_role?.trim() || primaryJob?.title?.trim() || null;
-      const jobRequisitionId = primaryJob?.jobId?.trim() || null;
+    let shiftQuery = supabase
+      .from("employee_schedule_shifts")
+      .select("id, worker_id, facility_id, department_id, work_date, start_time, end_time")
+      .gte("work_date", start)
+      .lte("work_date", end)
+      .order("work_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .limit(1000);
+    let logQuery = supabase
+      .from("applicant_attendance_logs")
+      .select(
+        "id, worker_id, attendance_date, status, clock_in_at, clock_out_at, total_seconds, break_started_at, break_seconds, clock_in_latitude, clock_in_longitude, clock_in_address, clock_out_address, claimed_at"
+      )
+      .gte("attendance_date", start)
+      .lte("attendance_date", end)
+      .order("clock_in_at", { ascending: false })
+      .limit(1000);
+    let facilityQuery = supabase.from("facility").select("id, name").order("name", { ascending: true });
+    let departmentQuery = supabase.from("departments").select("id, name").order("name", { ascending: true });
 
-      let computedStatus: "On Shift" | "On Break" | "Completed" | "Not Clocked In" = "On Shift";
-      if (log.status === "clocked_out") {
-        computedStatus = "Completed";
-      } else if (log.status === "clocked_in") {
-        computedStatus = log.break_started_at ? "On Break" : "On Shift";
-      }
+    if (tenantId) {
+      shiftQuery = shiftQuery.eq("tenant_id", tenantId);
+      logQuery = logQuery.eq("tenant_id", tenantId);
+      facilityQuery = facilityQuery.eq("tenant_id", tenantId);
+      departmentQuery = departmentQuery.eq("tenant_id", tenantId);
+    }
 
+    const [shiftRes, logRes, facilityRes, departmentRes] = await Promise.all([
+      shiftQuery,
+      logQuery,
+      facilityQuery,
+      departmentQuery,
+    ]);
+    if (shiftRes.error) throw shiftRes.error;
+    if (logRes.error) throw logRes.error;
+    if (facilityRes.error) throw facilityRes.error;
+    if (departmentRes.error) throw departmentRes.error;
+
+    const shiftRows = (shiftRes.data ?? []) as ScheduleShiftRow[];
+    const logRows = (logRes.data ?? []) as AttendanceLogRow[];
+    const facilities = ((facilityRes.data ?? []) as NamedRow[])
+      .map((row) => ({ id: row.id, name: row.name?.trim() || "" }))
+      .filter((row) => row.name);
+    const departments = ((departmentRes.data ?? []) as NamedRow[])
+      .map((row) => ({ id: row.id, name: row.name?.trim() || "" }))
+      .filter((row) => row.name);
+
+    const facilityById = new Map(facilities.map((row) => [row.id, row.name]));
+    const departmentById = new Map(departments.map((row) => [row.id, row.name]));
+
+    const employmentIds = shiftRows.map((row) => row.worker_id);
+    const candidateIdsFromLogs = logRows.map((row) => row.worker_id);
+
+    const [employmentRes, employmentByCandidateRes, candidateRes] = await Promise.all([
+      queryInChunks<EmploymentWorker>(employmentIds, (chunk) =>
+        supabase
+          .from("workers")
+          .select("id, candidate_id, first_name, last_name, email, job_role")
+          .in("id", chunk)
+      ),
+      queryInChunks<EmploymentWorker>(candidateIdsFromLogs, (chunk) =>
+        supabase
+          .from("workers")
+          .select("id, candidate_id, first_name, last_name, email, job_role")
+          .in("candidate_id", chunk)
+      ),
+      queryInChunks<CandidateWorker>(candidateIdsFromLogs, (chunk) =>
+        supabase.from("worker").select("id, first_name, last_name, email, job_role").in("id", chunk)
+      ),
+    ]);
+    if (employmentRes.error) throw employmentRes.error;
+    if (employmentByCandidateRes.error) throw employmentByCandidateRes.error;
+    if (candidateRes.error) throw candidateRes.error;
+
+    const employmentById = new Map<string, EmploymentWorker>();
+    const employmentByCandidate = new Map<string, EmploymentWorker>();
+    for (const worker of [...employmentRes.data, ...employmentByCandidateRes.data]) {
+      employmentById.set(worker.id, worker);
+      if (worker.candidate_id) employmentByCandidate.set(worker.candidate_id, worker);
+    }
+    const candidateById = new Map(candidateRes.data.map((worker) => [worker.id, worker]));
+
+    const candidateIds = Array.from(
+      new Set(
+        [
+          ...shiftRows.map((row) => employmentById.get(row.worker_id)?.candidate_id ?? ""),
+          ...candidateIdsFromLogs,
+        ].filter(Boolean)
+      )
+    );
+    const appliedJobs = await getApplicationAppliedJobsByWorker(supabase, {
+      tenantId,
+      workerIds: candidateIds,
+    });
+
+    const shifts: ClockInScheduleShift[] = shiftRows.map((row) => {
+      const employee = employmentById.get(row.worker_id);
+      const candidateId = employee?.candidate_id ?? null;
+      const candidate = candidateId ? candidateById.get(candidateId) : undefined;
+      const applied = candidateId ? appliedJobs.get(candidateId)?.[0] : undefined;
       return {
-        ...log,
-        applicant_name: name || "Worker",
-        applicant_email: worker?.email ?? null,
-        profile_photo_url: worker?.profile_photo_url ?? null,
-        job_role: jobRole,
-        job_requisition_id: jobRequisitionId,
-        facility_name: null as string | null,
-        scheduled_shift: null as string | null,
-        clock_in_formatted: formatTime12h(log.clock_in_at),
-        clock_out_formatted: formatTime12h(log.clock_out_at),
-        computed_status: computedStatus,
-        hours_formatted: formatDurationSeconds(log.total_seconds),
+        id: row.id,
+        workerId: row.worker_id,
+        candidateId,
+        workDate: row.work_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        facilityName: row.facility_id ? (facilityById.get(row.facility_id) ?? null) : null,
+        departmentName: row.department_id ? (departmentById.get(row.department_id) ?? null) : null,
+        employeeName:
+          personName(employee?.first_name, employee?.last_name) ||
+          personName(candidate?.first_name, candidate?.last_name) ||
+          "Worker",
+        email: employee?.email ?? candidate?.email ?? null,
+        jobRole: employee?.job_role?.trim() || candidate?.job_role?.trim() || applied?.title?.trim() || null,
+        jobRequisitionId: applied?.jobId?.trim() || null,
       };
     });
 
-    // Build filter options from the full unfiltered set so dropdown choices stay stable.
-    const departmentOptions = Array.from(
-      new Set(mappedRows.map((row) => row.job_role?.trim() || "").filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-    const statusOptions = ["On Shift", "Not Clocked In", "On Break", "Completed"] as const;
-    const facilityOptionsFromRows = Array.from(
-      new Set(mappedRows.map((row) => row.facility_name?.trim() || "").filter(Boolean))
-    );
-    const facilityOptions = Array.from(
-      new Set([...facilities.map((f) => f.name), ...facilityOptionsFromRows])
-    ).sort((a, b) => a.localeCompare(b));
-
-    const rows = mappedRows.filter((row) => {
-      if (search) {
-        const matchName = row.applicant_name.toLowerCase().includes(search);
-        const matchEmail = (row.applicant_email ?? "").toLowerCase().includes(search);
-        const matchRole = (row.job_role ?? "").toLowerCase().includes(search);
-        const matchFac = (row.facility_name ?? "").toLowerCase().includes(search);
-        if (!matchName && !matchEmail && !matchRole && !matchFac) return false;
-      }
-      if (facilityFilter && facilityFilter !== "all" && row.facility_name !== facilityFilter) {
-        return false;
-      }
-      if (departmentFilter && departmentFilter !== "all" && row.job_role !== departmentFilter) {
-        return false;
-      }
-      if (
-        statusParam &&
-        statusParam !== "all" &&
-        row.computed_status.toLowerCase() !== statusParam.toLowerCase()
-      ) {
-        return false;
-      }
-      return true;
+    const logs: ClockInAttendanceLog[] = logRows.map((row) => {
+      const employee = employmentByCandidate.get(row.worker_id);
+      const candidate = candidateById.get(row.worker_id);
+      const applied = appliedJobs.get(row.worker_id)?.[0];
+      return {
+        id: row.id,
+        workerId: row.worker_id,
+        attendanceDate: row.attendance_date,
+        status: row.status,
+        clockInAt: row.clock_in_at,
+        clockOutAt: row.clock_out_at,
+        totalSeconds: row.total_seconds,
+        breakStartedAt: row.break_started_at ?? null,
+        breakSeconds: row.break_seconds ?? null,
+        clockInLatitude: row.clock_in_latitude ?? null,
+        clockInLongitude: row.clock_in_longitude ?? null,
+        clockInAddress: row.clock_in_address ?? null,
+        clockOutAddress: row.clock_out_address ?? null,
+        claimedAt: row.claimed_at ?? null,
+        employeeName:
+          personName(employee?.first_name, employee?.last_name) ||
+          personName(candidate?.first_name, candidate?.last_name) ||
+          "Worker",
+        email: employee?.email ?? candidate?.email ?? null,
+        jobRole: employee?.job_role?.trim() || candidate?.job_role?.trim() || applied?.title?.trim() || null,
+        jobRequisitionId: applied?.jobId?.trim() || null,
+      };
     });
 
-    // Compute metric cards (Figma screen 3)
-    let clockedInCount = 0;
-    let onBreakCount = 0;
-    let completedCount = 0;
+    const merged = buildClockInRows(shifts, logs);
+    const scopedRows = merged.filter((row) => {
+      if (!matchesText(row, search)) return false;
+      if (facilityFilter && facilityFilter !== "all" && row.facility_name !== facilityFilter) return false;
+      if (departmentFilter && departmentFilter !== "all" && row.department_name !== departmentFilter) return false;
+      return true;
+    });
+    const metrics = clockInMetrics(scopedRows);
+    const visibleRows =
+      statusParam && statusParam !== "all"
+        ? scopedRows.filter((row) => row.computed_status.toLowerCase() === statusParam.toLowerCase())
+        : scopedRows;
 
-    for (const r of rows) {
-      if (r.computed_status === "On Shift") clockedInCount++;
-      else if (r.computed_status === "On Break") onBreakCount++;
-      else if (r.computed_status === "Completed") completedCount++;
-    }
-
-    const notClockedInCount = Math.max(0, counts?.completed ?? 0);
-    const totalScheduledCount = rows.length || 122;
+    const departmentOptions = Array.from(
+      new Set([
+        ...departments.map((row) => row.name),
+        ...merged.map((row) => row.department_name?.trim() || ""),
+      ].filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+    const facilityOptions = Array.from(
+      new Set([
+        ...facilities.map((row) => row.name),
+        ...merged.map((row) => row.facility_name?.trim() || ""),
+      ].filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
 
     return NextResponse.json({
-      logs: rows,
-      counts,
-      bucket,
-      claimTrackingEnabled,
-      metrics: {
-        clockedIn: clockedInCount || (counts?.ongoing ?? 0) || 122,
-        notClockedIn: notClockedInCount || 36,
-        onBreak: onBreakCount || 22,
-        totalScheduled: totalScheduledCount,
-      },
+      logs: visibleRows,
+      range: { start, end },
+      metrics,
       filterOptions: {
         facilities: facilityOptions,
         departments: departmentOptions,
-        statuses: [...statusOptions],
+        statuses: [...STATUS_OPTIONS],
       },
     });
   } catch (err) {

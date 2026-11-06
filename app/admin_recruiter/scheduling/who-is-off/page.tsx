@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Search, Calendar, ChevronDown, ArrowUpDown }
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
 import type { OffRecord } from "@/app/api/admin/scheduling/who-is-off/route";
+import { addEasternDays, easternDateString, formatEastern, startOfEasternWeek } from "@/lib/datetime/eastern";
 
 function offTypeBadge(type: string) {
   switch (type.toLowerCase()) {
@@ -21,76 +22,14 @@ function offTypeBadge(type: string) {
   }
 }
 
-const DEFAULT_DEMO_RECORDS: OffRecord[] = [
-  {
-    id: "o1",
-    workerId: "w-1",
-    name: "Priya Shah",
-    jobRole: "Warehouse Staff",
-    facility: "NorthPoint Warehouse",
-    facilityId: "f1",
-    offType: "Vacation",
-    startDate: "Sept 22, 2026",
-    endDate: "Sept 23, 2026",
-    days: 2,
-  },
-  {
-    id: "o2",
-    workerId: "w-2",
-    name: "Ana Ruiz",
-    jobRole: "Inventory Clerk",
-    facility: "Metro Care Facility",
-    facilityId: "f2",
-    offType: "Sick Leave",
-    startDate: "Sept 22, 2026",
-    endDate: "Sept 26, 2026",
-    days: 4,
-  },
-  {
-    id: "o3",
-    workerId: "w-3",
-    name: "Sophia Mitchell",
-    jobRole: "Maintenance",
-    facility: "Prime Storage Center",
-    facilityId: "f3",
-    offType: "Personal Leave",
-    startDate: "Sept 25, 2026",
-    endDate: "Sept 28, 2026",
-    days: 3,
-  },
-  {
-    id: "o4",
-    workerId: "w-4",
-    name: "Olivia Bennett",
-    jobRole: "Admin Assistant",
-    facility: "Oakridge Warehouse",
-    facilityId: "f4",
-    offType: "Training",
-    startDate: "Sept 25, 2026",
-    endDate: "Sept 26, 2026",
-    days: 1,
-  },
-  {
-    id: "o5",
-    workerId: "w-5",
-    name: "Michael Reynolds",
-    jobRole: "Picker",
-    facility: "NovaCore Facility",
-    facilityId: "f5",
-    offType: "Sick Leave",
-    startDate: "Sept 30, 2026",
-    endDate: "Oct 3, 2026",
-    days: 3,
-  },
-];
-
 export default function WhoIsOffPage() {
   const [loading, setLoading] = useState(true);
-  const [records, setRecords] = useState<OffRecord[]>(DEFAULT_DEMO_RECORDS);
-  const [totalResults, setTotalResults] = useState(100);
+  const [records, setRecords] = useState<OffRecord[]>([]);
+  const [totalResults, setTotalResults] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
+  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
 
   // Filters
   const [searchInput, setSearchInput] = useState("");
@@ -100,10 +39,22 @@ export default function WhoIsOffPage() {
 
   // Options
   const [facilities, setFacilities] = useState<Array<{ id: string; name: string }>>([]);
-  const [offTypes, setOffTypes] = useState<string[]>(["Vacation", "Sick Leave", "Personal Leave", "Training"]);
+  const [offTypes, setOffTypes] = useState<string[]>([
+    "Vacation",
+    "Sick Leave",
+    "Personal Leave",
+    "Training",
+    "Regular Off",
+  ]);
 
-  // Date range
-  const [dateRangeText, setDateRangeText] = useState("Sept 21 - 27, 2026");
+  const weekDays = useMemo(() => {
+    const weekStart = startOfEasternWeek(anchorDate);
+    return Array.from({ length: 7 }, (_, index) => addEasternDays(weekStart, index));
+  }, [anchorDate]);
+
+  const startDate = easternDateString(weekDays[0] ?? new Date());
+  const endDate = easternDateString(weekDays[6] ?? new Date());
+  const dateRangeText = `${formatEastern(startDate)} - ${formatEastern(endDate)}`;
 
   // Sorting
   const [sortField, setSortField] = useState<keyof OffRecord>("name");
@@ -115,36 +66,34 @@ export default function WhoIsOffPage() {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(pageSize),
+        start: startDate,
+        end: endDate,
       });
       if (appliedSearch) params.set("q", appliedSearch);
       if (selectedFacility && selectedFacility !== "all") params.set("facility", selectedFacility);
       if (selectedOffType && selectedOffType !== "all") params.set("offType", selectedOffType);
 
       const res = await fetch(`/api/admin/scheduling/who-is-off?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.records && data.records.length > 0) {
-          setRecords(data.records);
-          setTotalResults(data.total ?? data.records.length);
-          setTotalPages(data.totalPages ?? 1);
-          if (data.facilities?.length) setFacilities(data.facilities);
-          if (data.offTypes?.length) setOffTypes(data.offTypes);
-          return;
-        }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRecords([]);
+        setTotalResults(0);
+        setTotalPages(1);
+        return;
       }
-
-      // Graceful fallback to default records matching Figma
-      setRecords(DEFAULT_DEMO_RECORDS);
-      setTotalResults(100);
-      setTotalPages(20);
+      setRecords(Array.isArray(data.records) ? data.records : []);
+      setTotalResults(typeof data.total === "number" ? data.total : 0);
+      setTotalPages(typeof data.totalPages === "number" ? data.totalPages : 1);
+      if (Array.isArray(data.facilities)) setFacilities(data.facilities);
+      if (Array.isArray(data.offTypes) && data.offTypes.length > 0) setOffTypes(data.offTypes);
     } catch {
-      setRecords(DEFAULT_DEMO_RECORDS);
-      setTotalResults(100);
-      setTotalPages(20);
+      setRecords([]);
+      setTotalResults(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, appliedSearch, selectedFacility, selectedOffType]);
+  }, [page, pageSize, appliedSearch, selectedFacility, selectedOffType, startDate, endDate]);
 
   useEffect(() => {
     void loadData();
@@ -207,6 +156,10 @@ export default function WhoIsOffPage() {
               type="button"
               className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F1F5F9]"
               aria-label="Previous range"
+              onClick={() => {
+                setPage(1);
+                setAnchorDate((current) => addEasternDays(current, -7));
+              }}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -214,6 +167,10 @@ export default function WhoIsOffPage() {
               type="button"
               className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F1F5F9]"
               aria-label="Next range"
+              onClick={() => {
+                setPage(1);
+                setAnchorDate((current) => addEasternDays(current, 7));
+              }}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -258,7 +215,7 @@ export default function WhoIsOffPage() {
             >
               <option value="all">Facilities • All</option>
               {facilities.map((f) => (
-                <option key={f.id} value={f.name}>
+                <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
               ))}
@@ -366,8 +323,8 @@ export default function WhoIsOffPage() {
                   </td>
                 </tr>
               ) : (
-                sortedRecords.map((item, idx) => (
-                  <tr key={idx} className="transition-colors hover:bg-[#F8FAFC]/70">
+                sortedRecords.map((item) => (
+                  <tr key={item.id} className="transition-colors hover:bg-[#F8FAFC]/70">
                     <td className="px-5 py-4 font-semibold text-sm text-[#0F172A]">
                       {item.name}
                     </td>
@@ -382,8 +339,8 @@ export default function WhoIsOffPage() {
                         {item.offType}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-sm text-[#334155]">{item.startDate}</td>
-                    <td className="px-5 py-4 text-sm text-[#334155]">{item.endDate}</td>
+                    <td className="px-5 py-4 text-sm text-[#334155]">{formatEastern(item.startDate)}</td>
+                    <td className="px-5 py-4 text-sm text-[#334155]">{formatEastern(item.endDate)}</td>
                     <td className="px-5 py-4 text-right font-medium text-sm text-[#0F172A]">
                       {item.days}
                     </td>

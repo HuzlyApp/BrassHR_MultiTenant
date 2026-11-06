@@ -20,6 +20,13 @@ import toast from "react-hot-toast";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import type { TimesheetRow, TimesheetMetrics, DayDetail } from "@/app/api/admin/timesheets/route";
 
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function statusBadge(status: string) {
   switch (status.toLowerCase()) {
     case "complete":
@@ -36,7 +43,7 @@ function statusBadge(status: string) {
 export default function TimesheetsPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<TimesheetRow[]>([]);
-  const [totalResults, setTotalResults] = useState(100);
+  const [totalResults, setTotalResults] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
@@ -49,44 +56,26 @@ export default function TimesheetsPage() {
   const [selectedJobTitle, setSelectedJobTitle] = useState("all");
 
   // Filter options
-  const [facilities, setFacilities] = useState<string[]>([
-    "NorthPoint Warehouse",
-    "Metro Care Facility",
-    "Prime Storage Center",
-    "Oakridge Warehouse",
-    "NovaCore Facility",
-  ]);
-  const [departments, setDepartments] = useState<string[]>([
-    "Warehouse",
-    "Inventory",
-    "Maintenance",
-    "Administration",
-    "Logistics",
-    "Operations",
-  ]);
-  const [jobTitles, setJobTitles] = useState<string[]>([
-    "Warehouse Staff",
-    "Inventory Clerk",
-    "Maintenance",
-    "Admin Assistant",
-    "Picker",
-    "Operations Manager",
-  ]);
+  const [facilities, setFacilities] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [jobTitles, setJobTitles] = useState<string[]>([]);
 
   // Metrics
   const [metrics, setMetrics] = useState<TimesheetMetrics>({
-    totalHours: "257h 30m",
-    employees: 40,
-    withOvertime: 22,
-    incomplete: 8,
+    totalHours: "0h",
+    employees: 0,
+    withOvertime: 0,
+    incomplete: 0,
   });
 
   // Week navigation
   const [weekOffset, setWeekOffset] = useState(0);
   const weekDates = useMemo(() => {
-    // Base week: Sept 21 - 27, 2026
-    const baseMon = new Date(2026, 8, 21); // Month is 0-indexed: 8 is September
-    baseMon.setDate(baseMon.getDate() + weekOffset * 7);
+    const today = new Date();
+    const baseMon = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const weekday = baseMon.getDay();
+    const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+    baseMon.setDate(baseMon.getDate() + mondayOffset + weekOffset * 7);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
@@ -100,7 +89,7 @@ export default function TimesheetsPage() {
   }, [weekOffset]);
 
   const dateRangeLabel = useMemo(() => {
-    if (weekDates.length < 7) return "Sept 21 - 27, 2026";
+    if (weekDates.length < 7) return "";
     const start = weekDates[0].monthDay;
     const end = weekDates[6].monthDay;
     const year = weekDates[6].fullDate.getFullYear();
@@ -121,6 +110,8 @@ export default function TimesheetsPage() {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(pageSize),
+        start: toIsoDate(weekDates[0].fullDate),
+        end: toIsoDate(weekDates[6].fullDate),
       });
       if (appliedSearch) params.set("q", appliedSearch);
       if (selectedFacility && selectedFacility !== "all") params.set("facility", selectedFacility);
@@ -130,23 +121,24 @@ export default function TimesheetsPage() {
       const res = await fetch(`/api/admin/timesheets?${params.toString()}`);
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (data.timesheets && data.timesheets.length > 0) {
-          setRows(data.timesheets);
-          setTotalResults(data.total ?? data.timesheets.length);
-          setTotalPages(data.totalPages ?? 1);
-          if (data.metrics) setMetrics(data.metrics);
-          if (data.filterOptions?.facilities?.length) setFacilities(data.filterOptions.facilities);
-          if (data.filterOptions?.departments?.length) setDepartments(data.filterOptions.departments);
-          if (data.filterOptions?.jobTitles?.length) setJobTitles(data.filterOptions.jobTitles);
-          return;
-        }
+        setRows(data.timesheets ?? []);
+        setTotalResults(data.total ?? 0);
+        setTotalPages(data.totalPages ?? 1);
+        if (data.metrics) setMetrics(data.metrics);
+        setFacilities(data.filterOptions?.facilities ?? []);
+        setDepartments(data.filterOptions?.departments ?? []);
+        setJobTitles(data.filterOptions?.jobTitles ?? []);
+      } else {
+        setRows([]);
+        setTotalResults(0);
       }
     } catch {
-      // Graceful fallback to default rows
+      setRows([]);
+      setTotalResults(0);
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, appliedSearch, selectedFacility, selectedDepartment, selectedJobTitle]);
+  }, [page, pageSize, appliedSearch, selectedFacility, selectedDepartment, selectedJobTitle, weekDates]);
 
   useEffect(() => {
     void loadData();
@@ -250,7 +242,10 @@ export default function TimesheetsPage() {
           <div className="flex items-center rounded-lg border border-[#E2E8F0] bg-white p-0.5 shadow-sm">
             <button
               type="button"
-              onClick={() => setWeekOffset(weekOffset - 1)}
+              onClick={() => {
+                setWeekOffset(weekOffset - 1);
+                setPage(1);
+              }}
               className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
               aria-label="Previous week"
             >
@@ -264,7 +259,10 @@ export default function TimesheetsPage() {
 
             <button
               type="button"
-              onClick={() => setWeekOffset(weekOffset + 1)}
+              onClick={() => {
+                setWeekOffset(weekOffset + 1);
+                setPage(1);
+              }}
               className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
               aria-label="Next week"
             >
@@ -718,7 +716,9 @@ export default function TimesheetsPage() {
               </div>
               <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-center">
                 <div className="text-xs text-[#64748B]">Days Worked</div>
-                <div className="mt-1 text-lg font-bold text-[#0F172A]">5 / 7</div>
+                <div className="mt-1 text-lg font-bold text-[#0F172A]">
+                  {selectedTimesheet.daysWorked} / {selectedTimesheet.daysDetails.length || 7}
+                </div>
               </div>
             </div>
 
@@ -736,15 +736,7 @@ export default function TimesheetsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]">
-                  {(selectedTimesheet.daysDetails ?? [
-                    { day: "Mon", date: "Sept 21", hours: selectedTimesheet.dailyHours.mon, clockIn: "08:00 AM", clockOut: "04:30 PM", breaks: "30m" },
-                    { day: "Tue", date: "Sept 22", hours: selectedTimesheet.dailyHours.tue, clockIn: "08:00 AM", clockOut: "04:30 PM", breaks: "30m" },
-                    { day: "Wed", date: "Sept 23", hours: selectedTimesheet.dailyHours.wed, clockIn: "08:00 AM", clockOut: "04:30 PM", breaks: "30m" },
-                    { day: "Thu", date: "Sept 24", hours: selectedTimesheet.dailyHours.thu, clockIn: "08:00 AM", clockOut: "04:30 PM", breaks: "30m" },
-                    { day: "Fri", date: "Sept 25", hours: selectedTimesheet.dailyHours.fri, clockIn: "08:00 AM", clockOut: "04:30 PM", breaks: "30m" },
-                    { day: "Sat", date: "Sept 26", hours: selectedTimesheet.dailyHours.sat },
-                    { day: "Sun", date: "Sept 27", hours: selectedTimesheet.dailyHours.sun },
-                  ]).map((item: DayDetail, i: number) => (
+                  {selectedTimesheet.daysDetails.map((item: DayDetail, i: number) => (
                     <tr key={i} className="hover:bg-[#F8FAFC]">
                       <td className="px-3 py-2.5 font-medium text-[#0F172A]">
                         {item.day} <span className="text-[#94A3B8]">({item.date})</span>

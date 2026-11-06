@@ -5,6 +5,14 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const OFF_TYPES = ["Vacation", "Sick Leave", "Personal Leave", "Training", "Regular Off"] as const;
+
+export type OffType = (typeof OFF_TYPES)[number];
+
 export type OffRecord = {
   id: string;
   workerId: string;
@@ -12,205 +20,180 @@ export type OffRecord = {
   jobRole: string;
   facility: string;
   facilityId: string | null;
-  offType: "Vacation" | "Sick Leave" | "Personal Leave" | "Training" | "Regular Off";
+  offType: OffType;
   startDate: string;
   endDate: string;
   days: number;
 };
 
-// Seed/generator for demo data when specific PTO rows don't exist yet, grounded on real workers
-const OFF_TYPES: Array<"Vacation" | "Sick Leave" | "Personal Leave" | "Training"> = [
-  "Vacation",
-  "Sick Leave",
-  "Personal Leave",
-  "Training",
-];
+type WorkerEmbed = {
+  first_name: string | null;
+  last_name: string | null;
+  job_role: string | null;
+};
+
+type FacilityEmbed = {
+  name: string | null;
+};
+
+type TimeOffRow = {
+  id: string;
+  worker_id: string;
+  facility_id: string | null;
+  off_type: string;
+  start_date: string;
+  end_date: string;
+  days: number | null;
+  worker: WorkerEmbed | WorkerEmbed[] | null;
+  facility: FacilityEmbed | FacilityEmbed[] | null;
+};
+
+function parseDateParam(value: string | null, label: string): { ok: true; value: string } | { ok: false; error: string } {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return { ok: false, error: `Missing ${label}` };
+  if (!DATE_RE.test(trimmed)) return { ok: false, error: `Invalid ${label}` };
+  return { ok: true, value: trimmed };
+}
+
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function workerName(worker: WorkerEmbed | null): string {
+  const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim();
+  return name || "Worker";
+}
+
+function inclusiveDays(startDate: string, endDate: string, stored: number | null): number {
+  if (typeof stored === "number" && Number.isFinite(stored) && stored > 0) return stored;
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 1;
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+function isOffType(value: string): value is OffType {
+  return (OFF_TYPES as readonly string[]).includes(value);
+}
+
+function emptyPayload(page: number, limit: number) {
+  return {
+    records: [] as OffRecord[],
+    total: 0,
+    page,
+    limit,
+    totalPages: 1,
+    facilities: [] as Array<{ id: string; name: string }>,
+    offTypes: OFF_TYPES,
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireStaffApiSession();
+    if (auth instanceof NextResponse) return auth;
+
     const searchParams = req.nextUrl.searchParams;
     const q = searchParams.get("q")?.trim().toLowerCase() ?? "";
     const facilityFilter = searchParams.get("facility")?.trim() ?? "";
     const offTypeFilter = searchParams.get("offType")?.trim() ?? "";
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "5", 10)));
-    const startDate = searchParams.get("start")?.trim() || "2026-09-21";
-    const endDate = searchParams.get("end")?.trim() || "2026-09-27";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "5", 10) || 5));
+
+    const startCheck = parseDateParam(searchParams.get("start"), "start");
+    if (!startCheck.ok) {
+      return NextResponse.json({ error: startCheck.error }, { status: 400 });
+    }
+    const endCheck = parseDateParam(searchParams.get("end"), "end");
+    if (!endCheck.ok) {
+      return NextResponse.json({ error: endCheck.error }, { status: 400 });
+    }
+    if (startCheck.value > endCheck.value) {
+      return NextResponse.json({ error: "Start date must be on or before end date." }, { status: 400 });
+    }
+
+    const scope = await resolveStaffTenantScope(auth.authUser);
+    if (scope.mode !== "scoped") {
+      return NextResponse.json(emptyPayload(page, limit));
+    }
 
     const supabase = createServiceRoleClient();
-    let tenantId: string | null = null;
-
-    try {
-      const auth = await requireStaffApiSession();
-      if (!(auth instanceof NextResponse)) {
-        const scope = await resolveStaffTenantScope(auth.authUser);
-        if (scope.mode === "scoped") {
-          tenantId = scope.tenantId;
-        }
-      }
-    } catch {
-      // Allow fallback if session cannot be resolved
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable. Please try again later." }, { status: 503 });
     }
 
-    let workerRows: Array<{ id: string; first_name?: string | null; last_name?: string | null; job_role?: string | null }> = [];
-    let facilityRows: Array<{ id: string; name?: string | null }> = [];
+    let timeOffQuery = supabase
+      .from("worker_time_off")
+      .select(
+        "id, worker_id, facility_id, off_type, start_date, end_date, days, worker!inner(first_name, last_name, job_role), facility(name)"
+      )
+      .eq("tenant_id", scope.tenantId)
+      .lte("start_date", endCheck.value)
+      .gte("end_date", startCheck.value)
+      .order("start_date", { ascending: true })
+      .limit(1000);
 
-    if (supabase && tenantId) {
-      try {
-        const [wRes, fRes] = await Promise.all([
-          supabase
-            .from("worker")
-            .select("id, first_name, last_name, job_role")
-            .eq("tenant_id", tenantId)
-            .limit(100),
-          supabase
-            .from("facility")
-            .select("id, name")
-            .eq("tenant_id", tenantId),
-        ]);
-        if (wRes.data) workerRows = wRes.data;
-        if (fRes.data) facilityRows = fRes.data;
-      } catch (err) {
-        console.error("[who-is-off] db query error", err);
-      }
+    if (facilityFilter && facilityFilter !== "all" && UUID_RE.test(facilityFilter)) {
+      timeOffQuery = timeOffQuery.eq("facility_id", facilityFilter);
+    }
+    if (offTypeFilter && offTypeFilter !== "all" && isOffType(offTypeFilter)) {
+      timeOffQuery = timeOffQuery.eq("off_type", offTypeFilter);
     }
 
-    const facilities = (facilityRows ?? []).map((f) => ({
-      id: String(f.id),
-      name: f.name || "Main Facility",
+    const [{ data: timeOffData, error: timeOffError }, { data: facilityData, error: facilityError }] =
+      await Promise.all([
+        timeOffQuery,
+        supabase.from("facility").select("id, name").eq("tenant_id", scope.tenantId).order("name", { ascending: true }),
+      ]);
+
+    if (timeOffError) throw timeOffError;
+    if (facilityError) throw facilityError;
+
+    const facilities = (facilityData ?? []).map((facility) => ({
+      id: String(facility.id),
+      name: facility.name?.trim() || "Facility",
     }));
 
-    const workers = (workerRows ?? []).map((w) => ({
-      id: String(w.id),
-      name: `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Worker",
-      jobRole: w.job_role || "Warehouse Staff",
-    }));
-
-    // If tenant has few or 0 workers, provide realistic records matching the figma screen
-    const baseList: Array<{
-      workerId: string;
-      name: string;
-      jobRole: string;
-      facility: string;
-      facilityId: string | null;
-      offType: "Vacation" | "Sick Leave" | "Personal Leave" | "Training";
-      startDate: string;
-      endDate: string;
-      days: number;
-    }> = [
-      {
-        workerId: workers[0]?.id || "w-1",
-        name: workers[0]?.name || "Priya Shah",
-        jobRole: workers[0]?.jobRole || "Warehouse Staff",
-        facility: facilities[0]?.name || "NorthPoint Warehouse",
-        facilityId: facilities[0]?.id || null,
-        offType: "Vacation",
-        startDate: "Sept 22, 2026",
-        endDate: "Sept 23, 2026",
-        days: 2,
-      },
-      {
-        workerId: workers[1]?.id || "w-2",
-        name: workers[1]?.name || "Ana Ruiz",
-        jobRole: workers[1]?.jobRole || "Inventory Clerk",
-        facility: facilities[1]?.name || "Metro Care Facility",
-        facilityId: facilities[1]?.id || null,
-        offType: "Sick Leave",
-        startDate: "Sept 22, 2026",
-        endDate: "Sept 26, 2026",
-        days: 4,
-      },
-      {
-        workerId: workers[2]?.id || "w-3",
-        name: workers[2]?.name || "Sophia Mitchell",
-        jobRole: workers[2]?.jobRole || "Maintenance",
-        facility: facilities[0]?.name || "Prime Storage Center",
-        facilityId: facilities[0]?.id || null,
-        offType: "Personal Leave",
-        startDate: "Sept 25, 2026",
-        endDate: "Sept 28, 2026",
-        days: 3,
-      },
-      {
-        workerId: workers[3]?.id || "w-4",
-        name: workers[3]?.name || "Olivia Bennett",
-        jobRole: workers[3]?.jobRole || "Admin Assistant",
-        facility: facilities[1]?.name || "Oakridge Warehouse",
-        facilityId: facilities[1]?.id || null,
-        offType: "Training",
-        startDate: "Sept 25, 2026",
-        endDate: "Sept 26, 2026",
-        days: 1,
-      },
-      {
-        workerId: workers[4]?.id || "w-5",
-        name: workers[4]?.name || "Michael Reynolds",
-        jobRole: workers[4]?.jobRole || "Picker",
-        facility: facilities[0]?.name || "NovaCore Facility",
-        facilityId: facilities[0]?.id || null,
-        offType: "Sick Leave",
-        startDate: "Sept 30, 2026",
-        endDate: "Oct 3, 2026",
-        days: 3,
-      },
-    ];
-
-    // Additional workers appended dynamically from tenant if available
-    if (workers.length > 5) {
-      for (let i = 5; i < workers.length; i++) {
-        const w = workers[i];
-        const fac = facilities[i % (facilities.length || 1)] || { id: null, name: "Main Facility" };
-        const offType = OFF_TYPES[i % OFF_TYPES.length];
-        baseList.push({
-          workerId: w.id,
-          name: w.name,
-          jobRole: w.jobRole,
-          facility: fac.name,
-          facilityId: fac.id,
+    const records = ((timeOffData ?? []) as TimeOffRow[])
+      .map((row) => {
+        const worker = one(row.worker);
+        const facility = one(row.facility);
+        const offType = isOffType(row.off_type) ? row.off_type : "Regular Off";
+        const startDate = String(row.start_date).slice(0, 10);
+        const endDate = String(row.end_date).slice(0, 10);
+        return {
+          id: String(row.id),
+          workerId: String(row.worker_id),
+          name: workerName(worker),
+          jobRole: worker?.job_role?.trim() || "—",
+          facility: facility?.name?.trim() || "—",
+          facilityId: row.facility_id ? String(row.facility_id) : null,
           offType,
-          startDate: "Sept 24, 2026",
-          endDate: "Sept 27, 2026",
-          days: 3,
-        });
-      }
-    }
+          startDate,
+          endDate,
+          days: inclusiveDays(startDate, endDate, row.days),
+        } satisfies OffRecord;
+      })
+      .filter((record) => {
+        if (!q) return true;
+        return record.name.toLowerCase().includes(q) || record.jobRole.toLowerCase().includes(q);
+      });
 
-    // Apply filtering
-    let filtered = baseList.filter((item) => {
-      if (q && !item.name.toLowerCase().includes(q) && !item.jobRole.toLowerCase().includes(q)) {
-        return false;
-      }
-      if (facilityFilter && facilityFilter !== "all" && item.facility !== facilityFilter && item.facilityId !== facilityFilter) {
-        return false;
-      }
-      if (offTypeFilter && offTypeFilter !== "all" && item.offType.toLowerCase() !== offTypeFilter.toLowerCase()) {
-        return false;
-      }
-      return true;
-    });
-
-    const total = filtered.length;
+    const total = records.length;
     const startIndex = (page - 1) * limit;
-    const paginated = filtered.slice(startIndex, startIndex + limit);
 
     return NextResponse.json({
-      records: paginated,
+      records: records.slice(startIndex, startIndex + limit),
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit) || 1,
-      facilities: facilities.length > 0 ? facilities : [
-        { id: "f1", name: "NorthPoint Warehouse" },
-        { id: "f2", name: "Metro Care Facility" },
-        { id: "f3", name: "Prime Storage Center" },
-        { id: "f4", name: "Oakridge Warehouse" },
-        { id: "f5", name: "NovaCore Facility" },
-      ],
-      offTypes: ["Vacation", "Sick Leave", "Personal Leave", "Training"],
+      facilities,
+      offTypes: OFF_TYPES,
     });
   } catch (err) {
     console.error("[who-is-off GET]", err);
     return NextResponse.json({ error: "Failed to load time-off records." }, { status: 500 });
   }
 }
-

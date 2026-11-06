@@ -13,7 +13,6 @@ import {
   Coffee,
   CalendarCheck,
   MoreVertical,
-  CheckCircle,
   MapPin,
   ArrowUpDown,
 } from "lucide-react";
@@ -21,6 +20,7 @@ import toast from "react-hot-toast";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { ScrollableFilterSelect } from "@/app/admin_recruiter/components/ScrollableFilterSelect";
 import { adminWorkerProfileHref } from "@/app/admin_recruiter/workers/worker-profile-links";
+import { addEasternDays, easternDateString, startOfEasternWeek } from "@/lib/datetime/eastern";
 
 type AttendanceRowItem = {
   id: string;
@@ -30,6 +30,7 @@ type AttendanceRowItem = {
   job_role?: string | null;
   job_requisition_id?: string | null;
   facility_name?: string | null;
+  department_name?: string | null;
   scheduled_shift?: string | null;
   clock_in_at: string;
   clock_out_at: string | null;
@@ -45,90 +46,18 @@ type AttendanceRowItem = {
   claimed_at?: string | null;
 };
 
-// Demo rows matching Figma screen 3 when DB logs are empty.
-// Facility / scheduled shift stay empty — those are not on attendance logs yet.
-const DEMO_ROWS: AttendanceRowItem[] = [
-  {
-    id: "att-1",
-    worker_id: "w-1",
-    applicant_name: "Priya Shah",
-    applicant_email: "priya.shah@example.com",
-    job_role: "Warehouse Staff",
-    facility_name: undefined,
-    scheduled_shift: undefined,
-    clock_in_at: "2026-09-21T05:58:00Z",
-    clock_out_at: null,
-    clock_in_formatted: "5:58 AM",
-    clock_out_formatted: "—",
-    total_seconds: 15120,
-    hours_formatted: "4h 12m",
-    computed_status: "On Shift",
-  },
-  {
-    id: "att-2",
-    worker_id: "w-2",
-    applicant_name: "Ana Ruiz",
-    applicant_email: "ana.ruiz@example.com",
-    job_role: "Inventory Clerk",
-    facility_name: undefined,
-    scheduled_shift: undefined,
-    clock_in_at: "2026-09-21T08:00:00Z",
-    clock_out_at: null,
-    clock_in_formatted: "—",
-    clock_out_formatted: "—",
-    total_seconds: 0,
-    hours_formatted: "0m",
-    computed_status: "Not Clocked In",
-  },
-  {
-    id: "att-3",
-    worker_id: "w-3",
-    applicant_name: "Sophia Mitchell",
-    applicant_email: "sophia.mitchell@example.com",
-    job_role: "Maintenance",
-    facility_name: undefined,
-    scheduled_shift: undefined,
-    clock_in_at: "2026-09-21T13:24:00Z",
-    clock_out_at: null,
-    clock_in_formatted: "1:24 AM",
-    clock_out_formatted: "—",
-    total_seconds: 18000,
-    hours_formatted: "5h",
-    computed_status: "On Shift",
-  },
-  {
-    id: "att-4",
-    worker_id: "w-4",
-    applicant_name: "Olivia Bennett",
-    applicant_email: "olivia.bennett@example.com",
-    job_role: "Admin Assistant",
-    facility_name: undefined,
-    scheduled_shift: undefined,
-    clock_in_at: "2026-09-21T07:24:00Z",
-    clock_out_at: "2026-09-21T17:00:00Z",
-    clock_in_formatted: "7:24 AM",
-    clock_out_formatted: "5:00 PM",
-    total_seconds: 28800,
-    hours_formatted: "8h",
-    computed_status: "Completed",
-  },
-  {
-    id: "att-5",
-    worker_id: "w-5",
-    applicant_name: "Michael Reynolds",
-    applicant_email: "michael.reynolds@example.com",
-    job_role: "Picker",
-    facility_name: undefined,
-    scheduled_shift: undefined,
-    clock_in_at: "2026-09-21T13:34:00Z",
-    clock_out_at: null,
-    clock_in_formatted: "1:34 PM",
-    clock_out_formatted: "—",
-    total_seconds: 10800,
-    hours_formatted: "3h",
-    computed_status: "On Break",
-  },
-];
+const EMPTY_METRICS = {
+  clockedIn: 0,
+  notClockedIn: 0,
+  onBreak: 0,
+  totalScheduled: 0,
+};
+
+function weekRangeLabel(start: Date, end: Date): string {
+  const firstLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+  const lastLabel = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+  return `${firstLabel} - ${lastLabel}`;
+}
 
 function statusBadge(status?: string) {
   switch (status) {
@@ -148,12 +77,8 @@ function statusBadge(status?: string) {
 export default function ClockInsAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<AttendanceRowItem[]>([]);
-  const [metrics, setMetrics] = useState({
-    clockedIn: 122,
-    notClockedIn: 36,
-    onBreak: 22,
-    totalScheduled: 122,
-  });
+  const [metrics, setMetrics] = useState(EMPTY_METRICS);
+  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
 
   // Filter dropdown options (filled from API)
   const [facilities, setFacilities] = useState<string[]>([]);
@@ -172,13 +97,15 @@ export default function ClockInsAttendancePage() {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
 
-  // Date range
-  const [dateRangeText, setDateRangeText] = useState("Sept 21 - 27, 2026");
+  const weekStart = useMemo(() => startOfEasternWeek(anchorDate), [anchorDate]);
+  const weekEnd = useMemo(() => addEasternDays(weekStart, 6), [weekStart]);
+  const rangeStart = easternDateString(weekStart);
+  const rangeEnd = easternDateString(weekEnd);
+  const dateRangeText = weekRangeLabel(weekStart, weekEnd);
 
   // Pagination
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const [totalResults, setTotalResults] = useState(100);
 
   // Sorting
   const [sortField, setSortField] = useState<keyof AttendanceRowItem>("applicant_name");
@@ -190,68 +117,42 @@ export default function ClockInsAttendancePage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ start: rangeStart, end: rangeEnd });
       if (appliedSearch) params.set("q", appliedSearch);
       if (selectedFacility && selectedFacility !== "all") params.set("facility", selectedFacility);
       if (selectedDepartment && selectedDepartment !== "all") params.set("department", selectedDepartment);
       if (selectedStatus && selectedStatus !== "all") params.set("status", selectedStatus);
 
       const res = await fetch(`/api/admin/applicant-attendance?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-
-        const loadedLogs = (data.logs ?? []) as AttendanceRowItem[];
-        if (loadedLogs.length > 0) {
-          setRows(loadedLogs);
-          setTotalResults(loadedLogs.length);
-        } else {
-          // Fall back to DEMO_ROWS matching Figma screen
-          setRows(DEMO_ROWS);
-          setTotalResults(100);
-        }
-
-        if (data.metrics) {
-          setMetrics(data.metrics);
-        }
-        const filterOptions = data.filterOptions as
-          | { facilities?: string[]; departments?: string[]; statuses?: string[] }
-          | undefined;
-        setFacilities(
-          Array.isArray(filterOptions?.facilities)
-            ? filterOptions.facilities.filter(Boolean)
-            : []
-        );
-        setDepartments(
-          Array.isArray(filterOptions?.departments)
-            ? filterOptions.departments.filter(Boolean)
-            : []
-        );
-        if (Array.isArray(filterOptions?.statuses) && filterOptions.statuses.length > 0) {
-          setStatuses(filterOptions.statuses.filter(Boolean));
-        }
-      } else {
-        setRows(DEMO_ROWS);
-        setTotalResults(100);
-        setFacilities([]);
-        setDepartments(
-          Array.from(
-            new Set(DEMO_ROWS.map((row) => row.job_role?.trim() || "").filter(Boolean))
-          )
-        );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to load clock-ins");
       }
-    } catch {
-      setRows(DEMO_ROWS);
-      setTotalResults(100);
-      setFacilities([]);
-      setDepartments(
-        Array.from(
-          new Set(DEMO_ROWS.map((row) => row.job_role?.trim() || "").filter(Boolean))
-        )
+
+      setRows((data.logs ?? []) as AttendanceRowItem[]);
+      setMetrics(data.metrics ?? EMPTY_METRICS);
+      const filterOptions = data.filterOptions as
+        | { facilities?: string[]; departments?: string[]; statuses?: string[] }
+        | undefined;
+      setFacilities(
+        Array.isArray(filterOptions?.facilities) ? filterOptions.facilities.filter(Boolean) : []
       );
+      setDepartments(
+        Array.isArray(filterOptions?.departments) ? filterOptions.departments.filter(Boolean) : []
+      );
+      if (Array.isArray(filterOptions?.statuses) && filterOptions.statuses.length > 0) {
+        setStatuses(filterOptions.statuses.filter(Boolean));
+      }
+    } catch (err) {
+      setRows([]);
+      setMetrics(EMPTY_METRICS);
+      setFacilities([]);
+      setDepartments([]);
+      toast.error(err instanceof Error ? err.message : "Failed to load clock-ins");
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch, selectedFacility, selectedDepartment, selectedStatus]);
+  }, [appliedSearch, rangeEnd, rangeStart, selectedDepartment, selectedFacility, selectedStatus]);
 
   useEffect(() => {
     void loadData();
@@ -282,7 +183,8 @@ export default function ClockInsAttendancePage() {
         (r) =>
           r.applicant_name?.toLowerCase().includes(q) ||
           r.job_role?.toLowerCase().includes(q) ||
-          r.facility_name?.toLowerCase().includes(q)
+          r.facility_name?.toLowerCase().includes(q) ||
+          r.department_name?.toLowerCase().includes(q)
       );
     }
 
@@ -291,7 +193,7 @@ export default function ClockInsAttendancePage() {
     }
 
     if (selectedDepartment && selectedDepartment !== "all") {
-      result = result.filter((r) => r.job_role === selectedDepartment);
+      result = result.filter((r) => r.department_name === selectedDepartment);
     }
 
     if (selectedStatus && selectedStatus !== "all") {
@@ -367,6 +269,10 @@ export default function ClockInsAttendancePage() {
 
             <button
               type="button"
+              onClick={() => {
+                setAnchorDate((current) => addEasternDays(current, -7));
+                setPage(1);
+              }}
               className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F1F5F9]"
               aria-label="Previous date range"
             >
@@ -374,6 +280,10 @@ export default function ClockInsAttendancePage() {
             </button>
             <button
               type="button"
+              onClick={() => {
+                setAnchorDate((current) => addEasternDays(current, 7));
+                setPage(1);
+              }}
               className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F1F5F9]"
               aria-label="Next date range"
             >
@@ -595,7 +505,12 @@ export default function ClockInsAttendancePage() {
               ) : paginatedRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-sm text-[#64748B]">
-                    No attendance records match your filter criteria.
+                    {appliedSearch ||
+                    selectedFacility !== "all" ||
+                    selectedDepartment !== "all" ||
+                    selectedStatus !== "all"
+                      ? "No clock-ins match these filters."
+                      : "No scheduled shifts or clock-ins for this week."}
                   </td>
                 </tr>
               ) : (
