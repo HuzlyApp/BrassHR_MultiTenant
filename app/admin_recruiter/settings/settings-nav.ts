@@ -274,7 +274,7 @@ export const SETTINGS_SECTION_META: Record<
   },
   call: {
     title: "Call",
-    description: "Place an outbound call through Dialpad.",
+    description: "Place an outbound call and review recent Dialpad call logs.",
   },
   "admin-console": {
     title: "Admin Console",

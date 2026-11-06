@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { initiateDialpadCall, listDialpadUsers, parseDialpadCaller } from "@/lib/dialpad/client";
+import { initiateDialpadCall, listDialpadCalls, listDialpadUsers, parseDialpadCall, parseDialpadCaller } from "@/lib/dialpad/client";
 
 describe("Dialpad client", () => {
   afterEach(() => {
@@ -72,6 +72,72 @@ describe("Dialpad client", () => {
       expect.objectContaining({
         method: "POST",
         body: '{"phone_number":"+14155550123","user_id":4943251099926528}',
+      })
+    );
+  });
+
+  it("reads a concluded call into a log row", () => {
+    expect(
+      parseDialpadCall({
+        call_id: "6206773687132160",
+        direction: "inbound",
+        state: "hangup",
+        date_started: 1762430400000,
+        duration: 45000,
+        external_number: "+19194519662",
+        contact: { name: "Alex Ng", phone: "+19194519662" },
+        target: { name: "ZipStaff Main Ops", type: "user" },
+      })
+    ).toEqual({
+      id: "6206773687132160",
+      direction: "inbound",
+      state: "hangup",
+      startedAt: new Date(1762430400000).toISOString(),
+      durationSeconds: 45,
+      externalNumber: "+19194519662",
+      contactName: "Alex Ng",
+      targetName: "ZipStaff Main Ops",
+    });
+  });
+
+  it("lists concluded calls from the last window", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          items: [
+            {
+              call_id: 6206773687132160,
+              direction: "outbound",
+              state: "missed",
+              date_started: 1762430400000,
+              external_number: "+19194519662",
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const calls = await listDialpadCalls("test-key", 1762000000000);
+
+    expect(calls).toEqual([
+      {
+        id: "6206773687132160",
+        direction: "outbound",
+        state: "missed",
+        startedAt: new Date(1762430400000).toISOString(),
+        durationSeconds: null,
+        externalNumber: "+19194519662",
+        contactName: null,
+        targetName: null,
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        href: "https://dialpad.com/api/v2/call?started_after=1762000000000",
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer test-key" }),
       })
     );
   });

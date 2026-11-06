@@ -8,6 +8,7 @@ import {
   postDialpadCti,
 } from "@/lib/dialpad/cti";
 import { formatPhoneDisplay, toE164 } from "@/lib/dialpad/phone";
+import type { DialpadCallLog } from "@/lib/dialpad/client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
 
@@ -18,6 +19,32 @@ type Caller = {
 
 const inputClassName =
   "h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] outline-none focus-visible:ring-2 focus-visible:ring-[#012352]/30 disabled:bg-[#F8FAFC]";
+
+function callStateLabel(state: string): string {
+  if (state === "hangup" || state === "transcription" || state === "recording") return "Ended";
+  if (state === "voicemail") return "Voicemail";
+  if (state === "missed") return "Missed";
+  return state.slice(0, 1).toUpperCase() + state.slice(1);
+}
+
+function callDurationLabel(seconds: number | null): string {
+  if (seconds == null || seconds <= 0) return "No answer";
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes === 0) return `${remainder}s`;
+  return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
+}
+
+function callWhenLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
 type ActiveCall = {
   phoneLabel: string;
@@ -32,6 +59,9 @@ export default function CallSettingsPanel() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(true);
   const [callers, setCallers] = useState<Caller[]>([]);
+  const [callLogs, setCallLogs] = useState<DialpadCallLog[]>([]);
+  const [callLogsError, setCallLogsError] = useState<string | null>(null);
+  const [refreshingLogs, setRefreshingLogs] = useState(false);
   const [dialpadUserId, setDialpadUserId] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -42,18 +72,35 @@ export default function CallSettingsPanel() {
     callRef.current = call;
   }, [call]);
 
+  function applyDialpadPayload(payload: {
+    callers?: Caller[];
+    calls?: DialpadCallLog[];
+    callsError?: string | null;
+  }) {
+    setCallers(payload.callers ?? []);
+    setCallLogs(payload.calls ?? []);
+    setCallLogsError(payload.callsError ?? null);
+  }
+
   useEffect(() => {
     let cancelled = false;
     void fetch("/api/admin/dialpad", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json().catch(() => ({}))) as {
           callers?: Caller[];
+          calls?: DialpadCallLog[];
+          callsError?: string | null;
+          error?: string;
         };
-        if (!response.ok || cancelled) return;
-        setCallers(payload.callers ?? []);
+        if (cancelled) return;
+        if (!response.ok) {
+          setCallLogsError(payload.error ?? "Could not load Dialpad call logs.");
+          return;
+        }
+        applyDialpadPayload(payload);
       })
       .catch(() => {
-        /* The in-page dialer can still place a call without the company user list. */
+        if (!cancelled) setCallLogsError("Could not load Dialpad call logs.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -62,6 +109,26 @@ export default function CallSettingsPanel() {
       cancelled = true;
     };
   }, []);
+
+  function refreshCallLogs() {
+    setRefreshingLogs(true);
+    void fetch("/api/admin/dialpad", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as {
+          callers?: Caller[];
+          calls?: DialpadCallLog[];
+          callsError?: string | null;
+          error?: string;
+        };
+        if (!response.ok) {
+          setCallLogsError(payload.error ?? "Could not load Dialpad call logs.");
+          return;
+        }
+        applyDialpadPayload(payload);
+      })
+      .catch(() => setCallLogsError("Could not load Dialpad call logs."))
+      .finally(() => setRefreshingLogs(false));
+  }
 
   function post(command: ReturnType<typeof dialpadCtiCommand>) {
     postDialpadCti(iframeRef.current?.contentWindow, command);
@@ -136,7 +203,10 @@ export default function CallSettingsPanel() {
   function hangUp() {
     post(dialpadCtiCommand("hang_up_all_calls"));
     setCall((current) => (current ? { ...current, phase: "ended" } : current));
-    window.setTimeout(() => setCall(null), 700);
+    window.setTimeout(() => {
+      setCall(null);
+      refreshCallLogs();
+    }, 700);
   }
 
   function toggleMute() {
@@ -187,6 +257,64 @@ export default function CallSettingsPanel() {
           Call
         </button>
       </form>
+
+      <section className="mt-6 max-w-3xl space-y-3" aria-labelledby="dialpad-call-logs">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 id="dialpad-call-logs" className="text-sm font-semibold text-[#111827]">
+              Call logs
+            </h2>
+            <p className="text-xs leading-5 text-[#6B7280]">Ended Dialpad calls from the last 14 days.</p>
+          </div>
+          <button
+            type="button"
+            onClick={refreshCallLogs}
+            disabled={refreshingLogs}
+            className="inline-flex h-8 items-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium text-[#111827] disabled:opacity-60"
+          >
+            {refreshingLogs ? "Refreshing" : "Refresh"}
+          </button>
+        </div>
+
+        {callLogsError ? (
+          <p role="alert" className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#991B1B]">
+            {callLogsError}
+          </p>
+        ) : null}
+
+        {callLogs.length === 0 && !callLogsError ? (
+          <p className="rounded-xl border border-dashed border-[#E5E7EB] bg-white px-4 py-6 text-sm text-[#6B7280]">
+            No recent calls.
+          </p>
+        ) : (
+          <ul className="divide-y divide-[#E5E7EB] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+            {callLogs.map((entry) => {
+              const number = entry.externalNumber ? formatPhoneDisplay(entry.externalNumber) : "Unknown number";
+              const who = entry.contactName || number;
+              return (
+                <li key={entry.id} className="grid gap-1 px-4 py-3 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:items-center">
+                  <span className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+                    {entry.direction === "inbound" ? "Inbound" : "Outbound"}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#111827]">{who}</p>
+                    <p className="truncate text-xs text-[#6B7280]">
+                      {entry.contactName ? `${number} · ` : ""}
+                      {entry.targetName ? entry.targetName : "Dialpad"}
+                    </p>
+                  </div>
+                  <div className="text-xs text-[#6B7280] sm:text-right">
+                    <p>{callWhenLabel(entry.startedAt)}</p>
+                    <p>
+                      {callDurationLabel(entry.durationSeconds)} · {callStateLabel(entry.state)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <iframe
         ref={iframeRef}

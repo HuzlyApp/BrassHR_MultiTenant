@@ -5,6 +5,7 @@ const requireStaffApiSession = vi.fn();
 const enforceRateLimit = vi.fn();
 const dialpadApiKey = vi.fn();
 const listDialpadUsers = vi.fn();
+const listDialpadCalls = vi.fn();
 const initiateDialpadCall = vi.fn();
 
 vi.mock("@/lib/auth/api-session", () => ({
@@ -25,6 +26,7 @@ vi.mock("@/lib/dialpad/client", () => ({
   },
   dialpadApiKey: (...args: unknown[]) => dialpadApiKey(...args),
   listDialpadUsers: (...args: unknown[]) => listDialpadUsers(...args),
+  listDialpadCalls: (...args: unknown[]) => listDialpadCalls(...args),
   initiateDialpadCall: (...args: unknown[]) => initiateDialpadCall(...args),
 }));
 
@@ -53,6 +55,18 @@ describe("/api/admin/dialpad", () => {
     enforceRateLimit.mockResolvedValue(null);
     dialpadApiKey.mockReturnValue("test-key");
     listDialpadUsers.mockResolvedValue(callers);
+    listDialpadCalls.mockResolvedValue([
+      {
+        id: "6206773687132160",
+        direction: "outbound",
+        state: "hangup",
+        startedAt: "2026-11-06T12:00:00.000Z",
+        durationSeconds: 45,
+        externalNumber: "+19194519662",
+        contactName: null,
+        targetName: "ZipStaff Main Ops",
+      },
+    ]);
     initiateDialpadCall.mockResolvedValue({ callId: "99" });
   });
 
@@ -63,6 +77,8 @@ describe("/api/admin/dialpad", () => {
     await expect(response.json()).resolves.toMatchObject({
       configured: true,
       defaultUserId: "4943251099926528",
+      calls: [expect.objectContaining({ externalNumber: "+19194519662" })],
+      callsError: null,
     });
   });
 
