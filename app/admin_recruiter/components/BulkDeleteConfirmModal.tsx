@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 
 export type BulkDeleteEntity = "job" | "candidate";
 
 type BulkDeleteConfirmModalProps = {
   open: boolean;
-  entity: BulkDeleteEntity;
-  count: number;
+  /** Used for default job/candidate copy. Optional when `title` + `description` are provided. */
+  entity?: BulkDeleteEntity;
+  count?: number;
+  /** Custom title — reuse this modal for non-bulk deletes (e.g. mappings). */
+  title?: string;
+  /** Custom body copy under the title. */
+  description?: ReactNode;
   busy?: boolean;
   error?: string | null;
   /** When set, the user must type this exact string before Delete is enabled. */
@@ -25,7 +30,9 @@ function entityLabel(entity: BulkDeleteEntity, count: number): string {
 export function BulkDeleteConfirmModal({
   open,
   entity,
-  count,
+  count = 0,
+  title: titleOverride,
+  description,
   busy = false,
   error = null,
   requireConfirmationText,
@@ -50,17 +57,19 @@ export function BulkDeleteConfirmModal({
     };
   }, [open, busy, onCancel]);
 
-  if (!open || count <= 0) return null;
+  const hasCustomCopy = Boolean(titleOverride && description);
+  if (!open || (!hasCustomCopy && count <= 0)) return null;
 
-  const label = entityLabel(entity, count);
+  const label = entity ? entityLabel(entity, count) : "";
   const title =
-    entity === "job"
+    titleOverride ??
+    (entity === "job"
       ? count === 1
         ? "Delete job?"
         : "Delete jobs?"
       : count === 1
         ? "Delete candidate?"
-        : "Delete candidates?";
+        : "Delete candidates?");
   const confirmationMatches =
     !requireConfirmationText || confirmationInput === requireConfirmationText;
 
@@ -91,14 +100,18 @@ export function BulkDeleteConfirmModal({
             <h3 id="bulk-delete-title" className="text-lg font-semibold text-[#101828]">
               {title}
             </h3>
-            <p className="mt-2 text-sm leading-5 text-[#475569]">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold text-[#101828]">
-                {count} selected {label}
-              </span>
-              ? This action cannot be undone.
-            </p>
-            {entity === "job" ? (
+            {description ? (
+              <div className="mt-2 text-sm leading-5 text-[#475569]">{description}</div>
+            ) : (
+              <p className="mt-2 text-sm leading-5 text-[#475569]">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-[#101828]">
+                  {count} selected {label}
+                </span>
+                ? This action cannot be undone.
+              </p>
+            )}
+            {entity === "job" && !description ? (
               <p className="mt-2 text-sm leading-5 text-[#64748B]">
                 All candidates linked to {count === 1 ? "this job" : "these jobs"} will also be removed.
               </p>

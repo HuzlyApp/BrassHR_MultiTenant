@@ -27,7 +27,7 @@ export type SettingsNavItemId =
   | "call"
   | "security"
   | "library"
-  | "workflow-mappings"
+  | "workflows"
   | "profession"
   | "assessment"
   | "statuses"
@@ -150,8 +150,21 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   },
   {
     id: "workflow",
-    label: "Workflow",
+    label: "Workflows",
     items: [
+      {
+        id: "workflows",
+        label: "Workflows",
+        href: "/admin_recruiter/dashboard/onboarding-flows",
+        icon: Workflow,
+        resourceKey: "settings_automation",
+        matchPrefixes: [
+          "/admin_recruiter/dashboard/onboarding-flows",
+          "/admin_recruiter/dashboard/templates",
+          "/admin_recruiter/dashboard/workflow-mappings",
+          "/admin_recruiter/dashboard/onboarding-builder",
+        ],
+      },
       {
         id: "library",
         label: "Library",
@@ -159,14 +172,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: Library,
         resourceKey: "settings_automation",
         matchPrefixes: ["/admin_recruiter/dashboard/workflowlibrary"],
-      },
-      {
-        id: "workflow-mappings",
-        label: "Workflow Mappings",
-        href: "/admin_recruiter/dashboard/workflow-mappings",
-        icon: Workflow,
-        resourceKey: "settings_automation",
-        matchPrefixes: ["/admin_recruiter/dashboard/workflow-mappings"],
       },
     ],
   },
@@ -208,7 +213,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
           "/admin_recruiter/settings/templates",
           "/admin_recruiter/template-builder",
           "/admin_recruiter/email-templates",
-          "/admin_recruiter/dashboard/templates",
         ],
       },
     ],
