@@ -13,6 +13,7 @@ type ProgressStep = {
   label: string
   state: StepState
   detail?: string
+  phase?: "pre_hire" | "post_hire"
 }
 
 type StorageHit = {
@@ -112,6 +113,7 @@ export async function mapAdminOnboardingProgress({
             label: s.label,
             state: s.state,
             detail: s.detail,
+            phase: s.phase,
           })),
           skillAssessments: {
             completed: skillProgress.completed,

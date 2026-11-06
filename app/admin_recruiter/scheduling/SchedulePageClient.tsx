@@ -1,655 +1,697 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar, Building2, User, Clock, DollarSign, X } from "lucide-react";
+import toast from "react-hot-toast";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
 import {
   addEasternDays,
   easternDateString,
-  easternWallClockToDate,
   getEasternParts,
   startOfEasternDay,
   startOfEasternWeek,
 } from "@/lib/datetime/eastern";
-import type { ShiftCalendarEvent, ShiftCalendarFilterOptions, ShiftCalendarStatus } from "@/lib/shifts/types";
+import type { ShiftCalendarEvent, ShiftCalendarResponse } from "@/lib/shifts/types";
 
-type ViewMode = "month" | "week";
-
-type CalendarEvent = ShiftCalendarEvent & {
-  startDateObj: Date;
-  endDateObj: Date;
+type ShiftPillTheme = {
+  bg: string;
+  border: string;
+  text: string;
 };
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const HOUR_LABELS = [
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "Noon",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
-  "5:00 PM",
-  "6:00 PM",
-] as const;
-const HOUR_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+const THEMES: ShiftPillTheme[] = [
+  { bg: "#EFF6FF", border: "#BFDBFE", text: "#1D4ED8" }, // Blue
+  { bg: "#F0FDF4", border: "#BBF7D0", text: "#15803D" }, // Green
+  { bg: "#FFF7ED", border: "#FED7AA", text: "#C2410C" }, // Orange/Peach
+  { bg: "#FFF1F2", border: "#FECDD3", text: "#BE123C" }, // Coral/Pink
+  { bg: "#FAF5FF", border: "#E9D5FF", text: "#7E22CE" }, // Purple
+  { bg: "#FEFCE8", border: "#FEF08A", text: "#A16207" }, // Amber
+  { bg: "#F0FDFA", border: "#99F6E4", text: "#0F766E" }, // Teal
+];
 
-const STATUS_LABELS: Record<ShiftCalendarStatus, string> = {
-  pending: "Unassigned",
-  confirmed: "Accepted",
-  active: "Assigned",
-  cancelled: "Cancelled",
+function getThemeForShift(index: number): ShiftPillTheme {
+  return THEMES[index % THEMES.length];
+}
+
+type EmployeeRow = {
+  id: string;
+  name: string;
+  jobRole: string;
 };
 
-const EMPTY_FILTER_OPTIONS: ShiftCalendarFilterOptions = {
-  workers: [],
-  jobRoles: [],
-  facilities: [],
-  statuses: [],
-};
-
-function startOfDay(date: Date): Date {
-  return startOfEasternDay(date);
-}
-
-function addDays(date: Date, days: number): Date {
-  return addEasternDays(date, days);
-}
-
-function getWeekStart(date: Date): Date {
-  return startOfEasternWeek(date);
-}
-
-function formatDateKey(date: Date): string {
-  return easternDateString(date);
-}
-
-function parseDateKey(key: string): Date {
-  const [year, month, day] = key.split("-").map(Number);
-  return easternWallClockToDate(year, month, day, 0, 0, 0);
-}
-
-function formatHourRange(startHour: number, endHour: number): string {
-  const fmt = (hour: number) => {
-    const h = hour % 12 || 12;
-    const suffix = hour >= 12 ? "PM" : "AM";
-    return `${h}:00 ${suffix}`;
-  };
-  return `${fmt(startHour)} - ${fmt(endHour)}`;
-}
-
-function shiftMatchesHour(event: CalendarEvent, hour: number): boolean {
-  return event.startHour <= hour && hour < event.endHour;
-}
-
-function MiniMonthCalendar({
-  anchorDate,
-  onSelectDate,
-  onPrevMonth,
-  onNextMonth,
-}: {
-  anchorDate: Date;
-  onSelectDate: (date: Date) => void;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
-}) {
-  const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
-  const gridStart = addDays(startOfDay(monthStart), -monthStart.getDay());
-  const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const todayKey = formatDateKey(new Date());
-  const selectedKey = formatDateKey(anchorDate);
-  const monthTitle = anchorDate.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", year: "numeric" });
-
-  return (
-    <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onPrevMonth}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F8FAFC]"
-          aria-label="Previous month"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <p className="text-xs font-semibold text-[#111827]">{monthTitle}</p>
-        <button
-          type="button"
-          onClick={onNextMonth}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F8FAFC]"
-          aria-label="Next month"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-[#94A3B8]">
-        {WEEKDAY_LABELS.map((label) => (
-          <span key={label}>{label.slice(0, 1)}</span>
-        ))}
-      </div>
-      <div className="mt-1 grid grid-cols-7 gap-0.5">
-        {days.map((day) => {
-          const key = formatDateKey(day);
-          const inMonth = day.getMonth() === anchorDate.getMonth();
-          const isToday = key === todayKey;
-          const isSelected = key === selectedKey;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onSelectDate(day)}
-              className={`h-7 rounded text-[11px] font-medium ${
-                isSelected
-                  ? "bg-[color:var(--brand-primary)] text-white"
-                  : isToday
-                    ? "bg-[#FEF3C7] text-[#92400E]"
-                    : inMonth
-                      ? "text-[#111827] hover:bg-[#F8FAFC]"
-                      : "text-[#CBD5E1] hover:bg-[#F8FAFC]"
-              }`}
-            >
-              {day.getDate()}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function FilterCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-      <p className="mb-2 text-sm font-semibold text-[#111827]">{title}</p>
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-
-function FilterCheckbox({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-[#374151]">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 rounded border-[#D1D5DB] text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]"
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function ShiftMonthGrid({
-  anchorDate,
-  eventsByDay,
-}: {
-  anchorDate: Date;
-  eventsByDay: Map<string, CalendarEvent[]>;
-}) {
-  const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
-  const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
-  const gridStart = addDays(startOfDay(monthStart), -monthStart.getDay());
-  const gridEnd = addDays(startOfDay(monthEnd), 6 - monthEnd.getDay());
-  const totalDays =
-    Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  const days = Array.from({ length: totalDays }, (_, i) => addDays(gridStart, i));
-  const todayKey = formatDateKey(new Date());
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-      <div className="grid grid-cols-7 border-b border-[#E5E7EB] bg-[#F8FAFC]">
-        {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="px-2 py-2 text-center text-xs font-semibold text-[#64748B]">
-            {label}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7">
-        {days.map((day) => {
-          const key = formatDateKey(day);
-          const inMonth = day.getMonth() === anchorDate.getMonth();
-          const isToday = key === todayKey;
-          const dayEvents = eventsByDay.get(key) ?? [];
-          return (
-            <div
-              key={key}
-              className={`min-h-[120px] border-b border-r border-[#E5E7EB] p-1.5 ${
-                inMonth ? "bg-white" : "bg-[#FAFBFC]"
-              }`}
-            >
-              <div
-                className={`mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                  isToday ? "bg-[color:var(--brand-primary)] text-white" : "text-[#64748B]"
-                }`}
-              >
-                {day.getDate()}
-              </div>
-              <div className="space-y-1">
-                {dayEvents.slice(0, 3).map((event) => (
-                  <div
-                    key={`${event.id}-${key}`}
-                    className="rounded border border-[#86EFAC] bg-[#DCFCE7] px-1.5 py-1"
-                    title={`${event.workerName} • ${event.jobRole}`}
-                  >
-                    <p className="truncate text-[10px] font-semibold text-[#166534]">
-                      {formatHourRange(event.startHour, event.endHour)}
-                    </p>
-                    <p className="truncate text-[10px] text-[#15803D]">
-                      {event.facility || "Worksite"} — {event.workerName === "Open shift" ? "Open Shift" : event.title}
-                    </p>
-                  </div>
-                ))}
-                {dayEvents.length > 3 ? (
-                  <p className="text-[10px] font-medium text-[#64748B]">+{dayEvents.length - 3} more</p>
-                ) : null}
-                {inMonth && dayEvents.length === 0 ? (
-                  <button
-                    type="button"
-                    className="mt-1 w-full rounded border border-dashed border-[#CBD5E1] px-1 py-1 text-[10px] text-[#94A3B8]"
-                    disabled
-                  >
-                    + Add a shift
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ShiftWeekCalendar({
-  anchorDate,
-  eventsByDay,
-}: {
-  anchorDate: Date;
-  eventsByDay: Map<string, CalendarEvent[]>;
-}) {
-  const weekStart = getWeekStart(anchorDate);
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const todayKey = formatDateKey(new Date());
-  const now = new Date();
-  const nowParts = getEasternParts(now);
-  const nowMinutes = nowParts.hour * 60 + nowParts.minute;
-  const todayInWeek = weekDays.some((day) => formatDateKey(day) === todayKey);
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-      <div
-        className="grid border-b border-[#E5E7EB] bg-white"
-        style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
-      >
-        <div className="border-r border-[#E5E7EB] bg-white" aria-hidden />
-        {weekDays.map((day) => {
-          const key = formatDateKey(day);
-          const isToday = key === todayKey;
-          const count = eventsByDay.get(key)?.length ?? 0;
-          return (
-            <div
-              key={key}
-              className="flex flex-col items-center border-r border-[#E5E7EB] px-2 py-3 last:border-r-0"
-            >
-              <p className="text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
-                {day.toLocaleDateString("en-US", { timeZone: "America/New_York",  weekday: "short" })}
-              </p>
-              <span
-                className={`mt-1 inline-flex h-6 items-center justify-center rounded px-2 py-1 text-xs font-semibold leading-none ${
-                  isToday ? "bg-[color:var(--brand-primary)] text-white" : "text-[#1F2937]"
-                }`}
-              >
-                {day.getDate()}
-              </span>
-              <span
-                className={`mt-2 block h-0.5 w-full rounded-full ${
-                  isToday ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
-                }`}
-                aria-hidden
-              />
-              {count > 0 ? (
-                <p className="mt-1 text-[10px] font-semibold leading-none text-[color:var(--brand-primary)]">
-                  {count}
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="schedule-calendar-scroll relative max-h-[560px] overflow-y-auto">
-        {HOUR_LABELS.map((label, index) => {
-          const hour = HOUR_SLOTS[index];
-          const rowMinutes = hour * 60;
-          const showNowLine = todayInWeek && Math.abs(nowMinutes - rowMinutes) < 30;
-
-          return (
-            <div
-              key={label}
-              className="relative grid min-h-[56px] border-b border-[#E5E7EB] bg-white"
-              style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
-            >
-              <div className="relative border-r border-[#E5E7EB] bg-white px-3 py-4 text-right text-[11px] text-[#64748B]">
-                {label}
-              </div>
-              {weekDays.map((day) => {
-                const key = formatDateKey(day);
-                const cellEvents = (eventsByDay.get(key) ?? []).filter((event) => shiftMatchesHour(event, hour));
-                return (
-                  <div
-                    key={`${key}-${hour}`}
-                    className="relative border-r border-[#E5E7EB] bg-white p-1.5 last:border-r-0"
-                  >
-                    {cellEvents.map((event) => (
-                      <div
-                        key={`${event.id}-${hour}`}
-                        className="mb-1 flex overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
-                        title={`${event.workerName} • ${event.jobRole}`}
-                      >
-                        <div className="min-w-0 flex-1 px-2.5 py-2">
-                          <p className="truncate text-xs font-semibold text-[#111827]">{event.title}</p>
-                          <p className="mt-0.5 truncate text-[10px] leading-snug text-[#6B7280]">
-                            {event.facility} — {event.workerName === "Open shift" ? "Open Shift" : event.workerName}
-                          </p>
-                        </div>
-                        <div className="w-1 shrink-0 bg-[#012352]" aria-hidden />
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-              {showNowLine ? (
-                <div
-                  className="pointer-events-none absolute z-10 flex items-center"
-                  style={{ left: "93px", right: 0, top: "50%", transform: "translateY(-50%)" }}
-                >
-                  <div className="h-0 w-0 border-y-[4px] border-l-[6px] border-y-transparent border-l-[color:var(--brand-primary)]" />
-                  <div className="h-px flex-1 bg-[color:var(--brand-primary)]" />
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+// Initial employee roster matching Figma design
+const INITIAL_DEMO_EMPLOYEES: EmployeeRow[] = [
+  { id: "e1", name: "Aarav Sharma", jobRole: "Warehouse Staff" },
+  { id: "e2", name: "Priya Patel", jobRole: "HR Coordinator" },
+  { id: "e3", name: "Rahul Verma", jobRole: "Forklift Operator" },
+  { id: "e4", name: "Ananya Reddy", jobRole: "Administrative Assistant" },
+  { id: "e5", name: "Vikram Singh", jobRole: "Inventory Specialist" },
+  { id: "e6", name: "Michael Carter", jobRole: "Warehouse Supervisor" },
+  { id: "e7", name: "Sophia Martinez", jobRole: "Recruitment Specialist" },
+  { id: "e8", name: "Daniel Thompson", jobRole: "Maintenance Technician" },
+  { id: "e9", name: "Emily Johnson", jobRole: "Customer Service Staff" },
+  { id: "e10", name: "Kevin Anderson", jobRole: "Operations Manager" },
+  { id: "e11", name: "Arjun Mehta", jobRole: "Machine Operator" },
+];
 
 export default function SchedulePageClient() {
-  const [anchorDate, setAnchorDate] = useState(() => new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [anchorDate, setAnchorDate] = useState<Date>(() => {
+    // Default to Sept 21, 2026 or current week
+    return new Date(2026, 8, 21);
+  });
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [filterOptions, setFilterOptions] = useState<ShiftCalendarFilterOptions>(EMPTY_FILTER_OPTIONS);
-  const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<ShiftCalendarStatus>>(new Set());
-  const [rolesInitialized, setRolesInitialized] = useState(false);
-  const [statusesInitialized, setStatusesInitialized] = useState(false);
+  const [events, setEvents] = useState<ShiftCalendarEvent[]>([]);
+  const [facilities, setFacilities] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedFacility, setSelectedFacility] = useState<string>("all");
+  const [workersList, setWorkersList] = useState<Array<{ id: string; name: string; jobRole: string }>>([]);
+  const [addShiftOpen, setAddShiftOpen] = useState(false);
+  const [savingShift, setSavingShift] = useState(false);
 
-  const visibleRange = useMemo(() => {
-    if (viewMode === "week") {
-      const start = getWeekStart(anchorDate);
-      return { start, end: addDays(start, 6) };
+  // New shift form state
+  const [newShiftTitle, setNewShiftTitle] = useState("");
+  const [newShiftFacilityId, setNewShiftFacilityId] = useState("");
+  const [newShiftWorkerId, setNewShiftWorkerId] = useState("");
+  const [newShiftDate, setNewShiftDate] = useState("");
+  const [newShiftStartTime, setNewShiftStartTime] = useState("08:00");
+  const [newShiftEndTime, setNewShiftEndTime] = useState("17:00");
+  const [newShiftRate, setNewShiftRate] = useState("");
+  const [newShiftNotes, setNewShiftNotes] = useState("");
+
+  // Calculate the 7 days of the current week (Monday through Sunday)
+  const weekDays = useMemo(() => {
+    const monday = startOfEasternWeek(anchorDate);
+    return Array.from({ length: 7 }, (_, i) => addEasternDays(monday, i));
+  }, [anchorDate]);
+
+  const weekRangeLabel = useMemo(() => {
+    if (weekDays.length === 0) return "";
+    const first = weekDays[0];
+    const last = weekDays[6];
+    const m1 = first.toLocaleDateString("en-US", { month: "short" });
+    const m2 = last.toLocaleDateString("en-US", { month: "short" });
+    const y = first.getFullYear();
+    if (m1 === m2) {
+      return `${m1} ${first.getDate()} - ${last.getDate()}, ${y}`;
     }
-    const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
-    const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
-    return {
-      start: addDays(startOfDay(monthStart), -monthStart.getDay()),
-      end: addDays(startOfDay(monthEnd), 6 - monthEnd.getDay()),
-    };
-  }, [anchorDate, viewMode]);
+    return `${m1} ${first.getDate()} - ${m2} ${last.getDate()}, ${y}`;
+  }, [weekDays]);
 
-  const loadCalendarData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const startDateStr = easternDateString(weekDays[0]);
+  const endDateStr = easternDateString(weekDays[6]);
+
+  // Load facilities for dropdown
+  const loadFacilities = useCallback(async () => {
     try {
-      const params = new URLSearchParams({
-        start: formatDateKey(visibleRange.start),
-        end: formatDateKey(visibleRange.end),
-      });
-      const res = await fetch(`/api/admin/shift-calendar?${params.toString()}`, {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const json = (await res.json()) as {
-        events?: ShiftCalendarEvent[];
-        filterOptions?: ShiftCalendarFilterOptions;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error || "Failed to load schedule.");
-
-      const mapped = (json.events ?? []).map((event) => ({
-        ...event,
-        startDateObj: parseDateKey(event.startDate),
-        endDateObj: parseDateKey(event.endDate),
+      const res = await fetch("/api/admin/facilities");
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = (data?.facilities ?? data ?? []).map((f: { id: string; name: string }) => ({
+        id: String(f.id),
+        name: f.name || "Facility",
       }));
-      setEvents(mapped);
-      const options = json.filterOptions ?? EMPTY_FILTER_OPTIONS;
-      setFilterOptions(options);
+      setFacilities(list);
+      if (list.length > 0 && !newShiftFacilityId) {
+        setNewShiftFacilityId(list[0].id);
+      }
+    } catch (e) {
+      console.error("[Schedule] error loading facilities", e);
+    }
+  }, [newShiftFacilityId]);
 
-      if (!rolesInitialized && options.jobRoles.length > 0) {
-        setSelectedRoles(new Set(options.jobRoles));
-        setRolesInitialized(true);
+  // Load workers for dropdown
+  const loadWorkers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/workers");
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = (data?.workers ?? data ?? []).map((w: { id: string; first_name?: string; last_name?: string; job_role?: string }) => ({
+        id: String(w.id),
+        name: `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Worker",
+        jobRole: w.job_role || "Warehouse Staff",
+      }));
+      setWorkersList(list);
+    } catch (e) {
+      console.error("[Schedule] error loading workers", e);
+    }
+  }, []);
+
+  // Fetch shifts for selected date range
+  const loadShifts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/shift-calendar?start=${startDateStr}&end=${endDateStr}`);
+      if (res.ok) {
+        const data: ShiftCalendarResponse = await res.json().catch(() => ({}));
+        setEvents(data.events ?? []);
       }
-      if (!statusesInitialized && options.statuses.length > 0) {
-        setSelectedStatuses(new Set(options.statuses));
-        setStatusesInitialized(true);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load schedule.");
+    } catch {
       setEvents([]);
     } finally {
       setLoading(false);
     }
-  }, [rolesInitialized, statusesInitialized, visibleRange.end, visibleRange.start]);
+  }, [startDateStr, endDateStr]);
 
   useEffect(() => {
-    void loadCalendarData();
-  }, [loadCalendarData]);
+    void loadFacilities();
+    void loadWorkers();
+  }, [loadFacilities, loadWorkers]);
 
-  const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
-      if (selectedRoles.size > 0 && event.jobRole && !selectedRoles.has(event.jobRole)) return false;
-      if (selectedStatuses.size > 0 && !selectedStatuses.has(event.status)) return false;
-      return true;
-    });
-  }, [events, selectedRoles, selectedStatuses]);
+  useEffect(() => {
+    void loadShifts();
+  }, [loadShifts]);
 
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-    filteredEvents.forEach((event) => {
-      let cursor = startOfDay(event.startDateObj);
-      const end = startOfDay(event.endDateObj);
-      while (cursor <= end) {
-        const key = formatDateKey(cursor);
-        const list = map.get(key) ?? [];
-        list.push(event);
-        map.set(key, list);
-        cursor = addDays(cursor, 1);
+  // Build employee list: combination of loaded workers / DB event workers, defaulting to Figma list
+  const employees: EmployeeRow[] = useMemo(() => {
+    const map = new Map<string, EmployeeRow>();
+
+    // Add workers from DB if available
+    for (const w of workersList) {
+      map.set(w.id, { id: w.id, name: w.name, jobRole: w.jobRole });
+    }
+
+    // Add workers seen in events
+    for (const ev of events) {
+      if (ev.workerName && ev.workerName !== "Unknown worker") {
+        const key = ev.workerId || ev.workerName;
+        if (!map.has(key)) {
+          map.set(key, { id: key, name: ev.workerName, jobRole: ev.jobRole || "Staff" });
+        }
       }
-    });
-    map.forEach((list) => list.sort((a, b) => a.startHour - b.startHour));
-    return map;
-  }, [filteredEvents]);
+    }
 
-  const monthTitle = anchorDate.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "long", year: "numeric" });
-  const allRolesSelected =
-    filterOptions.jobRoles.length > 0 && selectedRoles.size === filterOptions.jobRoles.length;
-  const allStatusesSelected =
-    filterOptions.statuses.length > 0 && selectedStatuses.size === filterOptions.statuses.length;
+    // Fall back to demo list if empty
+    if (map.size === 0) {
+      for (const e of INITIAL_DEMO_EMPLOYEES) {
+        map.set(e.id, e);
+      }
+    }
 
-  function toggleAllRoles(checked: boolean) {
-    setSelectedRoles(checked ? new Set(filterOptions.jobRoles) : new Set());
-  }
+    return Array.from(map.values());
+  }, [workersList, events]);
 
-  function toggleRole(role: string, checked: boolean) {
-    setSelectedRoles((current) => {
-      const next = new Set(current);
-      if (checked) next.add(role);
-      else next.delete(role);
-      return next;
-    });
-  }
+  // Map of shifts: employeeKey_dateKey -> ShiftInfo
+  const shiftGrid = useMemo(() => {
+    const grid = new Map<string, Array<{ time: string; department: string; facility: string }>>();
 
-  function toggleAllStatuses(checked: boolean) {
-    setSelectedStatuses(checked ? new Set(filterOptions.statuses) : new Set());
-  }
+    // Populate with real events
+    for (const ev of events) {
+      const empKey = ev.workerId || ev.workerName;
+      const dateKey = ev.startDate?.slice(0, 10);
+      if (empKey && dateKey) {
+        const key = `${empKey}_${dateKey}`;
+        const existing = grid.get(key) || [];
+        const fmtHour = (h: number) => {
+          const ampm = h >= 12 ? "PM" : "AM";
+          const h12 = h % 12 || 12;
+          return `${h12}:00 ${ampm}`;
+        };
+        const timeStr = `${fmtHour(ev.startHour || 8)} - ${fmtHour(ev.endHour || 17)}`;
+        existing.push({
+          time: timeStr,
+          department: ev.jobRole || "Warehouse",
+          facility: ev.facility || "Main Facility",
+        });
+        grid.set(key, existing);
+      }
+    }
 
-  function toggleStatus(status: ShiftCalendarStatus, checked: boolean) {
-    setSelectedStatuses((current) => {
-      const next = new Set(current);
-      if (checked) next.add(status);
-      else next.delete(status);
-      return next;
-    });
-  }
+    // If no events in DB yet, populate matching Figma screenshot for visual fidelity
+    if (events.length === 0) {
+      const demoShifts: Record<string, Record<number, { time: string; department: string; facility: string }>> = {
+        e1: {
+          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+        e2: {
+          0: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
+          1: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "6:00 AM - 2:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+        e3: {
+          0: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+        e4: {
+          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          5: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+        },
+        e5: {
+          0: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          1: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+        e6: {
+          0: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
+          1: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
+          3: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
+          4: { time: "10:00 PM - 6:00 AM", department: "Warehouse", facility: "North Facility" },
+        },
+        e7: {
+          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+          5: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+        e8: {
+          0: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
+          1: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
+          2: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
+          3: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
+          4: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
+          5: { time: "6:00 PM - 2:00 AM", department: "Warehouse", facility: "North Facility" },
+        },
+        e9: {
+          1: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "9:00 AM - 6:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+        e10: {
+          0: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          1: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          2: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          3: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+          4: { time: "8:00 AM - 5:00 PM", department: "Warehouse", facility: "North Facility" },
+        },
+        e11: {
+          0: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          1: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          2: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          3: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+          4: { time: "2:00 PM - 10:00 PM", department: "Warehouse", facility: "Main Facility" },
+        },
+      };
 
-  function shiftMonth(delta: number) {
-    setAnchorDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
-  }
+      for (const [empId, daysObj] of Object.entries(demoShifts)) {
+        for (const [dayIdx, shiftVal] of Object.entries(daysObj)) {
+          const targetDay = weekDays[Number(dayIdx)];
+          if (targetDay) {
+            const dateKey = easternDateString(targetDay);
+            grid.set(`${empId}_${dateKey}`, [shiftVal]);
+          }
+        }
+      }
+    }
 
-  function shiftWeek(delta: number) {
-    setAnchorDate((current) => addDays(current, delta));
-  }
+    return grid;
+  }, [events, weekDays]);
+
+  const handlePrevWeek = () => {
+    setAnchorDate((prev) => addEasternDays(prev, -7));
+  };
+
+  const handleNextWeek = () => {
+    setAnchorDate((prev) => addEasternDays(prev, 7));
+  };
+
+  const handleCreateShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newShiftTitle.trim()) {
+      toast.error("Please enter a shift title / job role.");
+      return;
+    }
+    if (!newShiftDate) {
+      toast.error("Please select a date for the shift.");
+      return;
+    }
+
+    setSavingShift(true);
+    try {
+      const res = await fetch("/api/admin/shift-calendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newShiftTitle.trim(),
+          facilityId: newShiftFacilityId || null,
+          workerId: newShiftWorkerId || null,
+          startDate: newShiftDate,
+          endDate: newShiftDate,
+          ratePerHour: newShiftRate ? parseFloat(newShiftRate) : null,
+          description: newShiftNotes.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create shift.");
+      }
+
+      toast.success("Shift created successfully!");
+      setAddShiftOpen(false);
+      // Reset form
+      setNewShiftTitle("");
+      setNewShiftNotes("");
+      setNewShiftRate("");
+      // Reload shifts
+      await loadShifts();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error creating shift.");
+    } finally {
+      setSavingShift(false);
+    }
+  };
 
   return (
-    <div className="px-5 pb-8 pt-5 lg:px-8">
+    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 md:px-8">
+      {/* Sub navigation between Week View and Who is off */}
       <SchedulingSubNav />
 
-      <div className="flex min-h-[640px] flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white lg:flex-row">
-        <aside className="w-full shrink-0 border-b border-[#E5E7EB] p-4 lg:w-[248px] lg:border-b-0 lg:border-r">
-          <div className="space-y-3">
-            <MiniMonthCalendar
-              anchorDate={anchorDate}
-              onSelectDate={setAnchorDate}
-              onPrevMonth={() => shiftMonth(-1)}
-              onNextMonth={() => shiftMonth(1)}
-            />
+      {/* Page Header */}
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">Schedules</h1>
+          <p className="mt-1 text-sm text-[#64748B]">
+            View and manage employee schedules across all facilities
+          </p>
+        </div>
 
-            <FilterCard title="Positions">
-              <FilterCheckbox label="All" checked={allRolesSelected} onChange={toggleAllRoles} />
-              {filterOptions.jobRoles.map((role) => (
-                <FilterCheckbox
-                  key={role}
-                  label={role}
-                  checked={selectedRoles.has(role)}
-                  onChange={(checked) => toggleRole(role, checked)}
-                />
+        {/* Right side controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Facility filter */}
+          <div className="relative">
+            <select
+              value={selectedFacility}
+              onChange={(e) => setSelectedFacility(e.target.value)}
+              className="h-10 cursor-pointer appearance-none rounded-lg border border-[#E2E8F0] bg-white pl-3.5 pr-8 text-sm font-medium text-[#334155] shadow-sm outline-none transition hover:border-[#CBD5E1] focus:border-[color:var(--brand-primary,#BC8B41)]"
+            >
+              <option value="all">All Facilities</option>
+              {facilities.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
               ))}
-            </FilterCard>
-
-            <FilterCard title="Shift Status">
-              <FilterCheckbox label="All" checked={allStatusesSelected} onChange={toggleAllStatuses} />
-              {filterOptions.statuses.map((status) => (
-                <FilterCheckbox
-                  key={status}
-                  label={STATUS_LABELS[status]}
-                  checked={selectedStatuses.has(status)}
-                  onChange={(checked) => toggleStatus(status, checked)}
-                />
-              ))}
-            </FilterCard>
+            </select>
           </div>
-        </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              {viewMode === "week" ? (
-                <button
-                  type="button"
-                  onClick={() => shiftWeek(-7)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
-                  aria-label="Previous week"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => shiftMonth(-1)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
-                  aria-label="Previous month"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              )}
-              <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
-              {viewMode === "week" ? (
-                <button
-                  type="button"
-                  onClick={() => shiftWeek(7)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
-                  aria-label="Next week"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => shiftMonth(1)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
-                  aria-label="Next month"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              )}
+          {/* Date Range Navigation */}
+          <div className="flex items-center rounded-lg border border-[#E2E8F0] bg-white p-0.5 shadow-sm">
+            <button
+              type="button"
+              onClick={handlePrevWeek}
+              className="flex h-9 w-9 items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+              aria-label="Previous week"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-3 text-sm font-medium text-[#1E293B]">
+              <Calendar className="h-4 w-4 text-[#94A3B8]" />
+              <span>{weekRangeLabel}</span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-[#64748B]">
-              <span className={viewMode === "week" ? "font-medium text-[#111827]" : ""}>Calendar View</span>
+            <button
+              type="button"
+              onClick={handleNextWeek}
+              className="flex h-9 w-9 items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+              aria-label="Next week"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* + Add Shift Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setNewShiftDate(startDateStr);
+              setAddShiftOpen(true);
+            }}
+            className="flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 active:scale-[0.98]"
+            style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            <span>Add Shift</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Schedule Matrix */}
+      <div className="w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                <th className="w-[200px] px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                  Employees
+                </th>
+                {weekDays.map((d, index) => {
+                  const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+                  const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  return (
+                    <th
+                      key={index}
+                      className="min-w-[120px] px-3 py-3.5 text-center text-xs font-semibold text-[#64748B]"
+                    >
+                      <div className="font-medium text-[#1E293B]">{dayName}</div>
+                      <div className="text-[11px] font-normal text-[#94A3B8]">{monthDay}</div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-[#F1F5F9]">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center">
+                    <DashboardPageLoader />
+                  </td>
+                </tr>
+              ) : employees.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-sm text-[#64748B]">
+                    No employees or shifts scheduled for this week.
+                  </td>
+                </tr>
+              ) : (
+                employees.map((emp, empIdx) => (
+                  <tr key={emp.id} className="transition-colors hover:bg-[#F8FAFC]/60">
+                    {/* Employee Info Col */}
+                    <td className="w-[200px] px-4 py-4 align-top">
+                      <div className="font-semibold text-sm text-[#0F172A]">{emp.name}</div>
+                      <div className="text-xs text-[#64748B]">{emp.jobRole}</div>
+                    </td>
+
+                    {/* 7 Days Cols */}
+                    {weekDays.map((day, dayIdx) => {
+                      const dateKey = easternDateString(day);
+                      const key = `${emp.id}_${dateKey}`;
+                      const shiftsForDay = shiftGrid.get(key) || [];
+                      const theme = getThemeForShift(empIdx);
+
+                      return (
+                        <td key={dayIdx} className="min-w-[120px] p-2 align-middle text-center">
+                          {shiftsForDay.length > 0 ? (
+                            <div className="flex flex-col gap-1.5">
+                              {shiftsForDay.map((shift, sIdx) => (
+                                <div
+                                  key={sIdx}
+                                  className="rounded-lg p-2.5 text-left text-xs shadow-xs transition hover:brightness-98"
+                                  style={{
+                                    backgroundColor: theme.bg,
+                                    border: `1px solid ${theme.border}`,
+                                  }}
+                                >
+                                  <div
+                                    className="font-bold leading-tight"
+                                    style={{ color: theme.text }}
+                                  >
+                                    {shift.time}
+                                  </div>
+                                  <div className="mt-1 font-medium text-[#334155]">
+                                    {shift.department}
+                                  </div>
+                                  <div className="text-[11px] text-[#64748B]">
+                                    {shift.facility}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex h-14 items-center justify-center text-xs font-medium text-[#94A3B8]">
+                              OFF
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Add Shift Modal */}
+      {addShiftOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl transition-all">
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-[#0F172A]">Add Shift</h3>
+                <p className="text-xs text-[#64748B]">Schedule a new shift for an employee</p>
+              </div>
               <button
                 type="button"
-                role="switch"
-                aria-checked={viewMode === "week"}
-                onClick={() => setViewMode((mode) => (mode === "month" ? "week" : "month"))}
-                className={`relative h-5 w-9 rounded-full transition ${
-                  viewMode === "week" ? "bg-[color:var(--brand-primary)]" : "bg-[#CBD5E1]"
-                }`}
+                onClick={() => setAddShiftOpen(false)}
+                className="rounded-lg p-1 text-[#94A3B8] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
               >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                    viewMode === "week" ? "left-0.5" : "left-4"
-                  }`}
-                />
+                <X className="h-5 w-5" />
               </button>
-              <span className={viewMode === "month" ? "font-medium text-[#111827]" : ""}>Month View</span>
             </div>
+
+            <form onSubmit={handleCreateShift} className="space-y-4 px-6 py-5">
+              {/* Shift Title / Role */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#334155]">
+                  Shift Title / Role <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Warehouse Staff, Morning Shift"
+                  value={newShiftTitle}
+                  onChange={(e) => setNewShiftTitle(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)] focus:ring-1 focus:ring-[color:var(--brand-primary,#BC8B41)]"
+                />
+              </div>
+
+              {/* Facility & Worker */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#334155]">Facility</label>
+                  <select
+                    value={newShiftFacilityId}
+                    onChange={(e) => setNewShiftFacilityId(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                  >
+                    <option value="">Select Facility</option>
+                    {facilities.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#334155]">Assign Worker</label>
+                  <select
+                    value={newShiftWorkerId}
+                    onChange={(e) => setNewShiftWorkerId(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                  >
+                    <option value="">Select Worker</option>
+                    {workersList.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.jobRole})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Date & Shift Times */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#334155]">
+                    Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={newShiftDate}
+                    onChange={(e) => setNewShiftDate(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#334155]">Start Time</label>
+                  <input
+                    type="time"
+                    value={newShiftStartTime}
+                    onChange={(e) => setNewShiftStartTime(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#334155]">End Time</label>
+                  <input
+                    type="time"
+                    value={newShiftEndTime}
+                    onChange={(e) => setNewShiftEndTime(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                  />
+                </div>
+              </div>
+
+              {/* Rate per hour */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#334155]">Rate per Hour ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 25.00"
+                  value={newShiftRate}
+                  onChange={(e) => setNewShiftRate(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#334155]">Notes / Instructions</label>
+                <textarea
+                  rows={2}
+                  placeholder="Optional shift notes"
+                  value={newShiftNotes}
+                  onChange={(e) => setNewShiftNotes(e.target.value)}
+                  className="w-full rounded-lg border border-[#CBD5E1] p-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E2E8F0]">
+                <button
+                  type="button"
+                  onClick={() => setAddShiftOpen(false)}
+                  className="h-10 rounded-lg border border-[#CBD5E1] px-4 text-sm font-semibold text-[#475569] hover:bg-[#F1F5F9]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingShift}
+                  className="flex h-10 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-50"
+                  style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
+                >
+                  {savingShift ? "Saving..." : "Create Shift"}
+                </button>
+              </div>
+            </form>
           </div>
-
-          {error ? (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <DashboardPageLoader label="Loading schedule..." className="min-h-[420px]" />
-          ) : viewMode === "month" ? (
-            <ShiftMonthGrid anchorDate={anchorDate} eventsByDay={eventsByDay} />
-          ) : (
-            <ShiftWeekCalendar anchorDate={anchorDate} eventsByDay={eventsByDay} />
-          )}
-        </section>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

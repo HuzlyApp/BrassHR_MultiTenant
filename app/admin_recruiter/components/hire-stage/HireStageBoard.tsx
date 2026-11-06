@@ -334,6 +334,7 @@ export function HireStageBoard({
             <HireStageSidebar
               lifecycle={lifecycle}
               profile={profile}
+              workerId={workerId}
               templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
               progressPercent={progressMeta.percent}
               progressLabel={progressMeta.label}

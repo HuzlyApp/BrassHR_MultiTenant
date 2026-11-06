@@ -3,6 +3,7 @@
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
+import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import type { HireStageLifecycle } from "@/lib/onboarding/hire-stage-groups";
 import { HireFigmaIcon, PRE_HIRE_UI_ICONS } from "./hire-figma-assets";
 
@@ -16,7 +17,18 @@ export type HireStageSidebarProfile = {
   location: string | null;
   source: string | null;
   dateApplied: string | null;
+  /** Job requisition display title for the primary application. */
+  jobName: string | null;
+  jobRequisitionId: string | null;
+  /** Job posting pay range (from job pay_rate_min / pay_rate_max). */
+  jobPayRate: string | null;
+  /** Application agreed offer rate when available; otherwise null. */
+  agreedPayRate: string | null;
 };
+
+function jobDetailHref(jobRequisitionId: string) {
+  return `/admin_recruiter/jobs/${encodeURIComponent(jobRequisitionId)}`;
+}
 
 function SidebarIconTile({
   src,
@@ -48,6 +60,7 @@ function SidebarIconTile({
 export function HireStageSidebar({
   lifecycle,
   profile,
+  workerId,
   templateName,
   progressPercent,
   progressLabel,
@@ -62,6 +75,7 @@ export function HireStageSidebar({
 }: {
   lifecycle: HireStageLifecycle;
   profile: HireStageSidebarProfile;
+  workerId?: string | null;
   aiAnalysisHref?: string | null;
   templateName: string | null;
   progressPercent: number;
@@ -77,6 +91,13 @@ export function HireStageSidebar({
 }) {
   const phaseLabel = lifecycle === "pre_hire" ? "Pre-hire" : "Post-hire";
   const clamped = Math.max(0, Math.min(100, progressPercent));
+  const profileHref = workerId?.trim()
+    ? candidateApplicantProfileHref(workerId.trim(), { from: "candidates" })
+    : null;
+  const jobHref = profile.jobRequisitionId?.trim()
+    ? jobDetailHref(profile.jobRequisitionId.trim())
+    : null;
+  const jobName = profile.jobName?.trim() || profile.role?.trim() || "";
 
   return (
     <aside className="flex w-full max-w-[366px] flex-col gap-4 self-center lg:w-[366px] lg:shrink-0 lg:self-start">
@@ -114,12 +135,23 @@ export function HireStageSidebar({
         </div>
 
         <div className="mt-4 text-center">
-          <p
-            className="font-semibold"
-            style={{ color: "#012352", fontSize: 18, lineHeight: "28px", fontWeight: 600 }}
-          >
-            {profile.name || "—"}
-          </p>
+          {profileHref ? (
+            <Link
+              href={profileHref}
+              className="font-semibold hover:underline"
+              style={{ color: "#012352", fontSize: 18, lineHeight: "28px", fontWeight: 600 }}
+              title="Open candidate profile"
+            >
+              {profile.name || "—"}
+            </Link>
+          ) : (
+            <p
+              className="font-semibold"
+              style={{ color: "#012352", fontSize: 18, lineHeight: "28px", fontWeight: 600 }}
+            >
+              {profile.name || "—"}
+            </p>
+          )}
           <p
             className="mt-1 font-normal"
             style={{ color: "#6B7280", fontSize: 14, lineHeight: "20px", fontWeight: 400 }}
@@ -129,6 +161,32 @@ export function HireStageSidebar({
         </div>
 
         <dl className="mt-6 space-y-3 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <dt className="shrink-0 font-semibold text-black">Job Name</dt>
+            <dd className="max-w-[200px] text-right">
+              {jobName && jobHref ? (
+                <Link
+                  href={jobHref}
+                  className="font-medium text-[color:var(--brand-primary)] hover:underline"
+                  title="Open job detail"
+                >
+                  {jobName}
+                </Link>
+              ) : jobName ? (
+                <span className="text-[#6B7280]">{jobName}</span>
+              ) : (
+                <span className="text-[#94A3B8]">—</span>
+              )}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="shrink-0 font-semibold text-black">Job Pay Rate</dt>
+            <dd className="text-right text-[#6B7280]">{profile.jobPayRate || "—"}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="shrink-0 font-semibold text-black">Agreed Pay Rate</dt>
+            <dd className="text-right text-[#6B7280]">{profile.agreedPayRate || "—"}</dd>
+          </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="shrink-0 font-semibold text-black">Work Type</dt>
             <dd>
