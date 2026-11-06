@@ -88,7 +88,7 @@ export type FirmaWorkspaceAppearanceSettings = {
   color_muted_fg?: string | null;
 };
 
-/** Workspace custom field definition (appears in embedded template editor Field Types). */
+/** Workspace custom field definition used as a prefilledData key. */
 export type FirmaWorkspaceCustomField = {
   id: string;
   field_name: string;
