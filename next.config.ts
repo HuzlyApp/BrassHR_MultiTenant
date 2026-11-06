@@ -85,7 +85,7 @@ function buildAppContentSecurityPolicy(frameAncestors: string): string {
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://api.firma.dev https://app.firma.dev",
     "worker-src 'self' blob: data: https://api.firma.dev https://app.firma.dev",
     "connect-src 'self' https: wss: blob:",
-    "frame-src 'self' https://app.firma.dev https://api.firma.dev",
+    "frame-src 'self' https://app.firma.dev https://api.firma.dev https://dialpad.com",
   ].join("; ");
 }
 
@@ -114,7 +114,11 @@ const nextConfig: NextConfig = {
     const baseSecurityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+      {
+        key: "Permissions-Policy",
+        value:
+          'camera=(), microphone=("https://dialpad.com"), speaker-selection=("https://dialpad.com"), geolocation=(self)',
+      },
     ];
     const securityHeaders = [
       ...baseSecurityHeaders,

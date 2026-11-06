@@ -68,6 +68,10 @@ async function dialpadError(response: Response): Promise<DialpadError> {
   } catch {
     message = "";
   }
+  if (/unable to create call/i.test(message)) {
+    message =
+      "Dialpad could not start the call because that user has no Dialpad app, desktop, or desk phone open.";
+  }
   if (!message) {
     if (response.status === 401 || response.status === 403) message = "Dialpad rejected the API key.";
     else if (response.status === 429) message = "Dialpad rate limit reached. Wait a minute and try again.";

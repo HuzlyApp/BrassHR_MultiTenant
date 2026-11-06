@@ -1,41 +1,29 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CallSettingsPanel from "@/app/admin_recruiter/settings/CallSettingsPanel";
+import { postDialpadCti } from "@/lib/dialpad/cti";
 
 vi.mock("react-hot-toast", () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("@/lib/dialpad/cti", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/dialpad/cti")>("@/lib/dialpad/cti");
+  return { ...actual, postDialpadCti: vi.fn() };
+});
+
 describe("CallSettingsPanel", () => {
-  it("loads Dialpad users and places a call with the entered number", async () => {
-    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (method === "GET") {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            configured: true,
-            defaultUserId: "22",
-            callers: [
-              { id: "22", name: "Alex Recruiter", emails: [], phones: ["+14155550100"], online: true },
-            ],
-          }),
-        });
-      }
-      return Promise.resolve({
+  it("opens a ringing screen and asks Dialpad to call the number", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({
-          ok: true,
-          callId: "99",
-          phoneNumber: "+14155550199",
-          caller: { id: "22", name: "Alex Recruiter" },
-        }),
-      });
-    });
-    vi.stubGlobal("fetch", fetchMock);
+        json: async () => ({ configured: true, callers: [], defaultUserId: null }),
+      })
+    );
 
     const user = userEvent.setup();
     render(<CallSettingsPanel />);
@@ -44,15 +32,21 @@ describe("CallSettingsPanel", () => {
     await user.type(phone, "4155550199");
     await user.click(screen.getByRole("button", { name: "Call" }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status").textContent).toContain("Alex Recruiter is being rung");
-    });
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      "/api/admin/dialpad",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ phoneNumber: "4155550199", userId: "22" }),
-      })
+    expect(screen.getByRole("dialog", { name: "Calling +1 415 555 0199" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Sign in to Dialpad");
+    expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Speaker" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "End call" })).toBeTruthy();
+    expect(postDialpadCti).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: "initiate_call" })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mute" }));
+    expect(screen.getByRole("button", { name: "Mute" }).getAttribute("aria-pressed")).toBe("true");
+    expect(postDialpadCti).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: "mute_call" })
     );
   });
 });
