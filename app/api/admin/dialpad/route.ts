@@ -4,7 +4,9 @@ import {
   DialpadError,
   dialpadApiKey,
   initiateDialpadCall,
+  listDialpadCalls,
   listDialpadUsers,
+  type DialpadCallLog,
   type DialpadCaller,
 } from "@/lib/dialpad/client";
 import { toE164 } from "@/lib/dialpad/phone";
@@ -46,11 +48,24 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const callers = await listDialpadUsers(apiKey);
+    const startedAfter = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const [callers, callLogs] = await Promise.all([
+      listDialpadUsers(apiKey),
+      listDialpadCalls(apiKey, startedAfter).then(
+        (calls) => ({ calls, callsError: null as string | null }),
+        (error: unknown) => ({
+          calls: [] as DialpadCallLog[],
+          callsError:
+            error instanceof DialpadError ? error.message : "Could not load Dialpad call logs.",
+        })
+      ),
+    ]);
     return NextResponse.json({
       configured: true,
       callers,
       defaultUserId: defaultCallerId(callers, auth.email),
+      calls: callLogs.calls,
+      callsError: callLogs.callsError,
     });
   } catch (error) {
     console.error("[admin/dialpad GET]", error instanceof Error ? error.message : "unknown");

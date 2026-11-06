@@ -7,6 +7,9 @@ import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { loadAuthTenantBranding } from "@/lib/tenant/load-public-tenant-branding";
 import { buildTenantDocumentMetadata } from "@/lib/tenant/tenant-document-metadata";
 
+/** Staff pages read the session cookie, so they cannot be prerendered. */
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerList = await headers();
