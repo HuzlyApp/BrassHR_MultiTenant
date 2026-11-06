@@ -96,6 +96,22 @@ describe("permission catalog", () => {
     expect(classifyProtectedPath("/api/admin/header-data")).toEqual({ kind: "shell" });
     expect(classifyProtectedPath("/api/admin/view-as-tenant")).toEqual({ kind: "god_only" });
     expect(classifyProtectedPath("/api/admin/not-a-module")).toEqual({ kind: "unmapped" });
+    expect(classifyProtectedPath("/api/admin/clients")).toMatchObject({
+      kind: "resource",
+      resourceKey: "organization",
+    });
+    expect(classifyProtectedPath("/admin_recruiter/clients")).toMatchObject({
+      kind: "resource",
+      resourceKey: "organization",
+    });
+    expect(classifyProtectedPath("/api/admin/timesheets")).toMatchObject({
+      kind: "resource",
+      resourceKey: "scheduling",
+    });
+    expect(classifyProtectedPath("/admin_recruiter/timesheets")).toMatchObject({
+      kind: "resource",
+      resourceKey: "scheduling",
+    });
   });
 
   it("classifies every admin API directory", () => {

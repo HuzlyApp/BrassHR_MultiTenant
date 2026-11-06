@@ -64,6 +64,7 @@ type OnboardingStep = {
   label: string;
   state: "complete" | "in_progress" | "pending";
   detail?: string;
+  phase?: "pre_hire" | "post_hire";
 };
 
 type ProfilePayload = {
@@ -325,6 +326,7 @@ export default function NewApplicantProfilePage() {
   const [showAssignFacilityModal, setShowAssignFacilityModal] = useState(false);
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [unassignedFacilityCount, setUnassignedFacilityCount] = useState(0);
+  const [showPostHireOnboardingSteps, setShowPostHireOnboardingSteps] = useState(false);
 
   async function reloadProfile() {
     if (!applicantId) return;
@@ -416,6 +418,7 @@ export default function NewApplicantProfilePage() {
         return;
       }
 
+      setShowPostHireOnboardingSteps(false);
       setLoading(true);
       setError(null);
 
@@ -656,11 +659,34 @@ export default function NewApplicantProfilePage() {
     [data?.onboardingSteps]
   );
 
+  const preHireOnboardingSteps = useMemo(
+    () =>
+      (data?.onboardingSteps ?? []).filter(
+        (step) => (step.phase ?? "pre_hire") !== "post_hire"
+      ),
+    [data?.onboardingSteps]
+  );
+
+  const postHireOnboardingSteps = useMemo(
+    () =>
+      (data?.onboardingSteps ?? []).filter((step) => step.phase === "post_hire"),
+    [data?.onboardingSteps]
+  );
+
+  const visibleOnboardingSteps = useMemo(
+    () =>
+      showPostHireOnboardingSteps
+        ? [...preHireOnboardingSteps, ...postHireOnboardingSteps]
+        : preHireOnboardingSteps,
+    [preHireOnboardingSteps, postHireOnboardingSteps, showPostHireOnboardingSteps]
+  );
+
   const onboardingSectionMinHeight = useMemo(() => {
-    const stepCount = Math.max(data?.onboardingSteps?.length ?? 0, 1);
+    const stepCount = Math.max(visibleOnboardingSteps.length, 1);
     const stepRowHeight = 76;
-    return 44 + 40 + stepCount * stepRowHeight;
-  }, [data?.onboardingSteps?.length]);
+    const viewMoreRow = postHireOnboardingSteps.length > 0 ? 40 : 0;
+    return 44 + 40 + viewMoreRow + stepCount * stepRowHeight;
+  }, [visibleOnboardingSteps.length, postHireOnboardingSteps.length]);
 
   const profileSectionLinks = useMemo(
     () => ({
@@ -1417,27 +1443,57 @@ export default function NewApplicantProfilePage() {
                           ) : null}
                         </div>
                       ) : null}
+                      {postHireOnboardingSteps.length > 0 ? (
+                        <div className="mb-3 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowPostHireOnboardingSteps((current) => !current)
+                            }
+                            className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+                          >
+                            {showPostHireOnboardingSteps ? "View less" : "View more"}
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="relative space-y-0 text-xs text-gray-600">
                         <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[color:var(--brand-primary)]" />
-                        {(data?.onboardingSteps ?? []).map((s, idx) => (
-                          <div key={s.id} className="flex min-h-[64px] items-center gap-3 py-1 sm:min-h-[76px] sm:gap-4">
-                            <div className="relative flex h-[64px] w-8 shrink-0 items-center justify-center sm:h-[76px]">
-                              {s.state === "complete" ? (
-                                <BrandedStepperCompleteIcon className="relative z-10 h-8 w-8" />
-                              ) : (
-                                <div className="relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--brand-primary)] bg-white text-[13px] font-semibold leading-none tabular-nums text-[color:var(--brand-primary)]">
-                                  {idx + 1}
+                        {visibleOnboardingSteps.map((s, idx) => {
+                          const isFirstPostHire =
+                            showPostHireOnboardingSteps &&
+                            s.phase === "post_hire" &&
+                            visibleOnboardingSteps[idx - 1]?.phase !== "post_hire";
+                          return (
+                            <div key={s.id}>
+                              {isFirstPostHire ? (
+                                <div className="relative z-10 mb-1 ml-11 pt-2 text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                                  Post-hire steps
                                 </div>
-                              )}
-                            </div>
-                            <div className="flex min-h-[64px] min-w-0 flex-1 flex-col justify-center gap-1 py-1 sm:min-h-[76px]">
-                              <div className="break-words text-[14px] font-semibold leading-5 text-[#111827]">{s.label}</div>
-                              {s.detail ? (
-                                <div className="break-words text-[12px] leading-5 text-[#6B7280]">{s.detail}</div>
                               ) : null}
+                              <div className="flex min-h-[64px] items-center gap-3 py-1 sm:min-h-[76px] sm:gap-4">
+                                <div className="relative flex h-[64px] w-8 shrink-0 items-center justify-center sm:h-[76px]">
+                                  {s.state === "complete" ? (
+                                    <BrandedStepperCompleteIcon className="relative z-10 h-8 w-8" />
+                                  ) : (
+                                    <div className="relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--brand-primary)] bg-white text-[13px] font-semibold leading-none tabular-nums text-[color:var(--brand-primary)]">
+                                      {idx + 1}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex min-h-[64px] min-w-0 flex-1 flex-col justify-center gap-1 py-1 sm:min-h-[76px]">
+                                  <div className="break-words text-[14px] font-semibold leading-5 text-[#111827]">
+                                    {s.label}
+                                  </div>
+                                  {s.detail ? (
+                                    <div className="break-words text-[12px] leading-5 text-[#6B7280]">
+                                      {s.detail}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {loading ? (
                           <div className="text-gray-600">Loading progress…</div>
                         ) : null}

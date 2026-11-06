@@ -313,7 +313,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const params = new URLSearchParams();
     if (job.professionId) params.set("professionId", job.professionId);
     if (job.employmentType) params.set("employmentType", job.employmentType);
-    return `/admin_recruiter/dashboard/workflow-mappings?${params}`;
+    params.set("tab", "mappings");
+    return `/admin_recruiter/dashboard/onboarding-flows?${params}`;
   }, [job.employmentType, job.professionId]);
 
   useEffect(() => {

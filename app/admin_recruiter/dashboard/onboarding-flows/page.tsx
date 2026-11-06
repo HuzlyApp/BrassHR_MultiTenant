@@ -1,7 +1,7 @@
 "use client";
 
-import { OnboardingFlowsPage } from "@/app/braas-hr/dashboard/onboarding-flows/page";
+import WorkflowsHubClient from "@/app/admin_recruiter/dashboard/workflows/WorkflowsHubClient";
 
 export default function AdminRecruiterOnboardingFlowsPage() {
-  return <OnboardingFlowsPage dashboardBasePath="/admin_recruiter/dashboard" embeddedInAdminShell />;
+  return <WorkflowsHubClient />;
 }

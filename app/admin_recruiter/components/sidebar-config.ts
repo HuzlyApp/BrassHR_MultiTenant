@@ -119,17 +119,36 @@ const SHIFTS_CHILDREN: SidebarLink[] = [
   { label: "Unclaimed", href: "#", matchPrefixes: [], disabled: true },
 ];
 
+export const WHO_IS_OFF_ROUTE = "/admin_recruiter/scheduling/who-is-off";
+export const SHIFT_CALENDAR_ROUTE = "/admin_recruiter/calendar/shifts";
+export const CLOCK_INS_ROUTE = "/admin_recruiter/attendance";
+export const TIMESHEETS_ROUTE = "/admin_recruiter/timesheets";
+
 const SCHEDULING_CHILDREN: SidebarLink[] = [
   {
-    label: "Schedule",
-    href: "/admin_recruiter/calendar/shifts",
-    matchPrefixes: ["/admin_recruiter/calendar/shifts"],
+    label: "Week View",
+    href: SHIFT_CALENDAR_ROUTE,
+    matchPrefixes: [SHIFT_CALENDAR_ROUTE, "/admin_recruiter/scheduling"],
   },
   {
-    label: "Time & Attendance",
-    href: "/admin_recruiter/attendance",
-    matchPrefixes: ["/admin_recruiter/attendance"],
+    label: "Who is off",
+    href: WHO_IS_OFF_ROUTE,
+    matchPrefixes: [WHO_IS_OFF_ROUTE],
   },
+];
+
+const TIME_CHILDREN: SidebarLink[] = [
+  {
+    label: "Clock-ins",
+    href: CLOCK_INS_ROUTE,
+    matchPrefixes: [CLOCK_INS_ROUTE],
+  },
+  {
+    label: "Timesheets",
+    href: TIMESHEETS_ROUTE,
+    matchPrefixes: [TIMESHEETS_ROUTE],
+  },
+  { label: "Approvals", href: "#", matchPrefixes: [], disabled: true },
 ];
 
 // Time and Pay are hidden until those screens are built.
@@ -197,13 +216,19 @@ const TEMPLATES_ACTIVE_PREFIXES = [
 ];
 
 const JOBS_ROUTE = "/admin_recruiter/jobs";
+export const APPLICATIONS_ROUTE = "/admin_recruiter/applications";
 
 
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
+  // {
+  //   label: "Candidates",
+  //   href: "/admin_recruiter/candidates",
+  //   matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+  // },
   {
-    label: "Candidates",
-    href: "/admin_recruiter/candidates",
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    label: "Applicants",
+    href: APPLICATIONS_ROUTE,
+    matchPrefixes: [APPLICATIONS_ROUTE],
   },
   {
     label: "Interviews",
@@ -235,25 +260,10 @@ const WORKFORCE_CHILDREN: SidebarLink[] = [
 const WORKFLOW_MAPPINGS_ROUTE = `${DASHBOARD_BASE}/workflow-mappings`;
 
 const AUTOMATION_CHILDREN: SidebarLink[] = [
-  // {
-  //   label: "Onboarding",
-  //   href: ONBOARDING_BUILDER_ROUTE,
-  //   matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
-  // }, // Hidden for now; can be uncommented later
   {
     label: "Workflows",
     href: WORKFLOWS_ROUTE,
-    matchPrefixes: [WORKFLOWS_ROUTE],
-  },
-  {
-    label: "Templates",
-    href: TEMPLATES_ROUTE,
-    matchPrefixes: [TEMPLATES_ROUTE],
-  },
-  {
-    label: "Workflow Mappings",
-    href: WORKFLOW_MAPPINGS_ROUTE,
-    matchPrefixes: [WORKFLOW_MAPPINGS_ROUTE],
+    matchPrefixes: [WORKFLOWS_ROUTE, TEMPLATES_ROUTE, WORKFLOW_MAPPINGS_ROUTE, ONBOARDING_BUILDER_ROUTE],
   },
   {
     label: "Library",
@@ -325,11 +335,11 @@ const FIGMA_PRIMARY_SECTIONS: SidebarSection[] = [
     children: SHIFTS_CHILDREN,
   },
   {
-    label: "Scheduling",
+    label: "Schedule",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
-    matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
+    matchPrefixes: [SHIFT_CALENDAR_ROUTE, WHO_IS_OFF_ROUTE, "/admin_recruiter/scheduling"],
     children: SCHEDULING_CHILDREN,
   },
 ];
@@ -545,7 +555,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Hiring",
     href: "#",
     iconType: ICON.candidates,
-    matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
+    matchPrefixes: [APPLICATIONS_ROUTE, ...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
     children: RECRUITMENT_CHILDREN.map((child) => ({
       ...child,
       resourceKey: child.resourceKey ?? "hiring",
@@ -568,23 +578,20 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: CLIENT_CHILDREN,
   },
   {
-    label: "Scheduling",
+    label: "Schedule",
     href: "#",
     resourceKey: "scheduling",
     iconType: ICON.schedule,
-    matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
+    matchPrefixes: [SHIFT_CALENDAR_ROUTE, WHO_IS_OFF_ROUTE, "/admin_recruiter/scheduling"],
     children: SCHEDULING_CHILDREN,
   },
   {
     label: "Time",
     href: "#",
+    resourceKey: "scheduling",
     iconType: ICON.time,
-    matchPrefixes: [],
-    children: [
-      { label: "Clock-ins", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Timesheets", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Approvals", href: "#", matchPrefixes: [], disabled: true },
-    ],
+    matchPrefixes: [CLOCK_INS_ROUTE, TIMESHEETS_ROUTE],
+    children: TIME_CHILDREN,
   },
   {
     label: "Pay",
@@ -622,7 +629,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "#",
     resourceKey: "hiring",
     iconType: ICON.candidates,
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    matchPrefixes: [APPLICATIONS_ROUTE, ...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
     children: RECRUITMENT_CHILDREN,
   },
   {
