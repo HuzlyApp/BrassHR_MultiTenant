@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
+import CallSettingsPanel from "@/app/admin_recruiter/settings/CallSettingsPanel";
 import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
 import SettingsSectionHeader from "@/app/admin_recruiter/settings/SettingsSectionHeader";
 import TemplatesSettingsPanel from "@/app/admin_recruiter/settings/TemplatesSettingsPanel";
@@ -49,6 +50,7 @@ const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/De
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
     case "branding":
+    case "call":
     case "hiring-theme":
     case "admin-console":
     case "roles":
@@ -102,6 +104,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           disabled={!canEdit && section !== "security" && section !== "profession"}
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
+          {section === "call" ? <CallSettingsPanel /> : null}
           {section === "branding" ? (
             <Suspense fallback={<SettingsPanelFallback />}>
               <BrandingSettingsPanel />
