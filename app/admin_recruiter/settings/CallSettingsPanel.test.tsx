@@ -46,8 +46,12 @@ describe("CallSettingsPanel", () => {
     render(<CallSettingsPanel />);
 
     const phone = await screen.findByLabelText("Phone number");
+    const dialpad = screen.getByTitle("Dialpad");
+    expect(dialpad.getAttribute("allow")).toContain("microphone");
+    expect(dialpad.getAttribute("allow")).toContain("camera");
     await user.type(phone, "4155550199");
     await user.click(screen.getByRole("button", { name: "Call" }));
+    expect(screen.getByTitle("Dialpad").className).not.toContain("opacity-0");
 
     expect(screen.getByRole("dialog", { name: "Calling +1 415 555 0199" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("Sign in to Dialpad");

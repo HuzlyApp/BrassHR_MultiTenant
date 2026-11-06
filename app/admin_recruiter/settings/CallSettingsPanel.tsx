@@ -10,6 +10,7 @@ import {
 import { formatPhoneDisplay, toE164 } from "@/lib/dialpad/phone";
 import type { DialpadCallLog } from "@/lib/dialpad/client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 import toast from "react-hot-toast";
 
 type Caller = {
@@ -19,6 +20,11 @@ type Caller = {
 
 const inputClassName =
   "h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] outline-none focus-visible:ring-2 focus-visible:ring-[#012352]/30 disabled:bg-[#F8FAFC]";
+
+// `*` lets Dialpad's document, and any origin it redirects to or embeds, trigger
+// the browser microphone prompt. A bare `microphone` token only covers the src origin.
+const DIALPAD_IFRAME_ALLOW =
+  "microphone *; camera *; speaker-selection *; autoplay *; display-capture *; hid *";
 
 function callStateLabel(state: string): string {
   if (state === "hangup" || state === "transcription" || state === "recording") return "Ended";
@@ -230,7 +236,11 @@ export default function CallSettingsPanel() {
       speakerOn: true,
       elapsedSeconds: 0,
     };
-    setCall(next);
+    // Paint the call screen before Dialpad starts media. A fully transparent iframe
+    // makes Chrome reject getUserMedia without showing the microphone prompt.
+    flushSync(() => {
+      setCall(next);
+    });
     if (authenticated) startDial(e164);
   }
 
@@ -378,13 +388,15 @@ export default function CallSettingsPanel() {
         ref={iframeRef}
         title="Dialpad"
         src={process.env.NODE_ENV === "test" ? "about:blank" : DIALPAD_CTI_SRC}
-        allow="microphone; speaker-selection; autoplay; hid"
+        allow={DIALPAD_IFRAME_ALLOW}
         sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-same-origin allow-forms"
         onLoad={() => post(dialpadCtiCommand("enable_current_tab"))}
         className={
           call?.phase === "sign-in" || (signingIn && !authenticated)
             ? "fixed left-1/2 top-28 z-[90] h-[min(520px,calc(100vh-16rem))] w-[min(400px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border-0 bg-white shadow-2xl"
-            : "pointer-events-none fixed top-0 left-0 z-[70] h-[520px] w-[400px] opacity-0"
+            : call
+              ? "fixed top-0 left-0 z-[70] h-[520px] w-[400px] border-0 bg-white"
+              : "pointer-events-none fixed top-0 left-0 z-[70] h-[520px] w-[400px] opacity-0"
         }
       />
 

@@ -116,8 +116,12 @@ const nextConfig: NextConfig = {
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       {
         key: "Permissions-Policy",
+        // Dialpad calls from a cross-origin iframe, and that iframe can navigate or
+        // nest another origin for WebRTC. A header allowlist that misses that origin
+        // (or camera=()) makes getUserMedia reject with NotAllowedError and no prompt.
+        // `*` is only the ceiling: a frame still needs its own allow attribute.
         value:
-          'camera=(), microphone=("https://dialpad.com"), speaker-selection=("https://dialpad.com"), geolocation=(self)',
+          "camera=*, microphone=*, speaker-selection=*, display-capture=*, autoplay=*, geolocation=(self)",
       },
     ];
     const securityHeaders = [
