@@ -23,6 +23,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/settings/branding",
       "/admin_recruiter/settings/hiring-theme",
       "/admin_recruiter/notifications",
+      "/admin_recruiter/settings/call",
 
       // Workflow (Library + Workflow Mappings)
       "/admin_recruiter/dashboard/onboarding-flows",
