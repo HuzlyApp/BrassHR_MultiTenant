@@ -419,7 +419,7 @@ export default function FacilitiesPage() {
             Locations
           </h1>
           <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-            View locations and assigned candidates
+            View locations and assigned workers
           </p>
         </div>
         {canEditOrganization ? (
@@ -516,8 +516,8 @@ export default function FacilitiesPage() {
                         <span className="rounded-full bg-[#F3F4F6] px-2 py-1">{facility.facilityType}</span>
                       ) : null}
                       <span className="rounded-full bg-[#ECFDF5] px-2 py-1 text-[#047857]">
-                        <span className="sm:hidden">Candidates: {facility.assignedCount}</span>
-                        <span className="hidden sm:inline">Assigned candidates: {facility.assignedCount}</span>
+                        <span className="sm:hidden">Workers: {facility.assignedCount}</span>
+                        <span className="hidden sm:inline">Assigned workers: {facility.assignedCount}</span>
                       </span>
                       <span className="text-[#94A3B8] sm:text-[#64748B]">Created {formatDate(facility.createdAt)}</span>
                     </div>
@@ -531,7 +531,7 @@ export default function FacilitiesPage() {
         <section className="rounded-xl border border-[#E5E7EB] bg-white p-3 sm:p-4 lg:p-5">
           {!selectedFacility ? (
             <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#F9FAFB] px-4 py-8 text-center text-sm text-[#6B7280] sm:px-6 sm:py-10">
-              Select a facility to view assigned candidates.
+              Select a facility to view assigned workers.
             </div>
           ) : (
             <>
@@ -539,14 +539,14 @@ export default function FacilitiesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <h2 className="text-base font-semibold break-words text-[#111827] sm:text-lg">
-                      Assigned Candidates for {selectedFacility.name}
+                      Assigned Workers for {selectedFacility.name}
                     </h2>
                     <p className="mt-1 text-sm leading-snug break-words text-[#6B7280]">
                       {selectedFacility.address || "No address on file"}
                     </p>
                     {!loadingAssignments ? (
                       <p className="mt-2 text-sm text-[#64748B]">
-                        {assignedWorkers.length} candidate{assignedWorkers.length === 1 ? "" : "s"}
+                        {assignedWorkers.length} worker{assignedWorkers.length === 1 ? "" : "s"}
                       </p>
                     ) : null}
                   </div>
@@ -557,7 +557,7 @@ export default function FacilitiesPage() {
                         onClick={() => setShowAssignCandidateModal(true)}
                         className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
                       >
-                        Assign Candidate
+                        Assign Worker
                       </button>
                     ) : null}
                     <CandidatesViewToggle
@@ -587,7 +587,7 @@ export default function FacilitiesPage() {
                 )
               ) : assignedWorkers.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#F9FAFB] px-6 py-10 text-center text-sm text-[#6B7280]">
-                  No candidates assigned to this facility yet.
+                  No workers assigned to this facility yet.
                 </div>
               ) : assignedCandidatesView === "list" ? (
                 <AssignedCandidateList workers={assignedWorkers} />
