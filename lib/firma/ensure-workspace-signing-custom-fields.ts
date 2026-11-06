@@ -7,12 +7,9 @@ import { FirmaError } from "@/lib/firma/errors";
 import type { FirmaWorkspaceCustomField } from "@/lib/firma/types";
 
 /**
- * BrassHR candidate/employment fields that should appear in the Firma
- * embedded template editor Field Types palette (drag-and-drop).
- *
- * Built-in Firma personal types already cover Name / Email / Phone / Company /
- * Job Title — this catalog fills the gaps (First/Last Name, address parts,
- * personal + employment extras) using workspace custom field definitions.
+ * BrassHR candidate/employment keys stored as Firma workspace custom fields.
+ * The Field Types palette itself is extended in patch-template-editor-field-palette.
+ * These definitions let prefilledData keys survive Firma's editor save.
  *
  * `field_name` must match recipient attrs or `custom_fields` keys used at send time.
  */
@@ -70,7 +67,7 @@ export function findMissingBrassHrFirmaWorkspaceSigningCustomFields(
 
 /**
  * Idempotently creates BrassHR signing custom fields on a Firma workspace so
- * they show up as drag-and-drop Field Types in the embedded template editor.
+ * so dragged palette fields can keep their prefilledData key.
  */
 export async function ensureBrassHrFirmaWorkspaceSigningCustomFields(
   workspaceId: string
