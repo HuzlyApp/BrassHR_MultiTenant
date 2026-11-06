@@ -43,6 +43,17 @@ type WorkerRow = {
   email?: string | null;
 };
 
+type EmploymentWorkerRow = {
+  id: string;
+  candidate_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  job_role: string | null;
+  status: string | null;
+  location: string | null;
+};
+
 async function loadAssignmentCountsByFacility(
   supabase: SupabaseClient,
   tenantId: string
@@ -234,7 +245,7 @@ export async function loadAssignedWorkersForFacility(
 
 function workerDisplayName(worker: Pick<WorkerRow, "first_name" | "last_name">): string {
   const name = `${worker.first_name ?? ""} ${worker.last_name ?? ""}`.trim();
-  return name || "Unnamed candidate";
+  return name || "Unnamed worker";
 }
 
 export async function loadAssignableCandidatesForFacility(
@@ -277,34 +288,64 @@ export async function loadAssignableCandidatesForFacility(
     }
   }
 
-  const { data: workerRows, error: workerError } = await supabase
-    .from("worker")
-    .select("id, user_id, first_name, last_name, email, job_role, status, city, state")
+  // Facility assignment is for employment workers (People → Workers), not hiring-pipeline candidates.
+  const { data: employmentRows, error: employmentError } = await supabase
+    .from("workers")
+    .select("id, candidate_id, first_name, last_name, email, job_role, status, location")
     .eq("tenant_id", tenantId)
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true })
     .limit(500);
-  if (workerError) throw workerError;
+  if (employmentError) throw employmentError;
+
+  const employmentWorkers = (employmentRows ?? []) as EmploymentWorkerRow[];
+  const candidateIds = Array.from(
+    new Set(
+      employmentWorkers
+        .map((row) => String(row.candidate_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  const linkedWorkerByCandidateId = new Map<string, WorkerRow>();
+  if (candidateIds.length > 0) {
+    const { data: linkedWorkers, error: linkedError } = await supabase
+      .from("worker")
+      .select("id, user_id, first_name, last_name, email, job_role, status, city, state")
+      .in("id", candidateIds);
+    if (linkedError) throw linkedError;
+    for (const row of (linkedWorkers ?? []) as WorkerRow[]) {
+      linkedWorkerByCandidateId.set(String(row.id), row);
+    }
+  }
 
   const candidates: FacilityAssignableCandidate[] = [];
 
-  for (const worker of (workerRows ?? []) as WorkerRow[]) {
-    const workerId = String(worker.id);
-    const userId = worker.user_id ? String(worker.user_id) : "";
+  for (const employment of employmentWorkers) {
+    const candidateId = String(employment.candidate_id ?? "").trim();
+    // Assignment APIs resolve against public.worker via candidate_id.
+    if (!candidateId) continue;
+
+    const linked = linkedWorkerByCandidateId.get(candidateId);
+    const userId = linked?.user_id ? String(linked.user_id).trim() : "";
     const alreadyAssigned =
-      assignedWorkerKeys.has(workerId) || (userId ? assignedWorkerKeys.has(userId) : false);
+      assignedWorkerKeys.has(candidateId) || (userId ? assignedWorkerKeys.has(userId) : false);
     if (alreadyAssigned) continue;
 
-    const city = worker.city?.trim() || null;
-    const state = worker.state?.trim() || null;
-    const location = [city, state].filter(Boolean).join(", ") || "—";
+    const location =
+      employment.location?.trim() ||
+      [linked?.city?.trim() || null, linked?.state?.trim() || null].filter(Boolean).join(", ") ||
+      "—";
 
     candidates.push({
-      workerId,
-      name: workerDisplayName(worker),
-      email: worker.email?.trim() || null,
-      jobRole: worker.job_role?.trim() || null,
-      status: worker.status?.trim() || null,
+      workerId: candidateId,
+      name: workerDisplayName({
+        first_name: employment.first_name,
+        last_name: employment.last_name,
+      }),
+      email: employment.email?.trim() || linked?.email?.trim() || null,
+      jobRole: employment.job_role?.trim() || linked?.job_role?.trim() || null,
+      status: employment.status?.trim() || linked?.status?.trim() || null,
       location,
       hasLinkedAccount: Boolean(userId),
     });

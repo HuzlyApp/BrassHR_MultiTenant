@@ -6,7 +6,7 @@ import { Circle, Plus, Search, X } from "lucide-react";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import type { FacilityAssignableCandidate } from "@/lib/facilities/types";
 
-const CANDIDATES_LOAD_ERROR = "Unable to load candidates. Please try again.";
+const WORKERS_LOAD_ERROR = "Unable to load workers. Please try again.";
 
 type AssignCandidateToFacilityModalProps = {
   open: boolean;
@@ -23,13 +23,13 @@ export default function AssignCandidateToFacilityModal({
   onClose,
   onAssigned,
 }: AssignCandidateToFacilityModalProps) {
-  const [candidates, setCandidates] = useState<FacilityAssignableCandidate[]>([]);
+  const [workers, setWorkers] = useState<FacilityAssignableCandidate[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [assigningWorkerId, setAssigningWorkerId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
-  const loadCandidates = useCallback(async () => {
+  const loadWorkers = useCallback(async () => {
     if (!facilityId) return;
     setLoading(true);
     setLoadError(null);
@@ -43,13 +43,13 @@ export default function AssignCandidateToFacilityModal({
         error?: string;
       };
       if (!res.ok) {
-        throw new Error(json.error || CANDIDATES_LOAD_ERROR);
+        throw new Error(json.error || WORKERS_LOAD_ERROR);
       }
-      setCandidates(json.candidates ?? []);
+      setWorkers(json.candidates ?? []);
     } catch (error) {
-      console.error("[AssignCandidateToFacilityModal] load candidates failed", error);
-      setLoadError(CANDIDATES_LOAD_ERROR);
-      setCandidates([]);
+      console.error("[AssignCandidateToFacilityModal] load workers failed", error);
+      setLoadError(WORKERS_LOAD_ERROR);
+      setWorkers([]);
     } finally {
       setLoading(false);
     }
@@ -58,58 +58,58 @@ export default function AssignCandidateToFacilityModal({
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    void loadCandidates();
-  }, [open, loadCandidates]);
+    void loadWorkers();
+  }, [open, loadWorkers]);
 
-  const filteredCandidates = useMemo(() => {
+  const filteredWorkers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter((candidate) => {
+    if (!q) return workers;
+    return workers.filter((worker) => {
       const haystack = [
-        candidate.name,
-        candidate.email,
-        candidate.jobRole,
-        candidate.status,
-        candidate.location,
+        worker.name,
+        worker.email,
+        worker.jobRole,
+        worker.status,
+        worker.location,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [candidates, query]);
+  }, [workers, query]);
 
-  const assignCandidate = useCallback(
-    async (candidate: FacilityAssignableCandidate) => {
-      if (!candidate.hasLinkedAccount) {
-        toast.error("This candidate account is not linked yet and cannot be assigned.");
+  const assignWorker = useCallback(
+    async (worker: FacilityAssignableCandidate) => {
+      if (!worker.hasLinkedAccount) {
+        toast.error("This worker account is not linked yet and cannot be assigned.");
         return;
       }
 
-      setAssigningWorkerId(candidate.workerId);
+      setAssigningWorkerId(worker.workerId);
       try {
         const res = await fetch("/api/admin/facility-assignments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workerId: candidate.workerId, facilityId }),
+          body: JSON.stringify({ workerId: worker.workerId, facilityId }),
         });
         const json = (await res.json().catch(() => ({}))) as {
           error?: string;
           alreadyAssigned?: boolean;
         };
         if (!res.ok) {
-          throw new Error(json.error || "Failed to assign candidate to facility.");
+          throw new Error(json.error || "Failed to assign worker to facility.");
         }
         toast.success(
           json.alreadyAssigned
-            ? "Candidate is already assigned to this facility."
-            : `${candidate.name} assigned to ${facilityName}.`
+            ? "Worker is already assigned to this facility."
+            : `${worker.name} assigned to ${facilityName}.`
         );
         await onAssigned?.();
         onClose();
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Failed to assign candidate to facility.";
+          error instanceof Error ? error.message : "Failed to assign worker to facility.";
         toast.error(message);
       } finally {
         setAssigningWorkerId(null);
@@ -125,7 +125,7 @@ export default function AssignCandidateToFacilityModal({
       className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="assign-candidate-to-facility-title"
+      aria-labelledby="assign-worker-to-facility-title"
       onClick={onClose}
     >
       <div
@@ -135,10 +135,10 @@ export default function AssignCandidateToFacilityModal({
         <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-5 sm:px-8 sm:py-6">
           <div className="min-w-0 pr-4">
             <h2
-              id="assign-candidate-to-facility-title"
+              id="assign-worker-to-facility-title"
               className="text-xl font-semibold leading-tight text-[#1F2937] sm:text-2xl"
             >
-              Assign Candidate
+              Assign Worker
             </h2>
             <p className="mt-1 truncate text-sm text-[#6B7280]">{facilityName}</p>
           </div>
@@ -146,7 +146,7 @@ export default function AssignCandidateToFacilityModal({
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white"
-            aria-label="Close assign candidate modal"
+            aria-label="Close assign worker modal"
           >
             <X className="h-7 w-7" />
           </button>
@@ -154,54 +154,54 @@ export default function AssignCandidateToFacilityModal({
 
         <div className="px-6 pb-6 pt-4 sm:px-8 sm:pb-8">
           <label className="relative mb-4 block">
-            <span className="sr-only">Search candidates</span>
+            <span className="sr-only">Search workers</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search candidates by name, email, or role"
+              placeholder="Search workers by name, email, or role"
               className="h-11 w-full rounded-lg border border-[#D1D5DB] bg-white py-2 pl-9 pr-3 text-sm text-[#111827] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]"
             />
           </label>
 
           <div className="max-h-[52vh] overflow-auto pr-1">
             {loading ? (
-              <div className="py-10 text-center text-sm text-[#6B7280]">Loading candidates...</div>
+              <div className="py-10 text-center text-sm text-[#6B7280]">Loading workers...</div>
             ) : loadError ? (
               <div className="py-10 text-center text-sm text-red-700">{loadError}</div>
-            ) : filteredCandidates.length === 0 ? (
+            ) : filteredWorkers.length === 0 ? (
               <div className="py-10 text-center text-sm text-[#6B7280]">
-                {candidates.length === 0
-                  ? "No candidates are available to assign to this facility."
-                  : "No candidates match your search."}
+                {workers.length === 0
+                  ? "No workers are available to assign to this facility."
+                  : "No workers match your search."}
               </div>
             ) : (
               <ul className="divide-y divide-[#E5E7EB]">
-                {filteredCandidates.map((candidate) => {
+                {filteredWorkers.map((worker) => {
                   const disabled =
-                    assigningWorkerId === candidate.workerId || !candidate.hasLinkedAccount;
+                    assigningWorkerId === worker.workerId || !worker.hasLinkedAccount;
                   return (
                     <li
-                      key={candidate.workerId}
+                      key={worker.workerId}
                       className="flex items-center justify-between gap-3 py-4"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <CandidateListAvatar name={candidate.name} photoUrl={null} size="sm" />
+                        <CandidateListAvatar name={worker.name} photoUrl={null} size="sm" />
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-[#111827]">
-                            {candidate.name}
+                            {worker.name}
                           </div>
                           <div className="mt-0.5 truncate text-xs text-[#6B7280]">
-                            {[candidate.jobRole, candidate.location].filter(Boolean).join(" • ") ||
+                            {[worker.jobRole, worker.location].filter(Boolean).join(" • ") ||
                               "—"}
                           </div>
-                          {candidate.email ? (
+                          {worker.email ? (
                             <div className="mt-0.5 truncate text-xs text-[#94A3B8]">
-                              {candidate.email}
+                              {worker.email}
                             </div>
                           ) : null}
-                          {!candidate.hasLinkedAccount ? (
+                          {!worker.hasLinkedAccount ? (
                             <div className="mt-1 text-xs font-medium text-amber-700">
                               Account not linked — cannot assign yet
                             </div>
@@ -212,9 +212,9 @@ export default function AssignCandidateToFacilityModal({
                       <button
                         type="button"
                         disabled={disabled}
-                        onClick={() => void assignCandidate(candidate)}
+                        onClick={() => void assignWorker(worker)}
                         className="inline-flex shrink-0 items-center gap-3 px-2 py-1 text-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label={`Assign ${candidate.name}`}
+                        aria-label={`Assign ${worker.name}`}
                       >
                         <Circle className="h-5 w-5 fill-current stroke-current" />
                         <Plus className="h-6 w-6" />

@@ -352,14 +352,7 @@ function EditIcon() {
 
 function PublishedBadge() {
   return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium leading-[18px]"
-      style={{
-        color: BRAND_SECONDARY_BG,
-        border: `1px solid ${BRAND_SECONDARY_BG}`,
-        backgroundColor: "#ffffff",
-      }}
-    >
+    <span className="inline-flex items-center rounded-full bg-[#ECFDF3] px-2.5 py-0.5 text-xs font-medium leading-[18px] text-[#027A48]">
       Published
     </span>
   );
@@ -367,16 +360,19 @@ function PublishedBadge() {
 
 function UnpublishedBadge() {
   return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium leading-[18px]"
-      style={{
-        color: "#ffffff",
-        border: "1px solid #94A3B8",
-        backgroundColor: "#94A3B8",
-      }}
-    >
-      Unpublished
+    <span className="inline-flex items-center rounded-full bg-[#F2F4F7] px-2.5 py-0.5 text-xs font-medium leading-[18px] text-[#667085]">
+      Unpublish
     </span>
+  );
+}
+
+function MoreVerticalIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="8" cy="3.5" r="1.25" fill="#98A2B3" />
+      <circle cx="8" cy="8" r="1.25" fill="#98A2B3" />
+      <circle cx="8" cy="12.5" r="1.25" fill="#98A2B3" />
+    </svg>
   );
 }
 
@@ -802,11 +798,21 @@ type FlowCardProps = {
   onDelete: (flow: OnboardingFlow) => void;
 };
 
-const flowActionClass =
-  "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_10%,white)]";
-
 function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: FlowCardProps) {
   const published = flow.status === "published";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
 
   return (
     <div
@@ -818,7 +824,7 @@ function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: F
     >
       <Link
         href={builderHref}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 pr-24 sm:gap-4"
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 pr-28 sm:gap-4"
         aria-label={`Edit ${flow.name}`}
       >
         <div
@@ -835,31 +841,55 @@ function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: F
           >
             {flow.name}
           </h3>
-          <div className="mt-1.5">
-            {published ? <PublishedBadge /> : <UnpublishedBadge />}
-          </div>
+          <p className="mt-0.5 truncate text-xs leading-4 text-[#98A2B3]">Default</p>
         </div>
       </Link>
 
-      <div className="pointer-events-none absolute right-3 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 sm:right-4">
-        <div className="pointer-events-auto flex items-center opacity-100 transition-opacity md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
-          <Link href={viewHref} className={flowActionClass} aria-label={`View ${flow.name}`} title="View workflow">
-            <EyeIcon />
-          </Link>
-          <Link href={builderHref} className={flowActionClass} aria-label={`Edit ${flow.name}`} title="Edit workflow">
-            <EditIcon />
-          </Link>
+      <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 items-center gap-2 sm:right-4">
+        {published ? <PublishedBadge /> : <UnpublishedBadge />}
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            aria-label={`More actions for ${flow.name}`}
+            title="More actions"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F2F4F7]"
+          >
+            <MoreVerticalIcon />
+          </button>
+          {menuOpen ? (
+            <div
+              className="absolute right-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border bg-white py-1 shadow-lg"
+              style={{ borderColor: CARD_BORDER }}
+            >
+              <Link
+                href={viewHref}
+                className="block px-3 py-2 text-sm font-medium text-[#344054] transition hover:bg-[#F9FAFB]"
+                onClick={() => setMenuOpen(false)}
+              >
+                View
+              </Link>
+              <Link
+                href={builderHref}
+                className="block px-3 py-2 text-sm font-medium text-[#344054] transition hover:bg-[#F9FAFB]"
+                onClick={() => setMenuOpen(false)}
+              >
+                Edit
+              </Link>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete(flow);
+                }}
+                className="w-full px-3 py-2 text-left text-sm font-medium text-[#B42318] transition hover:bg-[#FEF3F2] disabled:opacity-50"
+              >
+                Delete
+              </button>
+            </div>
+          ) : null}
         </div>
-        <button
-          type="button"
-          aria-label={`Delete ${flow.name}`}
-          title="Delete workflow"
-          disabled={deleting}
-          onClick={() => onDelete(flow)}
-          className="pointer-events-auto inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[#B42318] transition hover:bg-[#FEF3F2] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <TrashIcon />
-        </button>
       </div>
     </div>
   );
@@ -869,12 +899,18 @@ type OnboardingFlowsPageProps = {
   dashboardBasePath?: string;
   showTopTabs?: boolean;
   embeddedInAdminShell?: boolean;
+  /** When true, page chrome lives in WorkflowsHub — show Onboarding Flows section only. */
+  hubMode?: boolean;
+  /** Increment from the hub “Create a flow” button to open the create modal. */
+  openCreateFlowSignal?: number;
 };
 
 function OnboardingFlowsPageContent({
   dashboardBasePath = "/braas-hr/dashboard",
   showTopTabs = false,
   embeddedInAdminShell = false,
+  hubMode = false,
+  openCreateFlowSignal = 0,
 }: OnboardingFlowsPageProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -889,9 +925,16 @@ function OnboardingFlowsPageContent({
     workflowName: string;
     suggestedEmploymentType?: "W2" | "1099" | "Contract" | null;
   } | null>(null);
+  const lastCreateSignalRef = useRef(0);
 
   const { libraries, isLoading: librariesLoading, error: librariesError } = useOnboardingLibraries();
   const { templateOptions, isLoading: templatesLoading } = useOnboardingTemplates();
+
+  useEffect(() => {
+    if (!hubMode || !openCreateFlowSignal || openCreateFlowSignal === lastCreateSignalRef.current) return;
+    lastCreateSignalRef.current = openCreateFlowSignal;
+    setCreateModalOpen(true);
+  }, [hubMode, openCreateFlowSignal]);
 
   const onboardingLibrary = useMemo(
     () => libraries.find((l) => l.slug === "onboarding") ?? null,
@@ -936,9 +979,18 @@ function OnboardingFlowsPageContent({
     refetch,
   } = useOnboardingFlows({
     libraryId: effectiveLibraryId,
-    status: activeTab,
+    status: hubMode ? undefined : activeTab,
     enabled: !librariesLoading && Boolean(effectiveLibraryId),
   });
+
+  const publishedFlows = useMemo(
+    () => flows.filter((flow) => flow.status === "published"),
+    [flows]
+  );
+  const unpublishedFlows = useMemo(
+    () => flows.filter((flow) => flow.status !== "published"),
+    [flows]
+  );
 
   const builderBase = `${dashboardBasePath}/onboarding-builder`;
 
@@ -1020,6 +1072,126 @@ function OnboardingFlowsPageContent({
     return null;
   }
 
+  const renderFlowGrid = (items: OnboardingFlow[], label: string) =>
+    items.length === 0 ? (
+      <p className="py-8 text-center text-sm" style={{ color: TEXT_MUTED }}>
+        No {label.toLowerCase()} found.
+      </p>
+    ) : (
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label={label}>
+        {items.map((flow) => (
+          <FlowCard
+            key={flow.id}
+            flow={flow}
+            builderHref={`${builderBase}?flow=${flow.id}`}
+            viewHref={`${builderBase}?flow=${flow.id}&view=1`}
+            deleting={deletingFlowId === flow.id}
+            onDelete={(target) => void handleDeleteFlow(target)}
+          />
+        ))}
+      </section>
+    );
+
+  const flowsBody = (
+    <>
+      {(librariesError || flowsError) ? (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {librariesError instanceof Error
+            ? librariesError.message
+            : flowsError instanceof Error
+              ? flowsError.message
+              : "Failed to load onboarding flows"}
+        </div>
+      ) : null}
+
+      {isFlowsLoading ? (
+        <CandidateDetailLoader label="Loading flows…" className="min-h-[280px] bg-transparent py-10" />
+      ) : !effectiveLibraryId ? (
+        <p className="py-12 text-center text-sm" style={{ color: TEXT_MUTED }}>
+          No onboarding library found for this tenant.
+        </p>
+      ) : hubMode ? (
+        <>
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-[#98A2B3]">Library</p>
+              <h2 className="mt-1 text-xl font-semibold leading-7 text-[#101828]">{libraryLabel}</h2>
+            </div>
+            <p className="text-sm text-[#667085]">
+              {publishedCount} Published <span className="text-[#D0D5DD]">•</span> {unpublishedCount}{" "}
+              Unpublish
+            </p>
+          </div>
+
+          <div className="mb-8">
+            <h3 className="mb-4 text-base font-semibold text-[#101828]">Published</h3>
+            {renderFlowGrid(publishedFlows, "Published flows")}
+          </div>
+
+          <div>
+            <h3 className="mb-4 text-base font-semibold text-[#101828]">Unpublish</h3>
+            {renderFlowGrid(unpublishedFlows, "Unpublished flows")}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-lg font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
+              {sectionTitle}
+            </h2>
+            <span className="text-sm leading-5" style={{ color: TEXT_MUTED }}>
+              {flows.length}
+            </span>
+          </div>
+
+          {flows.length === 0 ? (
+            <p className="py-12 text-center text-sm" style={{ color: TEXT_MUTED }}>
+              {activeTab === "published"
+                ? "No published flows found."
+                : "No unpublished flows found."}
+            </p>
+          ) : (
+            renderFlowGrid(flows, sectionTitle)
+          )}
+        </>
+      )}
+    </>
+  );
+
+  if (hubMode) {
+    return (
+      <>
+        {flowsBody}
+        <CreateNewFlowModal
+          open={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          onCreated={handleFlowCreated}
+          templateOptions={templateOptions}
+          folderOptions={folderOptions}
+          defaultFolderId={defaultFolderId}
+          saving={isCreating || templatesLoading}
+        />
+        <ConfigureMappingModal
+          open={mappingSetup !== null}
+          workflowId={mappingSetup?.workflowId ?? ""}
+          workflowName={mappingSetup?.workflowName ?? ""}
+          suggestedEmploymentType={mappingSetup?.suggestedEmploymentType}
+          onClose={() => {
+            setMappingSetup(null);
+            if (mappingSetup?.workflowId) {
+              router.push(`${builderBase}?flow=${mappingSetup.workflowId}`);
+            }
+          }}
+          onSaved={() => {
+            const flowId = mappingSetup?.workflowId;
+            setMappingSetup(null);
+            if (flowId) router.push(`${builderBase}?flow=${flowId}`);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
       <div
@@ -1041,7 +1213,7 @@ function OnboardingFlowsPageContent({
               </nav>
               <nav className="flex flex-wrap items-center gap-6 text-sm text-[#012352]" aria-label="Workflow tabs">
                 <span className="cursor-pointer">Builder</span>
-                <Link href="/admin_recruiter/dashboard/templates" className="cursor-pointer">
+                <Link href="/admin_recruiter/dashboard/onboarding-flows?tab=templates" className="cursor-pointer">
                   Templates
                 </Link>
                 <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer border-b-2 border-[color:var(--brand-primary)] pb-1 text-[color:var(--brand-primary)]">
@@ -1112,61 +1284,7 @@ function OnboardingFlowsPageContent({
           </button>
         </div>
 
-        {(librariesError || flowsError) ? (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {librariesError instanceof Error
-              ? librariesError.message
-              : flowsError instanceof Error
-                ? flowsError.message
-                : "Failed to load onboarding flows"}
-          </div>
-        ) : null}
-
-        {isFlowsLoading ? (
-          <CandidateDetailLoader label="Loading flows…" className="min-h-[280px] bg-transparent py-10" />
-        ) : !effectiveLibraryId ? (
-          <p className="py-12 text-center text-sm" style={{ color: TEXT_MUTED }}>
-            No onboarding library found for this tenant.
-          </p>
-        ) : (
-          <>
-        <div className="mb-5 flex items-center justify-between">
-          <h2
-            className="text-lg font-semibold leading-7"
-            style={{ color: TEXT_PRIMARY }}
-          >
-            {sectionTitle}
-          </h2>
-          <span className="text-sm leading-5" style={{ color: TEXT_MUTED }}>
-            {flows.length}
-          </span>
-        </div>
-
-        {flows.length === 0 ? (
-          <p className="py-12 text-center text-sm" style={{ color: TEXT_MUTED }}>
-            {activeTab === "published"
-              ? "No published flows found."
-              : "No unpublished flows found."}
-          </p>
-        ) : (
-          <section
-            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-            aria-label={sectionTitle}
-          >
-            {flows.map((flow) => (
-              <FlowCard
-                key={flow.id}
-                flow={flow}
-                builderHref={`${builderBase}?flow=${flow.id}`}
-                viewHref={`${builderBase}?flow=${flow.id}&view=1`}
-                deleting={deletingFlowId === flow.id}
-                onDelete={(target) => void handleDeleteFlow(target)}
-              />
-            ))}
-          </section>
-        )}
-          </>
-        )}
+        {flowsBody}
       </div>
 
       <CreateNewFlowModal
