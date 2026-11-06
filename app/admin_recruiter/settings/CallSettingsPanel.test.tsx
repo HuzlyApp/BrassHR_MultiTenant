@@ -21,7 +21,24 @@ describe("CallSettingsPanel", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ configured: true, callers: [], defaultUserId: null }),
+        json: async () => ({
+          configured: true,
+          callers: [],
+          defaultUserId: null,
+          calls: [
+            {
+              id: "1",
+              direction: "outbound",
+              state: "hangup",
+              startedAt: "2026-11-06T12:04:00.000Z",
+              durationSeconds: 75,
+              externalNumber: "+19194519662",
+              contactName: "Jordan Lee",
+              targetName: "ZipStaff Main Ops",
+            },
+          ],
+          callsError: null,
+        }),
       })
     );
 
@@ -37,6 +54,9 @@ describe("CallSettingsPanel", () => {
     expect(screen.getByRole("button", { name: "Mute" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Speaker" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "End call" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Call logs" })).toBeTruthy();
+    expect(screen.getByText("Jordan Lee")).toBeTruthy();
+    expect(screen.getByText("Outbound")).toBeTruthy();
     expect(postDialpadCti).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ method: "initiate_call" })

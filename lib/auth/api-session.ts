@@ -7,6 +7,7 @@ import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { isStaffRole, parseAppRole, type AppRole } from "@/lib/auth/app-role";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
 import { clientIpFromHeaders, noteAuthFailure } from "@/lib/auth/auth-failure-guard";
+import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
 import { authorizeStaffHttpAccess } from "@/lib/auth/module-access.server";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import {
@@ -107,6 +108,7 @@ async function rejectAuth(
     });
     if (limited) return limited;
   } catch (error) {
+    rethrowDynamicServerUsage(error);
     console.error("[security-auth] failure log skipped", error instanceof Error ? error.message : "unknown");
   }
   return NextResponse.json(
@@ -364,6 +366,7 @@ export async function requireStaffApiSession(): Promise<StaffApiAuthContext | Ne
 
     return { ...ctx, authUser: user };
   } catch (e) {
+    rethrowDynamicServerUsage(e);
     console.error("[auth] requireStaffApiSession", e);
     return rejectAuth(401, "auth_check_failed");
   } finally {

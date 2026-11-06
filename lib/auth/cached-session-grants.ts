@@ -7,6 +7,7 @@ import type { StaffAccessRecord } from "@/lib/admin/staff-access-cache";
 import { getCachedStaffApiSession, getCachedStaffTenantScope } from "@/lib/auth/cached-staff-auth";
 import { loadSessionGrants } from "@/lib/auth/module-access.server";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
 
 async function loadViewerStaffAccess(): Promise<StaffAccessRecord | null> {
   const auth = await getCachedStaffApiSession();
@@ -36,6 +37,7 @@ export const getCachedStaffAccessSeed = cache(async (): Promise<StaffAccessRecor
   try {
     return await loadViewerStaffAccess();
   } catch (error) {
+    rethrowDynamicServerUsage(error);
     console.error("[staff-access] seed failed", error);
     return null;
   }
@@ -46,6 +48,7 @@ export async function loadFreshViewerStaffAccess(): Promise<StaffAccessRecord | 
   try {
     return await loadViewerStaffAccess();
   } catch (error) {
+    rethrowDynamicServerUsage(error);
     console.error("[staff-access] refresh failed", error);
     return null;
   }
