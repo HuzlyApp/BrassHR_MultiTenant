@@ -9,6 +9,7 @@ import {
   patchFirmaTemplateEditorBranding,
   type FirmaTemplateEditorWithPalette,
 } from "@/lib/firma/embed-color-palette";
+import { patchFirmaTemplateEditorFieldPalette } from "@/lib/firma/patch-template-editor-field-palette";
 import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
 import {
   applyEditorInitTimeout,
@@ -196,22 +197,41 @@ async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTempla
     const alreadyPresent = getFirmaTemplateEditor();
     if (alreadyPresent) return alreadyPresent;
 
+    const response = await fetch(src);
+    if (!response.ok) {
+      throw new Error("Failed to load signature template editor script");
+    }
+    const originalSource = await response.text();
+    const patched = patchFirmaTemplateEditorFieldPalette(originalSource);
+    if (!patched.patched) {
+      console.error(
+        "[e-signature-template-builder] Field Types palette patch missed Firma editor anchors",
+        patched.missingAnchors
+      );
+    }
+    const scriptUrl = URL.createObjectURL(
+      new Blob([patched.patched ? patched.source : originalSource], { type: "text/javascript" })
+    );
+
     await new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
       const timeout = window.setTimeout(() => {
         script.remove();
+        URL.revokeObjectURL(scriptUrl);
         reject(new Error("Timed out loading signature template editor script"));
       }, FIRMA_SCRIPT_TIMEOUT_MS);
 
-      script.src = src;
+      script.src = scriptUrl;
       script.async = true;
       script.onload = () => {
         window.clearTimeout(timeout);
+        URL.revokeObjectURL(scriptUrl);
         resolve();
       };
       script.onerror = () => {
         window.clearTimeout(timeout);
         script.remove();
+        URL.revokeObjectURL(scriptUrl);
         reject(new Error("Failed to load signature template editor script"));
       };
       document.body.appendChild(script);
