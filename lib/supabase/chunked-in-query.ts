@@ -8,7 +8,7 @@ type ChunkQueryResult<T> = {
 /** Run Supabase `.in()` filters in chunks to avoid HTTP header overflow (16KB limit). */
 export async function queryInChunks<T>(
   ids: string[],
-  fetchChunk: (chunk: string[]) => Promise<{ data: T[] | null; error: unknown | null }>,
+  fetchChunk: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: unknown | null }>,
   chunkSize = DEFAULT_CHUNK_SIZE
 ): Promise<ChunkQueryResult<T>> {
   const unique = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
