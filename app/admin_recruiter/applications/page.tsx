@@ -73,7 +73,10 @@ import {
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
-import { candidateProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
+import {
+  candidateAiAnalysisHref,
+  candidateProfileHref,
+} from "@/app/admin_recruiter/candidates/candidate-links";
 import { CandidatePreHireIconLink } from "@/app/admin_recruiter/candidates/CandidatePreHireIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -118,7 +121,7 @@ import {
   saveApplicationColumnOrder,
   type ApplicationColumnId,
 } from "./application-columns";
-import { CandidateAiAnalysisButton } from "./CandidateAiAnalysisButton";
+import { applicationAiAnalysisHref } from "./CandidateAiAnalysisButton";
 import {
   ApplicationStatusChangeModal,
   ApplicationStatusHistoryDialog,
@@ -3096,13 +3099,18 @@ export default function JobApplicationsPage() {
       case "actions": {
         const menuOpen = rowActionsMenu?.rowId === row.id;
         const busy = statusBusyId === row.id;
-        const detailHref = `/admin_recruiter/applications/review?jobId=${encodeURIComponent(row.job_requisition_id)}&applicationId=${encodeURIComponent(row.id)}`;
+        const workerId = resolveApplicationWorkerId(row) || row.worker_id?.trim() || "";
+        const aiAnalysisHref = workerId
+          ? candidateAiAnalysisHref(workerId, { applicationId: row.id })
+          : applicationAiAnalysisHref(row.id, row.job_requisition_id);
         return (
           <div className="inline-flex items-center justify-center gap-1.5">
             <Link
-              href={detailHref}
+              href={aiAnalysisHref}
               className="inline-flex size-[23px] items-center justify-center rounded-md border border-[#E2E8F0] bg-white transition hover:bg-[#F8FAFC]"
-              title="Review applicant"
+              title="AI Analysis"
+              aria-label={`Open AI analysis for ${applicantName(row)}`}
+              onClick={(event) => event.stopPropagation()}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icons/applicants/icon-review.svg" alt="" />

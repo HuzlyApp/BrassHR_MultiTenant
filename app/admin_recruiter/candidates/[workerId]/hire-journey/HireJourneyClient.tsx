@@ -56,9 +56,14 @@ function buildSidebarProfile(
     || candidate?.status 
     || null;
 
+  const jobName = primaryApp?.jobTitle?.trim() || null;
+  // API `agreedPayRate` is the job posting pay range (pay_rate_min/max). True application
+  // agreed-offer rates are not persisted yet — show "—" for that field until they are.
+  const jobPayRate = primaryApp?.agreedPayRate?.trim() || null;
+
   return {
     name: candidate?.name?.trim() || "Candidate",
-    role: candidate?.role?.trim() || primaryApp?.jobTitle?.trim() || "",
+    role: candidate?.role?.trim() || jobName || "",
     statusLabel,
     photoUrl: candidate?.profilePhotoUrl ?? null,
     workType: workTypeRaw ? workTypeSummaryLabel(workTypeRaw) : null,
@@ -66,6 +71,10 @@ function buildSidebarProfile(
     location: candidate?.location?.trim() || null,
     source: null,
     dateApplied: formatAppliedDate(primaryApp?.appliedAt),
+    jobName,
+    jobRequisitionId: primaryApp?.jobRequisitionId?.trim() || null,
+    jobPayRate,
+    agreedPayRate: null,
     email: candidate?.email ?? null,
     phone: candidate?.phone ?? null,
   };

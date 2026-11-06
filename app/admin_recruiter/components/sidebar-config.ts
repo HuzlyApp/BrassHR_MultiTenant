@@ -197,13 +197,19 @@ const TEMPLATES_ACTIVE_PREFIXES = [
 ];
 
 const JOBS_ROUTE = "/admin_recruiter/jobs";
+export const APPLICATIONS_ROUTE = "/admin_recruiter/applications";
 
 
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
+  // {
+  //   label: "Candidates",
+  //   href: "/admin_recruiter/candidates",
+  //   matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+  // },
   {
-    label: "Candidates",
-    href: "/admin_recruiter/candidates",
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    label: "Applicants",
+    href: APPLICATIONS_ROUTE,
+    matchPrefixes: [APPLICATIONS_ROUTE],
   },
   {
     label: "Interviews",
@@ -545,7 +551,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Hiring",
     href: "#",
     iconType: ICON.candidates,
-    matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
+    matchPrefixes: [APPLICATIONS_ROUTE, ...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
     children: RECRUITMENT_CHILDREN.map((child) => ({
       ...child,
       resourceKey: child.resourceKey ?? "hiring",
@@ -622,7 +628,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "#",
     resourceKey: "hiring",
     iconType: ICON.candidates,
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    matchPrefixes: [APPLICATIONS_ROUTE, ...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
     children: RECRUITMENT_CHILDREN,
   },
   {
