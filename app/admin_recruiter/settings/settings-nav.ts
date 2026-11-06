@@ -10,6 +10,7 @@ import {
   LifeBuoy,
   ListChecks,
   Monitor,
+  Phone,
   ShieldCheck,
   UserCircle,
   UserCog,
@@ -23,6 +24,7 @@ export type SettingsNavItemId =
   | "account"
   | "branding"
   | "notifications"
+  | "call"
   | "security"
   | "library"
   | "workflow-mappings"
@@ -38,6 +40,7 @@ export type SettingsNavItemId =
 
 export type SettingsSectionSlug =
   | "branding"
+  | "call"
   | "admin-console"
   | "roles"
   | "departments"
@@ -113,6 +116,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: Bell,
         resourceKey: "settings_notifications",
         matchPrefixes: ["/admin_recruiter/notifications"],
+      },
+      {
+        id: "call",
+        label: "Call",
+        href: "/admin_recruiter/settings/call",
+        icon: Phone,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/call"],
       },
       {
         id: "help",
@@ -256,6 +267,10 @@ export const SETTINGS_SECTION_META: Record<
   branding: {
     title: "Branding",
     description: "Customized your branding.",
+  },
+  call: {
+    title: "Call",
+    description: "Place an outbound call through Dialpad.",
   },
   "admin-console": {
     title: "Admin Console",
