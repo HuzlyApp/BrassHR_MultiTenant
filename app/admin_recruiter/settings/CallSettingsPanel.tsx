@@ -49,6 +49,8 @@ function callWhenLabel(iso: string): string {
 type ActiveCall = {
   phoneLabel: string;
   e164: string;
+  direction: "inbound" | "outbound";
+  callId: string | null;
   phase: CallPhase;
   muted: boolean;
   speakerOn: boolean;
@@ -64,6 +66,7 @@ export default function CallSettingsPanel() {
   const [refreshingLogs, setRefreshingLogs] = useState(false);
   const [dialpadUserId, setDialpadUserId] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [call, setCall] = useState<ActiveCall | null>(null);
   const callRef = useRef<ActiveCall | null>(null);
@@ -130,6 +133,9 @@ export default function CallSettingsPanel() {
       .finally(() => setRefreshingLogs(false));
   }
 
+  const refreshCallLogsRef = useRef(refreshCallLogs);
+  refreshCallLogsRef.current = refreshCallLogs;
+
   function post(command: ReturnType<typeof dialpadCtiCommand>) {
     postDialpadCti(iframeRef.current?.contentWindow, command);
   }
@@ -151,6 +157,7 @@ export default function CallSettingsPanel() {
       if (parsed.method === "user_authentication") {
         setAuthenticated(parsed.authenticated);
         setDialpadUserId(parsed.authenticated ? parsed.userId : null);
+        if (parsed.authenticated) setSigningIn(false);
         if (parsed.authenticated && callRef.current?.phase === "sign-in") {
           startDial(callRef.current.e164);
           setCall((current) => (current ? { ...current, phase: "ringing" } : current));
@@ -158,13 +165,38 @@ export default function CallSettingsPanel() {
         return;
       }
       if (parsed.state === "on") {
-        setCall((current) => (current && current.phase !== "ended" ? { ...current, phase: "ringing" } : current));
+        const current = callRef.current;
+        const outboundActive = current && current.direction === "outbound" && current.phase !== "ended";
+        if (outboundActive) {
+          setCall((active) => (active && active.phase !== "ended" ? { ...active, phase: "ringing" } : active));
+          return;
+        }
+        const number = parsed.externalNumber ? formatPhoneDisplay(parsed.externalNumber) : "Unknown number";
+        setCall({
+          phoneLabel: parsed.contactName || number,
+          e164: parsed.externalNumber ?? "",
+          direction: "inbound",
+          callId: parsed.callId,
+          phase: "incoming",
+          muted: false,
+          speakerOn: true,
+          elapsedSeconds: 0,
+        });
         return;
       }
-      setCall((current) =>
-        current && (current.phase === "ringing" || current.phase === "sign-in")
-          ? { ...current, phase: "connected", elapsedSeconds: 0 }
-          : current
+      const current = callRef.current;
+      if (current?.direction === "inbound" && current.phase === "incoming") {
+        setCall((active) => (active ? { ...active, phase: "ended" } : active));
+        window.setTimeout(() => {
+          setCall(null);
+          refreshCallLogsRef.current();
+        }, 700);
+        return;
+      }
+      setCall((active) =>
+        active && (active.phase === "ringing" || active.phase === "sign-in")
+          ? { ...active, phase: "connected", elapsedSeconds: 0 }
+          : active
       );
     }
     window.addEventListener("message", onMessage);
@@ -191,6 +223,8 @@ export default function CallSettingsPanel() {
     const next: ActiveCall = {
       phoneLabel: formatPhoneDisplay(e164),
       e164,
+      direction: "outbound",
+      callId: null,
       phase: authenticated ? "ringing" : "sign-in",
       muted: false,
       speakerOn: true,
@@ -198,6 +232,21 @@ export default function CallSettingsPanel() {
     };
     setCall(next);
     if (authenticated) startDial(e164);
+  }
+
+  function answer() {
+    post(dialpadCtiCommand("answer_call"));
+    setCall((current) => (current ? { ...current, phase: "connected", elapsedSeconds: 0 } : current));
+  }
+
+  function decline() {
+    const callId = callRef.current?.callId;
+    post(callId ? dialpadCtiCommand("decline_call", { call_id: callId }) : dialpadCtiCommand("decline_call"));
+    setCall((current) => (current ? { ...current, phase: "ended" } : current));
+    window.setTimeout(() => {
+      setCall(null);
+      refreshCallLogs();
+    }, 700);
   }
 
   function hangUp() {
@@ -229,10 +278,19 @@ export default function CallSettingsPanel() {
     <>
       <form onSubmit={placeCall} className="max-w-xl space-y-4 rounded-xl border border-[#E5E7EB] bg-white p-5">
         <p className="text-sm leading-5 text-[#6B7280]">
-          Enter a number and click Call. The ringing screen opens here, and Dialpad places the call from the
-          account signed in on this page.
+          Enter a number and click Call. Inbound calls to the Dialpad account signed in on this page also ring here
+          while the page stays open.
           {signedInName ? ` Signed in as ${signedInName}.` : ""}
         </p>
+        {authenticated ? null : (
+          <button
+            type="button"
+            onClick={() => setSigningIn(true)}
+            className="inline-flex h-9 items-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#111827]"
+          >
+            Sign in to receive calls
+          </button>
+        )}
 
         <label className="block space-y-1.5">
           <span className="text-sm font-medium text-[#111827]">Phone number</span>
@@ -324,7 +382,7 @@ export default function CallSettingsPanel() {
         sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-same-origin allow-forms"
         onLoad={() => post(dialpadCtiCommand("enable_current_tab"))}
         className={
-          call?.phase === "sign-in"
+          call?.phase === "sign-in" || (signingIn && !authenticated)
             ? "fixed left-1/2 top-28 z-[90] h-[min(520px,calc(100vh-16rem))] w-[min(400px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border-0 bg-white shadow-2xl"
             : "pointer-events-none fixed top-0 left-0 z-[70] h-[520px] w-[400px] opacity-0"
         }
@@ -340,6 +398,8 @@ export default function CallSettingsPanel() {
           onToggleMute={toggleMute}
           onToggleSpeaker={toggleSpeaker}
           onHangUp={hangUp}
+          onAnswer={answer}
+          onDecline={decline}
         />
       ) : null}
     </>

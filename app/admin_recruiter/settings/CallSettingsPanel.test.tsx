@@ -69,4 +69,72 @@ describe("CallSettingsPanel", () => {
       expect.objectContaining({ method: "mute_call" })
     );
   });
+
+  it("answers an inbound Dialpad ring on this page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ configured: true, callers: [], calls: [], callsError: null }),
+      })
+    );
+    const user = userEvent.setup();
+    render(<CallSettingsPanel />);
+    await screen.findByLabelText("Phone number");
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: "https://dialpad.com",
+        data: {
+          api: "opencti_dialpad",
+          method: "call_ringing",
+          payload: {
+            state: "on",
+            id: "5747322335264768",
+            external_number: "+16043111111",
+            contact: { name: "Jordan Lee", phone: "+16043111111" },
+          },
+        },
+      })
+    );
+
+    expect(await screen.findByRole("dialog", { name: "Incoming call from Jordan Lee" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Incoming");
+    await user.click(screen.getByRole("button", { name: "Answer" }));
+    expect(postDialpadCti).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: "answer_call" })
+    );
+    expect(screen.getByRole("status").textContent).toMatch(/0:00/);
+  });
+
+  it("declines an inbound Dialpad ring", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ configured: true, callers: [], calls: [], callsError: null }),
+      })
+    );
+    const user = userEvent.setup();
+    render(<CallSettingsPanel />);
+    await screen.findByLabelText("Phone number");
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: "https://dialpad.com",
+        data: {
+          api: "opencti_dialpad",
+          method: "call_ringing",
+          payload: { state: "on", id: "88", external_number: "+14155550100" },
+        },
+      })
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Decline" }));
+    expect(postDialpadCti).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: "decline_call", payload: { call_id: "88" } })
+    );
+  });
 });

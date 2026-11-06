@@ -4,13 +4,26 @@ export const DIALPAD_CTI_SRC = "https://dialpad.com/apps/open";
 export type DialpadCtiCommand = {
   api: "opencti_dialpad";
   version: "1.0";
-  method: "initiate_call" | "enable_current_tab" | "hang_up_all_calls" | "mute_call" | "unmute_call";
-  payload?: { phone_number: string; enable_current_tab: boolean };
+  method:
+    | "initiate_call"
+    | "enable_current_tab"
+    | "hang_up_all_calls"
+    | "mute_call"
+    | "unmute_call"
+    | "answer_call"
+    | "decline_call";
+  payload?: { phone_number: string; enable_current_tab: boolean } | { call_id: string };
 };
 
 export type DialpadCtiEvent =
   | { method: "user_authentication"; userId: string | null; authenticated: boolean }
-  | { method: "call_ringing"; state: "on" | "off"; callId: string | null };
+  | {
+      method: "call_ringing";
+      state: "on" | "off";
+      callId: string | null;
+      externalNumber: string | null;
+      contactName: string | null;
+    };
 
 export function dialpadCtiCommand(
   method: DialpadCtiCommand["method"],
@@ -52,10 +65,22 @@ export function parseDialpadCtiEvent(data: unknown, origin: string): DialpadCtiE
   if (message.method === "call_ringing") {
     const callId =
       typeof payload.id === "number" || typeof payload.id === "string" ? String(payload.id) : null;
+    const contact =
+      payload.contact && typeof payload.contact === "object"
+        ? (payload.contact as { name?: unknown; phone?: unknown })
+        : null;
+    const contactName = typeof contact?.name === "string" && contact.name.trim() ? contact.name.trim() : null;
+    const contactPhone = typeof contact?.phone === "string" && contact.phone.trim() ? contact.phone.trim() : null;
+    const externalNumber =
+      typeof payload.external_number === "string" && payload.external_number.trim()
+        ? payload.external_number.trim()
+        : contactPhone;
     return {
       method: "call_ringing",
       state: payload.state === "off" ? "off" : "on",
       callId,
+      externalNumber,
+      contactName: contactName && contactName !== externalNumber ? contactName : null,
     };
   }
 
