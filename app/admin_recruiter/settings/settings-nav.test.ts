@@ -25,7 +25,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/notifications",
       "/admin_recruiter/settings/call",
 
-      // Workflow (Library + Workflow Mappings)
+      // Workflows (hub tabs + library)
       "/admin_recruiter/dashboard/onboarding-flows",
       "/admin_recruiter/dashboard/workflow-mappings",
       "/admin_recruiter/dashboard/workflowlibrary",
@@ -138,7 +138,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     ).toBe(true);
     expect(
       isSettingsNavItemActive(templatesItem!, "/admin_recruiter/dashboard/templates")
-    ).toBe(true);
+    ).toBe(false);
 
     const libraryItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "library"
@@ -149,25 +149,32 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(libraryItem!, "/admin_recruiter/dashboard/workflowlibrary")
     ).toBe(true);
     expect(
-      isSettingsNavItemActive(libraryItem!, "/admin_recruiter/dashboard/workflow-mappings")
+      isSettingsNavItemActive(libraryItem!, "/admin_recruiter/dashboard/onboarding-flows")
     ).toBe(false);
 
-    const mappingsItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
-      (item) => item.id === "workflow-mappings"
+    const workflowsItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "workflows"
     );
-    expect(mappingsItem).toBeDefined();
-    expect(mappingsItem!.href).toBe("/admin_recruiter/dashboard/workflow-mappings");
+    expect(workflowsItem).toBeDefined();
+    expect(workflowsItem!.href).toBe("/admin_recruiter/dashboard/onboarding-flows");
     expect(
-      isSettingsNavItemActive(mappingsItem!, "/admin_recruiter/dashboard/workflow-mappings")
+      isSettingsNavItemActive(workflowsItem!, "/admin_recruiter/dashboard/onboarding-flows")
     ).toBe(true);
     expect(
-      isSettingsNavItemActive(mappingsItem!, "/admin_recruiter/dashboard/workflowlibrary")
+      isSettingsNavItemActive(workflowsItem!, "/admin_recruiter/dashboard/workflow-mappings")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(workflowsItem!, "/admin_recruiter/dashboard/templates")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(workflowsItem!, "/admin_recruiter/dashboard/workflowlibrary")
     ).toBe(false);
 
     const workflowGroup = SETTINGS_NAV_GROUPS.find((g) => g.id === "workflow");
+    expect(workflowGroup?.label).toBe("Workflows");
     expect(workflowGroup?.items.map((item) => item.id)).toEqual([
+      "workflows",
       "library",
-      "workflow-mappings",
     ]);
   });
 

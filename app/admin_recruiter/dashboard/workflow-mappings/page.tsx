@@ -1,10 +1,17 @@
-import { Suspense } from "react";
-import WorkflowMappingsClient from "./WorkflowMappingsClient";
+import { redirect } from "next/navigation";
 
-export default function WorkflowMappingsPage() {
-  return (
-    <Suspense fallback={<main className="w-full p-5 text-sm text-slate-500 sm:p-8">Loading workflow mappings…</main>}>
-      <WorkflowMappingsClient />
-    </Suspense>
-  );
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export default async function WorkflowMappingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  qs.set("tab", "mappings");
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string" && value) qs.set(key, value);
+  }
+  redirect(`/admin_recruiter/dashboard/onboarding-flows?${qs.toString()}`);
 }

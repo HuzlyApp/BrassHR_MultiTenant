@@ -260,25 +260,10 @@ const WORKFORCE_CHILDREN: SidebarLink[] = [
 const WORKFLOW_MAPPINGS_ROUTE = `${DASHBOARD_BASE}/workflow-mappings`;
 
 const AUTOMATION_CHILDREN: SidebarLink[] = [
-  // {
-  //   label: "Onboarding",
-  //   href: ONBOARDING_BUILDER_ROUTE,
-  //   matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
-  // }, // Hidden for now; can be uncommented later
   {
     label: "Workflows",
     href: WORKFLOWS_ROUTE,
-    matchPrefixes: [WORKFLOWS_ROUTE],
-  },
-  {
-    label: "Templates",
-    href: TEMPLATES_ROUTE,
-    matchPrefixes: [TEMPLATES_ROUTE],
-  },
-  {
-    label: "Workflow Mappings",
-    href: WORKFLOW_MAPPINGS_ROUTE,
-    matchPrefixes: [WORKFLOW_MAPPINGS_ROUTE],
+    matchPrefixes: [WORKFLOWS_ROUTE, TEMPLATES_ROUTE, WORKFLOW_MAPPINGS_ROUTE, ONBOARDING_BUILDER_ROUTE],
   },
   {
     label: "Library",

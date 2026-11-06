@@ -226,7 +226,11 @@ function TemplateCard({
   );
 }
 
-export default function AdminRecruiterTemplatesPage() {
+export default function AdminRecruiterTemplatesPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -367,13 +371,128 @@ export default function AdminRecruiterTemplatesPage() {
     { id: "saved-templates" as const, label: "Saved Templates", count: savedTemplates.length },
   ];
 
+  const content = (
+    <>
+      <section className="rounded-xl border bg-white" style={{ borderColor: CARD_BORDER }}>
+        <div
+          className="flex items-center justify-end border-b px-3 py-3 max-[369px]:px-2.5 sm:px-4"
+          style={{ borderColor: CARD_BORDER }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setCreateError(null);
+              setCreateModalOpen(true);
+            }}
+            disabled={creating}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60 min-[480px]:w-auto"
+            style={{
+              background:
+                "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
+            }}
+          >
+            <CreateTemplateIcon />
+            Create new template
+          </button>
+        </div>
+
+        <div className="space-y-6 p-3 max-[369px]:p-2.5 sm:space-y-8 sm:p-5">
+          {error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <CandidateDetailLoader label="Loading templates..." className="min-h-[280px] bg-transparent py-10" />
+          ) : (
+            <>
+              <div>
+                <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
+                  Presets
+                </h2>
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
+                  {presets.length === 0 ? (
+                    <p className="text-sm text-[#667085]">No presets yet.</p>
+                  ) : (
+                    presets.map((template) => (
+                      <TemplateCard
+                        key={template.id}
+                        item={template}
+                        canDelete={false}
+                        copying={copyingId === template.id}
+                        onCopy={handleCopyToWorkflow}
+                        onView={handleViewTemplate}
+                        onDelete={handleDeleteTemplate}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <hr className="border-0 border-t" style={{ borderColor: CARD_BORDER }} />
+
+              <div>
+                <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
+                  Saved Templates
+                </h2>
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
+                  {savedTemplates.length === 0 ? (
+                    <p className="text-sm text-[#667085]">
+                      No saved templates yet. Save from the builder to see them here.
+                    </p>
+                  ) : (
+                    savedTemplates.map((template) => (
+                      <TemplateCard
+                        key={template.id}
+                        item={template}
+                        canDelete
+                        copying={copyingId === template.id}
+                        onCopy={handleCopyToWorkflow}
+                        onView={handleViewTemplate}
+                        onDelete={handleDeleteTemplate}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <CreateTemplateModal
+        open={createModalOpen}
+        onClose={() => {
+          if (creating) return;
+          setCreateModalOpen(false);
+          setCreateError(null);
+        }}
+        onCreate={handleCreateTemplate}
+        folderOptions={folderOptions}
+        creating={creating}
+        error={createError}
+      />
+      <TemplateCreateSuccessModal
+        open={successModalOpen}
+        templateName={createdTemplateName || "Template"}
+        templateId={createdTemplateId}
+        onClose={() => setSuccessModalOpen(false)}
+      />
+    </>
+  );
+
+  if (embedded) {
+    return <div className="min-w-0">{content}</div>;
+  }
+
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: PAGE_BG }}>
       <div className="w-full min-w-0 px-3 py-4 max-[369px]:px-2.5 sm:px-5 sm:py-6 lg:px-8">
         <header className="mb-6 sm:mb-8">
           <Link
             href="/admin_recruiter/settings/templates"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#475569] hover:text-[#0F172A] hover:underline mb-3"
+            className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#475569] hover:text-[#0F172A] hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Templates
@@ -385,113 +504,7 @@ export default function AdminRecruiterTemplatesPage() {
             Manage Workflow Templates
           </p>
         </header>
-
-        <section className="rounded-xl border bg-white" style={{ borderColor: CARD_BORDER }}>
-          <div
-            className="flex items-center justify-end border-b px-3 py-3 max-[369px]:px-2.5 sm:px-4"
-            style={{ borderColor: CARD_BORDER }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setCreateError(null);
-                setCreateModalOpen(true);
-              }}
-              disabled={creating}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60 min-[480px]:w-auto"
-              style={{
-                background:
-                  "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
-              }}
-            >
-              <CreateTemplateIcon />
-              Create new template
-            </button>
-          </div>
-
-          <div className="space-y-6 p-3 max-[369px]:p-2.5 sm:space-y-8 sm:p-5">
-            {error ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            ) : null}
-
-            {loading ? (
-              <CandidateDetailLoader label="Loading templates..." className="min-h-[280px] bg-transparent py-10" />
-            ) : (
-              <>
-                <div>
-                  <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
-                    Presets
-                  </h2>
-                  <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
-                    {presets.length === 0 ? (
-                      <p className="text-sm text-[#667085]">No presets yet.</p>
-                    ) : (
-                      presets.map((template) => (
-                        <TemplateCard
-                          key={template.id}
-                          item={template}
-                          canDelete={false}
-                          copying={copyingId === template.id}
-                          onCopy={handleCopyToWorkflow}
-                          onView={handleViewTemplate}
-                          onDelete={handleDeleteTemplate}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <hr className="border-0 border-t" style={{ borderColor: CARD_BORDER }} />
-
-                <div>
-                  <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
-                    Saved Templates
-                  </h2>
-                  <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
-                    {savedTemplates.length === 0 ? (
-                      <p className="text-sm text-[#667085]">
-                        No saved templates yet. Save from the builder to see them here.
-                      </p>
-                    ) : (
-                      savedTemplates.map((template) => (
-                        <TemplateCard
-                          key={template.id}
-                          item={template}
-                          canDelete
-                          copying={copyingId === template.id}
-                          onCopy={handleCopyToWorkflow}
-                          onView={handleViewTemplate}
-                          onDelete={handleDeleteTemplate}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-
-        <CreateTemplateModal
-          open={createModalOpen}
-          onClose={() => {
-            if (creating) return;
-            setCreateModalOpen(false);
-            setCreateError(null);
-          }}
-          onCreate={handleCreateTemplate}
-          folderOptions={folderOptions}
-          creating={creating}
-          error={createError}
-        />
-        <TemplateCreateSuccessModal
-          open={successModalOpen}
-          templateName={createdTemplateName || "Template"}
-          templateId={createdTemplateId}
-          onClose={() => setSuccessModalOpen(false)}
-        />
+        {content}
       </div>
     </div>
   );
