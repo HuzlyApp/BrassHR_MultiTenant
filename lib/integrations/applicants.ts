@@ -519,6 +519,7 @@ export async function uploadInboundApplicantResume(
           resumePath: uploaded.path,
           resumeFileName: uploaded.fileName,
           workLocation,
+          source: "api",
         });
         applicationId = String(result.application?.id ?? "").trim() || null;
       } catch (error) {
