@@ -46,6 +46,10 @@ const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/sett
 const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/DepartmentsPanel"), {
   loading: SettingsPanelFallback,
 });
+const IntegrationsSettingsPanel = dynamic(
+  () => import("@/app/admin_recruiter/settings/IntegrationsSettingsPanel"),
+  { loading: SettingsPanelFallback }
+);
 
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
@@ -55,6 +59,7 @@ function resourceKeyForSection(section: SettingsSectionSlug): string {
     case "admin-console":
     case "roles":
     case "departments":
+    case "integrations":
     case "profession":
     case "assessment":
     case "statuses":
@@ -77,6 +82,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
     section !== "branding" &&
     section !== "hiring-theme" &&
     section !== "departments" &&
+    section !== "integrations" &&
     section !== "security";
 
   if (!loading && !canView) {
@@ -117,6 +123,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           ) : null}
           {section === "admin-console" ? <AdminConsolePanel embedInSettingsPage /> : null}
           {section === "departments" ? <DepartmentsPanel /> : null}
+          {section === "integrations" ? <IntegrationsSettingsPanel /> : null}
           {section === "assessment" ? <AssessmentSettingsPanel /> : null}
           {section === "profession" ? (
             <Suspense fallback={<SettingsPanelFallback />}>

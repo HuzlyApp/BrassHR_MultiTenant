@@ -45,6 +45,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       // Administration
       "/admin_recruiter/settings/admin-console",
       "/admin_recruiter/settings/roles",
+      "/admin_recruiter/settings/integrations",
 
       // Help & Support
       "/admin_recruiter/help-support",
