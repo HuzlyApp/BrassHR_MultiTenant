@@ -1,5 +1,10 @@
 /** How a job application / candidate record was created. */
-export const APPLICATION_REFERENCE_SOURCES = ["applicant", "admin", "api"] as const;
+export const APPLICATION_REFERENCE_SOURCES = [
+  "applicant",
+  "admin",
+  "api",
+  "match",
+] as const;
 
 export type ApplicationReferenceSource = (typeof APPLICATION_REFERENCE_SOURCES)[number];
 
@@ -7,6 +12,7 @@ const LABELS: Record<ApplicationReferenceSource, string> = {
   applicant: "Onboarding application",
   admin: "Manual resume upload",
   api: "Uploaded via API",
+  match: "Candidate Match",
 };
 
 export function normalizeApplicationReferenceSource(
@@ -15,7 +21,9 @@ export function normalizeApplicationReferenceSource(
   const raw = String(value ?? "")
     .trim()
     .toLowerCase();
-  if (raw === "applicant" || raw === "admin" || raw === "api") return raw;
+  if (raw === "applicant" || raw === "admin" || raw === "api" || raw === "match") {
+    return raw;
+  }
   return null;
 }
 
@@ -40,6 +48,9 @@ export function applicationReferenceSourceTagClassName(
   }
   if (normalized === "api") {
     return "bg-[#FFF7ED] text-[#C2410C]";
+  }
+  if (normalized === "match") {
+    return "bg-[#F5F3FF] text-[#6D28D9]";
   }
   return "bg-[#F1F5F9] text-[#64748B]";
 }

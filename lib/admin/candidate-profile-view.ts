@@ -39,8 +39,8 @@ export type CandidateProfileApplication = {
   agreedPayRate: string | null;
   jobStatus: string | null;
   appliedAt: string;
-  /** How the application was created: applicant | admin | api. */
-  referenceSource?: "applicant" | "admin" | "api" | null;
+  /** How the application was created: applicant | admin | api | match. */
+  referenceSource?: "applicant" | "admin" | "api" | "match" | null;
   status: string;
   statusName: string;
   statusColor: string | null;

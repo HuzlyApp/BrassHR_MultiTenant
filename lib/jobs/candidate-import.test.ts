@@ -276,7 +276,7 @@ describe("importExistingCandidatesToWorkspace", () => {
     expect(inserted[0]).toMatchObject({
       worker_id: WORKER_ID,
       status: "new",
-      source: "admin",
+      source: "match",
       ai_match_status: "READY",
     });
     expect(writeActivityLog).toHaveBeenCalledWith(

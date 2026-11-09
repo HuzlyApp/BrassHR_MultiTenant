@@ -19,7 +19,7 @@ export type WorkerApplicationStatusSummary = {
   sourceType: string | null;
   /**
    * How the application was created: applicant (onboarding), admin (manual
-   * resume upload), or api (inbound Integration API).
+   * resume upload), api (inbound Integration API), or match (Candidate Match).
    */
   referenceSource: ApplicationReferenceSource | null;
   /** Department label copied from the job. A direct candidate department overrides this. */

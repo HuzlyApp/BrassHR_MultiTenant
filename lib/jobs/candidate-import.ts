@@ -1186,7 +1186,8 @@ export async function importExistingCandidatesToWorkspace(
         worker_id: worker.id,
         status: "new",
         submitted_at: nowIso,
-        source: "admin",
+        // Candidate Match: import an existing talent-pool candidate onto this job.
+        source: "match",
         created_by_staff_user_id: input.staffUserId,
         assigned_recruiter_user_id: input.staffUserId,
         ai_match_status: aiMatchStatus,
