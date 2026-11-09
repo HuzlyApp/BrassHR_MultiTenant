@@ -11,6 +11,7 @@ import {
   ListChecks,
   Monitor,
   Phone,
+  Plug,
   ShieldCheck,
   UserCircle,
   UserCog,
@@ -35,6 +36,7 @@ export type SettingsNavItemId =
   | "admin-console"
   | "roles"
   | "departments"
+  | "integrations"
   | "help"
   | "reports";
 
@@ -44,6 +46,7 @@ export type SettingsSectionSlug =
   | "admin-console"
   | "roles"
   | "departments"
+  | "integrations"
   | "profession"
   | "assessment"
   | "statuses"
@@ -245,6 +248,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/departments"],
       },
+      {
+        id: "integrations",
+        label: "Integrations",
+        href: "/admin_recruiter/settings/integrations",
+        icon: Plug,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/integrations"],
+      },
     ],
   },
   {
@@ -287,6 +298,10 @@ export const SETTINGS_SECTION_META: Record<
   departments: {
     title: "Departments",
     description: "Create departments and map them to jobs or candidates.",
+  },
+  integrations: {
+    title: "Integrations",
+    description: "Manage inbound API keys for MSP and resume source integrations.",
   },
   profession: {
     title: "Profession",

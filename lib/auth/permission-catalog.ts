@@ -204,6 +204,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
       "/api/admin/hire-journey-theme",
       "/api/admin/profession-documents",
       "/api/admin/departments",
+      "/api/admin/integrations",
       "/api/admin/dialpad",
       "/api/admin/tenant-firma-settings",
       "/api/admin/tenants",
