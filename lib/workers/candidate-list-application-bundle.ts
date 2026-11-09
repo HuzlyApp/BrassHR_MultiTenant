@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import { normalizeApplicationReferenceSource } from "@/lib/jobs/application-reference-source";
 import type { WorkerApplicationStatusSummary } from "@/lib/jobs/application-statuses/attach-worker-application-status";
 import {
   pickWorkerJobMatchSummary,
@@ -16,6 +17,7 @@ type BundleAppRow = {
   worker_id: string | null;
   status: string | null;
   status_id: string | null;
+  source?: string | null;
   assigned_recruiter_user_id?: string | null;
   job_requisition_id?: string | null;
   ai_match_status: string | null;
@@ -109,6 +111,7 @@ function toStatusSummary(
     clientName: clientNameFromJob(job),
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
+    referenceSource: normalizeApplicationReferenceSource(row.source),
     departmentName: job?.department?.trim() || null,
     ambiguous,
   };
@@ -156,6 +159,7 @@ export async function loadCandidateListApplicationBundle(
           "worker_id",
           "status",
           "status_id",
+          "source",
           "assigned_recruiter_user_id",
           "job_requisition_id",
           "ai_match_status",

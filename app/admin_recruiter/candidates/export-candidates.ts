@@ -8,6 +8,7 @@ import { getCandidateJobTitleOptions } from "@/lib/admin/candidate-match-job-tit
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 import { formatMatchScore } from "@/lib/jobs/match-analysis/display";
 import { fitBandLabel, listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
+import { formatApplicationReferenceSourceLabel } from "@/lib/jobs/application-reference-source";
 import {
   columnLabel,
   DEFAULT_CANDIDATE_COLUMNS,
@@ -30,6 +31,10 @@ const CANDIDATE_EXPORT_COLUMN_BUILDERS: Partial<
   sourceJobId: {
     header: columnLabel("sourceJobId"),
     value: (row) => row.applicationSourceJobId?.trim() || "—",
+  },
+  source: {
+    header: columnLabel("source"),
+    value: (row) => formatApplicationReferenceSourceLabel(row.referenceSource) || "—",
   },
   status: { header: columnLabel("status"), value: (row) => row.status },
   progressStatus: {

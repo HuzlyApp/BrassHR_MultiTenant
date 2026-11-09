@@ -39,6 +39,8 @@ export type CandidateProfileApplication = {
   agreedPayRate: string | null;
   jobStatus: string | null;
   appliedAt: string;
+  /** How the application was created: applicant (onboarding) or admin (manual upload). */
+  referenceSource?: "applicant" | "admin" | null;
   status: string;
   statusName: string;
   statusColor: string | null;

@@ -4,6 +4,7 @@ export type ApplicationColumnId =
   | "jobRole"
   | "status"
   | "workType"
+  | "source"
   | "currentStage"
   | "fit"
   | "dateApplied"
@@ -27,6 +28,7 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
   { id: "jobRole", label: "Job Role" },
   { id: "status", label: "Status" },
   { id: "workType", label: "Work Type" },
+  { id: "source", label: "Source" },
   { id: "currentStage", label: "Stage" },
   { id: "fit", label: "Match Status" },
   { id: "dateApplied", label: "Applied Date" },
@@ -56,6 +58,7 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "jobRole",
   "status",
   "workType",
+  "source",
   "currentStage",
   "fit",
   "dateApplied",
@@ -64,6 +67,21 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
 
 export function ensureActionsLast(order: ApplicationColumnId[]): ApplicationColumnId[] {
   return [...order.filter((id) => id !== "actions"), "actions"];
+}
+
+/** Ensure saved layouts pick up newly defaulted columns like Source. */
+export function ensureDefaultApplicationColumns(
+  order: ApplicationColumnId[]
+): ApplicationColumnId[] {
+  let next = [...order];
+  const insertAfter = (anchor: ApplicationColumnId, columnId: ApplicationColumnId) => {
+    if (next.includes(columnId)) return;
+    const anchorIndex = next.indexOf(anchor);
+    if (anchorIndex >= 0) next.splice(anchorIndex + 1, 0, columnId);
+    else next.push(columnId);
+  };
+  insertAfter("workType", "source");
+  return ensureActionsLast(next);
 }
 
 function parseStoredColumnOrder(parsed: unknown): ApplicationColumnId[] | null {
@@ -89,7 +107,7 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
   try {
     const current = readStoredColumnOrder(STORAGE_KEY);
     if (!current) return [...DEFAULT_APPLICATION_COLUMNS];
-    return ensureActionsLast(current);
+    return ensureDefaultApplicationColumns(current);
   } catch {
     return [...DEFAULT_APPLICATION_COLUMNS];
   }
@@ -123,6 +141,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "dateApplied",
   "evaluation",
   "workType",
+  "source",
   "actions",
 ]);
 
@@ -132,6 +151,7 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   if (colId === "contact") return "min-w-[200px]";
   if (colId === "jobRole") return "min-w-[190px]";
   if (colId === "workType") return `min-w-[100px] whitespace-nowrap${center}`;
+  if (colId === "source") return `min-w-[160px] whitespace-nowrap${center}`;
   if (colId === "clientName") return "min-w-[140px] whitespace-nowrap";
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
   if (colId === "fit") return `min-w-[110px] whitespace-nowrap${center}`;

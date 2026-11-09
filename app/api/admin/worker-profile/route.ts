@@ -795,8 +795,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const rawWorkerSource = asTrimmedString(w.source) ?? asTrimmedString(w.lead_source)
-    const resolvedSource = rawWorkerSource || asTrimmedString(appSummary?.sourceType) || null
+    const { formatApplicationReferenceSourceLabel } = await import(
+      "@/lib/jobs/application-reference-source"
+    )
+    // Prefer job_applications.source (onboarding self-apply vs staff resume upload).
+    // Do not fall back to job requisition source_type (MSP/Internal).
+    const resolvedSource =
+      formatApplicationReferenceSourceLabel(appSummary?.referenceSource) ||
+      asTrimmedString(w.source) ||
+      asTrimmedString(w.lead_source) ||
+      null
     const resolvedJobId = asTrimmedString(appSummary?.sourceJobId) || null
 
     const rawWorkerStatus = asTrimmedString(w.status) ?? asTrimmedString(w.worker_status)

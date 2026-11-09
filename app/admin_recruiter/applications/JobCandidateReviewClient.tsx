@@ -40,6 +40,10 @@ import {
   resolveApplicationApplicantName,
 } from "@/lib/jobs/application-applicant-display";
 import {
+  applicationReferenceSourceTagClassName,
+  formatApplicationReferenceSourceLabel,
+} from "@/lib/jobs/application-reference-source";
+import {
   applicationStatusLabel,
   normalizeApplicationStatus,
 } from "@/lib/jobs/application-status";
@@ -83,6 +87,7 @@ type ApplicationRow = {
   status: string;
   status_id?: string | null;
   statusName?: string | null;
+  source?: string | null;
   workflow_phase?: string | null;
   created_at: string;
   submitted_at: string | null;
@@ -1274,6 +1279,14 @@ export default function JobCandidateReviewClient() {
                         {applicationStatusLabel(row.status)} •{" "}
                         {formatAppliedMeta(row.submitted_at || row.created_at)}
                       </p>
+                      {formatApplicationReferenceSourceLabel(row.source) ? (
+                        <span
+                          className={`mt-1.5 inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(row.source)}`}
+                          title={formatApplicationReferenceSourceLabel(row.source) ?? undefined}
+                        >
+                          {formatApplicationReferenceSourceLabel(row.source)}
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })
@@ -1304,6 +1317,13 @@ export default function JobCandidateReviewClient() {
                         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
                         <span className="min-w-0 break-words">{displayLocation}</span>
                       </p>
+                      {formatApplicationReferenceSourceLabel(selected.source) ? (
+                        <span
+                          className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(selected.source)}`}
+                        >
+                          {formatApplicationReferenceSourceLabel(selected.source)}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="inline-flex w-full shrink-0 items-center justify-end gap-0.5 sm:w-auto">
                       <button

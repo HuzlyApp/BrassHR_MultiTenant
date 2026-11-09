@@ -1816,6 +1816,8 @@ export async function startOrResumeJobApplication(
       worker_id: input.workerId ?? null,
       workflow_id: workflowId,
       assigned_recruiter_user_id: null,
+      // Public / onboarding self-apply channel (vs admin resume upload).
+      source: "applicant",
     })
     .select("id, status")
     .single();

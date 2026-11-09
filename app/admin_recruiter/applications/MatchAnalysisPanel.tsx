@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  applicationReferenceSourceTagClassName,
+  formatApplicationReferenceSourceLabel,
+} from "@/lib/jobs/application-reference-source";
+import {
   formatListMatchScoreLabel,
   formatMatchCategory,
   formatMatchScore,
@@ -52,6 +56,7 @@ type ScreeningAssessment = {
 type MatchPayload = {
   application: {
     id: string;
+    source?: string | null;
     ai_match_status: string | null;
     ai_match_score: number | null;
     ai_match_category: string | null;
@@ -248,6 +253,13 @@ export function MatchAnalysisPanel({
               >
                 {app?.ai_match_display_category || formatMatchCategory(app?.ai_match_category)}
               </span>
+              {formatApplicationReferenceSourceLabel(app?.source) ? (
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(app?.source)}`}
+                >
+                  {formatApplicationReferenceSourceLabel(app?.source)}
+                </span>
+              ) : null}
               {app?.ai_match_action ? (
                 <span className="text-xs font-medium text-[#475569]">
                   {formatRecommendedAction(app.ai_match_action)}

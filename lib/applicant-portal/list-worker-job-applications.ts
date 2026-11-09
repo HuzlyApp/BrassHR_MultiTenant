@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveProfileApplicationMatchDisplay } from "@/lib/admin/candidate-profile-view";
+import {
+  normalizeApplicationReferenceSource,
+  type ApplicationReferenceSource,
+} from "@/lib/jobs/application-reference-source";
 import { applicationStatusLabel } from "@/lib/jobs/application-status";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
@@ -26,6 +30,8 @@ export type WorkerJobApplicationListItem = {
   agreedPayRate: string | null;
   jobStatus: string | null;
   appliedAt: string;
+  /** How the application was created: applicant (onboarding) or admin (manual upload). */
+  referenceSource: ApplicationReferenceSource | null;
   status: string;
   statusName: string;
   statusColor: string | null;
@@ -79,6 +85,7 @@ type ApplicationRow = {
   id: string;
   job_requisition_id?: string | null;
   status?: string | null;
+  source?: string | null;
   created_at?: string | null;
   submitted_at?: string | null;
   ai_match_score?: number | string | null;
@@ -173,6 +180,7 @@ export async function listWorkerJobApplications(
           "job_requisition_id",
           "status",
           "status_id",
+          "source",
           "created_at",
           "submitted_at",
           "tenant_id",
@@ -297,6 +305,7 @@ export async function listWorkerJobApplications(
       agreedPayRate: formatAgreedPayRate(job),
       jobStatus: job?.status?.trim() || null,
       appliedAt: String(row.submitted_at || row.created_at || ""),
+      referenceSource: normalizeApplicationReferenceSource(row.source),
       status,
       statusName: statusJoin?.name?.trim() || applicationStatusLabel(status),
       statusColor: statusJoin?.color?.trim() || null,

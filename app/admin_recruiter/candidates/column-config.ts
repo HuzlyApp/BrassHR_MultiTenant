@@ -93,6 +93,7 @@ export const DEFAULT_CANDIDATE_COLUMNS: CandidateColumnId[] = [
   "name",
   "contact",
   "clientName",
+  "source",
   "matchJob",
   "fit",
   "currentStage",
@@ -131,7 +132,8 @@ function ensureDefaultCandidateColumns(order: CandidateColumnId[]): CandidateCol
 
   insertAfter("name", "contact")
   insertAfter("contact", "clientName")
-  insertAfter("clientName", "matchJob")
+  insertAfter("clientName", "source")
+  insertAfter("source", "matchJob")
   // Match Score and Progress Status are optional — not force-added; recruiters can enable them via Edit Columns.
   insertAfter("matchJob", "fit")
   insertAfter("fit", "currentStage")
@@ -192,6 +194,7 @@ export function candidateListColumnClassName(colId: CandidateColumnId): string {
   if (colId === "contact") return "min-w-[200px]"
   if (colId === "clientName") return "min-w-[140px] whitespace-nowrap"
   if (colId === "sourceJobId") return "min-w-[150px] whitespace-nowrap"
+  if (colId === "source") return "min-w-[160px] whitespace-nowrap"
   if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
   if (colId === "status") return "min-w-[132px] whitespace-nowrap"
   if (colId === "progressStatus") return "min-w-[160px] whitespace-nowrap"

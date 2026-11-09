@@ -48,6 +48,11 @@ export type CandidateRow = {
   applicationSourceJobId?: string | null
   /** Latest application job source (MSP or Internal). */
   applicationSourceType?: string | null
+  /**
+   * How the candidate/application was created:
+   * `applicant` = onboarding self-apply, `admin` = manual resume upload.
+   */
+  referenceSource?: string | null
   matchApplicationId?: string | null
   aiMatchStatus?: string | null
   aiMatchScore?: number | null

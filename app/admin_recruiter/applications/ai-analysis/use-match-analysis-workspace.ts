@@ -40,6 +40,8 @@ export type MatchAnalysisWorkspacePayload = {
   application: {
     id: string;
     worker_id?: string | null;
+    /** How the application was created: applicant | admin. */
+    source?: string | null;
     ai_match_status: string | null;
     ai_match_score: number | null;
     ai_match_category: string | null;

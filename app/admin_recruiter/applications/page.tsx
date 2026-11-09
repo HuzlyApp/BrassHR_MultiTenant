@@ -91,6 +91,10 @@ import {
   resolveApplicationWorkerId,
 } from "@/lib/jobs/application-applicant-display";
 import {
+  applicationReferenceSourceTagClassName,
+  formatApplicationReferenceSourceLabel,
+} from "@/lib/jobs/application-reference-source";
+import {
   applicationCurrentStageMeta,
   applicationStatusDotClassName,
   applicationStatusLabel,
@@ -172,6 +176,8 @@ export type ApplicationRow = {
   status_id?: string | null;
   statusName?: string | null;
   statusNote?: string | null;
+  /** How the application was created: applicant | admin. */
+  source?: string | null;
   created_at: string;
   submitted_at: string | null;
   updated_at?: string | null;
@@ -3032,6 +3038,22 @@ export default function JobApplicationsPage() {
               }`}
             >
               {type}
+            </span>
+          </div>
+        );
+      }
+      case "source": {
+        const label = formatApplicationReferenceSourceLabel(row.source);
+        if (!label) {
+          return <span className="text-xs text-[#94A3B8]">—</span>;
+        }
+        return (
+          <div className="inline-flex justify-center">
+            <span
+              className={`inline-flex max-w-[180px] truncate items-center justify-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(row.source)}`}
+              title={label}
+            >
+              {label}
             </span>
           </div>
         );

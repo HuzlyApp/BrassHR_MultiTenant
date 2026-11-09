@@ -69,7 +69,7 @@ function buildSidebarProfile(
     workType: workTypeRaw ? workTypeSummaryLabel(workTypeRaw) : null,
     department: primaryApp?.companyName?.trim() || null,
     location: candidate?.location?.trim() || null,
-    source: null,
+    source: primaryApp?.referenceSource ?? null,
     dateApplied: formatAppliedDate(primaryApp?.appliedAt),
     jobName,
     jobRequisitionId: primaryApp?.jobRequisitionId?.trim() || null,
