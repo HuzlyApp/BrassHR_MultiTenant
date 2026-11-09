@@ -18,8 +18,8 @@ export type WorkerApplicationStatusSummary = {
   /** Job requisition source, used to hide MSP-only or Internal-only stages. */
   sourceType: string | null;
   /**
-   * How the application was created: applicant (onboarding self-apply) or
-   * admin (staff resume upload / Add candidate).
+   * How the application was created: applicant (onboarding), admin (manual
+   * resume upload), or api (inbound Integration API).
    */
   referenceSource: ApplicationReferenceSource | null;
   /** Department label copied from the job. A direct candidate department overrides this. */
