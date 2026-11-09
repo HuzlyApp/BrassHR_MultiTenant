@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Copy, KeyRound, Plus, Trash2 } from "lucide-react";
+import IntegrationsApiDocs from "@/app/admin_recruiter/settings/IntegrationsApiDocs";
 
 type ApiKeyRow = {
   id: string;
@@ -237,6 +238,8 @@ export default function IntegrationsSettingsPanel() {
           </ul>
         </section>
       ) : null}
+
+      <IntegrationsApiDocs />
     </div>
   );
 }
