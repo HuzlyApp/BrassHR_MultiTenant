@@ -24,7 +24,7 @@ const SAMPLE_CREATE_JOB_MSP = `{
   "job_duration": "13 weeks",
   "target_start_date": "2026-12-01",
   "expected_hours": 36,
-  "description": "Provide ICU nursing care for adult patients.",
+  "description": "<p>Provide <strong>ICU</strong> nursing care for adult patients.</p><p><strong>Required Qualifications</strong></p><ul><li>Active RN license</li><li>2+ years ICU experience</li></ul>",
   "specialty": "ICU"
 }`;
 
@@ -42,7 +42,7 @@ const SAMPLE_CREATE_JOB_INTERNAL = `{
   "title": "Staff Accountant",
   "status": "open",
   "location": "Remote",
-  "description": "Full-time accounting role."
+  "description": "<p>Full-time <strong>accounting</strong> role.</p>"
 }`;
 
 const SAMPLE_CREATE_JOB_RESPONSE = `{
@@ -336,6 +336,29 @@ export default function IntegrationsApiDocs() {
           ]}
         />
 
+        <p className="font-medium text-[#111827]">Job description format (HTML)</p>
+        <p>
+          Send{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">description</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">public_description</code>, or{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">source_description</code> as an HTML
+          string so formatting like bold/italic/lists renders in BrassHR. Allowed tags:{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">p</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">br</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">strong</code> /{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">b</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">em</code> /{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">i</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">ul</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">ol</code>,{" "}
+          <code className="rounded bg-[#F3F4F6] px-1 py-0.5">li</code>. Other tags and attributes
+          are stripped. Plain text is accepted and converted to paragraphs.
+        </p>
+        <CodeBlock
+          title="Description HTML example"
+          code={`"description": "<p>Provide <strong>ICU</strong> nursing care.</p><ul><li>BLS required</li></ul>"`}
+        />
+
         <p className="font-medium text-[#111827]">Common optional fields</p>
         <p>
           <code className="rounded bg-[#F3F4F6] px-1 py-0.5">description</code>,{" "}
@@ -446,9 +469,9 @@ export default function IntegrationsApiDocs() {
           ]}
         />
         <p>
-          Parsing must yield a usable name and either email or phone. Creating a brand-new profile
-          requires a parsed email. If you pass a job link, BrassHR creates or reuses an application
-          for that candidate.
+          Parsing must yield a usable name and an email. Resumes without a parseable email are
+          rejected (422) and the file is stored for manual review. Phone alone is not enough. If you
+          pass a job link, BrassHR creates or reuses an application for that candidate.
         </p>
         <CodeBlock title="Form fields (JSON representation)" code={SAMPLE_CREATE_CANDIDATE_FIELDS} />
         <CodeBlock title="curl test example" code={SAMPLE_CREATE_CANDIDATE_CURL} />
@@ -491,7 +514,7 @@ export default function IntegrationsApiDocs() {
             {
               field: "422 UNPROCESSABLE",
               required: "Resume",
-              notes: "Resume could not be parsed into a createable profile",
+              notes: "Resume missing name or email (phone alone is not enough)",
             },
           ]}
         />

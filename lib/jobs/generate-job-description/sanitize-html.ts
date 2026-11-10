@@ -82,6 +82,35 @@ export function sanitizeJobDescriptionHtml(raw: string): string {
   return parts.join("").trim();
 }
 
+function looksLikeHtml(value: string): boolean {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+/** Convert plain text paragraphs/newlines into the same HTML shape the job editor stores. */
+export function plainTextJobDescriptionToHtml(value: string): string {
+  const escaped = value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped
+    .split(/\n{2,}/)
+    .map((block) => `<p>${block.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+/**
+ * Normalize inbound/API job descriptions to safe editor HTML.
+ * HTML input is allowlisted (p/ul/ol/li/strong/em/b/i/br); plain text becomes paragraphs.
+ */
+export function normalizeJobDescriptionInput(raw: string | null | undefined): string | null {
+  const input = (raw ?? "").trim();
+  if (!input) return null;
+  if (looksLikeHtml(input)) {
+    return sanitizeJobDescriptionHtml(input) || null;
+  }
+  return plainTextJobDescriptionToHtml(input) || null;
+}
+
 export function htmlToPlainText(html: string): string {
   return sanitizeJobDescriptionHtml(html)
     .replace(/<br\s*\/?>/gi, "\n")

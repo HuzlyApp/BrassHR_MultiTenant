@@ -45,6 +45,10 @@ export async function ensureApplicantForWorker(
 
   const fullName = applicantDisplayName(worker.first_name, worker.last_name);
   const status = (worker.status ?? "pending").trim().toLowerCase() || "pending";
+  const email = worker.email?.trim() || "";
+  if (!email) {
+    throw new Error("Applicant email is required before creating an applicant record.");
+  }
 
   const { data: inserted, error: insertError } = await supabase
     .from("applicants")
@@ -53,7 +57,7 @@ export async function ensureApplicantForWorker(
       worker_id: worker.id,
       application_id: appId,
       full_name: fullName,
-      email: worker.email?.trim() || null,
+      email,
       status,
     })
     .select("id")

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeJobDescriptionInput } from "@/lib/jobs/generate-job-description/sanitize-html";
 import { saveJobRequisition } from "@/lib/jobs/service";
 import {
   EMPLOYMENT_TYPES,
@@ -166,8 +167,10 @@ function mapBodyToJobInput(body: InboundCreateJobBody): {
     employmentType: employmentType!,
     publicTitle: asString(body.public_title) ?? title,
     sourceJobTitle,
-    publicDescription: asString(body.description) ?? asString(body.public_description),
-    sourceJobDetails: asString(body.source_description),
+    publicDescription: normalizeJobDescriptionInput(
+      asString(body.description) ?? asString(body.public_description)
+    ),
+    sourceJobDetails: normalizeJobDescriptionInput(asString(body.source_description)),
     externalRequisitionId: externalReqId,
     internalRequisitionNumber: asString(body.internal_requisition_number),
     mspName: asString(body.msp_name),
