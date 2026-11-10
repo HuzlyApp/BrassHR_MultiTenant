@@ -12,6 +12,7 @@ import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { addEasternDays, easternDateString, startOfEasternWeek } from "@/lib/datetime/eastern";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import { syncAttendanceDayToTimesheet } from "@/lib/timesheets/sync-from-attendance";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 import { getApplicationAppliedJobsByWorker } from "@/lib/workers/worker-application-job-titles";
 
@@ -352,7 +353,7 @@ export async function PATCH(req: NextRequest) {
 
     let lookup = supabase
       .from("applicant_attendance_logs")
-      .select("id, tenant_id, status, claimed_at")
+      .select("id, tenant_id, worker_id, attendance_date, status, claimed_at")
       .eq("id", idCheck.value);
 
     if (scope.mode === "scoped") lookup = lookup.eq("tenant_id", scope.tenantId);
@@ -381,6 +382,16 @@ export async function PATCH(req: NextRequest) {
 
     const { error: updateError } = await update;
     if (updateError) throw updateError;
+
+    try {
+      await syncAttendanceDayToTimesheet(supabase, {
+        tenantId: existing.tenant_id,
+        applicantWorkerId: existing.worker_id,
+        attendanceDate: existing.attendance_date,
+      });
+    } catch (syncError) {
+      console.warn("[admin/applicant-attendance] timesheet sync after claim failed", syncError);
+    }
 
     return NextResponse.json({ ok: true, claimedAt });
   } catch (err) {

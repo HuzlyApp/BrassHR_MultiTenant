@@ -1,3 +1,4 @@
+import { easternWallClockToDate } from "@/lib/datetime/eastern";
 import { formatShiftRange } from "@/lib/scheduling/employee-schedule";
 
 export type ClockInStatus = "On Shift" | "Not Clocked In" | "On Break" | "Completed";
@@ -41,6 +42,7 @@ export type ClockInAttendanceLog = {
 export type ClockInRow = {
   id: string;
   worker_id: string;
+  attendance_log_id: string | null;
   applicant_name: string;
   applicant_email: string | null;
   job_role: string | null;
@@ -125,6 +127,31 @@ function pairKey(personId: string, date: string): string {
   return `${personId}|${date}`;
 }
 
+function shiftStartMs(shift: ClockInScheduleShift): number {
+  const [year, month, day] = shift.workDate.split("-").map(Number);
+  const [hour, minute, second] = shift.startTime.split(":").map(Number);
+  return easternWallClockToDate(year, month, day, hour || 0, minute || 0, second || 0).getTime();
+}
+
+/** Prefer the attendance log whose clock-in is closest to the shift start. */
+export function takeClosestAttendanceLog(
+  logs: ClockInAttendanceLog[],
+  shift: ClockInScheduleShift
+): ClockInAttendanceLog | undefined {
+  if (logs.length === 0) return undefined;
+  const target = shiftStartMs(shift);
+  let bestIndex = 0;
+  let bestDistance = Math.abs(new Date(logs[0].clockInAt).getTime() - target);
+  for (let i = 1; i < logs.length; i += 1) {
+    const distance = Math.abs(new Date(logs[i].clockInAt).getTime() - target);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = i;
+    }
+  }
+  return logs.splice(bestIndex, 1)[0];
+}
+
 function rowFromParts(
   id: string,
   workerId: string,
@@ -143,6 +170,7 @@ function rowFromParts(
   return {
     id,
     worker_id: workerId,
+    attendance_log_id: log?.id ?? null,
     applicant_name: name.trim() || "Worker",
     applicant_email: email,
     job_role: jobRole,
@@ -188,8 +216,9 @@ export function buildClockInRows(
 
   for (const shift of orderedShifts) {
     const key = shift.candidateId ? pairKey(shift.candidateId, shift.workDate) : "";
-    const matched = key ? logsByPersonDate.get(key)?.shift() : undefined;
-    if (key && logsByPersonDate.get(key)?.length === 0) logsByPersonDate.delete(key);
+    const bucket = key ? logsByPersonDate.get(key) : undefined;
+    const matched = bucket ? takeClosestAttendanceLog(bucket, shift) : undefined;
+    if (key && bucket && bucket.length === 0) logsByPersonDate.delete(key);
 
     rows.push(
       rowFromParts(

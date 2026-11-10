@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { findApplicantByUserId } from "@/lib/applicant-portal";
+import { easternDateString } from "@/lib/datetime/eastern";
+import { syncAttendanceDayToTimesheet } from "@/lib/timesheets/sync-from-attendance";
 
 export const runtime = "nodejs";
 
@@ -165,7 +167,7 @@ async function attendancePayload(
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
   workerId: string
 ) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = easternDateString(new Date());
   const [
     { data: todayLog, error: todayError },
     { data: activeLog, error: activeError },
@@ -282,6 +284,17 @@ export async function POST(req: NextRequest) {
         .eq("id", active.id)
         .eq("status", "clocked_in");
       if (error) throw error;
+
+      try {
+        await syncAttendanceDayToTimesheet(resolved.supabase, {
+          tenantId: resolved.tenantId,
+          applicantWorkerId: resolved.workerId,
+          attendanceDate: active.attendance_date || easternDateString(now),
+          now,
+        });
+      } catch (syncError) {
+        console.warn("[applicant-portal/attendance] timesheet sync after break_end failed", syncError);
+      }
     } else if (action === "clock_in" || action === "clock_out") {
       const ip = requestIp(req);
       if (!ip) return NextResponse.json({ error: VERIFY_FAILED_MESSAGE }, { status: 400 });
@@ -302,10 +315,12 @@ export async function POST(req: NextRequest) {
           throw error;
         }
         const address = await reverseGeocodeAddress(location.latitude, location.longitude);
+        const attendanceDate = easternDateString(new Date());
 
         const { error } = await resolved.supabase.from("applicant_attendance_logs").insert({
           tenant_id: resolved.tenantId,
           worker_id: resolved.workerId,
+          attendance_date: attendanceDate,
           status: "clocked_in",
           clock_in_ip: ip,
           clock_in_address: address,
@@ -318,6 +333,16 @@ export async function POST(req: NextRequest) {
           break_intervals: [],
         });
         if (error) throw error;
+
+        try {
+          await syncAttendanceDayToTimesheet(resolved.supabase, {
+            tenantId: resolved.tenantId,
+            applicantWorkerId: resolved.workerId,
+            attendanceDate,
+          });
+        } catch (syncError) {
+          console.warn("[applicant-portal/attendance] timesheet sync after clock_in failed", syncError);
+        }
       } else {
         if (!active) {
           return NextResponse.json({ error: "You must clock in before clocking out." }, { status: 409 });
@@ -329,6 +354,7 @@ export async function POST(req: NextRequest) {
         const elapsed = Math.max(0, Math.round((clockOutAt.getTime() - clockInAt.getTime()) / 1000));
         const totalSeconds = Math.max(0, elapsed - closed.break_seconds);
         const address = await reverseGeocodeAddress(location.latitude, location.longitude);
+        const attendanceDate = active.attendance_date || easternDateString(clockOutAt);
         const { error } = await resolved.supabase
           .from("applicant_attendance_logs")
           .update({
@@ -349,6 +375,17 @@ export async function POST(req: NextRequest) {
           .eq("id", active.id)
           .eq("status", "clocked_in");
         if (error) throw error;
+
+        try {
+          await syncAttendanceDayToTimesheet(resolved.supabase, {
+            tenantId: resolved.tenantId,
+            applicantWorkerId: resolved.workerId,
+            attendanceDate,
+            now: clockOutAt,
+          });
+        } catch (syncError) {
+          console.warn("[applicant-portal/attendance] timesheet sync after clock_out failed", syncError);
+        }
       }
     } else {
       return NextResponse.json({ error: "Invalid attendance action." }, { status: 400 });

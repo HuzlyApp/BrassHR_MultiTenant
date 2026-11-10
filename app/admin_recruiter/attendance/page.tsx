@@ -114,8 +114,9 @@ export default function ClockInsAttendancePage() {
   // Detail Modal / Actions
   const [selectedRowDetail, setSelectedRowDetail] = useState<AttendanceRowItem | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({ start: rangeStart, end: rangeEnd });
       if (appliedSearch) params.set("q", appliedSearch);
@@ -144,18 +145,29 @@ export default function ClockInsAttendancePage() {
         setStatuses(filterOptions.statuses.filter(Boolean));
       }
     } catch (err) {
-      setRows([]);
-      setMetrics(EMPTY_METRICS);
-      setFacilities([]);
-      setDepartments([]);
-      toast.error(err instanceof Error ? err.message : "Failed to load clock-ins");
+      if (!silent) {
+        setRows([]);
+        setMetrics(EMPTY_METRICS);
+        setFacilities([]);
+        setDepartments([]);
+        toast.error(err instanceof Error ? err.message : "Failed to load clock-ins");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [appliedSearch, rangeEnd, rangeStart, selectedDepartment, selectedFacility, selectedStatus]);
 
   useEffect(() => {
     void loadData();
+  }, [loadData]);
+
+  // Keep clock-in/out status fresh while the admin page stays open.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void loadData({ silent: true });
+    }, 30000);
+    return () => window.clearInterval(interval);
   }, [loadData]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
