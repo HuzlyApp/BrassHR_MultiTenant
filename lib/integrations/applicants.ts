@@ -24,7 +24,7 @@ const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024
 
 export type InboundResumeResult = {
   applicant_id: string;
-  email: string | null;
+  email: string;
   phone: string | null;
   full_name: string;
   resume_document_id: string | null;
@@ -383,9 +383,10 @@ export async function uploadInboundApplicantResume(
   const firstNameCheck = validatePersonName(identity.firstName, { label: "First name" });
   const lastNameCheck = validatePersonName(identity.lastName, { label: "Last name" });
   const hasName = firstNameCheck.ok && lastNameCheck.ok;
-  const hasContact = Boolean(identity.email || identity.phone);
+  const email = identity.email?.trim() || null;
+  const phone = identity.phone || null;
 
-  if (!hasName || !hasContact) {
+  if (!hasName || !email) {
     const stagingKey = randomUUID();
     await uploadInboundResume(
       supabase,
@@ -397,7 +398,7 @@ export async function uploadInboundApplicantResume(
     );
     const details: Record<string, string> = {};
     if (!hasName) details.name = "Could not parse name";
-    if (!hasContact) details.email = "Could not parse email or phone";
+    if (!email) details.email = "Could not parse email";
     throw new JobValidationError(
       "Resume could not be parsed into a createable profile. File was stored for manual review.",
       details,
@@ -415,8 +416,6 @@ export async function uploadInboundApplicantResume(
   const firstName = firstNameCheck.value;
   const lastName = lastNameCheck.value;
   const fullName = [firstName, lastName].join(" ");
-  const email = identity.email || null;
-  const phone = identity.phone || null;
 
   const linkedJobId = await resolveJobId(
     supabase,
@@ -442,13 +441,6 @@ export async function uploadInboundApplicantResume(
   );
 
   if (!profileId) {
-    if (!email) {
-      throw new JobValidationError(
-        "Email is required to create a new applicant profile",
-        { email: "Required when creating a new profile" },
-        "VALIDATION_ERROR"
-      );
-    }
     const { data: profile, error: profileError } = await supabase
       .from("applicant_profiles")
       .insert({
@@ -472,6 +464,8 @@ export async function uploadInboundApplicantResume(
       .update({
         resume_path: uploaded.path,
         resume_file_name: uploaded.fileName,
+        email,
+        normalized_email: normalizeApplicantEmail(email),
         phone: phone || undefined,
         updated_at: new Date().toISOString(),
       })
@@ -483,7 +477,7 @@ export async function uploadInboundApplicantResume(
     tenantId: input.tenantId,
     applicantProfileId: profileId,
     existingWorkerId: workerId,
-    email: email || existing?.email || "",
+    email,
     firstName,
     lastName,
     phone,
@@ -513,7 +507,7 @@ export async function uploadInboundApplicantResume(
           tenantId: input.tenantId,
           jobRequisitionId: linkedJobId,
           name: fullName,
-          email: email || existing?.email || "",
+          email,
           phone,
           createdByStaffUserId: input.actorUserId,
           resumePath: uploaded.path,

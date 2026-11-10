@@ -214,8 +214,14 @@ function isOwnerTrialPreparationApi(pathname: string): boolean {
     pathname === "/api/auth/signup/begin-trial-session"
   );
 }
-/** Public APIs used by marketing / applicant landing pages (no session required). */
+/**
+ * Public APIs that must not require a Nexus session cookie.
+ * Inbound Integration APIs (`/api/v1/*`) authenticate via tenant-scoped API keys
+ * in the route handler (`requireInboundApiAuth`) — Bearer/`X-API-Key` is not a
+ * Supabase JWT, so the production session gate must not run first.
+ */
 function isPublicApiPath(pathname: string): boolean {
+  if (pathname === "/api/v1" || pathname.startsWith("/api/v1/")) return true;
   if (pathname === "/api/tenant-branding") return true;
   if (pathname === "/api/tenant-favicon") return true;
   if (pathname === "/api/worker-onboarding/entry") return true;
@@ -800,5 +806,9 @@ export const config = {
     "/godadmin/:path*",
     "/api/godadmin",
     "/api/godadmin/:path*",
+    // Inbound Integration APIs (`/api/v1/*`) intentionally use route-level
+    // tenant API-key auth. If you add them to this matcher, keep
+    // `isPublicApiPath` covering `/api/v1` so production session gating
+    // does not treat `bhr_in_…` / `X-API-Key` as Supabase JWTs.
   ],
 };

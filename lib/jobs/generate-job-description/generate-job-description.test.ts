@@ -4,6 +4,7 @@ import { generateJobDescriptionRequestSchema } from "@/lib/jobs/generate-job-des
 import {
   boldJobDescriptionSectionTitles,
   htmlToPlainText,
+  normalizeJobDescriptionInput,
   sanitizeJobDescriptionHtml,
 } from "@/lib/jobs/generate-job-description/sanitize-html";
 
@@ -67,6 +68,19 @@ describe("sanitizeJobDescriptionHtml", () => {
     const plain = htmlToPlainText("<h3>About the Role</h3><p>Lead care.<br>More</p>");
     expect(plain).toContain("About the Role");
     expect(plain).toContain("Lead care.");
+  });
+
+  it("normalizes API HTML and keeps bold tags", () => {
+    const normalized = normalizeJobDescriptionInput(
+      '<p>Provide <strong>ICU</strong> nursing care.</p><script>evil()</script>'
+    );
+    expect(normalized).toContain("<strong>ICU</strong>");
+    expect(normalized).not.toContain("script");
+  });
+
+  it("normalizes plain text API descriptions into HTML paragraphs", () => {
+    const normalized = normalizeJobDescriptionInput("Line one.\n\nLine two.");
+    expect(normalized).toBe("<p>Line one.</p><p>Line two.</p>");
   });
 
   it("bolds known section titles without changing body copy", () => {

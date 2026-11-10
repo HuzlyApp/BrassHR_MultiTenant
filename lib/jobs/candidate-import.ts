@@ -953,24 +953,25 @@ async function ensureApplicantProfileForWorker(
 
   const email = asText(worker.email);
   const normalizedEmail = email ? normalizeApplicantEmail(email) : "";
-  if (normalizedEmail) {
-    const { data: byEmail, error: emailError } = await supabase
-      .from("applicant_profiles")
-      .select("id, worker_id")
-      .eq("tenant_id", tenantId)
-      .eq("normalized_email", normalizedEmail)
-      .maybeSingle();
-    if (emailError) throw emailError;
-    if (byEmail?.id) {
-      if (!byEmail.worker_id) {
-        await supabase
-          .from("applicant_profiles")
-          .update({ worker_id: worker.id, updated_at: new Date().toISOString() })
-          .eq("id", byEmail.id)
-          .eq("tenant_id", tenantId);
-      }
-      return String(byEmail.id);
+  // DB + product rule: never create applicant_profiles without a real email.
+  if (!email || !normalizedEmail) return null;
+
+  const { data: byEmail, error: emailError } = await supabase
+    .from("applicant_profiles")
+    .select("id, worker_id")
+    .eq("tenant_id", tenantId)
+    .eq("normalized_email", normalizedEmail)
+    .maybeSingle();
+  if (emailError) throw emailError;
+  if (byEmail?.id) {
+    if (!byEmail.worker_id) {
+      await supabase
+        .from("applicant_profiles")
+        .update({ worker_id: worker.id, updated_at: new Date().toISOString() })
+        .eq("id", byEmail.id)
+        .eq("tenant_id", tenantId);
     }
+    return String(byEmail.id);
   }
 
   const { data: created, error: insertError } = await supabase
@@ -978,8 +979,8 @@ async function ensureApplicantProfileForWorker(
     .insert({
       tenant_id: tenantId,
       worker_id: worker.id,
-      email: email || null,
-      normalized_email: normalizedEmail || `worker-${worker.id}@imported.invalid`,
+      email,
+      normalized_email: normalizedEmail,
       first_name: asText(worker.first_name) || "Candidate",
       last_name: asText(worker.last_name) || null,
       phone: asText(worker.phone) || null,
