@@ -248,12 +248,12 @@ export function ApplicantScheduleTab({
                 ) : (
                   <button
                     type="button"
-                    disabled={attendanceSubmitting || isCompleted}
+                    disabled={attendanceSubmitting}
                     onClick={() => onAttendanceAction("clock_in")}
                     className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
                   >
                     <Play className="h-4 w-4" />
-                    {attendanceSubmitting ? "Verifying..." : "Clock-In"}
+                    {attendanceSubmitting ? "Verifying..." : isCompleted ? "Clock-In Again" : "Clock-In"}
                   </button>
                 )}
               </div>

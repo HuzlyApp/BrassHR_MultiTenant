@@ -84,4 +84,45 @@ describe("buildClockInRows", () => {
       totalScheduled: 2,
     });
   });
+
+  it("pairs each same-day log to the closest scheduled shift", () => {
+    const rows = buildClockInRows(
+      [
+        shift({ id: "morning", startTime: "08:00:00", endTime: "12:00:00" }),
+        shift({ id: "evening", startTime: "16:00:00", endTime: "20:00:00" }),
+      ],
+      [
+        log({
+          id: "evening-log",
+          clockInAt: "2026-11-07T21:05:00.000Z", // 4:05 PM ET
+          status: "clocked_out",
+          clockOutAt: "2026-11-08T01:00:00.000Z",
+          totalSeconds: 14100,
+        }),
+        log({
+          id: "morning-log",
+          clockInAt: "2026-11-07T13:10:00.000Z", // 8:10 AM ET
+          status: "clocked_out",
+          clockOutAt: "2026-11-07T17:00:00.000Z",
+          totalSeconds: 13800,
+        }),
+      ],
+      now
+    );
+
+    const morning = rows.find((row) => row.id === "morning");
+    const evening = rows.find((row) => row.id === "evening");
+    expect(morning?.attendance_log_id).toBe("morning-log");
+    expect(evening?.attendance_log_id).toBe("evening-log");
+    expect(morning?.from_schedule).toBe(true);
+    expect(evening?.from_schedule).toBe(true);
+  });
+
+  it("exposes the attendance log id for scheduled and unscheduled rows", () => {
+    const [scheduled] = buildClockInRows([shift()], [log()], now);
+    const [unscheduled] = buildClockInRows([], [log({ id: "orphan-log" })], now);
+    expect(scheduled.attendance_log_id).toBe("log-1");
+    expect(unscheduled.attendance_log_id).toBe("orphan-log");
+    expect(unscheduled.id).toBe("orphan-log");
+  });
 });
