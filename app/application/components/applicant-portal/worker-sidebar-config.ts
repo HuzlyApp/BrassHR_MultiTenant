@@ -29,23 +29,12 @@ export type WorkerSidebarSection = {
 
 const ICON = {
   dashboard: "Dashboard",
-  mail: "Mail",
-  chat: "Chat",
   schedule: "Schedule",
-  shifts: "Shifts",
-  tickets: "Tickets",
-  finance: "Finance",
-  taskboard: "Taskboard",
-  teams: "Teams",
-  organization: "Organization",
-  jobs: "Jobs",
-  profile: "My Profile",
-  notifications: "Notifications",
   help: "Help & Support",
-  settings: "Settings",
   logout: "Logout",
   time: "Time",
   pay: "Pay",
+  taskboard: "Taskboard",
 } as const satisfies Record<string, SidebarIconType>;
 
 const PORTAL_HOME = "/application/applicant-dashboard";
@@ -55,22 +44,12 @@ const TIMESHEETS_HOME = `${SCHEDULE_HOME}/timesheets`;
 const PAY_HOME = `${PORTAL_HOME}/pay`;
 const PAYSLIPS_HOME = `${PAY_HOME}/payslips`;
 const EARNINGS_HOME = `${PAY_HOME}/earnings`;
-const JOBS_HOME = `${PORTAL_HOME}/jobs`;
+const TASKBOARD_HOME = `${PORTAL_HOME}/taskboard`;
 const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
 const PAY_ACTIVE_PREFIXES = [PAY_HOME, PAYSLIPS_HOME, EARNINGS_HOME];
 
-const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Active Shifts", href: "#", matchPrefixes: [], disabled: true },
-  {
-    label: "Applications",
-    href: "/application/applicant-dashboard/applications",
-    matchPrefixes: ["/application/applicant-dashboard/applications"],
-    matchExact: true,
-  },
-  { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
-];
-
-const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
+/** Figma worker Schedule menu — Schedule (calendar) + Attendance. */
+const SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   {
     label: "Schedule",
     href: `${SCHEDULE_HOME}?view=calendar`,
@@ -120,69 +99,10 @@ const PAY_CHILDREN: WorkerSidebarLink[] = [
   },
 ];
 
-const TEAMS_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Teams", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
-];
-
-const LOCATIONS_HOME = "/application/applicant-dashboard/locations";
-const TASKBOARD_HOME = "/application/applicant-dashboard/taskboard";
-
-const ORGANIZATION_CHILDREN: WorkerSidebarLink[] = [
-  {
-    label: "Locations",
-    href: LOCATIONS_HOME,
-    matchPrefixes: [LOCATIONS_HOME],
-    matchExact: true,
-  },
-];
-
-const PROFILE_CHILDREN: WorkerSidebarLink[] = [
-  {
-    label: "Personal Information",
-    href: "/application/applicant-dashboard/profile?tab=personal",
-    matchPrefixes: ["/application/applicant-dashboard/profile"],
-    matchExact: true,
-    accountTab: "personal",
-  },
-  {
-    label: "Applications",
-    href: "/application/applicant-dashboard/profile?tab=applications",
-    matchPrefixes: ["/application/applicant-dashboard/profile"],
-    matchExact: true,
-    accountTab: "applications",
-  },
-  {
-    label: "Documents",
-    href: "/application/applicant-dashboard/documents",
-    matchPrefixes: ["/application/applicant-dashboard/documents"],
-    matchExact: true,
-  },
-  {
-    label: "Certifications",
-    href: "/application/applicant-dashboard/licenses",
-    matchPrefixes: ["/application/applicant-dashboard/licenses"],
-    matchExact: true,
-  },
-];
-
-const SETTINGS_HOME = "/application/applicant-dashboard/settings";
-const SETTINGS_CHILDREN: WorkerSidebarLink[] = [
-  {
-    label: "Profile",
-    href: `${SETTINGS_HOME}/profile`,
-    matchPrefixes: [`${SETTINGS_HOME}/profile`],
-    matchExact: true,
-  },
-  {
-    label: "Account",
-    href: `${SETTINGS_HOME}/account`,
-    matchPrefixes: [`${SETTINGS_HOME}/account`],
-    matchExact: true,
-  },
-];
-
-/** Worker portal sidebar — Figma worker menu order and hierarchy. */
+/**
+ * Worker portal sidebar — Figma "Dashboard - Main (Worker)" only:
+ * Dashboard, Schedule, Time, Pay, Taskboard, Help & Support.
+ */
 export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
     label: "Dashboard",
@@ -194,26 +114,18 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     preventNavigation: true,
   },
   {
-    label: "My Shifts",
-    href: "#",
-    iconType: ICON.shifts,
-    matchPrefixes: ["/application/applicant-dashboard/applications"],
-    disabled: true,
-    children: MY_SHIFTS_CHILDREN,
-  },
-  {
-    label: "My Schedule",
+    label: "Schedule",
     href: `${SCHEDULE_HOME}?view=calendar`,
     iconType: ICON.schedule,
     // Shared /schedule path with Time — activate only via children (view/tab).
     matchPrefixes: [],
-    children: MY_SCHEDULE_CHILDREN,
+    children: SCHEDULE_CHILDREN,
   },
   {
     label: "Time",
     href: SCHEDULE_HOME,
     iconType: ICON.time,
-    // Shared /schedule path with My Schedule — activate only via children (view/tab).
+    // Shared /schedule path with Schedule — activate only via children (view/tab).
     matchPrefixes: [],
     children: TIME_CHILDREN,
   },
@@ -232,74 +144,10 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     matchExact: true,
   },
   {
-    label: "Teams",
-    href: "#",
-    iconType: ICON.teams,
-    matchPrefixes: [],
-    disabled: true,
-    children: TEAMS_CHILDREN,
-  },
-  {
-    label: "Organization",
-    href: "#",
-    iconType: ICON.organization,
-    matchPrefixes: [LOCATIONS_HOME],
-    children: ORGANIZATION_CHILDREN,
-  },
-  {
-    label: "Jobs",
-    href: JOBS_HOME,
-    iconType: ICON.jobs,
-    matchPrefixes: [JOBS_HOME],
-    matchExact: true,
-  },
-  {
-    label: "Mail",
-    href: "#",
-    iconType: ICON.mail,
-    matchPrefixes: [],
-    disabled: true,
-  },
-  {
-    label: "Chat",
-    href: "/application/applicant-dashboard/group-chat",
-    iconType: ICON.chat,
-    matchPrefixes: ["/application/applicant-dashboard/group-chat"],
-    matchExact: true,
-  },
-  {
-    label: "Profile",
-    href: "#",
-    iconType: ICON.profile,
-    matchPrefixes: [
-      "/application/applicant-dashboard/profile",
-      "/application/applicant-dashboard/documents",
-      "/application/applicant-dashboard/licenses",
-    ],
-    children: PROFILE_CHILDREN,
-  },
-  {
-    label: "Notifications",
-    href: "#",
-    iconType: ICON.notifications,
-    matchPrefixes: [],
-    disabled: true,
-  },
-  {
     label: "Help & Support",
-    href: "/application/applicant-dashboard/help",
+    href: `${PORTAL_HOME}/help`,
     iconType: ICON.help,
-    matchPrefixes: [
-      "/application/applicant-dashboard/help",
-      "/application/applicant-dashboard/tickets",
-    ],
-  },
-  {
-    label: "Settings",
-    href: `${SETTINGS_HOME}/profile`,
-    iconType: ICON.settings,
-    matchPrefixes: [SETTINGS_HOME],
-    children: SETTINGS_CHILDREN,
+    matchPrefixes: [`${PORTAL_HOME}/help`, `${PORTAL_HOME}/tickets`],
   },
 ];
 
