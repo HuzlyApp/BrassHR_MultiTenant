@@ -11,6 +11,8 @@ export type WorkerApplicationStatusSummary = {
   statusName: string | null;
   systemKey: string | null;
   jobTitle: string | null;
+  /** Job requisition UUID for deep-links (e.g. /admin_recruiter/jobs/:id). */
+  jobRequisitionId: string | null;
   /** MSP end client (msp_name); null for non-MSP or empty. */
   clientName: string | null;
   /** MSP Source Job ID (external_requisition_id). */
@@ -33,6 +35,7 @@ type AppRow = {
   status: string | null;
   status_id: string | null;
   source?: string | null;
+  job_requisition_id?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
   application_statuses:
@@ -75,12 +78,14 @@ function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSumm
   const status = one(row.application_statuses);
   const job = one(row.job_requisitions);
   const sourceJobId = job?.external_requisition_id?.trim() || "";
+  const jobRequisitionId = row.job_requisition_id?.trim() || "";
   return {
     applicationId: row.id,
     statusId: status?.id ?? row.status_id,
     statusName: status?.name ?? null,
     systemKey: status?.system_key ?? row.status,
     jobTitle: job?.public_title ?? null,
+    jobRequisitionId: jobRequisitionId || null,
     clientName: clientNameFromJob(job),
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
@@ -105,7 +110,7 @@ export async function getApplicationStatusSummariesForWorkers(
     let query = supabase
       .from("job_applications")
       .select(
-        "id, worker_id, status, status_id, source, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
+        "id, worker_id, status, status_id, source, job_requisition_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
       )
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")')

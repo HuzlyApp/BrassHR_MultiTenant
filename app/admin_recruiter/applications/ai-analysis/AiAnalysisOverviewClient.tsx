@@ -244,7 +244,11 @@ function candidateProfileHrefForAnalysisContext(
     return candidateProfileHref(workerId);
   }
   return candidateApplicantProfileHref(workerId, {
-    from: backHref.includes("/admin_recruiter/candidates") ? "candidates" : "applications",
+    from: backHref.includes("/admin_recruiter/candidates")
+      ? "candidates"
+      : backHref.includes("/admin_recruiter/new/")
+        ? "new"
+        : "applications",
     jobId: jobId || undefined,
   });
 }

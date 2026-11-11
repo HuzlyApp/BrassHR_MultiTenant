@@ -74,6 +74,7 @@ describe("loadCandidateListApplicationBundle", () => {
       applicationId: "app-1",
       statusName: "Screening",
       jobTitle: "RN ICU",
+      jobRequisitionId: "job-1",
       clientName: "Acme",
       sourceJobId: "MSP-9",
       ambiguous: false,
