@@ -114,7 +114,13 @@ describe("candidate import search params", () => {
     expect(params.minMatch).toBe(IMPORT_RECOMMENDED_MIN_SCORE);
     expect(params.q).toBe("lee");
     expect(params.email).toBe("");
+    expect(params.source).toBe("");
     expect(params.pageSize).toBe(25);
+  });
+
+  it("parses source search param", () => {
+    const params = parseImportSearchParams(new URLSearchParams("tab=all&source=Admin"));
+    expect(params.source).toBe("admin");
   });
 
   it("treats anything other than all as recommended and accepts search alias", () => {

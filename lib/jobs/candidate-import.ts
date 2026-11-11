@@ -32,6 +32,11 @@ import { JobValidationError } from "@/lib/jobs/types";
 import { runAutoQuickMatchForApplications } from "@/lib/jobs/match-analysis/auto-quick-match";
 import { ensureApplicationResumeFromWorker } from "@/lib/jobs/match-analysis/ensure-application-resume";
 import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
+import {
+  APPLICATION_REFERENCE_SOURCES,
+  formatApplicationReferenceSourceLabel,
+  normalizeApplicationReferenceSource,
+} from "@/lib/jobs/application-reference-source";
 import { normalizeApplicantEmail } from "@/lib/jobs/validation";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
 import {
@@ -85,6 +90,7 @@ export type ImportSearchResult = {
     locations: string[];
     roles: string[];
     statuses: Array<{ id: string; name: string; color: string | null }>;
+    sources: Array<{ id: string; name: string }>;
   };
 };
 
@@ -481,6 +487,22 @@ async function resolveSqlWorkerIds(
     }
   }
 
+  const sourceFilter = normalizeApplicationReferenceSource(params.source);
+  if (sourceFilter) {
+    ids = intersectOrPass(
+      ids,
+      await collectIdsFromQuery(() =>
+        supabase
+          .from("job_applications")
+          .select("worker_id")
+          .eq("tenant_id", tenantId)
+          .eq("source", sourceFilter)
+          .not("status", "in", INACTIVE_APPLICATION_STATUSES)
+          .limit(IMPORT_MATCH_FETCH_CAP)
+      )
+    );
+  }
+
   return ids;
 }
 
@@ -644,6 +666,7 @@ type ApplicationTitleRow = {
   worker_id: string | null;
   job_requisition_id: string | null;
   updated_at: string | null;
+  source: string | null;
   job_requisitions:
     | { public_title: string | null }
     | { public_title: string | null }[]
@@ -667,6 +690,7 @@ async function loadRelatedCandidateData(
     notes: new Map<string, string>(),
     titles: new Map<string, string[]>(),
     currentRoles: new Map<string, string>(),
+    sources: new Map<string, string>(),
     alreadyAdded: new Set<string>(),
     verified: new Map<string, string[]>(),
     skills: new Map<string, string[]>(),
@@ -696,7 +720,7 @@ async function loadRelatedCandidateData(
     queryInChunks(workerIds, async (chunk) => {
       const result = await supabase
         .from("job_applications")
-        .select("worker_id, job_requisition_id, updated_at, job_requisitions(public_title)")
+        .select("worker_id, job_requisition_id, updated_at, source, job_requisitions(public_title)")
         .eq("tenant_id", tenantId)
         .in("worker_id", chunk)
         .not("status", "in", INACTIVE_APPLICATION_STATUSES)
@@ -747,10 +771,16 @@ async function loadRelatedCandidateData(
 
   const titles = new Map<string, string[]>();
   const currentRoles = new Map<string, string>();
+  const sources = new Map<string, string>();
   for (const row of appsResult.data) {
     const workerId = asText(row.worker_id);
+    if (!workerId) continue;
+    const normalizedSource = normalizeApplicationReferenceSource(row.source);
+    if (normalizedSource && !sources.has(workerId)) {
+      sources.set(workerId, normalizedSource);
+    }
     const title = jobTitleOf(row.job_requisitions);
-    if (!workerId || !title) continue;
+    if (!title) continue;
     if (row.job_requisition_id !== jobId && !currentRoles.has(workerId)) {
       currentRoles.set(workerId, title);
     }
@@ -774,7 +804,16 @@ async function loadRelatedCandidateData(
     skills.set(workerId, list);
   }
 
-  return { resumes, notes, titles, currentRoles, alreadyAdded, verified: new Map<string, string[]>(), skills };
+  return {
+    resumes,
+    notes,
+    titles,
+    currentRoles,
+    sources,
+    alreadyAdded,
+    verified: new Map<string, string[]>(),
+    skills,
+  };
 }
 
 async function loadFacets(
@@ -782,7 +821,7 @@ async function loadFacets(
   tenantId: string,
   job: JobMatchProfile
 ): Promise<ImportSearchResult["facets"] & { suggestedRoles: string[] }> {
-  const [{ data: roleRows }, { data: locationRows }] = await Promise.all([
+  const [{ data: roleRows }, { data: locationRows }, { data: sourceRows }] = await Promise.all([
     supabase
       .from("worker")
       .select("job_role")
@@ -794,6 +833,12 @@ async function loadFacets(
       .select("city, state")
       .eq("tenant_id", tenantId)
       .limit(200),
+    supabase
+      .from("job_applications")
+      .select("source")
+      .eq("tenant_id", tenantId)
+      .not("source", "is", null)
+      .limit(500),
   ]);
 
   const roles = uniqueLimited(
@@ -818,10 +863,25 @@ async function loadFacets(
     color: pipelineStatusColor(id),
   }));
 
+  const presentSources = new Set<string>();
+  for (const row of sourceRows ?? []) {
+    const normalized = normalizeApplicationReferenceSource(
+      (row as { source?: string | null }).source
+    );
+    if (normalized) presentSources.add(normalized);
+  }
+  const sources = APPLICATION_REFERENCE_SOURCES.filter((id) => presentSources.has(id)).map(
+    (id) => ({
+      id,
+      name: formatApplicationReferenceSourceLabel(id) || id,
+    })
+  );
+
   return {
     locations,
     roles,
     statuses,
+    sources,
     suggestedRoles: uniqueLimited([job.title, job.specialty], 8),
   };
 }
@@ -909,10 +969,16 @@ export async function searchCandidatesForImport(
       }
     }
 
+    const source = related.sources.get(row.id) ?? null;
+    const sourceFilter = normalizeApplicationReferenceSource(input.params.source);
+    if (sourceFilter && source !== sourceFilter) continue;
+
     scored.push({
       id: row.id,
       fullName,
       email: asText(row.email),
+      source,
+      sourceLabel: formatApplicationReferenceSourceLabel(source),
       currentRole: currentRole || asText(row.job_role),
       location,
       yearsExperience: match.yearsExperience,
@@ -957,6 +1023,7 @@ export async function searchCandidatesForImport(
       locations: facets.locations,
       roles: facets.roles,
       statuses: facets.statuses,
+      sources: facets.sources,
     },
   };
 }

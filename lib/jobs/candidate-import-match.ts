@@ -139,12 +139,15 @@ export type ImportSearchParams = {
   experience: ImportExperienceBucket | null;
   status: string;
   previousTitle: string;
+  source: string;
 };
 
 export type ImportCandidateView = {
   id: string;
   fullName: string;
   email: string;
+  source: string | null;
+  sourceLabel: string | null;
   currentRole: string;
   location: string;
   yearsExperience: number | null;
@@ -645,6 +648,7 @@ export function parseImportSearchParams(searchParams: URLSearchParams): ImportSe
     experience: parseExperience(searchParams.get("experience")),
     status: asText(searchParams.get("status")),
     previousTitle: asText(searchParams.get("previousTitle")),
+    source: asText(searchParams.get("source")).toLowerCase(),
   };
 }
 
