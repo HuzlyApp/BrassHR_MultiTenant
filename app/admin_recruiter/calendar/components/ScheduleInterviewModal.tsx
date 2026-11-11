@@ -11,6 +11,7 @@ import {
   startOfEasternDay,
   startOfEasternWeek,
 } from "@/lib/datetime/eastern";
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { formatSlotLabel } from "@/lib/interviews/format";
 import type { InterviewApplicationOption } from "@/app/api/admin/applicant-appointments/applications/route";
 import type {
@@ -115,6 +116,7 @@ export function ScheduleInterviewModal({
   mode = "create",
 }: ScheduleInterviewModalProps) {
   const isReschedule = mode === "reschedule";
+  const { userId: currentUserId } = useAdminHeaderData();
   const [workerId, setWorkerId] = useState("");
   const [applications, setApplications] = useState<InterviewApplicationOption[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
@@ -282,6 +284,15 @@ export function ScheduleInterviewModal({
       cancelled = true;
     };
   }, [open, initialValues]);
+
+  /** New schedule: default-select the logged-in staff member in Interviewers. */
+  useEffect(() => {
+    if (!open || isReschedule || initialValues?.interviewers?.length) return;
+    if (!currentUserId || teamMembers.length === 0) return;
+    const selfId = teamMembers.find((member) => member.id === currentUserId)?.id;
+    if (!selfId) return;
+    setSelectedInterviewerIds((current) => (current.length > 0 ? current : [selfId]));
+  }, [open, isReschedule, initialValues, currentUserId, teamMembers]);
 
   useEffect(() => {
     if (!open) return;

@@ -2,8 +2,11 @@ export function candidateProfileHref(workerId: string) {
   return `/admin_recruiter/new/profile/${encodeURIComponent(workerId)}`;
 }
 
-/** Recruiter candidate profile (Figma applicant overview + applications). */
-export function candidateApplicantProfileHref(
+/**
+ * Legacy applicant overview under /admin_recruiter/candidates/[id].
+ * Used from the candidate-detail header name link.
+ */
+export function candidateLegacyProfileHref(
   workerId: string,
   opts?: { from?: string; jobId?: string; tab?: string }
 ) {
@@ -15,6 +18,28 @@ export function candidateApplicantProfileHref(
   return `/admin_recruiter/candidates/${encodeURIComponent(workerId)}${
     query ? `?${query}` : ""
   }`;
+}
+
+/**
+ * Recruiter candidate detail screen (shared header + tabs under /admin_recruiter/new).
+ * Applicant name / profile links should land here — not the legacy /candidates/[id] page.
+ */
+export function candidateApplicantProfileHref(
+  workerId: string,
+  opts?: { from?: string; jobId?: string; tab?: string }
+) {
+  const id = encodeURIComponent(workerId);
+  const tab = opts?.tab?.trim().toLowerCase() || "";
+  const path =
+    tab === "applications"
+      ? `/admin_recruiter/new/applications/${id}`
+      : `/admin_recruiter/new/profile/${id}`;
+
+  const params = new URLSearchParams();
+  if (opts?.from?.trim()) params.set("from", opts.from.trim());
+  if (opts?.jobId?.trim()) params.set("jobId", opts.jobId.trim());
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 /** Opens Mail compose with the candidate pre-selected in the dropdown. */

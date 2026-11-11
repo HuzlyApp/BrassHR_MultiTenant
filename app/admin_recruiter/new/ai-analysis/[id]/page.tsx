@@ -28,6 +28,8 @@ type ProfilePayload = {
     profile_photo_url?: string | null;
     email?: string | null;
   };
+  job_title?: string | null;
+  job_requisition_id?: string | null;
   error?: string;
 };
 
@@ -84,6 +86,15 @@ export default function CandidateDetailAiAnalysisPage() {
 
   const worker = chromeActive ? chrome?.profile?.worker : profile?.worker;
   const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim();
+  const jobTitle =
+    (chromeActive ? chrome?.profile?.job_title : profile?.job_title)?.trim() || "";
+  const jobRequisitionId =
+    (chromeActive ? chrome?.profile?.job_requisition_id : profile?.job_requisition_id)?.trim() ||
+    "";
+  const headerRole = jobTitle || "—";
+  const headerRoleHref = jobRequisitionId
+    ? `/admin_recruiter/jobs/${encodeURIComponent(jobRequisitionId)}`
+    : null;
 
   if (!applicantId) {
     return (
@@ -127,7 +138,8 @@ export default function CandidateDetailAiAnalysisPage() {
           <>
             <DetailedCandidateHeader
               name={name}
-              role={worker?.job_role ?? ""}
+              role={headerRole}
+              roleHref={headerRoleHref}
               profilePhotoUrl={worker?.profile_photo_url}
               workerId={applicantId}
               candidateEmail={worker?.email}

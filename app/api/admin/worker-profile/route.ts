@@ -806,6 +806,8 @@ export async function GET(req: NextRequest) {
       asTrimmedString(w.lead_source) ||
       null
     const resolvedJobId = asTrimmedString(appSummary?.sourceJobId) || null
+    const resolvedJobTitle = asTrimmedString(appSummary?.jobTitle) || null
+    const resolvedJobRequisitionId = asTrimmedString(appSummary?.jobRequisitionId) || null
 
     const rawWorkerStatus = asTrimmedString(w.status) ?? asTrimmedString(w.worker_status)
     const statusLabel =
@@ -1026,6 +1028,8 @@ export async function GET(req: NextRequest) {
       activity_logs: activityLogs,
       activity_history: activityLogs,
       job_id: resolvedJobId,
+      job_title: resolvedJobTitle,
+      job_requisition_id: resolvedJobRequisitionId,
       activity: {
         source: resolvedSource,
         created_at: createdAt,

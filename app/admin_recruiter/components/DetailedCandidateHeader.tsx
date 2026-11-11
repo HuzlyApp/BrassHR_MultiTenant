@@ -5,6 +5,7 @@ import Link from "next/link";
 // import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
 import UpdateAssignedWorkflowControl from "./UpdateAssignedWorkflowControl";
+import { candidateLegacyProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 // import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
 // import {
 //   candidateDetailAiAnalysisHref,
@@ -14,6 +15,10 @@ import UpdateAssignedWorkflowControl from "./UpdateAssignedWorkflowControl";
 type DetailedCandidateHeaderProps = {
   name: string;
   role: string;
+  /** When set, `role` renders as a link (applied job → job details). */
+  roleHref?: string | null;
+  /** Override name link; defaults to legacy /candidates/[id]?from=candidates when workerId is set. */
+  nameHref?: string | null;
   loading?: boolean;
   profilePhotoUrl?: string | null;
   workerId?: string | null;
@@ -45,6 +50,8 @@ const outlineBtn =
 export default function DetailedCandidateHeader({
   name,
   role,
+  roleHref = null,
+  nameHref = null,
   loading = false,
   profilePhotoUrl,
   workerId,
@@ -87,6 +94,17 @@ export default function DetailedCandidateHeader({
 
   const displayName = loading ? "Loading..." : name.trim() || "Applicant";
   const displayRole = loading ? "—" : role.trim() || "—";
+  const resolvedNameHref = (() => {
+    if (loading) return null;
+    if (typeof nameHref === "string" && nameHref.trim()) return nameHref.trim();
+    const id = workerId?.trim();
+    if (!id) return null;
+    return candidateLegacyProfileHref(id, { from: "candidates" });
+  })();
+  const resolvedRoleHref =
+    !loading && displayRole !== "—" && typeof roleHref === "string" && roleHref.trim()
+      ? roleHref.trim()
+      : null;
   const displayEmail = candidateEmail?.trim() || "—";
   const displayPhone = phone?.trim() || "—";
   const displayLocation = location?.trim() || "—";
@@ -166,10 +184,30 @@ export default function DetailedCandidateHeader({
               <div className="min-w-0 space-y-3">
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="min-w-0">
-                    <h1 className="truncate text-xl font-semibold leading-7 text-[#012352]">
-                      {displayName}
-                    </h1>
-                    <p className="mt-0.5 text-sm text-[#6B7280]">{displayRole}</p>
+                    {resolvedNameHref ? (
+                      <Link
+                        href={resolvedNameHref}
+                        className="block truncate text-xl font-semibold leading-7 text-[#012352] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                        title="View applicant profile"
+                      >
+                        {displayName}
+                      </Link>
+                    ) : (
+                      <h1 className="truncate text-xl font-semibold leading-7 text-[#012352]">
+                        {displayName}
+                      </h1>
+                    )}
+                    {resolvedRoleHref ? (
+                      <Link
+                        href={resolvedRoleHref}
+                        className="mt-0.5 block truncate text-sm font-medium text-[#001A46] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                        title="View job details"
+                      >
+                        {displayRole}
+                      </Link>
+                    ) : (
+                      <p className="mt-0.5 truncate text-sm text-[#6B7280]">{displayRole}</p>
+                    )}
                   </div>
                   <span className="inline-flex rounded bg-[#EFF6FF] px-2.5 py-1 text-xs font-medium text-[#1D4ED8]">
                     Applicant

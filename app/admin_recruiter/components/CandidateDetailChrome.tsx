@@ -41,6 +41,10 @@ type ChromeWorker = {
 type ChromeProfilePayload = {
   worker?: ChromeWorker;
   job_id?: string | null;
+  /** Applied job public title (preferred over resume profession in the header). */
+  job_title?: string | null;
+  /** Job requisition UUID for the applied-job header link. */
+  job_requisition_id?: string | null;
   activity?: { source?: string | null };
   onboardingSteps?: Array<{ state: "complete" | "in_progress" | "pending" }>;
   onboardingCompletion?: { percent?: number | null };
@@ -123,7 +127,12 @@ function CandidateDetailChromeInner({
 
   const worker = profile?.worker;
   const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim() || "Applicant";
-  const role = worker?.job_role?.trim() || "—";
+  const jobTitle = profile?.job_title?.trim() || "";
+  const jobRequisitionId = profile?.job_requisition_id?.trim() || "";
+  const role = jobTitle || "—";
+  const roleHref = jobRequisitionId
+    ? `/admin_recruiter/jobs/${encodeURIComponent(jobRequisitionId)}`
+    : null;
   const location = [worker?.city ?? "", worker?.state ?? ""].filter(Boolean).join(", ") || null;
   const workerStatus = worker?.status ?? null;
 
@@ -155,6 +164,7 @@ function CandidateDetailChromeInner({
             persistent
             name={name}
             role={role}
+            roleHref={roleHref}
             loading={loading && !worker}
             profilePhotoUrl={worker?.profile_photo_url}
             workerId={applicantId}
