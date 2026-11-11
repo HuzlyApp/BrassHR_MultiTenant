@@ -85,18 +85,12 @@ const SEARCH_CATALOG = flattenSidebarSearchItems();
 
 /** Default dropdown order when the search box is focused with an empty query. */
 const FEATURED_SEARCH_IDS = [
-  "My Schedule:Schedule",
+  "Schedule:Schedule",
   "Time:Time Tracking",
   "Time:Timesheets",
   "Pay:Payslips",
   "Pay:Earnings",
-  "Organization:Locations",
-  "Jobs",
-  "Chat",
-  "Profile:Personal Information",
-  "Profile:Documents",
-  "Settings:Profile",
-  "Settings:Account",
+  "Taskboard",
   "Help & Support",
 ] as const;
 
