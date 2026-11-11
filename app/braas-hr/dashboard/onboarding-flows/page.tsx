@@ -6,12 +6,15 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   Suspense,
+  type CSSProperties,
   type FormEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import { useOnboardingFlows, type OnboardingFlowListItem } from "@/lib/onboarding/hooks/use-onboarding-flows";
@@ -800,23 +803,57 @@ type FlowCardProps = {
 
 function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: FlowCardProps) {
   const published = flow.status === "published";
+  const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setMenuStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+      minWidth: 148,
+      zIndex: 200,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!menuOpen) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [menuOpen, updateMenuPosition]);
 
   useEffect(() => {
     if (!menuOpen) return;
     const close = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      const menu = document.getElementById(menuId);
+      if (menu?.contains(target)) return;
+      setMenuOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
+  }, [menuId, menuOpen]);
 
   return (
     <div
-      className="group relative flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3.5 transition hover:border-[color:var(--brand-primary)] sm:gap-4 sm:px-4 sm:py-4"
+      className={`group relative flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3.5 transition hover:border-[color:var(--brand-primary)] sm:gap-4 sm:px-4 sm:py-4 ${
+        menuOpen ? "z-30" : ""
+      }`}
       style={{
         borderColor: CARD_BORDER,
         boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
@@ -849,46 +886,57 @@ function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: F
         {published ? <PublishedBadge /> : <UnpublishedBadge />}
         <div className="relative" ref={menuRef}>
           <button
+            ref={triggerRef}
             type="button"
             aria-label={`More actions for ${flow.name}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
             title="More actions"
             onClick={() => setMenuOpen((open) => !open)}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F2F4F7]"
           >
             <MoreVerticalIcon />
           </button>
-          {menuOpen ? (
-            <div
-              className="absolute right-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border bg-white py-1 shadow-lg"
-              style={{ borderColor: CARD_BORDER }}
-            >
-              <Link
-                href={viewHref}
-                className="block px-3 py-2 text-sm font-medium text-[#344054] transition hover:bg-[#F9FAFB]"
-                onClick={() => setMenuOpen(false)}
-              >
-                View
-              </Link>
-              <Link
-                href={builderHref}
-                className="block px-3 py-2 text-sm font-medium text-[#344054] transition hover:bg-[#F9FAFB]"
-                onClick={() => setMenuOpen(false)}
-              >
-                Edit
-              </Link>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDelete(flow);
-                }}
-                className="w-full px-3 py-2 text-left text-sm font-medium text-[#B42318] transition hover:bg-[#FEF3F2] disabled:opacity-50"
-              >
-                Delete
-              </button>
-            </div>
-          ) : null}
+          {menuOpen && menuStyle
+            ? createPortal(
+                <div
+                  id={menuId}
+                  role="menu"
+                  className="min-w-[148px] overflow-hidden rounded-lg border bg-white py-1 shadow-lg"
+                  style={{ ...menuStyle, borderColor: CARD_BORDER }}
+                >
+                  <Link
+                    href={viewHref}
+                    role="menuitem"
+                    className="block px-3 py-2 text-sm font-medium text-[#344054] transition hover:bg-[#F9FAFB]"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    View
+                  </Link>
+                  <Link
+                    href={builderHref}
+                    role="menuitem"
+                    className="block px-3 py-2 text-sm font-medium text-[#344054] transition hover:bg-[#F9FAFB]"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={deleting}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(flow);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm font-medium text-[#B42318] transition hover:bg-[#FEF3F2] disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>,
+                document.body
+              )
+            : null}
         </div>
       </div>
     </div>
@@ -1119,19 +1167,52 @@ function OnboardingFlowsPageContent({
             </div>
             <p className="text-sm text-[#667085]">
               {publishedCount} Published <span className="text-[#D0D5DD]">•</span> {unpublishedCount}{" "}
-              Unpublish
+              Unpublished
             </p>
           </div>
 
-          <div className="mb-8">
-            <h3 className="mb-4 text-base font-semibold text-[#101828]">Published</h3>
-            {renderFlowGrid(publishedFlows, "Published flows")}
+          <div
+            className="mb-6 flex items-center gap-6 border-b border-[#E4E7EC]"
+            role="tablist"
+            aria-label="Flow status"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "published"}
+              onClick={() => setActiveTab("published")}
+              className={`relative -mb-px pb-3 text-sm font-semibold transition ${
+                activeTab === "published"
+                  ? "text-[color:var(--brand-primary)]"
+                  : "text-[#667085] hover:text-[#344054]"
+              }`}
+            >
+              Published
+              {activeTab === "published" ? (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[color:var(--brand-primary)]" />
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "unpublished"}
+              onClick={() => setActiveTab("unpublished")}
+              className={`relative -mb-px pb-3 text-sm font-semibold transition ${
+                activeTab === "unpublished"
+                  ? "text-[color:var(--brand-primary)]"
+                  : "text-[#667085] hover:text-[#344054]"
+              }`}
+            >
+              Unpublished
+              {activeTab === "unpublished" ? (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[color:var(--brand-primary)]" />
+              ) : null}
+            </button>
           </div>
 
-          <div>
-            <h3 className="mb-4 text-base font-semibold text-[#101828]">Unpublish</h3>
-            {renderFlowGrid(unpublishedFlows, "Unpublished flows")}
-          </div>
+          {activeTab === "published"
+            ? renderFlowGrid(publishedFlows, "Published flows")
+            : renderFlowGrid(unpublishedFlows, "Unpublished flows")}
         </>
       ) : (
         <>
@@ -1252,7 +1333,7 @@ function OnboardingFlowsPageContent({
         </header>
 
         <div
-          className="mb-8 flex w-full gap-1 min-[500px]:inline-flex min-[500px]:w-auto"
+          className="mb-8 flex items-center gap-6 border-b border-[#E4E7EC]"
           role="tablist"
           aria-label="Flow status"
         >
@@ -1261,26 +1342,32 @@ function OnboardingFlowsPageContent({
             role="tab"
             aria-selected={activeTab === "published"}
             onClick={() => setActiveTab("published")}
-            className="flex-1 rounded-full px-5 py-2 text-sm font-semibold leading-5 transition min-[500px]:flex-none"
-            style={{
-              background: activeTab === "published" ? GOLD_GRADIENT : "transparent",
-              color: activeTab === "published" ? "#ffffff" : TEXT_SECONDARY,
-            }}
+            className={`relative -mb-px pb-3 text-sm font-semibold transition ${
+              activeTab === "published"
+                ? "text-[color:var(--brand-primary)]"
+                : "text-[#667085] hover:text-[#344054]"
+            }`}
           >
             Published
+            {activeTab === "published" ? (
+              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[color:var(--brand-primary)]" />
+            ) : null}
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === "unpublished"}
             onClick={() => setActiveTab("unpublished")}
-            className="flex-1 rounded-full px-5 py-2 text-sm font-semibold leading-5 transition min-[500px]:flex-none"
-            style={{
-              background: activeTab === "unpublished" ? GOLD_GRADIENT : "transparent",
-              color: activeTab === "unpublished" ? "#ffffff" : TEXT_SECONDARY,
-            }}
+            className={`relative -mb-px pb-3 text-sm font-semibold transition ${
+              activeTab === "unpublished"
+                ? "text-[color:var(--brand-primary)]"
+                : "text-[#667085] hover:text-[#344054]"
+            }`}
           >
             Unpublished
+            {activeTab === "unpublished" ? (
+              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[color:var(--brand-primary)]" />
+            ) : null}
           </button>
         </div>
 
