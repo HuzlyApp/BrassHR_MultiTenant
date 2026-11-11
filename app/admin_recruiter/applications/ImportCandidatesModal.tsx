@@ -8,7 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Loader2, Search, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
@@ -134,6 +134,8 @@ export default function ImportCandidatesModal({
   const [tab, setTab] = useState<ImportSearchTab>("recommended");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [debouncedEmail, setDebouncedEmail] = useState("");
   const [filters, setFilters] = useState<FiltersState>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -144,12 +146,16 @@ export default function ImportCandidatesModal({
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<ImportSearchResponse | null>(null);
   const [cachedRecommendedTotal, setCachedRecommendedTotal] = useState<number | null>(null);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const resetState = useCallback(() => {
     setTab("recommended");
     setSearchInput("");
     setDebouncedQ("");
+    setEmailInput("");
+    setDebouncedEmail("");
     setFilters({ ...EMPTY_FILTERS, minMatch: IMPORT_RECOMMENDED_MIN_SCORE });
+    setFiltersExpanded(false);
     setPage(1);
     setSelectedIds([]);
     setPreview(null);
@@ -179,15 +185,25 @@ export default function ImportCandidatesModal({
     return () => window.clearTimeout(handle);
   }, [open, searchInput]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handle = window.setTimeout(
+      () => setDebouncedEmail(emailInput.trim()),
+      IMPORT_SEARCH_DEBOUNCE_MS
+    );
+    return () => window.clearTimeout(handle);
+  }, [open, emailInput]);
+
   const queryKey = useMemo(
     () =>
       JSON.stringify({
         tab,
         q: debouncedQ,
+        email: debouncedEmail,
         page,
         filters,
       }),
-    [tab, debouncedQ, page, filters]
+    [tab, debouncedQ, debouncedEmail, page, filters]
   );
 
   useEffect(() => {
@@ -203,6 +219,7 @@ export default function ImportCandidatesModal({
         params.set("pageSize", String(IMPORT_PAGE_SIZE_DEFAULT));
         params.set("minMatch", String(filters.minMatch));
         if (debouncedQ) params.set("q", debouncedQ);
+        if (debouncedEmail) params.set("email", debouncedEmail);
         if (filters.role) params.set("role", filters.role);
         if (filters.location) params.set("location", filters.location);
         if (filters.experience) params.set("experience", filters.experience);
@@ -241,7 +258,7 @@ export default function ImportCandidatesModal({
     return () => {
       cancelled = true;
     };
-  }, [open, jobId, queryKey, tab, page, debouncedQ, filters]);
+  }, [open, jobId, queryKey, tab, page, debouncedQ, debouncedEmail, filters]);
 
   const candidates = payload?.candidates ?? [];
   const selectableIds = candidates.filter((row) => !row.alreadyAdded).map((row) => row.id);
@@ -516,17 +533,33 @@ export default function ImportCandidatesModal({
                 </div>
 
                 <div className="space-y-3 border-b border-[#E5E7EB] px-5 py-4 sm:px-6">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-                    <input
-                      value={searchInput}
-                      onChange={(event) => {
-                        setSearchInput(event.target.value);
-                        setPage(1);
-                      }}
-                      placeholder="Search candidates..."
-                      className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white pl-9 pr-3 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
-                    />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                      <input
+                        value={searchInput}
+                        onChange={(event) => {
+                          setSearchInput(event.target.value);
+                          setPage(1);
+                        }}
+                        placeholder="Search candidates..."
+                        className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white pl-9 pr-3 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(event) => {
+                          setEmailInput(event.target.value);
+                          setPage(1);
+                        }}
+                        placeholder="Search by email..."
+                        className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white pl-9 pr-3 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
+                        aria-label="Search candidates by email"
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="text-xs font-medium text-[#64748B]">
@@ -593,67 +626,95 @@ export default function ImportCandidatesModal({
                         <option value="90">90%+ Excellent</option>
                       </select>
                     </label>
-                    <label className="text-xs font-medium text-[#64748B]">
-                      Status
-                      <select
-                        value={filters.status}
-                        onChange={(event) => updateFilter("status", event.target.value)}
-                        className={FILTER_SELECT_CLASS}
-                        style={FILTER_SELECT_CHEVRON}
-                      >
-                        <option value="">Any status</option>
-                        {(payload?.facets.statuses ?? []).map((status) => (
-                          <option key={status.id} value={status.id}>
-                            {status.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-xs font-medium text-[#64748B]">
-                      Previous title
-                      <input
-                        value={filters.previousTitle}
-                        onChange={(event) => updateFilter("previousTitle", event.target.value)}
-                        placeholder="Previous job title"
-                        className={FILTER_INPUT_CLASS}
-                      />
-                    </label>
-                    <div className="text-xs font-medium text-[#64748B] sm:col-span-2">
-                      Skills
-                      <div className="mt-1">
-                        <FilterChipInput
-                          values={filters.skills}
-                          suggestions={payload?.suggestedSkills ?? []}
-                          placeholder="Add a skill"
-                          onChange={(skills) => updateFilter("skills", skills)}
-                        />
-                      </div>
-                    </div>
-                    <div className="text-xs font-medium text-[#64748B] sm:col-span-2">
-                      Tags
-                      <div className="mt-1">
-                        <FilterChipInput
-                          values={filters.tags}
-                          suggestions={payload?.suggestedTags ?? []}
-                          placeholder="Add a tag"
-                          onChange={(tags) => updateFilter("tags", tags)}
-                        />
-                      </div>
-                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-[#64748B] underline-offset-2 hover:underline"
-                    onClick={() => {
-                      setFilters({
-                        ...EMPTY_FILTERS,
-                        minMatch: tab === "recommended" ? IMPORT_RECOMMENDED_MIN_SCORE : 0,
-                      });
-                      setPage(1);
-                    }}
-                  >
-                    Clear Filters
-                  </button>
+                  {filtersExpanded ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <label className="text-xs font-medium text-[#64748B]">
+                        Status
+                        <select
+                          value={filters.status}
+                          onChange={(event) => updateFilter("status", event.target.value)}
+                          className={FILTER_SELECT_CLASS}
+                          style={FILTER_SELECT_CHEVRON}
+                        >
+                          <option value="">Any status</option>
+                          {(payload?.facets.statuses ?? []).map((status) => (
+                            <option key={status.id} value={status.id}>
+                              {status.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-[#64748B]">
+                        Previous title
+                        <input
+                          value={filters.previousTitle}
+                          onChange={(event) => updateFilter("previousTitle", event.target.value)}
+                          placeholder="Previous job title"
+                          className={FILTER_INPUT_CLASS}
+                        />
+                      </label>
+                      <div className="text-xs font-medium text-[#64748B] sm:col-span-2">
+                        Skills
+                        <div className="mt-1">
+                          <FilterChipInput
+                            values={filters.skills}
+                            suggestions={payload?.suggestedSkills ?? []}
+                            placeholder="Add a skill"
+                            onChange={(skills) => updateFilter("skills", skills)}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-xs font-medium text-[#64748B] sm:col-span-2">
+                        Tags
+                        <div className="mt-1">
+                          <FilterChipInput
+                            values={filters.tags}
+                            suggestions={payload?.suggestedTags ?? []}
+                            placeholder="Add a tag"
+                            onChange={(tags) => updateFilter("tags", tags)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap items-center gap-4">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[#64748B] underline-offset-2 hover:text-[#334155] hover:underline"
+                      aria-expanded={filtersExpanded}
+                      onClick={() => setFiltersExpanded((current) => !current)}
+                    >
+                      {filtersExpanded ? (
+                        <>
+                          View less
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          View more
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-[#64748B] underline-offset-2 hover:underline"
+                      onClick={() => {
+                        setSearchInput("");
+                        setDebouncedQ("");
+                        setEmailInput("");
+                        setDebouncedEmail("");
+                        setFilters({
+                          ...EMPTY_FILTERS,
+                          minMatch: tab === "recommended" ? IMPORT_RECOMMENDED_MIN_SCORE : 0,
+                        });
+                        setPage(1);
+                      }}
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-auto">
@@ -672,7 +733,7 @@ export default function ImportCandidatesModal({
                       </p>
                     </div>
                   ) : (
-                    <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
                       <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F3F4F6] text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                         <tr>
                           <th className="w-12 px-4 py-3">
@@ -684,6 +745,7 @@ export default function ImportCandidatesModal({
                             />
                           </th>
                           <th className="min-w-[160px] px-4 py-3">Candidate</th>
+                          <th className="min-w-[180px] px-4 py-3">Email</th>
                           <th className="min-w-[140px] px-4 py-3">Current Role</th>
                           <th className="min-w-[140px] px-4 py-3">Location</th>
                           <th className="w-[100px] px-4 py-3">Experience</th>
@@ -733,6 +795,9 @@ export default function ImportCandidatesModal({
                                     </span>
                                   ) : null}
                                 </div>
+                              </td>
+                              <td className="max-w-[220px] px-4 py-3.5 align-middle">
+                                <TruncatedCell value={row.email} />
                               </td>
                               <td className="max-w-[180px] px-4 py-3.5 align-middle">
                                 <TruncatedCell value={row.currentRole} />
@@ -790,7 +855,7 @@ export default function ImportCandidatesModal({
                   <>
                     <button
                       type="button"
-                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#CBD5E1] px-3 text-sm disabled:opacity-50"
+                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#334155] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#94A3B8] disabled:opacity-100"
                       disabled={page <= 1}
                       onClick={() => setPage((current) => Math.max(1, current - 1))}
                     >
@@ -799,7 +864,7 @@ export default function ImportCandidatesModal({
                     </button>
                     <button
                       type="button"
-                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#CBD5E1] px-3 text-sm disabled:opacity-50"
+                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#334155] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#94A3B8] disabled:opacity-100"
                       disabled={page >= pageCount}
                       onClick={() => setPage((current) => current + 1)}
                     >

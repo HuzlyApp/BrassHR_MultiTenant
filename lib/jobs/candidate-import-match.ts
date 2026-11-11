@@ -128,6 +128,7 @@ export type CandidateJobMatch = {
 export type ImportSearchParams = {
   tab: ImportSearchTab;
   q: string;
+  email: string;
   page: number;
   pageSize: number;
   minMatch: number;
@@ -143,6 +144,7 @@ export type ImportSearchParams = {
 export type ImportCandidateView = {
   id: string;
   fullName: string;
+  email: string;
   currentRole: string;
   location: string;
   yearsExperience: number | null;
@@ -194,6 +196,16 @@ export function sanitizeJobSearchTerm(raw: string | null | undefined): string {
 
 export function toCandidateSearchPattern(raw: string | null | undefined): string | null {
   const term = sanitizeJobSearchTerm(raw);
+  if (term.length < 2) return null;
+  return `%${term}%`;
+}
+
+/** Email ILIKE pattern — keep @ and . (sanitizeJobSearchTerm strips those). */
+export function toEmailSearchPattern(raw: string | null | undefined): string | null {
+  const term = asText(raw)
+    .replace(/[%_]/g, "")
+    .replace(/\s+/g, "")
+    .slice(0, 120);
   if (term.length < 2) return null;
   return `%${term}%`;
 }
@@ -622,6 +634,7 @@ export function parseImportSearchParams(searchParams: URLSearchParams): ImportSe
   return {
     tab,
     q,
+    email: asText(searchParams.get("email")),
     page,
     pageSize,
     minMatch,
