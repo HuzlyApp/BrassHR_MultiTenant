@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Download, LayoutGrid, List } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  LayoutGrid,
+  List,
+  Palmtree,
+  Plane,
+  TreePine,
+} from "lucide-react";
 import {
   addEasternDays,
   easternDateString,
@@ -13,6 +23,7 @@ import { getFirstName } from "./worker-dashboard-utils";
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
+  WORKER_SCHEDULE_SUBTITLE_CLASS,
   WORKER_SCHEDULE_SUBTITLE_STYLE,
   WORKER_SCHEDULE_TITLE_CLASS,
   WORKER_SCHEDULE_TITLE_STYLE,
@@ -21,6 +32,7 @@ import {
 import type {
   WorkerMonthSchedulePayload,
   WorkerScheduleEvent,
+  WorkerScheduleEventKind,
 } from "@/lib/applicant-portal/load-worker-month-schedule";
 
 type CalendarLayout = "month" | "list";
@@ -38,32 +50,53 @@ type EventTheme = {
   text: string;
   border: string;
   legend: string;
+  dot: string;
 };
 
 const WORK_THEMES: EventTheme[] = [
-  { bg: "#DBEAFE", text: "#1D4ED8", border: "#93C5FD", legend: "#3B82F6" },
-  { bg: "#DCFCE7", text: "#15803D", border: "#86EFAC", legend: "#22C55E" },
-  { bg: "#FEF3C7", text: "#B45309", border: "#FCD34D", legend: "#F59E0B" },
-  { bg: "#EDE9FE", text: "#6D28D9", border: "#C4B5FD", legend: "#8B5CF6" },
+  { bg: "#EFF6FF", text: "#1E3A8A", border: "#BFDBFE", legend: "#1D4ED8", dot: "#2563EB" },
+  { bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0", legend: "#059669", dot: "#10B981" },
+  { bg: "#FFF7ED", text: "#9A3412", border: "#FED7AA", legend: "#C2410C", dot: "#F97316" },
+  { bg: "#F5F3FF", text: "#5B21B6", border: "#DDD6FE", legend: "#7C3AED", dot: "#8B5CF6" },
 ];
+
+const TRAVEL_THEME: EventTheme = {
+  bg: "#FFF7ED",
+  text: "#9A3412",
+  border: "#FDBA74",
+  legend: "#FB923C",
+  dot: "#F97316",
+};
+
+const VACATION_THEME: EventTheme = {
+  bg: "#EFF6FF",
+  text: "#1E40AF",
+  border: "#BFDBFE",
+  legend: "#60A5FA",
+  dot: "#3B82F6",
+};
 
 const PTO_THEME: EventTheme = {
   bg: "#FFEDD5",
   text: "#C2410C",
   border: "#FDBA74",
   legend: "#FB923C",
+  dot: "#F97316",
 };
 
 const HOLIDAY_THEME: EventTheme = {
-  bg: "#D1FAE5",
+  bg: "#ECFDF5",
   text: "#047857",
-  border: "#6EE7B7",
+  border: "#A7F3D0",
   legend: "#34D399",
+  dot: "#10B981",
 };
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 function themeForEvent(event: WorkerScheduleEvent): EventTheme {
+  if (event.kind === "travel") return TRAVEL_THEME;
+  if (event.kind === "vacation") return VACATION_THEME;
   if (event.kind === "pto") return PTO_THEME;
   if (event.kind === "holiday") return HOLIDAY_THEME;
   return WORK_THEMES[event.colorIndex % WORK_THEMES.length];
@@ -76,10 +109,16 @@ function monthBounds(year: number, month: number): { start: string; end: string 
   return { start, end };
 }
 
-function buildMonthOptions(reference: Date, span = 18): Array<{ value: string; label: string }> {
+function shiftMonthKey(monthKey: string, delta: number): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  const cursor = new Date(Date.UTC(y, m - 1 + delta, 1, 12));
+  return `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildMonthOptions(reference: Date, span = 24): Array<{ value: string; label: string }> {
   const parts = getEasternParts(reference);
   const options: Array<{ value: string; label: string }> = [];
-  for (let offset = -6; offset < span - 6; offset += 1) {
+  for (let offset = -8; offset < span - 8; offset += 1) {
     const cursor = new Date(Date.UTC(parts.year, parts.month - 1 + offset, 1, 12));
     const y = cursor.getUTCFullYear();
     const m = cursor.getUTCMonth() + 1;
@@ -125,6 +164,14 @@ function csvEscape(value: string): string {
   return value;
 }
 
+function EventGlyph({ kind, color }: { kind: WorkerScheduleEventKind; color: string }) {
+  if (kind === "travel") return <Plane className="h-3 w-3 shrink-0" style={{ color }} strokeWidth={2.25} />;
+  if (kind === "vacation") return <Palmtree className="h-3 w-3 shrink-0" style={{ color }} strokeWidth={2.25} />;
+  if (kind === "holiday") return <TreePine className="h-3 w-3 shrink-0" style={{ color }} strokeWidth={2.25} />;
+  if (kind === "pto") return <Palmtree className="h-3 w-3 shrink-0" style={{ color }} strokeWidth={2.25} />;
+  return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />;
+}
+
 type Props = {
   userName: string;
 };
@@ -136,6 +183,7 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
     () => `${todayParts.year}-${String(todayParts.month).padStart(2, "0")}`
   );
   const [layout, setLayout] = useState<CalendarLayout>("month");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [events, setEvents] = useState<WorkerScheduleEvent[]>([]);
   const [nextShift, setNextShift] = useState<WorkerMonthSchedulePayload["nextShift"]>(null);
   const [loading, setLoading] = useState(true);
@@ -181,6 +229,10 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
   useEffect(() => {
     void loadSchedule();
   }, [loadSchedule]);
+
+  useEffect(() => {
+    setSelectedDate(null);
+  }, [monthKey]);
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, WorkerScheduleEvent[]>();
@@ -256,16 +308,21 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
       new Date(Date.UTC(year, month - 1, 1, 12))
     );
 
+  const activeSelected = selectedDate ?? todayDate;
+
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-8`}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
             Hello {getFirstName(userName)}!
           </h1>
+          <p className={WORKER_SCHEDULE_SUBTITLE_CLASS} style={WORKER_SCHEDULE_SUBTITLE_STYLE}>
+            Here is your work schedule for this month.
+          </p>
         </div>
-        <div className="inline-flex min-w-0 items-center gap-3 rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-3">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[#94A3B8]">
+        <div className="inline-flex min-w-0 max-w-full flex-col gap-1 rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#94A3B8]">
             Next Shift
           </span>
           <span className="min-w-0 text-[14px] font-medium text-[#012352]" style={WORKER_SECTION_TITLE_STYLE}>
@@ -287,12 +344,12 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
           <div className="inline-flex items-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-1">
             <button
               type="button"
-              aria-label="Month calendar view"
+              aria-label="Calendar view"
               aria-pressed={layout === "month"}
               onClick={() => setLayout("month")}
               className={`inline-flex h-9 w-9 items-center justify-center rounded-md transition ${
                 layout === "month"
-                  ? "bg-white text-[color:var(--brand-primary)] shadow-sm"
+                  ? "bg-[#012352] text-white shadow-sm"
                   : "text-[#64748B] hover:text-[#334155]"
               }`}
             >
@@ -300,12 +357,12 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
             </button>
             <button
               type="button"
-              aria-label="List schedule view"
+              aria-label="List view"
               aria-pressed={layout === "list"}
               onClick={() => setLayout("list")}
               className={`inline-flex h-9 w-9 items-center justify-center rounded-md transition ${
                 layout === "list"
-                  ? "bg-white text-[color:var(--brand-primary)] shadow-sm"
+                  ? "bg-[#012352] text-white shadow-sm"
                   : "text-[#64748B] hover:text-[#334155]"
               }`}
             >
@@ -314,6 +371,25 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={() => setMonthKey((current) => shiftMonthKey(current, -1))}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#374151] transition hover:bg-[#F8FAFC]"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => setMonthKey((current) => shiftMonthKey(current, 1))}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#374151] transition hover:bg-[#F8FAFC]"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
             <label className="relative inline-flex min-w-[180px] items-center">
               <span className="sr-only">Select month</span>
               <select
@@ -330,6 +406,7 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-[#64748B]" />
             </label>
+
             <button
               type="button"
               onClick={handleExport}
@@ -346,7 +423,12 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
         {loading ? (
           <div className="px-4 py-16 text-center text-[14px] text-[#64748B]">Loading schedule…</div>
         ) : layout === "month" ? (
-          <MonthGrid days={calendarDays} monthLabel={monthLabel} />
+          <MonthGrid
+            days={calendarDays}
+            monthLabel={monthLabel}
+            selectedDate={activeSelected}
+            onSelectDate={setSelectedDate}
+          />
         ) : (
           <ListAgenda days={listDays} empty={!listDays.length} />
         )}
@@ -373,66 +455,108 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-function MonthGrid({ days, monthLabel }: { days: DayCell[]; monthLabel: string }) {
+function EventChip({ event }: { event: WorkerScheduleEvent }) {
+  const theme = themeForEvent(event);
+  const isSpecial =
+    event.kind === "travel" ||
+    event.kind === "vacation" ||
+    event.kind === "holiday" ||
+    event.kind === "pto";
+
+  return (
+    <div
+      title={`${event.timeRange} · ${event.label}`}
+      className="flex min-w-0 items-start gap-1.5 rounded-lg border px-1.5 py-1.5"
+      style={{
+        backgroundColor: theme.bg,
+        color: theme.text,
+        borderColor: theme.border,
+      }}
+    >
+      <span className="mt-0.5">
+        <EventGlyph kind={event.kind} color={theme.dot} />
+      </span>
+      <span className="min-w-0 flex-1">
+        {isSpecial ? (
+          <span className="block truncate text-[10px] font-semibold leading-4">{event.label}</span>
+        ) : (
+          <>
+            <span className="block truncate text-[10px] font-semibold leading-4">{event.timeRange}</span>
+            <span className="block truncate text-[9px] font-medium leading-3 opacity-80">
+              {event.label || "Working hours"}
+            </span>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function MonthGrid({
+  days,
+  monthLabel,
+  selectedDate,
+  onSelectDate,
+}: {
+  days: DayCell[];
+  monthLabel: string;
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+}) {
   return (
     <div className="overflow-x-auto p-3 sm:p-4">
       <p className="sr-only">{monthLabel} calendar</p>
-      <div className="min-w-[720px]">
-        <div className="grid grid-cols-7 gap-px rounded-t-lg bg-[#E5E7EB]">
+      <div className="min-w-[860px]">
+        <div className="grid grid-cols-7 gap-2">
           {WEEKDAY_LABELS.map((label) => (
             <div
               key={label}
-              className="bg-[#F8FAFC] px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]"
+              className="px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]"
             >
               {label}
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-px rounded-b-lg border border-t-0 border-[#E5E7EB] bg-[#E5E7EB]">
-          {days.map((day) => (
-            <div
-              key={day.date}
-              className={`min-h-[104px] bg-white p-2 ${day.inMonth ? "" : "bg-[#FCFCFD]"}`}
-            >
-              <div className="mb-1.5 flex items-center justify-between">
-                <span
-                  className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12px] font-semibold ${
-                    day.isToday
-                      ? "bg-[color:var(--brand-primary)] text-white"
-                      : day.inMonth
-                        ? "text-[#111827]"
-                        : "text-[#CBD5E1]"
-                  }`}
-                >
-                  {day.dayNumber}
-                </span>
-              </div>
-              <div className="space-y-1">
-                {day.events.slice(0, 3).map((event) => {
-                  const theme = themeForEvent(event);
-                  return (
-                    <div
-                      key={event.id}
-                      title={`${event.timeRange} · ${event.label}`}
-                      className="truncate rounded-md border px-1.5 py-1 text-[10px] font-semibold leading-4"
-                      style={{
-                        backgroundColor: theme.bg,
-                        color: theme.text,
-                        borderColor: theme.border,
-                      }}
-                    >
-                      {event.kind === "work" ? event.timeRange : event.label}
-                    </div>
-                  );
-                })}
-                {day.events.length > 3 ? (
-                  <p className="px-1 text-[10px] font-medium text-[#64748B]">
-                    +{day.events.length - 3} more
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          ))}
+        <div className="grid grid-cols-7 gap-2">
+          {days.map((day) => {
+            const selected = day.date === selectedDate;
+            return (
+              <button
+                key={day.date}
+                type="button"
+                onClick={() => onSelectDate(day.date)}
+                className={`min-h-[118px] rounded-xl border bg-white p-2 text-left transition ${
+                  selected
+                    ? "border-[#2563EB] shadow-[0_0_0_1px_#2563EB]"
+                    : "border-[#E5E7EB] hover:border-[#CBD5E1]"
+                } ${day.inMonth ? "" : "bg-[#FCFCFD]"}`}
+              >
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span
+                    className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12px] font-semibold ${
+                      day.isToday
+                        ? "bg-[color:var(--brand-primary)] text-white"
+                        : day.inMonth
+                          ? "text-[#111827]"
+                          : "text-[#CBD5E1]"
+                    }`}
+                  >
+                    {day.dayNumber}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {day.events.slice(0, 3).map((event) => (
+                    <EventChip key={event.id} event={event} />
+                  ))}
+                  {day.events.length > 3 ? (
+                    <p className="px-1 text-[10px] font-medium text-[#64748B]">
+                      +{day.events.length - 3} more
+                    </p>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -468,6 +592,11 @@ function ListAgenda({
           <div className="space-y-2">
             {day.events.map((event) => {
               const theme = themeForEvent(event);
+              const isSpecial =
+                event.kind === "travel" ||
+                event.kind === "vacation" ||
+                event.kind === "holiday" ||
+                event.kind === "pto";
               return (
                 <div
                   key={event.id}
@@ -478,13 +607,22 @@ function ListAgenda({
                     color: theme.text,
                   }}
                 >
-                  <span className="min-w-0 truncate text-[13px] font-semibold">
-                    {event.kind === "holiday" || event.kind === "pto"
-                      ? event.label
-                      : event.timeRange}
+                  <span className="inline-flex min-w-0 items-center gap-2 truncate text-[13px] font-semibold">
+                    <EventGlyph kind={event.kind} color={theme.dot} />
+                    <span className="truncate">
+                      {isSpecial ? event.label : event.timeRange}
+                    </span>
                   </span>
                   <span className="shrink-0 text-[12px] font-medium opacity-90">
-                    {event.kind === "work" ? event.label || "Working Hours" : event.kind === "pto" ? "PTO" : "Holiday"}
+                    {event.kind === "work"
+                      ? event.label || "Working hours"
+                      : event.kind === "pto"
+                        ? "PTO"
+                        : event.kind === "travel"
+                          ? "Travel"
+                          : event.kind === "vacation"
+                            ? "Vacation"
+                            : "Holiday"}
                   </span>
                 </div>
               );

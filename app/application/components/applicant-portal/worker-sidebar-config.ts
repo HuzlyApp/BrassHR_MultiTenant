@@ -48,21 +48,15 @@ const TASKBOARD_HOME = `${PORTAL_HOME}/taskboard`;
 const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
 const PAY_ACTIVE_PREFIXES = [PAY_HOME, PAYSLIPS_HOME, EARNINGS_HOME];
 
-/** Figma worker Schedule menu — Schedule (calendar) + Attendance. */
+/** Figma worker Schedule menu — Calendar (month/list schedule). */
 const SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   {
-    label: "Schedule",
+    label: "Calendar",
     href: `${SCHEDULE_HOME}?view=calendar`,
     matchPrefixes: [SCHEDULE_HOME],
     matchExact: true,
     scheduleView: "calendar",
     scheduleTab: "schedule",
-  },
-  {
-    label: "Attendance",
-    href: "#",
-    matchPrefixes: [],
-    disabled: true,
   },
 ];
 
