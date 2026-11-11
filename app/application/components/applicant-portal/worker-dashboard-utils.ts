@@ -16,9 +16,22 @@ export const WORKER_WEEKLY_HOUR_TARGET = 40;
 export type WorkerScheduleRow = {
   id: string;
   dayLabel: string;
+  /** Short weekday label for compact cards, e.g. "Mon". */
+  weekdayLabel: string;
+  /** Month + day for compact cards, e.g. "Nov 10". */
+  dateLabel: string;
+  /** Day-of-month number for colored date tiles. */
+  dayNumber: number;
   timeRange: string;
   location: string;
   status: "confirmed" | "requested" | "rescheduled" | "none";
+  isToday: boolean;
+};
+
+export type WorkerPtoBalanceItem = {
+  id: string;
+  label: string;
+  valueLabel: string;
 };
 
 export type WorkerAnnouncementItem = {
@@ -219,13 +232,29 @@ export function buildWeeklyScheduleRows(
   const window = appointmentWindow(appointment, selectedSlot);
   const appointmentDate = window.start ? new Date(window.start) : null;
 
+  const today = new Date();
+
   return Array.from({ length: 7 }, (_, index) => {
     const day = addEasternDays(weekStart, index);
-    const dayLabel = day.toLocaleDateString("en-US", { timeZone: "America/New_York", 
+    const weekdayLabel = day.toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+    });
+    const dateLabel = day.toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "numeric",
+    });
+    const dayLabel = day.toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
       weekday: "short",
       month: "long",
       day: "numeric",
     });
+    const dayNumber = Number(
+      day.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric" })
+    );
+    const isToday = isSameCalendarDay(day, today);
 
     const matchesAppointment =
       appointmentDate &&
@@ -237,9 +266,13 @@ export function buildWeeklyScheduleRows(
       return {
         id: `day-${index}`,
         dayLabel,
+        weekdayLabel,
+        dateLabel,
+        dayNumber,
         timeRange: "—",
         location: "—",
         status: "none" as const,
+        isToday,
       };
     }
 
@@ -253,9 +286,13 @@ export function buildWeeklyScheduleRows(
     return {
       id: `day-${index}`,
       dayLabel,
+      weekdayLabel,
+      dateLabel,
+      dayNumber,
       timeRange: formatTimeRange(window.start, window.end),
       location: resolveLocation(appointment, selectedSlot, window.location),
       status,
+      isToday,
     };
   });
 }
@@ -289,4 +326,99 @@ export function getAttendanceProgress(logs: AttendanceLog[]) {
 export function getPayPeriodHours(logs: AttendanceLog[]) {
   const { start, end } = getPayPeriodBounds();
   return sumAttendanceHours(logs, start, end);
+}
+
+/**
+ * Weekday attendance for the dashboard summary ring.
+ * `monthValue` is `YYYY-MM` (Eastern). Defaults to the current Eastern month.
+ */
+export function getAttendanceDaySummary(
+  logs: AttendanceLog[],
+  reference = new Date(),
+  monthValue?: string
+) {
+  const fallback = easternDateString(reference).slice(0, 7);
+  const selected = monthValue && /^\d{4}-\d{2}$/.test(monthValue) ? monthValue : fallback;
+  const [yearStr, monthStr] = selected.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const monthStart = easternWallClockToDate(year, month, 1, 0, 0, 0);
+  const nextMonthStart = easternWallClockToDate(
+    month === 12 ? year + 1 : year,
+    month === 12 ? 1 : month + 1,
+    1,
+    0,
+    0,
+    0
+  );
+  const monthEnd = endOfDay(addEasternDays(nextMonthStart, -1));
+  const currentMonth = easternDateString(reference).slice(0, 7);
+  const rangeEnd = selected === currentMonth ? endOfDay(reference) : monthEnd;
+  const presentDates = new Set<string>();
+
+  for (const log of logs) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(log.attendance_date));
+    if (!match) continue;
+    const date = easternWallClockToDate(
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      12,
+      0,
+      0
+    );
+    if (date < monthStart || date > rangeEnd) continue;
+    if (log.clock_in_at) presentDates.add(easternDateString(date));
+  }
+
+  let expectedDays = 0;
+  for (let cursor = monthStart; cursor <= rangeEnd; cursor = addEasternDays(cursor, 1)) {
+    const weekday = easternWeekdayIndex(cursor);
+    if (weekday === 0 || weekday === 6) continue;
+    expectedDays += 1;
+  }
+
+  const daysPresent = presentDates.size;
+  const daysAbsent = Math.max(0, expectedDays - daysPresent);
+  const daysLate = 0;
+  const pct =
+    expectedDays === 0 ? 0 : Math.min(100, Math.round((daysPresent / expectedDays) * 100));
+
+  return {
+    pct,
+    daysPresent,
+    expectedDays,
+    daysLate,
+    daysAbsent,
+  };
+}
+
+/** PTO balances are not wired yet — keep Figma labels (Available / Taken / Total). */
+export function getPtoBalancePlaceholders(): WorkerPtoBalanceItem[] {
+  return [
+    { id: "available", label: "Days Available", valueLabel: "—" },
+    { id: "taken", label: "Taken", valueLabel: "—" },
+    { id: "total", label: "Total", valueLabel: "—" },
+  ];
+}
+
+export function getAttendanceMonthOptions(reference = new Date()) {
+  const current = easternDateString(reference);
+  const [yearStr, monthStr] = current.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  return Array.from({ length: 6 }, (_, index) => {
+    let m = month - index;
+    let y = year;
+    while (m <= 0) {
+      m += 12;
+      y -= 1;
+    }
+    const value = `${y}-${String(m).padStart(2, "0")}`;
+    const label = easternWallClockToDate(y, m, 1, 12, 0, 0).toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      month: "long",
+    });
+    return { value, label };
+  });
 }

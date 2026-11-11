@@ -7,7 +7,7 @@ function TimesheetsRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/application/applicant-dashboard/schedule?view=calendar&tab=timesheets");
+    router.replace("/application/applicant-dashboard/schedule?tab=timesheets");
   }, [router]);
 
   return null;

@@ -195,12 +195,12 @@ export function ApplicantScheduleTab({
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
         <div>
           <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
-            Schedule
+            {isCalendarView ? "Schedule" : "Time Tracking"}
           </h1>
           <p className={WORKER_SCHEDULE_SUBTITLE_CLASS} style={WORKER_SCHEDULE_SUBTITLE_STYLE}>
             {isCalendarView
               ? "Manage Schedules & Appointments"
-              : "Clock in, clock out & track your day"}
+              : "Easily track your work hours, monitor attendance, and keep your timesheets accurate."}
           </p>
         </div>
 

@@ -521,9 +521,39 @@ export function ApplicantPortalHeader({
                 <p className="px-2 pb-2 text-[11px] text-[#64748B]">Worker</p>
                 <button
                   type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    router.push(applicationPath("/application/applicant-dashboard/settings/profile", tenantQuery));
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    router.push(applicationPath("/application/applicant-dashboard/settings/account", tenantQuery));
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+                >
+                  Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    router.push(applicationPath("/application/applicant-dashboard/help", tenantQuery));
+                  }}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+                >
+                  Help
+                </button>
+                <button
+                  type="button"
                   onClick={() => void handleLogout()}
                   disabled={loggingOut}
-                  className="mt-1 block w-full rounded-md px-2 py-1 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7] disabled:opacity-60"
+                  className="mt-1 block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7] disabled:opacity-60"
                 >
                   {loggingOut ? "Logging out..." : "Logout"}
                 </button>

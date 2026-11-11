@@ -28,7 +28,8 @@ const EXTRA_SEARCH_ITEMS: WorkerPortalSearchItem[] = [
 const SECTION_KEYWORDS: Record<string, string[]> = {
   Jobs: ["jobs", "openings", "apply", "career", "positions", "work type"],
   Schedule: ["calendar", "shifts", "appointments", "interview"],
-  "Time Tracking": ["timesheet", "hours", "clock"],
+  "Time Tracking": ["timesheet", "hours", "clock", "attendance", "clock-in"],
+  Timesheets: ["timesheet", "hours", "pay period", "history"],
   Locations: ["facility", "site", "office", "map"],
   Chat: ["messages", "group chat", "messaging"],
   "Personal Information": ["profile", "contact", "address", "phone", "email", "name"],
@@ -36,6 +37,11 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
   Documents: ["files", "resume", "upload", "pdf", "attachments"],
   Certifications: ["licenses", "license", "cpr", "credentials", "skills"],
   "Help & Support": ["help", "support", "faq", "assistant"],
+  Taskboard: ["tasks", "task board", "to do", "assignments", "actions"],
+  Payslips: ["payslip", "pay stub", "payroll", "salary", "net pay", "download"],
+  Earnings: ["earnings", "pay", "gross", "net", "hours", "history", "compensation"],
+  Profile: ["settings", "user settings", "preferred name", "photo", "bio"],
+  Account: ["settings", "password", "2fa", "preferences", "deactivate", "login"],
 };
 
 function flattenSidebarSearchItems(): WorkerPortalSearchItem[] {
@@ -80,12 +86,17 @@ const SEARCH_CATALOG = flattenSidebarSearchItems();
 /** Default dropdown order when the search box is focused with an empty query. */
 const FEATURED_SEARCH_IDS = [
   "My Schedule:Schedule",
-  "My Schedule:Time Tracking",
+  "Time:Time Tracking",
+  "Time:Timesheets",
+  "Pay:Payslips",
+  "Pay:Earnings",
   "Organization:Locations",
   "Jobs",
   "Chat",
   "Profile:Personal Information",
   "Profile:Documents",
+  "Settings:Profile",
+  "Settings:Account",
   "Help & Support",
 ] as const;
 

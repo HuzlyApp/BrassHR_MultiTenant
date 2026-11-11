@@ -44,14 +44,20 @@ const ICON = {
   help: "Help & Support",
   settings: "Settings",
   logout: "Logout",
+  time: "Time",
+  pay: "Pay",
 } as const satisfies Record<string, SidebarIconType>;
 
 const PORTAL_HOME = "/application/applicant-dashboard";
 const WORKER_HOME = "/application/home";
 const SCHEDULE_HOME = `${PORTAL_HOME}/schedule`;
 const TIMESHEETS_HOME = `${SCHEDULE_HOME}/timesheets`;
+const PAY_HOME = `${PORTAL_HOME}/pay`;
+const PAYSLIPS_HOME = `${PAY_HOME}/payslips`;
+const EARNINGS_HOME = `${PAY_HOME}/earnings`;
 const JOBS_HOME = `${PORTAL_HOME}/jobs`;
 const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
+const PAY_ACTIVE_PREFIXES = [PAY_HOME, PAYSLIPS_HOME, EARNINGS_HOME];
 
 const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Active Shifts", href: "#", matchPrefixes: [], disabled: true },
@@ -79,17 +85,39 @@ const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
     matchPrefixes: [],
     disabled: true,
   },
+];
+
+/** Figma worker Time menu — Time Tracking (clock) + Timesheets. */
+const TIME_CHILDREN: WorkerSidebarLink[] = [
   {
     label: "Time Tracking",
-    href: `${SCHEDULE_HOME}?view=calendar&tab=timesheets`,
+    href: SCHEDULE_HOME,
+    matchPrefixes: SCHEDULE_ACTIVE_PREFIXES,
+    scheduleView: "attendance",
+    scheduleTab: "schedule",
+  },
+  {
+    label: "Timesheets",
+    href: `${SCHEDULE_HOME}?tab=timesheets`,
     matchPrefixes: SCHEDULE_ACTIVE_PREFIXES,
     scheduleTab: "timesheets",
   },
 ];
 
-const PAYROLL_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Payslips", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Earnings", href: "#", matchPrefixes: [], disabled: true },
+/** Figma worker Pay menu — Payslips + Earnings. */
+const PAY_CHILDREN: WorkerSidebarLink[] = [
+  {
+    label: "Payslips",
+    href: PAYSLIPS_HOME,
+    matchPrefixes: [PAYSLIPS_HOME],
+    matchExact: true,
+  },
+  {
+    label: "Earnings",
+    href: EARNINGS_HOME,
+    matchPrefixes: [EARNINGS_HOME],
+    matchExact: true,
+  },
 ];
 
 const TEAMS_CHILDREN: WorkerSidebarLink[] = [
@@ -98,6 +126,7 @@ const TEAMS_CHILDREN: WorkerSidebarLink[] = [
 ];
 
 const LOCATIONS_HOME = "/application/applicant-dashboard/locations";
+const TASKBOARD_HOME = "/application/applicant-dashboard/taskboard";
 
 const ORGANIZATION_CHILDREN: WorkerSidebarLink[] = [
   {
@@ -137,6 +166,22 @@ const PROFILE_CHILDREN: WorkerSidebarLink[] = [
   },
 ];
 
+const SETTINGS_HOME = "/application/applicant-dashboard/settings";
+const SETTINGS_CHILDREN: WorkerSidebarLink[] = [
+  {
+    label: "Profile",
+    href: `${SETTINGS_HOME}/profile`,
+    matchPrefixes: [`${SETTINGS_HOME}/profile`],
+    matchExact: true,
+  },
+  {
+    label: "Account",
+    href: `${SETTINGS_HOME}/account`,
+    matchPrefixes: [`${SETTINGS_HOME}/account`],
+    matchExact: true,
+  },
+];
+
 /** Worker portal sidebar — Figma worker menu order and hierarchy. */
 export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
@@ -158,25 +203,33 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "My Schedule",
-    href: SCHEDULE_HOME,
+    href: `${SCHEDULE_HOME}?view=calendar`,
     iconType: ICON.schedule,
-    matchPrefixes: SCHEDULE_ACTIVE_PREFIXES,
+    // Shared /schedule path with Time — activate only via children (view/tab).
+    matchPrefixes: [],
     children: MY_SCHEDULE_CHILDREN,
   },
   {
-    label: "Payroll",
-    href: "#",
-    iconType: ICON.finance,
+    label: "Time",
+    href: SCHEDULE_HOME,
+    iconType: ICON.time,
+    // Shared /schedule path with My Schedule — activate only via children (view/tab).
     matchPrefixes: [],
-    disabled: true,
-    children: PAYROLL_CHILDREN,
+    children: TIME_CHILDREN,
+  },
+  {
+    label: "Pay",
+    href: PAYSLIPS_HOME,
+    iconType: ICON.pay,
+    matchPrefixes: PAY_ACTIVE_PREFIXES,
+    children: PAY_CHILDREN,
   },
   {
     label: "Taskboard",
-    href: "#",
+    href: TASKBOARD_HOME,
     iconType: ICON.taskboard,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: [TASKBOARD_HOME],
+    matchExact: true,
   },
   {
     label: "Teams",
@@ -236,15 +289,17 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     label: "Help & Support",
     href: "/application/applicant-dashboard/help",
     iconType: ICON.help,
-    matchPrefixes: ["/application/applicant-dashboard/help"],
-    matchExact: true,
+    matchPrefixes: [
+      "/application/applicant-dashboard/help",
+      "/application/applicant-dashboard/tickets",
+    ],
   },
   {
     label: "Settings",
-    href: "#",
+    href: `${SETTINGS_HOME}/profile`,
     iconType: ICON.settings,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: [SETTINGS_HOME],
+    children: SETTINGS_CHILDREN,
   },
 ];
 

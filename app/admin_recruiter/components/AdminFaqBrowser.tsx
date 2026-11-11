@@ -164,6 +164,9 @@ type AdminFaqBrowserProps = {
   emptyConfiguredMessage?: string;
   searchInputId?: string;
   showSearchBar?: boolean;
+  /** Defaults to staff `/api/admin/faqs`. Worker help uses the applicant FAQ endpoint. */
+  fetchUrl?: string;
+  getAuthHeaders?: () => Promise<Record<string, string> | null>;
 };
 
 export default function AdminFaqBrowser({
@@ -174,6 +177,8 @@ export default function AdminFaqBrowser({
   emptyConfiguredMessage = "No FAQ articles are configured yet.",
   searchInputId,
   showSearchBar = true,
+  fetchUrl = "/api/admin/faqs",
+  getAuthHeaders,
 }: AdminFaqBrowserProps) {
   const [faqs, setFaqs] = useState<FaqListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,7 +192,9 @@ export default function AdminFaqBrowser({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/faqs", { cache: "no-store" });
+      const headers = getAuthHeaders ? (await getAuthHeaders()) ?? undefined : undefined;
+      if (getAuthHeaders && !headers) throw new Error("You need to sign in again.");
+      const res = await fetch(fetchUrl, { cache: "no-store", headers });
       const payload = (await res.json().catch(() => ({}))) as {
         faqs?: FaqListItem[];
         error?: string;
@@ -200,7 +207,7 @@ export default function AdminFaqBrowser({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchUrl, getAuthHeaders]);
 
   useEffect(() => {
     void loadFaqs();

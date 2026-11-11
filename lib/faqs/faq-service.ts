@@ -20,3 +20,11 @@ export async function listStaffFaqs(
 
   return (data ?? []) as FaqListItem[];
 }
+
+/** Published FAQs visible to an approved applicant for their tenant (plus platform FAQs). */
+export async function listApplicantFaqs(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<FaqListItem[]> {
+  return listStaffFaqs(supabase, tenantId);
+}

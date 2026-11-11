@@ -102,3 +102,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireApprovedApplicant(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const { error } = await auth.supabase
+      .from("worker")
+      .update({
+        profile_photo: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", auth.applicant.id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true, profilePhotoUrl: null });
+  } catch (err) {
+    console.error("[applicant-portal/profile-photo:delete]", err);
+    const message = err instanceof Error ? err.message : "Could not remove photo.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

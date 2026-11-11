@@ -248,7 +248,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
               Timesheets
             </h1>
             <p className={WORKER_SCHEDULE_SUBTITLE_CLASS} style={WORKER_SCHEDULE_SUBTITLE_STYLE}>
-              Manage Attendance &amp; Timesheets
+              View and manage your timesheet records.
             </p>
           </div>
           <div className="flex w-full items-center sm:w-auto">

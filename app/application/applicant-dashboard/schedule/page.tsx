@@ -7,6 +7,7 @@ import { ApplicantPortalTabs } from "@/app/application/components/applicant-port
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
 import { ApplicantNotesTab } from "@/app/application/components/applicant-portal/ApplicantNotesTab";
 import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
+import { WorkerScheduleCalendarView } from "@/app/application/components/applicant-portal/WorkerScheduleCalendarView";
 import type {
   ApplicantNote,
   ApplicantPortalTab,
@@ -309,45 +310,53 @@ function ApplicantSchedulePageContent() {
 
   if (!session) return null;
 
+  const showCalendarSchedule = activeTab === "schedule" && scheduleView === "calendar";
+
   return (
     <>
-      {error ? (
+      {error && !showCalendarSchedule ? (
         <div className="mx-4 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 min-[1000px]:mx-8">
           {error}
         </div>
       ) : null}
 
-      <ApplicantPortalTabs activeTab={activeTab} onChange={handleTabChange} />
-      {activeTab === "schedule" ? (
-        <ApplicantScheduleTab
-          todayAttendance={todayAttendance}
-          activeAttendance={activeAttendance}
-          recentAttendance={recentAttendance}
-          appointment={appointment}
-          selectedSlot={selectedSlot}
-          availableSlots={availableSlots}
-          interviews={interviews}
-          selectedSlotId={selectedSlotId}
-          rescheduleReason={rescheduleReason}
-          showRescheduleReason={showRescheduleReason}
-          requestingSchedule={requestingSchedule}
-          requestingReschedule={requestingReschedule}
-          attendanceSubmitting={attendanceSubmitting}
-          onSelectedSlotIdChange={setSelectedSlotId}
-          onRescheduleReasonChange={setRescheduleReason}
-          onShowRescheduleReasonChange={setShowRescheduleReason}
-          onRequestSchedule={handleRequestSchedule}
-          onRequestReschedule={handleRequestReschedule}
-          onAttendanceAction={handleAttendanceAction}
-          scheduleView={scheduleView}
-        />
-      ) : activeTab === "timesheets" ? (
-        <ApplicantTimesheetsTab
-          todayAttendance={todayAttendance}
-          recentAttendance={recentAttendance}
-        />
+      {showCalendarSchedule ? (
+        <WorkerScheduleCalendarView userName={session.applicant.name} />
       ) : (
-        <ApplicantNotesTab notes={notes} loading={notesLoading} />
+        <>
+          <ApplicantPortalTabs activeTab={activeTab} onChange={handleTabChange} />
+          {activeTab === "schedule" ? (
+            <ApplicantScheduleTab
+              todayAttendance={todayAttendance}
+              activeAttendance={activeAttendance}
+              recentAttendance={recentAttendance}
+              appointment={appointment}
+              selectedSlot={selectedSlot}
+              availableSlots={availableSlots}
+              interviews={interviews}
+              selectedSlotId={selectedSlotId}
+              rescheduleReason={rescheduleReason}
+              showRescheduleReason={showRescheduleReason}
+              requestingSchedule={requestingSchedule}
+              requestingReschedule={requestingReschedule}
+              attendanceSubmitting={attendanceSubmitting}
+              onSelectedSlotIdChange={setSelectedSlotId}
+              onRescheduleReasonChange={setRescheduleReason}
+              onShowRescheduleReasonChange={setShowRescheduleReason}
+              onRequestSchedule={handleRequestSchedule}
+              onRequestReschedule={handleRequestReschedule}
+              onAttendanceAction={handleAttendanceAction}
+              scheduleView={scheduleView}
+            />
+          ) : activeTab === "timesheets" ? (
+            <ApplicantTimesheetsTab
+              todayAttendance={todayAttendance}
+              recentAttendance={recentAttendance}
+            />
+          ) : (
+            <ApplicantNotesTab notes={notes} loading={notesLoading} />
+          )}
+        </>
       )}
     </>
   );
