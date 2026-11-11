@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatShiftRange } from "@/lib/scheduling/employee-schedule";
 
-export type WorkerScheduleEventKind = "work" | "pto" | "holiday";
+export type WorkerScheduleEventKind = "work" | "pto" | "holiday" | "travel" | "vacation";
 
 export type WorkerScheduleEvent = {
   id: string;
@@ -59,17 +59,21 @@ function classifyEvent(title: string, notes: string | null): {
   kind: WorkerScheduleEventKind;
   label: string;
 } {
-  const haystack = `${title} ${notes ?? ""}`.toLowerCase();
-  if (/\b(pto|paid time off|time off|vacation|sick)\b/.test(haystack)) {
-    return { kind: "pto", label: title.trim() || "PTO" };
+  const trimmed = title.trim();
+  const haystack = `${trimmed} ${notes ?? ""}`.toLowerCase();
+  if (/\btravel\b/.test(haystack)) {
+    return { kind: "travel", label: trimmed || "Travel" };
+  }
+  if (/\bvacation\b/.test(haystack)) {
+    return { kind: "vacation", label: trimmed || "Vacation" };
   }
   if (/\b(holiday|thanksgiving|christmas|new year|memorial day|labor day|independence day)\b/.test(haystack)) {
-    return { kind: "holiday", label: title.trim() || "Holiday" };
+    return { kind: "holiday", label: trimmed || "Holiday" };
   }
-  if (/\btravel\b/.test(haystack)) {
-    return { kind: "work", label: title.trim() || "Travel" };
+  if (/\b(pto|paid time off|time off|sick)\b/.test(haystack)) {
+    return { kind: "pto", label: trimmed || "PTO" };
   }
-  return { kind: "work", label: title.trim() || "Working Hours" };
+  return { kind: "work", label: "Working hours" };
 }
 
 function colorIndexFor(seed: string): number {
