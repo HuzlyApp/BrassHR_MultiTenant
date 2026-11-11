@@ -11,6 +11,8 @@ import {
   parseImportSearchParams,
   phrasePresent,
   scoreCandidateAgainstJob,
+  toCandidateSearchPattern,
+  toEmailSearchPattern,
   tokenize,
 } from "./candidate-import-match";
 
@@ -111,6 +113,7 @@ describe("candidate import search params", () => {
     expect(params.tab).toBe("recommended");
     expect(params.minMatch).toBe(IMPORT_RECOMMENDED_MIN_SCORE);
     expect(params.q).toBe("lee");
+    expect(params.email).toBe("");
     expect(params.pageSize).toBe(25);
   });
 
@@ -125,6 +128,31 @@ describe("candidate import search params", () => {
     const params = parseImportSearchParams(new URLSearchParams("tab=all"));
     expect(params.tab).toBe("all");
     expect(params.minMatch).toBe(0);
+  });
+
+  it("parses email search param", () => {
+    const params = parseImportSearchParams(
+      new URLSearchParams("tab=all&email=jordan%40clinic.org")
+    );
+    expect(params.email).toBe("jordan@clinic.org");
+    expect(params.q).toBe("");
+  });
+});
+
+describe("email search pattern", () => {
+  it("keeps @ and . in full email addresses", () => {
+    expect(toEmailSearchPattern("claibornejenise@gmail.com")).toBe(
+      "%claibornejenise@gmail.com%"
+    );
+    expect(toCandidateSearchPattern("claibornejenise@gmail.com")).toBe(
+      "%claibornejenise@gmail com%"
+    );
+  });
+
+  it("supports partial local-part search and strips ILIKE wildcards", () => {
+    expect(toEmailSearchPattern("claibornejenise")).toBe("%claibornejenise%");
+    expect(toEmailSearchPattern("a%b_c@x.com")).toBe("%abc@x.com%");
+    expect(toEmailSearchPattern("a")).toBeNull();
   });
 });
 

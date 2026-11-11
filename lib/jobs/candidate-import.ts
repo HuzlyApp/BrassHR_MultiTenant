@@ -19,6 +19,7 @@ import {
   skillsPresentInHaystack,
   tagsPresentInHaystack,
   toCandidateSearchPattern,
+  toEmailSearchPattern,
   type ImportCandidateView,
   type ImportSearchParams,
   type JobMatchProfile,
@@ -409,7 +410,8 @@ async function resolveSqlWorkerIds(
   const { tenantId, jobId, job, params } = input;
   let ids: string[] | null = null;
 
-  const skipRecommendedKeywords = Boolean(params.q) || params.skills.length > 0;
+  const skipRecommendedKeywords =
+    Boolean(params.q) || Boolean(params.email) || params.skills.length > 0;
   if (params.tab === "recommended" && !skipRecommendedKeywords) {
     const keywords = uniqueLimited(
       [job.title, job.specialty, job.location, ...job.tags, ...job.keywords],
@@ -423,6 +425,23 @@ async function resolveSqlWorkerIds(
     const pattern = toCandidateSearchPattern(params.q);
     if (pattern) {
       ids = intersectOrPass(ids, await workerIdsMatchingIlike(supabase, tenantId, pattern));
+    }
+  }
+
+  if (params.email) {
+    const pattern = toEmailSearchPattern(params.email);
+    if (pattern) {
+      ids = intersectOrPass(
+        ids,
+        await collectIdsFromQuery(() =>
+          supabase
+            .from("worker")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .ilike("email", pattern)
+            .limit(IMPORT_MATCH_FETCH_CAP)
+        )
+      );
     }
   }
 
@@ -515,6 +534,10 @@ function applyWorkerFilters(
   const locationPattern = toCandidateSearchPattern(input.params.location);
   if (locationPattern) {
     next = next.or(ilikeOr(["city", "state", "address1", "zip"], locationPattern));
+  }
+  const emailPattern = toEmailSearchPattern(input.params.email);
+  if (emailPattern) {
+    next = next.ilike("email", emailPattern);
   }
   return next;
 }
@@ -889,6 +912,7 @@ export async function searchCandidatesForImport(
     scored.push({
       id: row.id,
       fullName,
+      email: asText(row.email),
       currentRole: currentRole || asText(row.job_role),
       location,
       yearsExperience: match.yearsExperience,
