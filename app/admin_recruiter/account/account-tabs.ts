@@ -1,7 +1,7 @@
 export const ACCOUNT_TABS = [
-  { slug: "personal", label: "Personal" },
+  { slug: "personal", label: "Profile" },
   { slug: "business-info", label: "Business Info" },
-  { slug: "account-settings", label: "Account Settings" },
+  { slug: "account-settings", label: "Account" },
   { slug: "security", label: "Security" },
   // { slug: "checklist", label: "Checklist" }, // Hidden for now; keep for future enablement
 ] as const;

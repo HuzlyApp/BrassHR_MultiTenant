@@ -1,14 +1,19 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
+import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
-import { getAccountDisplayName } from "@/lib/account/display-name";
+import { accountRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
 import { resolvePersonalProfileFields } from "@/lib/account/resolve-personal-profile-fields";
+import { isLimitedStaffConsoleRole } from "@/lib/admin/staff-directory-types";
 import {
   filterCandidateFieldInput,
   validateCandidateFieldInput,
 } from "@/lib/admin/worker-profile-field-client";
+import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
+import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
 import {
   isPersonNameTooLong,
   PERSON_NAME_MAX_LENGTH,
@@ -22,7 +27,8 @@ import {
   phoneValidationMessage,
 } from "@/lib/tenant/business-info-validation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { FIELD, FieldLabel, SelectField, US_STATES } from "./account-form-fields";
+import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import { FIELD, FieldLabel, SelectField } from "./account-form-fields";
 import { StaffProfilePhotoUpload } from "./StaffProfilePhotoUpload";
 import {
   AccountErrorBanner,
@@ -32,6 +38,7 @@ import {
 import AccountCheckbox from "./AccountCheckbox";
 
 type DepartmentOption = { id: string; name: string };
+type StateOption = { code: string; name: string };
 
 function SectionCard({
   title,
@@ -81,6 +88,11 @@ export default function PersonalTab() {
   const [companyEmail, setCompanyEmail] = useState("");
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [stateRows, setStateRows] = useState<StateOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -155,7 +167,143 @@ export default function PersonalTab() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { data, error: statesError } = await supabaseBrowser
+          .from("signup_us_states")
+          .select("code, name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (!active || statesError || !data?.length) return;
+
+        const states = data.map((row) => ({
+          code: String(row.code),
+          name: String(row.name),
+        }));
+        setStateRows(states);
+        setStateOptions(states.map((row) => row.name));
+      } finally {
+        if (active) setLocationLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedStateCode = useMemo(() => {
+    const fromRows = stateRows.find((row) => row.name === state)?.code;
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(state);
+    if (fromName) return fromName;
+    const trimmed = state.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
+    return "";
+  }, [state, stateRows]);
+
+  useEffect(() => {
+    if (!selectedStateCode || selectedStateCode.length !== 2) {
+      setCityOptions([]);
+      setCitiesLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCitiesLoading(true);
+    void (async () => {
+      try {
+        const { data, error: citiesError } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true });
+
+        if (!active) return;
+        if (citiesError) {
+          setCityOptions([]);
+          return;
+        }
+        setCityOptions((data ?? []).map((row) => String(row.city_name)));
+      } catch {
+        if (active) setCityOptions([]);
+      } finally {
+        if (active) setCitiesLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedStateCode]);
+
+  useEffect(() => {
+    const raw = state.trim();
+    if (!raw || stateOptions.length === 0) return;
+    if (stateOptions.includes(raw)) return;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && stateOptions.includes(fromCode) && fromCode !== raw) {
+      setState(fromCode);
+    }
+  }, [state, stateOptions]);
+
+  const displayStateValue = useMemo(() => {
+    const raw = state.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && stateOptions.includes(fromCode)) return fromCode;
+    return raw;
+  }, [state, stateOptions]);
+
+  const effectiveStateOptions = useMemo(() => {
+    if (!displayStateValue || stateOptions.includes(displayStateValue)) return stateOptions;
+    return [...stateOptions, displayStateValue].sort((a, b) => a.localeCompare(b));
+  }, [displayStateValue, stateOptions]);
+
+  const effectiveCityOptions = useMemo(() => {
+    const current = city.trim();
+    if (!current || cityOptions.includes(current)) return cityOptions;
+    return [...cityOptions, current].sort((a, b) => a.localeCompare(b));
+  }, [city, cityOptions]);
+
+  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
+
+  const addressAutocomplete = useAddressAutocomplete(address, {
+    city,
+    state: displayStateValue || state,
+    zipCode,
+  });
+
   const displayName = getAccountDisplayName(profile, user);
+  const roleLabel = accountRoleLabel(profile);
+  const isAdminConsole = !isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
+
+  function handleCompanyStateChange(value: string) {
+    setState(value);
+    setCity("");
+    if (zipError) setZipError(null);
+  }
+
+  function handleSelectCompanyAddressSuggestion(suggestion: AddressSuggestion) {
+    const components = addressAutocomplete.selectSuggestion(suggestion);
+    const stateName = components.state
+      ? getStateNameFromCode(components.state) ?? components.state
+      : "";
+    const nextAddress = components.address1 || address;
+    setAddress(nextAddress);
+    if (sameAsAddress1) setAddressLine2(nextAddress);
+    if (components.city) setCity(components.city);
+    if (stateName) setState(stateName);
+    if (components.zipCode) {
+      setZipCode(normalizeBusinessZipInput(components.zipCode).slice(0, 5));
+    }
+    if (addressError) setAddressError(null);
+    if (zipError) setZipError(null);
+  }
 
   function resetFromResolved() {
     setFirstName(resolvedFields.firstName);
@@ -316,6 +464,50 @@ export default function PersonalTab() {
         );
       }
 
+      // Admins can update company contact from Profile; Business Info tab keeps full company editor.
+      // Only sync when required business fields already exist so Profile save is not blocked.
+      if (
+        isAdminConsole &&
+        organization?.id &&
+        organization.name?.trim() &&
+        organization.industry?.trim() &&
+        organization.company_size?.trim()
+      ) {
+        const companyPhoneToSave = companyPhone.trim()
+          ? formatPhoneNumber(companyPhone)
+          : organization.phone ?? "";
+        const res = await fetch("/api/admin/business-info", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyName: organization.name,
+            industry: organization.industry,
+            companySize: organization.company_size,
+            city: city.trim() || organization.city || "",
+            state: state.trim() || organization.state || "",
+            address: address.trim() || organization.address_line_1 || "",
+            phone: companyPhoneToSave,
+            email: companyEmail.trim() || organization.email || "",
+            zipCode: zipToSave || organization.postal_code || "",
+            ein: companyEin.trim(),
+          }),
+        });
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          throw new Error(payload.error || "Could not save company contact details.");
+        }
+
+        const { error: websiteError } = await supabaseBrowser
+          .from("tenants")
+          .update({
+            website: companyWebsite.trim() || null,
+            address_line_2: address2ToSave,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", organization.id);
+        if (websiteError) throw websiteError;
+      }
+
       await refresh();
       const refreshed = await syncAccountChecklist(supabaseBrowser, {
         user,
@@ -381,12 +573,31 @@ export default function PersonalTab() {
       {emailChangeNotice ? <AccountSuccessBanner message={emailChangeNotice} /> : null}
 
       <section className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-5">
-        <StaffProfilePhotoUpload
-          displayName={displayName}
-          photoUrl={photoUrl}
-          onPhotoUpdated={setPhotoUrl}
-          variant="hero"
-        />
+        <div
+          className={
+            isAdminConsole
+              ? "flex flex-col gap-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between"
+              : undefined
+          }
+        >
+          <StaffProfilePhotoUpload
+            displayName={displayName}
+            photoUrl={photoUrl}
+            onPhotoUpdated={setPhotoUrl}
+            variant="hero"
+          />
+          {isAdminConsole ? (
+            <div className="flex shrink-0 flex-col items-start gap-2 min-[640px]:items-end">
+              <div className="text-left min-[640px]:text-right">
+                <p className="text-lg font-semibold text-[#012352]">{displayName}</p>
+                <p className="mt-0.5 text-sm text-[#64748B]">{roleLabel}</p>
+              </div>
+              <span className="inline-flex h-9 items-center rounded-full border border-[#E2E8F0] bg-white px-4 text-sm font-normal text-[#64748B]">
+                Active
+              </span>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <SectionCard title="Personal Information">
@@ -550,25 +761,39 @@ export default function PersonalTab() {
         <div className="flex flex-col gap-5">
           <label className="block max-w-xs">
             <FieldLabel>Company EIN</FieldLabel>
-            <input type="text" value={companyEin} readOnly disabled className={FIELD} />
-          </label>
-
-          <label className="block">
-            <FieldLabel>Address Line 1</FieldLabel>
             <input
               type="text"
-              value={address}
-              onChange={(e) => {
-                const next = filterCandidateFieldInput("address", e.target.value);
-                setAddress(next);
-                if (sameAsAddress1) setAddressLine2(next);
-                if (addressError) setAddressError(null);
-              }}
-              className={`${FIELD}${addressError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
-              autoComplete="address-line1"
+              value={companyEin}
+              onChange={(e) => setCompanyEin(e.target.value)}
+              readOnly={!isAdminConsole}
+              disabled={!isAdminConsole}
+              className={FIELD}
             />
-            {addressError ? <p className="mt-1 text-xs text-[#B91C1C]">{addressError}</p> : null}
           </label>
+
+          <AddressAutocompleteField
+            variant="facility"
+            label="Address Line 1"
+            value={address}
+            onChange={(value) => {
+              const next = filterCandidateFieldInput("address", value);
+              setAddress(next);
+              if (sameAsAddress1) setAddressLine2(next);
+              addressAutocomplete.resetVerification();
+              if (addressError) setAddressError(null);
+            }}
+            onSelectSuggestion={handleSelectCompanyAddressSuggestion}
+            suggestions={addressAutocomplete.suggestions}
+            isLoading={addressAutocomplete.isLoading}
+            isOpen={addressAutocomplete.isOpen}
+            onFocus={addressAutocomplete.openSuggestions}
+            onCloseSuggestions={addressAutocomplete.closeSuggestions}
+            isVerified={addressAutocomplete.isAddressVerified}
+            searchError={addressAutocomplete.searchError}
+            placeholder="Start typing your street address"
+            helperText="Start typing to search"
+            error={addressError}
+          />
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-3">
@@ -599,18 +824,43 @@ export default function PersonalTab() {
           </div>
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-3">
-            <label className="block">
-              <FieldLabel>City</FieldLabel>
-              <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className={FIELD} />
-            </label>
-            <SelectField label="State / Province" value={state} onChange={setState}>
-              <option value="">Select state</option>
-              {US_STATES.map((stateOption) => (
-                <option key={stateOption} value={stateOption}>
-                  {stateOption}
-                </option>
-              ))}
-            </SelectField>
+            <SearchableSelectField
+              label="City"
+              allowCustom
+              disabled={!displayStateValue || stateOptionsUnavailable}
+              loading={citiesLoading}
+              value={city}
+              onChange={setCity}
+              placeholder={
+                stateOptionsUnavailable
+                  ? "No states found"
+                  : !displayStateValue
+                    ? "Select state first"
+                    : citiesLoading
+                      ? "Loading…"
+                      : "Search or enter city"
+              }
+              searchPlaceholder="Type any city"
+              options={effectiveCityOptions}
+              emptyMessage="Type a city name and press Enter."
+            />
+            <SearchableSelectField
+              label="State / Province"
+              loading={locationLoading}
+              disabled={locationLoading || stateOptionsUnavailable}
+              value={displayStateValue}
+              onChange={handleCompanyStateChange}
+              placeholder={
+                locationLoading
+                  ? "Loading…"
+                  : stateOptionsUnavailable
+                    ? "No states found"
+                    : "Search state"
+              }
+              searchPlaceholder="Type to search states"
+              options={effectiveStateOptions}
+              emptyMessage="No states found. Try another search."
+            />
             <label className="block">
               <FieldLabel>Zip / Postal Code</FieldLabel>
               <input
@@ -630,15 +880,36 @@ export default function PersonalTab() {
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-3">
             <label className="block">
               <FieldLabel>Company Phone</FieldLabel>
-              <input type="text" value={companyPhone} readOnly disabled className={FIELD} />
+              <input
+                type="text"
+                value={companyPhone}
+                onChange={(e) => setCompanyPhone(filterCandidateFieldInput("phone", e.target.value))}
+                readOnly={!isAdminConsole}
+                disabled={!isAdminConsole}
+                className={FIELD}
+              />
             </label>
             <label className="block">
               <FieldLabel>Company Email</FieldLabel>
-              <input type="text" value={companyEmail} readOnly disabled className={FIELD} />
+              <input
+                type="email"
+                value={companyEmail}
+                onChange={(e) => setCompanyEmail(e.target.value)}
+                readOnly={!isAdminConsole}
+                disabled={!isAdminConsole}
+                className={FIELD}
+              />
             </label>
             <label className="block">
               <FieldLabel>Website</FieldLabel>
-              <input type="text" value={companyWebsite} readOnly disabled className={FIELD} />
+              <input
+                type="text"
+                value={companyWebsite}
+                onChange={(e) => setCompanyWebsite(e.target.value)}
+                readOnly={!isAdminConsole}
+                disabled={!isAdminConsole}
+                className={FIELD}
+              />
             </label>
           </div>
         </div>

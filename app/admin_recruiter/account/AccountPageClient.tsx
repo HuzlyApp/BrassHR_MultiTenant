@@ -20,7 +20,8 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
   const { profile, loading } = useAccountData();
   const isLimitedStaff = isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
   const hideTab = isRecruiterHiddenAccountTab(activeTab) && (loading || isLimitedStaff);
-  // Settings sidebar already provides Profile / Account for staff; hide redundant tab strip.
+  // Admins keep Profile / Business Info / Account / Security tabs.
+  // Limited staff use the settings sidebar only (Profile + Account).
   const showTabNav = !isLimitedStaff && !loading;
 
   useEffect(() => {

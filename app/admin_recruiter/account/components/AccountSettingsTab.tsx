@@ -15,10 +15,10 @@ export default function AccountSettingsTab() {
     <div className="space-y-6">
       <AccountPreferencesPanel />
       {showAdminPanels ? (
-        <>
+        <div className="space-y-6">
           <FirmaIntegrationPanel />
           <AccountSettingsBillingPanel />
-        </>
+        </div>
       ) : null}
     </div>
   );

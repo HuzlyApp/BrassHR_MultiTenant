@@ -27,7 +27,7 @@ import {
 } from "@/lib/account/password-update";
 import { EASTERN_TIME_LABEL, EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { FIELD, FieldLabel } from "./account-form-fields";
+import { FIELD, FieldLabel, SelectField } from "./account-form-fields";
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
@@ -48,8 +48,15 @@ const TIME_FORMAT_OPTIONS = [
 
 const BTN_OUTLINE =
   "inline-flex h-9 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-4 text-sm font-medium text-[#374151] hover:bg-[#F9FAFB] disabled:opacity-50";
+const BTN_SECONDARY_OUTLINE =
+  "inline-flex h-9 shrink-0 items-center justify-center rounded-md border bg-white px-4 text-sm font-medium hover:bg-[#F8FAFC] disabled:opacity-50";
 const BTN_PRIMARY =
   "inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold text-white disabled:opacity-50";
+
+const BRAND_SECONDARY_STYLE = {
+  color: "var(--brand-secondary, #012352)",
+  borderColor: "var(--brand-secondary, #012352)",
+} as const;
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return <h2 className="text-base font-semibold text-[#0F172A]">{children}</h2>;
@@ -345,14 +352,15 @@ export default function AccountPreferencesPanel() {
       <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 sm:p-6">
         <SectionTitle>Login Information</SectionTitle>
         <div className="mt-5 space-y-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full min-w-0 sm:w-1/2">
               <FieldLabel htmlFor="account-email">Email Address</FieldLabel>
               <input id="account-email" className={FIELD} value={email} readOnly disabled />
             </div>
             <button
               type="button"
-              className={BTN_OUTLINE}
+              className={BTN_SECONDARY_OUTLINE}
+              style={BRAND_SECONDARY_STYLE}
               onClick={() => {
                 setNextEmail(email);
                 setEmailModalOpen(true);
@@ -361,8 +369,8 @@ export default function AccountPreferencesPanel() {
               Change Email
             </button>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full min-w-0 sm:w-1/2">
               <FieldLabel htmlFor="account-password">Password</FieldLabel>
               <input
                 id="account-password"
@@ -372,7 +380,12 @@ export default function AccountPreferencesPanel() {
                 disabled
               />
             </div>
-            <button type="button" className={BTN_OUTLINE} onClick={() => setPasswordModalOpen(true)}>
+            <button
+              type="button"
+              className={BTN_SECONDARY_OUTLINE}
+              style={BRAND_SECONDARY_STYLE}
+              onClick={() => setPasswordModalOpen(true)}
+            >
               Change Password
             </button>
           </div>
@@ -381,22 +394,21 @@ export default function AccountPreferencesPanel() {
         <form onSubmit={handleSubmit} className="mt-8 space-y-4 border-t border-[#E5E7EB] pt-6">
           <SectionTitle>Preferences</SectionTitle>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <FieldLabel htmlFor="account-language">Language</FieldLabel>
-              {canEditPreferences && !accessLoading ? (
-                <select
-                  id="account-language"
-                  className={`${FIELD} cursor-pointer`}
-                  value={language}
-                  onChange={(event) => setLanguage(normalizeLanguage(event.target.value))}
-                >
-                  {LANGUAGE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
+            {canEditPreferences && !accessLoading ? (
+              <SelectField
+                label="Language"
+                value={language}
+                onChange={(value) => setLanguage(normalizeLanguage(value))}
+              >
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+              <label className="block">
+                <FieldLabel htmlFor="account-language">Language</FieldLabel>
                 <input
                   id="account-language"
                   className={FIELD}
@@ -407,8 +419,8 @@ export default function AccountPreferencesPanel() {
                   readOnly
                   disabled
                 />
-              )}
-            </label>
+              </label>
+            )}
             <label className="block">
               <FieldLabel htmlFor="account-timezone">Timezone</FieldLabel>
               <input
@@ -419,22 +431,21 @@ export default function AccountPreferencesPanel() {
                 disabled
               />
             </label>
-            <label className="block">
-              <FieldLabel htmlFor="account-date-format">Date Format</FieldLabel>
-              {canEditPreferences && !accessLoading ? (
-                <select
-                  id="account-date-format"
-                  className={`${FIELD} cursor-pointer`}
-                  value={dateFormat}
-                  onChange={(event) => setDateFormat(event.target.value)}
-                >
-                  {DATE_FORMAT_OPTIONS.map((format) => (
-                    <option key={format} value={format}>
-                      {format}
-                    </option>
-                  ))}
-                </select>
-              ) : (
+            {canEditPreferences && !accessLoading ? (
+              <SelectField
+                label="Date Format"
+                value={dateFormat}
+                onChange={setDateFormat}
+              >
+                {DATE_FORMAT_OPTIONS.map((format) => (
+                  <option key={format} value={format}>
+                    {format}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+              <label className="block">
+                <FieldLabel htmlFor="account-date-format">Date Format</FieldLabel>
                 <input
                   id="account-date-format"
                   className={FIELD}
@@ -442,24 +453,23 @@ export default function AccountPreferencesPanel() {
                   readOnly
                   disabled
                 />
-              )}
-            </label>
-            <label className="block">
-              <FieldLabel htmlFor="account-time-format">Time Format</FieldLabel>
-              {canEditPreferences && !accessLoading ? (
-                <select
-                  id="account-time-format"
-                  className={`${FIELD} cursor-pointer`}
-                  value={timeFormat}
-                  onChange={(event) => setTimeFormat(event.target.value)}
-                >
-                  {TIME_FORMAT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
+              </label>
+            )}
+            {canEditPreferences && !accessLoading ? (
+              <SelectField
+                label="Time Format"
+                value={timeFormat}
+                onChange={setTimeFormat}
+              >
+                {TIME_FORMAT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+              <label className="block">
+                <FieldLabel htmlFor="account-time-format">Time Format</FieldLabel>
                 <input
                   id="account-time-format"
                   className={FIELD}
@@ -470,8 +480,8 @@ export default function AccountPreferencesPanel() {
                   readOnly
                   disabled
                 />
-              )}
-            </label>
+              </label>
+            )}
           </div>
           {canEditPreferences && !accessLoading ? (
             <div className="flex justify-end">
