@@ -206,6 +206,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
       "/api/admin/departments",
       "/api/admin/integrations",
       "/api/admin/dialpad",
+      "/api/admin/task-settings",
       "/api/admin/tenant-firma-settings",
       "/api/admin/tenants",
     ],

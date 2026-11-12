@@ -15,6 +15,7 @@ import {
 import {
   addEasternDays,
   easternDateString,
+  easternTimeString,
   getEasternParts,
   startOfEasternDay,
 } from "@/lib/datetime/eastern";
@@ -53,53 +54,61 @@ type EventTheme = {
   dot: string;
 };
 
-const WORK_THEMES: EventTheme[] = [
-  { bg: "#EFF6FF", text: "#1E3A8A", border: "#BFDBFE", legend: "#1D4ED8", dot: "#2563EB" },
-  { bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0", legend: "#059669", dot: "#10B981" },
-  { bg: "#FFF7ED", text: "#9A3412", border: "#FED7AA", legend: "#C2410C", dot: "#F97316" },
-  { bg: "#F5F3FF", text: "#5B21B6", border: "#DDD6FE", legend: "#7C3AED", dot: "#8B5CF6" },
-];
-
-const TRAVEL_THEME: EventTheme = {
+/** Past / completed work shifts */
+const WORKED_THEME: EventTheme = {
   bg: "#FFF7ED",
   text: "#9A3412",
-  border: "#FDBA74",
-  legend: "#FB923C",
+  border: "#FED7AA",
+  legend: "#F97316",
   dot: "#F97316",
 };
 
-const VACATION_THEME: EventTheme = {
+/** Future scheduled work shifts */
+const UPCOMING_WORK_THEME: EventTheme = {
+  bg: "#F5F3FF",
+  text: "#5B21B6",
+  border: "#DDD6FE",
+  legend: "#8B5CF6",
+  dot: "#8B5CF6",
+};
+
+/** PTO, vacation, travel, absent, late */
+const ABSENCE_THEME: EventTheme = {
   bg: "#EFF6FF",
   text: "#1E40AF",
   border: "#BFDBFE",
-  legend: "#60A5FA",
+  legend: "#3B82F6",
   dot: "#3B82F6",
-};
-
-const PTO_THEME: EventTheme = {
-  bg: "#FFEDD5",
-  text: "#C2410C",
-  border: "#FDBA74",
-  legend: "#FB923C",
-  dot: "#F97316",
 };
 
 const HOLIDAY_THEME: EventTheme = {
   bg: "#ECFDF5",
   text: "#047857",
   border: "#A7F3D0",
-  legend: "#34D399",
+  legend: "#10B981",
   dot: "#10B981",
 };
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-function themeForEvent(event: WorkerScheduleEvent): EventTheme {
-  if (event.kind === "travel") return TRAVEL_THEME;
-  if (event.kind === "vacation") return VACATION_THEME;
-  if (event.kind === "pto") return PTO_THEME;
+function isAbsenceKind(kind: WorkerScheduleEventKind): boolean {
+  return kind === "pto" || kind === "vacation" || kind === "travel";
+}
+
+function isWorkedShift(event: WorkerScheduleEvent, todayDate: string, nowTime: string): boolean {
+  if (event.workDate < todayDate) return true;
+  if (event.workDate > todayDate) return false;
+  return event.endTime < nowTime;
+}
+
+function themeForEvent(
+  event: WorkerScheduleEvent,
+  todayDate: string,
+  nowTime: string
+): EventTheme {
   if (event.kind === "holiday") return HOLIDAY_THEME;
-  return WORK_THEMES[event.colorIndex % WORK_THEMES.length];
+  if (isAbsenceKind(event.kind)) return ABSENCE_THEME;
+  return isWorkedShift(event, todayDate, nowTime) ? WORKED_THEME : UPCOMING_WORK_THEME;
 }
 
 function monthBounds(year: number, month: number): { start: string; end: string } {
@@ -197,6 +206,7 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
 
   const bounds = useMemo(() => monthBounds(year, month), [year, month]);
   const todayDate = easternDateString(new Date());
+  const nowTime = easternTimeString(new Date());
 
   const loadSchedule = useCallback(async () => {
     setLoading(true);
@@ -428,18 +438,23 @@ export function WorkerScheduleCalendarView({ userName }: Props) {
             monthLabel={monthLabel}
             selectedDate={activeSelected}
             onSelectDate={setSelectedDate}
+            todayDate={todayDate}
+            nowTime={nowTime}
           />
         ) : (
-          <ListAgenda days={listDays} empty={!listDays.length} />
+          <ListAgenda
+            days={listDays}
+            empty={!listDays.length}
+            todayDate={todayDate}
+            nowTime={nowTime}
+          />
         )}
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#E5E7EB] px-4 py-3">
-          <LegendDot color={WORK_THEMES[0].legend} label="Work Shift" />
-          <LegendDot color={WORK_THEMES[1].legend} label="Work Shift" />
-          <LegendDot color={WORK_THEMES[2].legend} label="Work Shift" />
-          <LegendDot color={WORK_THEMES[3].legend} label="Work Shift" />
-          <LegendDot color={PTO_THEME.legend} label="PTO" />
+          <LegendDot color={WORKED_THEME.legend} label="Worked" />
           <LegendDot color={HOLIDAY_THEME.legend} label="Holiday" />
+          <LegendDot color={ABSENCE_THEME.legend} label="PTO / Absent / Late" />
+          <LegendDot color={UPCOMING_WORK_THEME.legend} label="Upcoming work" />
         </div>
       </div>
     </div>
@@ -455,8 +470,16 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-function EventChip({ event }: { event: WorkerScheduleEvent }) {
-  const theme = themeForEvent(event);
+function EventChip({
+  event,
+  todayDate,
+  nowTime,
+}: {
+  event: WorkerScheduleEvent;
+  todayDate: string;
+  nowTime: string;
+}) {
+  const theme = themeForEvent(event, todayDate, nowTime);
   const isSpecial =
     event.kind === "travel" ||
     event.kind === "vacation" ||
@@ -497,11 +520,15 @@ function MonthGrid({
   monthLabel,
   selectedDate,
   onSelectDate,
+  todayDate,
+  nowTime,
 }: {
   days: DayCell[];
   monthLabel: string;
   selectedDate: string;
   onSelectDate: (date: string) => void;
+  todayDate: string;
+  nowTime: string;
 }) {
   return (
     <div className="overflow-x-auto p-3 sm:p-4">
@@ -546,7 +573,12 @@ function MonthGrid({
                 </div>
                 <div className="space-y-1">
                   {day.events.slice(0, 3).map((event) => (
-                    <EventChip key={event.id} event={event} />
+                    <EventChip
+                      key={event.id}
+                      event={event}
+                      todayDate={todayDate}
+                      nowTime={nowTime}
+                    />
                   ))}
                   {day.events.length > 3 ? (
                     <p className="px-1 text-[10px] font-medium text-[#64748B]">
@@ -566,9 +598,13 @@ function MonthGrid({
 function ListAgenda({
   days,
   empty,
+  todayDate,
+  nowTime,
 }: {
   days: Array<{ date: string; primary: string; weekday: string; events: WorkerScheduleEvent[] }>;
   empty: boolean;
+  todayDate: string;
+  nowTime: string;
 }) {
   if (empty) {
     return (
@@ -591,7 +627,7 @@ function ListAgenda({
           </div>
           <div className="space-y-2">
             {day.events.map((event) => {
-              const theme = themeForEvent(event);
+              const theme = themeForEvent(event, todayDate, nowTime);
               const isSpecial =
                 event.kind === "travel" ||
                 event.kind === "vacation" ||
@@ -617,7 +653,7 @@ function ListAgenda({
                     {event.kind === "work"
                       ? event.label || "Working hours"
                       : event.kind === "pto"
-                        ? "PTO"
+                        ? event.label || "PTO"
                         : event.kind === "travel"
                           ? "Travel"
                           : event.kind === "vacation"

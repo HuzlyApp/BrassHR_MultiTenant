@@ -70,7 +70,13 @@ function classifyEvent(title: string, notes: string | null): {
   if (/\b(holiday|thanksgiving|christmas|new year|memorial day|labor day|independence day)\b/.test(haystack)) {
     return { kind: "holiday", label: trimmed || "Holiday" };
   }
-  if (/\b(pto|paid time off|time off|sick)\b/.test(haystack)) {
+  if (/\b(absent|absence|no.?show)\b/.test(haystack)) {
+    return { kind: "pto", label: trimmed || "Absent" };
+  }
+  if (/\blate\b/.test(haystack)) {
+    return { kind: "pto", label: trimmed || "Late" };
+  }
+  if (/\b(pto|paid time off|time off|sick|leave)\b/.test(haystack)) {
     return { kind: "pto", label: trimmed || "PTO" };
   }
   return { kind: "work", label: "Working hours" };

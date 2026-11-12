@@ -128,7 +128,7 @@ function ApplicantSchedulePageContent() {
         notes?: ApplicantNote[];
         error?: string;
       };
-      if (!res.ok) throw new Error(payload.error || "Could not load notes.");
+      if (!res.ok) throw new Error(payload.error || "Could not load announcements.");
       setNotes(payload.notes ?? []);
     } finally {
       setNotesLoading(false);

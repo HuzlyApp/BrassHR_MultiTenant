@@ -256,9 +256,15 @@ export function WorkerEarningsClient() {
                     {formatPayCurrency(row.net)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
-                    <span className="inline-flex rounded-full bg-[#DBEAFE] px-2.5 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
-                      Paid
-                    </span>
+                    {row.status === "upcoming" ? (
+                      <span className="inline-flex rounded-full bg-[#FEF3C7] px-2.5 py-0.5 text-[11px] font-semibold text-[#B45309]">
+                        Upcoming
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-[#DBEAFE] px-2.5 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
+                        Paid
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 text-right sm:px-5">
                     <Link

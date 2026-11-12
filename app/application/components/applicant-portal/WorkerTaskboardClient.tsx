@@ -40,7 +40,11 @@ const STATUS_FILTERS = [
 
 type StatusFilterId = (typeof STATUS_FILTERS)[number]["id"];
 
-/** Demo rows matching Figma worker Taskboard until a tasks API exists. */
+/**
+ * Demo rows matching Figma worker Taskboard until a tasks API exists.
+ * Assigned-by is limited to Manager/HR to match Admin → Settings → Task
+ * ("Manager / HR assignment only", default on).
+ */
 const DEMO_TASKS: WorkerTask[] = [
   {
     id: "1",
@@ -62,7 +66,7 @@ const DEMO_TASKS: WorkerTask[] = [
     dueLabel: "11/15/2026 9AM",
     assignedBy: {
       name: "Miley Cervantes",
-      department: "People Ops",
+      department: "HR Department",
       initials: "MC",
       avatarTone: "bg-[#FCE7F3] text-[#BE185D]",
     },
@@ -71,11 +75,11 @@ const DEMO_TASKS: WorkerTask[] = [
   {
     id: "3",
     code: "T03",
-    title: "Start your first task in sales",
+    title: "Complete new-hire orientation checklist",
     dueLabel: "11/8/2026 12PM",
     assignedBy: {
       name: "Kevin Lee",
-      department: "Sales",
+      department: "Manager",
       initials: "KL",
       avatarTone: "bg-[#FFEDD5] text-[#C2410C]",
     },

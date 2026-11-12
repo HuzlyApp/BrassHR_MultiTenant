@@ -3,14 +3,18 @@ import { formatApiError } from "@/lib/api/format-api-error";
 import { applicantDisplayName } from "@/lib/applicant-portal";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
+import { filterConfirmedAssignedFacilities } from "@/lib/facilities/assignment-status";
+import { loadFacilityAssignmentsForWorker } from "@/lib/facilities/facility-service";
 import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name";
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone";
 import { EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 
 export const runtime = "nodejs";
 
 const ABOUT_ME_MAX_LENGTH = 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ZIP_RE = /^\d{5}(-\d{4})?$/;
 
 const LANGUAGE_VALUES = new Set(["en-US", "es-US"]);
 const DATE_FORMAT_VALUES = new Set(["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"]);
@@ -41,8 +45,11 @@ type WorkerSettingsRow = {
   date_of_birth: string | null;
   job_role: string | null;
   department_id: string | null;
+  address1: string | null;
+  address2: string | null;
   city: string | null;
   state: string | null;
+  zip: string | null;
   about_me: string | null;
   profile_photo: string | null;
   portal_preferences: unknown;
@@ -73,26 +80,41 @@ function normalizePreferences(value: unknown): PortalPreferences {
   return { language, timezone, dateFormat, timeFormat };
 }
 
-function locationLabel(city: string | null, state: string | null): string {
-  return [city?.trim(), state?.trim()].filter(Boolean).join(", ");
-}
-
-function parseLocation(value: string): { city: string | null; state: string | null } {
-  const trimmed = value.trim();
-  if (!trimmed) return { city: null, state: null };
-  const comma = trimmed.lastIndexOf(",");
-  if (comma === -1) return { city: trimmed, state: null };
-  const city = trimmed.slice(0, comma).trim();
-  const state = trimmed.slice(comma + 1).trim();
-  return {
-    city: city || null,
-    state: state || null,
-  };
-}
-
 function employeeIdLabel(workerId: string): string {
   const compact = workerId.replace(/-/g, "").slice(-4).toUpperCase();
   return compact ? `EMP-${compact}` : "—";
+}
+
+async function loadCompanyWorkLocation(
+  supabase: Parameters<typeof loadFacilityAssignmentsForWorker>[0],
+  tenantId: string,
+  workerAuthId: string,
+  workerId: string
+): Promise<string> {
+  try {
+    const assignments = await loadFacilityAssignmentsForWorker(
+      supabase,
+      tenantId,
+      workerAuthId,
+      workerId
+    );
+    const locations = filterConfirmedAssignedFacilities(assignments.active);
+    const primary = locations[0];
+    if (!primary) return "";
+    return [primary.name?.trim(), primary.primaryAddress?.trim()].filter(Boolean).join(" — ");
+  } catch (err) {
+    console.error("[applicant-portal/user-settings:work-location]", err);
+    return "";
+  }
+}
+
+function normalizeZip(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 5) return digits;
+  if (digits.length === 9) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return trimmed;
 }
 
 async function resolvePhotoUrl(
@@ -108,7 +130,8 @@ async function resolvePhotoUrl(
 async function serializeSettings(
   supabase: Parameters<typeof createSignedPortalFileUrl>[0],
   worker: WorkerSettingsRow,
-  departments: Array<{ id: string; name: string }>
+  departments: Array<{ id: string; name: string }>,
+  companyWorkLocation: string
 ) {
   const profilePhotoUrl = await resolvePhotoUrl(supabase, worker.profile_photo);
   return {
@@ -122,7 +145,12 @@ async function serializeSettings(
       jobTitle: worker.job_role ?? "",
       departmentId: worker.department_id ?? "",
       employeeId: employeeIdLabel(worker.id),
-      location: locationLabel(worker.city, worker.state),
+      companyWorkLocation,
+      address1: worker.address1 ?? "",
+      address2: worker.address2 ?? "",
+      city: worker.city ?? "",
+      state: worker.state ? getStateCodeFromName(worker.state) ?? worker.state : "",
+      zip: worker.zip ?? "",
       bio: worker.about_me ?? "",
       profilePhotoUrl,
       displayName: applicantDisplayName({
@@ -142,7 +170,7 @@ async function serializeSettings(
 }
 
 const WORKER_SETTINGS_SELECT =
-  "id, tenant_id, first_name, last_name, preferred_name, email, phone, date_of_birth, job_role, department_id, city, state, about_me, profile_photo, portal_preferences, status";
+  "id, tenant_id, first_name, last_name, preferred_name, email, phone, date_of_birth, job_role, department_id, address1, address2, city, state, zip, about_me, profile_photo, portal_preferences, status";
 
 export async function GET(req: NextRequest) {
   try {
@@ -170,8 +198,17 @@ export async function GET(req: NextRequest) {
     const departments = ((departmentsResult.data ?? []) as Array<{ id: string; name: string }>).map(
       (row) => ({ id: row.id, name: row.name })
     );
+    const workerAuthId = auth.applicant.user_id?.trim() || auth.user.id;
+    const companyWorkLocation = await loadCompanyWorkLocation(
+      auth.supabase,
+      auth.applicant.tenant_id,
+      workerAuthId,
+      auth.applicant.id
+    );
 
-    return NextResponse.json(await serializeSettings(auth.supabase, data as WorkerSettingsRow, departments));
+    return NextResponse.json(
+      await serializeSettings(auth.supabase, data as WorkerSettingsRow, departments, companyWorkLocation)
+    );
   } catch (err) {
     console.error("[applicant-portal/user-settings:get]", err);
     return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
@@ -224,6 +261,14 @@ export async function PATCH(req: NextRequest) {
         .eq("is_active", true)
         .order("name", { ascending: true });
 
+      const workerAuthId = auth.applicant.user_id?.trim() || auth.user.id;
+      const companyWorkLocation = await loadCompanyWorkLocation(
+        auth.supabase,
+        auth.applicant.tenant_id,
+        workerAuthId,
+        auth.applicant.id
+      );
+
       return NextResponse.json({
         ok: true,
         ...(await serializeSettings(
@@ -232,7 +277,8 @@ export async function PATCH(req: NextRequest) {
           ((departmentsData ?? []) as Array<{ id: string; name: string }>).map((row) => ({
             id: row.id,
             name: row.name,
-          }))
+          })),
+          companyWorkLocation
         )),
       });
     }
@@ -243,13 +289,12 @@ export async function PATCH(req: NextRequest) {
       typeof body.preferredName === "string" ? body.preferredName.trim() : "";
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const phoneRaw = typeof body.phone === "string" ? body.phone : "";
-    const birthdate = typeof body.birthdate === "string" ? body.birthdate.trim() : "";
     const jobTitle = typeof body.jobTitle === "string" ? body.jobTitle.trim() : "";
-    const departmentId =
-      typeof body.departmentId === "string" && body.departmentId.trim()
-        ? body.departmentId.trim()
-        : null;
-    const location = typeof body.location === "string" ? body.location : "";
+    const address1 = typeof body.address1 === "string" ? body.address1.trim() : "";
+    const address2 = typeof body.address2 === "string" ? body.address2.trim() : "";
+    const city = typeof body.city === "string" ? body.city.trim() : "";
+    const stateRaw = typeof body.state === "string" ? body.state.trim() : "";
+    const zipRaw = typeof body.zip === "string" ? body.zip.trim() : "";
     const bio = typeof body.bio === "string" ? body.bio.trim() : "";
 
     const fieldErrors: Record<string, string> = {};
@@ -269,36 +314,27 @@ export async function PATCH(req: NextRequest) {
     const phoneDigits = normalizePhoneInput(phoneRaw);
     if (!phoneDigits) fieldErrors.phone = "Phone number is required.";
     else if (phoneDigits.length !== 10) fieldErrors.phone = "Enter a valid 10-digit phone number.";
-    if (birthdate && !/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
-      fieldErrors.birthdate = "Enter a valid birthdate.";
-    }
     if (bio.length > ABOUT_ME_MAX_LENGTH) {
       fieldErrors.bio = `Bio must be ${ABOUT_ME_MAX_LENGTH} characters or fewer.`;
+    }
+
+    let state: string | null = null;
+    if (stateRaw) {
+      const stateCode = getStateCodeFromName(stateRaw);
+      if (!stateCode) fieldErrors.state = "Enter a valid US state.";
+      else state = stateCode;
+    }
+
+    const zip = zipRaw ? normalizeZip(zipRaw) : null;
+    if (zipRaw && (!zip || !ZIP_RE.test(zip))) {
+      fieldErrors.zip = "Enter a valid 5-digit ZIP code.";
     }
 
     if (Object.keys(fieldErrors).length > 0) {
       return NextResponse.json({ error: "Validation failed", fieldErrors }, { status: 400 });
     }
 
-    if (departmentId) {
-      const { data: department, error: departmentError } = await auth.supabase
-        .from("departments")
-        .select("id")
-        .eq("id", departmentId)
-        .eq("tenant_id", auth.applicant.tenant_id)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (departmentError) throw departmentError;
-      if (!department) {
-        return NextResponse.json(
-          { error: "Validation failed", fieldErrors: { departmentId: "Select a valid department." } },
-          { status: 400 }
-        );
-      }
-    }
-
-    const { city, state } = parseLocation(location);
-
+    // Workers can view their department/birthdate/work location but cannot change them.
     const { data, error } = await auth.supabase
       .from("worker")
       .update({
@@ -307,11 +343,12 @@ export async function PATCH(req: NextRequest) {
         preferred_name: preferredName || null,
         email,
         phone: formatPhoneNumber(phoneDigits),
-        date_of_birth: birthdate || null,
         job_role: jobTitle || null,
-        department_id: departmentId,
-        city,
+        address1: address1 || null,
+        address2: address2 || null,
+        city: city || null,
         state,
+        zip,
         about_me: bio || null,
         updated_at: new Date().toISOString(),
       })
@@ -327,6 +364,14 @@ export async function PATCH(req: NextRequest) {
       .eq("is_active", true)
       .order("name", { ascending: true });
 
+    const workerAuthId = auth.applicant.user_id?.trim() || auth.user.id;
+    const companyWorkLocation = await loadCompanyWorkLocation(
+      auth.supabase,
+      auth.applicant.tenant_id,
+      workerAuthId,
+      auth.applicant.id
+    );
+
     return NextResponse.json({
       ok: true,
       ...(await serializeSettings(
@@ -335,7 +380,8 @@ export async function PATCH(req: NextRequest) {
         ((departmentsData ?? []) as Array<{ id: string; name: string }>).map((row) => ({
           id: row.id,
           name: row.name,
-        }))
+        })),
+        companyWorkLocation
       )),
     });
   } catch (err) {

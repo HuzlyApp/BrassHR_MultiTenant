@@ -37,7 +37,7 @@ export type EarningsHistoryRow = {
   hours: number;
   gross: number;
   net: number;
-  status: "paid";
+  status: "paid" | "upcoming";
   isCurrent?: boolean;
 };
 
@@ -275,7 +275,7 @@ export const DEMO_EARNINGS_HISTORY: EarningsHistoryRow[] = [
     hours: 41,
     gross: 2980,
     net: 2550,
-    status: "paid",
+    status: "upcoming",
     isCurrent: true,
   },
   {

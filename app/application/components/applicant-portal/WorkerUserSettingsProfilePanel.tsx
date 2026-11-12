@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import { formatPhoneNumber } from "@/lib/phone";
+import { US_STATE_CODE_TO_NAME } from "@/lib/us-state-names";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
 import {
@@ -32,13 +33,22 @@ type ProfileForm = {
   jobTitle: string;
   departmentId: string;
   employeeId: string;
-  location: string;
+  companyWorkLocation: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
   bio: string;
 };
 
 type DepartmentOption = { id: string; name: string };
 
 type FieldErrors = Partial<Record<keyof ProfileForm, string>>;
+
+const STATE_OPTIONS = Object.entries(US_STATE_CODE_TO_NAME).sort((a, b) =>
+  a[1].localeCompare(b[1])
+);
 
 const EMPTY_FORM: ProfileForm = {
   firstName: "",
@@ -50,7 +60,12 @@ const EMPTY_FORM: ProfileForm = {
   jobTitle: "",
   departmentId: "",
   employeeId: "",
-  location: "",
+  companyWorkLocation: "",
+  address1: "",
+  address2: "",
+  city: "",
+  state: "",
+  zip: "",
   bio: "",
 };
 
@@ -116,7 +131,12 @@ export function WorkerUserSettingsProfilePanel() {
           jobTitle: payload.profile?.jobTitle ?? "",
           departmentId: payload.profile?.departmentId ?? "",
           employeeId: payload.profile?.employeeId ?? "",
-          location: payload.profile?.location ?? "",
+          companyWorkLocation: payload.profile?.companyWorkLocation ?? "",
+          address1: payload.profile?.address1 ?? "",
+          address2: payload.profile?.address2 ?? "",
+          city: payload.profile?.city ?? "",
+          state: payload.profile?.state ?? "",
+          zip: payload.profile?.zip ?? "",
           bio: payload.profile?.bio ?? "",
         };
         setForm(next);
@@ -179,7 +199,12 @@ export function WorkerUserSettingsProfilePanel() {
         jobTitle: payload.profile?.jobTitle ?? form.jobTitle,
         departmentId: payload.profile?.departmentId ?? form.departmentId,
         employeeId: payload.profile?.employeeId ?? form.employeeId,
-        location: payload.profile?.location ?? form.location,
+        companyWorkLocation: payload.profile?.companyWorkLocation ?? form.companyWorkLocation,
+        address1: payload.profile?.address1 ?? form.address1,
+        address2: payload.profile?.address2 ?? form.address2,
+        city: payload.profile?.city ?? form.city,
+        state: payload.profile?.state ?? form.state,
+        zip: payload.profile?.zip ?? form.zip,
         bio: payload.profile?.bio ?? form.bio,
       };
       setForm(next);
@@ -411,11 +436,9 @@ export function WorkerUserSettingsProfilePanel() {
                     type="date"
                     className={FIELD_CLASS}
                     value={form.birthdate}
-                    onChange={(event) => updateField("birthdate", event.target.value)}
+                    disabled
+                    readOnly
                   />
-                  {fieldErrors.birthdate ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.birthdate}</p>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -438,7 +461,7 @@ export function WorkerUserSettingsProfilePanel() {
                     id="settings-department"
                     className={FIELD_CLASS}
                     value={form.departmentId}
-                    onChange={(event) => updateField("departmentId", event.target.value)}
+                    disabled
                   >
                     <option value="">Select department</option>
                     {departments.map((department) => (
@@ -447,9 +470,6 @@ export function WorkerUserSettingsProfilePanel() {
                       </option>
                     ))}
                   </select>
-                  {fieldErrors.departmentId ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.departmentId}</p>
-                  ) : null}
                 </div>
                 <div>
                   <FieldLabel htmlFor="settings-employee-id">Employee ID</FieldLabel>
@@ -462,13 +482,14 @@ export function WorkerUserSettingsProfilePanel() {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="settings-location">Location</FieldLabel>
+                  <FieldLabel htmlFor="settings-company-work-location">Company Work Location</FieldLabel>
                   <input
-                    id="settings-location"
+                    id="settings-company-work-location"
                     className={FIELD_CLASS}
-                    value={form.location}
-                    placeholder="City, State"
-                    onChange={(event) => updateField("location", event.target.value)}
+                    value={form.companyWorkLocation}
+                    placeholder="Assigned by your recruiter"
+                    disabled
+                    readOnly
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -479,10 +500,93 @@ export function WorkerUserSettingsProfilePanel() {
                     className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
                     value={form.bio}
                     maxLength={1000}
+                    placeholder="Tell others a little about yourself"
                     onChange={(event) => updateField("bio", event.target.value)}
                   />
                   {fieldErrors.bio ? (
                     <p className="mt-1 text-xs text-red-600">{fieldErrors.bio}</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <SectionTitle>Worker Address</SectionTitle>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="settings-address1">Address Line 1</FieldLabel>
+                  <input
+                    id="settings-address1"
+                    className={FIELD_CLASS}
+                    value={form.address1}
+                    autoComplete="address-line1"
+                    placeholder="Street address"
+                    onChange={(event) => updateField("address1", event.target.value)}
+                  />
+                  {fieldErrors.address1 ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address1}</p>
+                  ) : null}
+                </div>
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="settings-address2">Address Line 2</FieldLabel>
+                  <input
+                    id="settings-address2"
+                    className={FIELD_CLASS}
+                    value={form.address2}
+                    autoComplete="address-line2"
+                    placeholder="Apt, suite, unit (optional)"
+                    onChange={(event) => updateField("address2", event.target.value)}
+                  />
+                  {fieldErrors.address2 ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address2}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-city">City</FieldLabel>
+                  <input
+                    id="settings-city"
+                    className={FIELD_CLASS}
+                    value={form.city}
+                    autoComplete="address-level2"
+                    onChange={(event) => updateField("city", event.target.value)}
+                  />
+                  {fieldErrors.city ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-state">State</FieldLabel>
+                  <select
+                    id="settings-state"
+                    className={FIELD_CLASS}
+                    value={form.state}
+                    autoComplete="address-level1"
+                    onChange={(event) => updateField("state", event.target.value)}
+                  >
+                    <option value="">Select state</option>
+                    {STATE_OPTIONS.map(([code, name]) => (
+                      <option key={code} value={code}>
+                        {code} — {name}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors.state ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.state}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-zip">Zipcode</FieldLabel>
+                  <input
+                    id="settings-zip"
+                    className={FIELD_CLASS}
+                    value={form.zip}
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    placeholder="12345"
+                    onChange={(event) => updateField("zip", event.target.value)}
+                  />
+                  {fieldErrors.zip ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.zip}</p>
                   ) : null}
                 </div>
               </div>

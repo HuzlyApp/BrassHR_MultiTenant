@@ -50,11 +50,15 @@ const IntegrationsSettingsPanel = dynamic(
   () => import("@/app/admin_recruiter/settings/IntegrationsSettingsPanel"),
   { loading: SettingsPanelFallback }
 );
+const TaskSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/TaskSettingsPanel"), {
+  loading: SettingsPanelFallback,
+});
 
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
     case "branding":
     case "call":
+    case "task":
     case "hiring-theme":
     case "admin-console":
     case "roles":
@@ -111,6 +115,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
           {section === "call" ? <CallSettingsPanel /> : null}
+          {section === "task" ? <TaskSettingsPanel /> : null}
           {section === "branding" ? (
             <Suspense fallback={<SettingsPanelFallback />}>
               <BrandingSettingsPanel />

@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
     }
 
     const notes = await loadWorkerNotesForWorkerId(supabase, applicant.id, {
-      authorFallback: "Your recruiter",
+      authorFallback: "Manager",
+      authorDisplay: "staff_role",
     });
 
     return NextResponse.json({ notes });
