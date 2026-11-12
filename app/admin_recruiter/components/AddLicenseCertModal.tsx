@@ -11,6 +11,7 @@ export type LicenseCertKind = "license" | "certificate";
 
 export type LicenseCertFormValues = {
   name: string;
+  isRequired: boolean;
   hasExpiration: boolean;
   issuedDate: string;
   expiryDate: string;
@@ -33,12 +34,17 @@ type AddLicenseCertModalProps = {
   existingFile?: ExistingLicenseCertFile | null;
   saving?: boolean;
   error?: string | null;
+  professionOptions?: readonly string[];
+  professionValue?: string;
+  professionLocked?: boolean;
+  onProfessionChange?: (professionName: string) => void;
   onClose: () => void;
   onSubmit: (values: LicenseCertFormValues) => void;
 };
 
 const EMPTY: LicenseCertFormValues = {
   name: "",
+  isRequired: true,
   hasExpiration: true,
   issuedDate: "",
   expiryDate: "",
@@ -72,6 +78,10 @@ export default function AddLicenseCertModal({
   existingFile = null,
   saving = false,
   error,
+  professionOptions = [],
+  professionValue = "",
+  professionLocked = false,
+  onProfessionChange,
   onClose,
   onSubmit,
 }: AddLicenseCertModalProps) {
@@ -168,6 +178,10 @@ export default function AddLicenseCertModal({
   }
 
   function handleSubmit() {
+    if (!professionValue.trim()) {
+      setFieldError("Select a profession before saving.");
+      return;
+    }
     const name = values.name.trim();
     if (!name) {
       setFieldError(
@@ -259,6 +273,41 @@ export default function AddLicenseCertModal({
           ) : null}
 
           <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-[#374151]">Profession</span>
+            {professionLocked ? (
+              <input
+                value={professionValue || "—"}
+                readOnly
+                disabled
+                className="h-11 w-full cursor-not-allowed rounded-lg border border-[#D1D5DB] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] outline-none"
+              />
+            ) : (
+              <select
+                value={professionValue}
+                disabled={saving || professionOptions.length === 0}
+                onChange={(event) => onProfessionChange?.(event.target.value)}
+                className="h-11 w-full cursor-pointer rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]"
+              >
+                <option value="">
+                  {professionOptions.length === 0
+                    ? "No professions in settings"
+                    : "Select profession"}
+                </option>
+                {professionOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {!professionLocked ? (
+              <span className="block text-xs text-[#64748B]">
+                Job has no profession — choose one from settings to add licenses or certifications.
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block space-y-1.5">
             <span className="text-sm font-medium text-[#374151]">
               {kind === "license" ? "License name" : "Certification name"}
             </span>
@@ -307,6 +356,31 @@ export default function AddLicenseCertModal({
               placeholder="Optional"
               className="h-11 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)]"
             />
+          </label>
+
+          <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-[#0F172A]">
+            <span className="relative inline-flex h-5 w-5 shrink-0">
+              <input
+                type="checkbox"
+                checked={values.isRequired}
+                onChange={(event) => patch({ isRequired: event.target.checked })}
+                className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border border-[#CBD5E1] bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_28%,transparent)]"
+                style={
+                  values.isRequired
+                    ? {
+                        backgroundColor: secondaryColor,
+                        borderColor: secondaryColor,
+                      }
+                    : undefined
+                }
+              />
+              <Check
+                className="pointer-events-none absolute inset-0 m-auto hidden h-3.5 w-3.5 text-white peer-checked:block"
+                strokeWidth={3}
+                aria-hidden
+              />
+            </span>
+            {values.isRequired ? "Required" : "Optional"}
           </label>
 
           <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-[#0F172A]">

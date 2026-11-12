@@ -77,6 +77,7 @@ type DisplayRow = {
   kind: LicenseCertKind;
   title: string;
   requiredDocumentId: string | null;
+  isRequired: boolean;
   issuedDate: string | null;
   expiryDate: string | null;
   hasExpiration: boolean;
@@ -132,6 +133,7 @@ export default function CandidateLicenseCertificationsPanel({
   const [requirements, setRequirements] = useState<AttachmentRequirement[]>([]);
   const [credentials, setCredentials] = useState<CredentialRow[]>([]);
   const [settings, setSettings] = useState<SettingsCatalog | null>(null);
+  const [selectedProfessionId, setSelectedProfessionId] = useState("");
   const [modalKind, setModalKind] = useState<LicenseCertKind | null>(null);
   const [editing, setEditing] = useState<DisplayRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DisplayRow | null>(null);
@@ -195,6 +197,17 @@ export default function CandidateLicenseCertificationsPanel({
       setRequirements(snapshot.requirements);
       setSettings(snapshot.settings);
       setCredentials(snapshot.credentials);
+      const lockedId =
+        snapshot.settings.savedProfessionId || snapshot.settings.workerProfessionId || "";
+      if (lockedId) {
+        setSelectedProfessionId(lockedId);
+        return;
+      }
+      setSelectedProfessionId((current) =>
+        current && snapshot.settings.professions.some((profession) => profession.id === current)
+          ? current
+          : ""
+      );
     },
     []
   );
@@ -260,10 +273,28 @@ export default function CandidateLicenseCertificationsPanel({
     };
   }, [load]);
 
-  const professionId =
-    settings?.savedProfessionId || settings?.workerProfessionId || "";
+  const professionLocked = Boolean(
+    settings?.savedProfessionId || settings?.workerProfessionId
+  );
+  const professionId = professionLocked
+    ? settings?.savedProfessionId || settings?.workerProfessionId || selectedProfessionId
+    : selectedProfessionId;
   const selectedProfession =
     settings?.professions.find((profession) => profession.id === professionId) ?? null;
+  const professionOptions = useMemo(
+    () => (settings?.professions ?? []).map((profession) => profession.name).filter(Boolean),
+    [settings?.professions]
+  );
+  const professionName = selectedProfession?.name?.trim() || "";
+
+  function setProfessionByName(name: string) {
+    if (professionLocked) return;
+    const match =
+      settings?.professions.find((profession) => profession.name === name) ?? null;
+    setSelectedProfessionId(match?.id ?? "");
+    setError(null);
+    setModalError(null);
+  }
 
   const rows = useMemo(() => {
     const credentialByName = new Map(
@@ -316,6 +347,7 @@ export default function CandidateLicenseCertificationsPanel({
           kind: document.documentKind === "license" ? "license" : "certificate",
           title: document.name,
           requiredDocumentId: document.id || null,
+          isRequired: document.isRequired,
           issuedDate:
             local?.issuedDate ?? requirement?.issued_date ?? credential?.issued_date ?? null,
           expiryDate:
@@ -373,6 +405,7 @@ export default function CandidateLicenseCertificationsPanel({
           kind: row.document_kind === "license" ? "license" : "certificate",
           title: row.title,
           requiredDocumentId: row.required_document_id ?? null,
+          isRequired: true,
           issuedDate: local?.issuedDate ?? row.issued_date ?? credential?.issued_date ?? null,
           expiryDate: local?.expiryDate ?? row.expiry_date ?? credential?.expiry_date ?? null,
           hasExpiration:
@@ -404,6 +437,7 @@ export default function CandidateLicenseCertificationsPanel({
           kind: looksLikeLicense ? "license" : "certificate",
           title: row.license_name,
           requiredDocumentId: row.required_document_id,
+          isRequired: true,
           issuedDate: local?.issuedDate ?? row.issued_date,
           expiryDate: local?.expiryDate ?? row.expiry_date,
           hasExpiration:
@@ -425,7 +459,7 @@ export default function CandidateLicenseCertificationsPanel({
 
   async function saveProfessionDocuments(nextDocuments: SettingsDocument[]) {
     if (!professionId) {
-      throw new Error("Choose a profession on the Documents tab before adding licenses.");
+      throw new Error("Select a profession before adding licenses or certifications.");
     }
     const response = await fetch("/api/admin/profession-documents", {
       method: "PUT",
@@ -445,8 +479,20 @@ export default function CandidateLicenseCertificationsPanel({
     const payload = (await response.json()) as {
       error?: string;
       documents?: SettingsDocument[];
+      professionId?: string;
     };
     if (!response.ok) throw new Error(payload.error || "Could not save documents");
+    if (payload.professionId) {
+      setSelectedProfessionId(payload.professionId);
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              savedProfessionId: payload.professionId ?? current.savedProfessionId,
+            }
+          : current
+      );
+    }
     return payload.documents ?? nextDocuments;
   }
 
@@ -502,6 +548,10 @@ export default function CandidateLicenseCertificationsPanel({
       setModalError("Only an administrator can add or edit these documents.");
       return;
     }
+    if (!professionId) {
+      setModalError("Select a profession before adding licenses or certifications.");
+      return;
+    }
     setSaving(true);
     setModalError(null);
     try {
@@ -517,6 +567,7 @@ export default function CandidateLicenseCertificationsPanel({
                 ...document,
                 name: values.name,
                 documentKind: modalKind,
+                isRequired: values.isRequired,
                 hasExpiration: values.hasExpiration,
               }
             : document
@@ -531,7 +582,7 @@ export default function CandidateLicenseCertificationsPanel({
             id: "",
             name: values.name,
             documentKind: modalKind,
-            isRequired: true,
+            isRequired: values.isRequired,
             hasExpiration: values.hasExpiration,
           },
         ]);
@@ -683,6 +734,45 @@ export default function CandidateLicenseCertificationsPanel({
         </div>
       ) : null}
 
+      <div className="max-w-md space-y-1.5">
+        <label htmlFor="license-cert-profession" className="block text-sm font-medium text-[#374151]">
+          Profession
+        </label>
+        {professionLocked ? (
+          <input
+            id="license-cert-profession"
+            value={professionName || "—"}
+            readOnly
+            disabled
+            className="h-11 w-full cursor-not-allowed rounded-lg border border-[#D1D5DB] bg-[#F8FAFC] px-3 text-sm font-semibold text-[#111827] outline-none"
+          />
+        ) : (
+          <select
+            id="license-cert-profession"
+            value={professionName}
+            disabled={!settings?.canManage || professionOptions.length === 0}
+            onChange={(event) => setProfessionByName(event.target.value)}
+            className="h-11 w-full cursor-pointer rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]"
+          >
+            <option value="">
+              {professionOptions.length === 0
+                ? "No professions in settings"
+                : "Select profession"}
+            </option>
+            {professionOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="text-xs text-[#64748B]">
+          {professionLocked
+            ? "Profession comes from the job and cannot be changed here."
+            : "This job has no profession. Select one from settings, then add licenses or certifications."}
+        </p>
+      </div>
+
       <CredentialSection
         title="License"
         addLabel="Add License"
@@ -713,6 +803,7 @@ export default function CandidateLicenseCertificationsPanel({
           editing
             ? {
                 name: editing.title,
+                isRequired: editing.isRequired,
                 hasExpiration: editing.hasExpiration || Boolean(editing.expiryDate),
                 issuedDate: editing.issuedDate ?? "",
                 expiryDate: editing.expiryDate ?? "",
@@ -732,6 +823,10 @@ export default function CandidateLicenseCertificationsPanel({
         }
         saving={saving}
         error={modalError}
+        professionOptions={professionOptions}
+        professionValue={professionName}
+        professionLocked={professionLocked}
+        onProfessionChange={setProfessionByName}
         onClose={() => {
           if (saving) return;
           setModalKind(null);
@@ -861,7 +956,18 @@ function CredentialSection({
                 rows.map((row) => (
                   <tr key={row.key} className="border-b border-[#F3F4F6] last:border-b-0">
                     <td className="px-4 py-3.5 text-sm font-medium text-[#111827]">
-                      {row.title}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{row.title}</span>
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            row.isRequired
+                              ? "bg-[#FEF3C7] text-[#92400E]"
+                              : "bg-[#F3F4F6] text-[#4B5563]"
+                          }`}
+                        >
+                          {row.isRequired ? "Required" : "Optional"}
+                        </span>
+                      </div>
                     </td>
                     {columns === "certificate" ? (
                       <>
