@@ -313,7 +313,23 @@ export async function loadAdminAttachmentRequirements(
       ? await listActiveProfessionDocuments(supabase, tenantId, professionId)
       : [];
 
-    const uploadsFull = await supabase
+    type ProfessionUploadRow = {
+      id: string | null;
+      profession_document_id: string | null;
+      file_url: string | null;
+      original_file_name: string | null;
+      status: string | null;
+      uploaded_at: string | null;
+      issued_date: string | null;
+      expiry_date: string | null;
+      uploaded_by_user_id?: string | null;
+      issuing_organization?: string | null;
+      scope?: string | null;
+      validity?: string | null;
+    };
+
+    // Newer columns may not exist until migrations are applied; fall back gradually.
+    let uploadsResult = await supabase
       .from("worker_profession_document_uploads")
       .select(
         "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date, uploaded_by_user_id, issuing_organization, scope, validity"
@@ -321,36 +337,35 @@ export async function loadAdminAttachmentRequirements(
       .eq("tenant_id", tenantId)
       .eq("worker_id", workerId)
       .order("uploaded_at", { ascending: true });
-    // Newer columns may not exist until migrations are applied; fall back gradually.
-    let uploadsResult = uploadsFull;
+
     if (
       uploadsResult.error &&
       /uploaded_by_user_id|issuing_organization|scope|validity/i.test(uploadsResult.error.message)
     ) {
-      uploadsResult = await supabase
+      uploadsResult = (await supabase
         .from("worker_profession_document_uploads")
         .select(
           "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date, uploaded_by_user_id"
         )
         .eq("tenant_id", tenantId)
         .eq("worker_id", workerId)
-        .order("uploaded_at", { ascending: true });
+        .order("uploaded_at", { ascending: true })) as typeof uploadsResult;
     }
     if (
       uploadsResult.error &&
       /uploaded_by_user_id/i.test(uploadsResult.error.message)
     ) {
-      uploadsResult = await supabase
+      uploadsResult = (await supabase
         .from("worker_profession_document_uploads")
         .select(
           "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date"
         )
         .eq("tenant_id", tenantId)
         .eq("worker_id", workerId)
-        .order("uploaded_at", { ascending: true });
+        .order("uploaded_at", { ascending: true })) as typeof uploadsResult;
     }
     if (uploadsResult.error) throw uploadsResult.error;
-    const uploads = uploadsResult.data ?? [];
+    const uploads = (uploadsResult.data ?? []) as ProfessionUploadRow[];
 
     const filesByDocumentId = new Map<string, ProfessionAttachmentFile[]>();
     await Promise.all(
