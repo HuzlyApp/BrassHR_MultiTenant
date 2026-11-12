@@ -14,6 +14,9 @@ import {
 import CandidateDocumentsFilesTable, {
   type DocumentsFileRow,
 } from "../../../components/CandidateDocumentsFilesTable";
+import AddDocumentModal, {
+  type DocumentFormValues,
+} from "../../../components/AddDocumentModal";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
 import {
   Briefcase,
@@ -137,6 +140,9 @@ export default function NewApplicantAttachmentsFilledPage() {
     Record<string, { issuedDate: string; expiryDate: string }>
   >({});
   const [savingDocuments, setSavingDocuments] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addModalError, setAddModalError] = useState<string | null>(null);
+  const [addingDocument, setAddingDocument] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchApplicant = useCallback(async (quiet = false) => {
@@ -180,7 +186,24 @@ export default function NewApplicantAttachmentsFilledPage() {
     });
   }, [fetchApplicant, loadSettings]);
 
-  const selectedProfession = settings?.professions.find((profession) => profession.id === professionId) ?? null;
+  const professionLocked = Boolean(
+    settings?.savedProfessionId || settings?.workerProfessionId
+  );
+  const selectedProfession =
+    settings?.professions.find((profession) => profession.id === professionId) ?? null;
+  const professionOptions = (settings?.professions ?? [])
+    .map((profession) => profession.name)
+    .filter(Boolean);
+  const professionName = selectedProfession?.name?.trim() || "";
+
+  function setProfessionByName(name: string) {
+    if (professionLocked) return;
+    const match =
+      settings?.professions.find((profession) => profession.name === name) ?? null;
+    setProfessionId(match?.id ?? "");
+    setUploadError(null);
+    setAddModalError(null);
+  }
 
   async function commitFileName(
     row: AttachmentRow,
@@ -326,7 +349,8 @@ export default function NewApplicantAttachmentsFilledPage() {
     if (!profile) return [];
     const fromConfig = (profile.attachment_requirements ?? []).filter((row) => {
       const kind = row.document_kind;
-      // License/certificate rows belong on the License/Certifications tab.
+      // Resume belongs on the Resume tab; license/certificate on License/Certifications.
+      if (row.step_type === "resume_upload" || row.id === "resume") return false;
       return kind !== "license" && kind !== "certificate";
     });
     return fromConfig.map((row, index) => {
@@ -391,16 +415,132 @@ export default function NewApplicantAttachmentsFilledPage() {
   }, [attachmentRows]);
 
   const openTopUploadPicker = () => {
-    const preferred =
-      attachmentRows.find((row) => !row.url && !row.files.some((file) => file.url)) ??
-      attachmentRows.find((row) => !isResumeAttachmentRow(row)) ??
-      attachmentRows[0];
-    if (!preferred) {
-      setUploadError("Add a document type from profession settings before uploading.");
+    if (!settings?.canManage) {
+      setUploadError("Only an administrator can add documents.");
       return;
     }
-    openUploadPicker(preferred);
+    setAddModalError(null);
+    setAddModalOpen(true);
   };
+
+  async function handleAddDocument(values: DocumentFormValues) {
+    if (!applicantId) return;
+    if (!settings?.canManage) {
+      setAddModalError("Only an administrator can add documents.");
+      return;
+    }
+    if (!professionId) {
+      setAddModalError("Select a profession before adding a document.");
+      return;
+    }
+    if (!values.file) {
+      setAddModalError("Choose a file to upload.");
+      return;
+    }
+
+    setAddingDocument(true);
+    setAddModalError(null);
+    setUploadError(null);
+    try {
+      const currentDocs = selectedProfession?.documents ?? [];
+      const response = await fetch("/api/admin/profession-documents", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          professionId,
+          workerId: applicantId,
+          documents: [
+            ...currentDocs.map((document) => ({
+              ...(document.id ? { id: document.id } : {}),
+              name: document.name,
+              documentKind: document.documentKind,
+              isRequired: document.isRequired,
+              hasExpiration: document.hasExpiration,
+            })),
+            {
+              name: values.name,
+              documentKind: values.documentKind,
+              isRequired: values.isRequired,
+              hasExpiration: values.hasExpiration,
+            },
+          ],
+        }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        documents?: SettingsDocument[];
+        professionId?: string;
+      };
+      if (!response.ok) throw new Error(payload.error || "Could not save document settings");
+
+      if (payload.professionId) {
+        setProfessionId(payload.professionId);
+        setSettings((current) =>
+          current
+            ? {
+                ...current,
+                savedProfessionId: payload.professionId ?? current.savedProfessionId,
+                professions: current.professions.map((profession) =>
+                  profession.id === (payload.professionId || professionId)
+                    ? { ...profession, documents: payload.documents ?? profession.documents }
+                    : profession
+                ),
+              }
+            : current
+        );
+      } else if (payload.documents) {
+        setSettings((current) =>
+          current
+            ? {
+                ...current,
+                professions: current.professions.map((profession) =>
+                  profession.id === professionId
+                    ? { ...profession, documents: payload.documents ?? profession.documents }
+                    : profession
+                ),
+              }
+            : current
+        );
+      }
+
+      const savedDocs = payload.documents ?? [];
+      const match =
+        savedDocs.find(
+          (document) =>
+            document.name.trim().toLowerCase() === values.name.trim().toLowerCase() &&
+            document.documentKind === values.documentKind
+        ) ?? null;
+      if (!match?.id) {
+        throw new Error("Document was saved but could not be uploaded yet. Try Upload on the new row.");
+      }
+
+      const fd = new FormData();
+      fd.append("file", values.file);
+      fd.append("workerId", applicantId);
+      fd.append("documentTitle", values.name);
+      fd.append("requiredDocumentId", match.id);
+      if (values.hasExpiration && values.issuedDate) {
+        fd.append("issuedDate", values.issuedDate);
+      }
+      if (values.hasExpiration && values.expiryDate) {
+        fd.append("expiryDate", values.expiryDate);
+      }
+
+      const uploadRes = await fetch("/api/admin/worker-attachment-upload", {
+        method: "POST",
+        body: fd,
+      });
+      const uploadJson = (await uploadRes.json().catch(() => ({}))) as { error?: string };
+      if (!uploadRes.ok) throw new Error(uploadJson.error || "Upload failed");
+
+      setAddModalOpen(false);
+      await Promise.all([fetchApplicant(true), loadSettings()]);
+    } catch (error) {
+      setAddModalError(error instanceof Error ? error.message : "Could not add document.");
+    } finally {
+      setAddingDocument(false);
+    }
+  }
 
   const candidateName = useMemo(() => {
     const n = `${applicant?.first_name ?? ""} ${applicant?.last_name ?? ""}`.trim();
@@ -595,7 +735,53 @@ export default function NewApplicantAttachmentsFilledPage() {
               {/* Tabs */}
               <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
 
-              <div className="p-5">
+              <div className="space-y-6 p-5">
+                <div className="max-w-md space-y-1.5">
+                  <label
+                    htmlFor="documents-profession"
+                    className="block text-sm font-medium text-[#374151]"
+                  >
+                    Profession
+                  </label>
+                  {professionLocked ? (
+                    <input
+                      id="documents-profession"
+                      value={professionName || "—"}
+                      readOnly
+                      disabled
+                      className="h-11 w-full cursor-not-allowed rounded-lg border border-[#D1D5DB] bg-[#F8FAFC] px-3 text-sm font-semibold text-[#111827] outline-none"
+                    />
+                  ) : (
+                    <select
+                      id="documents-profession"
+                      value={professionName}
+                      disabled={!settings?.canManage || professionOptions.length === 0}
+                      onChange={(event) => setProfessionByName(event.target.value)}
+                      className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat px-3 pr-10 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]"
+                      style={{
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+                      }}
+                    >
+                      <option value="">
+                        {professionOptions.length === 0
+                          ? "No professions in settings"
+                          : "Select profession"}
+                      </option>
+                      {professionOptions.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-[#64748B]">
+                    {professionLocked
+                      ? "Profession comes from the job and cannot be changed here."
+                      : "Select a profession from settings to add documents."}
+                  </p>
+                </div>
+
                 <CandidateDocumentsFilesTable
                   rows={attachmentRows}
                   uploadingKey={uploadingId}
@@ -615,9 +801,25 @@ export default function NewApplicantAttachmentsFilledPage() {
                     }))
                   }
                   onTopUploadClick={openTopUploadPicker}
-                  topUploadDisabled={Boolean(uploadingId) || attachmentRows.length === 0}
+                  topUploadDisabled={Boolean(uploadingId) || addingDocument || !settings?.canManage}
                 />
               </div>
+
+              <AddDocumentModal
+                open={addModalOpen}
+                saving={addingDocument}
+                error={addModalError}
+                professionOptions={professionOptions}
+                professionValue={professionName}
+                professionLocked={professionLocked}
+                onProfessionChange={setProfessionByName}
+                onClose={() => {
+                  if (addingDocument) return;
+                  setAddModalOpen(false);
+                  setAddModalError(null);
+                }}
+                onSubmit={(values) => void handleAddDocument(values)}
+              />
             </div>
             )}
               </>
