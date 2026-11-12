@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
 import { formatPhoneNumber } from "@/lib/phone";
@@ -25,12 +25,24 @@ import {
   SelectField,
   TextField,
 } from "./account-form-fields";
+import AccountCheckbox from "./AccountCheckbox";
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
-  AccountSaveButton,
   AccountSuccessBanner,
 } from "./AccountFormStatus";
+
+function SectionCard({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+      <div className="border-b border-[#E5E7EB] px-5 py-3.5">
+        <h2 className="text-base font-semibold text-[#0F172A]">{title}</h2>
+        {description ? <p className="mt-0.5 text-sm text-[#64748B]">{description}</p> : null}
+      </div>
+      <div className="px-5 py-5">{children}</div>
+    </section>
+  );
+}
 
 export default function BusinessInfoTab() {
   const { user, profile, organization, settings, checklist, loading, error, refresh } =
@@ -356,222 +368,278 @@ export default function BusinessInfoTab() {
     }
   };
 
+  function resetFromOrganization() {
+    if (!organization) return;
+    setCompanyName(organization.name ?? "");
+    setLegalName(organization.legal_name ?? "");
+    setSubdomain(organization.subdomain ?? "");
+    setWebsite(organization.website ?? "");
+    setIndustry(organization.industry ?? "");
+    setCompanySize(organization.company_size ?? "");
+    setCity(organization.city ?? "");
+    setState(organization.state ?? "");
+    setAddress(organization.address_line_1 ?? "");
+    setBusinessPhone(organization.phone ? formatPhoneNumber(organization.phone) : "");
+    setBusinessEmail(organization.email ?? "");
+    setZipCode(organization.postal_code ?? "");
+    setEin(organization.ein ?? "");
+    setSubmitAttempted(false);
+    setFieldErrors({});
+    setSaveError(null);
+    setSaveSuccess(null);
+  }
+
   if (loading) {
     return (
-      <div className="rounded-lg border border-[#E5E7EB] bg-white p-5 sm:p-6">
+      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 sm:p-6">
         <AccountLoadingSkeleton rows={8} />
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-[#E5E7EB] bg-white p-5 sm:p-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Business Info</h1>
+        <p className="mt-1 text-sm text-[#64748B]">Manage your company details and contact information.</p>
+      </div>
+
       {error ? <AccountErrorBanner message={error} /> : null}
       {saveError ? <AccountErrorBanner message={saveError} /> : null}
       {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
 
       <AccountTenantHeader />
 
-      <section className="mt-6 w-full max-w-4xl">
-        <h2 className="text-lg font-semibold leading-7 text-[#012352]">Business Information</h2>
-        <p className="mt-1 text-sm text-[#64748B]">Add your business info.</p>
-
-        {!organization ? (
-          <p className="mt-4 text-sm text-[#64748B]">
+      {!organization ? (
+        <section className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-5">
+          <p className="text-sm text-[#64748B]">
             Your account is not linked to an organization yet. Complete tenant onboarding to add
             business details.
           </p>
-        ) : (
-          <div className="mt-6 flex flex-col gap-5">
-            <TextField
-              label="Company Name"
-              value={companyName}
-              onChange={(value) => updateField("companyName", value, setCompanyName)}
-              required
-              error={submitAttempted ? fieldErrors.companyName : null}
-            />
-            <TextField label="Legal Name" value={legalName} onChange={setLegalName} />
-            <TextField label="Subdomain" value={subdomain} onChange={setSubdomain} />
+        </section>
+      ) : (
+        <>
+          <SectionCard title="Company Details" description="Basic company identity and staffing focus.">
+            <div className="flex flex-col gap-5">
+              <TextField
+                label="Company Name"
+                value={companyName}
+                onChange={(value) => updateField("companyName", value, setCompanyName)}
+                required
+                error={submitAttempted ? fieldErrors.companyName : null}
+              />
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <TextField label="Legal Name" value={legalName} onChange={setLegalName} />
+                <TextField label="Subdomain" value={subdomain} onChange={setSubdomain} />
+              </div>
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <SelectField
-                label="Industry"
-                value={industry}
-                onChange={(value) => {
-                  const previous = industry;
-                  if (previous && previous !== value) {
-                    const confirmed = window.confirm(
-                      "Changing the primary industry updates default Job Industry for new jobs. Continue?"
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <SelectField
+                  label="Industry"
+                  value={industry}
+                  onChange={(value) => {
+                    const previous = industry;
+                    if (previous && previous !== value) {
+                      const confirmed = window.confirm(
+                        "Changing the primary industry updates default Job Industry for new jobs. Continue?"
+                      );
+                      if (!confirmed) return;
+                    }
+                    updateField("industry", value, setIndustry);
+                    const mapped = industryKeyFromLegacyLabel(value);
+                    if (mapped && !hireForKeys.includes(mapped)) {
+                      setHireForKeys((keys) => [...keys, mapped]);
+                    }
+                  }}
+                  required
+                  error={submitAttempted ? fieldErrors.industry : null}
+                >
+                  <option value="">Select industry</option>
+                  {industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry) ? (
+                    <option value={industry}>{industry}</option>
+                  ) : null}
+                  {INDUSTRY_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Number of Employees"
+                  value={companySize}
+                  onChange={(value) => updateField("companySize", value, setCompanySize)}
+                  required
+                  error={submitAttempted ? fieldErrors.companySize : null}
+                >
+                  <option value="">Select size</option>
+                  {EMPLOYEE_COUNT_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+
+              <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4">
+                <p className="text-sm font-semibold text-[#0F172A]">Industries you hire for</p>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  Select every industry this organization staffs. New jobs default to your primary
+                  industry and can be overridden per job.
+                </p>
+                <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {activeUserFacingIndustries().map((item) => {
+                    const checked = hireForKeys.includes(item.key);
+                    return (
+                      <label
+                        key={item.key}
+                        className="flex cursor-pointer items-center gap-2.5 text-sm text-[#334155]"
+                      >
+                        <AccountCheckbox
+                          brand="secondary"
+                          checked={checked}
+                          onChange={(event) => {
+                            setHireForKeys((keys) => {
+                              if (event.target.checked) {
+                                return keys.includes(item.key) ? keys : [...keys, item.key];
+                              }
+                              return keys.filter((key) => key !== item.key);
+                            });
+                          }}
+                        />
+                        {item.label}
+                      </label>
                     );
-                    if (!confirmed) return;
-                  }
-                  updateField("industry", value, setIndustry);
-                  const mapped = industryKeyFromLegacyLabel(value);
-                  if (mapped && !hireForKeys.includes(mapped)) {
-                    setHireForKeys((keys) => [...keys, mapped]);
-                  }
-                }}
-                required
-                error={submitAttempted ? fieldErrors.industry : null}
-              >
-                <option value="">Select industry</option>
-                {industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry) ? (
-                  <option value={industry}>{industry}</option>
-                ) : null}
-                {INDUSTRY_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Number of Employees"
-                value={companySize}
-                onChange={(value) => updateField("companySize", value, setCompanySize)}
-                required
-                error={submitAttempted ? fieldErrors.companySize : null}
-              >
-                <option value="">Select size</option>
-                {EMPLOYEE_COUNT_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
+                  })}
+                </div>
+              </div>
 
-            <div>
-              <p className="text-sm font-medium text-[#334155]">Industries you hire for</p>
-              <p className="mt-1 text-sm text-[#64748B]">
-                Select every industry this organization staffs. New jobs default to your primary industry and can be overridden per job.
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {activeUserFacingIndustries().map((item) => {
-                  const checked = hireForKeys.includes(item.key);
-                  return (
-                    <label key={item.key} className="flex items-center gap-2 text-sm text-[#334155] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(event) => {
-                          setHireForKeys((keys) => {
-                            if (event.target.checked) {
-                              return keys.includes(item.key) ? keys : [...keys, item.key];
-                            }
-                            return keys.filter((key) => key !== item.key);
-                          });
-                        }}
-                        className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[#012352]"
-                        style={{ accentColor: '#012352' }}
-                      />
-                      {item.label}
-                    </label>
-                  );
-                })}
+              <TextField label="Website" value={website} onChange={setWebsite} type="url" />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Location & Contact" description="Where the business is based and how to reach you.">
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <SearchableSelectField
+                  label="State"
+                  required
+                  loading={locationLoading}
+                  disabled={locationLoading || stateOptionsUnavailable}
+                  value={displayStateValue}
+                  onChange={handleStateChange}
+                  placeholder={
+                    locationLoading
+                      ? "Loading…"
+                      : stateOptionsUnavailable
+                        ? "No states found"
+                        : "Search state"
+                  }
+                  searchPlaceholder="Type to search states"
+                  options={effectiveStateOptions}
+                  error={submitAttempted ? fieldErrors.state : null}
+                  emptyMessage="No states found. Try another search."
+                />
+                <SearchableSelectField
+                  label="City"
+                  required
+                  allowCustom
+                  disabled={!displayStateValue || stateOptionsUnavailable}
+                  loading={citiesLoading}
+                  value={city}
+                  onChange={(value) => updateField("city", value, setCity)}
+                  placeholder={
+                    stateOptionsUnavailable
+                      ? "No states found"
+                      : !displayStateValue
+                        ? "Select state first"
+                        : citiesLoading
+                          ? "Loading…"
+                          : "Search or enter city"
+                  }
+                  searchPlaceholder="Type any city"
+                  options={effectiveCityOptions}
+                  error={submitAttempted ? fieldErrors.city : null}
+                  emptyMessage="Type a city name and press Enter."
+                />
+              </div>
+
+              <AddressField
+                label="Business Address"
+                value={address}
+                onChange={(value) => updateField("address", value, setAddress)}
+                required
+                error={submitAttempted ? fieldErrors.address : null}
+              />
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <TextField
+                  label="Business Phone"
+                  value={businessPhone}
+                  onChange={(value) =>
+                    updateField("phone", formatPhoneNumber(value), setBusinessPhone)
+                  }
+                  type="tel"
+                  required
+                  error={submitAttempted ? fieldErrors.phone : null}
+                />
+                <TextField
+                  label="Business Email Address"
+                  value={businessEmail}
+                  onChange={(value) => updateField("email", value, setBusinessEmail)}
+                  type="email"
+                  required
+                  error={submitAttempted ? fieldErrors.email : null}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <TextField
+                  label="Zip Code"
+                  value={zipCode}
+                  onChange={(value) =>
+                    updateField(
+                      "zipCode",
+                      normalizeBusinessZipInput(value).slice(0, 5),
+                      setZipCode
+                    )
+                  }
+                  required
+                  error={submitAttempted ? fieldErrors.zipCode : null}
+                />
+                <TextField
+                  label="EIN Number"
+                  value={ein}
+                  onChange={(value) => updateField("ein", normalizeEinInput(value), setEin)}
+                  error={submitAttempted ? fieldErrors.ein : null}
+                />
               </div>
             </div>
+          </SectionCard>
 
-            <TextField label="Website" value={website} onChange={setWebsite} type="url" />
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <SearchableSelectField
-                label="State"
-                required
-                loading={locationLoading}
-                disabled={locationLoading || stateOptionsUnavailable}
-                value={displayStateValue}
-                onChange={handleStateChange}
-                placeholder={
-                  locationLoading
-                    ? "Loading…"
-                    : stateOptionsUnavailable
-                      ? "No states found"
-                      : "Search state"
-                }
-                searchPlaceholder="Type to search states"
-                options={effectiveStateOptions}
-                error={submitAttempted ? fieldErrors.state : null}
-                emptyMessage="No states found. Try another search."
-              />
-              <SearchableSelectField
-                label="City"
-                required
-                allowCustom
-                disabled={!displayStateValue || stateOptionsUnavailable}
-                loading={citiesLoading}
-                value={city}
-                onChange={(value) => updateField("city", value, setCity)}
-                placeholder={
-                  stateOptionsUnavailable
-                    ? "No states found"
-                    : !displayStateValue
-                      ? "Select state first"
-                      : citiesLoading
-                        ? "Loading…"
-                        : "Search or enter city"
-                }
-                searchPlaceholder="Type any city"
-                options={effectiveCityOptions}
-                error={submitAttempted ? fieldErrors.city : null}
-                emptyMessage="Type a city name and press Enter."
-              />
-            </div>
-
-            <AddressField
-              label="Business Address"
-              value={address}
-              onChange={(value) => updateField("address", value, setAddress)}
-              required
-              error={submitAttempted ? fieldErrors.address : null}
-            />
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <TextField
-                label="Business Phone"
-                value={businessPhone}
-                onChange={(value) => updateField("phone", formatPhoneNumber(value), setBusinessPhone)}
-                type="tel"
-                required
-                error={submitAttempted ? fieldErrors.phone : null}
-              />
-              <TextField
-                label="Business Email Address"
-                value={businessEmail}
-                onChange={(value) => updateField("email", value, setBusinessEmail)}
-                type="email"
-                required
-                error={submitAttempted ? fieldErrors.email : null}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <TextField
-                label="Zip Code"
-                value={zipCode}
-                onChange={(value) =>
-                  updateField(
-                    "zipCode",
-                    normalizeBusinessZipInput(value).slice(0, 5),
-                    setZipCode
-                  )
-                }
-                required
-                error={submitAttempted ? fieldErrors.zipCode : null}
-              />
-              <TextField
-                label="EIN Number"
-                value={ein}
-                onChange={(value) => updateField("ein", normalizeEinInput(value), setEin)}
-                error={submitAttempted ? fieldErrors.ein : null}
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <AccountSaveButton saving={saving} disabled={saving} />
-            </div>
+          <div className="flex flex-col-reverse justify-end gap-2 pt-1 sm:flex-row">
+            <button
+              type="button"
+              onClick={resetFromOrganization}
+              disabled={saving}
+              className="inline-flex h-10 items-center justify-center rounded-lg border px-5 text-sm font-medium hover:bg-[#F8FAFC] disabled:opacity-60"
+              style={{
+                color: "var(--brand-secondary, #012352)",
+                borderColor: "var(--brand-secondary, #012352)",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex h-10 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white disabled:opacity-60"
+              style={{ backgroundColor: "var(--brand-primary, #012352)" }}
+            >
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
           </div>
-        )}
-      </section>
+        </>
+      )}
     </form>
   );
 }

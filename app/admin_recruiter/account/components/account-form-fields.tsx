@@ -17,7 +17,7 @@ export const US_STATES = [
 ];
 
 export const FIELD =
-  "h-11 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm text-[#111827] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]";
+  "h-11 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#111827] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]";
 
 export const FIELD_ERROR =
   "border-[#FCA5A5] text-[#B91C1C] focus:border-[#EF4444] focus:ring-[#EF4444]";
@@ -36,7 +36,7 @@ export function FieldLabel({
   required?: boolean;
   htmlFor?: string;
 }) {
-  const className = "mb-2 block text-sm text-[#6B7280]";
+  const className = "mb-1.5 block text-[13px] font-medium text-[#374151]";
   const content = (
     <>
       {children}
@@ -80,7 +80,7 @@ export function SelectField({
           value={value}
           defaultValue={value === undefined ? defaultValue : undefined}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className={`${FIELD} appearance-none pr-9 ${error ? FIELD_ERROR : ""}`}
+          className={`${FIELD} cursor-pointer appearance-none pr-9 ${error ? FIELD_ERROR : ""}`}
         >
           {children}
         </select>
@@ -148,8 +148,8 @@ export function AddressField({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-sm text-[#6B7280]">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium text-[#374151]">
           {label}
           {required ? <span className="text-red-500"> *</span> : null}
         </span>

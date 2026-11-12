@@ -219,7 +219,11 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     kind: "settings_section",
     parentKey: "settings",
     pagePrefixes: ["/admin_recruiter/account"],
-    apiPrefixes: ["/api/account/settings"],
+    apiPrefixes: [
+      "/api/account/settings",
+      "/api/account/profile-photo",
+      "/api/account/deactivate",
+    ],
     sortOrder: 120,
     alwaysGranted: false,
   },

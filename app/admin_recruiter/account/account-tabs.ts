@@ -1,15 +1,15 @@
 export const ACCOUNT_TABS = [
-  { slug: "personal", label: "Personal" },
+  { slug: "personal", label: "Profile" },
   { slug: "business-info", label: "Business Info" },
-  { slug: "account-settings", label: "Account Settings" },
+  { slug: "account-settings", label: "Account" },
   { slug: "security", label: "Security" },
   // { slug: "checklist", label: "Checklist" }, // Hidden for now; keep for future enablement
 ] as const;
 
 export type AccountTabSlug = (typeof ACCOUNT_TABS)[number]["slug"];
 
-/** Company admin tabs. Hidden from recruiter and client roles. */
-const RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS = new Set<AccountTabSlug>(["business-info", "account-settings"]);
+/** Company admin tabs. Hidden from recruiter / manager / limited staff roles. */
+const RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS = new Set<AccountTabSlug>(["business-info"]);
 
 export function isRecruiterHiddenAccountTab(slug: AccountTabSlug): boolean {
   return RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS.has(slug);

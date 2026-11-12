@@ -20,6 +20,9 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
   const { profile, loading } = useAccountData();
   const isLimitedStaff = isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
   const hideTab = isRecruiterHiddenAccountTab(activeTab) && (loading || isLimitedStaff);
+  // Admins keep Profile / Business Info / Account / Security tabs.
+  // Limited staff use the settings sidebar only (Profile + Account).
+  const showTabNav = !isLimitedStaff && !loading;
 
   useEffect(() => {
     if (loading || !isLimitedStaff || !isRecruiterHiddenAccountTab(activeTab)) return;
@@ -28,14 +31,12 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
 
   return (
     <div className="w-full min-w-0 space-y-6">
+      {showTabNav ? <AccountTabNav activeTab={activeTab} /> : null}
 
-      <AccountTabNav activeTab={activeTab} />
-
-        {activeTab === "personal" ? <PersonalTab /> : null}
-        {!hideTab && activeTab === "business-info" ? <BusinessInfoTab /> : null}
-        {!hideTab && activeTab === "account-settings" ? <AccountSettingsTab /> : null}
-        {activeTab === "security" ? <SecurityTab /> : null}
-
+      {activeTab === "personal" ? <PersonalTab /> : null}
+      {!hideTab && activeTab === "business-info" ? <BusinessInfoTab /> : null}
+      {activeTab === "account-settings" ? <AccountSettingsTab /> : null}
+      {activeTab === "security" ? <SecurityTab /> : null}
     </div>
   );
 }

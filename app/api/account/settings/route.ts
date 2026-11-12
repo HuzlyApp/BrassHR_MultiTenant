@@ -15,12 +15,15 @@ type PreferencesBody = {
   timezone?: string
   language?: string
   date_format?: string
+  time_format?: string
   theme?: string
   email_notifications?: boolean
   sms_notifications?: boolean
   push_notifications?: boolean
   marketing_emails?: boolean
 }
+
+const ALLOWED_TIME_FORMATS = new Set(["12h", "24h"])
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -57,6 +60,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Invalid timezone" }, { status: 400 })
     }
 
+    const requestedTimeFormat =
+      typeof body.time_format === "string" ? body.time_format.trim() : null
+    if (requestedTimeFormat && !ALLOWED_TIME_FORMATS.has(requestedTimeFormat)) {
+      return NextResponse.json({ error: "Invalid time format" }, { status: 400 })
+    }
+
     const accountData = await fetchAccountData(supabase)
     const current = accountData.settings
 
@@ -65,6 +74,7 @@ export async function PATCH(req: NextRequest) {
       timezone,
       language: body.language ?? current?.language ?? "en",
       date_format: body.date_format ?? current?.date_format ?? "MM/DD/YYYY",
+      time_format: requestedTimeFormat ?? current?.time_format ?? "12h",
       theme: body.theme ?? current?.theme ?? "system",
       email_notifications: body.email_notifications ?? current?.email_notifications ?? true,
       sms_notifications: body.sms_notifications ?? current?.sms_notifications ?? false,
