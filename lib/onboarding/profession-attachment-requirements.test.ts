@@ -82,6 +82,7 @@ describe("applyProfessionDocumentsToAttachments", () => {
       "Nursing license",
       "BLS",
       "ACLS",
+      "Authorization",
     ]);
     expect(rows[1]).toMatchObject({
       document_kind: "license",
@@ -91,9 +92,13 @@ describe("applyProfessionDocumentsToAttachments", () => {
     });
     expect(rows[2]).toMatchObject({ url: "https://files/bls.pdf", filename: "bls.pdf" });
     expect(rows[3]).toMatchObject({ is_required: false, document_kind: "certificate", url: null });
+    expect(rows[4]).toMatchObject({
+      title: "Authorization",
+      url: legacy.authorization_document_url,
+    });
   });
 
-  it("hides workflow documents that are not in settings and maps a same-name upload", () => {
+  it("maps same-name workflow uploads onto settings and keeps other uploaded workflow docs", () => {
     const rows = applyProfessionDocumentsToAttachments(
       [
         row({ id: "resume", title: "Upload Resume", step_type: "resume_upload", url: "https://files/resume.pdf" }),
@@ -107,6 +112,16 @@ describe("applyProfessionDocumentsToAttachments", () => {
           submitted_document_id: "submitted-1",
         }),
         row({ id: "ssn", title: "SSN Card", step_type: "authorizations" }),
+        row({
+          id: "work-auth",
+          title: "Work Authorization",
+          step_type: "document_upload",
+          phase: "pre_hire",
+          url: "https://files/work-auth.doc",
+          filename: "Work auth.doc",
+          status: "uploaded",
+          uploaded_by: "staff-1",
+        }),
       ],
       [
         {
@@ -122,15 +137,24 @@ describe("applyProfessionDocumentsToAttachments", () => {
       legacy
     );
 
-    expect(rows.map((item) => item.title)).toEqual(["Upload Resume", "Nursing license"]);
+    expect(rows.map((item) => item.title)).toEqual([
+      "Upload Resume",
+      "Nursing license",
+      "Work Authorization",
+    ]);
     expect(rows[1]).toMatchObject({
       url: "https://files/uploaded-license.pdf",
       filename: "license.pdf",
       submitted_document_id: "submitted-1",
     });
+    expect(rows[2]).toMatchObject({
+      title: "Work Authorization",
+      url: "https://files/work-auth.doc",
+      uploaded_by: "staff-1",
+    });
   });
 
-  it("shows only the resume when settings has no documents", () => {
+  it("shows only the resume when settings has no documents and workflow slots are empty", () => {
     const rows = applyProfessionDocumentsToAttachments(
       [
         row({ id: "resume", title: "Upload Resume", step_type: "resume_upload" }),

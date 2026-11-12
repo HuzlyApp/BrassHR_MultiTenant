@@ -1,7 +1,7 @@
 import type { CandidateDetailTab } from "@/lib/onboarding/candidate-detail-tabs";
 
 const CANDIDATE_DETAIL_TABS =
-  "checklist|profile|applications|attachments|skill-assessments|authorization|activities|facility-assignments|agreement|final-approval|onboard-applicant|history|ai-analysis|pre-hire|post-hire";
+  "checklist|profile|applications|attachments|licenses|skill-assessments|authorization|activities|facility-assignments|agreement|final-approval|onboard-applicant|history|ai-analysis|pre-hire|post-hire";
 
 const UUID_SEGMENT = "[^/]+";
 
@@ -94,6 +94,8 @@ function candidateDetailTabFromSegment(segment: string): CandidateDetailTab | nu
       return "Applications";
     case "attachments":
       return "Attachments";
+    case "licenses":
+      return "Licenses & Certifications";
     case "skill-assessments":
       return "Skill Assessments";
     case "authorization":

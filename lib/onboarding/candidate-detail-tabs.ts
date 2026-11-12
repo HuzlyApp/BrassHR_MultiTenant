@@ -5,7 +5,7 @@ export const CANDIDATE_DETAIL_BASE_TABS = [
   "Applications",
   "AI Analysis",
   "Skill Assessments",
-  // "Licenses & Certifications", // Figma tab — content lives on Profile for now
+  "Licenses & Certifications",
   "Attachments",
   "Activities",
   "Pre-Hire",
@@ -38,6 +38,8 @@ export function candidateDetailTabLabel(tab: CandidateDetailTab): string {
       return "Skill Assessment";
     case "Attachments":
       return "Documents";
+    case "Licenses & Certifications":
+      return "License/Certifications";
     case "Activities":
       return "Activity";
     case "Pre-Hire":
