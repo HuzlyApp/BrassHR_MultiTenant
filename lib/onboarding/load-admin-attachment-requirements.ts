@@ -313,26 +313,42 @@ export async function loadAdminAttachmentRequirements(
       ? await listActiveProfessionDocuments(supabase, tenantId, professionId)
       : [];
 
-    const uploadsWithUploader = await supabase
+    const uploadsFull = await supabase
       .from("worker_profession_document_uploads")
       .select(
-        "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date, uploaded_by_user_id"
+        "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date, uploaded_by_user_id, issuing_organization, scope, validity"
       )
       .eq("tenant_id", tenantId)
       .eq("worker_id", workerId)
       .order("uploaded_at", { ascending: true });
-    // Column may not exist until migration is applied; fall back without it.
-    const uploadsResult =
-      uploadsWithUploader.error && /uploaded_by_user_id/i.test(uploadsWithUploader.error.message)
-        ? await supabase
-            .from("worker_profession_document_uploads")
-            .select(
-              "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date"
-            )
-            .eq("tenant_id", tenantId)
-            .eq("worker_id", workerId)
-            .order("uploaded_at", { ascending: true })
-        : uploadsWithUploader;
+    // Newer columns may not exist until migrations are applied; fall back gradually.
+    let uploadsResult = uploadsFull;
+    if (
+      uploadsResult.error &&
+      /uploaded_by_user_id|issuing_organization|scope|validity/i.test(uploadsResult.error.message)
+    ) {
+      uploadsResult = await supabase
+        .from("worker_profession_document_uploads")
+        .select(
+          "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date, uploaded_by_user_id"
+        )
+        .eq("tenant_id", tenantId)
+        .eq("worker_id", workerId)
+        .order("uploaded_at", { ascending: true });
+    }
+    if (
+      uploadsResult.error &&
+      /uploaded_by_user_id/i.test(uploadsResult.error.message)
+    ) {
+      uploadsResult = await supabase
+        .from("worker_profession_document_uploads")
+        .select(
+          "id, profession_document_id, file_url, original_file_name, status, uploaded_at, issued_date, expiry_date"
+        )
+        .eq("tenant_id", tenantId)
+        .eq("worker_id", workerId)
+        .order("uploaded_at", { ascending: true });
+    }
     if (uploadsResult.error) throw uploadsResult.error;
     const uploads = uploadsResult.data ?? [];
 
@@ -347,8 +363,13 @@ export async function loadAdminAttachmentRequirements(
               defaultBucket: WORKER_REQUIRED_FILES_BUCKET,
             })
           : fileUrl;
-        const rawStoredUploader = (upload as { uploaded_by_user_id?: string | null })
-          .uploaded_by_user_id;
+        const row = upload as {
+          uploaded_by_user_id?: string | null;
+          issuing_organization?: string | null;
+          scope?: string | null;
+          validity?: string | null;
+        };
+        const rawStoredUploader = row.uploaded_by_user_id;
         const storedUploader =
           rawStoredUploader != null && String(rawStoredUploader).trim()
             ? String(rawStoredUploader).trim()
@@ -361,6 +382,11 @@ export async function loadAdminAttachmentRequirements(
           status: upload.status ? String(upload.status) : null,
           issuedDate: upload.issued_date ? String(upload.issued_date) : null,
           expiryDate: upload.expiry_date ? String(upload.expiry_date) : null,
+          issuingOrganization: row.issuing_organization
+            ? String(row.issuing_organization).trim() || null
+            : null,
+          scope: row.scope ? String(row.scope).trim() || null : null,
+          validity: row.validity ? String(row.validity).trim() || null : null,
           uploadedByUserId: storedUploader || staffUploaderIdFromPath(fileUrl),
         });
         filesByDocumentId.set(documentId, list);

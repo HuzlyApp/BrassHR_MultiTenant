@@ -8,6 +8,7 @@ import {
   resolveDocumentField,
   sanitizeFileName,
   saveStaffLegacyDocumentUpload,
+  saveStaffProfessionDocumentMeta,
   saveStaffProfessionDocumentUpload,
   saveStaffRequiredDocumentUpload,
   type StaffUploadResult,
@@ -49,14 +50,35 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData()
-    const file = formData.get("file") as File | null
+    const fileValue = formData.get("file")
+    const file = fileValue instanceof File && fileValue.size > 0 ? fileValue : null
     const workerIdRaw = String(formData.get("workerId") ?? "").trim()
     const requiredDocumentId = String(formData.get("requiredDocumentId") ?? "").trim() || null
     const documentTitle = String(formData.get("documentTitle") ?? "").trim()
     const documentFieldRaw = String(formData.get("documentField") ?? "").trim()
     const attachmentKind = String(formData.get("attachmentKind") ?? "").trim()
+    const issuedDate = String(formData.get("issuedDate") ?? "").trim() || undefined
+    const expiryDate = String(formData.get("expiryDate") ?? "").trim() || undefined
+    const issuingOrganization =
+      String(formData.get("issuingOrganization") ?? "").trim() || undefined
+    const scope = String(formData.get("scope") ?? "").trim() || undefined
+    const validity = String(formData.get("validity") ?? "").trim() || undefined
+    const metaOnly =
+      attachmentKind === "profession_meta" ||
+      (!file &&
+        Boolean(requiredDocumentId) &&
+        (issuedDate ||
+          expiryDate ||
+          issuingOrganization ||
+          scope ||
+          validity ||
+          formData.has("issuedDate") ||
+          formData.has("expiryDate") ||
+          formData.has("issuingOrganization") ||
+          formData.has("scope") ||
+          formData.has("validity")))
 
-    if (!file) {
+    if (!file && !metaOnly) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
     }
 
@@ -94,6 +116,25 @@ export async function POST(req: NextRequest) {
       worker.user_id != null && String(worker.user_id).trim()
         ? String(worker.user_id).trim()
         : workerId
+
+    if (metaOnly && requiredDocumentId) {
+      return uploadResponse(
+        await saveStaffProfessionDocumentMeta(supabase, {
+          tenantId,
+          workerId,
+          professionDocumentId: requiredDocumentId,
+          issuedDate,
+          expiryDate,
+          issuingOrganization,
+          scope,
+          validity,
+        })
+      )
+    }
+
+    if (!file) {
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
+    }
 
     const isResume = attachmentKind === "resume" || (!requiredDocumentId && documentTitle.toLowerCase().includes("resume"))
 
@@ -167,8 +208,11 @@ export async function POST(req: NextRequest) {
         actorUserId: auth.userId,
         professionDocumentId: requiredDocumentId,
         file,
-        issuedDate: String(formData.get("issuedDate") ?? "").trim() || undefined,
-        expiryDate: String(formData.get("expiryDate") ?? "").trim() || undefined,
+        issuedDate,
+        expiryDate,
+        issuingOrganization,
+        scope,
+        validity,
       })
       if (!professionSaved.ok && professionSaved.status === 404) {
         return uploadResponse(saved)

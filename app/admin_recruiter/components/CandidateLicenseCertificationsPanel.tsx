@@ -28,6 +28,9 @@ type AttachmentRequirement = {
   has_expiration?: boolean;
   issued_date?: string | null;
   expiry_date?: string | null;
+  issuing_organization?: string | null;
+  scope?: string | null;
+  validity?: string | null;
   uploaded_by?: string | null;
   files?: Array<{
     id: string;
@@ -321,10 +324,14 @@ export default function CandidateLicenseCertificationsPanel({
             local?.hasExpiration ??
             (document.hasExpiration ||
               Boolean(requirement?.expiry_date || credential?.expiry_date)),
-          scope: local?.scope ?? credential?.scope ?? null,
+          scope: local?.scope ?? requirement?.scope ?? credential?.scope ?? null,
           issuingOrganization:
-            local?.issuingOrganization ?? credential?.issuing_organization ?? null,
-          validity: local?.validity ?? credential?.validity ?? null,
+            local?.issuingOrganization ??
+            requirement?.issuing_organization ??
+            credential?.issuing_organization ??
+            null,
+          validity:
+            local?.validity ?? requirement?.validity ?? credential?.validity ?? null,
           documentUrl: fileUrl,
           filename,
           uploadedBy: fileUrl ? uploadedBy : null,
@@ -372,10 +379,13 @@ export default function CandidateLicenseCertificationsPanel({
             local?.hasExpiration ??
             (row.has_expiration === true ||
               Boolean(row.expiry_date || credential?.expiry_date)),
-          scope: local?.scope ?? credential?.scope ?? null,
+          scope: local?.scope ?? row.scope ?? credential?.scope ?? null,
           issuingOrganization:
-            local?.issuingOrganization ?? credential?.issuing_organization ?? null,
-          validity: local?.validity ?? credential?.validity ?? null,
+            local?.issuingOrganization ??
+            row.issuing_organization ??
+            credential?.issuing_organization ??
+            null,
+          validity: local?.validity ?? row.validity ?? credential?.validity ?? null,
           documentUrl: fileUrl,
           filename,
           uploadedBy: fileUrl ? uploadedBy : null,
@@ -445,20 +455,30 @@ export default function CandidateLicenseCertificationsPanel({
     title: string,
     values: LicenseCertFormValues
   ) {
-    if (!values.file) return;
     const fd = new FormData();
-    fd.append("file", values.file);
     fd.append("workerId", workerId);
     fd.append("documentTitle", title);
     fd.append("requiredDocumentId", documentId);
-    if (values.issuedDate) fd.append("issuedDate", values.issuedDate);
-    if (values.expiryDate) fd.append("expiryDate", values.expiryDate);
+    fd.append("issuedDate", values.hasExpiration ? values.issuedDate : "");
+    fd.append("expiryDate", values.hasExpiration ? values.expiryDate : "");
+    fd.append("issuingOrganization", values.issuingOrganization || "");
+    fd.append("scope", values.scope || "");
+    fd.append("validity", values.validity || "");
+    if (values.file) {
+      fd.append("file", values.file);
+    } else {
+      fd.append("attachmentKind", "profession_meta");
+    }
     const res = await fetch("/api/admin/worker-attachment-upload", {
       method: "POST",
       body: fd,
     });
     const json = (await res.json().catch(() => ({}))) as { error?: string };
-    if (!res.ok) throw new Error(json.error || "Upload failed");
+    if (!res.ok) {
+      // Meta-only save can 404 when no file exists yet; keep the row from settings.
+      if (!values.file && res.status === 404) return;
+      throw new Error(json.error || "Upload failed");
+    }
   }
 
   function patchSettingsDocuments(nextDocuments: SettingsDocument[]) {
@@ -520,7 +540,7 @@ export default function CandidateLicenseCertificationsPanel({
           savedDocuments.find((document) => nameKey(document.name) === nameKey(values.name)) ??
           null;
         documentId = match?.id ?? null;
-        if (documentId && values.file) {
+        if (documentId) {
           await uploadForDocument(documentId, values.name, values);
         }
       }

@@ -30,6 +30,9 @@ export type AdminAttachmentRequirement = {
   has_expiration?: boolean;
   issued_date?: string | null;
   expiry_date?: string | null;
+  issuing_organization?: string | null;
+  scope?: string | null;
+  validity?: string | null;
   files?: Array<{
     id: string;
     url: string | null;

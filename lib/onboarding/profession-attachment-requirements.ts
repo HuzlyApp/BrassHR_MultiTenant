@@ -10,6 +10,9 @@ export type ProfessionAttachmentFile = {
   fileCount?: number;
   issuedDate?: string | null;
   expiryDate?: string | null;
+  issuingOrganization?: string | null;
+  scope?: string | null;
+  validity?: string | null;
   /** Raw auth user id when known (path heuristic or future column). */
   uploadedByUserId?: string | null;
 };
@@ -140,6 +143,9 @@ export function applyProfessionDocumentsToAttachments(
         has_expiration: doc.hasExpiration,
         issued_date: latest?.issuedDate ?? null,
         expiry_date: latest?.expiryDate ?? null,
+        issuing_organization: latest?.issuingOrganization ?? null,
+        scope: latest?.scope ?? null,
+        validity: latest?.validity ?? null,
         uploaded_by:
           latest?.uploadedByUserId ??
           mapped?.uploaded_by ??

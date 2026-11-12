@@ -281,6 +281,103 @@ export async function saveStaffRequiredDocumentUpload(
   return { ok: true, path: objectPath, bucket: WORKER_REQUIRED_FILES_BUCKET };
 }
 
+function optionalText(value: string | null | undefined): string | null {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function professionUploadMetaFields(input: {
+  issuedDate?: string | null;
+  expiryDate?: string | null;
+  issuingOrganization?: string | null;
+  scope?: string | null;
+  validity?: string | null;
+}) {
+  return {
+    issued_date: normalizeDate(input.issuedDate),
+    expiry_date: normalizeDate(input.expiryDate),
+    issuing_organization: optionalText(input.issuingOrganization),
+    scope: optionalText(input.scope),
+    validity: optionalText(input.validity),
+  };
+}
+
+/** Update optional certificate/license metadata without replacing the file. */
+export async function saveStaffProfessionDocumentMeta(
+  supabase: SupabaseClient,
+  input: {
+    tenantId: string;
+    workerId: string;
+    professionDocumentId: string;
+    issuedDate?: string | null;
+    expiryDate?: string | null;
+    issuingOrganization?: string | null;
+    scope?: string | null;
+    validity?: string | null;
+  }
+): Promise<StaffUploadResult> {
+  const { tenantId, workerId, professionDocumentId } = input;
+  const { data, error } = await supabase
+    .from("tenant_profession_documents")
+    .select("id, has_expiration")
+    .eq("id", professionDocumentId)
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { ok: false, status: 404, error: "Profession document not found" };
+
+  const requiresDates = Boolean((data as { has_expiration?: boolean }).has_expiration);
+  const meta = professionUploadMetaFields(input);
+  if (requiresDates && (!meta.issued_date || !meta.expiry_date)) {
+    return { ok: false, status: 400, error: "Issued date and expiry date are required" };
+  }
+  if (meta.issued_date && meta.expiry_date && meta.expiry_date < meta.issued_date) {
+    return { ok: false, status: 400, error: "Expiry date must be on or after the issued date" };
+  }
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from("worker_profession_document_uploads")
+    .select("id, file_url")
+    .eq("tenant_id", tenantId)
+    .eq("worker_id", workerId)
+    .eq("profession_document_id", professionDocumentId)
+    .order("uploaded_at", { ascending: false })
+    .limit(1);
+  if (existingError) throw existingError;
+  const existing = (existingRows?.[0] as { id?: string; file_url?: string | null } | undefined) ?? null;
+  if (!existing?.id) {
+    return { ok: false, status: 404, error: "Upload a document file before saving details." };
+  }
+
+  let writeError = (
+    await supabase.from("worker_profession_document_uploads").update(meta).eq("id", existing.id)
+  ).error;
+  if (
+    writeError &&
+    /issuing_organization|scope|validity/i.test(writeError.message)
+  ) {
+    writeError = (
+      await supabase
+        .from("worker_profession_document_uploads")
+        .update({
+          issued_date: meta.issued_date,
+          expiry_date: meta.expiry_date,
+        })
+        .eq("id", existing.id)
+    ).error;
+  }
+  if (writeError) {
+    return { ok: false, status: 500, error: writeError.message || "Could not save document details" };
+  }
+
+  return {
+    ok: true,
+    path: String(existing.file_url ?? ""),
+    bucket: WORKER_REQUIRED_FILES_BUCKET,
+  };
+}
+
 /** Staff upload for a profession license or certificate configured in settings. */
 export async function saveStaffProfessionDocumentUpload(
   supabase: SupabaseClient,
@@ -292,6 +389,9 @@ export async function saveStaffProfessionDocumentUpload(
     file: File;
     issuedDate?: string | null;
     expiryDate?: string | null;
+    issuingOrganization?: string | null;
+    scope?: string | null;
+    validity?: string | null;
   }
 ): Promise<StaffUploadResult> {
   const { tenantId, workerId, professionDocumentId, file } = input;
@@ -310,12 +410,11 @@ export async function saveStaffProfessionDocumentUpload(
   if (error) throw error;
   if (!data) return { ok: false, status: 404, error: "Profession document not found" };
   const requiresDates = Boolean((data as { has_expiration?: boolean }).has_expiration);
-  const issuedDate = normalizeDate(input.issuedDate);
-  const expiryDate = normalizeDate(input.expiryDate);
-  if (requiresDates && (!issuedDate || !expiryDate)) {
+  const meta = professionUploadMetaFields(input);
+  if (requiresDates && (!meta.issued_date || !meta.expiry_date)) {
     return { ok: false, status: 400, error: "Issued date and expiry date are required" };
   }
-  if (issuedDate && expiryDate && expiryDate < issuedDate) {
+  if (meta.issued_date && meta.expiry_date && meta.expiry_date < meta.issued_date) {
     return { ok: false, status: 400, error: "Expiry date must be on or after the issued date" };
   }
 
@@ -365,8 +464,7 @@ export async function saveStaffProfessionDocumentUpload(
     file_size: file.size,
     status: "uploaded",
     uploaded_at: new Date().toISOString(),
-    ...(issuedDate ? { issued_date: issuedDate } : {}),
-    ...(expiryDate ? { expiry_date: expiryDate } : {}),
+    ...meta,
   };
   const rowWithUploader = {
     ...rowBase,
@@ -379,9 +477,11 @@ export async function saveStaffProfessionDocumentUpload(
         .update(rowWithUploader)
         .eq("id", existing.id)
     ).error;
-    if (writeError && /uploaded_by_user_id/i.test(writeError.message)) {
+    if (writeError && /uploaded_by_user_id|issuing_organization|scope|validity/i.test(writeError.message)) {
+      const { uploaded_by_user_id: _uploader, issuing_organization: _org, scope: _scope, validity: _validity, ...legacyRow } =
+        rowWithUploader;
       writeError = (
-        await supabase.from("worker_profession_document_uploads").update(rowBase).eq("id", existing.id)
+        await supabase.from("worker_profession_document_uploads").update(legacyRow).eq("id", existing.id)
       ).error;
     }
     if (writeError) return { ok: false, status: 500, error: writeError.message || "Could not save the document" };
@@ -398,13 +498,15 @@ export async function saveStaffProfessionDocumentUpload(
         ...rowWithUploader,
       })
     ).error;
-    if (writeError && /uploaded_by_user_id/i.test(writeError.message)) {
+    if (writeError && /uploaded_by_user_id|issuing_organization|scope|validity/i.test(writeError.message)) {
+      const { uploaded_by_user_id: _uploader, issuing_organization: _org, scope: _scope, validity: _validity, ...legacyRow } =
+        rowWithUploader;
       writeError = (
         await supabase.from("worker_profession_document_uploads").insert({
           tenant_id: tenantId,
           worker_id: workerId,
           profession_document_id: professionDocumentId,
-          ...rowBase,
+          ...legacyRow,
         })
       ).error;
     }
