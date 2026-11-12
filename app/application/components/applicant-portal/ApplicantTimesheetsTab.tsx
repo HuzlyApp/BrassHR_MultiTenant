@@ -1,11 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Calendar, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Calendar, ChevronDown, Download } from "lucide-react";
 import { WorkerBrandedIcon } from "./WorkerBrandedIcon";
 import { WORKER_ICONS } from "./worker-icons";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { easternWallClockToDate } from "@/lib/datetime/eastern";
+import {
+  addEasternDays,
+  easternDateString,
+  easternWallClockToDate,
+  getEasternParts,
+  startOfEasternDay,
+} from "@/lib/datetime/eastern";
 import { dayLabel, formatDurationCompact, formatTimeParts } from "./format";
 import type { AttendanceLog } from "./types";
 import {
@@ -31,6 +38,15 @@ type Props = {
   recentAttendance: AttendanceLog[];
 };
 
+type RangePreset = "weekly" | "biweekly" | "monthly" | "custom";
+
+const RANGE_PRESETS: Array<{ value: RangePreset; label: string }> = [
+  { value: "weekly", label: "Last 7 days" },
+  { value: "biweekly", label: "Bi-weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "custom", label: "Custom" },
+];
+
 const BREAK_COLOR = "#0062FF";
 const LEGEND_STATIC = [
   { label: "Break", color: BREAK_COLOR },
@@ -46,16 +62,66 @@ type TimelineSegment = {
 
 type BreakInterval = { started_at: string; ended_at: string };
 
-function parseAttendanceDay(value: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!match) return new Date(value);
+function formatDateRangeLabel(start: Date, end: Date) {
+  const fmt = (date: Date) =>
+    date.toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "2-digit",
+    });
+  return `${fmt(start)} - ${fmt(end)}`;
+}
+
+function toIsoDateInput(date: Date) {
+  return easternDateString(date);
+}
+
+function parseIsoDateInput(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
   return easternWallClockToDate(Number(match[1]), Number(match[2]), Number(match[3]), 12, 0, 0);
 }
 
-function formatDateRangeLabel(start: Date, end: Date) {
-  const fmt = (date: Date) =>
-    date.toLocaleDateString("en-US", { timeZone: "America/New_York",  month: "short", day: "2-digit" });
-  return `${fmt(start)} - ${fmt(end)}`;
+function resolvePresetRange(
+  preset: RangePreset,
+  customStart: string,
+  customEnd: string,
+  now = new Date()
+): { start: Date; end: Date; label: string } {
+  const today = startOfEasternDay(now);
+
+  if (preset === "weekly") {
+    const start = addEasternDays(today, -6);
+    return { start, end: today, label: "Last 7 days" };
+  }
+
+  if (preset === "biweekly") {
+    const start = addEasternDays(today, -13);
+    return { start, end: today, label: "Bi-weekly" };
+  }
+
+  if (preset === "monthly") {
+    const parts = getEasternParts(now);
+    const start = easternWallClockToDate(parts.year, parts.month, 1, 0, 0, 0);
+    return { start, end: today, label: "Monthly" };
+  }
+
+  const parsedStart = parseIsoDateInput(customStart) ?? addEasternDays(today, -6);
+  const parsedEnd = parseIsoDateInput(customEnd) ?? today;
+  const start = parsedStart.getTime() <= parsedEnd.getTime() ? parsedStart : parsedEnd;
+  const end = parsedStart.getTime() <= parsedEnd.getTime() ? parsedEnd : parsedStart;
+  return { start, end, label: "Custom" };
+}
+
+function csvEscape(value: string) {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function formatExportTime(iso: string | null | undefined) {
+  const parts = formatTimeParts(iso);
+  if (parts.time === "—") return "";
+  return `${parts.time}${parts.meridiem ? ` ${parts.meridiem}` : ""}`.trim();
 }
 
 function formatHourMark(date: Date) {
@@ -211,33 +277,113 @@ function TimesheetSectionHeader() {
 
 export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Props) {
   const branding = useTenantBranding();
-  const [rangeLabel] = useState("Last 7 days");
+  const { authHeaders } = useApplicantPortal();
+  const todayIso = useMemo(() => toIsoDateInput(new Date()), []);
+  const defaultWeeklyStart = useMemo(
+    () => toIsoDateInput(addEasternDays(startOfEasternDay(new Date()), -6)),
+    []
+  );
+
+  const [preset, setPreset] = useState<RangePreset>("weekly");
+  const [customStart, setCustomStart] = useState(defaultWeeklyStart);
+  const [customEnd, setCustomEnd] = useState(todayIso);
+  const [logs, setLogs] = useState<AttendanceLog[]>(() => {
+    const merged = todayAttendance ? [todayAttendance, ...recentAttendance] : recentAttendance;
+    const unique = new Map<string, AttendanceLog>();
+    merged.forEach((log) => unique.set(log.id, log));
+    return Array.from(unique.values());
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const range = useMemo(
+    () => resolvePresetRange(preset, customStart, customEnd),
+    [preset, customStart, customEnd]
+  );
+  const startIso = toIsoDateInput(range.start);
+  const endIso = toIsoDateInput(range.end);
+  const dateRangeLabel = formatDateRangeLabel(range.start, range.end);
+  const presetLabel =
+    RANGE_PRESETS.find((option) => option.value === preset)?.label ?? range.label;
+
   const legend = useMemo(
     () => [{ label: "Work time", color: branding.primaryHex }, ...LEGEND_STATIC],
     [branding.primaryHex]
   );
-  const logs = useMemo(() => {
-    const merged = todayAttendance ? [todayAttendance, ...recentAttendance] : recentAttendance;
-    const unique = new Map<string, AttendanceLog>();
-    merged.forEach((log) => unique.set(log.id, log));
-    return Array.from(unique.values()).slice(0, 7);
-  }, [todayAttendance, recentAttendance]);
 
-  const dateRangeLabel = useMemo(() => {
-    if (logs.length === 0) {
-      const today = new Date();
-      return formatDateRangeLabel(today, today);
+  const loadTimesheets = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      if (!headers) throw new Error("You need to sign in again.");
+
+      const qs = new URLSearchParams({ start: startIso, end: endIso });
+      const res = await fetch(`/api/applicant-portal/attendance?${qs.toString()}`, {
+        headers,
+        cache: "no-store",
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        recent?: AttendanceLog[];
+        today?: AttendanceLog | null;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Could not load timesheets.");
+
+      const merged = payload.today ? [payload.today, ...(payload.recent ?? [])] : payload.recent ?? [];
+      const unique = new Map<string, AttendanceLog>();
+      for (const log of merged) {
+        if (log.attendance_date < startIso || log.attendance_date > endIso) continue;
+        unique.set(log.id, log);
+      }
+      setLogs(
+        Array.from(unique.values()).sort((a, b) =>
+          b.attendance_date.localeCompare(a.attendance_date)
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load timesheets.");
+    } finally {
+      setLoading(false);
     }
-    const dates = logs
-      .map((log) => parseAttendanceDay(log.attendance_date))
-      .filter((date) => !Number.isNaN(date.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime());
-    if (dates.length === 0) {
-      const today = new Date();
-      return formatDateRangeLabel(today, today);
+  }, [authHeaders, endIso, startIso]);
+
+  useEffect(() => {
+    void loadTimesheets();
+  }, [loadTimesheets]);
+
+  function handlePresetChange(next: RangePreset) {
+    setPreset(next);
+    if (next === "custom") {
+      setCustomStart(startIso);
+      setCustomEnd(endIso);
     }
-    return formatDateRangeLabel(dates[0], dates[dates.length - 1]);
-  }, [logs]);
+  }
+
+  function handleExport() {
+    const nowMs = Date.now();
+    const rows = [
+      ["Date", "Clock-in", "Clock-out", "Duration", "Break (minutes)", "Status"].join(","),
+      ...logs.map((log) => {
+        const breakMinutes = Math.round(Math.max(0, Number(log.break_seconds ?? 0) || 0) / 60);
+        return [
+          csvEscape(dayLabel(log.attendance_date)),
+          csvEscape(formatExportTime(log.clock_in_at)),
+          csvEscape(formatExportTime(log.clock_out_at)),
+          csvEscape(formatDurationCompact(workedSeconds(log, nowMs))),
+          String(breakMinutes),
+          csvEscape(log.status === "clocked_in" ? "Clocked in" : "Clocked out"),
+        ].join(",");
+      }),
+    ];
+    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `timesheets-${startIso}-to-${endIso}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-8`}>
@@ -251,25 +397,84 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
               View and manage your timesheet records.
             </p>
           </div>
-          <div className="flex w-full items-center sm:w-auto">
-            <button
-              type="button"
-              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} flex-1 justify-between rounded-l-lg sm:flex-none sm:justify-start`}
-              style={WORKER_TIMESHEET_FONT_STYLE}
-            >
-              {rangeLabel}
-              <ChevronDown className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} flex-1 justify-between rounded-r-lg border-l-0 sm:flex-none sm:justify-start`}
-              style={WORKER_TIMESHEET_FONT_STYLE}
-            >
-              <Calendar className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
-              {dateRangeLabel}
-            </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <div className="flex min-w-0 flex-1 items-center sm:flex-none">
+                <label className="relative min-w-0 flex-1 sm:flex-none">
+                  <span className="sr-only">Timesheet range</span>
+                  <select
+                    value={preset}
+                    onChange={(event) => handlePresetChange(event.target.value as RangePreset)}
+                    className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} w-full appearance-none justify-between rounded-l-lg pr-9 sm:w-[160px]`}
+                    style={WORKER_TIMESHEET_FONT_STYLE}
+                  >
+                    {RANGE_PRESETS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                    aria-hidden
+                  />
+                </label>
+                {preset === "custom" ? (
+                  <div
+                    className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} flex-1 gap-2 rounded-r-lg border-l-0 sm:flex-none`}
+                    style={WORKER_TIMESHEET_FONT_STYLE}
+                  >
+                    <Calendar className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
+                    <input
+                      type="date"
+                      value={customStart}
+                      max={customEnd}
+                      onChange={(event) => setCustomStart(event.target.value)}
+                      className="min-w-0 border-0 bg-transparent p-0 text-[13px] text-[#374151] outline-none"
+                      aria-label="Custom start date"
+                    />
+                    <span className="text-[#94A3B8]">–</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      min={customStart}
+                      max={todayIso}
+                      onChange={(event) => setCustomEnd(event.target.value)}
+                      className="min-w-0 border-0 bg-transparent p-0 text-[13px] text-[#374151] outline-none"
+                      aria-label="Custom end date"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} flex-1 justify-between rounded-r-lg border-l-0 sm:flex-none sm:justify-start`}
+                    style={WORKER_TIMESHEET_FONT_STYLE}
+                    aria-label={`${presetLabel}: ${dateRangeLabel}`}
+                  >
+                    <Calendar className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
+                    {dateRangeLabel}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={logs.length === 0 || loading}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] font-semibold text-[#374151] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+                style={WORKER_SECTION_TITLE_STYLE}
+              >
+                <Download className="h-4 w-4" aria-hidden />
+                Export
+              </button>
+            </div>
           </div>
         </div>
+
+        {error ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
 
         <div className={WORKER_SCHEDULE_CARD_CLASS}>
           <TimesheetSectionHeader />
@@ -289,7 +494,11 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
             </div>
 
             <div className="mt-2">
-              {logs.length === 0 ? (
+              {loading ? (
+                <div className="py-10 text-center text-[14px] text-[#64748B]" style={WORKER_TIMESHEET_FONT_STYLE}>
+                  Loading timesheets…
+                </div>
+              ) : logs.length === 0 ? (
                 <TimesheetRow isPlaceholder workBarColor={branding.primaryHex} />
               ) : (
                 logs.map((log, index) => (

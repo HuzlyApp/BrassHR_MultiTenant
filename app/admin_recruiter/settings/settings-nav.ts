@@ -4,6 +4,7 @@ import {
   Bell,
   Briefcase,
   Building2,
+  ClipboardCheck,
   ClipboardList,
   FileStack,
   Library,
@@ -26,6 +27,7 @@ export type SettingsNavItemId =
   | "branding"
   | "notifications"
   | "call"
+  | "task"
   | "security"
   | "library"
   | "workflows"
@@ -43,6 +45,7 @@ export type SettingsNavItemId =
 export type SettingsSectionSlug =
   | "branding"
   | "call"
+  | "task"
   | "admin-console"
   | "roles"
   | "departments"
@@ -127,6 +130,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: Phone,
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/call"],
+      },
+      {
+        id: "task",
+        label: "Task",
+        href: "/admin_recruiter/settings/task",
+        icon: ClipboardCheck,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/task"],
       },
       {
         id: "help",
@@ -286,6 +297,10 @@ export const SETTINGS_SECTION_META: Record<
   call: {
     title: "Call",
     description: "Place or answer a Dialpad call, and review recent call logs.",
+  },
+  task: {
+    title: "Task",
+    description: "Control who can assign tasks on the worker Taskboard.",
   },
   "admin-console": {
     title: "Admin Console",

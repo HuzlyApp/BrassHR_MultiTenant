@@ -163,11 +163,50 @@ async function resolveApplicant(req: NextRequest) {
   return { supabase, workerId: applicant.id, tenantId: applicant.tenant_id };
 }
 
+function parseIsoDateOnly(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const probe = new Date(Date.UTC(year, month - 1, day, 12));
+  if (
+    Number.isNaN(probe.getTime()) ||
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() + 1 !== month ||
+    probe.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
 async function attendancePayload(
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
-  workerId: string
+  workerId: string,
+  options?: { start?: string | null; end?: string | null }
 ) {
   const today = easternDateString(new Date());
+  const start = parseIsoDateOnly(options?.start ?? null);
+  const end = parseIsoDateOnly(options?.end ?? null);
+  const rangeStart = start && end && start > end ? end : start;
+  const rangeEnd = start && end && start > end ? start : end;
+
+  let recentQuery = supabase
+    .from("applicant_attendance_logs")
+    .select("*")
+    .eq("worker_id", workerId)
+    .order("attendance_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (rangeStart && rangeEnd) {
+    recentQuery = recentQuery
+      .gte("attendance_date", rangeStart)
+      .lte("attendance_date", rangeEnd)
+      .limit(100);
+  } else {
+    recentQuery = recentQuery.limit(10);
+  }
+
   const [
     { data: todayLog, error: todayError },
     { data: activeLog, error: activeError },
@@ -189,12 +228,7 @@ async function attendancePayload(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("applicant_attendance_logs")
-      .select("*")
-      .eq("worker_id", workerId)
-      .order("created_at", { ascending: false })
-      .limit(10),
+    recentQuery,
   ]);
 
   if (todayError) throw todayError;
@@ -207,6 +241,7 @@ async function attendancePayload(
     today: todayEntry,
     active,
     recent: (recentLogs as AttendanceLog[] | null) ?? [],
+    range: rangeStart && rangeEnd ? { start: rangeStart, end: rangeEnd } : null,
     currentStatus: active ? statusLabel(active) : statusLabel(todayEntry),
   };
 }
@@ -216,7 +251,12 @@ export async function GET(req: NextRequest) {
     const resolved = await resolveApplicant(req);
     if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    return NextResponse.json(await attendancePayload(resolved.supabase, resolved.workerId));
+    const start = req.nextUrl.searchParams.get("start");
+    const end = req.nextUrl.searchParams.get("end");
+
+    return NextResponse.json(
+      await attendancePayload(resolved.supabase, resolved.workerId, { start, end })
+    );
   } catch (err) {
     console.error("[applicant-portal/attendance:get]", err);
     const message = err instanceof Error ? err.message : "Unexpected error";
