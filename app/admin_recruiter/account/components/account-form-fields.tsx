@@ -80,7 +80,7 @@ export function SelectField({
           value={value}
           defaultValue={value === undefined ? defaultValue : undefined}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className={`${FIELD} appearance-none pr-9 ${error ? FIELD_ERROR : ""}`}
+          className={`${FIELD} cursor-pointer appearance-none pr-9 ${error ? FIELD_ERROR : ""}`}
         >
           {children}
         </select>

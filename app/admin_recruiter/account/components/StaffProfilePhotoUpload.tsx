@@ -9,7 +9,7 @@ type StaffProfilePhotoUploadProps = {
   displayName: string;
   photoUrl: string | null;
   onPhotoUpdated?: (url: string | null) => void;
-  variant?: "card" | "form";
+  variant?: "card" | "form" | "hero";
 };
 
 export function StaffProfilePhotoUpload({
@@ -71,6 +71,94 @@ export function StaffProfilePhotoUpload({
     }
   }
 
+  async function handleRemovePhoto() {
+    if (!previewUrl || uploading) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadSuccess(false);
+    try {
+      const res = await fetch("/api/account/profile-photo", { method: "DELETE" });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(payload.error || "Could not remove photo.");
+      setPreviewUrl(null);
+      setSelectedFileName("");
+      onPhotoUpdated?.(null);
+      await queryClient.invalidateQueries({ queryKey: ACCOUNT_DATA_QUERY_KEY });
+      setUploadSuccess(true);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Could not remove photo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const fileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/jpeg,image/png,image/webp,image/jpg"
+      className="sr-only"
+      disabled={uploading}
+      onChange={(event) => void handlePhotoSelected(event.target.files?.[0])}
+    />
+  );
+
+  if (variant === "hero") {
+    return (
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#E2E8F0] bg-[#F8FAFC] transition hover:ring-2 hover:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-70"
+          aria-label={previewUrl ? "Change photo" : "Add photo"}
+        >
+          {previewUrl ? (
+            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-2xl font-semibold text-[#94A3B8]">
+              {(displayName.trim().charAt(0) || "?").toUpperCase()}
+            </span>
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-[#64748B]">
+            Recommended size: 400 x 400px. JPG, JPEG, PNG (max 2MB)
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex h-[30px] items-center justify-center rounded-md px-3 text-xs font-semibold text-white disabled:opacity-60"
+              style={{ backgroundColor: "var(--brand-primary, #012352)" }}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                  Uploading...
+                </>
+              ) : (
+                "Change Photo"
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={uploading || !previewUrl}
+              onClick={() => void handleRemovePhoto()}
+              className="inline-flex h-[30px] items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-3 text-xs font-semibold text-[#374151] hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+          {fileInput}
+          {uploadError ? <p className="mt-2 text-xs text-red-600">{uploadError}</p> : null}
+          {uploadSuccess ? <p className="mt-2 text-xs font-medium text-emerald-600">Photo saved</p> : null}
+        </div>
+      </div>
+    );
+  }
+
   if (variant === "card") {
     return (
       <div className="flex shrink-0 flex-col items-center">
@@ -94,13 +182,7 @@ export function StaffProfilePhotoUpload({
             )}
           </span>
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="sr-only"
-          onChange={(event) => void handlePhotoSelected(event.target.files?.[0])}
-        />
+        {fileInput}
         <p className="mt-2 text-center text-xs font-medium text-[#64748B]">Tap to change</p>
         {uploadError ? <p className="mt-1 max-w-[120px] text-center text-xs text-red-600">{uploadError}</p> : null}
         {uploadSuccess ? <p className="mt-1 text-center text-xs font-medium text-emerald-600">Photo saved</p> : null}
@@ -126,14 +208,7 @@ export function StaffProfilePhotoUpload({
           <span className="truncate text-sm text-[#6B7280]">
             {uploading ? "Uploading..." : selectedFileName || "JPG or PNG"}
           </span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
-            disabled={uploading}
-            onChange={(event) => void handlePhotoSelected(event.target.files?.[0])}
-          />
+          {fileInput}
         </label>
         {uploading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[#6B7280]" aria-hidden /> : null}
       </div>

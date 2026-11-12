@@ -7,12 +7,18 @@ describe("resolvePersonalProfileFields", () => {
     id: "user-1",
     first_name: "Jane",
     last_name: "Owner",
+    preferred_name: null,
     full_name: "Jane Owner",
     email: "jane@example.com",
     phone: null,
+    birthdate: null,
     avatar_url: null,
     role: "admin",
     job_title: null,
+    department_id: null,
+    employee_id: null,
+    work_location: null,
+    bio: null,
     organization_id: "tenant-1",
     address_line1: null,
     address_line2: null,
@@ -29,7 +35,7 @@ describe("resolvePersonalProfileFields", () => {
     legal_name: null,
     subdomain: "acme",
     domain: "acme.brasshr.com",
-    website: null,
+    website: "https://acme.example",
     industry: "Healthcare",
     company_size: "10-30",
     phone: "5551234567",
@@ -41,20 +47,24 @@ describe("resolvePersonalProfileFields", () => {
     postal_code: "90001",
     country: null,
     logo_url: null,
-    ein: null,
+    ein: "12-3456789",
     plan: "starter",
     created_at: null,
     updated_at: null,
   };
 
-  it("falls back to tenant onboarding business fields when user profile is empty", () => {
+  it("falls back to tenant address fields when user profile address is empty", () => {
     expect(resolvePersonalProfileFields(profile, organization)).toMatchObject({
       firstName: "Jane",
-      phone: "(555) 123-4567",
+      phone: "",
       address: "123 Main St",
       city: "Los Angeles",
       state: "California",
       zipCode: "90001",
+      companyEin: "12-3456789",
+      companyPhone: "(555) 123-4567",
+      companyEmail: "info@acme.com",
+      companyWebsite: "https://acme.example",
     });
   });
 
