@@ -35,6 +35,7 @@ export type AdminAttachmentRequirement = {
     url: string | null;
     filename: string;
     status: string | null;
+    uploaded_by?: string | null;
   }>;
 };
 
@@ -54,6 +55,8 @@ export type SubmittedDocumentRecord = {
   original_file_name: string | null;
   status: string | null;
   uploaded_at?: string | null;
+  /** Raw auth user id; resolved to a display label later in the attachments loader. */
+  uploaded_by_user_id?: string | null;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   review_notes?: string | null;
@@ -241,6 +244,8 @@ export function buildAdminAttachmentRequirements(
         sort_order: sortOrder++,
         is_required: doc.is_required !== false,
         uploaded_at: submitted?.uploaded_at ?? null,
+        // Stash the user id until the loader resolves display names.
+        uploaded_by: submitted?.uploaded_by_user_id ?? null,
         reviewed_at: submitted?.reviewed_at ?? null,
         reviewed_by: submitted?.reviewed_by ?? null,
         review_notes: submitted?.review_notes ?? null,

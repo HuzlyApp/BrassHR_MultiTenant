@@ -91,6 +91,7 @@ async function saveProfessionDocumentUpload(input: {
   file: File;
   issuedDate: string;
   expiryDate: string;
+  uploadedByUserId?: string | null;
 }): Promise<NextResponse | null> {
   const { data, error } = await input.supabase
     .from("tenant_profession_documents")
@@ -153,7 +154,7 @@ async function saveProfessionDocumentUpload(input: {
     return NextResponse.json({ error: uploadError.message }, { status: 500 });
   }
 
-  const row = {
+  const rowBase = {
     tenant_id: input.tenantId,
     worker_id: input.workerId,
     profession_document_id: input.professionDocumentId,
@@ -166,10 +167,23 @@ async function saveProfessionDocumentUpload(input: {
     expiry_date: hasExpiration ? input.expiryDate || null : null,
     uploaded_at: new Date().toISOString(),
   };
+  const rowWithUploader = {
+    ...rowBase,
+    uploaded_by_user_id: input.uploadedByUserId ?? null,
+  };
 
-  const { error: writeError } = await input.supabase
-    .from("worker_profession_document_uploads")
-    .insert(row as Record<string, unknown>);
+  let writeError = (
+    await input.supabase
+      .from("worker_profession_document_uploads")
+      .insert(rowWithUploader as Record<string, unknown>)
+  ).error;
+  if (writeError && /uploaded_by_user_id/i.test(writeError.message)) {
+    writeError = (
+      await input.supabase
+        .from("worker_profession_document_uploads")
+        .insert(rowBase as Record<string, unknown>)
+    ).error;
+  }
   if (writeError) {
     return NextResponse.json({ error: writeError.message }, { status: 500 });
   }
@@ -244,6 +258,7 @@ export async function POST(req: NextRequest) {
         file,
         issuedDate: String(formData.get("issuedDate") ?? ""),
         expiryDate: String(formData.get("expiryDate") ?? ""),
+        uploadedByUserId: applicantId,
       });
       if (professionSaved) return professionSaved;
 

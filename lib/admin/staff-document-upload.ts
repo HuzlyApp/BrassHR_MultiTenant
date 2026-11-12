@@ -358,7 +358,7 @@ export async function saveStaffProfessionDocumentUpload(
     return { ok: false, status: 500, error: uploadError.message || "Upload failed" };
   }
 
-  const row = {
+  const rowBase = {
     file_url: objectPath,
     original_file_name: file.name,
     file_type: file.type || null,
@@ -368,23 +368,46 @@ export async function saveStaffProfessionDocumentUpload(
     ...(issuedDate ? { issued_date: issuedDate } : {}),
     ...(expiryDate ? { expiry_date: expiryDate } : {}),
   };
+  const rowWithUploader = {
+    ...rowBase,
+    uploaded_by_user_id: input.actorUserId || null,
+  };
   if (existing?.id) {
-    const { error: writeError } = await supabase
-      .from("worker_profession_document_uploads")
-      .update(row)
-      .eq("id", existing.id);
+    let writeError = (
+      await supabase
+        .from("worker_profession_document_uploads")
+        .update(rowWithUploader)
+        .eq("id", existing.id)
+    ).error;
+    if (writeError && /uploaded_by_user_id/i.test(writeError.message)) {
+      writeError = (
+        await supabase.from("worker_profession_document_uploads").update(rowBase).eq("id", existing.id)
+      ).error;
+    }
     if (writeError) return { ok: false, status: 500, error: writeError.message || "Could not save the document" };
     const previousPath = typeof existing.file_url === "string" ? existing.file_url.trim() : "";
     if (previousPath && previousPath !== objectPath) {
       await supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).remove([previousPath]);
     }
   } else {
-    const { error: writeError } = await supabase.from("worker_profession_document_uploads").insert({
-      tenant_id: tenantId,
-      worker_id: workerId,
-      profession_document_id: professionDocumentId,
-      ...row,
-    });
+    let writeError = (
+      await supabase.from("worker_profession_document_uploads").insert({
+        tenant_id: tenantId,
+        worker_id: workerId,
+        profession_document_id: professionDocumentId,
+        ...rowWithUploader,
+      })
+    ).error;
+    if (writeError && /uploaded_by_user_id/i.test(writeError.message)) {
+      writeError = (
+        await supabase.from("worker_profession_document_uploads").insert({
+          tenant_id: tenantId,
+          worker_id: workerId,
+          profession_document_id: professionDocumentId,
+          ...rowBase,
+        })
+      ).error;
+    }
     if (writeError) return { ok: false, status: 500, error: writeError.message || "Could not save the document" };
   }
 
