@@ -77,6 +77,7 @@ export default function AddDocumentModal({
   onSubmit,
 }: AddDocumentModalProps) {
   const branding = useTenantBranding();
+  const primaryColor = branding.primaryHex || "#BC8B41";
   const secondaryColor = branding.secondaryHex || "#012352";
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -389,8 +390,8 @@ export default function AddDocumentModal({
                   <div className="flex min-w-0 items-center gap-3">
                     <BrandedSvgIcon
                       src={fileIconSrc}
-                      alt=""
                       className="h-9 w-9 shrink-0"
+                      color={primaryColor}
                     />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-[#0F172A]">
@@ -412,7 +413,7 @@ export default function AddDocumentModal({
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 py-4 text-center">
-                  <BrandedUploadIcon className="h-10 w-10" />
+                  <BrandedUploadIcon primaryHex={primaryColor} className="h-10 w-10" />
                   <p className="text-sm text-[#64748B]">
                     Drag your file(s) to start uploading OR{" "}
                     <label
