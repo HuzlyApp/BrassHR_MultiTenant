@@ -24,12 +24,12 @@ export type InboundApiAuthContext = {
 
 function extractApiKey(req: NextRequest): string | null {
   const xApiKey = req.headers.get("x-api-key")?.trim();
-  if (xApiKey) return xApiKey;
-
   const auth = req.headers.get("authorization")?.trim();
-  if (!auth) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(auth);
-  return match?.[1]?.trim() || null;
+  const match = auth ? /^Bearer\s+(.+)$/i.exec(auth) : null;
+  const bearer = match?.[1]?.trim() || null;
+  // Do not silently choose an identity when callers send conflicting credentials.
+  if (xApiKey && auth && xApiKey !== bearer) return null;
+  return xApiKey || bearer;
 }
 
 async function auditAuthFailure(
@@ -56,6 +56,18 @@ export async function requireInboundApiAuth(
   req: NextRequest,
   options: { kind: "write" | "search" }
 ): Promise<InboundApiAuthContext | NextResponse> {
+  // Bound invalid-key lookups and audit writes as well as authenticated traffic.
+  const preAuthLimit = await enforceRateLimit(req, {
+    namespace: "inbound-api.auth",
+    limit: envRateLimit("RATE_LIMIT_INBOUND_API_AUTH_PER_MIN", 300),
+    windowMs: 60 * 1000,
+    failClosed: true,
+  });
+  if (preAuthLimit) {
+    if (preAuthLimit.status !== 429) return integrationError(503, "INTERNAL", "Service unavailable");
+    const retry = Number(preAuthLimit.headers.get("Retry-After") ?? 60);
+    return integrationRateLimited(Number.isFinite(retry) && retry > 0 ? retry : 60);
+  }
   const supabase = createServiceRoleClient();
   if (!supabase) {
     return integrationError(500, "INTERNAL", "Service unavailable");
@@ -116,8 +128,10 @@ export async function requireInboundApiAuth(
     key: verified.id,
     limit: options.kind === "write" ? writeLimit : searchLimit,
     windowMs: 60 * 1000,
+    failClosed: true,
   });
   if (limited) {
+    if (limited.status !== 429) return integrationError(503, "INTERNAL", "Service unavailable");
     const retryAfterSec = Number(limited.headers.get("Retry-After") ?? 60);
     await auditAuthFailure(req, "inbound_api.rate_limited", {
       tenant_id: verified.tenantId,
@@ -130,7 +144,9 @@ export async function requireInboundApiAuth(
     );
   }
 
-  void touchApiKeyLastUsed(supabase, verified.id);
+  void touchApiKeyLastUsed(supabase, verified.id).catch(() => {
+    console.warn("[inbound-api] usage timestamp update failed");
+  });
 
   return {
     tenantId: verified.tenantId,

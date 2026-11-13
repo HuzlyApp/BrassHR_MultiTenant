@@ -18,7 +18,7 @@ function mapJobError(error: unknown): NextResponse {
   return integrationError(
     500,
     "INTERNAL",
-    error instanceof Error ? error.message : "Failed to create job"
+    "Failed to create job"
   );
 }
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!body || typeof body !== "object") {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     auditInboundApiCall({
       req,
       auth,

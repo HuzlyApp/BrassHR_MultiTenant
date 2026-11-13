@@ -28,7 +28,7 @@ function mapResumeError(error: unknown): NextResponse {
   return integrationError(
     500,
     "INTERNAL",
-    error instanceof Error ? error.message : "Failed to process resume"
+    "Failed to process resume"
   );
 }
 

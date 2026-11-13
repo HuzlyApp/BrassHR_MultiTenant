@@ -33,8 +33,8 @@ function mapRow(row: Record<string, unknown>): TenantApiKeyRecord {
     name: String(row.name ?? ""),
     keyPrefix: String(row.key_prefix ?? ""),
     scopes: Array.isArray(row.scopes)
-      ? row.scopes.map((scope) => String(scope))
-      : ["inbound"],
+      ? row.scopes.filter((scope): scope is string => typeof scope === "string")
+      : [],
     createdByUserId: row.created_by_user_id ? String(row.created_by_user_id) : null,
     lastUsedAt: row.last_used_at ? String(row.last_used_at) : null,
     revokedAt: row.revoked_at ? String(row.revoked_at) : null,
@@ -130,7 +130,7 @@ export async function verifyInboundApiKey(
   apiKey: string
 ): Promise<VerifiedTenantApiKey | null> {
   const trimmed = apiKey.trim();
-  if (!trimmed.startsWith(INBOUND_API_KEY_PREFIX) || trimmed.length < 20) return null;
+  if (!/^bhr_in_[A-Za-z0-9_-]{32}$/.test(trimmed)) return null;
 
   const keyHash = hashApiKey(trimmed);
   const { data, error } = await supabase
@@ -145,6 +145,15 @@ export async function verifyInboundApiKey(
   if (!data) return null;
 
   const mapped = mapRow(data as Record<string, unknown>);
+  // Service-role queries bypass tenant RLS. Disabled tenants must not retain API access.
+  const { data: tenant, error: tenantError } = await supabase
+    .from("tenants")
+    .select("id")
+    .eq("id", mapped.tenantId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (tenantError) throw tenantError;
+  if (!tenant) return null;
   return { ...mapped, keyHash };
 }
 
