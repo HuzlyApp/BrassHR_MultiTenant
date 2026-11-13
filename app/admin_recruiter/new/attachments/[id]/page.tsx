@@ -17,6 +17,7 @@ import CandidateDocumentsFilesTable, {
 import AddDocumentModal, {
   type DocumentFormValues,
 } from "../../../components/AddDocumentModal";
+import { BulkDeleteConfirmModal } from "../../../components/BulkDeleteConfirmModal";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
 import {
   Briefcase,
@@ -143,6 +144,12 @@ export default function NewApplicantAttachmentsFilledPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addModalError, setAddModalError] = useState<string | null>(null);
   const [addingDocument, setAddingDocument] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    row: AttachmentRow;
+    file: { id: string; filename: string; url: string | null };
+  } | null>(null);
+  const [deletingDocument, setDeletingDocument] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchApplicant = useCallback(async (quiet = false) => {
@@ -237,14 +244,20 @@ export default function NewApplicantAttachmentsFilledPage() {
     }
   }
 
-  async function deleteDocumentFile(
+  function requestDeleteDocumentFile(
     row: AttachmentRow,
     file: { id: string; filename: string; url: string | null }
   ) {
-    if (!applicantId || !file.id) return;
-    const confirmed = window.confirm(`Delete “${file.filename || "this file"}”?`);
-    if (!confirmed) return;
-    setSavingDocuments(true);
+    if (!file.id) return;
+    setDeleteError(null);
+    setPendingDelete({ row, file });
+  }
+
+  async function confirmDeleteDocumentFile() {
+    if (!applicantId || !pendingDelete?.file.id) return;
+    const { row, file } = pendingDelete;
+    setDeletingDocument(true);
+    setDeleteError(null);
     setUploadError(null);
     try {
       const response = await fetch("/api/admin/profession-documents", {
@@ -258,11 +271,12 @@ export default function NewApplicantAttachmentsFilledPage() {
       });
       const payload = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Could not delete file");
+      setPendingDelete(null);
       await fetchApplicant(true);
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Could not delete file");
+      setDeleteError(error instanceof Error ? error.message : "Could not delete file");
     } finally {
-      setSavingDocuments(false);
+      setDeletingDocument(false);
     }
   }
 
@@ -837,7 +851,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                   fileNameDrafts={fileNameDrafts}
                   onPatchDateDraft={patchDateDraft}
                   onOpenUpload={openUploadPicker}
-                  onDeleteFile={(row, file) => void deleteDocumentFile(row, file)}
+                  onDeleteFile={requestDeleteDocumentFile}
                   onCommitFileName={(row, file, draftKey) =>
                     void commitFileName(row, file, draftKey)
                   }
@@ -866,6 +880,31 @@ export default function NewApplicantAttachmentsFilledPage() {
                   setAddModalError(null);
                 }}
                 onSubmit={(values) => void handleAddDocument(values)}
+              />
+
+              <BulkDeleteConfirmModal
+                open={pendingDelete != null}
+                busy={deletingDocument}
+                error={deleteError}
+                requireConfirmationText="DELETE"
+                title="Delete document?"
+                description={
+                  pendingDelete ? (
+                    <p>
+                      Are you sure you want to delete{" "}
+                      <span className="font-semibold text-[#101828]">
+                        {pendingDelete.file.filename || pendingDelete.row.title || "this file"}
+                      </span>
+                      ? This action cannot be undone.
+                    </p>
+                  ) : null
+                }
+                onCancel={() => {
+                  if (deletingDocument) return;
+                  setPendingDelete(null);
+                  setDeleteError(null);
+                }}
+                onConfirm={() => void confirmDeleteDocumentFile()}
               />
             </div>
             )}
