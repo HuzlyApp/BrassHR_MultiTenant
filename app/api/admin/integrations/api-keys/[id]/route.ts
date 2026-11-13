@@ -4,6 +4,7 @@ import { writeActivityLog } from "@/lib/audit/activity-log";
 import { revokeTenantApiKey } from "@/lib/integrations/api-keys";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { API_KEY_RESPONSE_HEADERS, rejectCrossOriginKeyMutation } from "@/lib/integrations/management-security";
 
 export const runtime = "nodejs";
 
@@ -14,13 +15,15 @@ type RouteContext = {
 export async function DELETE(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = rejectCrossOriginKeyMutation(req);
+  if (forbidden) return forbidden;
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
 
   const { id } = await context.params;
   const keyId = String(id ?? "").trim();
-  if (!keyId) {
-    return NextResponse.json({ error: "API key id is required" }, { status: 400 });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(keyId)) {
+    return NextResponse.json({ error: "A valid API key id is required" }, { status: 400 });
   }
 
   try {
@@ -52,11 +55,11 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
         keyPrefix: revoked.keyPrefix,
         revokedAt: revoked.revokedAt,
       },
-    });
+    }, { headers: API_KEY_RESPONSE_HEADERS });
   } catch (error) {
     console.error("[admin/integrations/api-keys DELETE]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to revoke API key" },
+      { error: "Failed to revoke API key" },
       { status: 500 }
     );
   }
