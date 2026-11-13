@@ -17,6 +17,7 @@ import CandidateDocumentsFilesTable, {
 import AddDocumentModal, {
   type DocumentFormValues,
 } from "../../../components/AddDocumentModal";
+import { BulkDeleteConfirmModal } from "../../../components/BulkDeleteConfirmModal";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
 import {
   Briefcase,
@@ -143,6 +144,12 @@ export default function NewApplicantAttachmentsFilledPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addModalError, setAddModalError] = useState<string | null>(null);
   const [addingDocument, setAddingDocument] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    row: AttachmentRow;
+    file: { id: string; filename: string; url: string | null };
+  } | null>(null);
+  const [deletingDocument, setDeletingDocument] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchApplicant = useCallback(async (quiet = false) => {
@@ -234,6 +241,42 @@ export default function NewApplicantAttachmentsFilledPage() {
       setUploadError(error instanceof Error ? error.message : "Could not rename file");
     } finally {
       setSavingDocuments(false);
+    }
+  }
+
+  function requestDeleteDocumentFile(
+    row: AttachmentRow,
+    file: { id: string; filename: string; url: string | null }
+  ) {
+    if (!file.id) return;
+    setDeleteError(null);
+    setPendingDelete({ row, file });
+  }
+
+  async function confirmDeleteDocumentFile() {
+    if (!applicantId || !pendingDelete?.file.id) return;
+    const { row, file } = pendingDelete;
+    setDeletingDocument(true);
+    setDeleteError(null);
+    setUploadError(null);
+    try {
+      const response = await fetch("/api/admin/profession-documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId: applicantId,
+          professionUploadId: file.id.startsWith("legacy") ? undefined : file.id,
+          submittedDocumentId: row.submittedDocumentId,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not delete file");
+      setPendingDelete(null);
+      await fetchApplicant(true);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete file");
+    } finally {
+      setDeletingDocument(false);
     }
   }
 
@@ -347,12 +390,8 @@ export default function NewApplicantAttachmentsFilledPage() {
 
   const attachmentRows: AttachmentRow[] = useMemo(() => {
     if (!profile) return [];
-    const fromConfig = (profile.attachment_requirements ?? []).filter((row) => {
-      const kind = row.document_kind;
-      // Resume belongs on the Resume tab; license/certificate on License/Certifications.
-      if (row.step_type === "resume_upload" || row.id === "resume") return false;
-      return kind !== "license" && kind !== "certificate";
-    });
+    // Unified Documents view: Licenses, Certifications, Resume, and Other.
+    const fromConfig = profile.attachment_requirements ?? [];
     return fromConfig.map((row, index) => {
       const settingsDoc = selectedProfession?.documents.find(
         (document) => document.id === row.required_document_id
@@ -429,10 +468,6 @@ export default function NewApplicantAttachmentsFilledPage() {
       setAddModalError("Only an administrator can add documents.");
       return;
     }
-    if (!professionId) {
-      setAddModalError("Select a profession before adding a document.");
-      return;
-    }
     if (!values.file) {
       setAddModalError("Choose a file to upload.");
       return;
@@ -442,6 +477,31 @@ export default function NewApplicantAttachmentsFilledPage() {
     setAddModalError(null);
     setUploadError(null);
     try {
+      // Resume is a worker attachment, not a profession document kind.
+      if (values.documentKind === "resume") {
+        const fd = new FormData();
+        fd.append("file", values.file);
+        fd.append("workerId", applicantId);
+        fd.append("documentTitle", values.name.trim() || "Resume");
+        fd.append("attachmentKind", "resume");
+
+        const uploadRes = await fetch("/api/admin/worker-attachment-upload", {
+          method: "POST",
+          body: fd,
+        });
+        const uploadJson = (await uploadRes.json().catch(() => ({}))) as { error?: string };
+        if (!uploadRes.ok) throw new Error(uploadJson.error || "Upload failed");
+
+        setAddModalOpen(false);
+        await fetchApplicant(true);
+        return;
+      }
+
+      if (!professionId) {
+        setAddModalError("Select a profession before adding a document.");
+        return;
+      }
+
       const currentDocs = selectedProfession?.documents ?? [];
       const response = await fetch("/api/admin/profession-documents", {
         method: "PUT",
@@ -791,6 +851,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                   fileNameDrafts={fileNameDrafts}
                   onPatchDateDraft={patchDateDraft}
                   onOpenUpload={openUploadPicker}
+                  onDeleteFile={requestDeleteDocumentFile}
                   onCommitFileName={(row, file, draftKey) =>
                     void commitFileName(row, file, draftKey)
                   }
@@ -819,6 +880,31 @@ export default function NewApplicantAttachmentsFilledPage() {
                   setAddModalError(null);
                 }}
                 onSubmit={(values) => void handleAddDocument(values)}
+              />
+
+              <BulkDeleteConfirmModal
+                open={pendingDelete != null}
+                busy={deletingDocument}
+                error={deleteError}
+                requireConfirmationText="DELETE"
+                title="Delete document?"
+                description={
+                  pendingDelete ? (
+                    <p>
+                      Are you sure you want to delete{" "}
+                      <span className="font-semibold text-[#101828]">
+                        {pendingDelete.file.filename || pendingDelete.row.title || "this file"}
+                      </span>
+                      ? This action cannot be undone.
+                    </p>
+                  ) : null
+                }
+                onCancel={() => {
+                  if (deletingDocument) return;
+                  setPendingDelete(null);
+                  setDeleteError(null);
+                }}
+                onConfirm={() => void confirmDeleteDocumentFile()}
               />
             </div>
             )}

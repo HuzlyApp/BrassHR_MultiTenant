@@ -18,7 +18,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
-  PROFESSION_DOCUMENT_KINDS,
+  SETTINGS_PROFESSION_DOCUMENT_KINDS,
   professionDocumentKindLabel,
   type ProfessionDocumentKind,
 } from "@/lib/professions/profession-documents";
@@ -341,6 +341,12 @@ function newDocument(): DocumentDraft {
   };
 }
 
+function settingsDocumentKind(
+  kind: DocumentKind
+): (typeof SETTINGS_PROFESSION_DOCUMENT_KINDS)[number] {
+  return kind === "license" ? "license" : "certificate";
+}
+
 function normalizeProfession(row: ProfessionRow): ProfessionRow {
   return {
     ...row,
@@ -348,6 +354,8 @@ function normalizeProfession(row: ProfessionRow): ProfessionRow {
     industryKey: row.industryKey ?? null,
     documents: row.documents.map((doc) => ({
       ...doc,
+      // Settings UI only supports Certificate / License (hide Other / Vaccination).
+      documentKind: settingsDocumentKind(doc.documentKind),
       hasExpiration: doc.hasExpiration === true,
     })),
   };
@@ -1010,13 +1018,17 @@ export default function ProfessionDocumentsPanel() {
                         </label>
                         <SelectField
                           label="Document type"
-                          value={doc.documentKind}
+                          value={settingsDocumentKind(doc.documentKind)}
                           disabled={!canManage}
                           onChange={(event) =>
-                            updateDocument(doc.id, { documentKind: event.target.value as DocumentKind })
+                            updateDocument(doc.id, {
+                              documentKind: settingsDocumentKind(
+                                event.target.value as DocumentKind
+                              ),
+                            })
                           }
                         >
-                          {PROFESSION_DOCUMENT_KINDS.map((kind) => (
+                          {SETTINGS_PROFESSION_DOCUMENT_KINDS.map((kind) => (
                             <option key={kind} value={kind}>
                               {professionDocumentKindLabel(kind)}
                             </option>

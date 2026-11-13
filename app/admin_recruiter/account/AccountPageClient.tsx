@@ -6,7 +6,6 @@ import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { isLimitedStaffConsoleRole } from "@/lib/admin/staff-directory-types";
 import AccountTabNav from "./components/AccountTabNav";
 import PersonalTab from "./components/PersonalTab";
-import BusinessInfoTab from "./components/BusinessInfoTab";
 import SecurityTab from "./components/SecurityTab";
 import AccountSettingsTab from "./components/AccountSettingsTab";
 import { accountTabHref, isRecruiterHiddenAccountTab, type AccountTabSlug } from "./account-tabs";
@@ -19,8 +18,7 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
   const router = useRouter();
   const { profile, loading } = useAccountData();
   const isLimitedStaff = isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
-  const hideTab = isRecruiterHiddenAccountTab(activeTab) && (loading || isLimitedStaff);
-  // Admins keep Profile / Business Info / Account / Security tabs.
+  // Admins keep Profile / Account / Security tabs.
   // Limited staff use the settings sidebar only (Profile + Account).
   const showTabNav = !isLimitedStaff && !loading;
 
@@ -34,7 +32,6 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
       {showTabNav ? <AccountTabNav activeTab={activeTab} /> : null}
 
       {activeTab === "personal" ? <PersonalTab /> : null}
-      {!hideTab && activeTab === "business-info" ? <BusinessInfoTab /> : null}
       {activeTab === "account-settings" ? <AccountSettingsTab /> : null}
       {activeTab === "security" ? <SecurityTab /> : null}
     </div>

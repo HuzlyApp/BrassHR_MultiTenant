@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Download, Plus, Upload } from "lucide-react";
+import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { isPdfFile, pathOrUrlForExtension } from "@/lib/document-upload-helpers";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
-import { professionDocumentKindLabel } from "@/lib/professions/profession-documents";
+import { unifiedDocumentTypeLabel } from "@/lib/professions/profession-documents";
+import { isProfessionDocumentExpired } from "@/lib/onboarding/profession-step-uploads";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
 
 export type DocumentsFileRow = {
@@ -47,19 +49,61 @@ function fileIconType(filename: string, url: string | null): FileIconType {
   return "pdf";
 }
 
-function StatusBadge({ hasFile }: { hasFile: boolean }) {
-  if (!hasFile) {
+type DocumentLifecycleStatus = "Requested" | "Active" | "Expired";
+
+function resolveDocumentLifecycleStatus(
+  hasFile: boolean,
+  expiryDate: string | null | undefined
+): DocumentLifecycleStatus {
+  if (!hasFile) return "Requested";
+  if (isProfessionDocumentExpired(expiryDate)) return "Expired";
+  return "Active";
+}
+
+function StatusBadge({ status }: { status: DocumentLifecycleStatus }) {
+  if (status === "Requested") {
     return (
       <span className="inline-flex items-center rounded-md bg-[#F3F4F6] px-2.5 py-1 text-xs font-semibold text-[#6B7280]">
-        Missing
+        Requested
+      </span>
+    );
+  }
+  if (status === "Expired") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#FEE2E2] px-2.5 py-1 text-xs font-semibold text-[#B91C1C]">
+        Expired
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-md bg-[#DBEAFE] px-2.5 py-1 text-xs font-semibold text-[#1D4ED8]">
-      On file
+    <span className="inline-flex items-center rounded-md bg-[#DCFCE7] px-2.5 py-1 text-xs font-semibold text-[#166534]">
+      Active
     </span>
   );
+}
+
+function DocTypeTag({ label }: { label: string }) {
+  const styles =
+    label === "License"
+      ? "bg-[#DBEAFE] text-[#1D4ED8]"
+      : label === "Certification"
+        ? "bg-[#EDE9FE] text-[#6D28D9]"
+        : label === "Resume"
+          ? "bg-[#E0F2FE] text-[#0369A1]"
+          : "bg-[#F3F4F6] text-[#4B5563]";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold ${styles}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function dash(value: string | null | undefined): string {
+  const text = value?.trim();
+  return text ? text : "—";
 }
 
 type CandidateDocumentsFilesTableProps = {
@@ -74,6 +118,10 @@ type CandidateDocumentsFilesTableProps = {
     patch: Partial<{ issuedDate: string; expiryDate: string }>
   ) => void;
   onOpenUpload: (row: DocumentsFileRow) => void;
+  onDeleteFile?: (
+    row: DocumentsFileRow,
+    file: { id: string; filename: string; url: string | null }
+  ) => void;
   onCommitFileName: (
     row: DocumentsFileRow,
     file: { id: string; filename: string },
@@ -90,16 +138,23 @@ function DocumentRows({
   canManage,
   savingDocuments,
   dateDrafts,
-  fileNameDrafts,
-  onPatchDateDraft,
   onOpenUpload,
-  onCommitFileName,
-  onFileNameDraftChange,
-}: Omit<CandidateDocumentsFilesTableProps, "onTopUploadClick" | "topUploadDisabled">) {
+  onDeleteFile,
+}: Omit<
+  CandidateDocumentsFilesTableProps,
+  | "onTopUploadClick"
+  | "topUploadDisabled"
+  | "fileNameDrafts"
+  | "onCommitFileName"
+  | "onFileNameDraftChange"
+  | "onPatchDateDraft"
+> & {
+  dateDrafts: Record<string, { issuedDate: string; expiryDate: string }>;
+}) {
   if (rows.length === 0) {
     return (
       <tr>
-        <td colSpan={4} className="px-4 py-8 text-center text-sm text-[#6B7280]">
+        <td colSpan={7} className="px-4 py-8 text-center text-sm text-[#6B7280]">
           No documents in this section yet.
         </td>
       </tr>
@@ -121,163 +176,125 @@ function DocumentRows({
                   uploaded_by: row.uploadedBy,
                 },
               ];
-        const needsExpiration = row.hasExpiration;
-        const issuedValue = dateDrafts[row.key]?.issuedDate ?? row.issuedDate ?? "";
         const expiryValue = dateDrafts[row.key]?.expiryDate ?? row.expiryDate ?? "";
-        const primaryUrl = files.find((file) => file.url)?.url ?? row.url;
+        const primaryFile = files.find((file) => file.url) ?? null;
+        const primaryUrl = primaryFile?.url ?? row.url;
+        const displayFilename =
+          primaryFile?.filename ||
+          (row.filename && row.filename !== "—" ? row.filename : null) ||
+          null;
         const uploadedBy =
-          files.find((file) => file.uploaded_by)?.uploaded_by || row.uploadedBy || null;
+          primaryFile?.uploaded_by ||
+          files.find((file) => file.uploaded_by)?.uploaded_by ||
+          row.uploadedBy ||
+          null;
+        const isResume = row.stepType === "resume_upload" || row.id === "resume";
+        const documentType = unifiedDocumentTypeLabel(
+          isResume ? "resume" : row.documentKind
+        );
+        const lifecycleStatus = resolveDocumentLifecycleStatus(
+          Boolean(primaryUrl),
+          expiryValue || row.expiryDate
+        );
+        const canAddAnotherFile =
+          Boolean(primaryUrl) &&
+          !isResume &&
+          (row.files.length < 5 || !row.files.length);
 
         return (
-          <tr key={row.key} className="border-b border-[#F3F4F6] last:border-b-0 align-top">
-            <td className="px-4 py-4">
-              <div className="min-w-[140px]">
-                <p className="text-sm font-semibold text-[#111827]">{row.title}</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                    {row.phase === "post_hire" ? "Post-Hire" : "Pre-Hire"}
-                  </span>
-                  {row.documentKind ? (
-                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                      {professionDocumentKindLabel(row.documentKind)}
-                    </span>
-                  ) : null}
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                      row.isRequired
-                        ? "bg-[#FEF3C7] text-[#92400E]"
-                        : "bg-[#F3F4F6] text-[#4B5563]"
-                    }`}
-                  >
-                    {row.isRequired ? "Required" : "Optional"}
-                  </span>
-                </div>
+          <tr key={row.key} className="border-b border-[#F3F4F6] last:border-b-0">
+            <td className="px-4 py-3.5">
+              <DocTypeTag label={documentType} />
+            </td>
+            <td className="px-4 py-3.5 text-sm font-medium text-[#111827]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span>{row.title}</span>
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    row.isRequired
+                      ? "bg-[#FEF3C7] text-[#92400E]"
+                      : "bg-[#F3F4F6] text-[#4B5563]"
+                  }`}
+                >
+                  {row.isRequired ? "Required" : "Optional"}
+                </span>
               </div>
             </td>
-            <td className="px-4 py-4">
-              <div className="space-y-2">
-                {primaryUrl ? (
-                  files.map((file) => {
-                    const draftKey = `${row.key}:${file.id}`;
-                    const icon = fileIconType(file.filename, file.url);
-                    return (
-                      <div key={file.id} className="flex min-w-0 items-start gap-2.5">
-                        <BrandedFileTypeIcon
-                          type={icon}
-                          className="mt-0.5 h-7 w-7 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          {canManage &&
-                          row.stepType !== "resume_upload" &&
-                          row.id !== "resume" ? (
-                            <input
-                              value={fileNameDrafts[draftKey] ?? file.filename}
-                              disabled={savingDocuments}
-                              onChange={(event) =>
-                                onFileNameDraftChange(draftKey, event.target.value)
-                              }
-                              onBlur={() => void onCommitFileName(row, file, draftKey)}
-                              aria-label={`File name for ${file.filename}`}
-                              className="h-7 w-full min-w-0 max-w-[240px] rounded border border-[#CBD5E1] bg-white px-2 text-sm font-semibold text-[color:var(--brand-primary)]"
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={!file.url}
-                              onClick={() =>
-                                file.url &&
-                                window.open(file.url, "_blank", "noopener,noreferrer")
-                              }
-                              className="block max-w-[260px] truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:cursor-default disabled:no-underline"
-                            >
-                              {file.filename || "Uploaded file"}
-                            </button>
-                          )}
-                          <p className="mt-0.5 text-xs text-[#6B7280]">
-                            Uploaded by{" "}
-                            <span className="font-medium text-[#374151]">
-                              {file.uploaded_by || uploadedBy || "—"}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-[#9CA3AF]">No file uploaded</span>
-                    <button
-                      type="button"
-                      disabled={uploadingKey === row.key}
-                      onClick={() => onOpenUpload(row)}
-                      className="text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-50"
-                    >
-                      {uploadingKey === row.key ? "Uploading…" : "Upload"}
-                    </button>
-                  </div>
-                )}
-
-                {needsExpiration ? (
-                  <div className="grid max-w-[420px] gap-2 pt-1 sm:grid-cols-2">
-                    <label className="block space-y-1">
-                      <span className="text-[11px] font-medium text-[#64748B]">Issue date</span>
-                      <input
-                        type="date"
-                        value={issuedValue}
-                        disabled={savingDocuments || uploadingKey === row.key}
-                        onChange={(event) =>
-                          onPatchDateDraft(row.key, { issuedDate: event.target.value })
-                        }
-                        className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] disabled:bg-[#F8FAFC]"
-                      />
-                    </label>
-                    <label className="block space-y-1">
-                      <span className="text-[11px] font-medium text-[#64748B]">Expiry date</span>
-                      <input
-                        type="date"
-                        value={expiryValue}
-                        disabled={savingDocuments || uploadingKey === row.key}
-                        onChange={(event) =>
-                          onPatchDateDraft(row.key, { expiryDate: event.target.value })
-                        }
-                        className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] disabled:bg-[#F8FAFC]"
-                      />
-                    </label>
-                  </div>
-                ) : null}
-
-                {primaryUrl &&
-                (row.files.length < 5 || !row.files.length) &&
-                row.stepType !== "resume_upload" &&
-                row.id !== "resume" ? (
+            <td className="px-4 py-3.5">
+              {primaryUrl && displayFilename ? (
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <BrandedFileTypeIcon
+                    type={fileIconType(displayFilename, primaryUrl)}
+                    className="h-7 w-7 shrink-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(primaryUrl, "_blank", "noopener,noreferrer")
+                    }
+                    className="max-w-[240px] truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
+                  >
+                    {displayFilename}
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm text-[#9CA3AF]">No file uploaded</span>
+              )}
+            </td>
+            <td className="px-4 py-3.5 text-sm text-[#374151]">
+              {primaryUrl ? dash(uploadedBy) : "—"}
+            </td>
+            <td className="px-4 py-3.5">
+              <StatusBadge status={lifecycleStatus} />
+            </td>
+            <td className="px-4 py-3.5 text-sm">
+              {primaryUrl ? (
+                <a
+                  href={primaryUrl}
+                  download={displayFilename || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden />
+                  Download
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled={uploadingKey === row.key}
+                  onClick={() => onOpenUpload(row)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  {uploadingKey === row.key ? "Uploading…" : "Upload"}
+                </button>
+              )}
+            </td>
+            <td className="px-4 py-3.5">
+              <div className="flex items-center justify-end gap-1.5">
+                {canAddAnotherFile ? (
                   <button
                     type="button"
                     disabled={uploadingKey === row.key}
                     onClick={() => onOpenUpload(row)}
-                    className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-50"
+                    className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:opacity-50"
                   >
                     {uploadingKey === row.key ? "Uploading…" : "+ Add file"}
                   </button>
                 ) : null}
+                {canManage && primaryUrl && onDeleteFile && primaryFile?.url ? (
+                  <button
+                    type="button"
+                    disabled={savingDocuments || uploadingKey === row.key}
+                    onClick={() => onDeleteFile(row, primaryFile)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B] disabled:opacity-40"
+                    aria-label={`Delete ${displayFilename || row.title}`}
+                  >
+                    <BrandedDeleteIcon className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
-            </td>
-            <td className="px-4 py-4">
-              <StatusBadge hasFile={Boolean(primaryUrl)} />
-            </td>
-            <td className="px-4 py-4 text-right">
-              {primaryUrl ? (
-                <a
-                  href={primaryUrl}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
-                >
-                  Download
-                </a>
-              ) : (
-                <span className="text-sm font-medium text-[#CBD5E1]">Download</span>
-              )}
             </td>
           </tr>
         );
@@ -292,11 +309,8 @@ export default function CandidateDocumentsFilesTable({
   canManage,
   savingDocuments,
   dateDrafts,
-  fileNameDrafts,
-  onPatchDateDraft,
   onOpenUpload,
-  onCommitFileName,
-  onFileNameDraftChange,
+  onDeleteFile,
   onTopUploadClick,
   topUploadDisabled,
 }: CandidateDocumentsFilesTableProps) {
@@ -314,17 +328,14 @@ export default function CandidateDocumentsFilesTable({
     canManage,
     savingDocuments,
     dateDrafts,
-    fileNameDrafts,
-    onPatchDateDraft,
     onOpenUpload,
-    onCommitFileName,
-    onFileNameDraftChange,
+    onDeleteFile,
   };
 
   return (
     <div className="w-full space-y-8">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold leading-7 text-[#111827]">Files</h3>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold text-[#111827]">Documents</h3>
         <button
           type="button"
           disabled={topUploadDisabled}
@@ -343,25 +354,32 @@ export default function CandidateDocumentsFilesTable({
         ] as const
       ).map((section) => (
         <section key={section.title} className="space-y-3">
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-[#64748B]">
-            {section.title}
-          </h4>
+          <h4 className="text-sm font-semibold text-[#111827]">{section.title}</h4>
           <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Type
+                      Doc type
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      File
+                      Doc name
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      File name
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      Uploaded by
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Actions
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      Upload / Download
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>

@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin/staff-detail-fetch-cache";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
+import { isProfessionDocumentExpired } from "@/lib/onboarding/profession-step-uploads";
 
 type AttachmentRequirement = {
   id: string;
@@ -23,6 +24,7 @@ type AttachmentRequirement = {
   url: string | null;
   filename: string;
   required_document_id?: string | null;
+  submitted_document_id?: string | null;
   status?: string | null;
   document_kind?: ProfessionDocumentKind | null;
   has_expiration?: boolean;
@@ -59,10 +61,13 @@ type SettingsDocument = {
   documentKind: ProfessionDocumentKind;
   isRequired: boolean;
   hasExpiration: boolean;
+  createdBy?: string | null;
 };
 
 type SettingsCatalog = {
   canManage: boolean;
+  canEditCandidateCredentials?: boolean;
+  currentUserId?: string | null;
   workerProfessionId: string | null;
   savedProfessionId: string | null;
   professions: Array<{
@@ -77,6 +82,7 @@ type DisplayRow = {
   kind: LicenseCertKind;
   title: string;
   requiredDocumentId: string | null;
+  createdBy: string | null;
   isRequired: boolean;
   issuedDate: string | null;
   expiryDate: string | null;
@@ -87,6 +93,8 @@ type DisplayRow = {
   documentUrl: string | null;
   filename: string | null;
   uploadedBy: string | null;
+  professionUploadId: string | null;
+  submittedDocumentId: string | null;
 };
 
 type LocalMeta = {
@@ -117,6 +125,39 @@ function dash(value: string | null | undefined): string {
   return text ? text : "—";
 }
 
+type CredentialValidityStatus = "Active" | "Expired" | "Not uploaded";
+
+function resolveCredentialValidity(
+  documentUrl: string | null | undefined,
+  expiryDate: string | null | undefined
+): CredentialValidityStatus {
+  if (!documentUrl?.trim()) return "Not uploaded";
+  if (isProfessionDocumentExpired(expiryDate)) return "Expired";
+  return "Active";
+}
+
+function ValidityStatusBadge({ status }: { status: CredentialValidityStatus }) {
+  if (status === "Not uploaded") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#F3F4F6] px-2.5 py-1 text-xs font-semibold text-[#6B7280]">
+        Not uploaded
+      </span>
+    );
+  }
+  if (status === "Expired") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#FEE2E2] px-2.5 py-1 text-xs font-semibold text-[#B91C1C]">
+        Expired
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-md bg-[#DCFCE7] px-2.5 py-1 text-xs font-semibold text-[#166534]">
+      Active
+    </span>
+  );
+}
+
 function nameKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
 }
@@ -136,12 +177,18 @@ export default function CandidateLicenseCertificationsPanel({
   const [selectedProfessionId, setSelectedProfessionId] = useState("");
   const [modalKind, setModalKind] = useState<LicenseCertKind | null>(null);
   const [editing, setEditing] = useState<DisplayRow | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<DisplayRow | null>(null);
+  const [pendingDeleteField, setPendingDeleteField] = useState<DisplayRow | null>(null);
+  const [pendingDeleteFile, setPendingDeleteFile] = useState<DisplayRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [localMetaByName, setLocalMetaByName] = useState<Record<string, LocalMeta>>({});
+
+  const isAdmin = Boolean(settings?.canManage);
+  const currentUserId = settings?.currentUserId?.trim() || "";
+  const canEditCredentials =
+    settings?.canEditCandidateCredentials !== false && Boolean(settings);
 
   const fetchSnapshot = useCallback(async () => {
     invalidateStaffDetailCache(workerId);
@@ -342,11 +389,13 @@ export default function CandidateLicenseCertificationsPanel({
           requirement?.uploaded_by ||
           local?.uploadedBy ||
           null;
+        const primaryFile = requirement?.files?.find((file) => file.url) ?? null;
         return {
           key: document.id || `settings-${key}`,
           kind: document.documentKind === "license" ? "license" : "certificate",
           title: document.name,
           requiredDocumentId: document.id || null,
+          createdBy: document.createdBy ?? null,
           isRequired: document.isRequired,
           issuedDate:
             local?.issuedDate ?? requirement?.issued_date ?? credential?.issued_date ?? null,
@@ -367,6 +416,8 @@ export default function CandidateLicenseCertificationsPanel({
           documentUrl: fileUrl,
           filename,
           uploadedBy: fileUrl ? uploadedBy : null,
+          professionUploadId: primaryFile?.id ?? null,
+          submittedDocumentId: requirement?.submitted_document_id ?? null,
         } satisfies DisplayRow;
       });
 
@@ -399,12 +450,14 @@ export default function CandidateLicenseCertificationsPanel({
           row.uploaded_by ||
           local?.uploadedBy ||
           null;
+        const primaryFile = row.files?.find((file) => file.url) ?? null;
         knownNames.add(key);
         return {
           key: row.id,
           kind: row.document_kind === "license" ? "license" : "certificate",
           title: row.title,
           requiredDocumentId: row.required_document_id ?? null,
+          createdBy: null,
           isRequired: true,
           issuedDate: local?.issuedDate ?? row.issued_date ?? credential?.issued_date ?? null,
           expiryDate: local?.expiryDate ?? row.expiry_date ?? credential?.expiry_date ?? null,
@@ -422,6 +475,8 @@ export default function CandidateLicenseCertificationsPanel({
           documentUrl: fileUrl,
           filename,
           uploadedBy: fileUrl ? uploadedBy : null,
+          professionUploadId: primaryFile?.id ?? null,
+          submittedDocumentId: row.submitted_document_id ?? null,
         } satisfies DisplayRow;
       });
 
@@ -437,6 +492,7 @@ export default function CandidateLicenseCertificationsPanel({
           kind: looksLikeLicense ? "license" : "certificate",
           title: row.license_name,
           requiredDocumentId: row.required_document_id,
+          createdBy: null,
           isRequired: true,
           issuedDate: local?.issuedDate ?? row.issued_date,
           expiryDate: local?.expiryDate ?? row.expiry_date,
@@ -448,6 +504,8 @@ export default function CandidateLicenseCertificationsPanel({
           documentUrl,
           filename: local?.filename || row.original_file_name || null,
           uploadedBy: documentUrl ? local?.uploadedBy ?? null : null,
+          professionUploadId: null,
+          submittedDocumentId: null,
         } satisfies DisplayRow;
       });
 
@@ -456,6 +514,20 @@ export default function CandidateLicenseCertificationsPanel({
 
   const licenseRows = rows.filter((row) => row.kind === "license");
   const certificateRows = rows.filter((row) => row.kind === "certificate");
+
+  function canDeleteField(row: DisplayRow): boolean {
+    if (!row.requiredDocumentId) return false;
+    if (isAdmin) return true;
+    return Boolean(currentUserId && row.createdBy && row.createdBy === currentUserId);
+  }
+
+  function canDeleteFile(row: DisplayRow): boolean {
+    return Boolean(
+      canEditCredentials &&
+        row.documentUrl &&
+        (row.professionUploadId || row.submittedDocumentId)
+    );
+  }
 
   async function saveProfessionDocuments(nextDocuments: SettingsDocument[]) {
     if (!professionId) {
@@ -544,8 +616,37 @@ export default function CandidateLicenseCertificationsPanel({
 
   async function handleSubmit(values: LicenseCertFormValues) {
     if (!modalKind) return;
-    if (!settings?.canManage) {
-      setModalError("Only an administrator can add or edit these documents.");
+    if (!canEditCredentials) {
+      setModalError("You do not have permission to add or edit these documents.");
+      return;
+    }
+    if (editing && !canDeleteField(editing) && !isAdmin) {
+      // Recruiter may still upload/replace a file on an admin field without editing the field.
+      if (!values.file && editing.requiredDocumentId) {
+        setModalError("You can upload a file for this field, but only an administrator can edit it.");
+        return;
+      }
+      if (editing.requiredDocumentId && values.file) {
+        setSaving(true);
+        setModalError(null);
+        try {
+          await uploadForDocument(editing.requiredDocumentId, editing.title, {
+            ...values,
+            name: editing.title,
+            isRequired: editing.isRequired,
+            hasExpiration: editing.hasExpiration,
+          });
+          setModalKind(null);
+          setEditing(null);
+          await reloadAfterMutation(editing.title);
+        } catch (err) {
+          setModalError(err instanceof Error ? err.message : "Could not save.");
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+      setModalError("You can only edit license or certification fields that you added.");
       return;
     }
     if (!professionId) {
@@ -667,9 +768,9 @@ export default function CandidateLicenseCertificationsPanel({
     }
   }
 
-  function requestDelete(row: DisplayRow) {
-    if (!settings?.canManage) {
-      setError("Only an administrator can delete these documents.");
+  function requestDeleteField(row: DisplayRow) {
+    if (!canDeleteField(row)) {
+      setError("You can only delete license or certification fields that you added.");
       return;
     }
     if (!row.requiredDocumentId || !selectedProfession) {
@@ -677,12 +778,23 @@ export default function CandidateLicenseCertificationsPanel({
       return;
     }
     setDeleteError(null);
-    setPendingDelete(row);
+    setPendingDeleteFile(null);
+    setPendingDeleteField(row);
   }
 
-  async function confirmDelete() {
-    if (!pendingDelete || !selectedProfession) return;
-    if (!pendingDelete.requiredDocumentId) {
+  function requestDeleteFile(row: DisplayRow) {
+    if (!canDeleteFile(row)) {
+      setError("No uploaded file is available to delete.");
+      return;
+    }
+    setDeleteError(null);
+    setPendingDeleteField(null);
+    setPendingDeleteFile(row);
+  }
+
+  async function confirmDeleteField() {
+    if (!pendingDeleteField || !selectedProfession) return;
+    if (!pendingDeleteField.requiredDocumentId) {
       setDeleteError("This item cannot be deleted from profession settings.");
       return;
     }
@@ -692,16 +804,16 @@ export default function CandidateLicenseCertificationsPanel({
     try {
       const remaining = await saveProfessionDocuments(
         selectedProfession.documents.filter(
-          (document) => document.id !== pendingDelete.requiredDocumentId
+          (document) => document.id !== pendingDeleteField.requiredDocumentId
         )
       );
       patchSettingsDocuments(remaining);
       setLocalMetaByName((current) => {
         const next = { ...current };
-        delete next[nameKey(pendingDelete.title)];
+        delete next[nameKey(pendingDeleteField.title)];
         return next;
       });
-      setPendingDelete(null);
+      setPendingDeleteField(null);
       await reloadAfterMutation();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Could not delete.");
@@ -710,13 +822,58 @@ export default function CandidateLicenseCertificationsPanel({
     }
   }
 
+  async function confirmDeleteFile() {
+    if (!pendingDeleteFile) return;
+    setDeleting(true);
+    setDeleteError(null);
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/profession-documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId,
+          professionUploadId: pendingDeleteFile.professionUploadId,
+          submittedDocumentId: pendingDeleteFile.submittedDocumentId,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not delete file");
+      setLocalMetaByName((current) => {
+        const next = { ...current };
+        const key = nameKey(pendingDeleteFile.title);
+        next[key] = {
+          ...(next[key] ?? {}),
+          documentUrl: null,
+          filename: null,
+          uploadedBy: null,
+        };
+        return next;
+      });
+      setPendingDeleteFile(null);
+      await reloadAfterMutation();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete file.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function openAdd(kind: LicenseCertKind) {
+    if (!canEditCredentials) {
+      setError("You do not have permission to add licenses or certifications.");
+      return;
+    }
     setEditing(null);
     setModalError(null);
     setModalKind(kind);
   }
 
   function openEdit(row: DisplayRow) {
+    if (!canEditCredentials) {
+      setError("You do not have permission to edit these documents.");
+      return;
+    }
     setEditing(row);
     setModalError(null);
     setModalKind(row.kind);
@@ -784,8 +941,12 @@ export default function CandidateLicenseCertificationsPanel({
         rows={licenseRows}
         onAdd={() => openAdd("license")}
         onEdit={openEdit}
-        onDelete={requestDelete}
-        canManage={Boolean(settings?.canManage)}
+        onDeleteField={requestDeleteField}
+        onDeleteFile={requestDeleteFile}
+        canAdd={canEditCredentials}
+        canEditRow={(row) => canEditCredentials && (isAdmin || canDeleteField(row) || Boolean(row.documentUrl))}
+        canDeleteField={canDeleteField}
+        canDeleteFile={canDeleteFile}
       />
 
       <CredentialSection
@@ -795,8 +956,12 @@ export default function CandidateLicenseCertificationsPanel({
         rows={certificateRows}
         onAdd={() => openAdd("certificate")}
         onEdit={openEdit}
-        onDelete={requestDelete}
-        canManage={Boolean(settings?.canManage)}
+        onDeleteField={requestDeleteField}
+        onDeleteFile={requestDeleteFile}
+        canAdd={canEditCredentials}
+        canEditRow={(row) => canEditCredentials && (isAdmin || canDeleteField(row) || Boolean(row.documentUrl))}
+        canDeleteField={canDeleteField}
+        canDeleteFile={canDeleteFile}
       />
 
       <AddLicenseCertModal
@@ -841,29 +1006,55 @@ export default function CandidateLicenseCertificationsPanel({
       />
 
       <BulkDeleteConfirmModal
-        open={pendingDelete != null}
+        open={pendingDeleteField != null}
         busy={deleting}
         error={deleteError}
+        requireConfirmationText="DELETE"
         title={
-          pendingDelete?.kind === "certificate"
-            ? "Delete certification?"
-            : "Delete license?"
+          pendingDeleteField?.kind === "certificate"
+            ? "Delete certification field?"
+            : "Delete license field?"
         }
         description={
-          pendingDelete ? (
+          pendingDeleteField ? (
             <p>
-              Are you sure you want to delete{" "}
-              <span className="font-semibold text-[#101828]">{pendingDelete.title}</span>? This
-              action cannot be undone.
+              Are you sure you want to delete the{" "}
+              <span className="font-semibold text-[#101828]">{pendingDeleteField.title}</span>{" "}
+              field? This removes it from the profession list and cannot be undone.
             </p>
           ) : null
         }
         onCancel={() => {
           if (deleting) return;
-          setPendingDelete(null);
+          setPendingDeleteField(null);
           setDeleteError(null);
         }}
-        onConfirm={() => void confirmDelete()}
+        onConfirm={() => void confirmDeleteField()}
+      />
+
+      <BulkDeleteConfirmModal
+        open={pendingDeleteFile != null}
+        busy={deleting}
+        error={deleteError}
+        requireConfirmationText="DELETE"
+        title="Delete uploaded document?"
+        description={
+          pendingDeleteFile ? (
+            <p>
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-[#101828]">
+                {pendingDeleteFile.filename || pendingDeleteFile.title}
+              </span>
+              ? The field stays; only the uploaded file is removed.
+            </p>
+          ) : null
+        }
+        onCancel={() => {
+          if (deleting) return;
+          setPendingDeleteFile(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDeleteFile()}
       />
     </div>
   );
@@ -876,8 +1067,12 @@ function CredentialSection({
   rows,
   onAdd,
   onEdit,
-  onDelete,
-  canManage,
+  onDeleteField,
+  onDeleteFile,
+  canAdd,
+  canEditRow,
+  canDeleteField,
+  canDeleteFile,
 }: {
   title: string;
   addLabel: string;
@@ -885,8 +1080,12 @@ function CredentialSection({
   rows: DisplayRow[];
   onAdd: () => void;
   onEdit: (row: DisplayRow) => void;
-  onDelete: (row: DisplayRow) => void;
-  canManage: boolean;
+  onDeleteField: (row: DisplayRow) => void;
+  onDeleteFile: (row: DisplayRow) => void;
+  canAdd: boolean;
+  canEditRow: (row: DisplayRow) => boolean;
+  canDeleteField: (row: DisplayRow) => boolean;
+  canDeleteFile: (row: DisplayRow) => boolean;
 }) {
   return (
     <section>
@@ -895,7 +1094,7 @@ function CredentialSection({
         <button
           type="button"
           onClick={onAdd}
-          disabled={!canManage}
+          disabled={!canAdd}
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden />
@@ -920,7 +1119,7 @@ function CredentialSection({
                       Scope
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Validity
+                      Validity period
                     </th>
                   </>
                 ) : null}
@@ -929,6 +1128,9 @@ function CredentialSection({
                 </th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                   Expiry date
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Validity
                 </th>
                 {columns === "license" ? (
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
@@ -950,7 +1152,7 @@ function CredentialSection({
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns === "certificate" ? 9 : 7}
+                    colSpan={columns === "certificate" ? 10 : 8}
                     className="px-4 py-8 text-center text-sm text-[#6B7280]"
                   >
                     No {title.toLowerCase()} yet.
@@ -992,6 +1194,11 @@ function CredentialSection({
                         ? formatDisplayDate(row.expiryDate)
                         : "—"}
                     </td>
+                    <td className="px-4 py-3.5">
+                      <ValidityStatusBadge
+                        status={resolveCredentialValidity(row.documentUrl, row.expiryDate)}
+                      />
+                    </td>
                     {columns === "license" ? (
                       <td className="px-4 py-3.5 text-sm text-[#374151]">{dash(row.scope)}</td>
                     ) : null}
@@ -1016,18 +1223,29 @@ function CredentialSection({
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-2">
+                        {canDeleteFile(row) ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteFile(row)}
+                            className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[#B91C1C] transition hover:bg-[#FEF2F2]"
+                            aria-label={`Delete uploaded file for ${row.title}`}
+                          >
+                            Remove file
+                          </button>
+                        ) : null}
+                        {canDeleteField(row) ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteField(row)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
+                            aria-label={`Delete ${row.title} field`}
+                          >
+                            <BrandedDeleteIcon className="h-4 w-4" />
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          disabled={!canManage}
-                          onClick={() => onDelete(row)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B] disabled:opacity-40"
-                          aria-label={`Delete ${row.title}`}
-                        >
-                          <BrandedDeleteIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!canManage}
+                          disabled={!canEditRow(row)}
                           onClick={() => onEdit(row)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] disabled:opacity-40"
                           aria-label={`Edit ${row.title}`}

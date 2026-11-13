@@ -4,12 +4,25 @@ import type { TenantOnboardingConfig, TenantRequiredDocument } from "@/lib/onboa
 export const PROFESSION_DOCUMENT_KINDS = ["certificate", "license", "vaccination", "other"] as const;
 export type ProfessionDocumentKind = (typeof PROFESSION_DOCUMENT_KINDS)[number];
 
+/** Profession settings detail dropdown: Certificate and License only. */
+export const SETTINGS_PROFESSION_DOCUMENT_KINDS = ["certificate", "license"] as const satisfies readonly ProfessionDocumentKind[];
+
 const PROFESSION_DOCUMENT_KIND_LABELS: Record<ProfessionDocumentKind, string> = {
   certificate: "Certificate",
   license: "License",
   vaccination: "Vaccination",
   other: "Other",
 };
+
+/** Unified Documents table type tags (License / Certification / Resume / Other). */
+export function unifiedDocumentTypeLabel(
+  kind: ProfessionDocumentKind | "resume" | null | undefined
+): string {
+  if (kind === "resume") return "Resume";
+  if (kind === "license") return "License";
+  if (kind === "certificate") return "Certification";
+  return "Other";
+}
 
 export function isProfessionDocumentKind(value: unknown): value is ProfessionDocumentKind {
   return (PROFESSION_DOCUMENT_KINDS as readonly string[]).includes(String(value ?? ""));
@@ -22,6 +35,8 @@ export type ProfessionUploadDocument = {
   isRequired: boolean;
   hasExpiration: boolean;
   sortOrder: number;
+  /** Auth user who created the field; null/undefined means legacy / admin-owned. */
+  createdBy?: string | null;
 };
 
 export type ProfessionUploadDraft = {
@@ -124,6 +139,7 @@ type ProfessionDocumentRow = {
   is_required: boolean;
   has_expiration?: boolean | null;
   sort_order: number;
+  created_by?: string | null;
 };
 
 function mapRow(row: ProfessionDocumentRow): ProfessionUploadDocument {
@@ -134,23 +150,53 @@ function mapRow(row: ProfessionDocumentRow): ProfessionUploadDocument {
     isRequired: row.is_required !== false,
     hasExpiration: row.has_expiration === true,
     sortOrder: row.sort_order,
+    createdBy: row.created_by ? String(row.created_by) : null,
   };
 }
 
 const PROFESSION_DOCUMENT_SELECT =
+  "id, profession_id, name, document_kind, is_required, has_expiration, sort_order, created_by";
+
+const PROFESSION_DOCUMENT_SELECT_LEGACY =
   "id, profession_id, name, document_kind, is_required, has_expiration, sort_order";
 
+async function selectProfessionDocumentRows(
+  query: PromiseLike<{ data: unknown; error: { message?: string } | null }>
+) {
+  const result = await query;
+  if (
+    result.error &&
+    /created_by/i.test(String(result.error.message ?? ""))
+  ) {
+    return null;
+  }
+  if (result.error) throw result.error;
+  return (result.data ?? []) as ProfessionDocumentRow[];
+}
+
 export async function listProfessionDocuments(supabase: Db, tenantId: string) {
-  const { data, error } = await supabase
-    .from("tenant_profession_documents")
-    .select(PROFESSION_DOCUMENT_SELECT)
-    .eq("tenant_id", tenantId)
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-  if (error) throw error;
+  let rows = await selectProfessionDocumentRows(
+    supabase
+      .from("tenant_profession_documents")
+      .select(PROFESSION_DOCUMENT_SELECT)
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+  );
+  if (!rows) {
+    rows = await selectProfessionDocumentRows(
+      supabase
+        .from("tenant_profession_documents")
+        .select(PROFESSION_DOCUMENT_SELECT_LEGACY)
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+    );
+    if (!rows) throw new Error("Could not load profession documents.");
+  }
 
   const byProfession = new Map<string, ProfessionUploadDocument[]>();
-  for (const row of (data ?? []) as ProfessionDocumentRow[]) {
+  for (const row of rows) {
     const list = byProfession.get(row.profession_id) ?? [];
     list.push(mapRow(row));
     byProfession.set(row.profession_id, list);
@@ -163,15 +209,28 @@ export async function listActiveProfessionDocuments(
   tenantId: string,
   professionId: string
 ): Promise<ProfessionUploadDocument[]> {
-  const { data, error } = await supabase
-    .from("tenant_profession_documents")
-    .select(PROFESSION_DOCUMENT_SELECT)
-    .eq("tenant_id", tenantId)
-    .eq("profession_id", professionId)
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as ProfessionDocumentRow[]).map(mapRow);
+  let rows = await selectProfessionDocumentRows(
+    supabase
+      .from("tenant_profession_documents")
+      .select(PROFESSION_DOCUMENT_SELECT)
+      .eq("tenant_id", tenantId)
+      .eq("profession_id", professionId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+  );
+  if (!rows) {
+    rows = await selectProfessionDocumentRows(
+      supabase
+        .from("tenant_profession_documents")
+        .select(PROFESSION_DOCUMENT_SELECT_LEGACY)
+        .eq("tenant_id", tenantId)
+        .eq("profession_id", professionId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+    );
+    if (!rows) throw new Error("Could not load profession documents.");
+  }
+  return rows.map(mapRow);
 }
 
 export async function readFlowProfessionId(
@@ -190,12 +249,21 @@ export async function readFlowProfessionId(
   return professionId || null;
 }
 
+export type SaveProfessionDocumentsOptions = {
+  actorUserId?: string | null;
+  actorIsAdmin?: boolean;
+};
+
 export async function saveProfessionDocuments(
   supabase: Db,
   tenantId: string,
   professionId: string,
-  drafts: ProfessionUploadDraft[]
+  drafts: ProfessionUploadDraft[],
+  options: SaveProfessionDocumentsOptions = {}
 ): Promise<ProfessionUploadDocument[]> {
+  const actorUserId = options.actorUserId?.trim() || null;
+  const actorIsAdmin = options.actorIsAdmin === true;
+
   const { data: profession, error: professionError } = await supabase
     .from("tenant_professions")
     .select("id")
@@ -206,18 +274,48 @@ export async function saveProfessionDocuments(
   if (professionError) throw professionError;
   if (!profession) throw new Error("Profession was not found for this organization.");
 
-  const { data: existing, error: existingError } = await supabase
-    .from("tenant_profession_documents")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("profession_id", professionId)
-    .eq("is_active", true);
-  if (existingError) throw existingError;
+  let supportsCreatedBy = true;
+  let existingRows: Array<{ id: string; created_by?: string | null }> = [];
+  {
+    const withCreatedBy = await supabase
+      .from("tenant_profession_documents")
+      .select("id, created_by")
+      .eq("tenant_id", tenantId)
+      .eq("profession_id", professionId)
+      .eq("is_active", true);
+    if (withCreatedBy.error && /created_by/i.test(withCreatedBy.error.message)) {
+      supportsCreatedBy = false;
+      const legacy = await supabase
+        .from("tenant_profession_documents")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("profession_id", professionId)
+        .eq("is_active", true);
+      if (legacy.error) throw legacy.error;
+      existingRows = (legacy.data ?? []).map((row) => ({ id: String(row.id) }));
+    } else if (withCreatedBy.error) {
+      throw withCreatedBy.error;
+    } else {
+      existingRows = (withCreatedBy.data ?? []).map((row) => ({
+        id: String(row.id),
+        created_by: row.created_by ? String(row.created_by) : null,
+      }));
+    }
+  }
+
+  const existingById = new Map(
+    existingRows.map((row) => [row.id, row.created_by ?? null] as const)
+  );
 
   const kept = new Set(drafts.map((doc) => doc.id).filter((id): id is string => Boolean(id)));
-  const removed = (existing ?? [])
-    .map((row) => String(row.id))
-    .filter((id) => !kept.has(id));
+  const removed = [...existingById.keys()].filter((id) => !kept.has(id));
+
+  if (!actorIsAdmin && removed.length) {
+    const forbidden = removed.some((id) => existingById.get(id) !== actorUserId);
+    if (forbidden || !actorUserId) {
+      throw new Error("You can only delete license or certification fields that you added.");
+    }
+  }
 
   if (removed.length) {
     const { error } = await supabase
@@ -238,6 +336,11 @@ export async function saveProfessionDocuments(
       is_active: true,
     };
     if (draft.id) {
+      const ownerId = existingById.get(draft.id) ?? null;
+      if (!actorIsAdmin && ownerId !== actorUserId) {
+        // Non-admins may keep admin/other fields in the payload, but not edit them.
+        continue;
+      }
       const { error } = await supabase
         .from("tenant_profession_documents")
         .update(row)
@@ -246,11 +349,13 @@ export async function saveProfessionDocuments(
         .eq("profession_id", professionId);
       if (error) throw error;
     } else {
-      const { error } = await supabase.from("tenant_profession_documents").insert({
+      const insertPayload = {
         ...row,
         tenant_id: tenantId,
         profession_id: professionId,
-      });
+        ...(supportsCreatedBy && actorUserId ? { created_by: actorUserId } : {}),
+      };
+      const { error } = await supabase.from("tenant_profession_documents").insert(insertPayload);
       if (error) throw error;
     }
   }
@@ -389,4 +494,48 @@ export async function renameWorkerDocumentFile(
   }
 
   throw new Error("Choose a document file to rename.");
+}
+
+/** Delete one uploaded file (not the document type catalog row). */
+export async function deleteWorkerDocumentFile(
+  supabase: Db,
+  tenantId: string,
+  workerId: string,
+  input: {
+    professionUploadId?: string | null;
+    submittedDocumentId?: string | null;
+  }
+) {
+  const worker = workerId.trim();
+  if (!worker) throw new Error("Worker is required.");
+
+  if (input.professionUploadId) {
+    const { data, error } = await supabase
+      .from("worker_profession_document_uploads")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("worker_id", worker)
+      .eq("id", input.professionUploadId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.id) return;
+    if (!input.submittedDocumentId) throw new Error("Uploaded file was not found.");
+  }
+
+  if (input.submittedDocumentId) {
+    const { data, error } = await supabase
+      .from("worker_submitted_documents")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("worker_id", worker)
+      .eq("id", input.submittedDocumentId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("Uploaded file was not found.");
+    return;
+  }
+
+  throw new Error("Choose a document file to delete.");
 }

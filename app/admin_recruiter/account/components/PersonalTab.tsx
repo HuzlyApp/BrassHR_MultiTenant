@@ -83,10 +83,6 @@ export default function PersonalTab() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
-  const [companyEin, setCompanyEin] = useState("");
-  const [companyPhone, setCompanyPhone] = useState("");
-  const [companyEmail, setCompanyEmail] = useState("");
-  const [companyWebsite, setCompanyWebsite] = useState("");
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [stateRows, setStateRows] = useState<StateOption[]>([]);
   const [stateOptions, setStateOptions] = useState<string[]>([]);
@@ -135,10 +131,6 @@ export default function PersonalTab() {
     setCity(resolvedFields.city);
     setState(resolvedFields.state);
     setZipCode(resolvedFields.zipCode);
-    setCompanyEin(resolvedFields.companyEin);
-    setCompanyPhone(resolvedFields.companyPhone);
-    setCompanyEmail(resolvedFields.companyEmail);
-    setCompanyWebsite(resolvedFields.companyWebsite);
   }, [profile, user, organization, resolvedFields]);
 
   useEffect(() => {
@@ -282,13 +274,13 @@ export default function PersonalTab() {
   const roleLabel = accountRoleLabel(profile);
   const isAdminConsole = !isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
 
-  function handleCompanyStateChange(value: string) {
+  function handleUserStateChange(value: string) {
     setState(value);
     setCity("");
     if (zipError) setZipError(null);
   }
 
-  function handleSelectCompanyAddressSuggestion(suggestion: AddressSuggestion) {
+  function handleSelectUserAddressSuggestion(suggestion: AddressSuggestion) {
     const components = addressAutocomplete.selectSuggestion(suggestion);
     const stateName = components.state
       ? getStateNameFromCode(components.state) ?? components.state
@@ -462,50 +454,6 @@ export default function PersonalTab() {
         setEmailChangeNotice(
           "A confirmation email may be sent to verify your new address before it takes effect."
         );
-      }
-
-      // Admins can update company contact from Profile; Business Info tab keeps full company editor.
-      // Only sync when required business fields already exist so Profile save is not blocked.
-      if (
-        isAdminConsole &&
-        organization?.id &&
-        organization.name?.trim() &&
-        organization.industry?.trim() &&
-        organization.company_size?.trim()
-      ) {
-        const companyPhoneToSave = companyPhone.trim()
-          ? formatPhoneNumber(companyPhone)
-          : organization.phone ?? "";
-        const res = await fetch("/api/admin/business-info", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyName: organization.name,
-            industry: organization.industry,
-            companySize: organization.company_size,
-            city: city.trim() || organization.city || "",
-            state: state.trim() || organization.state || "",
-            address: address.trim() || organization.address_line_1 || "",
-            phone: companyPhoneToSave,
-            email: companyEmail.trim() || organization.email || "",
-            zipCode: zipToSave || organization.postal_code || "",
-            ein: companyEin.trim(),
-          }),
-        });
-        const payload = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) {
-          throw new Error(payload.error || "Could not save company contact details.");
-        }
-
-        const { error: websiteError } = await supabaseBrowser
-          .from("tenants")
-          .update({
-            website: companyWebsite.trim() || null,
-            address_line_2: address2ToSave,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", organization.id);
-        if (websiteError) throw websiteError;
       }
 
       await refresh();
@@ -757,20 +705,8 @@ export default function PersonalTab() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Company Contact Details">
+      <SectionCard title="Your Address">
         <div className="flex flex-col gap-5">
-          <label className="block max-w-xs">
-            <FieldLabel>Company EIN</FieldLabel>
-            <input
-              type="text"
-              value={companyEin}
-              onChange={(e) => setCompanyEin(e.target.value)}
-              readOnly={!isAdminConsole}
-              disabled={!isAdminConsole}
-              className={FIELD}
-            />
-          </label>
-
           <AddressAutocompleteField
             variant="facility"
             label="Address Line 1"
@@ -782,7 +718,7 @@ export default function PersonalTab() {
               addressAutocomplete.resetVerification();
               if (addressError) setAddressError(null);
             }}
-            onSelectSuggestion={handleSelectCompanyAddressSuggestion}
+            onSelectSuggestion={handleSelectUserAddressSuggestion}
             suggestions={addressAutocomplete.suggestions}
             isLoading={addressAutocomplete.isLoading}
             isOpen={addressAutocomplete.isOpen}
@@ -791,7 +727,7 @@ export default function PersonalTab() {
             isVerified={addressAutocomplete.isAddressVerified}
             searchError={addressAutocomplete.searchError}
             placeholder="Start typing your street address"
-            helperText="Start typing to search"
+            helperText="Your personal address — separate from company location"
             error={addressError}
           />
 
@@ -849,7 +785,7 @@ export default function PersonalTab() {
               loading={locationLoading}
               disabled={locationLoading || stateOptionsUnavailable}
               value={displayStateValue}
-              onChange={handleCompanyStateChange}
+              onChange={handleUserStateChange}
               placeholder={
                 locationLoading
                   ? "Loading…"
@@ -874,42 +810,6 @@ export default function PersonalTab() {
                 className={`${FIELD}${zipError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
               />
               {zipError ? <p className="mt-1 text-xs text-[#B91C1C]">{zipError}</p> : null}
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-3">
-            <label className="block">
-              <FieldLabel>Company Phone</FieldLabel>
-              <input
-                type="text"
-                value={companyPhone}
-                onChange={(e) => setCompanyPhone(filterCandidateFieldInput("phone", e.target.value))}
-                readOnly={!isAdminConsole}
-                disabled={!isAdminConsole}
-                className={FIELD}
-              />
-            </label>
-            <label className="block">
-              <FieldLabel>Company Email</FieldLabel>
-              <input
-                type="email"
-                value={companyEmail}
-                onChange={(e) => setCompanyEmail(e.target.value)}
-                readOnly={!isAdminConsole}
-                disabled={!isAdminConsole}
-                className={FIELD}
-              />
-            </label>
-            <label className="block">
-              <FieldLabel>Website</FieldLabel>
-              <input
-                type="text"
-                value={companyWebsite}
-                onChange={(e) => setCompanyWebsite(e.target.value)}
-                readOnly={!isAdminConsole}
-                disabled={!isAdminConsole}
-                className={FIELD}
-              />
             </label>
           </div>
         </div>
