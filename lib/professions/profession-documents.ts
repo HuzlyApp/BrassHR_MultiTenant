@@ -11,13 +11,13 @@ const PROFESSION_DOCUMENT_KIND_LABELS: Record<ProfessionDocumentKind, string> = 
   other: "Other",
 };
 
-/** Unified Documents table type labels (Licenses / Certifications / Resume / Other). */
+/** Unified Documents table type tags (License / Certification / Resume / Other). */
 export function unifiedDocumentTypeLabel(
   kind: ProfessionDocumentKind | "resume" | null | undefined
 ): string {
   if (kind === "resume") return "Resume";
-  if (kind === "license") return "Licenses";
-  if (kind === "certificate") return "Certifications";
+  if (kind === "license") return "License";
+  if (kind === "certificate") return "Certification";
   return "Other";
 }
 
