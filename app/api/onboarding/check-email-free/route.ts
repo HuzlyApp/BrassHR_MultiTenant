@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
@@ -17,6 +18,8 @@ export const runtime = "nodejs"
  * Used when save-worker falls back to the browser Supabase client (no service role).
  */
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
   try {
     const body = await req.json()
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
@@ -60,17 +63,19 @@ export async function POST(req: NextRequest) {
       email: emailNorm,
       excludeUserId: applicantId,
     })
+
     if (conflict) {
       return NextResponse.json(
         {
           error: TENANT_EMAIL_TAKEN_MESSAGE,
           code: TENANT_EMAIL_TAKEN_CODE,
+          existingResume: null,
         },
         { status: 409 },
       )
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, existingResume: null })
   } catch (err: unknown) {
     console.error("[onboarding/check-email-free]", err)
     const msg = err instanceof Error ? err.message : "Unexpected error"

@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
-    if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+    if (!(await canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -126,7 +126,7 @@ export async function PATCH(req: NextRequest) {
     .eq("id", doc.worker_id)
     .maybeSingle();
 
-  if (!worker || !canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+  if (!worker || !(await canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id }))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

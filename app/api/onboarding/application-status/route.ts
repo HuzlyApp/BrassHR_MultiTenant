@@ -1,3 +1,5 @@
+import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -6,7 +8,6 @@ import {
   type ApplicationStatusKey,
 } from "@/lib/applicant-portal";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
 export const runtime = "nodejs";
@@ -34,6 +35,9 @@ function resolveSubmittedAt(input: {
 }
 
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
     if (!applicantId) {
@@ -47,7 +51,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, readOnboardingTenantSlugFromRequest(req));
     if (!ctx) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }

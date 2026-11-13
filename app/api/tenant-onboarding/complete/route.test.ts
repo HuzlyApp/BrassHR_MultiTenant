@@ -170,6 +170,8 @@ describe("tenant-onboarding complete route", () => {
   const originalApiKey = process.env.FIRMA_API_KEY;
 
   beforeEach(() => {
+    authState.userId = "user-new";
+    authState.email = "admin@newco.example";
     insertPayload.current = null;
     categoryWrites.current = [];
     process.env.ROOT_DOMAIN = "braashr.test";
@@ -293,5 +295,17 @@ describe("tenant-onboarding complete route", () => {
     expect(body.error).toMatch(/Staffing or SMB/);
     expect(insertPayload.current).toBeNull();
     expect(categoryWrites.current).toEqual([]);
+  });
+  it("rejects unauthenticated signup completion before any tenant write", async () => {
+    authState.userId = "";
+    authState.email = "";
+    const response = await completeTenant({ adminEmail: "victim@example.test", adminPassword: "attacker-chosen-password" });
+    expect(response.status).toBe(401);
+    expect(insertPayload.current).toBeNull();
+    expect(provisionMock).not.toHaveBeenCalled();
+  });
+  it("rejects an attempt to attach a different email to the session", async () => {
+    expect((await completeTenant({ adminEmail: "victim@example.test" })).status).toBe(403);
+    expect(insertPayload.current).toBeNull();
   });
 });

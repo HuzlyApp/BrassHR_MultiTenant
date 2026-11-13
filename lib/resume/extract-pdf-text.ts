@@ -68,10 +68,11 @@ function isPdfTextItem(item: unknown): item is PdfTextItem {
 async function extractWithPdfjs(data: Uint8Array): Promise<string> {
   const { getDocument, GlobalWorkerOptions } = await loadPdfjs();
   ensurePdfWorker(GlobalWorkerOptions);
-  const doc = await getDocument({
+  const task = getDocument({
     data,
     verbosity: 0,
-  }).promise;
+  });
+  const doc = await task.promise;
   try {
     const pages: string[] = [];
     for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
@@ -96,7 +97,7 @@ async function extractWithPdfjs(data: Uint8Array): Promise<string> {
     }
     return pages.join("\n\n");
   } finally {
-    await doc.destroy();
+    await task.destroy();
   }
 }
 

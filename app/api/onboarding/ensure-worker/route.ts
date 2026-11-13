@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -10,6 +11,9 @@ import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 export const runtime = "nodejs"
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = await req.json()
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""

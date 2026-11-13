@@ -37,6 +37,7 @@ function createSupabase(workers: Array<{ id: string; user_id: string; tenant_id:
                 return { data: row ?? null, error: null };
               },
             }),
+            limit: async (count: number) => ({ data: workers.filter(w => column === "user_id" ? w.user_id === value : w.id === value).slice(0, count), error: null }),
             order: () => ({
               limit: async () => {
                 const rows = workers.filter((w) =>
@@ -59,6 +60,10 @@ function createSupabase(workers: Array<{ id: string; user_id: string; tenant_id:
 }
 
 describe("resolveWorkerByApplicantId tenant scoping", () => {
+  it("refuses ambiguous unscoped multi-tenant identities", async () => {
+    const sb = createSupabase([{id:"a", user_id:APPLICANT_ID, tenant_id:ZIPSTAFF_TENANT},{id:"b", user_id:APPLICANT_ID, tenant_id:NEXUS_TENANT}]);
+    expect(await resolveWorkerByApplicantId(sb as never, APPLICANT_ID)).toBeNull();
+  });
   it("does not fall back to another tenant when tenantId is provided", async () => {
     const supabase = createSupabase([
       {

@@ -16,6 +16,7 @@ function walk(dir: string, files: string[] = []): string[] {
 }
 
 const AUTH_MARKERS = [
+  "authorizeOnboardingRequest",
   "requireStaffApiSession",
   "requireGodAdmin",
   "requireApplicant",
@@ -76,14 +77,6 @@ describe("service-role API boundary", () => {
         flagged.push(path.relative(ROOT, file).replace(/\\/g, "/"));
       }
     }
-    // These are known service-role IDOR risks from the 2026-06-03 audit.
-    // Keep the list explicit so new unauthenticated IDOR routes fail this test.
-    const known = flagged.sort();
-    expect(known.length).toBeGreaterThanOrEqual(0);
-    for (const file of known) {
-      expect(file.startsWith("app/api/onboarding/") || file.startsWith("app\\api\\onboarding\\")).toBe(
-        true
-      );
-    }
+    expect(flagged.sort()).toEqual([]);
   });
 });

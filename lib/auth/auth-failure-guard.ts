@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -35,10 +36,12 @@ function windowMs(): number {
 }
 
 export function clientIpFromHeaders(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = headers.get("x-real-ip")?.trim();
-  const cfIp = headers.get("cf-connecting-ip")?.trim();
-  return forwarded || realIp || cfIp || "unknown";
+  // Trust only a header overwritten by the deployment ingress. Self-hosted
+  // deployments must strip the configured header before setting it.
+  const name = process.env.VERCEL === "1" ? "x-vercel-forwarded-for" : process.env.TRUSTED_CLIENT_IP_HEADER;
+  if (!name) return "unknown";
+  const value = headers.get(name)?.trim() || "";
+  return isIP(value) ? value : "unknown";
 }
 
 function hashIp(ip: string): string {

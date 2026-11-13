@@ -1,7 +1,8 @@
+import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,9 @@ type AnswerInput = {
 };
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = (await req.json()) as {
       applicantId?: string;
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, readOnboardingTenantSlugFromRequest(req));
     if (!ctx) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }

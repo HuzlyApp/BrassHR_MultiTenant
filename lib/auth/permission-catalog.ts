@@ -38,7 +38,6 @@ export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 export const SHELL_API_PREFIXES = [
   "/api/admin/header-data",
   "/api/admin/effective-branding",
-  "/api/admin/recruiter-data",
   "/api/admin/access",
 ] as const;
 
@@ -330,7 +329,7 @@ export type PathClass =
   | { kind: "unmapped" };
 
 export function classifyProtectedPath(pathname: string): PathClass {
-  const path = pathname.split("?")[0] || "/";
+  const path = canonicalStaffApiPath(pathname.split("?")[0] || "/");
   if (matchPrefixedKey(path, GOD_ADMIN_API_PREFIXES.map((prefix) => ({ key: prefix, prefixes: [prefix] })))) {
     return { kind: "god_only" };
   }
@@ -356,6 +355,27 @@ export function actionForMethod(method: string): PermissionAction {
   if (normalized === "DELETE") return "delete";
   if (normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS") return "view";
   return "edit";
+}
+
+/** Legacy URLs must use the same grants as the canonical staff endpoint. */
+export function canonicalStaffApiPath(path: string): string {
+  const aliases: Array<[string, string]> = [
+    ["/api/requisitions", "/api/admin/jobs"],
+    ["/api/onboarding/preview-config", "/api/admin/onboarding"],
+    ["/api/workers", "/api/admin/candidates"],
+    ["/api/search-workers", "/api/admin/candidates"],
+    ["/api/admin/recruiter-data", "/api/admin/candidates"],
+    ["/api/applicant-portal/messages", "/api/admin/messages"],
+    ["/api/auth/recruiter-onboarding-status", "/api/admin/access"],
+    ["/api/service-area/evaluate", "/api/admin/hiring-area"],
+    ["/api/link", "/api/admin/recruiter-templates"],
+    ["/api/send-document", "/api/admin/recruiter-templates"],
+    ["/api/signeasy", "/api/admin/recruiter-templates"],
+  ];
+  for (const [alias, canonical] of aliases) {
+    if (path === alias || path.startsWith(alias + "/")) return canonical + path.slice(alias.length);
+  }
+  return path;
 }
 
 export type StoredGrant = {

@@ -13,7 +13,7 @@ export async function POST(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireStaffApiSession();
+  const auth = await requireStaffApiSession(_req);
   if (auth instanceof NextResponse) return auth;
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });

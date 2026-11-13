@@ -5,7 +5,7 @@ import { resolveRecruiterOnboardingStatus } from "@/lib/auth/recruiter-onboardin
 import { forwardedHostFromHeaders } from "@/lib/tenant/tenant-host-resolution";
 
 export async function GET(req: Request) {
-  const auth = await requireStaffApiSession();
+  const auth = await requireStaffApiSession(req);
   if (auth instanceof NextResponse) return auth;
 
   const url = new URL(req.url);

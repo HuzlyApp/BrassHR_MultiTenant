@@ -1,3 +1,4 @@
+import { hasVerifiedStaffSession } from "@/lib/auth/staff-session-verification";
 import type { User } from "@supabase/supabase-js";
 import { after, NextResponse } from "next/server";
 import { headers, cookies } from "next/headers";
@@ -28,6 +29,7 @@ import {
 const DEV_BYPASS_USER = "00000000-0000-0000-0000-000000000001";
 
 export type ApiAuthContext = {
+  authUser?: User;
   userId: string;
   email: string | null;
   role: AppRole;
@@ -36,26 +38,11 @@ export type ApiAuthContext = {
   devBypass: boolean;
 };
 
-function isAdminRbacEnforced() {
-  return (
-    process.env.ADMIN_RBAC_ENFORCE === "true" ||
-    process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "true"
-  );
-}
-
 function devBypassAuth(): ApiAuthContext | null {
   if (process.env.NODE_ENV === "production") return null;
-  /**
-   * Local DX default:
-   * - If RBAC is not explicitly enforced, allow recruiter/admin pages and APIs
-   *   to function without wiring a full auth+role seed.
-   * - You can still force strict behavior by setting ADMIN_RBAC_ENFORCE=true.
-   * - Explicit DEV_ADMIN_AUTH_BYPASS=false disables this fallback.
-   */
+  // Explicit local opt-in only; never enabled in production.
   const bypassFlag = process.env.DEV_ADMIN_AUTH_BYPASS;
-  const allowByDefault = !isAdminRbacEnforced();
-  const enabled =
-    bypassFlag === "true" || (bypassFlag !== "false" && allowByDefault);
+  const enabled = bypassFlag === "true";
   if (!enabled) return null;
   return {
     userId: DEV_BYPASS_USER,
@@ -186,6 +173,10 @@ export async function requireNexusSessionUser(): Promise<User | NextResponse> {
  */
 export async function requireApiSession(): Promise<ApiAuthContext | NextResponse> {
   try {
+    const requestHeaders = await headers();
+    if (requestHeaders.get("x-brass-pathname")?.startsWith("/api/admin/")) {
+      return requireStaffApiSession();
+    }
     const { user, error } = await getSessionUser();
     if (error || !user?.id) {
       const bypass = devBypassAuth();
@@ -205,12 +196,16 @@ export async function requireApiSession(): Promise<ApiAuthContext | NextResponse
     }
     const role = await resolveAppRoleForUser(user);
     const godAdmin = isGodAdminUser(user) || (await hasGodAdminDbFlag(user.id));
+    if ((isStaffRole(role) || godAdmin) && !(await hasVerifiedStaffSession(user))) {
+      return rejectAuth(403, "verification_required", user.id, "Login verification required", false, "VERIFICATION_REQUIRED");
+    }
     logAuthDebug("requireApiSession:ok", {
       userId: user.id,
       platform: getUserPlatform(user),
       role,
     });
     return {
+      authUser: user,
       userId: user.id,
       email: typeof user.email === "string" ? user.email : null,
       role,
@@ -229,7 +224,7 @@ export function requireRole(ctx: ApiAuthContext, allowed: AppRole[]): NextRespon
 }
 
 /** Recruiter, support, or admin — pipeline / roster APIs. */
-export async function requireStaffApiSession(): Promise<StaffApiAuthContext | NextResponse> {
+export async function requireStaffApiSession(request?: Request): Promise<StaffApiAuthContext | NextResponse> {
   let route = "";
   let method = "GET";
   let tenantSlug: string | null = null;
@@ -291,6 +286,9 @@ export async function requireStaffApiSession(): Promise<StaffApiAuthContext | Ne
 
     const role = await resolveAppRoleForUser(user);
     const godAdmin = isGodAdminUser(user) || (await hasGodAdminDbFlag(user.id));
+    if ((isStaffRole(role) || godAdmin) && !(await hasVerifiedStaffSession(user))) {
+      return rejectAuth(403, "verification_required", user.id, "Login verification required", false, "VERIFICATION_REQUIRED");
+    }
     const ctx: ApiAuthContext = {
       userId: user.id,
       email: typeof user.email === "string" ? user.email : null,
@@ -337,7 +335,12 @@ export async function requireStaffApiSession(): Promise<StaffApiAuthContext | Ne
       } catch {
         return rejectAuth(403, "unavailable", user.id, "Permission data unavailable", false);
       }
-      if (pathname.startsWith("/api/admin")) {
+      if (request) {
+        pathname = new URL(request.url).pathname;
+        method = request.method;
+      }
+      if (!pathname) return rejectAuth(403, "unavailable", user.id, "Request context unavailable", false);
+      {
         const jar = await cookies();
         const decision = await authorizeStaffHttpAccess({
           user,
