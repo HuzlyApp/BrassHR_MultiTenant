@@ -6,10 +6,17 @@ import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { isPdfFile } from "@/lib/document-upload-helpers";
-import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
-import { professionDocumentKindLabel } from "@/lib/professions/profession-documents";
+import { unifiedDocumentTypeLabel } from "@/lib/professions/profession-documents";
 
-export type DocumentFormKind = Extract<ProfessionDocumentKind, "vaccination" | "other">;
+/** Types shown in Add Document (Documents tab). */
+export type DocumentFormKind = "license" | "certificate" | "resume" | "other";
+
+const DOCUMENT_FORM_KINDS: readonly DocumentFormKind[] = [
+  "license",
+  "certificate",
+  "resume",
+  "other",
+];
 
 export type DocumentFormValues = {
   name: string;
@@ -286,10 +293,11 @@ export default function AddDocumentModal({
               className={SELECT_CLASS}
               style={{ backgroundImage: SELECT_CHEVRON }}
             >
-              <option value="other">{professionDocumentKindLabel("other")}</option>
-              <option value="vaccination">
-                {professionDocumentKindLabel("vaccination")}
-              </option>
+              {DOCUMENT_FORM_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {unifiedDocumentTypeLabel(kind)}
+                </option>
+              ))}
             </select>
           </label>
 
