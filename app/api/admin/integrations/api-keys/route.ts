@@ -4,6 +4,7 @@ import { writeActivityLog } from "@/lib/audit/activity-log";
 import { createTenantApiKey, listTenantApiKeys } from "@/lib/integrations/api-keys";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { API_KEY_RESPONSE_HEADERS, rejectCrossOriginKeyMutation } from "@/lib/integrations/management-security";
 
 export const runtime = "nodejs";
 
@@ -28,11 +29,11 @@ export async function GET() {
         revokedAt: key.revokedAt,
         createdAt: key.createdAt,
       })),
-    });
+    }, { headers: API_KEY_RESPONSE_HEADERS });
   } catch (error) {
     console.error("[admin/integrations/api-keys GET]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to list API keys" },
+      { error: "Failed to list API keys" },
       { status: 500 }
     );
   }
@@ -41,13 +42,19 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = rejectCrossOriginKeyMutation(req);
+  if (forbidden) return forbidden;
+  if (req.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/json") {
+    return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
+  }
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
 
-  const body = (await req.json().catch(() => ({}))) as { name?: string };
-  const name = String(body.name ?? "").trim();
-  if (!name) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  const body: unknown = await req.json().catch(() => null);
+  const name = body && typeof body === "object" && !Array.isArray(body) && "name" in body && typeof body.name === "string"
+    ? body.name.trim() : "";
+  if (!name || name.length > 120) {
+    return NextResponse.json({ error: "Name must be between 1 and 120 characters" }, { status: 400 });
   }
 
   try {
@@ -84,12 +91,12 @@ export async function POST(req: NextRequest) {
           apiKey: created.apiKey,
         },
       },
-      { status: 201 }
+      { status: 201, headers: API_KEY_RESPONSE_HEADERS }
     );
   } catch (error) {
     console.error("[admin/integrations/api-keys POST]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create API key" },
+      { error: "Failed to create API key" },
       { status: 500 }
     );
   }
