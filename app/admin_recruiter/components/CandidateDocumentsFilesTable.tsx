@@ -265,7 +265,7 @@ function DocumentRows({
                   </div>
                 )}
 
-                {needsExpiration ? (
+                {/* {needsExpiration ? (
                   <div className="grid max-w-[420px] gap-2 pt-1 sm:grid-cols-2">
                     <label className="block space-y-1">
                       <span className="text-[11px] font-medium text-[#64748B]">Issue date</span>
@@ -292,7 +292,7 @@ function DocumentRows({
                       />
                     </label>
                   </div>
-                ) : null}
+                ) : null} */}
 
                 {primaryUrl &&
                 (row.files.length < 5 || !row.files.length) &&

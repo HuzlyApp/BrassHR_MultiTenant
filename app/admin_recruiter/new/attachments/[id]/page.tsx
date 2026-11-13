@@ -454,10 +454,6 @@ export default function NewApplicantAttachmentsFilledPage() {
       setAddModalError("Only an administrator can add documents.");
       return;
     }
-    if (!professionId) {
-      setAddModalError("Select a profession before adding a document.");
-      return;
-    }
     if (!values.file) {
       setAddModalError("Choose a file to upload.");
       return;
@@ -467,6 +463,31 @@ export default function NewApplicantAttachmentsFilledPage() {
     setAddModalError(null);
     setUploadError(null);
     try {
+      // Resume is a worker attachment, not a profession document kind.
+      if (values.documentKind === "resume") {
+        const fd = new FormData();
+        fd.append("file", values.file);
+        fd.append("workerId", applicantId);
+        fd.append("documentTitle", values.name.trim() || "Resume");
+        fd.append("attachmentKind", "resume");
+
+        const uploadRes = await fetch("/api/admin/worker-attachment-upload", {
+          method: "POST",
+          body: fd,
+        });
+        const uploadJson = (await uploadRes.json().catch(() => ({}))) as { error?: string };
+        if (!uploadRes.ok) throw new Error(uploadJson.error || "Upload failed");
+
+        setAddModalOpen(false);
+        await fetchApplicant(true);
+        return;
+      }
+
+      if (!professionId) {
+        setAddModalError("Select a profession before adding a document.");
+        return;
+      }
+
       const currentDocs = selectedProfession?.documents ?? [];
       const response = await fetch("/api/admin/profession-documents", {
         method: "PUT",
