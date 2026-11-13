@@ -24,6 +24,7 @@ import {
 export type SettingsNavItemId =
   | "profile"
   | "account"
+  | "company-profile"
   | "branding"
   | "notifications"
   | "call"
@@ -43,6 +44,7 @@ export type SettingsNavItemId =
   | "reports";
 
 export type SettingsSectionSlug =
+  | "company-profile"
   | "branding"
   | "call"
   | "task"
@@ -96,10 +98,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         href: "/admin_recruiter/account/account-settings",
         icon: UserCog,
         resourceKey: "settings_profile",
-        matchPrefixes: [
-          "/admin_recruiter/account/account-settings",
-          "/admin_recruiter/account/business-info",
-        ],
+        matchPrefixes: ["/admin_recruiter/account/account-settings"],
       },
     ],
   },
@@ -107,6 +106,17 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     id: "app",
     label: "App Settings",
     items: [
+      {
+        id: "company-profile",
+        label: "Company Profile",
+        href: "/admin_recruiter/settings/company-profile",
+        icon: Building2,
+        resourceKey: "settings_company",
+        matchPrefixes: [
+          "/admin_recruiter/settings/company-profile",
+          "/admin_recruiter/account/business-info",
+        ],
+      },
       {
         id: "branding",
         label: "Branding",
@@ -290,6 +300,10 @@ export const SETTINGS_SECTION_META: Record<
   SettingsSectionSlug,
   { title: string; description: string }
 > = {
+  "company-profile": {
+    title: "Company Profile",
+    description: "Manage your company details, location, and contact information.",
+  },
   branding: {
     title: "Branding",
     description: "Customized your branding.",

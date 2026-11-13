@@ -14,6 +14,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { FilterChipInput } from "@/app/admin_recruiter/components/FilterChipInput";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import {
+  IMPORT_MAX_IDS_PER_REQUEST,
   IMPORT_PAGE_SIZE_DEFAULT,
   IMPORT_RECOMMENDED_MIN_SCORE,
   IMPORT_SEARCH_DEBOUNCE_MS,
@@ -311,9 +312,14 @@ export default function ImportCandidatesModal({
 
   function toggleId(id: string, alreadyAdded: boolean) {
     if (alreadyAdded) return;
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
-    );
+    setSelectedIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= IMPORT_MAX_IDS_PER_REQUEST) {
+        toast.error(`You can import at most ${IMPORT_MAX_IDS_PER_REQUEST} candidates at once.`);
+        return current;
+      }
+      return [...current, id];
+    });
   }
 
   function toggleSelectAllVisible() {
@@ -321,7 +327,14 @@ export default function ImportCandidatesModal({
       setSelectedIds((current) => current.filter((id) => !selectableIds.includes(id)));
       return;
     }
-    setSelectedIds((current) => Array.from(new Set([...current, ...selectableIds])));
+    setSelectedIds((current) => {
+      const merged = Array.from(new Set([...current, ...selectableIds]));
+      if (merged.length > IMPORT_MAX_IDS_PER_REQUEST) {
+        toast.error(`You can import at most ${IMPORT_MAX_IDS_PER_REQUEST} candidates at once.`);
+        return merged.slice(0, IMPORT_MAX_IDS_PER_REQUEST);
+      }
+      return merged;
+    });
   }
 
   async function confirmImport(ids: string[]) {

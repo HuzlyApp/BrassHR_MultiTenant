@@ -20,6 +20,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
 
       // App Settings
       "/admin_recruiter/settings",
+      "/admin_recruiter/settings/company-profile",
       "/admin_recruiter/settings/branding",
       "/admin_recruiter/settings/hiring-theme",
       "/admin_recruiter/notifications",
@@ -113,6 +114,19 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     ).toBe(true);
     expect(
       isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/business-info")
+    ).toBe(false);
+    const companyProfileItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "company-profile"
+    );
+    expect(companyProfileItem).toBeDefined();
+    expect(
+      isSettingsNavItemActive(
+        companyProfileItem!,
+        "/admin_recruiter/settings/company-profile"
+      )
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(companyProfileItem!, "/admin_recruiter/account/business-info")
     ).toBe(true);
     // Profile must not stay active on Account routes (shared /account prefix bug).
     expect(

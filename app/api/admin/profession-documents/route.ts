@@ -5,6 +5,7 @@ import { industryLabelForKey } from "@/lib/ai-catalog/industry-catalog";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { resolveWorkerTenantProfessionId } from "@/lib/onboarding/profession-attachment-requirements";
 import {
+  deleteWorkerDocumentFile,
   linkWorkerProfession,
   listProfessionDocuments,
   savedWorkerProfessionId,
@@ -164,6 +165,44 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not rename file";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  }
+
+  const tenantId = await resolveEffectiveAdminTenantId(supabase, {
+    userId: auth.userId,
+    authUser: auth.authUser,
+    godAdmin: auth.godAdmin,
+  });
+  if (!tenantId) {
+    return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+  }
+
+  const body = (await req.json().catch(() => null)) as {
+    workerId?: string;
+    professionUploadId?: string;
+    submittedDocumentId?: string;
+  } | null;
+
+  try {
+    await deleteWorkerDocumentFile(supabase, tenantId, body?.workerId?.trim() || "", {
+      professionUploadId: body?.professionUploadId,
+      submittedDocumentId: body?.submittedDocumentId,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not delete file";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -8,6 +8,10 @@ type PageProps = {
 
 export default async function AdminRecruiterAccountTabPage({ params }: PageProps) {
   const { tab } = await params;
+  // Legacy Business Info tab → Settings Company Profile.
+  if (tab === "business-info") {
+    redirect("/admin_recruiter/settings/company-profile");
+  }
   if (!isAccountTabSlug(tab)) {
     redirect("/admin_recruiter/account/personal");
   }

@@ -386,6 +386,7 @@ const EXTRA_TOP_SECTIONS: SidebarSection[] = [
 const PROFILE_ROUTE = "/admin_recruiter/account/personal";
 const SETTINGS_ROUTE = "/admin_recruiter/settings";
 const SETTINGS_BRANDING_ROUTE = `${SETTINGS_ROUTE}/branding`;
+const SETTINGS_COMPANY_PROFILE_ROUTE = `${SETTINGS_ROUTE}/company-profile`;
 const HELP_SUPPORT_ROUTE = "/admin_recruiter/help-support";
 const NOTIFICATIONS_ROUTE = "/admin_recruiter/notifications";
 
@@ -396,12 +397,19 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
     href: "#",
     resourceKey: "settings_company",
     matchPrefixes: [
+      SETTINGS_COMPANY_PROFILE_ROUTE,
       SETTINGS_BRANDING_ROUTE,
       `${SETTINGS_ROUTE}/admin-console`,
       `${SETTINGS_ROUTE}/roles`,
       `${SETTINGS_ROUTE}/hiring-theme`,
+      "/admin_recruiter/account/business-info",
     ],
     children: [
+      {
+        label: "Company Profile",
+        href: SETTINGS_COMPANY_PROFILE_ROUTE,
+        matchPrefixes: [SETTINGS_COMPANY_PROFILE_ROUTE, "/admin_recruiter/account/business-info"],
+      },
       {
         label: "Branding",
         href: SETTINGS_BRANDING_ROUTE,
@@ -467,10 +475,7 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
       {
         label: "Account",
         href: "/admin_recruiter/account/account-settings",
-        matchPrefixes: [
-          "/admin_recruiter/account/account-settings",
-          "/admin_recruiter/account/business-info",
-        ],
+        matchPrefixes: ["/admin_recruiter/account/account-settings"],
       },
       {
         label: "Security",

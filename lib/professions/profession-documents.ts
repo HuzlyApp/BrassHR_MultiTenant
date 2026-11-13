@@ -11,6 +11,16 @@ const PROFESSION_DOCUMENT_KIND_LABELS: Record<ProfessionDocumentKind, string> = 
   other: "Other",
 };
 
+/** Unified Documents table type labels (Licenses / Certifications / Resume / Other). */
+export function unifiedDocumentTypeLabel(
+  kind: ProfessionDocumentKind | "resume" | null | undefined
+): string {
+  if (kind === "resume") return "Resume";
+  if (kind === "license") return "Licenses";
+  if (kind === "certificate") return "Certifications";
+  return "Other";
+}
+
 export function isProfessionDocumentKind(value: unknown): value is ProfessionDocumentKind {
   return (PROFESSION_DOCUMENT_KINDS as readonly string[]).includes(String(value ?? ""));
 }
@@ -389,4 +399,48 @@ export async function renameWorkerDocumentFile(
   }
 
   throw new Error("Choose a document file to rename.");
+}
+
+/** Delete one uploaded file (not the document type catalog row). */
+export async function deleteWorkerDocumentFile(
+  supabase: Db,
+  tenantId: string,
+  workerId: string,
+  input: {
+    professionUploadId?: string | null;
+    submittedDocumentId?: string | null;
+  }
+) {
+  const worker = workerId.trim();
+  if (!worker) throw new Error("Worker is required.");
+
+  if (input.professionUploadId) {
+    const { data, error } = await supabase
+      .from("worker_profession_document_uploads")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("worker_id", worker)
+      .eq("id", input.professionUploadId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.id) return;
+    if (!input.submittedDocumentId) throw new Error("Uploaded file was not found.");
+  }
+
+  if (input.submittedDocumentId) {
+    const { data, error } = await supabase
+      .from("worker_submitted_documents")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("worker_id", worker)
+      .eq("id", input.submittedDocumentId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("Uploaded file was not found.");
+    return;
+  }
+
+  throw new Error("Choose a document file to delete.");
 }
