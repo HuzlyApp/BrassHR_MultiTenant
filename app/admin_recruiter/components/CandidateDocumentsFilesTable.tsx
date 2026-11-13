@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, Upload } from "lucide-react";
 import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { isPdfFile, pathOrUrlForExtension } from "@/lib/document-upload-helpers";
@@ -264,8 +264,9 @@ function DocumentRows({
                   type="button"
                   disabled={uploadingKey === row.key}
                   onClick={() => onOpenUpload(row)}
-                  className="font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline disabled:opacity-50"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
                   {uploadingKey === row.key ? "Uploading…" : "Upload"}
                 </button>
               )}
@@ -375,7 +376,7 @@ export default function CandidateDocumentsFilesTable({
                       Status
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Download
+                      Upload / Download
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                       <span className="sr-only">Actions</span>
