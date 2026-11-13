@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
+import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { isPdfFile, pathOrUrlForExtension } from "@/lib/document-upload-helpers";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
@@ -311,16 +312,17 @@ function DocumentRows({
             <td className="px-4 py-4">
               <StatusBadge status={lifecycleStatus} />
             </td>
-            <td className="px-4 py-4 text-right">
-              <div className="flex flex-col items-end gap-2">
+            <td className="px-4 py-4">
+              <div className="flex items-center justify-end gap-2">
                 {primaryUrl ? (
                   <a
                     href={primaryUrl}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline"
                   >
+                    <Download className="h-3.5 w-3.5" aria-hidden />
                     Download
                   </a>
                 ) : (
@@ -341,9 +343,10 @@ function DocumentRows({
                           type="button"
                           disabled={savingDocuments || uploadingKey === row.key}
                           onClick={() => onDeleteFile(row, file)}
-                          className="text-sm font-semibold text-[#B91C1C] hover:underline disabled:opacity-50"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B] disabled:opacity-40"
+                          aria-label={`Delete ${file.filename || row.title}`}
                         >
-                          Delete
+                          <BrandedDeleteIcon className="h-4 w-4" />
                         </button>
                       ) : null
                     )

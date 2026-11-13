@@ -18,7 +18,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
-  PROFESSION_DOCUMENT_KINDS,
+  SETTINGS_PROFESSION_DOCUMENT_KINDS,
   professionDocumentKindLabel,
   type ProfessionDocumentKind,
 } from "@/lib/professions/profession-documents";
@@ -1016,7 +1016,14 @@ export default function ProfessionDocumentsPanel() {
                             updateDocument(doc.id, { documentKind: event.target.value as DocumentKind })
                           }
                         >
-                          {PROFESSION_DOCUMENT_KINDS.map((kind) => (
+                          {/* Settings UI: Certificate / License only (Vaccination & Other hidden). */}
+                          {(
+                            SETTINGS_PROFESSION_DOCUMENT_KINDS.includes(
+                              doc.documentKind as (typeof SETTINGS_PROFESSION_DOCUMENT_KINDS)[number]
+                            )
+                              ? SETTINGS_PROFESSION_DOCUMENT_KINDS
+                              : ([doc.documentKind, ...SETTINGS_PROFESSION_DOCUMENT_KINDS] as const)
+                          ).map((kind) => (
                             <option key={kind} value={kind}>
                               {professionDocumentKindLabel(kind)}
                             </option>

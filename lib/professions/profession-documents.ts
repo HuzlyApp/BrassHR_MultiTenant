@@ -4,6 +4,9 @@ import type { TenantOnboardingConfig, TenantRequiredDocument } from "@/lib/onboa
 export const PROFESSION_DOCUMENT_KINDS = ["certificate", "license", "vaccination", "other"] as const;
 export type ProfessionDocumentKind = (typeof PROFESSION_DOCUMENT_KINDS)[number];
 
+/** Profession settings detail dropdown: Certificate and License only. */
+export const SETTINGS_PROFESSION_DOCUMENT_KINDS = ["certificate", "license"] as const satisfies readonly ProfessionDocumentKind[];
+
 const PROFESSION_DOCUMENT_KIND_LABELS: Record<ProfessionDocumentKind, string> = {
   certificate: "Certificate",
   license: "License",
