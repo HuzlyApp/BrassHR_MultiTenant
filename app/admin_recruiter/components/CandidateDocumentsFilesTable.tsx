@@ -81,24 +81,21 @@ function StatusBadge({ status }: { status: DocumentLifecycleStatus }) {
   );
 }
 
-function ActivationValidityBadge({
-  hasFile,
-  expiryDate,
-}: {
-  hasFile: boolean;
-  expiryDate: string | null | undefined;
-}) {
-  if (!hasFile) {
-    return <span className="text-sm text-[#94A3B8]">—</span>;
-  }
-  const expired = isProfessionDocumentExpired(expiryDate);
+function DocTypeTag({ label }: { label: string }) {
+  const styles =
+    label === "License"
+      ? "bg-[#DBEAFE] text-[#1D4ED8]"
+      : label === "Certification"
+        ? "bg-[#EDE9FE] text-[#6D28D9]"
+        : label === "Resume"
+          ? "bg-[#E0F2FE] text-[#0369A1]"
+          : "bg-[#F3F4F6] text-[#4B5563]";
+
   return (
     <span
-      className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold ${
-        expired ? "bg-[#FEE2E2] text-[#B91C1C]" : "bg-[#DCFCE7] text-[#166534]"
-      }`}
+      className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold ${styles}`}
     >
-      {expired ? "Expired" : "Active"}
+      {label}
     </span>
   );
 }
@@ -145,7 +142,7 @@ function DocumentRows({
   if (rows.length === 0) {
     return (
       <tr>
-        <td colSpan={7} className="px-4 py-8 text-center text-sm text-[#6B7280]">
+        <td colSpan={5} className="px-4 py-8 text-center text-sm text-[#6B7280]">
           No documents in this section yet.
         </td>
       </tr>
@@ -186,7 +183,7 @@ function DocumentRows({
         return (
           <tr key={row.key} className="border-b border-[#F3F4F6] last:border-b-0 align-top">
             <td className="px-4 py-4">
-              <span className="text-sm font-medium text-[#111827]">{documentType}</span>
+              <DocTypeTag label={documentType} />
             </td>
             <td className="px-4 py-4">
               <div className="min-w-[140px]">
@@ -314,12 +311,6 @@ function DocumentRows({
             <td className="px-4 py-4">
               <StatusBadge status={lifecycleStatus} />
             </td>
-            <td className="px-4 py-4">
-              <ActivationValidityBadge
-                hasFile={Boolean(primaryUrl)}
-                expiryDate={expiryValue || row.expiryDate}
-              />
-            </td>
             <td className="px-4 py-4 text-right">
               <div className="flex flex-col items-end gap-2">
                 {primaryUrl ? (
@@ -434,19 +425,16 @@ export default function CandidateDocumentsFilesTable({
                 <thead>
                   <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Document Type
+                      Doc type
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Document Name
+                      Doc name
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      File Name
+                      File name
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                       Status
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Activation Validity
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                       Actions

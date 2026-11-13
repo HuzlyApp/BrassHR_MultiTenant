@@ -344,7 +344,7 @@ export default function AddLicenseCertModal({
                 />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-sm font-medium text-[#374151]">Validity</span>
+                <span className="text-sm font-medium text-[#374151]">Validity period</span>
                 <input
                   value={values.validity}
                   onChange={(event) => patch({ validity: event.target.value })}

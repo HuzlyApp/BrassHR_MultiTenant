@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin/staff-detail-fetch-cache";
 import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
+import { isProfessionDocumentExpired } from "@/lib/onboarding/profession-step-uploads";
 
 type AttachmentRequirement = {
   id: string;
@@ -115,6 +116,39 @@ function formatDisplayDate(iso: string | null | undefined): string {
 function dash(value: string | null | undefined): string {
   const text = value?.trim();
   return text ? text : "—";
+}
+
+type CredentialValidityStatus = "Active" | "Expired" | "Not uploaded";
+
+function resolveCredentialValidity(
+  documentUrl: string | null | undefined,
+  expiryDate: string | null | undefined
+): CredentialValidityStatus {
+  if (!documentUrl?.trim()) return "Not uploaded";
+  if (isProfessionDocumentExpired(expiryDate)) return "Expired";
+  return "Active";
+}
+
+function ValidityStatusBadge({ status }: { status: CredentialValidityStatus }) {
+  if (status === "Not uploaded") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#F3F4F6] px-2.5 py-1 text-xs font-semibold text-[#6B7280]">
+        Not uploaded
+      </span>
+    );
+  }
+  if (status === "Expired") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#FEE2E2] px-2.5 py-1 text-xs font-semibold text-[#B91C1C]">
+        Expired
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-md bg-[#DCFCE7] px-2.5 py-1 text-xs font-semibold text-[#166534]">
+      Active
+    </span>
+  );
 }
 
 function nameKey(value: string): string {
@@ -920,7 +954,7 @@ function CredentialSection({
                       Scope
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Validity
+                      Validity period
                     </th>
                   </>
                 ) : null}
@@ -929,6 +963,9 @@ function CredentialSection({
                 </th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                   Expiry date
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Validity
                 </th>
                 {columns === "license" ? (
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
@@ -950,7 +987,7 @@ function CredentialSection({
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns === "certificate" ? 9 : 7}
+                    colSpan={columns === "certificate" ? 10 : 8}
                     className="px-4 py-8 text-center text-sm text-[#6B7280]"
                   >
                     No {title.toLowerCase()} yet.
@@ -991,6 +1028,11 @@ function CredentialSection({
                       {row.hasExpiration || row.expiryDate
                         ? formatDisplayDate(row.expiryDate)
                         : "—"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <ValidityStatusBadge
+                        status={resolveCredentialValidity(row.documentUrl, row.expiryDate)}
+                      />
                     </td>
                     {columns === "license" ? (
                       <td className="px-4 py-3.5 text-sm text-[#374151]">{dash(row.scope)}</td>
