@@ -9,6 +9,7 @@ import {
   TENANT_EMAIL_TAKEN_CODE,
   TENANT_EMAIL_TAKEN_MESSAGE,
 } from "@/lib/tenant/tenant-email-uniqueness"
+import { findLatestResumeByEmail } from "@/lib/resume/find-latest-resume-by-email"
 
 export const runtime = "nodejs"
 
@@ -60,17 +61,32 @@ export async function POST(req: NextRequest) {
       email: emailNorm,
       excludeUserId: applicantId,
     })
+
+    const existingResume = await findLatestResumeByEmail(supabase, {
+      tenantId: tenantRes.tenantId,
+      email: emailNorm,
+    }).catch(() => null)
+
+    const existingResumePayload = existingResume
+      ? {
+          resumeId: existingResume.resumeId,
+          workerId: existingResume.workerId,
+          fileName: existingResume.fileName,
+        }
+      : null
+
     if (conflict) {
       return NextResponse.json(
         {
           error: TENANT_EMAIL_TAKEN_MESSAGE,
           code: TENANT_EMAIL_TAKEN_CODE,
+          existingResume: existingResumePayload,
         },
         { status: 409 },
       )
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, existingResume: existingResumePayload })
   } catch (err: unknown) {
     console.error("[onboarding/check-email-free]", err)
     const msg = err instanceof Error ? err.message : "Unexpected error"

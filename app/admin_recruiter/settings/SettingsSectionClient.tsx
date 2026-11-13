@@ -53,9 +53,14 @@ const IntegrationsSettingsPanel = dynamic(
 const TaskSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/TaskSettingsPanel"), {
   loading: SettingsPanelFallback,
 });
+const BusinessInfoTab = dynamic(
+  () => import("@/app/admin_recruiter/account/components/BusinessInfoTab"),
+  { loading: SettingsPanelFallback }
+);
 
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
+    case "company-profile":
     case "branding":
     case "call":
     case "task":
@@ -83,6 +88,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
 
   // Panels that already render their own page title.
   const showPageHeader =
+    section !== "company-profile" &&
     section !== "branding" &&
     section !== "hiring-theme" &&
     section !== "departments" &&
@@ -114,6 +120,11 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           disabled={!canEdit && section !== "security" && section !== "profession"}
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
+          {section === "company-profile" ? (
+            <Suspense fallback={<SettingsPanelFallback />}>
+              <BusinessInfoTab />
+            </Suspense>
+          ) : null}
           {section === "call" ? <CallSettingsPanel /> : null}
           {section === "task" ? <TaskSettingsPanel /> : null}
           {section === "branding" ? (

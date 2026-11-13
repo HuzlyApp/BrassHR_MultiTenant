@@ -237,6 +237,35 @@ export default function NewApplicantAttachmentsFilledPage() {
     }
   }
 
+  async function deleteDocumentFile(
+    row: AttachmentRow,
+    file: { id: string; filename: string; url: string | null }
+  ) {
+    if (!applicantId || !file.id) return;
+    const confirmed = window.confirm(`Delete “${file.filename || "this file"}”?`);
+    if (!confirmed) return;
+    setSavingDocuments(true);
+    setUploadError(null);
+    try {
+      const response = await fetch("/api/admin/profession-documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId: applicantId,
+          professionUploadId: file.id.startsWith("legacy") ? undefined : file.id,
+          submittedDocumentId: row.submittedDocumentId,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not delete file");
+      await fetchApplicant(true);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Could not delete file");
+    } finally {
+      setSavingDocuments(false);
+    }
+  }
+
   function rowNeedsExpiration(row: AttachmentRow): boolean {
     if (row.hasExpiration) return true;
     return (
@@ -347,12 +376,8 @@ export default function NewApplicantAttachmentsFilledPage() {
 
   const attachmentRows: AttachmentRow[] = useMemo(() => {
     if (!profile) return [];
-    const fromConfig = (profile.attachment_requirements ?? []).filter((row) => {
-      const kind = row.document_kind;
-      // Resume belongs on the Resume tab; license/certificate on License/Certifications.
-      if (row.step_type === "resume_upload" || row.id === "resume") return false;
-      return kind !== "license" && kind !== "certificate";
-    });
+    // Unified Documents view: Licenses, Certifications, Resume, and Other.
+    const fromConfig = profile.attachment_requirements ?? [];
     return fromConfig.map((row, index) => {
       const settingsDoc = selectedProfession?.documents.find(
         (document) => document.id === row.required_document_id
@@ -791,6 +816,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                   fileNameDrafts={fileNameDrafts}
                   onPatchDateDraft={patchDateDraft}
                   onOpenUpload={openUploadPicker}
+                  onDeleteFile={(row, file) => void deleteDocumentFile(row, file)}
                   onCommitFileName={(row, file, draftKey) =>
                     void commitFileName(row, file, draftKey)
                   }

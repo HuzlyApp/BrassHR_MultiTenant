@@ -53,22 +53,18 @@ describe("resolvePersonalProfileFields", () => {
     updated_at: null,
   };
 
-  it("falls back to tenant address fields when user profile address is empty", () => {
+  it("does not fall back to tenant address when user address is empty", () => {
     expect(resolvePersonalProfileFields(profile, organization)).toMatchObject({
       firstName: "Jane",
       phone: "",
-      address: "123 Main St",
-      city: "Los Angeles",
-      state: "California",
-      zipCode: "90001",
-      companyEin: "12-3456789",
-      companyPhone: "(555) 123-4567",
-      companyEmail: "info@acme.com",
-      companyWebsite: "https://acme.example",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
     });
   });
 
-  it("prefers user profile values over organization values", () => {
+  it("uses user profile address values only", () => {
     expect(
       resolvePersonalProfileFields(
         {

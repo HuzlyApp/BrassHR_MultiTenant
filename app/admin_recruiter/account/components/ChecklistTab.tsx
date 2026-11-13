@@ -102,7 +102,7 @@ export default function ChecklistTab() {
       title: "Business Information",
       description: "Essential details about your business and operations.",
       completed: checklist?.business_info_completed ?? false,
-      href: accountTabHref("business-info"),
+      href: "/admin_recruiter/settings/company-profile",
     },
     {
       id: "settings",
@@ -134,7 +134,7 @@ export default function ChecklistTab() {
       title: "Organization Setup",
       description: "Link and configure your organization.",
       completed: checklist?.organization_created ?? false,
-      href: accountTabHref("business-info"),
+      href: "/admin_recruiter/settings/company-profile",
     },
   ];
 
