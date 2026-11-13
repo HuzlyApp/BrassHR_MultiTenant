@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
     }
 
-    const staffAuth = await requireStaffApiSession();
+    const staffAuth = await requireStaffApiSession(req);
     let allowed = false;
 
     if (!(staffAuth instanceof NextResponse)) {
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
         .eq("id", row.worker_id)
         .maybeSingle();
       if (workerError) throw workerError;
-      if (worker?.id && canAccessWorkerRecord(staffAuth, { id: String(worker.id), user_id: worker.user_id })) {
+      if (worker?.id && (await canAccessWorkerRecord(staffAuth, { id: String(worker.id), user_id: worker.user_id }))) {
         allowed = true;
       }
     }

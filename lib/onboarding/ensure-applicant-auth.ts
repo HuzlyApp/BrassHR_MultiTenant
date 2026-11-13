@@ -78,6 +78,14 @@ export async function ensureApplicantMatchesAuthSession(
   }
 
   if (typeof window !== "undefined") {
+    const { data: current } = await supabase.auth.getSession();
+    const token = current.session?.access_token;
+    if (!token) return { error: "Applicant session expired. Please refresh." };
+    const response = await fetch("/api/onboarding/session", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return { error: "Could not verify applicant session. Please refresh." };
     const prev = getScopedApplicantId();
     if (prev && prev !== uid) {
       console.info("[onboarding] applicantId synced to applicant auth user id", { prev, uid });

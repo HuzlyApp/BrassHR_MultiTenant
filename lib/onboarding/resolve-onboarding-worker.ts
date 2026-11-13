@@ -23,6 +23,7 @@ export async function resolveOnboardingWorker(
       if (scoped) return scoped;
       return resolveOrEnsureWorkerForApplicant(supabase, applicantId, slug);
     }
+    return null;
   }
 
   return resolveWorkerByApplicantId(supabase, applicantId);

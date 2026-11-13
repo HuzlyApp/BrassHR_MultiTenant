@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ ticket });
   }
 
-  const staffAuth = await requireStaffApiSession();
+  const staffAuth = await requireStaffApiSession(req);
   if (staffAuth instanceof NextResponse) return staffAuth;
   if (!isStaffRole(staffAuth.role) && !staffAuth.godAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

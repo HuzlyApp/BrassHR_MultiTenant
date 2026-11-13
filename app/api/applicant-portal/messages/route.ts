@@ -78,7 +78,7 @@ async function resolveStaffRequest(req: NextRequest, workerIdRaw: string) {
   const idCheck = parseRequiredUuid(workerIdRaw, "workerId");
   if (!idCheck.ok) return { error: NextResponse.json({ error: idCheck.error }, { status: 400 }) };
 
-  const auth = await requireStaffApiSession();
+  const auth = await requireStaffApiSession(req);
   if (auth instanceof NextResponse) return { error: auth };
 
   const supabase = createServiceRoleClient();
@@ -95,7 +95,7 @@ async function resolveStaffRequest(req: NextRequest, workerIdRaw: string) {
   if (!worker?.id || !worker.tenant_id) {
     return { error: NextResponse.json({ error: "Worker not found" }, { status: 404 }) };
   }
-  if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+  if (!(await canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id }))) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 

@@ -1,3 +1,4 @@
+import { authorizeTenantSetup } from "@/lib/tenant/authorize-setup";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const denied = await authorizeTenantSetup(tenantId, "/api/admin/branding");
+    if (denied) return denied;
 
     if (!file || !tenantId) {
       return NextResponse.json({ error: "Missing file or tenantId" }, { status: 400 });

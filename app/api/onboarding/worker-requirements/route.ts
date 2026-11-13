@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -81,6 +82,9 @@ async function resolveTenantIdForRequest(
 }
 
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
+
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || ""
     if (!applicantId) {
@@ -130,6 +134,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = (await req.json()) as Body
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""

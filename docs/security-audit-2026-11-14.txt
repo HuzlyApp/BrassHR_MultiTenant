@@ -1,0 +1,265 @@
+BRASSHR RBAC AND API SECURITY ASSESSMENT
+Date: 2026-11-14 (Asia/Manila)
+Disposition: Critical findings require remediation; this is not a security clearance.
+
+SCOPE AND EVIDENCE
+Inventoried 330 app/api route.ts files; 237 directly reference the service-role
+factory or key. These counts describe the attack surface, not 330 individually
+penetration-tested endpoints. Traced shared identity, role, permission and tenant
+helpers; reviewed high-risk onboarding, staff, signing, webhook and integration
+paths; inspected live Supabase policies, grants, functions, triggers and bucket
+visibility; ran selected security tests and npm audit.
+
+Live project: BrassHR / avhdoifnsnoeavqxnwwm, matching the hostname in .env.
+The CLI project-ref points to hfjfxbhawzzylftvfdod instead. This mismatch needs
+operational correction before future migrations. BrassHR_South was not audited.
+No tenant/user records were read for this audit; live SQL inspected catalog
+definitions, privileges and bucket configuration. No exploit, password reset,
+RPC mutation or production data modification was attempted.
+Code findings are confirmed control-flow defects, not demonstrations that the
+deployed application uses this exact revision. Database findings reflect live
+catalog state. Network/WAF restrictions and PostgREST configuration were not
+independently penetration-tested.
+
+CRITICAL FINDINGS
+
+C1. Unauthenticated signup can reset an existing account's password.
+Evidence: app/api/tenant-onboarding/complete/route.ts:101,397,405,442,445;
+proxy.ts:781 (the route is outside the proxy matcher).
+The session is optional. With no session, effectiveAdminEmail comes from the
+request. The handler looks through the first 200 auth users for that email and
+uses the matched ID in auth.admin.updateUserById, including a caller-supplied
+password and admin tenant metadata. No email-ownership proof precedes that write.
+A valid signup payload and available subdomain can therefore reset a matched
+existing user's credentials. Signup validation/provisioning must succeed first;
+the first-page lookup limits the set matched by this specific path.
+Fix: require verified signup identity; bind the admin user to that identity.
+Never update an existing account's password based on submitted email. Require
+Supabase recovery/reauthentication for password changes, and make signup writes
+transactional or safely compensating. Regression: existing victim email with no
+session must produce 401/403 and zero auth/admin calls.
+
+C2. Live anonymous EXECUTE grants expose destructive SECURITY DEFINER RPCs.
+Live catalog confirms anon and authenticated EXECUTE on bulk_delete_workers,
+claim_worker_candidates and claim_job_applications. Their inspected bodies do
+not check auth.uid(), caller membership or module grants. They trust tenant and
+record IDs supplied as arguments; this scopes the target, not the caller.
+bulk_delete_workers deletes applications, requirements, assessments, references
+and workers. Claim RPCs assign caller-selected recruiter IDs to eligible rows.
+The two build_employment_worker_* snapshot/manifest functions also accept tenant
+and record IDs without authorization and disclose application details and
+document paths/URLs, including legacy SSN/license document fields. Private
+buckets mean leaked paths do not by themselves prove downloadable file access.
+Evidence: live pg_proc/has_function_privilege results; source definitions in
+supabase/migrations/20260902120000_fix_bulk_delete_workers.sql:4,
+20260826203722_claim_worker_candidates_bulk.sql:4,101 and
+20261008180138_employment_worker_transfer_snapshot.sql:19,168.
+The source migrations revoke PUBLIC but live effective access remains. Explicit
+role grants are not removed by revoking PUBLIC; determine how they were granted.
+Fix: explicitly revoke EXECUTE from PUBLIC, anon and authenticated on internal
+RPCs, grant service_role only, and add caller authorization where direct client
+execution is intentional. Audit all overloads, default grants and later grants.
+Verify effective privileges in the deployed catalog, not migration text alone.
+Do not blindly revoke policy helper functions needed for ordinary RLS evaluation.
+
+C3. Direct-deposit write lacks applicant authentication/ownership proof.
+Evidence: app/api/onboarding/direct-deposit/route.ts:86,103,125,152;
+lib/onboarding/resolve-onboarding-worker.ts:14.
+A submitted applicantId and tenant slug resolve the target worker using service
+role. Workflow-phase validation and encryption protect other properties but do
+not establish caller ownership. An unauthenticated caller with a target ID and
+eligible workflow step can replace stored bank details. Financial impact depends
+on whether downstream payroll consumes these records.
+Fix: derive applicant and worker identity from a verified session or narrowly
+scoped continuation token; authorize the exact tenant/application and step before
+writing. Test another applicant's identifiers and missing identity -> 403/401.
+
+HIGH FINDINGS
+
+H1. Applicant onboarding exposes reads/writes through raw applicant identifiers.
+Evidence: app/api/onboarding/save-worker/route.ts:12,116;
+app/api/onboarding/worker-notes/route.ts:8,20;
+app/api/onboarding/worker-documents/route.ts:65,140;
+lib/onboarding/persist-worker-row.ts:256,299,342.
+No verified caller identity is required on these reviewed paths. Resolving a
+worker from an applicant ID is a lookup, not authorization. Notes can be read and
+profile/document records modified by someone who knows the identifier.
+persistWorkerRow also accepts a status supplied by save-worker, and can reclaim
+another session's email-matched worker for specified pipeline statuses without
+proving email ownership. Authentication alone will not fix that reclaim path.
+Fix: shared applicant authorization, verified identity linking, server-controlled
+pipeline transitions and exact application ownership. Add negative tests for
+email-based reassignment as well as UUID substitution.
+
+H2. Tenant configuration and branding can be changed without ownership proof.
+Evidence: app/api/tenant-onboarding/save-onboarding-config/route.ts:20,34,57;
+app/api/tenants/logo/route.ts:28,37,77; parallel favicon/background handlers.
+The handlers trust tenantId from JSON/form data and use service role. Knowing a
+tenant ID allows workflow replacement or branding overwrite; existing-tenant
+lookup is not an authorization check.
+Fix: bind setup to a verified owner/setup token and tenant; after setup require
+the corresponding settings permission. Test another tenant's ID and no session.
+
+H3. Staff worker access permits cross-tenant PII reads.
+Evidence: lib/auth/worker-record-access.ts:4-11;
+app/api/admin/recruiter-data/route.ts:59,137,161;
+app/api/admin/worker-profile/route.ts:108,131.
+canAccessWorkerRecord returns true for any staff role and receives no tenant ID.
+recruiter-data queries by the submitted runtime ID with service role, without a
+tenant predicate. It is also a shell API exempt from module grants. Its worker
+guard is skipped when the lookup returns no row/error. worker-profile uses the
+same role-only guard before loading the target worker's data.
+Proxy authorization checks the caller's module/tenant membership, not whether
+the requested worker belongs to that tenant; it does not close this gap.
+Fix: resolve the effective caller tenant, scope the initial record query, and
+authorize resource/action before loading related rows or cached bundles. Missing
+or failed object-ownership lookup must deny access. Test tenant A staff + B ID.
+
+H4. Staff API aliases bypass module permissions.
+Evidence: lib/auth/api-session.ts:340; proxy.ts:150,781;
+app/api/requisitions/[id]/route.ts:16,27; sibling duplicate handler;
+app/api/workers/route.ts:150 (staff guard, no module grant check).
+authorizeStaffHttpAccess is only invoked for /api/admin paths. The requisition
+aliases use requireStaffApiSession but no explicit jobs edit authorization;
+the workers list likewise lacks hiring/people module authorization. A staff user
+denied that module can still reach these paths with a valid session. Tenant
+filters here prevent some cross-tenant attacks but do not enforce RBAC actions.
+Fix: authorize resource/action explicitly at every handler, including aliases;
+never infer whether authorization is needed solely from a pathname header.
+
+H5. Direct Supabase access bypasses the application permission matrix.
+Live job_requisitions_staff is FOR ALL using user_is_tenant_staff(tenant_id),
+and authenticated has UPDATE privilege. The helper checks active staff status,
+not tenant_role_permissions. A staff JWT denied jobs edit in the UI/API can
+update same-tenant jobs directly through the Data API.
+Fix: enforce resource/action grants in RLS or revoke direct writes and require
+authorized server APIs. Test direct Data API operations for every revoked grant,
+not just calls through Next.js. Other staff-only ALL policies need the same audit.
+
+H6. Applicant worker policy allows changes to staff-controlled fields.
+Live worker_own_session is FOR ALL using/checking only user_id = auth.uid().
+authenticated has UPDATE privileges. The only inspected worker trigger validates
+department ownership. There is no protection for tenant/status/assignment in
+that policy. An owning applicant can modify their row's tenant or pipeline data
+where other schema constraints permit, bypassing onboarding transition logic.
+Evidence: supabase/migrations/20260508210000_onboarding_skill_assessment_worker_rls.sql:19
+and live pg_policies, pg_trigger and privilege results.
+Fix: restrict applicant-editable columns and operations; prevent ownership,
+tenant, status and recruiter changes through direct client writes. Preserve a
+server-only path for administrative changes.
+
+H7. Login OTP is not enforced at the server authorization boundary.
+Evidence: app/login/LoginPageClient.tsx:702,731;
+app/api/auth/login-otp/assert-verified/route.ts:13;
+lib/auth/api-session.ts:123,232; proxy.ts.
+The browser checks the OTP proof before password login, but API/proxy guards
+accept a valid Supabase user without that proof or an MFA assurance requirement.
+A person with valid account credentials can obtain a password-grant token and
+call protected APIs without the app OTP flow, assuming ordinary password auth
+remains enabled. This bypasses the extra verification, not the password itself.
+Fix: enforce server-verified MFA/session assurance at protected boundaries or
+bind a verified OTP result to a session checked on every protected request.
+
+ADDITIONAL CONFIRMED GAPS / CONDITIONAL RISKS
+
+M1. Authorization revocation can fall back to a profile role.
+lib/auth/module-access.server.ts:255-258 maps an inactive membership to null then
+falls back to users.role when tenant IDs match. If users.is_active remains true,
+an explicitly inactive membership is not a decisive denial. resolve-role.ts:142
+also chooses the highest role across all tenant memberships without filtering
+is_active, and :174 promotes a profile with a tenant ID to recruiter. The stronger
+/api/admin gate mitigates portions of this, but legacy paths remain exposed.
+Fix: explicit inactive membership must deny; resolve only active tenant roles;
+do not infer staff status merely from tenant affiliation. Test demotion, deletion,
+inactive membership with active profile, and multi-tenant mixed roles.
+
+M2. Security tests provide misleading coverage for known service-role IDORs.
+lib/security/rls/service-role-boundary.test.ts:67 derives a flagged list and only
+asserts its length >= 0 and that paths start with the directory it just scanned.
+It cannot reject a newly introduced unauthenticated route in that directory.
+catalog-live.test.ts is an inventory/gate assertion, not a live catalog check.
+policy-audit assertions against REVOKE PUBLIC text miss C2's effective role grants.
+Fix: real negative handler tests, explicit expiring exception lists, and deployed
+catalog assertions for effective grants, policy behavior and column restrictions.
+
+M3. Dependency advisories: npm audit reports 18 affected dependency entries:
+3 high, 10 moderate, 5 low, 0 critical. These include transitive chains, not 18
+independent exploitable application bugs. High entries: pdfjs-dist,
+follow-redirects and happy-dom. happy-dom is a development dependency; validate
+runtime reachability before treating its issue as a production exploit.
+Details and advisory URLs: security-audit-2026-11-14-dependencies.json.
+Upgrade with compatibility checks; do not blindly apply npm audit fix --force
+(one suggested resolution changes eslint-config-next to another major line).
+
+M4. CSP and rate-limit hardening need follow-up.
+next.config.ts allows unsafe-inline, unsafe-eval and data: in script-src, reducing
+XSS containment. Supabase session cookies intentionally remain JavaScript-readable
+for the browser SDK; that alone is not a bug, but amplifies any proven XSS.
+lib/security/rate-limit.ts:182 trusts x-forwarded-for before other headers, and
+falls back to instance-local counters when Redis is unavailable on fail-open
+paths. IP spoofing depends on the hosting proxy's header normalization; it was
+not demonstrated. Test deployed proxy behavior and distributed failure modes.
+Use nonces/hashes where feasible and trusted ingress-derived client identifiers.
+
+LIVE DATABASE ADVISOR CONTEXT
+Saved complete result: security-audit-2026-11-14-advisors.json.
+- 28 anon-executable / 36 authenticated-executable SECURITY DEFINER functions.
+  Not all are vulnerabilities: activate_post_hire, for example, rejects anon
+  and checks staff membership in its body. Trigger functions cannot necessarily
+  be invoked as ordinary RPCs. C2 identifies independently inspected unsafe ones.
+- 26 functions have mutable search_path; prioritize privileged callable functions.
+- 52 tables have RLS enabled with no policies. This is deny-by-default for normal
+  API roles, not evidence of public leakage; service-role paths still bypass it.
+- RLS disabled on default_workflow_migration_report and spatial_ref_sys. Catalog
+  confirms anon SELECT on the former; inspect its sensitivity and revoke exposure.
+  PostGIS reference data is not automatically sensitive tenant data.
+- cached_timezone_names is exposed, but timezone reference data is not PII.
+- Leaked password protection is disabled; enable in Supabase Auth.
+- Reviewed sensitive document buckets are private; organization-logos is public.
+- users security-column UPDATE trigger exists and blocks ordinary clients from
+  changing role, god_admin, tenant_id, is_active and must_change_password. An own
+  row UPDATE policy alone is therefore not proof of role escalation on this table.
+
+VALIDATION RESULTS
+Selected suite: 99 tests total; initial run 75 passed, 22 live adversarial tests
+skipped, 2 filesystem scans timed out at 5 seconds. Rerun of both affected files
+with testTimeout=60000 passed all 6 tests in those files. Across unique selected
+tests, final outcome: 77 passed, 22 skipped. No assertion failures remain.
+Live mutation tests were explicitly disabled with BRASSHR_RLS_TEST=0.
+Secret scanner exited 1 with 13 heuristic hits: 11 in test files and 2 password
+validation strings. Those two production strings are not credentials. No claim
+is made that all test fixtures or git history have been forensically cleared.
+Dependency audit completed successfully as a query, exiting 1 for vulnerabilities.
+No application fixes, migrations, dependency changes or commits were made.
+Existing WorkerDashboardOverview.tsx changes were left untouched.
+
+REMEDIATION ORDER AND ACCEPTANCE
+1. Contain C1/C2/C3: disable unsafe paths or deploy authenticated replacements;
+   explicitly correct effective RPC grants in a NEW migration. Preserve evidence
+   and review signup/auth/RPC logs for misuse; this audit does not establish breach.
+2. Centralize applicant ownership and tenant-bound worker access; remove public
+   setup writes and email-only reclamation; require explicit module actions on
+   every alias. Enforce equivalent restrictions at the Supabase Data API.
+3. Enforce OTP/session assurance and active membership decisions server-side.
+4. In a dedicated test environment, run an endpoint-by-method role matrix:
+   anonymous, anonymous Supabase user, applicant owner/non-owner, each staff role,
+   each disabled grant, suspended/demoted staff, and explicit god-admin view-as.
+   Repeat across tenants A/B and application IDs; cover Data API/RPC/storage too.
+   Require 401 for absent identity, 403/404 for unauthorized objects/actions,
+   zero writes on denied requests and audit logs for administrative transitions.
+5. Recheck live privileges after deploy, refresh advisory evidence, update affected
+   dependencies and test proxy/CSRF/rate-limit/upload behavior under deployment.
+
+LIMITS
+This assessment cannot guarantee that every possible vulnerability was found.
+No destructive adversarial test, full production HTTP sweep, WAF verification,
+complete dependency exploit analysis, or exhaustive 330-route functional review
+was performed. CSRF, redirect/SSRF chains, payload limits, storage policies,
+all RPC overloads and tenant-specific grant configurations need further dynamic
+testing. Findings above are sufficient to withhold a clean security assessment.
+
+REFERENCE GUIDANCE
+https://supabase.com/docs/guides/database/postgres/row-level-security
+https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public
+https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable
+https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection

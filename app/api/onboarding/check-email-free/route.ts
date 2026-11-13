@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
@@ -9,7 +10,6 @@ import {
   TENANT_EMAIL_TAKEN_CODE,
   TENANT_EMAIL_TAKEN_MESSAGE,
 } from "@/lib/tenant/tenant-email-uniqueness"
-import { findLatestResumeByEmail } from "@/lib/resume/find-latest-resume-by-email"
 
 export const runtime = "nodejs"
 
@@ -18,6 +18,8 @@ export const runtime = "nodejs"
  * Used when save-worker falls back to the browser Supabase client (no service role).
  */
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
   try {
     const body = await req.json()
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
@@ -62,31 +64,18 @@ export async function POST(req: NextRequest) {
       excludeUserId: applicantId,
     })
 
-    const existingResume = await findLatestResumeByEmail(supabase, {
-      tenantId: tenantRes.tenantId,
-      email: emailNorm,
-    }).catch(() => null)
-
-    const existingResumePayload = existingResume
-      ? {
-          resumeId: existingResume.resumeId,
-          workerId: existingResume.workerId,
-          fileName: existingResume.fileName,
-        }
-      : null
-
     if (conflict) {
       return NextResponse.json(
         {
           error: TENANT_EMAIL_TAKEN_MESSAGE,
           code: TENANT_EMAIL_TAKEN_CODE,
-          existingResume: existingResumePayload,
+          existingResume: null,
         },
         { status: 409 },
       )
     }
 
-    return NextResponse.json({ ok: true, existingResume: existingResumePayload })
+    return NextResponse.json({ ok: true, existingResume: null })
   } catch (err: unknown) {
     console.error("[onboarding/check-email-free]", err)
     const msg = err instanceof Error ? err.message : "Unexpected error"

@@ -457,6 +457,13 @@ function LoginPageContent() {
     }
     clearAdminLoginDraft();
 
+    const bound = await fetch("/api/auth/login-otp/bind-session", { method: "POST" });
+    if (!bound.ok) {
+      setAuthError({ error: "Please verify your login code again.", code: "OTP_INVALID", field: null });
+      setStep("otp");
+      return false;
+    }
+
     const { data: userData } = await supabaseBrowser.auth.getUser();
     const godAdmin =
       options?.godAdmin === true ||

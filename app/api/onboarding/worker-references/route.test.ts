@@ -1,3 +1,5 @@
+// Route behavior is tested with the separately tested ownership boundary authorized.
+vi.mock("@/lib/onboarding/request-access", () => ({ authorizeOnboardingRequest: vi.fn(async () => null) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolveOrEnsureWorkerForApplicantMock = vi.hoisted(() => vi.fn());

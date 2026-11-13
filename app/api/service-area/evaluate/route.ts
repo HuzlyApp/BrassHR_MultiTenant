@@ -43,14 +43,14 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       jobId = job?.id ? String(job.id) : null;
     } else {
-      const auth = await requireStaffApiSession();
+      const auth = await requireStaffApiSession(req);
       if (auth instanceof NextResponse) return auth;
       tenantId = await resolveStaffTenantId(supabase, auth);
     }
   } else if (action === "signup") {
     tenantId = null;
   } else {
-    const auth = await requireStaffApiSession();
+    const auth = await requireStaffApiSession(req);
     if (auth instanceof NextResponse) return auth;
     tenantId = await resolveStaffTenantId(supabase, auth);
   }

@@ -168,10 +168,10 @@ export async function GET(req: NextRequest) {
   } else if (workerForAccess.rows[0]) {
     const workerRow = workerForAccess.rows[0]
     if (
-      !canAccessWorkerRecord(auth, {
+      !(await canAccessWorkerRecord(auth, {
         id: String(workerRow.id ?? runtimeId),
         user_id: workerRow.user_id,
-      })
+      }))
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }

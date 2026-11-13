@@ -20,7 +20,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(_req: Request, context: RouteContext) {
   const { id } = await context.params;
-  const auth = await requireStaffApiSession();
+  const auth = await requireStaffApiSession(_req);
   if (auth instanceof NextResponse) return auth;
   if (!isStaffRole(auth.role) && !auth.godAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -1,6 +1,5 @@
 import type { User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { isStaffRole, parseAppRole } from "@/lib/auth/app-role";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
@@ -40,14 +39,6 @@ async function isGodAdminMerged(user: User): Promise<boolean> {
   return profile?.god_admin === true;
 }
 
-async function tenantIdFromProfilesTable(userId: string): Promise<string | null> {
-  const profile = await loadStaffUserProfileCached(userId);
-  if (!profile || profile.god_admin) return null;
-  if (profile.tenant_id === null) return null;
-  const s = profile.tenant_id.trim();
-  return UUID_RE.test(s) ? s : null;
-}
-
 /** Tenant from `onboarding_tenant_slug` cookie (no membership check). */
 async function tenantIdFromHostCookie(): Promise<string | null> {
   try {
@@ -63,50 +54,14 @@ async function tenantIdFromHostCookie(): Promise<string | null> {
   }
 }
 
-async function tenantIdFromHostCookieIfMember(params: {
-  userId: string;
-  jwtTenantId: string | null;
-  profileTenantId: string | null;
-}): Promise<string | null> {
-  try {
-    const tenantId = await tenantIdFromHostCookie();
-    if (!tenantId) return null;
-    if (
-      sameTenantId(params.jwtTenantId, tenantId) ||
-      sameTenantId(params.profileTenantId, tenantId)
-    ) {
-      return tenantId;
-    }
-    const sb = createServiceRoleClient();
-    if (!sb) return null;
-    const { data, error } = await sb
-      .from("user_roles")
-      .select("tenant_id, role, is_active")
-      .eq("user_id", params.userId);
-    if (error) return null;
-    const member = (data ?? []).some((row: { tenant_id?: string | null; role?: string | null; is_active?: boolean | null }) => {
-      const parsed = parseAppRole(row.role);
-      return (
-        sameTenantId(row.tenant_id, tenantId) &&
-        row.is_active !== false &&
-        parsed != null &&
-        isStaffRole(parsed)
-      );
-    });
-    return member ? tenantId : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Resolved tenant scope for list APIs (workers, geo search, …).
- * - Normal staff users: narrowed via JWT `tenant_id`, then `public.users.tenant_id` when missing from JWT.
+ * - Normal staff users: current database profile and active tenant membership.
  * - God admin: narrowed when `view_as_tenant_id` cookie is set; otherwise host slug, else all tenants.
  * - Dev / bypass: also honor host slug without membership so Candidates search can page via RPC.
  */
 export async function resolveStaffTenantScope(authUser: User): Promise<StaffTenantScope> {
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && process.env.DEV_ADMIN_AUTH_BYPASS === "true") {
     const devTenant = process.env.DEV_BENCHMARK_TENANT_ID?.trim();
     if (devTenant && UUID_RE.test(devTenant)) {
       return { mode: "scoped", tenantId: devTenant };
@@ -135,14 +90,10 @@ export async function resolveStaffTenantScope(authUser: User): Promise<StaffTena
     return { mode: "all" };
   }
 
-  const fromJwt = tenantIdFromUser(authUser);
-  const fromDb = await tenantIdFromProfilesTable(authUser.id);
-  const fromHost = await tenantIdFromHostCookieIfMember({
-    userId: authUser.id,
-    jwtTenantId: fromJwt,
-    profileTenantId: fromDb,
-  });
-  if (fromHost) return { mode: "scoped", tenantId: fromHost };
-  if (fromJwt) return { mode: "scoped", tenantId: fromJwt };
-  return fromDb ? { mode: "scoped", tenantId: fromDb } : { mode: "all" };
+  const svc = createServiceRoleClient();
+  if (!svc) throw new Error("Tenant scope unavailable");
+  const { resolveEffectiveAdminTenantId } = await import("@/lib/email-templates/resolve-effective-tenant");
+  const tenantId = await resolveEffectiveAdminTenantId(svc, { userId: authUser.id, authUser, godAdmin: false });
+  if (!tenantId) throw new Error("No authorized tenant selected");
+  return { mode: "scoped", tenantId };
 }

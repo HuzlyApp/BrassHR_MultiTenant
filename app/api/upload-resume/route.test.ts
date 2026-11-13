@@ -1,3 +1,5 @@
+// Auth boundary is tested separately; these cases exercise authorized resume uploads.
+vi.mock("@/lib/onboarding/request-access", () => ({ authorizeOnboardingRequest: vi.fn(async () => null) }));
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const afterMock = vi.hoisted(() => vi.fn((_fn: () => void | Promise<void>) => undefined))

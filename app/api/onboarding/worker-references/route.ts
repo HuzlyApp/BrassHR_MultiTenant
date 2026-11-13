@@ -1,3 +1,6 @@
+import { APPLICANT_ACCESS_COOKIE } from "@/lib/onboarding/request-access";
+import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -38,7 +41,7 @@ async function continuationWorkerId(
   const { data } = await supabase
     .from("applicant_continuation_links")
     .select("worker_id, tenant_id, expires_at, revoked_at, completed_at")
-    .eq("id", linkId)
+    .eq("token_hash", hashContinuationToken(linkId))
     .maybeSingle()
   const link = data as {
     worker_id: string
@@ -54,6 +57,9 @@ async function continuationWorkerId(
 
 /** The applicant's saved references, so the form can show what they already submitted. */
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
+
   try {
     const url = getSupabaseUrl()
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -66,7 +72,7 @@ export async function GET(req: NextRequest) {
     if (!tenantRes.ok) return NextResponse.json({ error: tenantRes.error }, { status: 404 })
 
     let workerId: string | null = null
-    const token = bearerToken(req)
+    const token = bearerToken(req) || req.cookies.get(APPLICANT_ACCESS_COOKIE)?.value
     if (token) {
       const { data: auth } = await supabase.auth.getUser(token)
       if (auth.user?.id) {
@@ -106,6 +112,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = (await req.json()) as {
       applicantId?: string

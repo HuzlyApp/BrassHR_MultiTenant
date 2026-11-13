@@ -79,7 +79,6 @@ export async function POST(req: Request) {
 
   const org = String(body.organizationName ?? "").trim();
   const adminEmail = String(body.adminEmail ?? "").trim().toLowerCase();
-  const adminPassword = String(body.adminPassword ?? "");
   const rootDomain = process.env.ROOT_DOMAIN?.trim().toLowerCase();
   if (!rootDomain) {
     return NextResponse.json({ error: "ROOT_DOMAIN is not configured on the server." }, { status: 503 });
@@ -104,6 +103,12 @@ export async function POST(req: Request) {
   } = await authClient.auth.getUser();
   const sessionUserId = sessionUser?.id;
   const sessionEmail = sessionUser?.email?.trim().toLowerCase() ?? "";
+
+  // Signup must already have established identity. An email in JSON is never
+  // authority to reset credentials or attach an existing account to a tenant.
+  if (!sessionUserId || !sessionEmail || sessionUser?.is_anonymous) {
+    return NextResponse.json({ error: "Sign in to finish organization setup." }, { status: 401 });
+  }
 
   if (sessionUserId && sessionEmail && adminEmail && adminEmail !== sessionEmail) {
     return NextResponse.json(
@@ -135,7 +140,7 @@ export async function POST(req: Request) {
     adminEmail: effectiveAdminEmail,
   });
   // Skip means ignore business fields entirely (partial ZIP/phone leftovers must not block).
-  let businessInputForValidation = businessInfoSkipped
+  const businessInputForValidation = businessInfoSkipped
     ? {
         companyName: resolvedCompanyName,
         industry: "",
@@ -162,9 +167,6 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!sessionUserId && adminPassword.length < 6) {
-    return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
-  }
 
   const rawCategory = body.category;
   const parsedCategory = parseTenantCategory(rawCategory);
@@ -317,7 +319,7 @@ export async function POST(req: Request) {
     }
   }
 
-  let userId: string | undefined = sessionUserId;
+  const userId: string = sessionUserId;
 
   try {
     const { evaluateSignupPrimaryLocation } = await import("@/lib/service-area/signup");
@@ -394,16 +396,6 @@ export async function POST(req: Request) {
     console.error("[tenant-onboarding] industry binding", bindError);
   }
 
-  const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
-  if (listErr) {
-    return NextResponse.json({ error: listErr.message }, { status: 500 });
-  }
-
-  if (!userId) {
-    const found = list?.users?.find((u) => (u.email || "").toLowerCase() === effectiveAdminEmail);
-    userId = found?.id;
-  }
-
   const appMd = {
     platform: "nexus",
     tenant_id: tenantId,
@@ -412,41 +404,12 @@ export async function POST(req: Request) {
     tenant_onboarding_completed: true,
   };
 
-  if (!userId) {
-    if (adminPassword.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
-    }
-    const { data: created, error: cuErr } = await svc.auth.admin.createUser({
-      email: effectiveAdminEmail,
-      password: adminPassword,
-      email_confirm: true,
-      app_metadata: appMd,
-    });
-    if (cuErr || !created.user?.id) {
-      console.error("[tenant-onboarding] createUser", cuErr?.message);
-      if (createdNewTenant && tenantId) {
-        await svc.from("tenants").delete().eq("id", tenantId);
-      }
-      return NextResponse.json({ error: cuErr?.message || "Could not create admin user." }, { status: 500 });
-    }
-    userId = created.user.id;
-  } else {
-    const updatePayload: {
-      email_confirm: boolean;
-      app_metadata: typeof appMd;
-      password?: string;
-    } = {
-      email_confirm: true,
-      app_metadata: appMd,
-    };
-    if (adminPassword.length >= 6) {
-      updatePayload.password = adminPassword;
-    }
-    const { error: updErr } = await svc.auth.admin.updateUserById(userId, updatePayload);
-    if (updErr) {
-      console.error("[tenant-onboarding] updateUser", updErr.message);
-      return NextResponse.json({ error: updErr.message }, { status: 500 });
-    }
+  // Password recovery has its own verified flow; never accept a password here.
+  const { error: updErr } = await svc.auth.admin.updateUserById(sessionUserId, {
+    app_metadata: appMd,
+  });
+  if (updErr) {
+    return NextResponse.json({ error: "Could not finish account setup." }, { status: 500 });
   }
 
   const completedAt = new Date().toISOString();

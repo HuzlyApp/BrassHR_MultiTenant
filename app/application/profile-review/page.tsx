@@ -36,7 +36,6 @@ import { useAddressValidation } from "@/lib/mapbox/use-address-validation"
 import type { AddressValidationResult } from "@/lib/mapbox/address-validation-types"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
-import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboarding-tenant-fallback"
 import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
@@ -657,17 +656,6 @@ function Step1ReviewContent() {
     addressValidation.isAddressVerified,
   ])
 
-  function describeSaveError(err: unknown): string {
-    if (err instanceof Error && err.message) return err.message
-    if (err && typeof err === "object") {
-      const e = err as { message?: string; details?: string; hint?: string; code?: string }
-      const parts = [e.message, e.details, e.hint].filter((x): x is string => Boolean(x?.trim()))
-      if (parts.length) return parts.join(" — ")
-      if (e.code) return `Could not save (${e.code})`
-    }
-    return "Failed to save data"
-  }
-
   const handleSaveAndContinue = async () => {
     autosaveEmailBlockedRef.current = false
     setFieldConflict(null)
@@ -719,27 +707,6 @@ function Step1ReviewContent() {
           : {}),
       }
 
-      const clientTenantId = getClientOnboardingTenantIdFallback()
-      const workerRow = {
-        ...(clientTenantId && !tenantSlug ? { tenant_id: clientTenantId } : {}),
-        user_id: applicantId,
-        first_name: form.firstName.trim(),
-        last_name: form.lastName.trim(),
-        address1: form.address1.trim(),
-        address2: resolveStep1Address2(form),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        zip: form.zipCode.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        job_role: form.jobRole.trim(),
-        status: "new",
-        ...(verified?.coordinates
-          ? { lat: verified.coordinates.lat, lng: verified.coordinates.lng }
-          : {}),
-        updated_at: new Date().toISOString(),
-      }
-
       const saveRes = await fetch("/api/onboarding/save-worker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -759,71 +726,7 @@ function Step1ReviewContent() {
         return
       }
 
-      if (
-        saveRes.status === 503 &&
-        (saveJson.error === "MISSING_SERVICE_ROLE_KEY" ||
-          saveJson.error === "MISSING_SUPABASE_URL")
-      ) {
-        if (!clientTenantId) {
-          throw new Error(
-            'Multi-tenant database requires tenant_id on worker rows. Add NEXT_PUBLIC_DEFAULT_TENANT_ID to .env.local (your platform tenant UUID), or set SUPABASE_SERVICE_ROLE_KEY so the server can resolve the default tenant from public.tenants.',
-          )
-        }
-        const emailCheck = await fetch("/api/onboarding/check-email-free", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            applicantId,
-            email: form.email.trim(),
-            ...(tenantSlug ? { tenantSlug } : {}),
-          }),
-        })
-        let emailCheckJson: { error?: string; code?: string } = {}
-        try {
-          emailCheckJson = (await emailCheck.json()) as { error?: string; code?: string }
-        } catch {
-          /* ignore */
-        }
-        if (emailCheck.status === 409 && emailCheckJson.code === "DUPLICATE_EMAIL") {
-          setFieldConflict({ kind: "email", bannerVisible: true })
-          return
-        }
-
-        const { supabaseBrowser: browserClient } = await import("@/lib/supabase-browser")
-        // Prefer tenant-scoped lookup; same user_id can exist on multiple tenants.
-        let existingQuery = browserClient.from("worker").select("id").eq("user_id", applicantId)
-        if (clientTenantId) {
-          existingQuery = existingQuery.eq("tenant_id", clientTenantId)
-        }
-        const { data: existingRows, error: selErr } = await existingQuery
-          .order("updated_at", { ascending: false })
-          .limit(1)
-        if (selErr) {
-          throw new Error(
-            `${describeSaveError(selErr)} To save from the server instead, add SUPABASE_SERVICE_ROLE_KEY to .env.local (Supabase → Project Settings → API → service_role secret).`
-          )
-        }
-        const existing = existingRows?.[0]
-        if (existing?.id) {
-          const { user_id: _u, ...updatePayload } = workerRow as Record<string, unknown>
-          const { error: upErr } = await browserClient
-            .from("worker")
-            .update(updatePayload)
-            .eq("id", existing.id)
-          if (upErr) {
-            throw new Error(
-              `${describeSaveError(upErr)} To save from the server instead, add SUPABASE_SERVICE_ROLE_KEY to .env.local (Supabase → Project Settings → API → service_role secret).`
-            )
-          }
-        } else {
-          const { error: insErr } = await browserClient.from("worker").insert(workerRow)
-          if (insErr) {
-            throw new Error(
-              `${describeSaveError(insErr)} To save from the server instead, add SUPABASE_SERVICE_ROLE_KEY to .env.local (Supabase → Project Settings → API → service_role secret).`
-            )
-          }
-        }
-      } else if (!saveRes.ok) {
+      if (!saveRes.ok) {
         throw new Error(
           saveJson.hint || saveJson.error || `Save failed (${saveRes.status})`
         )

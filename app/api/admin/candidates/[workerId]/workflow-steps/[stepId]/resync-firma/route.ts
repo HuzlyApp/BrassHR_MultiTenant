@@ -62,7 +62,7 @@ export async function POST(req: Request, context: RouteContext) {
     if (!worker) {
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
-    if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+    if (!(await canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

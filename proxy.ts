@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { STAFF_SESSION_PROOF_COOKIE, verifyStaffSessionProof } from "@/lib/auth/login-otp-proof";
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
@@ -278,6 +279,29 @@ async function proxyInner(request: NextRequest) {
     ? await timeSpan("session", () => supabase.auth.getUser())
     : { data: { user: null } };
   const isAnonymousUser = isAnonymousAuthUser(user);
+  const staffPage = pathname.startsWith("/admin_recruiter") || pathname === "/godadmin" || pathname.startsWith("/godadmin/");
+  const loginPage = pathname === "/login" || pathname.startsWith("/login/") || pathname === "/signin" || pathname.startsWith("/signin/");
+  let staffSessionVerified = false;
+  if (user && !isAnonymousUser && (staffPage || loginPage)) {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (token) {
+        const verified = await supabase.auth.getUser(token);
+        const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+        staffSessionVerified = !verified.error && verified.data.user?.id === user.id && claims.sub === user.id
+          && (!user.factors?.some(f => f.status === "verified") || claims.aal === "aal2")
+          && verifyStaffSessionProof(user.id, claims.session_id, request.cookies.get(STAFF_SESSION_PROOF_COOKIE)?.value);
+      }
+    } catch { /* Fail closed when verification cannot be completed. */ }
+  }
+  if (staffPage && user && !isAnonymousUser && !staffSessionVerified) {
+    const login = new URL("/admin", request.url);
+    login.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+    login.searchParams.set("verification", "required");
+    const tenant = request.nextUrl.searchParams.get("tenant") || request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value;
+    if (tenant) login.searchParams.set("tenant", tenant);
+    return withSessionCookies(response, NextResponse.redirect(login));
+  }
 
   /** Idle timeout: end non-anonymous sessions after 2h without activity cookie updates. */
   if (user && !isAnonymousUser) {
@@ -604,7 +628,7 @@ async function proxyInner(request: NextRequest) {
     pathname === "/admin" ||
     pathname.startsWith("/admin/");
 
-  if (isLoginPath && user && !isAnonymousUser) {
+  if (isLoginPath && user && !isAnonymousUser && staffSessionVerified) {
     const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
     const destination = resolvePostAuthRedirect(
       onboardingStatus,

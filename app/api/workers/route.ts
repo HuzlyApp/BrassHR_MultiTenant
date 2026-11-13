@@ -147,7 +147,7 @@ function resolveWorkerDisplayStatus(row: Record<string, unknown>): string | null
 
 export async function GET(req: Request) {
   try {
-    const auth = await requireStaffApiSession();
+    const auth = await requireStaffApiSession(req);
     if (auth instanceof NextResponse) return auth;
     const tenantScope = await resolveStaffTenantScope(auth.authUser);
 

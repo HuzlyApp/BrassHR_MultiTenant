@@ -1,0 +1,13 @@
+
+> nexus-onboarding-app@0.1.0 test
+> vitest run --config vitest.config.mts lib/auth/staff-session-verification.test.ts lib/onboarding/request-access.test.ts lib/onboarding/persist-worker-row.test.ts lib/onboarding/resolve-worker-context.test.ts lib/onboarding/resolve-onboarding-worker.test.ts lib/auth/worker-record-access.test.ts lib/auth/login-otp-proof.test.ts lib/auth/permission-catalog.test.ts lib/email-templates/resolve-effective-tenant.test.ts app/api/onboarding/save-worker/route.test.ts app/api/onboarding/worker-references/route.test.ts app/api/upload-resume/route.test.ts app/api/admin/worker-resume-preview/route.test.ts app/api/tenant-onboarding/complete/route.test.ts lib/security lib/resume/extract-pdf-text.test.ts --testTimeout=60000 --maxWorkers=2
+
+
+ RUN  v4.1.12 C:/Users/carli/Documents/BrassHR/BrassHR_MultiTenant
+
+
+ Test Files  23 passed (23)
+      Tests  112 passed | 22 skipped (134)
+   Start at  03:33:47
+   Duration  13.87s (transform 1.61s, setup 11.44s, import 3.25s, tests 4.70s, environment 4ms)
+

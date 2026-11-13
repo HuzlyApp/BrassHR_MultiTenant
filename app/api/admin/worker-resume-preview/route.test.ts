@@ -1,3 +1,5 @@
+// Ownership guard has dedicated cross-tenant tests; these cases cover resume selection.
+vi.mock("@/lib/auth/worker-record-access", () => ({ canAccessWorkerRecord: vi.fn(async () => true) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({

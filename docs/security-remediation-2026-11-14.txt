@@ -1,0 +1,114 @@
+BrassHR security remediation — 2026-11-14
+
+STATUS
+Critical/high audit findings have code fixes and regression coverage. Two database
+containment migrations were applied to BrassHR (avhdoifnsnoeavqxnwwm). Application
+changes are local and have NOT been deployed or committed. This is not a clean
+security certification: remaining hardening and verification limits are below.
+The existing WorkerDashboardOverview.tsx user change was preserved.
+
+IMPLEMENTED
+C1: Tenant signup completion requires a verified, non-anonymous signed-in user;
+submitted email must match. Removed email-based account selection and password
+reset. The endpoint cannot reset another account's credentials.
+C2: Explicitly revoked PUBLIC/anon/authenticated execution of unsafe internal
+RPCs, preserving service_role. All overloads are covered by the migration.
+Internal migration-report table now has RLS and no API-role privileges.
+C3/H1: Onboarding, resume upload, public profile linking and personalized config
+now verify applicant identity/continuation secret and ownership before privileged
+operations. Worker/application/signing IDs are checked against ownership and
+tenant. Conflicting request aliases and cross-origin writes are rejected.
+Continuation cookies contain the secret, not a reusable database row ID. Reopening
+the continuation email is required for sessions issued before this change.
+Profile persistence no longer reclaims another worker by email/phone and cannot
+change ownership, tenant or workflow status. Duplicate identities return conflict.
+Removed browser direct-write fallback, arbitrary signed-download URL forwarding,
+and disclosure of another applicant's resume identifiers during email checking.
+H2: Tenant branding/setup mutations require an authenticated owner/staff identity,
+server-resolved tenant and relevant module permission. Draft preview is staff-only.
+H3: Staff worker-record access verifies the selected authorized tenant. Recruiter
+data rejects missing worker records rather than skipping the ownership check.
+H4/M1: API aliases enforce canonical module permissions. Revoked memberships deny
+access; role/tenant resolution uses current database state, not highest role from
+another tenant or stale JWT claims. Missing tenant scope fails closed. Development
+authentication bypass requires explicit opt-in and is unavailable in production.
+H5/H6: Data API worker/job mutations are denied to anon/authenticated. Restrictive
+read policies require applicant ownership or current tenant resource grants.
+Public jobs use the server public API projection rather than direct table reads.
+H7: Staff APIs and protected staff pages require an OTP proof bound to the exact
+Supabase user/session. Enrolled MFA requires aal2. Removed god-admin OTP shortcut
+and predictable proof-secret fallback. Login redirects allow re-verification.
+Initial tenant provisioning retains its scoped, verified-owner setup flow.
+M2: Replaced the tautological service-role scan with an assertion that fails on
+unguarded routes. Added ownership, tenant, revocation, profile-write and session
+negative tests, including a handler test proving denied requests do not persist.
+M3: Upgraded PDF.js and Happy DOM, updated vulnerable transitive dependencies,
+removed unused react-email packages, and pinned the minimatch security override.
+Adapted PDF cleanup to PDF.js 6 and tested real PDF extraction. npm audit: zero.
+M4: Sensitive failClosed rate limits now require the shared store. Client IPs are
+trusted only from Vercel's normalized header or an explicitly configured ingress
+header. Removed unsafe-eval/data/blob script sources from the main production CSP.
+
+LIVE DATABASE VERIFICATION
+Migrations (local filenames match remote migration history):
+  20261113185538_security_rpc_access_boundaries.sql
+  20261113192554_security_data_api_write_boundaries.sql
+Verified critical RPC grants: anon=false, authenticated=false, service_role=true.
+Verified INSERT/UPDATE/DELETE on worker and job_requisitions: anon/authenticated
+false; service_role true. Anonymous direct job-table SELECT is also denied.
+Read-only transactions with an identity without membership returned 0 workers and
+0 jobs. An existing active staff identity with a hiring grant saw 295 authorized
+workers and 0 rows outside its ownership/grants. Transactions were rolled back;
+no business rows or accounts were changed by these probes.
+Advisors refreshed: unsafe callable definer inventory reduced from 28/36 to 15/24
+(anon/authenticated). Remaining callable functions are not automatically exploits.
+
+VALIDATION
+Focused security/flow suite: 23 files passed; 112 passed, 22 skipped.
+Covers signup, applicant ownership, profile save, references, resume upload/preview,
+real PDF extraction, tenant role revocation, OTP/MFA session proof and security scans.
+Full suite: 428 files passed, 12 failed; 2701 passed, 28 failed, 22 skipped;
+4 unhandled errors. The 28 failures and 4 errors were reproduced against a clean
+HEAD archive using the same dependencies (baseline: 12 failed files, 28 failures).
+They concern stale password/workflow/job-validation expectations, missing mock
+tables/providers and Dialpad expectations. Business logic was not changed to make
+these unrelated tests pass. Final session verification tests were run separately.
+TypeScript: npx tsc --noEmit --incremental false passed.
+Changed-file ESLint: 0 errors, 13 existing warnings; final proxy/session files also
+passed separately. Diff whitespace check passed excluding the pre-existing user edit.
+Live fixture mutation tests intentionally remained disabled (BRASSHR_RLS_TEST=0).
+No production browser role matrix or full build/deployment smoke test was performed.
+
+DEPLOYMENT AND REMAINING WORK
+Deploy application changes to activate HTTP guards and applicant session bridging.
+Staff with existing sessions must log in and verify again. Continuation users must
+reopen their original link. Check applicant signup/upload, staff login/MFA, tenant
+setup branding and Firma signing in staging before production app rollout.
+Redis must be reachable for failClosed login endpoints; failure returns 503.
+For non-Vercel hosting, configure TRUSTED_CLIENT_IP_HEADER only for a header the
+trusted ingress overwrites, and prevent direct origin access. Otherwise clients
+share the conservative "unknown" rate-limit bucket. Deployed ingress behavior
+has not been exercised. Vercel reference: https://vercel.com/docs/headers/request-headers
+Full nonce/hash CSP remains outstanding: unsafe-inline is retained for Next.js
+inline scripts, and /signing retains the vendor-compatible policy. Eliminating
+these exceptions needs browser validation of the proxied Firma integration.
+Supabase leaked-password protection remains disabled; the connected tool does
+not expose Auth configuration updates. Enable via the project Auth settings:
+https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
+Remaining advisor notices (26 mutable function search paths, PostGIS reference
+table/extension placement, timezone materialized view, deny-by-default tables and
+anonymous-signin policy inventory) are saved in security-remediation-advisors.json.
+They are not all confirmed vulnerabilities and were not changed indiscriminately.
+Search-path guidance: https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable
+No claim is made that every possible vulnerability or every production flow has
+been exhaustively tested. The unrelated failing baseline and the above deployment
+checks prevent calling the entire application release verified.
+
+EVIDENCE
+security-remediation-targeted-tests.txt
+security-remediation-tests-final.txt
+security-remediation-baseline-tests.txt
+security-remediation-typecheck.txt
+security-remediation-lint.txt
+security-remediation-audit.json
+security-remediation-advisors.json
