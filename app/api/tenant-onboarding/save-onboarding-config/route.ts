@@ -1,3 +1,4 @@
+import { authorizeTenantSetup } from "@/lib/tenant/authorize-setup";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
@@ -31,6 +32,8 @@ export async function POST(req: Request) {
   }
 
   const tenantId = String(body.tenantId ?? "").trim();
+    const denied = await authorizeTenantSetup(tenantId, "/api/admin/onboarding-builder");
+    if (denied) return denied;
   if (!tenantId) {
     return NextResponse.json({ error: "tenantId is required" }, { status: 400 });
   }

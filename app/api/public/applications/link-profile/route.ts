@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { z } from "zod";
 import { normalizeApplicantEmail } from "@/lib/jobs/validation";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
@@ -15,6 +16,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
   const limited = await enforceRateLimit(req, {
     namespace: "job-application-link-profile",
     key: getClientIp(req),

@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Worker not found" }, { status: 404 });
   }
   if (
-    !canAccessWorkerRecord(auth, {
+    !(await canAccessWorkerRecord(auth, {
       id: String(worker.id),
       user_id: (worker as { user_id?: unknown }).user_id,
-    })
+    }))
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -88,10 +88,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Worker not found" }, { status: 404 });
   }
   if (
-    !canAccessWorkerRecord(auth, {
+    !(await canAccessWorkerRecord(auth, {
       id: String(worker.id),
       user_id: (worker as { user_id?: unknown }).user_id,
-    })
+    }))
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -48,7 +48,7 @@ async function authorizeTicketAccess(
     };
   }
 
-  const staffAuth = await requireStaffApiSession();
+  const staffAuth = await requireStaffApiSession(req);
   if (staffAuth instanceof NextResponse) return { error: staffAuth };
   if (!isStaffRole(staffAuth.role) && !staffAuth.godAdmin) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };

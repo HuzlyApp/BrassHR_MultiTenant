@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     let allowed = false;
 
-    const staffAuth = await requireStaffApiSession();
+    const staffAuth = await requireStaffApiSession(req);
     if (!(staffAuth instanceof NextResponse)) {
       if (isStaffRole(staffAuth.role) || staffAuth.godAdmin) {
         const scope = await resolveStaffTenantScope(staffAuth.authUser);

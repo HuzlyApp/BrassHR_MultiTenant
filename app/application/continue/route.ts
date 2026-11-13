@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
   if (new Date(linkRow.expires_at).getTime() <= Date.now()) return invalidRedirect(req, "expired");
 
   if (linkRow.applicant_user_id) {
-    const ctx = await resolveWorkerByApplicantId(supabase, linkRow.applicant_user_id);
+    const ctx = await resolveWorkerByApplicantId(supabase, linkRow.applicant_user_id, linkRow.tenant_id);
     if (!ctx || ctx.workerId !== linkRow.worker_id || ctx.tenantId !== linkRow.tenant_id) {
       return invalidRedirect(req, "invalid");
     }
@@ -71,11 +71,17 @@ export async function GET(req: NextRequest) {
     .is("revoked_at", null);
 
   const destination = new URL(linkRow.target_path, req.url);
+  if (destination.origin !== req.nextUrl.origin) return invalidRedirect(req, "invalid");
+  const { data: tenant } = await supabase.from("tenants").select("slug,subdomain").eq("id", linkRow.tenant_id).eq("is_active", true).maybeSingle();
+  const tenantSlug = tenant?.slug || tenant?.subdomain;
+  if (!tenantSlug) return invalidRedirect(req, "invalid");
+  destination.searchParams.set("tenant", tenantSlug);
   destination.searchParams.delete("token");
   destination.searchParams.set("resume", "1");
 
   const res = NextResponse.redirect(destination);
-  res.cookies.set(APPLICANT_CONTINUATION_SESSION_COOKIE, linkRow.id, {
+  res.cookies.set("onboarding_tenant_slug", tenantSlug, { path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 3600 });
+  res.cookies.set(APPLICANT_CONTINUATION_SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

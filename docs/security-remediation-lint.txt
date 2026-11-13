@@ -1,0 +1,32 @@
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\api\admin\worker-checklist\route.ts
+  59:10  warning  'hasUrl' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\api\admin\worker-profile\route.ts
+  139:11  warning  'workerEmail' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\api\onboarding\extra-files\route.ts
+  11:6  warning  'ExtraFileRow' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\api\onboarding\worker-documents\route.ts
+  231:26  warning  '_w' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\api\tenants\logo\route.ts
+  3:10  warning  'createClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\api\upload-resume\route.test.ts
+  5:43  warning  '_fn' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\application\profile-review\page.tsx
+   413:6   warning  React Hook useEffect has a missing dependency: 'addressValidation'. Either include it or remove the dependency array                                                                                                                                                                     react-hooks/exhaustive-deps
+  1254:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\carli\Documents\BrassHR\BrassHR_MultiTenant\app\login\LoginPageClient.tsx
+    3:8  warning  'Image' is defined but never used                                                                                                         @typescript-eslint/no-unused-vars
+   52:3  warning  'readCachedTenantBranding' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
+  260:6  warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array                           react-hooks/exhaustive-deps
+  414:6  warning  React Hook useEffect has a missing dependency: 'authError'. Either include it or remove the dependency array                              react-hooks/exhaustive-deps
+  416:5  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+
+✖ 13 problems (0 errors, 13 warnings)
+

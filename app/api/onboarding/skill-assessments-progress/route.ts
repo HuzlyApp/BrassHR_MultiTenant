@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -12,6 +13,9 @@ function isMissingColumnErr(e: unknown) {
 }
 
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || ""
     if (!applicantId) {

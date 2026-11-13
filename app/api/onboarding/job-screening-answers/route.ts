@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -28,6 +29,9 @@ type Body = {
 };
 
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() ?? "";
     const jobToken = normalizeJobToken(req.nextUrl.searchParams.get("jobToken"));
@@ -106,6 +110,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = (await req.json()) as Body;
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : "";

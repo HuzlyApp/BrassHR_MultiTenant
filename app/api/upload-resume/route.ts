@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { randomUUID } from "node:crypto"
 import { after, NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
@@ -138,6 +139,8 @@ async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): P
 }
 
 export async function POST(req: Request) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
   const routeTimer = createTimer()
 
   const limited = await enforceRateLimit(req, {

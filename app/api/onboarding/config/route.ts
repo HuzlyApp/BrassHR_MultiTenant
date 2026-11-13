@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -16,6 +17,10 @@ export const runtime = "nodejs";
 
 /** Public/worker-safe onboarding config (no correct_answer on questions). */
 export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.has("applicantId")) {
+    const accessDenied = await authorizeOnboardingRequest(req);
+    if (accessDenied) return accessDenied;
+  }
   try {
     const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
     const tenantIdParam = req.nextUrl.searchParams.get("tenantId")?.trim() || "";

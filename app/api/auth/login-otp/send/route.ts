@@ -132,16 +132,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (godAdmin) {
-      await auth.auth.signOut();
-      return NextResponse.json({
-        ok: true,
-        godAdmin: true,
-        requiresOtp: false,
-        email,
-      });
-    }
-
     await auth.auth.signOut();
 
     const sent = await sendSupabaseLoginOtp(email, signInData.user.id);

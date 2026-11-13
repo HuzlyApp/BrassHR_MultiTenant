@@ -1,11 +1,15 @@
+import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadWorkerNotesForWorkerId } from "@/lib/worker-notes";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
+
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
     if (!applicantId) {
@@ -17,7 +21,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ notes: [] });
     }
 
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, readOnboardingTenantSlugFromRequest(req));
     if (!ctx?.workerId) {
       return NextResponse.json({ notes: [] });
     }

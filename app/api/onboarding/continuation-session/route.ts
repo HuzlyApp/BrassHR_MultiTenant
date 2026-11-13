@@ -1,3 +1,4 @@
+import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
   const { data: link, error } = await supabase
     .from("applicant_continuation_links")
     .select("id, worker_id, tenant_id, applicant_user_id, expires_at, revoked_at, completed_at")
-    .eq("id", linkId)
+    .eq("token_hash", hashContinuationToken(linkId))
     .maybeSingle();
 
   const linkRow = link as LinkRow | null;
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest) {
       .from("worker")
       .select("user_id")
       .eq("id", linkRow.worker_id)
+      .eq("tenant_id", linkRow.tenant_id)
       .maybeSingle();
     applicantId = (worker as { user_id: string | null } | null)?.user_id ?? null;
   }
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from("applicant_continuation_links")
       .update({ completed_at: new Date().toISOString() })
-      .eq("id", linkId)
+      .eq("token_hash", hashContinuationToken(linkId))
       .is("completed_at", null);
   }
 

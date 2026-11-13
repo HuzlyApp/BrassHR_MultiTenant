@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -13,24 +14,10 @@ function sanitizeFilename(filename: string): string {
   return withExt.replace(/^_+/, "") || "Signed_Agreement.pdf";
 }
 
-function isValidStorageUrl(urlStr: string, supabaseUrl?: string | null): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
-    if (supabaseUrl) {
-      const parsedSupabase = new URL(supabaseUrl);
-      if (parsed.hostname === parsedSupabase.hostname) return true;
-    }
-    if (parsed.hostname.endsWith(".supabase.co") && parsed.pathname.includes("/storage/v1/object/")) {
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const signingRequestId = req.nextUrl.searchParams.get("signingRequestId")?.trim() || "";
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
@@ -38,7 +25,6 @@ export async function GET(req: NextRequest) {
     const stepKey = req.nextUrl.searchParams.get("stepKey")?.trim() || "";
     const stepId = req.nextUrl.searchParams.get("stepId")?.trim() || "";
     const tenantSlug = req.nextUrl.searchParams.get("tenantSlug")?.trim() || "";
-    const rawFileUrl = req.nextUrl.searchParams.get("url")?.trim() || req.nextUrl.searchParams.get("fileUrl")?.trim() || "";
     const isDownload = req.nextUrl.searchParams.get("download") === "true";
     const filenameParam = req.nextUrl.searchParams.get("filename")?.trim();
     const safeFilename = sanitizeFilename(filenameParam || "Signed_Agreement.pdf");
@@ -51,29 +37,6 @@ export async function GET(req: NextRequest) {
 
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    // Fast-path: if a valid direct storage URL is supplied
-    if (rawFileUrl && isValidStorageUrl(rawFileUrl, url)) {
-      if (isDownload) {
-        try {
-          const fileRes = await fetch(rawFileUrl);
-          if (fileRes.ok && fileRes.body) {
-            const contentType = fileRes.headers.get("content-type") || "application/pdf";
-            return new Response(fileRes.body, {
-              status: 200,
-              headers: {
-                "Content-Type": contentType,
-                "Content-Disposition": `attachment; filename="${safeFilename}"`,
-                "Cache-Control": "private, no-cache, no-store, must-revalidate",
-              },
-            });
-          }
-        } catch (fetchErr) {
-          console.warn("[onboarding/firma-sign/download] streaming direct URL failed, redirecting:", fetchErr);
-        }
-      }
-      return NextResponse.redirect(rawFileUrl, { status: 302 });
-    }
 
     if (!url || !key) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });

@@ -48,7 +48,7 @@ import { isEligibleForFinalApprovalView } from "@/lib/admin/final-approval"
 
 export const runtime = "nodejs"
 
-type WorkerProfileSupabaseClient = ReturnType<typeof createClient<any, "public", any>>
+type WorkerProfileSupabaseClient = import("@supabase/supabase-js").SupabaseClient
 
 function hasUrl(v: unknown): boolean {
   return typeof v === "string" && v.trim().length > 0
@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
     }
 
     const w = worker as Record<string, unknown>
-    if (!canAccessWorkerRecord(auth, { id: String(w.id), user_id: w.user_id })) {
+    if (!(await canAccessWorkerRecord(auth, { id: String(w.id), user_id: w.user_id }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     const userIdForLegacy =
@@ -1168,7 +1168,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 })
     }
 
-    if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+    if (!(await canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

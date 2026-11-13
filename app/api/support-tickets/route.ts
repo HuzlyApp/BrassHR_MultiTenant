@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const staffAuth = await requireStaffApiSession();
+  const staffAuth = await requireStaffApiSession(req);
   if (staffAuth instanceof NextResponse) return staffAuth;
   if (!isStaffRole(staffAuth.role) && !staffAuth.godAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ticket: result.ticket }, { status: 201 });
   }
 
-  const staffAuth = await requireStaffApiSession();
+  const staffAuth = await requireStaffApiSession(req);
   if (staffAuth instanceof NextResponse) return staffAuth;
   if (!isStaffRole(staffAuth.role) && !staffAuth.godAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

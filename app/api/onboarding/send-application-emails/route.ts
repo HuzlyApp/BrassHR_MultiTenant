@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -32,6 +33,9 @@ function handleError(e: unknown): NextResponse {
  * POST — after onboarding submission, send tenant-specific application status link email.
  */
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const parsed = bodySchema.parse(await req.json());
     const url = getSupabaseUrl();

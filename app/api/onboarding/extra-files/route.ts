@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -30,6 +31,9 @@ function isMissingExtraFilesTable(error: unknown): boolean {
 }
 
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() ?? "";
     if (!applicantId) {
@@ -85,6 +89,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const formData = await req.formData();
     const applicantId = formData.get("applicantId")?.toString().trim() ?? "";
@@ -151,13 +158,16 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("[extra-files POST]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : ((error as any)?.message ? `${(error as any).message} [${(error as any).code || ""}]` : "Failed to save extra file") },
+      { error: error instanceof Error ? error.message : "Failed to save extra file" },
       { status: 500 }
     );
   }
 }
 
 export async function DELETE(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = (await req.json()) as {
       applicantId?: string;

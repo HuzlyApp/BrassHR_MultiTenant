@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -14,6 +15,9 @@ export const runtime = "nodejs";
 
 /** Offer details (position, pay, start date) for the applicant's job application. */
 export async function GET(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const params = req.nextUrl.searchParams;
     const applicantId = params.get("applicantId")?.trim() || "";

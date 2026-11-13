@@ -1,9 +1,8 @@
 import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sameTenantId, tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
+import { sameTenantId } from "@/lib/auth/staff-tenant-scope";
 import { isStaffRole, parseAppRole } from "@/lib/auth/app-role";
-import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
@@ -33,37 +32,15 @@ export async function resolveEffectiveAdminTenantId(
   }
 
   const jar = await cookies();
-  const onboardingSlug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
-  const fromJwt = tenantIdFromUser(params.authUser);
-  const profile = await loadStaffUserProfileCached(params.userId);
-  const profileTenantId =
-    profile?.tenant_id && UUID_RE.test(profile.tenant_id) ? profile.tenant_id.toLowerCase() : null;
-
-  if (onboardingSlug && onboardingSlug.length >= 2) {
-    const fromSlug = await resolveTenantIdBySlug(supabase, onboardingSlug);
-    if (fromSlug) {
-      if (sameTenantId(fromJwt, fromSlug) || sameTenantId(profileTenantId, fromSlug)) {
-        return fromSlug.toLowerCase();
-      }
-      const { data } = await supabase
-        .from("user_roles")
-        .select("tenant_id, role, is_active")
-        .eq("user_id", params.userId);
-      const member = (data ?? []).some(
-        (row: { tenant_id?: string | null; role?: string | null; is_active?: boolean | null }) => {
-          const parsed = parseAppRole(row.role);
-          return (
-            sameTenantId(row.tenant_id, fromSlug) &&
-            row.is_active !== false &&
-            parsed != null &&
-            isStaffRole(parsed)
-          );
-        }
-      );
-      if (member) return fromSlug.toLowerCase();
-    }
-  }
-
-  if (fromJwt) return fromJwt;
-  return profileTenantId;
+  const slug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+  const { data: profile, error: profileError } = await supabase.from("users")
+    .select("tenant_id,role,is_active").eq("id", params.userId).maybeSingle();
+  if (profileError || !profile || profile.is_active === false) return null;
+  const selected = slug ? await resolveTenantIdBySlug(supabase, slug) : profile.tenant_id;
+  if (!selected || !UUID_RE.test(selected)) return null;
+  const { data: membership, error } = await supabase.from("user_roles")
+    .select("role,is_active").eq("user_id", params.userId).eq("tenant_id", selected).maybeSingle();
+  if (error || membership?.is_active === false) return null;
+  const role = parseAppRole(membership?.role ?? (sameTenantId(profile.tenant_id, selected) ? profile.role : null));
+  return role && isStaffRole(role) ? selected.toLowerCase() : null;
 }

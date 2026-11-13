@@ -1,3 +1,5 @@
+// Route behavior is tested with the separately tested ownership boundary authorized.
+vi.mock("@/lib/onboarding/request-access", () => ({ authorizeOnboardingRequest: vi.fn(async () => null) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const afterCallbacks = vi.hoisted(() => [] as Array<() => Promise<void> | void>);
@@ -63,6 +65,15 @@ describe("onboarding save-worker route", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     persistWorkerRowMock.mockResolvedValue({ ok: true, workerId: "worker-1" });
     resolveOnboardingTenantIdMock.mockResolvedValue({ ok: true, tenantId: "tenant-1" });
+  });
+
+  it("stops before persistence when ownership verification fails", async () => {
+    const { authorizeOnboardingRequest } = await import("@/lib/onboarding/request-access");
+    const { NextResponse } = await import("next/server");
+    vi.mocked(authorizeOnboardingRequest).mockResolvedValueOnce(NextResponse.json({error:"Forbidden"},{status:403}));
+    const res = await saveWorker();
+    expect(res.status).toBe(403);
+    expect(persistWorkerRowMock).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

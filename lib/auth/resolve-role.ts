@@ -1,179 +1,20 @@
 import type { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
-import { isStaffRole, parseAppRole, roleAtLeast, type AppRole } from "@/lib/auth/app-role";
+import { parseAppRole, type AppRole } from "@/lib/auth/app-role";
+import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 
-function bestRoleFromRows(rows: { role?: string }[] | null | undefined): AppRole | null {
-  if (!rows?.length) return null;
-  let best: AppRole = "worker";
-  for (const row of rows) {
-    const r = parseAppRole(row.role);
-    if (!r) continue;
-    best = roleAtLeast(r, best) ? r : best;
-  }
-  return best;
-}
-
-function metadataFlag(user: User, key: string): boolean {
-  const value = (user.app_metadata as Record<string, unknown> | undefined)?.[key];
-  return value === true || value === "true";
-}
-
-function roleFromProfileRow(row: {
-  god_admin?: boolean;
-  tenant_id?: string | null;
-  role?: string | null;
-} | null): AppRole | null {
-  if (!row) return null;
-  if (row.god_admin === true) return "admin";
-  return parseAppRole(row.role);
-}
-
-async function resolveRoleFromSessionProfile(userId: string): Promise<AppRole | null> {
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("users")
-      .select("god_admin, tenant_id, role")
-      .eq("id", userId)
-      .maybeSingle();
-    if (error) {
-      if (process.env.AUTH_DEBUG === "true") {
-        console.warn("[resolve-role] session profile lookup failed", error.message);
-      }
-      return null;
-    }
-    return roleFromProfileRow(data as { god_admin?: boolean; tenant_id?: string | null; role?: string | null });
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolve `app_role` from JWT metadata, `user_roles`, and `public.users`
- * (`role`, `god_admin`, `tenant_id`). Returns the highest-ranked role found.
- */
+/** Current tenant membership is authoritative; JWT roles cannot defeat revocation. */
 export async function resolveAppRoleForUser(user: User): Promise<AppRole> {
-  const md = user.app_metadata as Record<string, unknown> | undefined;
-  const jwtRole = parseAppRole(md?.role);
-
-  let best: AppRole = jwtRole ?? "worker";
-
-  const jwtTenantId =
-    md?.tenant_id !== undefined && md.tenant_id !== null && String(md.tenant_id).trim() !== ""
-      ? String(md.tenant_id).trim()
-      : null;
-
   const sb = createServiceRoleClient();
-  let profileTenantId: string | null = null;
-
-  const cachedProfile = await loadStaffUserProfileCached(user.id);
-
-  if (sb) {
-    const row = cachedProfile
-      ? {
-          god_admin: cachedProfile.god_admin,
-          tenant_id: cachedProfile.tenant_id,
-          role: cachedProfile.role,
-        }
-      : null;
-
-    if (!row) {
-      const { data: profile, error: profileError } = await sb
-        .from("users")
-        .select("god_admin, tenant_id, role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profileError && process.env.AUTH_DEBUG === "true") {
-        console.warn("[resolve-role] service profile lookup failed", profileError.message);
-      }
-
-      const fetched = profile as {
-        god_admin?: boolean;
-        tenant_id?: string | null;
-        role?: string | null;
-      } | null;
-
-      if (fetched?.god_admin === true) {
-        return "admin";
-      }
-
-      const profileRole = roleFromProfileRow(fetched);
-      if (profileRole && roleAtLeast(profileRole, best)) {
-        best = profileRole;
-      }
-
-      profileTenantId =
-        fetched?.tenant_id != null && String(fetched.tenant_id).trim() !== ""
-          ? String(fetched.tenant_id).trim()
-          : null;
-    } else {
-      if (row.god_admin === true) {
-        return "admin";
-      }
-
-      const profileRole = roleFromProfileRow(row);
-      if (profileRole && roleAtLeast(profileRole, best)) {
-        best = profileRole;
-      }
-
-      profileTenantId =
-        row.tenant_id != null && String(row.tenant_id).trim() !== ""
-          ? String(row.tenant_id).trim()
-          : null;
-    }
-
-    const scopedTenantId = jwtTenantId ?? profileTenantId;
-
-    if (scopedTenantId) {
-      const { data, error } = await sb
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("tenant_id", scopedTenantId);
-      if (!error) {
-        const scoped = bestRoleFromRows(data as { role?: string }[]);
-        if (scoped && roleAtLeast(scoped, best)) best = scoped;
-      }
-    }
-
-    const { data: allRows, error: allErr } = await sb
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
-    if (!allErr) {
-      const fromRoles = bestRoleFromRows(allRows as { role?: string }[]);
-      if (fromRoles && roleAtLeast(fromRoles, best)) best = fromRoles;
-    }
-  }
-
-  if (!isStaffRole(best)) {
-    const sessionRole = await resolveRoleFromSessionProfile(user.id);
-    if (sessionRole && roleAtLeast(sessionRole, best)) {
-      best = sessionRole;
-      if (!profileTenantId) {
-        const supabase = await createClient();
-        const { data } = await supabase
-          .from("users")
-          .select("tenant_id")
-          .eq("id", user.id)
-          .maybeSingle();
-        const tid = (data as { tenant_id?: string | null } | null)?.tenant_id;
-        profileTenantId = tid != null && String(tid).trim() !== "" ? String(tid).trim() : null;
-      }
-    }
-  }
-
-  // Tenant owners who finished onboarding are staff even when JWT still says worker.
-  if (!isStaffRole(best) && metadataFlag(user, "tenant_onboarding_completed")) {
-    best = "admin";
-  }
-
-  if (!isStaffRole(best) && profileTenantId) {
-    if (roleAtLeast("recruiter", best)) best = "recruiter";
-  }
-
-  return best;
+  if (!sb || user.is_anonymous) return "worker";
+  const { data: profile, error } = await sb.from("users")
+    .select("role,tenant_id,is_active,god_admin").eq("id", user.id).maybeSingle();
+  if (error || !profile || profile.is_active === false) return "worker";
+  if (profile.god_admin === true) return "admin";
+  const tenantId = await resolveEffectiveAdminTenantId(sb, { userId: user.id, authUser: user, godAdmin: false });
+  if (!tenantId) return "worker";
+  const { data: membership, error: memberError } = await sb.from("user_roles")
+    .select("role,is_active").eq("user_id", user.id).eq("tenant_id", tenantId).maybeSingle();
+  if (memberError || membership?.is_active === false) return "worker";
+  return parseAppRole(membership?.role ?? (profile.tenant_id === tenantId ? profile.role : null)) ?? "worker";
 }

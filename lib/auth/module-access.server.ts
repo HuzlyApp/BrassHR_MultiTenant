@@ -5,6 +5,7 @@ import {
   GOD_ADMIN_API_PREFIXES,
   SHELL_API_PREFIXES,
   actionForMethod,
+  canonicalStaffApiPath,
   grantAllows,
   matchPrefixedKey,
   pathMatchesPrefix,
@@ -51,11 +52,6 @@ function normalizeId(value: string | null | undefined): string | null {
   return UUID_RE.test(token) ? token : null;
 }
 
-function tenantIdFromUser(user: User): string | null {
-  const metadata = user.app_metadata as Record<string, unknown> | undefined;
-  return normalizeId(metadata?.tenant_id == null ? null : String(metadata.tenant_id));
-}
-
 function sameId(left: string | null, right: string | null): boolean {
   return Boolean(left && right && left === right);
 }
@@ -85,7 +81,7 @@ function classifyLoaded(pathname: string, resources: ResourceRow[]): {
   resourceKey?: string;
   alwaysGranted?: boolean;
 } {
-  const path = pathname.split("?")[0] || "/";
+  const path = canonicalStaffApiPath(pathname.split("?")[0] || "/");
   if (GOD_ADMIN_API_PREFIXES.some((prefix) => pathMatchesPrefix(path, prefix))) return { kind: "god_only" };
   if (SHELL_API_PREFIXES.some((prefix) => pathMatchesPrefix(path, prefix))) return { kind: "shell" };
   const resourceKey = matchPrefixedKey(
@@ -106,9 +102,9 @@ async function resolveTenantId(
   tenantSlug: string | null,
   profileTenantId: string | null
 ): Promise<string | null> {
-  const jwtTenantId = tenantIdFromUser(user);
   const slug = tenantSlug?.trim().toLowerCase() ?? "";
   const safeSlug = /^[a-z0-9-]{2,63}$/.test(slug) ? slug : "";
+  if (slug && !safeSlug) return null;
   if (safeSlug) {
     const { data, error } = await timeSpan("db-tenants", () =>
       supabase
@@ -120,7 +116,7 @@ async function resolveTenantId(
     );
     if (error) return null;
     const fromSlug = normalizeId((data as { id?: string } | null)?.id ?? null);
-    if (fromSlug && (sameId(jwtTenantId, fromSlug) || sameId(profileTenantId, fromSlug))) {
+    if (fromSlug && (sameId(profileTenantId, fromSlug))) {
       noteServerTimingTenant(fromSlug);
       return fromSlug;
     }
@@ -141,8 +137,9 @@ async function resolveTenantId(
         return fromSlug;
       }
     }
+    return null;
   }
-  const resolved = jwtTenantId ?? profileTenantId;
+  const resolved = profileTenantId;
   noteServerTimingTenant(resolved);
   return resolved;
 }
@@ -252,6 +249,7 @@ async function authorizeStaffHttpAccessUncached(input: {
   const tenantRoleKeys = new Set(
     ((roleData ?? []) as { role_key?: string }[]).map((row) => String(row.role_key ?? "").toLowerCase()).filter(Boolean)
   );
+  if ((membership as { is_active?: boolean } | null)?.is_active === false) return forbidden("Membership disabled", "not_staff");
   const membershipRole = (membership as { role?: string | null; is_active?: boolean | null } | null)?.is_active === false
     ? null
     : (membership as { role?: string | null } | null)?.role;
@@ -338,6 +336,7 @@ export async function loadSessionGrants(input: {
   const tenantRoleKeys = new Set(
     ((roleData ?? []) as { role_key?: string }[]).map((row) => String(row.role_key ?? "").toLowerCase()).filter(Boolean)
   );
+  if ((membership as { is_active?: boolean } | null)?.is_active === false) return forbidden("Membership disabled", "not_staff");
   const membershipRole =
     (membership as { is_active?: boolean | null } | null)?.is_active === false
       ? null

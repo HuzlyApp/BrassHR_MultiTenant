@@ -1,14 +1,19 @@
+import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
+import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 import { validateWorkerOnboardingComplete } from "@/lib/onboarding/validate-completion";
 import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  if (accessDenied) return accessDenied;
+
   try {
     const body = (await req.json()) as { applicantId?: string };
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : "";
@@ -23,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, readOnboardingTenantSlugFromRequest(req));
     if (!ctx) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest) {
       await supabase
         .from("applicant_continuation_links")
         .update({ completed_at: now })
-        .eq("id", continuationLinkId)
+        .eq("token_hash", hashContinuationToken(continuationLinkId))
         .eq("worker_id", ctx.workerId)
         .is("completed_at", null);
     }

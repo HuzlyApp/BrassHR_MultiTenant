@@ -1,3 +1,4 @@
+import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
@@ -20,6 +21,9 @@ function sanitizeFileName(name: string): string {
 }
 
 export async function POST(req: Request) {
+  const accessDenied = await authorizeOnboardingRequest(req);
+  if (accessDenied) return accessDenied;
+
   try {
     const limited = await enforceRateLimit(req, {
       namespace: "upload-required-file",

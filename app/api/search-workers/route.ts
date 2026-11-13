@@ -149,7 +149,7 @@ function mapWorkerRow(
 }
 
 export async function POST(req: Request) {
-  const auth = await requireStaffApiSession()
+  const auth = await requireStaffApiSession(req)
   if (auth instanceof NextResponse) return auth
   const limited = await enforceRateLimit(req, {
     namespace: "worker-search",

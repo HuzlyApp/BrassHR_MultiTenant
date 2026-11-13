@@ -4,11 +4,32 @@ import { LOGIN_OTP_PROOF_TTL_SECONDS } from "@/lib/auth/login-otp-constants";
 const COOKIE_NAME = "brass_login_otp_proof";
 
 function proofSecret(): string {
-  return (
+  const secret = (
     process.env.LOGIN_OTP_PROOF_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    "brasshr-login-otp-proof"
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   );
+  if (!secret) throw new Error("Login verification signing secret is not configured");
+  return secret;
+}
+
+export const STAFF_SESSION_PROOF_COOKIE = "brass_staff_session_proof";
+export const STAFF_SESSION_PROOF_SECONDS = 12 * 60 * 60;
+
+export function createStaffSessionProof(userId: string, sessionId: string, now = Date.now()): string {
+  const payload = Buffer.from(JSON.stringify({ purpose: "staff-session", userId, sessionId, exp: now + STAFF_SESSION_PROOF_SECONDS * 1000 })).toString("base64url");
+  return `${payload}.${createHmac("sha256", proofSecret()).update(payload).digest("base64url")}`;
+}
+
+export function verifyStaffSessionProof(userId: string, sessionId: string, token?: string | null, now = Date.now()): boolean {
+  if (!token || !sessionId) return false;
+  try {
+    const [payload, signature, extra] = token.split(".");
+    if (!payload || !signature || extra) return false;
+    const expected = createHmac("sha256", proofSecret()).update(payload).digest("base64url");
+    if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return false;
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return parsed.purpose === "staff-session" && parsed.userId === userId && parsed.sessionId === sessionId && Number.isFinite(parsed.exp) && parsed.exp > now;
+  } catch { return false; }
 }
 
 export function loginOtpProofCookieName(): string {

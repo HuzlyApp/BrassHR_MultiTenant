@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireStaffApiSession } from "@/lib/auth/api-session";
+import { authorizeTenantSetup } from "@/lib/tenant/authorize-setup";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
@@ -16,6 +18,8 @@ export const runtime = "nodejs";
  * Used when `?preview=draft` is set and localStorage preview is unavailable.
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireStaffApiSession(req);
+  if (auth instanceof NextResponse) return auth;
   try {
     const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
     if (!slug || slug.length < 2) {
@@ -34,6 +38,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
+    const denied = await authorizeTenantSetup(tenantId, "/api/admin/onboarding");
+    if (denied) return denied;
     const published = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: false });
     if (!published) {
       return NextResponse.json({ error: "Configuration not found" }, { status: 404 });

@@ -82,7 +82,7 @@ function buildAppContentSecurityPolicy(frameAncestors: string): string {
     "font-src 'self' data: https://fonts.gstatic.com",
     // Firma embed loads pdf.js via data:/blob: workers and Google Fonts for field labels.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://api.firma.dev https://app.firma.dev",
+    `script-src 'self' 'unsafe-inline' ${process.env.NODE_ENV === "development" ? "'unsafe-eval' " : ""}https://api.firma.dev https://app.firma.dev`,
     "worker-src 'self' blob: data: https://api.firma.dev https://app.firma.dev",
     "connect-src 'self' https: wss: blob:",
     "frame-src 'self' https://app.firma.dev https://api.firma.dev https://dialpad.com",

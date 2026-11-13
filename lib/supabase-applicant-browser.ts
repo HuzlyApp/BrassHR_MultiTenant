@@ -25,6 +25,13 @@ export function getApplicantSupabaseClient(): SupabaseClient {
         detectSessionInUrl: false,
       },
     });
+    applicantClient.auth.onAuthStateChange((event, session) => {
+      if (event === "TOKEN_REFRESHED" && session?.access_token && typeof window !== "undefined") {
+        void fetch("/api/onboarding/session", {
+          method: "POST", headers: { Authorization: `Bearer ${session.access_token}` },
+        }).catch(() => undefined);
+      }
+    });
   }
   return applicantClient;
 }

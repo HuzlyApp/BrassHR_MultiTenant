@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
     }
 
     const wr = worker as { id: string; user_id?: unknown }
-    if (!canAccessWorkerRecord(auth, { id: String(wr.id), user_id: wr.user_id })) {
+    if (!(await canAccessWorkerRecord(auth, { id: String(wr.id), user_id: wr.user_id }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
 
     const tenantId = checklistTenantId
 
-    let attachmentRequirements = tenantId
+    const attachmentRequirements = tenantId
       ? await loadAdminAttachmentRequirements({
           supabase,
           workerId,

@@ -89,10 +89,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (
-      !canAccessWorkerRecord(auth, {
+      !(await canAccessWorkerRecord(auth, {
         id: String(worker.id),
         user_id: (worker as { user_id?: unknown }).user_id,
-      })
+      }))
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

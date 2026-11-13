@@ -44,14 +44,11 @@ async function loadWorkerContext(
     };
   }
 
-  // Same auth user can have one worker row per tenant — never use maybeSingle unscoped.
-  // Prefer callers pass tenantId. Unscoped returns the most recently updated worker only
-  // for backward compatibility (legacy single-tenant sessions).
-  const { data: rows, error } = await query
-    .order("updated_at", { ascending: false })
-    .limit(1);
+  // An omitted tenant is safe only when the identity has exactly one worker.
+  const { data: rows, error } = await query.limit(2);
   if (error) throw error;
-  const worker = rows?.[0];
+  if (rows?.length !== 1) return null;
+  const worker = rows[0];
   if (!worker?.id || worker.tenant_id == null) return null;
 
   return {

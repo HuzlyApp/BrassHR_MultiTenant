@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   createLoginOtpProof,
   verifyLoginOtpProof,
+  createStaffSessionProof,
+  verifyStaffSessionProof,
 } from "@/lib/auth/login-otp-proof";
 
 describe("login OTP proof", () => {
@@ -26,5 +28,13 @@ describe("login OTP proof", () => {
   it("rejects expired proofs", () => {
     const proof = createLoginOtpProof(email, now);
     expect(verifyLoginOtpProof(email, proof, now + 601_000)).toBe(false);
+  });
+  it("binds staff verification to a single user and Supabase session", () => {
+    const proof = createStaffSessionProof("user-a", "session-a", now);
+    expect(verifyStaffSessionProof("user-a", "session-a", proof, now + 1000)).toBe(true);
+    expect(verifyStaffSessionProof("user-b", "session-a", proof, now + 1000)).toBe(false);
+    expect(verifyStaffSessionProof("user-a", "session-b", proof, now + 1000)).toBe(false);
+    expect(verifyStaffSessionProof("user-a", "session-a", proof + "x", now)).toBe(false);
+    expect(verifyStaffSessionProof("user-a", "session-a", proof, now + 13 * 3600_000)).toBe(false);
   });
 });
