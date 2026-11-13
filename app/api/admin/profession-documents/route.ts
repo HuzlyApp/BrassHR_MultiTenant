@@ -54,8 +54,12 @@ export async function GET(req: NextRequest) {
       workerId ? savedWorkerProfessionId(supabase, tenantId, workerId) : Promise.resolve(null),
       listAvailableCatalogProfessions(supabase, tenantId, industryLabelForKey),
     ]);
+    const isAdmin = auth.role === "admin" || auth.godAdmin;
     return NextResponse.json({
-      canManage: auth.role === "admin" || auth.godAdmin,
+      canManage: isAdmin,
+      /** Staff can add/upload on candidate Licenses tab; field delete is ownership-scoped. */
+      canEditCandidateCredentials: true,
+      currentUserId: auth.userId,
       industryKey: catalog.industryKey,
       industryLabel: industryLabelForKey(catalog.industryKey),
       workerProfessionId,
@@ -78,8 +82,19 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
-  const forbidden = requireWorkflowAdmin(auth);
-  if (forbidden) return forbidden;
+
+  const isAdmin = auth.role === "admin" || auth.godAdmin;
+  // Settings catalog edits stay admin-only. Candidate-tab adds (with workerId) are allowed for staff.
+  const body = (await req.json().catch(() => null)) as {
+    professionId?: string;
+    documents?: unknown;
+    workerId?: string;
+  } | null;
+  const workerId = body?.workerId?.trim() || "";
+  if (!isAdmin && !workerId) {
+    const forbidden = requireWorkflowAdmin(auth);
+    if (forbidden) return forbidden;
+  }
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -95,11 +110,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => null)) as {
-    professionId?: string;
-    documents?: unknown;
-    workerId?: string;
-  } | null;
   const professionId = body?.professionId?.trim() ?? "";
   if (!professionId) {
     return NextResponse.json({ error: "Choose a profession." }, { status: 400 });
@@ -115,9 +125,9 @@ export async function PUT(req: NextRequest) {
       supabase,
       tenantId,
       professionId,
-      normalized.documents
+      normalized.documents,
+      { actorUserId: auth.userId, actorIsAdmin: isAdmin }
     );
-    const workerId = body?.workerId?.trim() || "";
     if (workerId) await linkWorkerProfession(supabase, tenantId, workerId, professionId);
     return NextResponse.json({ professionId, documents });
   } catch (err) {
@@ -172,8 +182,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
-  const forbidden = requireWorkflowAdmin(auth);
-  if (forbidden) return forbidden;
+  // Any staff can remove an uploaded file; field/catalog deletes go through PUT ownership checks.
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
