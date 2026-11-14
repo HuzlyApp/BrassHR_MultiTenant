@@ -69,14 +69,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { catalogKey?: string; name?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    catalogKey?: string;
+    name?: string;
+    industryKey?: string;
+  };
   const catalogKey = typeof body.catalogKey === "string" ? body.catalogKey.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
+  const industryKey = typeof body.industryKey === "string" ? body.industryKey.trim() : "";
 
   try {
     const profession = catalogKey
-      ? await addTenantProfessionFromCatalog(supabase, tenantId, catalogKey)
-      : await addTenantProfession(supabase, tenantId, name);
+      ? await addTenantProfessionFromCatalog(supabase, tenantId, catalogKey, industryKey || null)
+      : await addTenantProfession(supabase, tenantId, name, industryKey || null);
     return NextResponse.json({ profession });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not add profession";

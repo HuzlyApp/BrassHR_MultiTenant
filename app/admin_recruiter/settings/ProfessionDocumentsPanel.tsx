@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
+import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 import {
   SETTINGS_PROFESSION_DOCUMENT_KINDS,
   professionDocumentKindLabel,
@@ -52,10 +53,17 @@ type CatalogProfessionOption = {
   industryLabel: string | null;
 };
 
+type IndustryOption = {
+  key: string;
+  label: string;
+  isPrimary?: boolean;
+};
+
 type CatalogPayload = {
   canManage: boolean;
   industryKey: string | null;
   industryLabel: string | null;
+  industries?: IndustryOption[];
   professions: ProfessionRow[];
   availableProfessions?: CatalogProfessionOption[];
   error?: string;
@@ -374,16 +382,20 @@ export default function ProfessionDocumentsPanel() {
   const [canManage, setCanManage] = useState(false);
   const [industryKey, setIndustryKey] = useState<string | null>(null);
   const [industryLabel, setIndustryLabel] = useState<string | null>(null);
+  const [industries, setIndustries] = useState<IndustryOption[]>([]);
   const [professions, setProfessions] = useState<ProfessionRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, DocumentDraft[]>>({});
   const [saved, setSaved] = useState<Record<string, string>>({});
-  const [listExpanded, setListExpanded] = useState(true);
+  const [expandedByIndustry, setExpandedByIndustry] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
 
   const [availableProfessions, setAvailableProfessions] = useState<CatalogProfessionOption[]>([]);
-  const [selectedCatalogKey, setSelectedCatalogKey] = useState("");
-  const [customName, setCustomName] = useState("");
+  const [selectedCatalogKeyByIndustry, setSelectedCatalogKeyByIndustry] = useState<
+    Record<string, string>
+  >({});
+  const [customNameByIndustry, setCustomNameByIndustry] = useState<Record<string, string>>({});
   const [addingProfession, setAddingProfession] = useState(false);
+  const [addingIndustryKey, setAddingIndustryKey] = useState<string | null>(null);
   const [removingProfession, setRemovingProfession] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [editingProfessionId, setEditingProfessionId] = useState<string | null>(null);
@@ -413,13 +425,42 @@ export default function ProfessionDocumentsPanel() {
       nextDrafts[profession.id] = profession.documents;
       nextSaved[profession.id] = JSON.stringify(profession.documents);
     }
+    const nextIndustries =
+      payload.industries && payload.industries.length > 0
+        ? payload.industries
+        : payload.industryKey
+          ? [
+              {
+                key: payload.industryKey,
+                label: payload.industryLabel ?? payload.industryKey,
+                isPrimary: true,
+              },
+            ]
+          : [];
     setCanManage(payload.canManage);
     setIndustryKey(payload.industryKey);
     setIndustryLabel(payload.industryLabel);
+    setIndustries(nextIndustries);
+    setExpandedByIndustry((current) => {
+      const next: Record<string, boolean> = {};
+      for (const industry of nextIndustries) {
+        next[industry.key] = current[industry.key] ?? false;
+      }
+      return next;
+    });
     setAvailableProfessions(payload.availableProfessions ?? []);
-    setSelectedCatalogKey((current) =>
-      (payload.availableProfessions ?? []).some((option) => option.key === current) ? current : ""
-    );
+    setSelectedCatalogKeyByIndustry((current) => {
+      const next: Record<string, string> = {};
+      for (const industry of nextIndustries) {
+        const value = current[industry.key] ?? "";
+        next[industry.key] = (payload.availableProfessions ?? []).some(
+          (option) => option.key === value && option.industryKey === industry.key
+        )
+          ? value
+          : "";
+      }
+      return next;
+    });
     setProfessions(rows);
     setDrafts(nextDrafts);
     setSaved(nextSaved);
@@ -483,24 +524,72 @@ export default function ProfessionDocumentsPanel() {
     setConfirmRemove(false);
     setEditingProfessionId(null);
     setRowMenuId(null);
-    setListExpanded(false);
+    const selectedIndustry = professions.find((row) => row.id === selectedId)?.industryKey;
+    if (selectedIndustry) {
+      setExpandedByIndustry((current) => ({ ...current, [selectedIndustry]: false }));
+    }
     requestAnimationFrame(() => {
       documentsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  }, [selectedId]);
+  }, [selectedId, professions]);
 
-  const filteredProfessions = useMemo(() => {
+  const filteredProfessionsByIndustry = useMemo(() => {
+    const groups: Record<string, ProfessionRow[]> = {};
+    for (const industry of industries) {
+      groups[industry.key] = [];
+    }
+    for (const profession of professions) {
+      const key = profession.industryKey || industryKey || "other";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(profession);
+    }
+    return groups;
+  }, [professions, industries, industryKey]);
+
+  const industrySearchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return professions;
-    return professions.filter((profession) => {
-      const code = professionCode(
-        profession,
-        professions.findIndex((row) => row.id === profession.id),
-        industryLabel
-      ).toLowerCase();
-      return profession.name.toLowerCase().includes(query) || code.includes(query);
-    });
-  }, [professions, searchQuery, industryLabel]);
+    if (!query) return [];
+    const selected = new Set(industries.map((row) => row.key));
+    return activeUserFacingIndustries()
+      .filter((entry) => {
+        const haystack = `${entry.label} ${entry.key}`.toLowerCase();
+        return haystack.includes(query);
+      })
+      .map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        isAdded: selected.has(entry.key),
+      }));
+  }, [searchQuery, industries]);
+
+  async function addIndustry(industryToAdd: string) {
+    if (!canManage || addingIndustryKey) return;
+    setAddingIndustryKey(industryToAdd);
+    try {
+      const response = await fetch("/api/admin/tenant-industries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ industryKey: industryToAdd }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        alreadyAdded?: boolean;
+        industryLabel?: string | null;
+      };
+      if (!response.ok) throw new Error(payload.error || "Could not add industry");
+      toast.success(
+        payload.alreadyAdded
+          ? `${payload.industryLabel ?? "Industry"} is already added`
+          : `${payload.industryLabel ?? "Industry"} added`
+      );
+      setSearchQuery("");
+      await load({ silent: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not add industry");
+    } finally {
+      setAddingIndustryKey(null);
+    }
+  }
 
   function updateDocument(id: string, patch: Partial<DocumentDraft>) {
     if (!selectedId || !canManage) return;
@@ -540,11 +629,17 @@ export default function ProfessionDocumentsPanel() {
     discardDirtyDraft();
     setConfirmRemove(false);
     setRowMenuId(null);
-    setListExpanded(true);
+    if (selected?.industryKey) {
+      setExpandedByIndustry((current) => ({ ...current, [selected.industryKey!]: true }));
+    }
     router.push(professionHref(null));
   }
 
-  async function createProfession(body: { name?: string; catalogKey?: string }) {
+  async function createProfession(body: {
+    name?: string;
+    catalogKey?: string;
+    industryKey: string;
+  }) {
     if (!canManage || addingProfession) return;
     if (dirty && !window.confirm("Discard unsaved document changes for this profession?")) return;
     setAddingProfession(true);
@@ -557,13 +652,13 @@ export default function ProfessionDocumentsPanel() {
       const payload = (await response.json()) as { error?: string; profession?: { id?: string } };
       if (!response.ok) throw new Error(payload.error || "Could not add profession");
       const createdId = payload.profession?.id?.trim() || null;
-      setCustomName("");
-      setSelectedCatalogKey("");
+      setCustomNameByIndustry((current) => ({ ...current, [body.industryKey]: "" }));
+      setSelectedCatalogKeyByIndustry((current) => ({ ...current, [body.industryKey]: "" }));
       setConfirmRemove(false);
       toast.success("Profession added");
       await load({ silent: true });
       if (createdId) router.push(professionHref(createdId));
-      else setListExpanded(true);
+      else setExpandedByIndustry((current) => ({ ...current, [body.industryKey]: true }));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add profession");
     } finally {
@@ -571,16 +666,16 @@ export default function ProfessionDocumentsPanel() {
     }
   }
 
-  async function addCustomProfession() {
-    const name = customName.trim();
+  async function addCustomProfession(forIndustryKey: string) {
+    const name = (customNameByIndustry[forIndustryKey] ?? "").trim();
     if (!name) return;
-    await createProfession({ name });
+    await createProfession({ name, industryKey: forIndustryKey });
   }
 
-  async function addCatalogProfession() {
-    const catalogKey = selectedCatalogKey.trim();
+  async function addCatalogProfession(forIndustryKey: string) {
+    const catalogKey = (selectedCatalogKeyByIndustry[forIndustryKey] ?? "").trim();
     if (!catalogKey) return;
-    await createProfession({ catalogKey });
+    await createProfession({ catalogKey, industryKey: forIndustryKey });
   }
 
   async function saveProfessionName() {
@@ -619,7 +714,9 @@ export default function ProfessionDocumentsPanel() {
       setRowMenuId(null);
       toast.success("Profession removed");
       await load({ silent: true });
-      setListExpanded(true);
+      if (selected.industryKey) {
+        setExpandedByIndustry((current) => ({ ...current, [selected.industryKey!]: true }));
+      }
       router.replace(professionHref(null), { scroll: false });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete profession");
@@ -677,18 +774,13 @@ export default function ProfessionDocumentsPanel() {
   return (
     <section className="space-y-5">
       <p className="max-w-2xl text-sm leading-6 text-[#64748B]">
-        Organize professions for your organization
-        {industryLabel ? ` in ${industryLabel}` : ""}, then configure the certificates and licenses
-        each one requires. Add a custom profession name or pick one from the catalog. Applicants can
-        attach up to 5 files per document.
+        Organize professions for each industry you hire for, then configure the certificates and
+        licenses each one requires. Add a custom profession name or pick one from the catalog.
+        Applicants can attach up to 5 files per document.
       </p>
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
-      ) : !industryLabel ? (
-        <p className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-          Set this organization’s industry before managing professions.
-        </p>
       ) : (
         <div className="space-y-4">
           <div className="relative max-w-xl">
@@ -699,230 +791,327 @@ export default function ProfessionDocumentsPanel() {
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search professions…"
-              aria-label="Search professions"
+              placeholder="Search industries…"
+              aria-label="Search industries"
               className={`${inputClassName} pl-9`}
             />
           </div>
 
-          <div className="relative z-20 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm shadow-slate-900/[0.03]">
-            <button
-              type="button"
-              onClick={() => setListExpanded((current) => !current)}
-              className="flex w-full items-center gap-3 rounded-t-2xl px-4 py-3.5 text-left hover:bg-[#F8FAFC]"
-              aria-expanded={listExpanded}
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF2FF] text-[#012352]">
-                <Briefcase className="h-5 w-5" aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-[#0F172A]">{industryLabel}</span>
-                <span className="block text-xs text-[#64748B]">
-                  {professions.length} {professions.length === 1 ? "position" : "positions"}
-                  {industryKey ? ` · ${industryKey}` : ""}
-                </span>
-              </span>
-              {listExpanded ? (
-                <ChevronDown className="h-4 w-4 text-[#94A3B8]" aria-hidden />
+          {searchQuery.trim() ? (
+            <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm shadow-slate-900/[0.03]">
+              {industrySearchResults.length === 0 ? (
+                <div className="px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-[#0F172A]">No matching industries</p>
+                  <p className="mt-1 text-sm text-[#64748B]">Try a different search term.</p>
+                </div>
               ) : (
-                <ChevronRight className="h-4 w-4 text-[#94A3B8]" aria-hidden />
+                <ul className="divide-y divide-[#F1F5F9]">
+                  {industrySearchResults.map((result) => {
+                    const isAdding = addingIndustryKey === result.key;
+                    return (
+                      <li
+                        key={result.key}
+                        className="flex items-center justify-between gap-3 px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#0F172A]">{result.label}</p>
+                          <p className="text-xs text-[#64748B]">{result.key}</p>
+                        </div>
+                        {result.isAdded ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 text-sm font-medium text-[#15803D] disabled:cursor-not-allowed"
+                          >
+                            <Check className="h-4 w-4" aria-hidden />
+                            Added
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={!canManage || Boolean(addingIndustryKey)}
+                            onClick={() => void addIndustry(result.key)}
+                            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
+                          >
+                            <Plus className="h-4 w-4" aria-hidden />
+                            {isAdding ? "Adding…" : "Add"}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
-            </button>
+            </div>
+          ) : industries.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
+              Search and add industries above, or set them in Company Profile, then configure
+              professions for each one.
+            </p>
+          ) : (
+          industries.map((industry) => {
+            const industryProfessions = filteredProfessionsByIndustry[industry.key] ?? [];
+            const industryAvailable = availableProfessions.filter(
+              (option) => option.industryKey === industry.key
+            );
+            const listExpanded = expandedByIndustry[industry.key] ?? false;
+            const customName = customNameByIndustry[industry.key] ?? "";
+            const selectedCatalogKey = selectedCatalogKeyByIndustry[industry.key] ?? "";
+            return (
+              <div
+                key={industry.key}
+                className="relative z-20 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm shadow-slate-900/[0.03]"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedByIndustry((current) => ({
+                      ...current,
+                      [industry.key]: !(current[industry.key] ?? false),
+                    }))
+                  }
+                  className="flex w-full items-center gap-3 rounded-t-2xl px-4 py-3.5 text-left hover:bg-[#F8FAFC]"
+                  aria-expanded={listExpanded}
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF2FF] text-[#012352]">
+                    <Briefcase className="h-5 w-5" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-[#0F172A]">
+                      {industry.label}
+                      {industry.isPrimary ? (
+                        <span className="ml-2 rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#012352]">
+                          Primary
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="block text-xs text-[#64748B]">
+                      {industryProfessions.length}{" "}
+                      {industryProfessions.length === 1 ? "position" : "positions"}
+                      {` · ${industry.key}`}
+                    </span>
+                  </span>
+                  {listExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-[#94A3B8]" aria-hidden />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-[#94A3B8]" aria-hidden />
+                  )}
+                </button>
 
-            {listExpanded ? (
-              <div className="border-t border-[#F1F5F9]">
-                {filteredProfessions.length === 0 ? (
-                  <div className="px-4 py-10 text-center">
-                    <p className="text-sm font-medium text-[#0F172A]">
-                      {professions.length === 0 ? "No professions yet" : "No matching professions"}
-                    </p>
-                    <p className="mt-1 text-sm text-[#64748B]">
-                      {professions.length === 0
-                        ? "Add a custom profession below to start configuring documents."
-                        : "Try a different search term."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm">
-                      <thead className="bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                        <tr>
-                          <th className="px-4 py-2.5 font-semibold">Code</th>
-                          <th className="px-4 py-2.5 font-semibold">Profession</th>
-                          <th className="px-4 py-2.5 font-semibold">Documents</th>
-                          <th className="px-4 py-2.5 font-semibold">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredProfessions.map((profession) => {
-                          const index = professions.findIndex((row) => row.id === profession.id);
-                          const code = professionCode(profession, index, industryLabel);
-                          const active = profession.id === selectedId;
-                          const docCount = (drafts[profession.id] ?? profession.documents).length;
-                          return (
-                            <tr
-                              key={profession.id}
-                              className={`border-t border-[#F1F5F9] ${
-                                active ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]" : "bg-white"
-                              }`}
-                            >
-                              <td className="px-4 py-3 font-mono text-xs text-[#64748B]">{code}</td>
-                              <td className="px-4 py-3">
-                                <Link
-                                  href={professionHref(profession.id)}
-                                  onClick={(event) => {
-                                    if (dirty && profession.id !== selectedId) {
-                                      if (!window.confirm("Discard unsaved document changes for this profession?")) {
-                                        event.preventDefault();
-                                        return;
-                                      }
-                                      discardDirtyDraft();
-                                    }
-                                  }}
-                                  className="text-left text-sm font-medium text-[#0F172A] hover:underline"
-                                >
-                                  {profession.name}
-                                </Link>
-                                {!profession.catalogKey ? (
-                                  <span className="ml-2 rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
-                                    Custom
-                                  </span>
-                                ) : null}
-                              </td>
-                              <td className="px-4 py-3 text-[#64748B]">
-                                {docCount} {docCount === 1 ? "doc" : "docs"}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="relative flex items-center gap-2" ref={rowMenuId === profession.id ? rowMenuRef : undefined}>
-                                  <Link
-                                    href={professionHref(profession.id)}
-                                    onClick={(event) => {
-                                      if (dirty && profession.id !== selectedId) {
-                                        if (!window.confirm("Discard unsaved document changes for this profession?")) {
-                                          event.preventDefault();
-                                          return;
-                                        }
-                                        discardDirtyDraft();
-                                      }
-                                    }}
-                                    className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
-                                  >
-                                    View docs
-                                  </Link>
-                                  {canManage ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        aria-label={`More actions for ${profession.name}`}
-                                        onClick={() =>
-                                          setRowMenuId((current) =>
-                                            current === profession.id ? null : profession.id
-                                          )
-                                        }
-                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
-                                      >
-                                        <MoreHorizontal className="h-4 w-4" aria-hidden />
-                                      </button>
-                                      {rowMenuId === profession.id ? (
-                                        <div className="absolute right-0 top-9 z-20 min-w-[140px] rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                                          <button
-                                            type="button"
-                                            onClick={() => openEditProfession(profession)}
-                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                                          >
-                                            <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                            Edit
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              openProfessionDocs(profession.id);
-                                              setConfirmRemove(true);
-                                              setRowMenuId(null);
-                                            }}
-                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                                            Delete
-                                          </button>
-                                        </div>
-                                      ) : null}
-                                    </>
-                                  ) : null}
-                                </div>
-                              </td>
+                {listExpanded ? (
+                  <div className="border-t border-[#F1F5F9]">
+                    {industryProfessions.length === 0 ? (
+                      <div className="px-4 py-10 text-center">
+                        <p className="text-sm font-medium text-[#0F172A]">No professions yet</p>
+                        <p className="mt-1 text-sm text-[#64748B]">
+                          Add a custom profession below to start configuring documents.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left text-sm">
+                          <thead className="bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                            <tr>
+                              <th className="px-4 py-2.5 font-semibold">Code</th>
+                              <th className="px-4 py-2.5 font-semibold">Profession</th>
+                              <th className="px-4 py-2.5 font-semibold">Documents</th>
+                              <th className="px-4 py-2.5 font-semibold">Action</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                          </thead>
+                          <tbody>
+                            {industryProfessions.map((profession) => {
+                              const index = professions.findIndex((row) => row.id === profession.id);
+                              const code = professionCode(profession, index, industry.label);
+                              const active = profession.id === selectedId;
+                              const docCount = (drafts[profession.id] ?? profession.documents).length;
+                              return (
+                                <tr
+                                  key={profession.id}
+                                  className={`border-t border-[#F1F5F9] ${
+                                    active
+                                      ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+                                      : "bg-white"
+                                  }`}
+                                >
+                                  <td className="px-4 py-3 font-mono text-xs text-[#64748B]">{code}</td>
+                                  <td className="px-4 py-3">
+                                    <Link
+                                      href={professionHref(profession.id)}
+                                      onClick={(event) => {
+                                        if (dirty && profession.id !== selectedId) {
+                                          if (
+                                            !window.confirm(
+                                              "Discard unsaved document changes for this profession?"
+                                            )
+                                          ) {
+                                            event.preventDefault();
+                                            return;
+                                          }
+                                          discardDirtyDraft();
+                                        }
+                                      }}
+                                      className="text-left text-sm font-medium text-[#0F172A] hover:underline"
+                                    >
+                                      {profession.name}
+                                    </Link>
+                                    {!profession.catalogKey ? (
+                                      <span className="ml-2 rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
+                                        Custom
+                                      </span>
+                                    ) : null}
+                                  </td>
+                                  <td className="px-4 py-3 text-[#64748B]">
+                                    {docCount} {docCount === 1 ? "doc" : "docs"}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div
+                                      className="relative flex items-center gap-2"
+                                      ref={rowMenuId === profession.id ? rowMenuRef : undefined}
+                                    >
+                                      <Link
+                                        href={professionHref(profession.id)}
+                                        onClick={(event) => {
+                                          if (dirty && profession.id !== selectedId) {
+                                            if (
+                                              !window.confirm(
+                                                "Discard unsaved document changes for this profession?"
+                                              )
+                                            ) {
+                                              event.preventDefault();
+                                              return;
+                                            }
+                                            discardDirtyDraft();
+                                          }
+                                        }}
+                                        className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
+                                      >
+                                        View docs
+                                      </Link>
+                                      {canManage ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            aria-label={`More actions for ${profession.name}`}
+                                            onClick={() =>
+                                              setRowMenuId((current) =>
+                                                current === profession.id ? null : profession.id
+                                              )
+                                            }
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                                          >
+                                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                                          </button>
+                                          {rowMenuId === profession.id ? (
+                                            <div className="absolute right-0 top-9 z-20 min-w-[140px] rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                              <button
+                                                type="button"
+                                                onClick={() => openEditProfession(profession)}
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                                              >
+                                                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                                                Edit
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  openProfessionDocs(profession.id);
+                                                  setConfirmRemove(true);
+                                                  setRowMenuId(null);
+                                                }}
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                                                Delete
+                                              </button>
+                                            </div>
+                                          ) : null}
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
-                {canManage ? (
-                  <div className="relative z-10 space-y-3 overflow-visible rounded-b-2xl border-t border-[#F1F5F9] bg-[#FCFCFD] px-4 py-4">
-                    <form
-                      className="flex flex-col gap-2 sm:flex-row sm:items-center"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void addCustomProfession();
-                      }}
-                    >
-                      <input
-                        value={customName}
-                        onChange={(event) => setCustomName(event.target.value)}
-                        placeholder="Custom profession name"
-                        aria-label="Custom profession name"
-                        maxLength={80}
-                        className={`${inputClassName} sm:max-w-sm`}
-                      />
-                      <button
-                        type="submit"
-                        disabled={addingProfession || customName.trim().length === 0}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-sm font-medium text-white disabled:opacity-50"
-                      >
-                        <Plus className="h-4 w-4" aria-hidden />
-                        {addingProfession ? "Adding…" : "Add profession"}
-                      </button>
-                    </form>
+                    {canManage ? (
+                      <div className="relative z-10 space-y-3 overflow-visible rounded-b-2xl border-t border-[#F1F5F9] bg-[#FCFCFD] px-4 py-4">
+                        <form
+                          className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void addCustomProfession(industry.key);
+                          }}
+                        >
+                          <input
+                            value={customName}
+                            onChange={(event) =>
+                              setCustomNameByIndustry((current) => ({
+                                ...current,
+                                [industry.key]: event.target.value,
+                              }))
+                            }
+                            placeholder={`Custom profession for ${industry.label}`}
+                            aria-label={`Custom profession name for ${industry.label}`}
+                            maxLength={80}
+                            className={`${inputClassName} sm:max-w-sm`}
+                          />
+                          <button
+                            type="submit"
+                            disabled={addingProfession || customName.trim().length === 0}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-sm font-medium text-white disabled:opacity-50"
+                          >
+                            <Plus className="h-4 w-4" aria-hidden />
+                            {addingProfession ? "Adding…" : "Add profession"}
+                          </button>
+                        </form>
 
-                    {availableProfessions.length > 0 ? (
-                      <form
-                        className="relative z-20 flex flex-col gap-2 overflow-visible sm:flex-row sm:items-center"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void addCatalogProfession();
-                        }}
-                      >
-                        <SelectField
-                          label="Select catalog profession"
-                          value={selectedCatalogKey}
-                          onChange={(event) => setSelectedCatalogKey(event.target.value)}
-                          className="sm:w-[280px]"
-                        >
-                          <option value="">Or choose from catalog</option>
-                          {availableProfessions.map((option) => (
-                            <option key={option.key} value={option.key}>
-                              {option.industryLabel
-                                ? `${option.name} (${option.industryLabel})`
-                                : option.name}
-                            </option>
-                          ))}
-                        </SelectField>
-                        <button
-                          type="submit"
-                          disabled={addingProfession || selectedCatalogKey.length === 0}
-                          className="inline-flex h-9 items-center justify-center rounded-lg border border-[#012352] bg-white px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC] disabled:opacity-50"
-                        >
-                          Add from catalog
-                        </button>
-                      </form>
+                        {industryAvailable.length > 0 ? (
+                          <form
+                            className="relative z-20 flex flex-col gap-2 overflow-visible sm:flex-row sm:items-center"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void addCatalogProfession(industry.key);
+                            }}
+                          >
+                            <SelectField
+                              label={`Select catalog profession for ${industry.label}`}
+                              value={selectedCatalogKey}
+                              onChange={(event) =>
+                                setSelectedCatalogKeyByIndustry((current) => ({
+                                  ...current,
+                                  [industry.key]: event.target.value,
+                                }))
+                              }
+                              className="sm:w-[280px]"
+                            >
+                              <option value="">Or choose from catalog</option>
+                              {industryAvailable.map((option) => (
+                                <option key={option.key} value={option.key}>
+                                  {option.name}
+                                </option>
+                              ))}
+                            </SelectField>
+                            <button
+                              type="submit"
+                              disabled={addingProfession || selectedCatalogKey.length === 0}
+                              className="inline-flex h-9 items-center justify-center rounded-lg border border-[#012352] bg-white px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC] disabled:opacity-50"
+                            >
+                              Add from catalog
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 ) : null}
               </div>
-            ) : null}
-          </div>
+            );
+          })
+          )}
 
           {selected ? (
             <div

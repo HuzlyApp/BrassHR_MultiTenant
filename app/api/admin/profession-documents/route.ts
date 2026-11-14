@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
       currentUserId: auth.userId,
       industryKey: catalog.industryKey,
       industryLabel: industryLabelForKey(catalog.industryKey),
+      industries: catalog.industries,
       workerProfessionId,
       savedProfessionId,
       availableProfessions,
