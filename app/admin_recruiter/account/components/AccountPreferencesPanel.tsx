@@ -73,7 +73,16 @@ function normalizeLanguage(value: string | null | undefined): string {
   return raw;
 }
 
-export default function AccountPreferencesPanel() {
+type AccountPreferencesPanelProps = {
+  /** `preferences` = login/prefs only; `mfa-deactivate` = 2FA + deactivate only; `full` = both. */
+  variant?: "full" | "preferences" | "mfa-deactivate";
+};
+
+export default function AccountPreferencesPanel({
+  variant = "full",
+}: AccountPreferencesPanelProps) {
+  const showPreferences = variant === "full" || variant === "preferences";
+  const showMfaDeactivate = variant === "full" || variant === "mfa-deactivate";
   const router = useRouter();
   const branding = useTenantBranding();
   const { user, settings, loading, error, refresh } = useAccountData();
@@ -328,7 +337,7 @@ export default function AccountPreferencesPanel() {
     }
   }
 
-  if (loading) {
+  if (loading && showPreferences) {
     return (
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 sm:p-6">
         <AccountLoadingSkeleton rows={6} />
@@ -338,6 +347,8 @@ export default function AccountPreferencesPanel() {
 
   return (
     <div className="space-y-5">
+      {showPreferences ? (
+        <>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Account</h1>
         <p className="mt-1 text-sm text-[#64748B]">
@@ -497,7 +508,11 @@ export default function AccountPreferencesPanel() {
           ) : null}
         </form>
       </section>
+        </>
+      ) : null}
 
+      {showMfaDeactivate ? (
+        <>
       <section className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -619,8 +634,10 @@ export default function AccountPreferencesPanel() {
           </button>
         </div>
       </section>
+        </>
+      ) : null}
 
-      {emailModalOpen ? (
+      {showPreferences && emailModalOpen ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
           <form
             onSubmit={(event) => void handleChangeEmail(event)}
@@ -662,7 +679,7 @@ export default function AccountPreferencesPanel() {
         </div>
       ) : null}
 
-      {passwordModalOpen ? (
+      {showPreferences && passwordModalOpen ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
           <form
             onSubmit={(event) => void handleChangePassword(event)}
@@ -732,7 +749,7 @@ export default function AccountPreferencesPanel() {
         </div>
       ) : null}
 
-      {deactivateOpen ? (
+      {showMfaDeactivate && deactivateOpen ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-[#7F1D1D]">Deactivate account?</h3>

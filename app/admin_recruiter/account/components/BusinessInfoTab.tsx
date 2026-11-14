@@ -498,9 +498,9 @@ export default function BusinessInfoTab() {
               </div>
 
               <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4">
-                <p className="text-sm font-semibold text-[#0F172A]">Industries you hire for</p>
+                <p className="text-sm font-semibold text-[#0F172A]">Industries you serve</p>
                 <p className="mt-1 text-sm text-[#64748B]">
-                  Select every industry this organization staffs. New jobs default to your primary
+                  Select every industry this company supports. New jobs default to your primary
                   industry and can be overridden per job.
                 </p>
                 <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">

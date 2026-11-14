@@ -1,6 +1,7 @@
 export const ACCOUNT_TABS = [
   { slug: "personal", label: "Profile" },
   { slug: "account-security", label: "Account & Security" },
+  { slug: "notifications", label: "Notification" },
   // Legacy slugs kept for redirects / deep links.
   { slug: "account-settings", label: "Account" },
   { slug: "security", label: "Security" },
@@ -30,4 +31,5 @@ export function accountTabHref(slug: AccountTabSlug): string {
 export const ACCOUNT_TAB_NAV = [
   { slug: "personal" as const, label: "Profile" },
   { slug: "account-security" as const, label: "Account & Security" },
+  { slug: "notifications" as const, label: "Notification" },
 ];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Copy,
@@ -10,6 +10,8 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import AssessmentPreviewModal from "@/app/admin_recruiter/settings/AssessmentPreviewModal";
 import {
@@ -20,8 +22,10 @@ import {
   duplicateSkillQuestion,
   normalizeSkillAssessmentCatalog,
   reorderItems,
+  skillCategoriesForProfession,
   slugifySkillCategoryName,
 } from "@/lib/skill-assessment/catalog";
+import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defaults";
 import type {
   SkillAssessmentCatalog,
   SkillCategoryDraft,
@@ -29,6 +33,16 @@ import type {
   SkillQuestionType,
 } from "@/lib/skill-assessment/types";
 import { SKILL_QUESTION_TYPES } from "@/lib/skill-assessment/types";
+
+type ProfessionOption = { id: string; name: string };
+
+type AssessmentSettingsPanelProps = {
+  /** When set, only categories for this profession are shown/edited. */
+  professionId?: string | null;
+  professionName?: string | null;
+  /** Compact layout under Profession detail (hides global scoring chrome). */
+  embedded?: boolean;
+};
 
 const QUESTION_TYPE_LABELS: Record<SkillQuestionType, string> = {
   multiple_choice: "Multiple choice",
@@ -328,7 +342,16 @@ function QuestionEditor({
   );
 }
 
-export default function AssessmentSettingsPanel() {
+export default function AssessmentSettingsPanel({
+  professionId: professionIdProp = null,
+  professionName: professionNameProp = null,
+  embedded = false,
+}: AssessmentSettingsPanelProps) {
+  const searchParams = useSearchParams();
+  const professionIdFromQuery = searchParams.get("profession")?.trim() || null;
+  const professionId = professionIdProp?.trim() || professionIdFromQuery;
+  const [professionName, setProfessionName] = useState(professionNameProp?.trim() || "");
+  const [professions, setProfessions] = useState<ProfessionOption[]>([]);
   const [catalog, setCatalog] = useState<SkillAssessmentCatalog | null>(null);
   const [savedCatalog, setSavedCatalog] = useState<SkillAssessmentCatalog | null>(null);
   const [publishedCatalog, setPublishedCatalog] = useState<SkillAssessmentCatalog | null>(null);
@@ -346,28 +369,58 @@ export default function AssessmentSettingsPanel() {
 
   const dirty = Boolean(catalog && savedCatalog && !catalogsAreEqual(catalog, savedCatalog));
   const unpublished = Boolean(catalog && (!publishedCatalog || !catalogsAreEqual(catalog, publishedCatalog)));
+  const visibleCategories = useMemo(
+    () => (catalog ? skillCategoriesForProfession(catalog, professionId) : []),
+    [catalog, professionId]
+  );
+  const previewCatalog = useMemo(() => {
+    if (!catalog) return null;
+    if (!professionId) return catalog;
+    return { ...catalog, categories: visibleCategories };
+  }, [catalog, professionId, visibleCategories]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/assessment-settings");
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to load assessment settings");
+      const [assessmentRes, professionsRes] = await Promise.all([
+        fetch("/api/admin/assessment-settings"),
+        fetch("/api/admin/profession-documents"),
+      ]);
+      const payload = await assessmentRes.json();
+      if (!assessmentRes.ok) throw new Error(payload.error || "Failed to load assessment settings");
       const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
       setCatalog(draft);
       setSavedCatalog(cloneSkillAssessmentCatalog(draft));
       setPublishedCatalog(payload.settings?.published ? normalizeSkillAssessmentCatalog(payload.settings.published) : null);
       setCanManage(Boolean(payload.canManage));
+
+      if (professionsRes.ok) {
+        const professionsPayload = (await professionsRes.json()) as {
+          professions?: Array<{ id: string; name: string }>;
+        };
+        const options = (professionsPayload.professions ?? []).map((row) => ({
+          id: row.id,
+          name: row.name,
+        }));
+        setProfessions(options);
+        if (!professionNameProp && professionId) {
+          setProfessionName(options.find((row) => row.id === professionId)?.name ?? "");
+        }
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load assessment settings");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [professionId, professionNameProp]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (professionNameProp?.trim()) setProfessionName(professionNameProp.trim());
+  }, [professionNameProp]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -448,6 +501,49 @@ export default function AssessmentSettingsPanel() {
     }));
   }
 
+  function seedProfessionFromDefaults() {
+    if (!professionId) return;
+    updateCatalog((current) => {
+      const seeded = createDefaultSkillAssessmentCatalog().categories.map((category, index) => ({
+        ...category,
+        id: crypto.randomUUID(),
+        professionId,
+        sortOrder: current.categories.length + index + 1,
+        questions: category.questions.map((question) => ({
+          ...question,
+          id: crypto.randomUUID(),
+          options: question.options.map((option) => ({
+            ...option,
+            id: crypto.randomUUID(),
+          })),
+        })),
+      }));
+      return { ...current, categories: [...current.categories, ...seeded] };
+    });
+    toast.success(`Default categories added for ${professionName || "this profession"}`);
+  }
+
+  function reorderVisibleCategories(fromId: string, toId: string) {
+    updateCatalog((current) => {
+      const visible = skillCategoriesForProfession(current, professionId);
+      const reorderedVisible = reorderItems(visible, fromId, toId).map((row, order) => ({
+        ...row,
+        sortOrder: order + 1,
+      }));
+      if (!professionId) {
+        return { ...current, categories: reorderedVisible };
+      }
+      const others = current.categories.filter((row) => row.professionId !== professionId);
+      return {
+        ...current,
+        categories: [...others, ...reorderedVisible].map((row, order) => ({
+          ...row,
+          sortOrder: order + 1,
+        })),
+      };
+    });
+  }
+
   function updateQuestion(categoryId: string, question: SkillQuestionDraft) {
     updateCatalog((current) => ({
       ...current,
@@ -472,156 +568,229 @@ export default function AssessmentSettingsPanel() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {dirty ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-            Unsaved
-          </span>
-        ) : unpublished ? (
-          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
-            Unpublished draft
-          </span>
-        ) : (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-            Published
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-4 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-[#0F172A]">Enable Skill Assessment</p>
-            <p className="text-xs text-[#64748B]">When off, the step is hidden from applicants.</p>
+      {embedded ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-[#0F172A]">
+              Skill Assessment{professionName ? ` · ${professionName}` : ""}
+            </h3>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Categories and questions applicants complete for this profession.
+            </p>
           </div>
-          <Toggle
-            checked={catalog.enabled}
-            disabled={!canManage}
-            label="Enable Skill Assessment"
-            onChange={(enabled) => updateCatalog((current) => ({ ...current, enabled }))}
-          />
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-[#0F172A]">Allow Skip for Now</p>
-            <p className="text-xs text-[#64748B]">Let applicants skip the quiz and continue later.</p>
-          </div>
-          <Toggle
-            checked={catalog.allowSkip}
-            disabled={!canManage}
-            label="Allow Skip for Now"
-            onChange={(allowSkip) => updateCatalog((current) => ({ ...current, allowSkip }))}
-          />
-        </div>
-      </div>
-
-      <div className="mt-5 space-y-3">
-        <h4 className="text-sm font-semibold text-[#0F172A]">Scoring</h4>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="block space-y-1">
-            <span className="text-xs font-semibold text-[#64748B]">Points per question</span>
-            <input
-              type="number"
-              min={0}
-              disabled={!canManage}
-              value={catalog.scoring.pointsPerQuestion}
-              onChange={(e) =>
-                updateCatalog((current) => ({
-                  ...current,
-                  scoring: { ...current.scoring, pointsPerQuestion: Number(e.target.value) || 0 },
-                }))
-              }
-              className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
-            />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-xs font-semibold text-[#64748B]">Passing score (%)</span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              disabled={!canManage}
-              value={catalog.scoring.passingScore}
-              onChange={(e) =>
-                updateCatalog((current) => ({
-                  ...current,
-                  scoring: { ...current.scoring, passingScore: Number(e.target.value) || 0 },
-                }))
-              }
-              className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
-            />
-          </label>
-          <label className="flex items-center gap-2 pt-6 text-sm text-[#0F172A]">
-            <input
-              type="checkbox"
-              disabled={!canManage}
-              checked={catalog.scoring.scoreByCategory}
-              onChange={(e) =>
-                updateCatalog((current) => ({
-                  ...current,
-                  scoring: { ...current.scoring, scoreByCategory: e.target.checked },
-                }))
-              }
-            />
-            Score by category
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[#0F172A]">
-            <input
-              type="checkbox"
-              disabled={!canManage}
-              checked={catalog.scoring.showOverallScore}
-              onChange={(e) =>
-                updateCatalog((current) => ({
-                  ...current,
-                  scoring: { ...current.scoring, showOverallScore: e.target.checked },
-                }))
-              }
-            />
-            Overall assessment score
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[#0F172A]">
-            <input
-              type="checkbox"
-              disabled={!canManage}
-              checked={catalog.scoring.showResultsToApplicant}
-              onChange={(e) =>
-                updateCatalog((current) => ({
-                  ...current,
-                  scoring: { ...current.scoring, showResultsToApplicant: e.target.checked },
-                }))
-              }
-            />
-            Display results to applicants
-          </label>
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold text-[#0F172A]">Categories</h4>
-          {canManage ? (
-            <button
-              type="button"
-              onClick={() =>
-                updateCatalog((current) => ({
-                  ...current,
-                  categories: [
-                    ...current.categories,
-                    createEmptySkillCategory(current.categories.length + 1),
-                  ],
-                }))
-              }
-              className="inline-flex h-9 items-center gap-1 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-medium text-white"
+          <div className="flex flex-wrap items-center gap-2">
+            {dirty ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                Unsaved
+              </span>
+            ) : unpublished ? (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+                Unpublished draft
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                Published
+              </span>
+            )}
+            <Link
+              href={`/admin_recruiter/settings/assessment${
+                professionId ? `?profession=${encodeURIComponent(professionId)}` : ""
+              }`}
+              className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
             >
-              <Plus className="h-3.5 w-3.5" />
-              Add category
-            </button>
+              Open full assessment
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {dirty ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+              Unsaved
+            </span>
+          ) : unpublished ? (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+              Unpublished draft
+            </span>
+          ) : (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+              Published
+            </span>
+          )}
+          {professionId && professionName ? (
+            <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#475569]">
+              Filtered · {professionName}
+            </span>
+          ) : null}
+        </div>
+      )}
+
+      {!embedded ? (
+        <>
+          <div className="space-y-4 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#0F172A]">Enable Skill Assessment</p>
+                <p className="text-xs text-[#64748B]">When off, the step is hidden from applicants.</p>
+              </div>
+              <Toggle
+                checked={catalog.enabled}
+                disabled={!canManage}
+                label="Enable Skill Assessment"
+                onChange={(enabled) => updateCatalog((current) => ({ ...current, enabled }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#0F172A]">Allow Skip for Now</p>
+                <p className="text-xs text-[#64748B]">Let applicants skip the quiz and continue later.</p>
+              </div>
+              <Toggle
+                checked={catalog.allowSkip}
+                disabled={!canManage}
+                label="Allow Skip for Now"
+                onChange={(allowSkip) => updateCatalog((current) => ({ ...current, allowSkip }))}
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <h4 className="text-sm font-semibold text-[#0F172A]">Scoring</h4>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-[#64748B]">Points per question</span>
+                <input
+                  type="number"
+                  min={0}
+                  disabled={!canManage}
+                  value={catalog.scoring.pointsPerQuestion}
+                  onChange={(e) =>
+                    updateCatalog((current) => ({
+                      ...current,
+                      scoring: { ...current.scoring, pointsPerQuestion: Number(e.target.value) || 0 },
+                    }))
+                  }
+                  className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-[#64748B]">Passing score (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  disabled={!canManage}
+                  value={catalog.scoring.passingScore}
+                  onChange={(e) =>
+                    updateCatalog((current) => ({
+                      ...current,
+                      scoring: { ...current.scoring, passingScore: Number(e.target.value) || 0 },
+                    }))
+                  }
+                  className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+                />
+              </label>
+              <label className="flex items-center gap-2 pt-6 text-sm text-[#0F172A]">
+                <input
+                  type="checkbox"
+                  disabled={!canManage}
+                  checked={catalog.scoring.scoreByCategory}
+                  onChange={(e) =>
+                    updateCatalog((current) => ({
+                      ...current,
+                      scoring: { ...current.scoring, scoreByCategory: e.target.checked },
+                    }))
+                  }
+                />
+                Score by category
+              </label>
+              <label className="flex items-center gap-2 text-sm text-[#0F172A]">
+                <input
+                  type="checkbox"
+                  disabled={!canManage}
+                  checked={catalog.scoring.showOverallScore}
+                  onChange={(e) =>
+                    updateCatalog((current) => ({
+                      ...current,
+                      scoring: { ...current.scoring, showOverallScore: e.target.checked },
+                    }))
+                  }
+                />
+                Overall assessment score
+              </label>
+              <label className="flex items-center gap-2 text-sm text-[#0F172A]">
+                <input
+                  type="checkbox"
+                  disabled={!canManage}
+                  checked={catalog.scoring.showResultsToApplicant}
+                  onChange={(e) =>
+                    updateCatalog((current) => ({
+                      ...current,
+                      scoring: { ...current.scoring, showResultsToApplicant: e.target.checked },
+                    }))
+                  }
+                />
+                Display results to applicants
+              </label>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      <div className={embedded ? "mt-1" : "mt-6"}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-[#0F172A]">
+            {professionId ? `Categories for ${professionName || "this profession"}` : "Categories"}
+          </h4>
+          {canManage ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {professionId && visibleCategories.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={seedProfessionFromDefaults}
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-medium text-[#012352]"
+                >
+                  Use default categories
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() =>
+                  updateCatalog((current) => ({
+                    ...current,
+                    categories: [
+                      ...current.categories,
+                      createEmptySkillCategory(current.categories.length + 1, professionId),
+                    ],
+                  }))
+                }
+                className="inline-flex h-9 items-center gap-1 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-medium text-white"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add category
+              </button>
+            </div>
           ) : null}
         </div>
 
+        {visibleCategories.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center">
+            <p className="text-sm font-medium text-[#0F172A]">
+              {professionId
+                ? `No assessment categories for ${professionName || "this profession"} yet`
+                : "No assessment categories yet"}
+            </p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Add a category or start from the default skill assessment.
+            </p>
+          </div>
+        ) : null}
+
         <ul className="space-y-2">
-          {catalog.categories.map((category, index) => {
+          {visibleCategories.map((category, index) => {
             const expanded = expandedCategoryId === category.id;
+            const professionLabel =
+              professions.find((row) => row.id === category.professionId)?.name ?? null;
             return (
               <li
                 key={category.id}
@@ -629,13 +798,7 @@ export default function AssessmentSettingsPanel() {
                 onDrop={() => {
                   const fromId = dragCategoryId.current;
                   if (!fromId || fromId === category.id) return;
-                  updateCatalog((current) => ({
-                    ...current,
-                    categories: reorderItems(current.categories, fromId, category.id).map((row, order) => ({
-                      ...row,
-                      sortOrder: order + 1,
-                    })),
-                  }));
+                  reorderVisibleCategories(fromId, category.id);
                   dragCategoryId.current = null;
                 }}
                 className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC]"
@@ -670,6 +833,15 @@ export default function AssessmentSettingsPanel() {
                     {!category.isActive ? (
                       <span className="rounded-full bg-[#FEE2E2] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#B91C1C]">
                         Inactive
+                      </span>
+                    ) : null}
+                    {professionLabel ? (
+                      <span className="rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#1D4ED8]">
+                        {professionLabel}
+                      </span>
+                    ) : !professionId ? (
+                      <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
+                        Shared
                       </span>
                     ) : null}
                     <span className="text-xs text-[#94A3B8]">{category.questions.length} questions</span>
@@ -729,6 +901,28 @@ export default function AssessmentSettingsPanel() {
                           className="h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
                         />
                       </label>
+                      {!professionId ? (
+                        <label className="block space-y-1 sm:col-span-2">
+                          <span className="text-xs font-semibold text-[#64748B]">Profession</span>
+                          <select
+                            value={category.professionId ?? ""}
+                            disabled={!canManage}
+                            onChange={(e) =>
+                              updateCategory(category.id, {
+                                professionId: e.target.value.trim() || null,
+                              })
+                            }
+                            className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"
+                          >
+                            <option value="">Shared (all professions)</option>
+                            {professions.map((row) => (
+                              <option key={row.id} value={row.id}>
+                                {row.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                       <label className="block space-y-1 sm:col-span-2">
                         <span className="text-xs font-semibold text-[#64748B]">Short description</span>
                         <input
@@ -941,7 +1135,9 @@ export default function AssessmentSettingsPanel() {
         )}
       </div>
 
-      {previewOpen ? <AssessmentPreviewModal catalog={catalog} onClose={() => setPreviewOpen(false)} /> : null}
+      {previewOpen && previewCatalog ? (
+        <AssessmentPreviewModal catalog={previewCatalog} onClose={() => setPreviewOpen(false)} />
+      ) : null}
       {confirm ? (
         <ConfirmDialog
           title={confirm.title}

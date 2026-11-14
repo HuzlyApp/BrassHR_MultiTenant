@@ -383,14 +383,12 @@ const EXTRA_TOP_SECTIONS: SidebarSection[] = [
   },
 ];
 
-const PROFILE_ROUTE = "/admin_recruiter/account/personal";
 const SETTINGS_ROUTE = "/admin_recruiter/settings";
 const SETTINGS_BRANDING_ROUTE = `${SETTINGS_ROUTE}/branding`;
 const SETTINGS_COMPANY_PROFILE_ROUTE = `${SETTINGS_ROUTE}/company-profile`;
 const HELP_SUPPORT_ROUTE = "/admin_recruiter/help-support";
-const NOTIFICATIONS_ROUTE = "/admin_recruiter/notifications";
 
-/** Admins see Personal Settings > Profile. Recruiters get Profile as a direct Settings item. */
+/** App Settings rail children. Personal Settings live in the header user dropdown. */
 const SETTINGS_CHILDREN: SidebarLink[] = [
   {
     label: "Company",
@@ -401,7 +399,6 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
       SETTINGS_BRANDING_ROUTE,
       `${SETTINGS_ROUTE}/user-management`,
       `${SETTINGS_ROUTE}/admin-console`,
-      `${SETTINGS_ROUTE}/billing`,
       `${SETTINGS_ROUTE}/roles`,
       `${SETTINGS_ROUTE}/hiring-theme`,
       "/admin_recruiter/account/business-info",
@@ -416,11 +413,6 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
         label: "User Management",
         href: `${SETTINGS_ROUTE}/user-management`,
         matchPrefixes: [`${SETTINGS_ROUTE}/user-management`, `${SETTINGS_ROUTE}/admin-console`],
-      },
-      {
-        label: "Billing & Subscription",
-        href: `${SETTINGS_ROUTE}/billing`,
-        matchPrefixes: [`${SETTINGS_ROUTE}/billing`],
       },
       {
         label: "Branding",
@@ -451,7 +443,7 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
         matchPrefixes: [`${SETTINGS_ROUTE}/profession`],
       },
       {
-        label: "Statuses",
+        label: "Status Catalog",
         href: `${SETTINGS_ROUTE}/statuses`,
         matchPrefixes: [`${SETTINGS_ROUTE}/statuses`],
       },
@@ -469,33 +461,10 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
     ],
   },
   {
-    label: "Personal Settings",
-    href: "#",
-    resourceKey: "settings_profile",
-    matchPrefixes: ["/admin_recruiter/account"],
-    children: [
-      {
-        label: "Profile",
-        href: PROFILE_ROUTE,
-        matchPrefixes: ["/admin_recruiter/account/personal"],
-      },
-      {
-        label: "Account",
-        href: "/admin_recruiter/account/account-settings",
-        matchPrefixes: ["/admin_recruiter/account/account-settings"],
-      },
-      {
-        label: "Security",
-        href: "/admin_recruiter/account/security",
-        matchPrefixes: ["/admin_recruiter/account/security"],
-      },
-    ],
-  },
-  {
-    label: "Notifications",
-    href: NOTIFICATIONS_ROUTE,
-    resourceKey: "settings_notifications",
-    matchPrefixes: [NOTIFICATIONS_ROUTE],
+    label: "Billing & Subscription",
+    href: `${SETTINGS_ROUTE}/billing`,
+    resourceKey: "settings_company",
+    matchPrefixes: [`${SETTINGS_ROUTE}/billing`],
   },
   {
     label: "Help & Support",
@@ -514,9 +483,8 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
 
 const SETTINGS_MATCH_PREFIXES = [
   SETTINGS_ROUTE,
-  "/admin_recruiter/account",
+  "/admin_recruiter/account/business-info",
   HELP_SUPPORT_ROUTE,
-  NOTIFICATIONS_ROUTE,
   REPORTS_BASE,
 ];
 

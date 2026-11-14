@@ -24,6 +24,7 @@ import {
   AccountSaveButton,
   AccountSuccessBanner,
 } from "./AccountFormStatus";
+import AccountPreferencesPanel from "./AccountPreferencesPanel";
 
 /** Fixed validation colors — never tied to tenant brand colors. */
 const VALID_GREEN = "#16a34a";
@@ -243,70 +244,74 @@ export default function SecurityTab() {
   }
 
   return (
-    <div className="rounded-lg border border-[#E5E7EB] bg-white p-5 sm:p-6">
-      <h2 className="text-lg font-semibold leading-7 text-[#012352]">Security</h2>
-      <p className="mt-2 text-sm text-[#64748B]">
-        Update your password and manage authenticator app protection for this account.
-      </p>
+    <div className="space-y-5">
+      <div className="rounded-lg border border-[#E5E7EB] bg-white p-5 sm:p-6">
+        <h2 className="text-lg font-semibold leading-7 text-[#012352]">Security</h2>
+        <p className="mt-2 text-sm text-[#64748B]">
+          Update your password and manage authenticator app protection for this account.
+        </p>
 
-      {error ? <AccountErrorBanner message={error} /> : null}
-      {saveError ? <AccountErrorBanner message={saveError} /> : null}
-      {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
+        {error ? <AccountErrorBanner message={error} /> : null}
+        {saveError ? <AccountErrorBanner message={saveError} /> : null}
+        {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
 
-      <div className="mt-4 w-full max-w-2xl">
-        <div className="border-b border-[#E5E7EB] pb-5">
-          <p className="text-base font-semibold text-[#012352]">{displayName}</p>
-          <p className="mt-1 text-sm text-[#64748B]">{email}</p>
+        <div className="mt-4 w-full">
+          <div className="border-b border-[#E5E7EB] pb-5">
+            <p className="text-base font-semibold text-[#012352]">{displayName}</p>
+            <p className="mt-1 text-sm text-[#64748B]">{email}</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-6">
+            <h3 className="text-base font-semibold text-[#012352]">Update Password</h3>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Enter your current password, then choose a new password.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-5">
+              <PasswordField
+                label="Current Password"
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                showValid={currentValid}
+              />
+              <PasswordField
+                label="New Password"
+                value={newPassword}
+                onChange={setNewPassword}
+                showValid={newValid}
+              />
+              <PasswordField
+                label="Confirm Password"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                showValid={confirmValid}
+              />
+
+              {newPassword.length > 0 ? (
+                <PasswordStrengthMeter score={strengthScore} maxScore={strengthMaxScore} />
+              ) : null}
+            </div>
+
+            <ul className="mt-6 flex flex-col gap-3" aria-label="Password requirements">
+              <RequirementItem met={rules.minLength} label={`${PASSWORD_MIN_LENGTH} or more characters`} />
+              <RequirementItem met={rules.hasUpper} label="Uppercase letter" />
+              <RequirementItem met={rules.hasLower} label="Lowercase letter" />
+              <RequirementItem met={rules.hasNumber} label="At least 1 number" />
+              <RequirementItem met={rules.hasSpecial} label="Special character (! @ # $ …)" />
+              <RequirementItem met={rules.notCommon} label="Not a common password" />
+              <RequirementItem met={rules.passwordsMatch} label="Passwords match" />
+            </ul>
+
+            <div className="mt-6 flex justify-end">
+              <AccountSaveButton saving={saving} disabled={!canSubmit} label="Update Password" />
+            </div>
+          </form>
+
+          <SecuritySettingsPanel embedded />
         </div>
-
-        <form onSubmit={handleSubmit} className="mt-6">
-          <h3 className="text-base font-semibold text-[#012352]">Update Password</h3>
-          <p className="mt-1 text-sm text-[#64748B]">
-            Enter your current password, then choose a new password.
-          </p>
-
-          <div className="mt-5 flex flex-col gap-5">
-            <PasswordField
-              label="Current Password"
-              value={currentPassword}
-              onChange={setCurrentPassword}
-              showValid={currentValid}
-            />
-            <PasswordField
-              label="New Password"
-              value={newPassword}
-              onChange={setNewPassword}
-              showValid={newValid}
-            />
-            <PasswordField
-              label="Confirm Password"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              showValid={confirmValid}
-            />
-
-            {newPassword.length > 0 ? (
-              <PasswordStrengthMeter score={strengthScore} maxScore={strengthMaxScore} />
-            ) : null}
-          </div>
-
-          <ul className="mt-6 flex flex-col gap-3" aria-label="Password requirements">
-            <RequirementItem met={rules.minLength} label={`${PASSWORD_MIN_LENGTH} or more characters`} />
-            <RequirementItem met={rules.hasUpper} label="Uppercase letter" />
-            <RequirementItem met={rules.hasLower} label="Lowercase letter" />
-            <RequirementItem met={rules.hasNumber} label="At least 1 number" />
-            <RequirementItem met={rules.hasSpecial} label="Special character (! @ # $ …)" />
-            <RequirementItem met={rules.notCommon} label="Not a common password" />
-            <RequirementItem met={rules.passwordsMatch} label="Passwords match" />
-          </ul>
-
-          <div className="mt-6 flex justify-end">
-            <AccountSaveButton saving={saving} disabled={!canSubmit} label="Update Password" />
-          </div>
-        </form>
-
-        <SecuritySettingsPanel embedded />
       </div>
+
+      <AccountPreferencesPanel variant="mfa-deactivate" />
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
-  Bell,
   Briefcase,
   Building2,
   ClipboardCheck,
@@ -13,8 +12,6 @@ import {
   ListChecks,
   Phone,
   Plug,
-  ShieldCheck,
-  UserCircle,
   Users,
   Shield,
   Wand2,
@@ -22,13 +19,10 @@ import {
 } from "lucide-react";
 
 export type SettingsNavItemId =
-  | "profile"
-  | "account-security"
   | "company-profile"
   | "user-management"
   | "billing"
   | "branding"
-  | "notifications"
   | "call"
   | "task"
   | "library"
@@ -77,36 +71,11 @@ export type SettingsNavGroup = {
   items: SettingsNavItem[];
 };
 
-/** Secondary Settings sidebar — only items that already exist in the app. */
+/** Secondary Settings sidebar — only items that already exist in the app.
+ * Personal Settings (Profile, Account & Security, Notifications) live in the
+ * top-right user dropdown only — not in this mini-sidebar.
+ */
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
-  {
-    id: "personal",
-    label: "Personal Settings",
-    items: [
-      {
-        id: "profile",
-        label: "Profile",
-        href: "/admin_recruiter/account/personal",
-        icon: UserCircle,
-        resourceKey: "settings_profile",
-        // Only personal — do not use /admin_recruiter/account or Account routes also highlight.
-        matchPrefixes: ["/admin_recruiter/account/personal"],
-      },
-      {
-        id: "account-security",
-        label: "Account & Security",
-        href: "/admin_recruiter/account/account-security",
-        icon: ShieldCheck,
-        resourceKey: "settings_profile",
-        matchPrefixes: [
-          "/admin_recruiter/account/account-security",
-          "/admin_recruiter/account/account-settings",
-          "/admin_recruiter/account/security",
-          "/admin_recruiter/settings/security",
-        ],
-      },
-    ],
-  },
   {
     id: "app",
     label: "App Settings",
@@ -134,28 +103,12 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         ],
       },
       {
-        id: "billing",
-        label: "Billing & Subscription",
-        href: "/admin_recruiter/settings/billing",
-        icon: CreditCard,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/billing"],
-      },
-      {
         id: "branding",
         label: "Branding",
         href: "/admin_recruiter/settings/branding",
         icon: Wand2,
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/branding", "/admin_recruiter/settings/hiring-theme"],
-      },
-      {
-        id: "notifications",
-        label: "Notifications",
-        href: "/admin_recruiter/notifications",
-        icon: Bell,
-        resourceKey: "settings_notifications",
-        matchPrefixes: ["/admin_recruiter/notifications"],
       },
       {
         id: "call",
@@ -172,6 +125,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: ClipboardCheck,
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/task"],
+      },
+      {
+        id: "billing",
+        label: "Billing & Subscription",
+        href: "/admin_recruiter/settings/billing",
+        icon: CreditCard,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/billing"],
       },
       {
         id: "help",
@@ -233,7 +194,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       },
       {
         id: "statuses",
-        label: "Statuses",
+        label: "Status Catalog",
         href: "/admin_recruiter/settings/statuses",
         icon: ListChecks,
         resourceKey: "settings_company",
@@ -349,7 +310,7 @@ export const SETTINGS_SECTION_META: Record<
     description: "Build and manage skill assessments for your hiring flow.",
   },
   statuses: {
-    title: "Statuses",
+    title: "Status Catalog",
     description: "Manage statuses used in your recruitment pipeline. Customize labels, colors, and workflows.",
   },
   templates: {
@@ -405,7 +366,7 @@ export function visibleSettingsNavGroups(
 /** Default landing page when opening Settings from the main sidebar (admins). */
 export const SETTINGS_LANDING_HREF = "/admin_recruiter/settings/branding";
 
-const SETTINGS_LANDING_FALLBACK_HREF = "/admin_recruiter/account/personal";
+const SETTINGS_LANDING_FALLBACK_HREF = "/admin_recruiter/help-support";
 
 /**
  * First Settings mini-sidebar page the signed-in role can open.
@@ -428,13 +389,15 @@ export function resolveSettingsLandingHref(
   return SETTINGS_LANDING_FALLBACK_HREF;
 }
 
-/** All path prefixes covered by the settings mini-sidebar. */
+/** All path prefixes covered by the settings mini-sidebar.
+ * Personal account pages and Notifications are opened from the user dropdown
+ * and intentionally do not keep the Settings mini-sidebar open.
+ */
 export const SETTINGS_MINI_SIDEBAR_PREFIXES: string[] = Array.from(
   new Set(
     SETTINGS_NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.matchPrefixes)).concat([
       "/admin_recruiter/settings",
-      "/admin_recruiter/account",
-      "/admin_recruiter/notifications",
+      "/admin_recruiter/account/business-info",
       "/admin_recruiter/dashboard/onboarding-flows",
       "/admin_recruiter/dashboard/workflow-mappings",
       "/admin_recruiter/dashboard/workflowlibrary",

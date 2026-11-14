@@ -1,13 +1,12 @@
 "use client";
 
-import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Children, isValidElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Briefcase,
   Check,
   ChevronDown,
   ChevronRight,
-  ClipboardList,
   FileText,
   MoreHorizontal,
   Pencil,
@@ -16,8 +15,9 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
+import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
 import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 import {
   SETTINGS_PROFESSION_DOCUMENT_KINDS,
@@ -26,6 +26,16 @@ import {
 } from "@/lib/professions/profession-documents";
 
 const PROFESSION_QUERY_KEY = "profession";
+const PROFESSION_LIST_HREF = "/admin_recruiter/settings/profession";
+
+export function professionDetailHref(professionId: string): string {
+  return `${PROFESSION_LIST_HREF}/${encodeURIComponent(professionId)}`;
+}
+
+type ProfessionDocumentsPanelProps = {
+  /** When set, render the dedicated profession detail page (docs + assessment). */
+  detailProfessionId?: string | null;
+};
 
 type DocumentKind = ProfessionDocumentKind;
 
@@ -370,11 +380,14 @@ function normalizeProfession(row: ProfessionRow): ProfessionRow {
   };
 }
 
-export default function ProfessionDocumentsPanel() {
+export default function ProfessionDocumentsPanel({
+  detailProfessionId = null,
+}: ProfessionDocumentsPanelProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const requestedProfessionId = searchParams.get(PROFESSION_QUERY_KEY)?.trim() || null;
+  const queryProfessionId = searchParams.get(PROFESSION_QUERY_KEY)?.trim() || null;
+  const requestedProfessionId = detailProfessionId?.trim() || null;
+  const isDetailView = Boolean(requestedProfessionId);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -406,16 +419,11 @@ export default function ProfessionDocumentsPanel() {
   const documentsPanelRef = useRef<HTMLDivElement>(null);
   const previousSelectedIdRef = useRef<string | null>(null);
 
-  const professionHref = useCallback(
-    (professionId: string | null) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (professionId) params.set(PROFESSION_QUERY_KEY, professionId);
-      else params.delete(PROFESSION_QUERY_KEY);
-      const query = params.toString();
-      return query ? `${pathname}?${query}` : pathname;
-    },
-    [pathname, searchParams]
-  );
+  /** Legacy `?profession=` links on the list page → dedicated detail route. */
+  useEffect(() => {
+    if (isDetailView || !queryProfessionId) return;
+    router.replace(professionDetailHref(queryProfessionId));
+  }, [isDetailView, queryProfessionId, router]);
 
   const applyPayload = useCallback((payload: CatalogPayload) => {
     const rows = (payload.professions ?? []).map(normalizeProfession);
@@ -506,10 +514,10 @@ export default function ProfessionDocumentsPanel() {
   }, [drafts, saved, selectedId]);
 
   useEffect(() => {
-    if (!loading && requestedProfessionId && professions.length > 0 && !selectedId) {
-      router.replace(professionHref(null), { scroll: false });
+    if (!loading && isDetailView && professions.length > 0 && !selectedId) {
+      router.replace(PROFESSION_LIST_HREF);
     }
-  }, [loading, requestedProfessionId, professions.length, selectedId, router, professionHref]);
+  }, [loading, isDetailView, professions.length, selectedId, router]);
 
   function openEditProfession(profession: ProfessionRow) {
     setEditingProfessionId(profession.id);
@@ -612,27 +620,13 @@ export default function ProfessionDocumentsPanel() {
     if (professionId === selectedId) {
       setConfirmRemove(false);
       setRowMenuId(null);
-      requestAnimationFrame(() => {
-        documentsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
       return;
     }
     if (dirty && !window.confirm("Discard unsaved document changes for this profession?")) return;
     discardDirtyDraft();
     setConfirmRemove(false);
     setRowMenuId(null);
-    router.push(professionHref(professionId));
-  }
-
-  function clearProfessionDocs() {
-    if (dirty && !window.confirm("Discard unsaved document changes for this profession?")) return;
-    discardDirtyDraft();
-    setConfirmRemove(false);
-    setRowMenuId(null);
-    if (selected?.industryKey) {
-      setExpandedByIndustry((current) => ({ ...current, [selected.industryKey!]: true }));
-    }
-    router.push(professionHref(null));
+    router.push(professionDetailHref(professionId));
   }
 
   async function createProfession(body: {
@@ -657,7 +651,7 @@ export default function ProfessionDocumentsPanel() {
       setConfirmRemove(false);
       toast.success("Profession added");
       await load({ silent: true });
-      if (createdId) router.push(professionHref(createdId));
+      if (createdId) router.push(professionDetailHref(createdId));
       else setExpandedByIndustry((current) => ({ ...current, [body.industryKey]: true }));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add profession");
@@ -717,7 +711,7 @@ export default function ProfessionDocumentsPanel() {
       if (selected.industryKey) {
         setExpandedByIndustry((current) => ({ ...current, [selected.industryKey!]: true }));
       }
-      router.replace(professionHref(null), { scroll: false });
+      router.replace(PROFESSION_LIST_HREF);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete profession");
     } finally {
@@ -767,6 +761,257 @@ export default function ProfessionDocumentsPanel() {
       <section className="space-y-4">
         <div className="h-10 max-w-xl rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" />
         <div className="h-48 rounded-2xl bg-[#E5E7EB] motion-safe:animate-pulse" />
+      </section>
+    );
+  }
+
+  if (isDetailView) {
+    return (
+      <section className="space-y-5">
+        {error ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {error}
+          </p>
+        ) : null}
+        {!error && !selected && !loading ? (
+          <p className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
+            Profession not found.{" "}
+            <Link href={PROFESSION_LIST_HREF} className="font-medium text-[#012352] hover:underline">
+              Back to all professions
+            </Link>
+          </p>
+        ) : null}
+        {selected ? (
+          <div
+            ref={documentsPanelRef}
+            tabIndex={-1}
+            className="scroll-mt-4 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm shadow-slate-900/[0.03] outline-none"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#F1F5F9] px-4 py-4 sm:px-5">
+              <div className="min-w-0 space-y-3">
+                <Link
+                  href={PROFESSION_LIST_HREF}
+                  onClick={(event) => {
+                    if (dirty && !window.confirm("Discard unsaved document changes for this profession?")) {
+                      event.preventDefault();
+                      return;
+                    }
+                    discardDirtyDraft();
+                  }}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#012352] hover:underline"
+                >
+                  <ArrowLeft className="h-4 w-4" aria-hidden />
+                  All professions
+                </Link>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                    Documents
+                  </p>
+                  <h2 className="mt-0.5 truncate text-base font-semibold text-[#0F172A]">
+                    {selected.name}
+                  </h2>
+                  <p className="text-sm text-[#64748B]">
+                    Certificates, licenses, and other upload requirements
+                  </p>
+                </div>
+                {professions.length > 1 ? (
+                  <SelectField
+                    label="Switch profession"
+                    value={selected.id}
+                    onChange={(event) => openProfessionDocs(event.target.value)}
+                    className="sm:w-[280px]"
+                  >
+                    {professions.map((profession) => (
+                      <option key={profession.id} value={profession.id}>
+                        {profession.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                ) : null}
+              </div>
+              {canManage ? (
+                <div className="flex flex-wrap items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openEditProfession(selected)}
+                    aria-label={`Edit ${selected.name}`}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC]"
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRemove(true)}
+                    aria-label={`Delete ${selected.name}`}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[#B91C1C] hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-3 p-4 sm:p-5">
+              {documents.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center">
+                  <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[#94A3B8] shadow-sm">
+                    <FileText className="h-4 w-4" aria-hidden />
+                  </div>
+                  <p className="text-sm text-[#64748B]">
+                    No certificates or licenses for {selected.name} yet.
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {documents.map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="grid gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 sm:grid-cols-[minmax(0,1fr)_168px_auto_auto_auto] sm:items-center"
+                    >
+                      <label className="block">
+                        <span className="sr-only">Document name</span>
+                        <input
+                          value={doc.name}
+                          disabled={!canManage}
+                          onChange={(event) => updateDocument(doc.id, { name: event.target.value })}
+                          placeholder="Certificate or license name"
+                          className={inputClassName}
+                        />
+                      </label>
+                      <SelectField
+                        label="Document type"
+                        value={settingsDocumentKind(doc.documentKind)}
+                        disabled={!canManage}
+                        onChange={(event) =>
+                          updateDocument(doc.id, {
+                            documentKind: settingsDocumentKind(
+                              event.target.value as DocumentKind
+                            ),
+                          })
+                        }
+                      >
+                        {SETTINGS_PROFESSION_DOCUMENT_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {professionDocumentKindLabel(kind)}
+                          </option>
+                        ))}
+                      </SelectField>
+                      <label className="inline-flex items-center gap-2 text-sm text-[#0F172A]">
+                        <RequiredCheckbox
+                          checked={doc.isRequired}
+                          disabled={!canManage}
+                          onChange={(isRequired) => updateDocument(doc.id, { isRequired })}
+                        />
+                        {doc.isRequired ? "Required" : "Optional"}
+                      </label>
+                      <div className="inline-flex items-center gap-2 text-sm text-[#0F172A]">
+                        <span className="text-[#64748B]">Expiry</span>
+                        <SelectField
+                          label={`${doc.name || "Document"} requires expiry date`}
+                          value={doc.hasExpiration ? "yes" : "no"}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            updateDocument(doc.id, { hasExpiration: event.target.value === "yes" })
+                          }
+                          className="w-[88px]"
+                        >
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
+                        </SelectField>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!canManage}
+                        onClick={() => {
+                          if (!selectedId) return;
+                          setDrafts((current) => ({
+                            ...current,
+                            [selectedId]: (current[selectedId] ?? []).filter((row) => row.id !== doc.id),
+                          }));
+                        }}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#64748B] hover:bg-white hover:text-[#B91C1C] disabled:opacity-40"
+                        aria-label={`Remove ${doc.name || "document"}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => {
+                    if (!selectedId) return;
+                    setDrafts((current) => ({
+                      ...current,
+                      [selectedId]: [...(current[selectedId] ?? []), newDocument()],
+                    }));
+                  }}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#012352] hover:underline disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Add certificate or license
+                </button>
+                <button
+                  type="button"
+                  disabled={!canManage || !dirty || saving}
+                  onClick={() => void save()}
+                  className="inline-flex h-10 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {saving ? "Saving…" : "Save documents"}
+                </button>
+              </div>
+              {!canManage ? (
+                <p className="text-xs text-[#64748B]">Only an administrator can change these documents.</p>
+              ) : null}
+            </div>
+
+            <div className="border-t border-[#F1F5F9] p-4 sm:p-5">
+              <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5">
+                <Suspense
+                  fallback={
+                    <p className="text-sm text-[#64748B]">Loading skill assessment…</p>
+                  }
+                >
+                  <AssessmentSettingsPanel
+                    embedded
+                    professionId={selected.id}
+                    professionName={selected.name}
+                  />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {confirmRemove && selected ? (
+          <ConfirmDialog
+            title={`Delete ${selected.name}?`}
+            message="This removes the profession from your organization and deactivates its document requirements. You can add it again later. Onboarding flows that still use this profession must be updated first."
+            confirmLabel="Remove"
+            confirming={removingProfession}
+            onCancel={() => setConfirmRemove(false)}
+            onConfirm={() => void removeProfession()}
+          />
+        ) : null}
+
+        {editingProfessionId ? (
+          <EditProfessionDialog
+            name={editName}
+            saving={savingProfessionName}
+            onNameChange={setEditName}
+            onCancel={() => {
+              setEditingProfessionId(null);
+              setEditName("");
+            }}
+            onSave={() => void saveProfessionName()}
+          />
+        ) : null}
       </section>
     );
   }
@@ -922,34 +1167,16 @@ export default function ProfessionDocumentsPanel() {
                             {industryProfessions.map((profession) => {
                               const index = professions.findIndex((row) => row.id === profession.id);
                               const code = professionCode(profession, index, industry.label);
-                              const active = profession.id === selectedId;
                               const docCount = (drafts[profession.id] ?? profession.documents).length;
                               return (
                                 <tr
                                   key={profession.id}
-                                  className={`border-t border-[#F1F5F9] ${
-                                    active
-                                      ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
-                                      : "bg-white"
-                                  }`}
+                                  className="border-t border-[#F1F5F9] bg-white"
                                 >
                                   <td className="px-4 py-3 font-mono text-xs text-[#64748B]">{code}</td>
                                   <td className="px-4 py-3">
                                     <Link
-                                      href={professionHref(profession.id)}
-                                      onClick={(event) => {
-                                        if (dirty && profession.id !== selectedId) {
-                                          if (
-                                            !window.confirm(
-                                              "Discard unsaved document changes for this profession?"
-                                            )
-                                          ) {
-                                            event.preventDefault();
-                                            return;
-                                          }
-                                          discardDirtyDraft();
-                                        }
-                                      }}
+                                      href={professionDetailHref(profession.id)}
                                       className="text-left text-sm font-medium text-[#0F172A] hover:underline"
                                     >
                                       {profession.name}
@@ -969,20 +1196,7 @@ export default function ProfessionDocumentsPanel() {
                                       ref={rowMenuId === profession.id ? rowMenuRef : undefined}
                                     >
                                       <Link
-                                        href={professionHref(profession.id)}
-                                        onClick={(event) => {
-                                          if (dirty && profession.id !== selectedId) {
-                                            if (
-                                              !window.confirm(
-                                                "Discard unsaved document changes for this profession?"
-                                              )
-                                            ) {
-                                              event.preventDefault();
-                                              return;
-                                            }
-                                            discardDirtyDraft();
-                                          }
-                                        }}
+                                        href={professionDetailHref(profession.id)}
                                         className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
                                       >
                                         View docs
@@ -1014,9 +1228,8 @@ export default function ProfessionDocumentsPanel() {
                                               <button
                                                 type="button"
                                                 onClick={() => {
-                                                  openProfessionDocs(profession.id);
-                                                  setConfirmRemove(true);
                                                   setRowMenuId(null);
+                                                  router.push(professionDetailHref(profession.id));
                                                 }}
                                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
                                               >
@@ -1112,228 +1325,8 @@ export default function ProfessionDocumentsPanel() {
             );
           })
           )}
-
-          {selected ? (
-            <div
-              ref={documentsPanelRef}
-              tabIndex={-1}
-              className="scroll-mt-4 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm shadow-slate-900/[0.03] outline-none"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#F1F5F9] px-4 py-4 sm:px-5">
-                <div className="min-w-0 space-y-3">
-                  <button
-                    type="button"
-                    onClick={clearProfessionDocs}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#012352] hover:underline"
-                  >
-                    <ArrowLeft className="h-4 w-4" aria-hidden />
-                    All professions
-                  </button>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-                      Documents
-                    </p>
-                    <h2 className="mt-0.5 truncate text-base font-semibold text-[#0F172A]">
-                      {selected.name}
-                    </h2>
-                    <p className="text-sm text-[#64748B]">
-                      Certificates, licenses, and other upload requirements
-                    </p>
-                  </div>
-                  {professions.length > 1 ? (
-                    <SelectField
-                      label="Switch profession"
-                      value={selected.id}
-                      onChange={(event) => openProfessionDocs(event.target.value)}
-                      className="sm:w-[280px]"
-                    >
-                      {professions.map((profession) => (
-                        <option key={profession.id} value={profession.id}>
-                          {profession.name}
-                        </option>
-                      ))}
-                    </SelectField>
-                  ) : null}
-                </div>
-                {canManage ? (
-                  <div className="flex flex-wrap items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEditProfession(selected)}
-                      aria-label={`Edit ${selected.name}`}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC]"
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmRemove(true)}
-                      aria-label={`Delete ${selected.name}`}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[#B91C1C] hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden />
-                      Delete
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="space-y-3 p-4 sm:p-5">
-                {documents.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center">
-                    <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[#94A3B8] shadow-sm">
-                      <FileText className="h-4 w-4" aria-hidden />
-                    </div>
-                    <p className="text-sm text-[#64748B]">
-                      No certificates or licenses for {selected.name} yet.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {documents.map((doc) => (
-                      <li
-                        key={doc.id}
-                        className="grid gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 sm:grid-cols-[minmax(0,1fr)_168px_auto_auto_auto] sm:items-center"
-                      >
-                        <label className="block">
-                          <span className="sr-only">Document name</span>
-                          <input
-                            value={doc.name}
-                            disabled={!canManage}
-                            onChange={(event) => updateDocument(doc.id, { name: event.target.value })}
-                            placeholder="Certificate or license name"
-                            className={inputClassName}
-                          />
-                        </label>
-                        <SelectField
-                          label="Document type"
-                          value={settingsDocumentKind(doc.documentKind)}
-                          disabled={!canManage}
-                          onChange={(event) =>
-                            updateDocument(doc.id, {
-                              documentKind: settingsDocumentKind(
-                                event.target.value as DocumentKind
-                              ),
-                            })
-                          }
-                        >
-                          {SETTINGS_PROFESSION_DOCUMENT_KINDS.map((kind) => (
-                            <option key={kind} value={kind}>
-                              {professionDocumentKindLabel(kind)}
-                            </option>
-                          ))}
-                        </SelectField>
-                        <label className="inline-flex items-center gap-2 text-sm text-[#0F172A]">
-                          <RequiredCheckbox
-                            checked={doc.isRequired}
-                            disabled={!canManage}
-                            onChange={(isRequired) => updateDocument(doc.id, { isRequired })}
-                          />
-                          {doc.isRequired ? "Required" : "Optional"}
-                        </label>
-                        <div className="inline-flex items-center gap-2 text-sm text-[#0F172A]">
-                          <span className="text-[#64748B]">Expiry</span>
-                          <SelectField
-                            label={`${doc.name || "Document"} requires expiry date`}
-                            value={doc.hasExpiration ? "yes" : "no"}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              updateDocument(doc.id, { hasExpiration: event.target.value === "yes" })
-                            }
-                            className="w-[88px]"
-                          >
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                          </SelectField>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={!canManage}
-                          onClick={() => {
-                            if (!selectedId) return;
-                            setDrafts((current) => ({
-                              ...current,
-                              [selectedId]: (current[selectedId] ?? []).filter((row) => row.id !== doc.id),
-                            }));
-                          }}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#64748B] hover:bg-white hover:text-[#B91C1C] disabled:opacity-40"
-                          aria-label={`Remove ${doc.name || "document"}`}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
-                  <button
-                    type="button"
-                    disabled={!canManage}
-                    onClick={() => {
-                      if (!selectedId) return;
-                      setDrafts((current) => ({
-                        ...current,
-                        [selectedId]: [...(current[selectedId] ?? []), newDocument()],
-                      }));
-                    }}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#012352] hover:underline disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden />
-                    Add certificate or license
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canManage || !dirty || saving}
-                    onClick={() => void save()}
-                    className="inline-flex h-10 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 text-sm font-medium text-white disabled:opacity-60"
-                  >
-                    {saving ? "Saving…" : "Save documents"}
-                  </button>
-                </div>
-                {!canManage ? (
-                  <p className="text-xs text-[#64748B]">Only an administrator can change these documents.</p>
-                ) : null}
-              </div>
-
-              <div className="border-t border-[#F1F5F9] p-4 sm:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4">
-                  <div className="min-w-0 flex items-start gap-3">
-                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#012352] shadow-sm">
-                      <ClipboardList className="h-4 w-4" aria-hidden />
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-[#0F172A]">Skill Assessment</h3>
-                      <p className="mt-1 text-sm text-[#64748B]">
-                        Configure the skill quiz applicants complete for {selected.name} in the hiring
-                        flow.
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href="/admin_recruiter/settings/assessment"
-                    className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white hover:brightness-95"
-                  >
-                    Manage assessment
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       )}
-
-      {confirmRemove && selected ? (
-        <ConfirmDialog
-          title={`Delete ${selected.name}?`}
-          message="This removes the profession from your organization and deactivates its document requirements. You can add it again later. Onboarding flows that still use this profession must be updated first."
-          confirmLabel="Remove"
-          confirming={removingProfession}
-          onCancel={() => setConfirmRemove(false)}
-          onConfirm={() => void removeProfession()}
-        />
-      ) : null}
 
       {editingProfessionId ? (
         <EditProfessionDialog

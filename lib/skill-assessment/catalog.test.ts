@@ -7,6 +7,7 @@ import {
   findSkillCategoryBySlug,
   normalizeSkillAssessmentCatalog,
   reorderItems,
+  skillCategoriesForProfession,
   slugifySkillCategoryName,
   stripSkillAssessmentCorrectAnswers,
 } from "@/lib/skill-assessment/catalog";
@@ -26,7 +27,21 @@ describe("skill assessment catalog", () => {
       "monitoring",
       "documentation",
     ]);
+    expect(catalog.categories.every((c) => c.professionId === null)).toBe(true);
     expect(findSkillCategoryBySlug(catalog, "basic-care")?.name).toBe("Basic Patient Care & Hygiene");
+  });
+
+  it("filters categories by professionId", () => {
+    const catalog = normalizeSkillAssessmentCatalog({
+      categories: [
+        { name: "Shared", slug: "shared" },
+        { name: "CNA Care", slug: "cna-care", professionId: "prof-cna" },
+        { name: "RN Care", slug: "rn-care", profession_id: "prof-rn" },
+      ],
+    });
+    expect(skillCategoriesForProfession(catalog, null)).toHaveLength(3);
+    expect(skillCategoriesForProfession(catalog, "prof-cna").map((c) => c.slug)).toEqual(["cna-care"]);
+    expect(skillCategoriesForProfession(catalog, "prof-rn").map((c) => c.slug)).toEqual(["rn-care"]);
   });
 
   it("slugifies names and de-dupes", () => {
