@@ -141,6 +141,7 @@ export default function SecurityTab() {
   const { user, profile, organization, settings, checklist, loading, error, refresh } =
     useAccountData();
 
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -157,7 +158,8 @@ export default function SecurityTab() {
 
   const newValid = isPasswordStrongEnough(rules);
   const confirmValid = confirmPassword.length > 0 && rules.passwordsMatch;
-  const canSubmit = newValid && confirmValid;
+  const currentValid = currentPassword.trim().length > 0;
+  const canSubmit = currentValid && newValid && confirmValid;
 
   const strengthChecks = [
     rules.minLength,
@@ -174,9 +176,21 @@ export default function SecurityTab() {
     event.preventDefault();
     if (!user?.id) return;
 
+    if (!currentPassword.trim()) {
+      setSaveError("Enter your current password to continue.");
+      setSaveSuccess(null);
+      return;
+    }
+
     const validationError = validatePasswordUpdate(newPassword, confirmPassword);
     if (validationError) {
       setSaveError(validationError);
+      setSaveSuccess(null);
+      return;
+    }
+
+    if (!email) {
+      setSaveError("No email is available on this account to verify the current password.");
       setSaveSuccess(null);
       return;
     }
@@ -186,6 +200,14 @@ export default function SecurityTab() {
     setSaveSuccess(null);
 
     try {
+      const { error: reauthError } = await supabaseBrowser.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+      if (reauthError) {
+        throw new Error("Current password is incorrect.");
+      }
+
       await updateAuthUserPassword(supabaseBrowser, newPassword);
 
       await syncAccountChecklist(supabaseBrowser, {
@@ -197,6 +219,7 @@ export default function SecurityTab() {
       });
       await refresh();
 
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setSaveSuccess(PASSWORD_UPDATE_SUCCESS_MESSAGE);
@@ -239,11 +262,16 @@ export default function SecurityTab() {
         <form onSubmit={handleSubmit} className="mt-6">
           <h3 className="text-base font-semibold text-[#012352]">Update Password</h3>
           <p className="mt-1 text-sm text-[#64748B]">
-            Your current session is verified. Enter a new password below — no current password
-            required.
+            Enter your current password, then choose a new password.
           </p>
 
           <div className="mt-5 flex flex-col gap-5">
+            <PasswordField
+              label="Current Password"
+              value={currentPassword}
+              onChange={setCurrentPassword}
+              showValid={currentValid}
+            />
             <PasswordField
               label="New Password"
               value={newPassword}

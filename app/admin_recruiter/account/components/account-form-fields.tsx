@@ -62,6 +62,7 @@ export function SelectField({
   onChange,
   required,
   error,
+  disabled,
   children,
 }: {
   label: string;
@@ -70,6 +71,7 @@ export function SelectField({
   onChange?: (value: string) => void;
   required?: boolean;
   error?: string | null;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -79,8 +81,11 @@ export function SelectField({
         <select
           value={value}
           defaultValue={value === undefined ? defaultValue : undefined}
+          disabled={disabled}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className={`${FIELD} cursor-pointer appearance-none pr-9 ${error ? FIELD_ERROR : ""}`}
+          className={`${FIELD} appearance-none pr-9 ${
+            disabled ? "cursor-not-allowed bg-[#F8FAFC]" : "cursor-pointer"
+          } ${error ? FIELD_ERROR : ""}`}
         >
           {children}
         </select>

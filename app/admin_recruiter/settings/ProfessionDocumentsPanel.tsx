@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   FileText,
   MoreHorizontal,
   Pencil,
@@ -1105,6 +1106,29 @@ export default function ProfessionDocumentsPanel() {
                 {!canManage ? (
                   <p className="text-xs text-[#64748B]">Only an administrator can change these documents.</p>
                 ) : null}
+              </div>
+
+              <div className="border-t border-[#F1F5F9] p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4">
+                  <div className="min-w-0 flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#012352] shadow-sm">
+                      <ClipboardList className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-[#0F172A]">Skill Assessment</h3>
+                      <p className="mt-1 text-sm text-[#64748B]">
+                        Configure the skill quiz applicants complete for {selected.name} in the hiring
+                        flow.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/admin_recruiter/settings/assessment"
+                    className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white hover:brightness-95"
+                  >
+                    Manage assessment
+                  </Link>
+                </div>
               </div>
             </div>
           ) : null}

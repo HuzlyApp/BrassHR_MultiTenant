@@ -17,6 +17,8 @@ import {
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import AccountTenantHeader from "./AccountTenantHeader";
+import CompanyAccountSummaryCard from "./CompanyAccountSummaryCard";
+import FirmaIntegrationPanel from "./FirmaIntegrationPanel";
 import { activeUserFacingIndustries, industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import {
   AddressField,
@@ -73,6 +75,7 @@ export default function BusinessInfoTab() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<BusinessInfoFieldErrors>({});
+  const [websiteError, setWebsiteError] = useState<string | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
@@ -301,8 +304,18 @@ export default function BusinessInfoTab() {
     setSaveSuccess(null);
 
     const errors = validateBusinessInfoForm(formInput, validationContext);
+    let nextWebsiteError: string | null = null;
+    if (!website.trim()) {
+      nextWebsiteError = "Website is required.";
+    } else if (
+      !/^https?:\/\/.+/i.test(website.trim()) &&
+      !/^[a-z0-9.-]+\.[a-z]{2,}/i.test(website.trim())
+    ) {
+      nextWebsiteError = "Enter a valid website URL.";
+    }
     setFieldErrors(errors);
-    if (!isBusinessInfoValid(formInput, validationContext)) {
+    setWebsiteError(nextWebsiteError);
+    if (!isBusinessInfoValid(formInput, validationContext) || nextWebsiteError) {
       setSaving(false);
       return;
     }
@@ -398,18 +411,22 @@ export default function BusinessInfoTab() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Business Info</h1>
-        <p className="mt-1 text-sm text-[#64748B]">Manage your company details and contact information.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Company Profile</h1>
+        <p className="mt-1 text-sm text-[#64748B]">
+          Manage your company details, contact information, and e-signature settings.
+        </p>
       </div>
 
       {error ? <AccountErrorBanner message={error} /> : null}
       {saveError ? <AccountErrorBanner message={saveError} /> : null}
       {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
 
+      <CompanyAccountSummaryCard />
       <AccountTenantHeader />
 
+      <form onSubmit={handleSubmit} className="space-y-5">
       {!organization ? (
         <section className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-5">
           <p className="text-sm text-[#64748B]">
@@ -513,7 +530,17 @@ export default function BusinessInfoTab() {
                 </div>
               </div>
 
-              <TextField label="Website" value={website} onChange={setWebsite} type="url" />
+              <TextField
+                label="Website"
+                value={website}
+                onChange={(value) => {
+                  setWebsite(value);
+                  if (websiteError) setWebsiteError(null);
+                }}
+                type="url"
+                required
+                error={submitAttempted ? websiteError : null}
+              />
             </div>
           </SectionCard>
 
@@ -640,6 +667,9 @@ export default function BusinessInfoTab() {
           </div>
         </>
       )}
-    </form>
+      </form>
+
+      {organization ? <FirmaIntegrationPanel /> : null}
+    </div>
   );
 }

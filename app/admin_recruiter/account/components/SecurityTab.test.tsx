@@ -8,6 +8,7 @@ import { PASSWORD_UPDATE_SUCCESS_MESSAGE } from "@/lib/account/password-update";
 
 const mockRefresh = vi.fn(async () => undefined);
 const mockUpdateUser = vi.fn();
+const mockSignInWithPassword = vi.fn();
 const mockFrom = vi.fn();
 
 const authUser = {
@@ -51,6 +52,7 @@ vi.mock("@/lib/supabase-browser", () => ({
   supabaseBrowser: {
     auth: {
       updateUser: (...args: unknown[]) => mockUpdateUser(...args),
+      signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
       mfa: {
         listFactors: vi.fn(async () => ({ data: { all: [], totp: [] }, error: null })),
         enroll: vi.fn(),
@@ -71,6 +73,7 @@ describe("SecurityTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateUser.mockResolvedValue({ data: { user: authUser }, error: null });
+    mockSignInWithPassword.mockResolvedValue({ data: { user: authUser }, error: null });
     mockFrom.mockReturnValue({
       update: vi.fn(() => ({
         eq: vi.fn(async () => ({ error: null })),
@@ -107,6 +110,7 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
+    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
     const newPassword = screen.getByLabelText("New Password");
     const confirmPassword = screen.getByLabelText("Confirm Password");
     await user.type(newPassword, "BrassHRPass1!");
@@ -119,6 +123,7 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
+    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
     const newPassword = screen.getByLabelText("New Password");
     const confirmPassword = screen.getByLabelText("Confirm Password");
     await user.type(newPassword, "weak");
@@ -127,10 +132,21 @@ describe("SecurityTab", () => {
     expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
   });
 
+  it("keeps submit disabled without current password", async () => {
+    const user = userEvent.setup();
+    render(<SecurityTab />);
+
+    await user.type(screen.getByLabelText("New Password"), "BrassHRPass1!");
+    await user.type(screen.getByLabelText("Confirm Password"), "BrassHRPass1!");
+
+    expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
+  });
+
   it("updates Supabase Auth password on successful submit", async () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
+    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
     const newPassword = screen.getByLabelText("New Password");
     const confirmPassword = screen.getByLabelText("Confirm Password");
     await user.type(newPassword, "BrassHRPass1!");
@@ -138,6 +154,10 @@ describe("SecurityTab", () => {
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => {
+      expect(mockSignInWithPassword).toHaveBeenCalledWith({
+        email: "zipstaffcom@gmail.com",
+        password: "CurrentPass1!",
+      });
       expect(mockUpdateUser).toHaveBeenCalledWith({ password: "BrassHRPass1!" });
     });
 
@@ -145,15 +165,35 @@ describe("SecurityTab", () => {
     expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it("shows Supabase Auth error messages on failure", async () => {
-    mockUpdateUser.mockResolvedValue({
+  it("shows an error when the current password is incorrect", async () => {
+    mockSignInWithPassword.mockResolvedValue({
       data: { user: null },
-      error: { message: "New password should be different from the old password." },
+      error: { message: "Invalid login credentials" },
     });
 
     const user = userEvent.setup();
     render(<SecurityTab />);
 
+    await user.type(screen.getByLabelText("Current Password"), "WrongPass1!");
+    await user.type(screen.getByLabelText("New Password"), "BrassHRPass1!");
+    await user.type(screen.getByLabelText("Confirm Password"), "BrassHRPass1!");
+    await user.click(screen.getByRole("button", { name: /update password/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Current password is incorrect.");
+    });
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+  });
+
+  it("shows Supabase Auth error messages on failure", async () => {
+    mockUpdateUser.mockRejectedValue(
+      new Error("New password should be different from the old password.")
+    );
+
+    const user = userEvent.setup();
+    render(<SecurityTab />);
+
+    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
     const newPassword = screen.getByLabelText("New Password");
     const confirmPassword = screen.getByLabelText("Confirm Password");
     await user.type(newPassword, "BrassHRPass1!");
@@ -171,6 +211,7 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
+    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
     const newPassword = screen.getByLabelText("New Password");
     const confirmPassword = screen.getByLabelText("Confirm Password");
     await user.type(newPassword, "BrassHRPass1!");
