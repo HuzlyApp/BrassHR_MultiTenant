@@ -1,9 +1,9 @@
 export const ACCOUNT_TABS = [
   { slug: "personal", label: "Profile" },
+  { slug: "account-security", label: "Account & Security" },
+  // Legacy slugs kept for redirects / deep links.
   { slug: "account-settings", label: "Account" },
   { slug: "security", label: "Security" },
-  // Business Info moved to Settings → Company Profile.
-  // { slug: "checklist", label: "Checklist" }, // Hidden for now; keep for future enablement
 ] as const;
 
 export type AccountTabSlug = (typeof ACCOUNT_TABS)[number]["slug"];
@@ -20,5 +20,14 @@ export function isAccountTabSlug(value: string): value is AccountTabSlug {
 }
 
 export function accountTabHref(slug: AccountTabSlug): string {
+  if (slug === "account-settings" || slug === "security") {
+    return "/admin_recruiter/account/account-security";
+  }
   return `/admin_recruiter/account/${slug}`;
 }
+
+/** Tabs shown in the account page tab bar. */
+export const ACCOUNT_TAB_NAV = [
+  { slug: "personal" as const, label: "Profile" },
+  { slug: "account-security" as const, label: "Account & Security" },
+];

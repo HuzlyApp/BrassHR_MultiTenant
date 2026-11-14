@@ -399,7 +399,9 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
     matchPrefixes: [
       SETTINGS_COMPANY_PROFILE_ROUTE,
       SETTINGS_BRANDING_ROUTE,
+      `${SETTINGS_ROUTE}/user-management`,
       `${SETTINGS_ROUTE}/admin-console`,
+      `${SETTINGS_ROUTE}/billing`,
       `${SETTINGS_ROUTE}/roles`,
       `${SETTINGS_ROUTE}/hiring-theme`,
       "/admin_recruiter/account/business-info",
@@ -411,14 +413,19 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
         matchPrefixes: [SETTINGS_COMPANY_PROFILE_ROUTE, "/admin_recruiter/account/business-info"],
       },
       {
+        label: "User Management",
+        href: `${SETTINGS_ROUTE}/user-management`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/user-management`, `${SETTINGS_ROUTE}/admin-console`],
+      },
+      {
+        label: "Billing & Subscription",
+        href: `${SETTINGS_ROUTE}/billing`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/billing`],
+      },
+      {
         label: "Branding",
         href: SETTINGS_BRANDING_ROUTE,
         matchPrefixes: [SETTINGS_BRANDING_ROUTE, `${SETTINGS_ROUTE}/hiring-theme`],
-      },
-      {
-        label: "Admin Console",
-        href: `${SETTINGS_ROUTE}/admin-console`,
-        matchPrefixes: [`${SETTINGS_ROUTE}/admin-console`],
       },
       {
         label: "User Roles",

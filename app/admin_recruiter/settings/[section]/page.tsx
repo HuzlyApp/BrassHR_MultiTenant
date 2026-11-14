@@ -35,13 +35,16 @@ export default async function SettingsSectionPage({ params }: PageProps) {
     redirect("/admin_recruiter/email-templates");
   }
   if (section === "security") {
-    redirect("/admin_recruiter/account/security");
+    redirect("/admin_recruiter/account/account-security");
+  }
+  if (section === "admin-console") {
+    redirect("/admin_recruiter/settings/user-management");
   }
   if (section === "profile") {
     redirect("/admin_recruiter/account/personal");
   }
   if (section === "account") {
-    redirect("/admin_recruiter/account/account-settings");
+    redirect("/admin_recruiter/account/account-security");
   }
   if (section === "automation") {
     redirect("/admin_recruiter/dashboard/onboarding-flows");

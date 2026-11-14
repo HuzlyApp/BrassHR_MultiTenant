@@ -273,6 +273,19 @@ export default function PersonalTab() {
   const displayName = getAccountDisplayName(profile, user);
   const roleLabel = accountRoleLabel(profile);
   const isAdminConsole = !isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
+  const canEditProfessionalFields = useMemo(() => {
+    if (profile?.is_admin === true) return true;
+    const key = (profile?.role ?? "").trim().toLowerCase();
+    return (
+      key === "admin" ||
+      key === "owner" ||
+      key === "god_admin" ||
+      key === "hr" ||
+      key === "manager" ||
+      key === "recruiter" ||
+      key === "client"
+    );
+  }, [profile?.is_admin, profile?.role]);
 
   function handleUserStateChange(value: string) {
     setState(value);
@@ -372,7 +385,7 @@ export default function PersonalTab() {
       return;
     }
 
-    if (!jobTitle.trim()) {
+    if (canEditProfessionalFields && !jobTitle.trim()) {
       setJobTitleError("Job title is required.");
       setSaving(false);
       return;
@@ -422,6 +435,19 @@ export default function PersonalTab() {
       const trimmedEmail = workEmail.trim();
       const emailChanged = trimmedEmail && trimmedEmail !== (user.email ?? "");
 
+      const nextJobTitle = canEditProfessionalFields
+        ? jobTitle.trim() || null
+        : resolvedFields.jobTitle.trim() || null;
+      const nextDepartmentId = canEditProfessionalFields
+        ? departmentId.trim() || null
+        : resolvedFields.departmentId.trim() || null;
+      const nextEmployeeId = canEditProfessionalFields
+        ? employeeId.trim() || null
+        : resolvedFields.employeeId.trim() || null;
+      const nextWorkLocation = canEditProfessionalFields
+        ? workLocation.trim() || null
+        : resolvedFields.workLocation.trim() || null;
+
       const { error: profileError } = await supabaseBrowser
         .from("users")
         .update({
@@ -430,10 +456,10 @@ export default function PersonalTab() {
           preferred_name: preferredName.trim() || null,
           phone: phoneToSave,
           birthdate: birthdate.trim() || null,
-          job_title: jobTitle.trim() || null,
-          department_id: departmentId.trim() || null,
-          employee_id: employeeId.trim() || null,
-          work_location: workLocation.trim() || null,
+          job_title: nextJobTitle,
+          department_id: nextDepartmentId,
+          employee_id: nextEmployeeId,
+          work_location: nextWorkLocation,
           bio: bio.trim() || null,
           address_line1: address.trim() || null,
           address_line2: address2ToSave,
@@ -470,10 +496,10 @@ export default function PersonalTab() {
           birthdate: birthdate.trim() || null,
           avatar_url: photoUrl,
           role: profile?.role ?? null,
-          job_title: jobTitle.trim() || null,
-          department_id: departmentId.trim() || null,
-          employee_id: employeeId.trim() || null,
-          work_location: workLocation.trim() || null,
+          job_title: nextJobTitle,
+          department_id: nextDepartmentId,
+          employee_id: nextEmployeeId,
+          work_location: nextWorkLocation,
           bio: bio.trim() || null,
           organization_id: profile?.organization_id ?? null,
           address_line1: address.trim() || null,
@@ -649,23 +675,35 @@ export default function PersonalTab() {
 
       <SectionCard title="Professional Information">
         <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+          {!canEditProfessionalFields ? (
+            <p className="sm:col-span-2 text-xs text-[#64748B]">
+              Only HR, Recruiter, or Manager can update job title, department, employee ID, and
+              location. You can still edit your bio.
+            </p>
+          ) : null}
           <label className="block">
             <FieldLabel>
               Job Title
-              <RequiredMark />
+              {canEditProfessionalFields ? <RequiredMark /> : null}
             </FieldLabel>
             <input
               type="text"
               value={jobTitle}
+              disabled={!canEditProfessionalFields}
               onChange={(e) => {
                 setJobTitle(e.target.value);
                 if (jobTitleError) setJobTitleError(null);
               }}
-              className={`${FIELD}${jobTitleError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
+              className={`${FIELD}${jobTitleError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""} disabled:cursor-not-allowed disabled:bg-[#F8FAFC]`}
             />
             {jobTitleError ? <p className="mt-1 text-xs text-[#B91C1C]">{jobTitleError}</p> : null}
           </label>
-          <SelectField label="Department" value={departmentId} onChange={setDepartmentId}>
+          <SelectField
+            label="Department"
+            value={departmentId}
+            onChange={setDepartmentId}
+            disabled={!canEditProfessionalFields}
+          >
             <option value="">Select department</option>
             {departments.map((department) => (
               <option key={department.id} value={department.id}>
@@ -678,8 +716,9 @@ export default function PersonalTab() {
             <input
               type="text"
               value={employeeId}
+              disabled={!canEditProfessionalFields}
               onChange={(e) => setEmployeeId(e.target.value)}
-              className={FIELD}
+              className={`${FIELD} disabled:cursor-not-allowed disabled:bg-[#F8FAFC]`}
             />
           </label>
           <label className="block">
@@ -687,9 +726,10 @@ export default function PersonalTab() {
             <input
               type="text"
               value={workLocation}
+              disabled={!canEditProfessionalFields}
               onChange={(e) => setWorkLocation(e.target.value)}
               placeholder="City, State"
-              className={FIELD}
+              className={`${FIELD} disabled:cursor-not-allowed disabled:bg-[#F8FAFC]`}
             />
           </label>
           <label className="block sm:col-span-2">

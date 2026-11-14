@@ -15,12 +15,15 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/account",
       "/admin_recruiter/account/personal",
       "/admin_recruiter/account/account-settings",
+      "/admin_recruiter/account/account-security",
       "/admin_recruiter/account/business-info",
       "/admin_recruiter/account/security",
 
       // App Settings
       "/admin_recruiter/settings",
       "/admin_recruiter/settings/company-profile",
+      "/admin_recruiter/settings/user-management",
+      "/admin_recruiter/settings/billing",
       "/admin_recruiter/settings/branding",
       "/admin_recruiter/settings/hiring-theme",
       "/admin_recruiter/notifications",
@@ -89,12 +92,19 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(brandingItem!, "/admin_recruiter/settings/branding")
     ).toBe(true);
 
-    const securityItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
-      (item) => item.id === "security"
+    const accountSecurityItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "account-security"
     );
-    expect(securityItem).toBeDefined();
+    expect(accountSecurityItem).toBeDefined();
+    expect(accountSecurityItem!.label).toBe("Account & Security");
     expect(
-      isSettingsNavItemActive(securityItem!, "/admin_recruiter/account/security")
+      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/security")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/account-security")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/account-settings")
     ).toBe(true);
 
     const profileItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
@@ -105,16 +115,6 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/personal")
     ).toBe(true);
 
-    const accountItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
-      (item) => item.id === "account"
-    );
-    expect(accountItem).toBeDefined();
-    expect(
-      isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/account-settings")
-    ).toBe(true);
-    expect(
-      isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/business-info")
-    ).toBe(false);
     const companyProfileItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "company-profile"
     );
@@ -128,6 +128,28 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(
       isSettingsNavItemActive(companyProfileItem!, "/admin_recruiter/account/business-info")
     ).toBe(true);
+
+    const userManagementItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "user-management"
+    );
+    expect(userManagementItem).toBeDefined();
+    expect(userManagementItem!.label).toBe("User Management");
+    expect(
+      isSettingsNavItemActive(userManagementItem!, "/admin_recruiter/settings/user-management")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(userManagementItem!, "/admin_recruiter/settings/admin-console")
+    ).toBe(true);
+
+    const billingItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "billing"
+    );
+    expect(billingItem).toBeDefined();
+    expect(billingItem!.label).toBe("Billing & Subscription");
+    expect(
+      isSettingsNavItemActive(billingItem!, "/admin_recruiter/settings/billing")
+    ).toBe(true);
+
     // Profile must not stay active on Account routes (shared /account prefix bug).
     expect(
       isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/account-settings")
@@ -136,7 +158,10 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/business-info")
     ).toBe(false);
     expect(
-      isSettingsNavItemActive(accountItem!, "/admin_recruiter/account/personal")
+      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/personal")
+    ).toBe(false);
+    expect(
+      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/business-info")
     ).toBe(false);
 
     const templatesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(

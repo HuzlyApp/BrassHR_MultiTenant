@@ -1,30 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
-import { isLimitedStaffConsoleRole } from "@/lib/admin/staff-directory-types";
-import { ACCOUNT_TABS, isRecruiterHiddenAccountTab, type AccountTabSlug } from "../account-tabs";
+import { ACCOUNT_TAB_NAV, accountTabHref, type AccountTabSlug } from "../account-tabs";
 
 type AccountTabNavProps = {
   activeTab: AccountTabSlug;
 };
 
 export default function AccountTabNav({ activeTab }: AccountTabNavProps) {
-  const { profile, loading } = useAccountData();
-  const hideAdminTabs = loading || isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
-  const tabs = hideAdminTabs ? ACCOUNT_TABS.filter((tab) => !isRecruiterHiddenAccountTab(tab.slug)) : ACCOUNT_TABS;
+  const normalizedActive =
+    activeTab === "account-settings" || activeTab === "security"
+      ? "account-security"
+      : activeTab;
 
   return (
     <nav
       className="mb-4 flex flex-nowrap items-stretch gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       aria-label="Account sections"
     >
-      {tabs.map((tab) => {
-        const isActive = tab.slug === activeTab;
+      {ACCOUNT_TAB_NAV.map((tab) => {
+        const isActive = tab.slug === normalizedActive;
         return (
           <Link
             key={tab.slug}
-            href={`/admin_recruiter/account/${tab.slug}`}
+            href={accountTabHref(tab.slug)}
             className={`relative shrink-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
               isActive
                 ? ""
@@ -49,4 +48,3 @@ export default function AccountTabNav({ activeTab }: AccountTabNavProps) {
     </nav>
   );
 }
-0

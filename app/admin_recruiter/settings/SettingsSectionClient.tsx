@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 import CallSettingsPanel from "@/app/admin_recruiter/settings/CallSettingsPanel";
-import SecuritySettingsPanel from "@/app/admin_recruiter/settings/SecuritySettingsPanel";
 import SettingsSectionHeader from "@/app/admin_recruiter/settings/SettingsSectionHeader";
 import TemplatesSettingsPanel from "@/app/admin_recruiter/settings/TemplatesSettingsPanel";
 import {
@@ -57,6 +56,10 @@ const BusinessInfoTab = dynamic(
   () => import("@/app/admin_recruiter/account/components/BusinessInfoTab"),
   { loading: SettingsPanelFallback }
 );
+const AccountSettingsBillingPanel = dynamic(
+  () => import("@/app/admin_recruiter/account/components/AccountSettingsBillingPanel"),
+  { loading: SettingsPanelFallback }
+);
 
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
@@ -65,14 +68,14 @@ function resourceKeyForSection(section: SettingsSectionSlug): string {
     case "call":
     case "task":
     case "hiring-theme":
-    case "admin-console":
+    case "user-management":
+    case "billing":
     case "roles":
     case "departments":
     case "integrations":
     case "profession":
     case "assessment":
     case "statuses":
-    case "security":
       return "settings_company";
     case "templates":
       return "settings_templates";
@@ -93,7 +96,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
     section !== "hiring-theme" &&
     section !== "departments" &&
     section !== "integrations" &&
-    section !== "security";
+    section !== "billing";
 
   if (!loading && !canView) {
     return (
@@ -117,7 +120,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
         <TemplatesSettingsPanel />
       ) : (
         <fieldset
-          disabled={!canEdit && section !== "security" && section !== "profession"}
+          disabled={!canEdit && section !== "profession" && section !== "billing"}
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
           {section === "company-profile" ? (
@@ -137,7 +140,12 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
               <BrandingSettingsPanel initialMainTab="hiring-journey" />
             </Suspense>
           ) : null}
-          {section === "admin-console" ? <AdminConsolePanel embedInSettingsPage /> : null}
+          {section === "user-management" ? <AdminConsolePanel embedInSettingsPage /> : null}
+          {section === "billing" ? (
+            <Suspense fallback={<SettingsPanelFallback />}>
+              <AccountSettingsBillingPanel />
+            </Suspense>
+          ) : null}
           {section === "departments" ? <DepartmentsPanel /> : null}
           {section === "integrations" ? <IntegrationsSettingsPanel /> : null}
           {section === "assessment" ? <AssessmentSettingsPanel /> : null}
@@ -147,7 +155,6 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
             </Suspense>
           ) : null}
           {section === "statuses" ? <CandidateStatusesPanel /> : null}
-          {section === "security" ? <SecuritySettingsPanel /> : null}
         </fieldset>
       )}
     </div>

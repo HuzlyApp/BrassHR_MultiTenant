@@ -6,16 +6,16 @@ import {
   Building2,
   ClipboardCheck,
   ClipboardList,
+  CreditCard,
   FileStack,
   Library,
   LifeBuoy,
   ListChecks,
-  Monitor,
   Phone,
   Plug,
   ShieldCheck,
   UserCircle,
-  UserCog,
+  Users,
   Shield,
   Wand2,
   Workflow,
@@ -23,20 +23,20 @@ import {
 
 export type SettingsNavItemId =
   | "profile"
-  | "account"
+  | "account-security"
   | "company-profile"
+  | "user-management"
+  | "billing"
   | "branding"
   | "notifications"
   | "call"
   | "task"
-  | "security"
   | "library"
   | "workflows"
   | "profession"
   | "assessment"
   | "statuses"
   | "templates"
-  | "admin-console"
   | "roles"
   | "departments"
   | "integrations"
@@ -48,14 +48,14 @@ export type SettingsSectionSlug =
   | "branding"
   | "call"
   | "task"
-  | "admin-console"
+  | "user-management"
+  | "billing"
   | "roles"
   | "departments"
   | "integrations"
   | "profession"
   | "assessment"
   | "statuses"
-  | "security"
   | "templates"
   | "hiring-theme";
 
@@ -93,12 +93,17 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         matchPrefixes: ["/admin_recruiter/account/personal"],
       },
       {
-        id: "account",
-        label: "Account",
-        href: "/admin_recruiter/account/account-settings",
-        icon: UserCog,
+        id: "account-security",
+        label: "Account & Security",
+        href: "/admin_recruiter/account/account-security",
+        icon: ShieldCheck,
         resourceKey: "settings_profile",
-        matchPrefixes: ["/admin_recruiter/account/account-settings"],
+        matchPrefixes: [
+          "/admin_recruiter/account/account-security",
+          "/admin_recruiter/account/account-settings",
+          "/admin_recruiter/account/security",
+          "/admin_recruiter/settings/security",
+        ],
       },
     ],
   },
@@ -116,6 +121,25 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
           "/admin_recruiter/settings/company-profile",
           "/admin_recruiter/account/business-info",
         ],
+      },
+      {
+        id: "user-management",
+        label: "User Management",
+        href: "/admin_recruiter/settings/user-management",
+        icon: Users,
+        resourceKey: "settings_company",
+        matchPrefixes: [
+          "/admin_recruiter/settings/user-management",
+          "/admin_recruiter/settings/admin-console",
+        ],
+      },
+      {
+        id: "billing",
+        label: "Billing & Subscription",
+        href: "/admin_recruiter/settings/billing",
+        icon: CreditCard,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/billing"],
       },
       {
         id: "branding",
@@ -157,18 +181,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         // Visible to every staff role via settings mini-sidebar (not main rail).
         resourceKey: "settings_help",
         matchPrefixes: ["/admin_recruiter/help-support"],
-      },
-      {
-        id: "security",
-        label: "Security",
-        // Password + authenticator live on account Security (settings/security redirects there).
-        href: "/admin_recruiter/account/security",
-        icon: ShieldCheck,
-        resourceKey: "settings_company",
-        matchPrefixes: [
-          "/admin_recruiter/settings/security",
-          "/admin_recruiter/account/security",
-        ],
       },
     ],
   },
@@ -246,14 +258,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     label: "Administration",
     items: [
       {
-        id: "admin-console",
-        label: "Admin Console",
-        href: "/admin_recruiter/settings/admin-console",
-        icon: Monitor,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/admin-console"],
-      },
-      {
         id: "roles",
         label: "Roles & Permissions",
         href: "/admin_recruiter/settings/roles",
@@ -302,7 +306,7 @@ export const SETTINGS_SECTION_META: Record<
 > = {
   "company-profile": {
     title: "Company Profile",
-    description: "Manage your company details, location, and contact information.",
+    description: "Manage your company details, location, contact information, and e-signature settings.",
   },
   branding: {
     title: "Branding",
@@ -316,9 +320,13 @@ export const SETTINGS_SECTION_META: Record<
     title: "Task",
     description: "Control who can assign tasks on the worker Taskboard.",
   },
-  "admin-console": {
-    title: "Admin Console",
-    description: "Manage system-wide settings, users, and administrative controls.",
+  "user-management": {
+    title: "User Management",
+    description: "Manage users, invitations, and administrative access for your organization.",
+  },
+  billing: {
+    title: "Billing & Subscription",
+    description: "View trial status, billing details, and subscription information.",
   },
   roles: {
     title: "Roles & Permissions",
@@ -343,10 +351,6 @@ export const SETTINGS_SECTION_META: Record<
   statuses: {
     title: "Statuses",
     description: "Manage statuses used in your recruitment pipeline. Customize labels, colors, and workflows.",
-  },
-  security: {
-    title: "Security",
-    description: "Authenticator app codes for staff sign-in.",
   },
   templates: {
     title: "Templates",
