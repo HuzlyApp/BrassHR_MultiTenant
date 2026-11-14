@@ -96,7 +96,8 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
     section !== "hiring-theme" &&
     section !== "departments" &&
     section !== "integrations" &&
-    section !== "billing";
+    section !== "billing" &&
+    section !== "profession";
 
   if (!loading && !canView) {
     return (
