@@ -109,7 +109,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
   }
 
   return (
-    <div className="w-full min-w-0 space-y-6">
+    <div className="w-full min-w-0 space-y-6 ">
       {showPageHeader ? (
         <SettingsSectionHeader title={meta.title} description={meta.description} />
       ) : null}
@@ -120,7 +120,12 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
         <TemplatesSettingsPanel />
       ) : (
         <fieldset
-          disabled={!canEdit && section !== "profession" && section !== "billing"}
+          disabled={
+            !canEdit &&
+            section !== "profession" &&
+            section !== "billing" &&
+            section !== "company-profile"
+          }
           className="min-w-0 space-y-6 border-0 p-0 disabled:opacity-80"
         >
           {section === "company-profile" ? (

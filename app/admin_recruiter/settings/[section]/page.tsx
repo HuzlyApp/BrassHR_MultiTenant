@@ -26,7 +26,7 @@ export default async function SettingsSectionPage({ params }: PageProps) {
     redirect("/admin_recruiter/help-support");
   }
   if (section === "notifications") {
-    redirect("/admin_recruiter/notifications");
+    redirect("/admin_recruiter/account/notifications");
   }
   if (section === "template-builder") {
     redirect("/admin_recruiter/template-builder");

@@ -24,6 +24,16 @@ export function unifiedDocumentTypeLabel(
   return "Other";
 }
 
+/** Applicant Documents tab sort: Resume → License → Certification → Other. */
+export function unifiedDocumentTypeSortOrder(
+  kind: ProfessionDocumentKind | "resume" | null | undefined
+): number {
+  if (kind === "resume") return 0;
+  if (kind === "license") return 1;
+  if (kind === "certificate") return 2;
+  return 3;
+}
+
 export function isProfessionDocumentKind(value: unknown): value is ProfessionDocumentKind {
   return (PROFESSION_DOCUMENT_KINDS as readonly string[]).includes(String(value ?? ""));
 }

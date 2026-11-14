@@ -173,6 +173,26 @@ describe("ProfessionDocumentsPanel", () => {
             })),
           });
         }
+        if (url.includes("/api/admin/assessment-settings")) {
+          return json({
+            canManage: true,
+            settings: {
+              draft: {
+                enabled: true,
+                allowSkip: true,
+                scoring: {
+                  pointsPerQuestion: 1,
+                  passingScore: 70,
+                  scoreByCategory: true,
+                  showOverallScore: true,
+                  showResultsToApplicant: false,
+                },
+                categories: [],
+              },
+              published: null,
+            },
+          });
+        }
         return json({ error: "Not found" }, 404);
       })
     );
@@ -202,11 +222,10 @@ describe("ProfessionDocumentsPanel", () => {
       expect(lastCreateBody).toEqual({ name: "Solar Technician", industryKey: "healthcare" });
     });
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession?profession=custom-1");
+      expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession/custom-1");
     });
 
-    searchParams = new URLSearchParams("profession=custom-1");
-    rerender(<ProfessionDocumentsPanel />);
+    rerender(<ProfessionDocumentsPanel detailProfessionId="custom-1" />);
 
     expect(await screen.findByRole("heading", { name: "Solar Technician" })).toBeTruthy();
     expect(screen.getByText("No certificates or licenses for Solar Technician yet.")).toBeTruthy();
@@ -240,11 +259,11 @@ describe("ProfessionDocumentsPanel", () => {
       expect(lastCreateBody).toEqual({ catalogKey: "it_support", industryKey: "technology" });
     });
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession?profession=it-support");
+      expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession/it-support");
     });
   });
 
-  it("redirects View docs to that profession's document list", async () => {
+  it("opens View docs on the dedicated profession detail page", async () => {
     const user = userEvent.setup();
     professions = [
       {
@@ -279,12 +298,9 @@ describe("ProfessionDocumentsPanel", () => {
     expect(screen.queryByRole("heading", { name: "Nursing" })).toBeNull();
 
     await user.click(screen.getAllByRole("link", { name: "View docs" })[1]!);
-    expect(pushMock).toHaveBeenCalledWith(
-      "/admin_recruiter/settings/profession?profession=it-support"
-    );
+    expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession/it-support");
 
-    searchParams = new URLSearchParams("profession=it-support");
-    rerender(<ProfessionDocumentsPanel />);
+    rerender(<ProfessionDocumentsPanel detailProfessionId="it-support" />);
 
     expect(await screen.findByRole("heading", { name: "IT Support" })).toBeTruthy();
     expect(screen.getByDisplayValue("CompTIA")).toBeTruthy();
@@ -293,8 +309,7 @@ describe("ProfessionDocumentsPanel", () => {
 
   it("edits the selected profession name", async () => {
     const user = userEvent.setup();
-    searchParams = new URLSearchParams("profession=nursing");
-    render(<ProfessionDocumentsPanel />);
+    render(<ProfessionDocumentsPanel detailProfessionId="nursing" />);
 
     expect(await screen.findByRole("heading", { name: "Nursing" })).toBeTruthy();
 
@@ -312,10 +327,9 @@ describe("ProfessionDocumentsPanel", () => {
     expect(await screen.findByRole("heading", { name: "Registered Nurse" })).toBeTruthy();
   });
 
-  it("deletes the selected profession from the master list", async () => {
+  it("deletes the selected profession from the detail page", async () => {
     const user = userEvent.setup();
-    searchParams = new URLSearchParams("profession=nursing");
-    render(<ProfessionDocumentsPanel />);
+    render(<ProfessionDocumentsPanel detailProfessionId="nursing" />);
 
     expect(await screen.findByRole("heading", { name: "Nursing" })).toBeTruthy();
 
@@ -328,9 +342,7 @@ describe("ProfessionDocumentsPanel", () => {
       expect(deletedProfessionId).toBe("nursing");
     });
     await waitFor(() => {
-      expect(replaceMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession", {
-        scroll: false,
-      });
+      expect(replaceMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession");
     });
   });
 });

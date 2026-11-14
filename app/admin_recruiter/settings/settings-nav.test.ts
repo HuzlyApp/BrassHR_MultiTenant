@@ -9,16 +9,8 @@ import {
 } from "./settings-nav";
 
 describe("Settings Navigation & Mini-Sidebar Persistence", () => {
-  it("keeps mini-sidebar active for all registered settings and account tabs", () => {
+  it("keeps mini-sidebar active for app settings routes (not personal account pages)", () => {
     const testPaths = [
-      // Personal Settings
-      "/admin_recruiter/account",
-      "/admin_recruiter/account/personal",
-      "/admin_recruiter/account/account-settings",
-      "/admin_recruiter/account/account-security",
-      "/admin_recruiter/account/business-info",
-      "/admin_recruiter/account/security",
-
       // App Settings
       "/admin_recruiter/settings",
       "/admin_recruiter/settings/company-profile",
@@ -26,9 +18,9 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/settings/billing",
       "/admin_recruiter/settings/branding",
       "/admin_recruiter/settings/hiring-theme",
-      "/admin_recruiter/notifications",
       "/admin_recruiter/settings/call",
       "/admin_recruiter/settings/task",
+      "/admin_recruiter/account/business-info",
 
       // Workflows (hub tabs + library)
       "/admin_recruiter/dashboard/onboarding-flows",
@@ -67,8 +59,14 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     }
   });
 
-  it("does not trigger mini-sidebar on unrelated main app routes", () => {
+  it("does not open mini-sidebar for personal settings or unrelated app routes", () => {
     const nonSettingsPaths = [
+      "/admin_recruiter/account",
+      "/admin_recruiter/account/personal",
+      "/admin_recruiter/account/account-security",
+      "/admin_recruiter/account/account-settings",
+      "/admin_recruiter/account/security",
+      "/admin_recruiter/notifications",
       "/admin_recruiter/dashboard/overview",
       "/admin_recruiter/dashboard/home",
       "/admin_recruiter/jobs",
@@ -92,28 +90,15 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(brandingItem!, "/admin_recruiter/settings/branding")
     ).toBe(true);
 
-    const accountSecurityItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
-      (item) => item.id === "account-security"
-    );
-    expect(accountSecurityItem).toBeDefined();
-    expect(accountSecurityItem!.label).toBe("Account & Security");
     expect(
-      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/security")
-    ).toBe(true);
+      SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "profile")
+    ).toBe(false);
     expect(
-      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/account-security")
-    ).toBe(true);
+      SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "account-security")
+    ).toBe(false);
     expect(
-      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/account-settings")
-    ).toBe(true);
-
-    const profileItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
-      (item) => item.id === "profile"
-    );
-    expect(profileItem).toBeDefined();
-    expect(
-      isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/personal")
-    ).toBe(true);
+      SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "notifications")
+    ).toBe(false);
 
     const companyProfileItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "company-profile"
@@ -150,19 +135,21 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       isSettingsNavItemActive(billingItem!, "/admin_recruiter/settings/billing")
     ).toBe(true);
 
-    // Profile must not stay active on Account routes (shared /account prefix bug).
-    expect(
-      isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/account-settings")
-    ).toBe(false);
-    expect(
-      isSettingsNavItemActive(profileItem!, "/admin_recruiter/account/business-info")
-    ).toBe(false);
-    expect(
-      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/personal")
-    ).toBe(false);
-    expect(
-      isSettingsNavItemActive(accountSecurityItem!, "/admin_recruiter/account/business-info")
-    ).toBe(false);
+    const statusesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "statuses"
+    );
+    expect(statusesItem?.label).toBe("Status Catalog");
+
+    const appGroup = SETTINGS_NAV_GROUPS.find((g) => g.id === "app");
+    expect(appGroup?.items.map((item) => item.id)).toEqual([
+      "company-profile",
+      "user-management",
+      "branding",
+      "call",
+      "task",
+      "billing",
+      "help",
+    ]);
 
     const templatesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "templates"
@@ -220,10 +207,9 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
   });
 
   it("recognizes settings routes where settings icon acts as a main sidebar toggle", () => {
-    // When inside settings (roles, branding, security, etc.), clicking settings icon toggles the main rail
     expect(isSettingsMiniSidebarPath("/admin_recruiter/settings/roles")).toBe(true);
     expect(isSettingsMiniSidebarPath("/admin_recruiter/settings/branding")).toBe(true);
-    expect(isSettingsMiniSidebarPath("/admin_recruiter/account/security")).toBe(true);
+    expect(isSettingsMiniSidebarPath("/admin_recruiter/account/security")).toBe(false);
   });
 
   it("keeps Help & Support and Reports in Settings for every role", () => {
@@ -250,6 +236,6 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       resolveSettingsLandingHref(
         new Set(["settings_profile", "settings_notifications", "settings_help", "settings_reports"])
       )
-    ).toBe("/admin_recruiter/account/personal");
+    ).toBe("/admin_recruiter/help-support");
   });
 });

@@ -19,6 +19,7 @@ import AddDocumentModal, {
 } from "../../../components/AddDocumentModal";
 import { BulkDeleteConfirmModal } from "../../../components/BulkDeleteConfirmModal";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
+import { unifiedDocumentTypeSortOrder } from "@/lib/professions/profession-documents";
 import {
   Briefcase,
   Calendar,
@@ -390,51 +391,61 @@ export default function NewApplicantAttachmentsFilledPage() {
 
   const attachmentRows: AttachmentRow[] = useMemo(() => {
     if (!profile) return [];
-    // Unified Documents view: Licenses, Certifications, Resume, and Other.
+    // Unified Documents view: Resume → License → Certification → Other.
     const fromConfig = profile.attachment_requirements ?? [];
-    return fromConfig.map((row, index) => {
-      const settingsDoc = selectedProfession?.documents.find(
-        (document) => document.id === row.required_document_id
-      );
-      const mapped = {
-        id: row.id,
-        title: row.title,
-        url: row.url,
-        filename: row.filename?.trim() ? row.filename : "—",
-        requiredDocumentId: row.required_document_id ?? null,
-        submittedDocumentId: row.submitted_document_id ?? null,
-        legacyDocumentKey: row.legacy_document_key ?? null,
-        status: row.status ?? null,
-        stepType: row.step_type ?? null,
-        stepKey: row.step_key ?? null,
-        phase: row.phase ?? "pre_hire",
-        stepTitle: row.step_title ?? row.title,
-        isRequired: row.is_required !== false,
-        documentKind: row.document_kind ?? null,
-        hasExpiration: row.has_expiration === true || settingsDoc?.hasExpiration === true,
-        issuedDate: row.issued_date ?? null,
-        expiryDate: row.expiry_date ?? null,
-        uploadedBy: row.uploaded_by ?? null,
-        files:
-          row.files && row.files.length
-            ? row.files
-            : row.url
-              ? [
-                  {
-                    id: row.submitted_document_id || row.id,
-                    url: row.url,
-                    filename: row.filename?.trim() ? row.filename : "—",
-                    status: row.status ?? null,
-                    uploaded_by: row.uploaded_by ?? null,
-                  },
-                ]
-              : [],
-      };
-      return {
-        ...mapped,
-        key: attachmentRowKey(mapped, index),
-      };
-    });
+    return fromConfig
+      .map((row, index) => {
+        const settingsDoc = selectedProfession?.documents.find(
+          (document) => document.id === row.required_document_id
+        );
+        const mapped = {
+          id: row.id,
+          title: row.title,
+          url: row.url,
+          filename: row.filename?.trim() ? row.filename : "—",
+          requiredDocumentId: row.required_document_id ?? null,
+          submittedDocumentId: row.submitted_document_id ?? null,
+          legacyDocumentKey: row.legacy_document_key ?? null,
+          status: row.status ?? null,
+          stepType: row.step_type ?? null,
+          stepKey: row.step_key ?? null,
+          phase: row.phase ?? "pre_hire",
+          stepTitle: row.step_title ?? row.title,
+          isRequired: row.is_required !== false,
+          documentKind: row.document_kind ?? null,
+          hasExpiration: row.has_expiration === true || settingsDoc?.hasExpiration === true,
+          issuedDate: row.issued_date ?? null,
+          expiryDate: row.expiry_date ?? null,
+          uploadedBy: row.uploaded_by ?? null,
+          files:
+            row.files && row.files.length
+              ? row.files
+              : row.url
+                ? [
+                    {
+                      id: row.submitted_document_id || row.id,
+                      url: row.url,
+                      filename: row.filename?.trim() ? row.filename : "—",
+                      status: row.status ?? null,
+                      uploaded_by: row.uploaded_by ?? null,
+                    },
+                  ]
+                : [],
+        };
+        return {
+          ...mapped,
+          key: attachmentRowKey(mapped, index),
+        };
+      })
+      .sort((a, b) => {
+        const aIsResume = a.stepType === "resume_upload" || a.id === "resume";
+        const bIsResume = b.stepType === "resume_upload" || b.id === "resume";
+        const byType =
+          unifiedDocumentTypeSortOrder(aIsResume ? "resume" : a.documentKind) -
+          unifiedDocumentTypeSortOrder(bIsResume ? "resume" : b.documentKind);
+        if (byType !== 0) return byType;
+        return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+      });
   }, [profile, selectedProfession]);
 
   useEffect(() => {

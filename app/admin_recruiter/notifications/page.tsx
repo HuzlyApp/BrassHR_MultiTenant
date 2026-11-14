@@ -1,5 +1,6 @@
-import NotificationsSettingsPanel from "@/app/admin_recruiter/settings/NotificationsSettingsPanel";
+import { redirect } from "next/navigation";
 
+/** Notifications settings live under Personal Settings account tabs. */
 export default function AdminRecruiterNotificationsPage() {
-  return <NotificationsSettingsPanel />;
+  redirect("/admin_recruiter/account/notifications");
 }

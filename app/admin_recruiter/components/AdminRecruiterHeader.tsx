@@ -28,7 +28,6 @@ import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversat
 import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useQueryClient } from "@tanstack/react-query";
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
-import { isLimitedStaffConsoleRole } from "@/lib/admin/staff-directory-types";
 
 type ConversationItem = StaffConversation;
 
@@ -245,7 +244,6 @@ export function AdminRecruiterHeader({
     ? headerDisplayName?.trim() || null
     : accountName;
   const displayRole = accountRoleLabel(profile);
-  const isRecruiter = isLimitedStaffConsoleRole(profile?.role, profile?.is_admin);
   const profilePhoto = profile?.avatar_url ?? null;
   /** Profile label should not stay on Loading… when only notifications fail. */
   const profileNameLoading = accountLoading && !displayName;
@@ -578,7 +576,7 @@ export function AdminRecruiterHeader({
             </button>
 
           {showProfileMenu ? (
-            <div className="absolute right-0 top-full z-50 mt-1 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
+            <div className="absolute right-0 top-full z-50 mt-1 w-[240px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
               <div className="mb-1 flex items-center gap-2 px-2">
                 <img
                   src={tenantLogoSrc}
@@ -590,11 +588,29 @@ export function AdminRecruiterHeader({
               </div>
               <p className="px-2 py-1 text-xs font-semibold text-[#0F172A]">{displayName}</p>
               <p className="px-2 pb-2 text-[11px] text-[#64748B]">{displayRole}</p>
+              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                Personal Settings
+              </p>
               <Link
-                href={isRecruiter ? "/admin_recruiter/account/personal" : "/admin_recruiter/account/personal"}
+                href="/admin_recruiter/account/personal"
+                onClick={() => setShowProfileMenu(false)}
                 className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
               >
-                {isRecruiter ? "Profile" : "Settings"}
+                Profile
+              </Link>
+              <Link
+                href="/admin_recruiter/account/account-security"
+                onClick={() => setShowProfileMenu(false)}
+                className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+              >
+                Account &amp; Security
+              </Link>
+              <Link
+                href="/admin_recruiter/account/notifications"
+                onClick={() => setShowProfileMenu(false)}
+                className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+              >
+                Notification
               </Link>
               <button
                 type="button"
