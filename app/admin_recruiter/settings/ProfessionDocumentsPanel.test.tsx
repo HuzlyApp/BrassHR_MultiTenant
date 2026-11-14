@@ -160,6 +160,33 @@ describe("ProfessionDocumentsPanel", () => {
           professions = professions.filter((row) => row.id !== deletedProfessionId);
           return json({ profession: { id: deletedProfessionId, is_active: false } });
         }
+
+        if (url.endsWith("/api/admin/assessment-settings") && method === "GET") {
+          return json({
+            canManage: true,
+            settings: {
+              draft: {
+                enabled: true,
+                allowSkip: true,
+                scoring: {},
+                categories: [
+                  {
+                    id: "assess-1",
+                    name: "General Skill Assessment",
+                    description: "",
+                    instructions: null,
+                    slug: "general-skill",
+                    sortOrder: 1,
+                    isActive: true,
+                    professionId: null,
+                    questions: [],
+                  },
+                ],
+              },
+              published: null,
+            },
+          });
+        }
         if (url.endsWith("/api/admin/profession-documents") && method === "PUT") {
           savedBody = JSON.parse(String(init?.body ?? "{}"));
           return json({
@@ -173,22 +200,12 @@ describe("ProfessionDocumentsPanel", () => {
             })),
           });
         }
-        if (url.includes("/api/admin/assessment-settings")) {
+        if (url.endsWith("/api/admin/assessment-settings") && method === "PUT") {
+          const body = JSON.parse(String(init?.body ?? "{}")) as { catalog?: unknown };
           return json({
-            canManage: true,
+            ok: true,
             settings: {
-              draft: {
-                enabled: true,
-                allowSkip: true,
-                scoring: {
-                  pointsPerQuestion: 1,
-                  passingScore: 70,
-                  scoreByCategory: true,
-                  showOverallScore: true,
-                  showResultsToApplicant: false,
-                },
-                categories: [],
-              },
+              draft: body.catalog,
               published: null,
             },
           });
@@ -199,24 +216,28 @@ describe("ProfessionDocumentsPanel", () => {
   });
 
   async function expandIndustry(user: ReturnType<typeof userEvent.setup>, label: string) {
-    expect(await screen.findByText(label)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: new RegExp(label) }));
+    expect(await screen.findAllByText(label)).not.toHaveLength(0);
+    const toggle = screen
+      .getAllByRole("button", { name: new RegExp(label) })
+      .find((button) => button.getAttribute("aria-expanded") != null);
+    expect(toggle).toBeTruthy();
+    await user.click(toggle!);
   }
 
   it("adds a custom profession and saves documents", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<ProfessionDocumentsPanel />);
 
-    expect(await screen.findByText("Healthcare")).toBeTruthy();
-    expect(screen.getByText("Technology / IT Services")).toBeTruthy();
+    expect(await screen.findAllByText("Healthcare")).not.toHaveLength(0);
+    expect(screen.getAllByText("Technology / IT Services").length).toBeGreaterThan(0);
     await expandIndustry(user, "Healthcare");
-    expect(await screen.findByRole("link", { name: "Nursing" })).toBeTruthy();
+    expect(await screen.findAllByRole("link", { name: "Nursing" })).not.toHaveLength(0);
 
-    await user.type(
-      screen.getByLabelText("Custom profession name for Healthcare"),
-      "Solar Technician"
-    );
-    await user.click(screen.getAllByRole("button", { name: "Add profession" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Add Position" }));
+    expect(await screen.findByRole("dialog", { name: "Add Custom Profession" })).toBeTruthy();
+    await user.type(screen.getByPlaceholderText("Front-End Developer"), "Solar Technician");
+    // Assessment defaults to the first available template.
+    await user.click(screen.getByRole("button", { name: "Create Profession" }));
 
     await waitFor(() => {
       expect(lastCreateBody).toEqual({ name: "Solar Technician", industryKey: "healthcare" });
@@ -294,10 +315,10 @@ describe("ProfessionDocumentsPanel", () => {
 
     await expandIndustry(user, "Healthcare");
     await expandIndustry(user, "Technology / IT Services");
-    expect(await screen.findByRole("link", { name: "Nursing" })).toBeTruthy();
+    expect(await screen.findAllByRole("link", { name: "Nursing" })).not.toHaveLength(0);
     expect(screen.queryByRole("heading", { name: "Nursing" })).toBeNull();
 
-    await user.click(screen.getAllByRole("link", { name: "View docs" })[1]!);
+    await user.click(screen.getAllByRole("link", { name: "View Docs" })[1]!);
     expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession/it-support");
 
     rerender(<ProfessionDocumentsPanel detailProfessionId="it-support" />);

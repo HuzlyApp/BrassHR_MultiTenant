@@ -178,7 +178,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     items: [
       {
         id: "profession",
-        label: "Profession",
+        label: "Professions",
         href: "/admin_recruiter/settings/profession",
         icon: Briefcase,
         resourceKey: "settings_company",
@@ -302,8 +302,8 @@ export const SETTINGS_SECTION_META: Record<
     description: "Manage inbound API keys for MSP and resume source integrations.",
   },
   profession: {
-    title: "Profession",
-    description: "Configure profession document requirements for applicants.",
+    title: "Professions",
+    description: "Organize job industry and manage their positions.",
   },
   assessment: {
     title: "Assessment",

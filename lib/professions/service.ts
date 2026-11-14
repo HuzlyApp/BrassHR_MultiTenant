@@ -255,9 +255,8 @@ export async function listAvailableCatalogProfessions(
   tenantId: string,
   industryLabel: (industryKey: string) => string | null
 ): Promise<CatalogProfessionOption[]> {
-  const [{ industries }, { data: catalog, error: catalogError }, { data: existing, error: existingError }] =
+  const [{ data: catalog, error: catalogError }, { data: existing, error: existingError }] =
     await Promise.all([
-      listTenantIndustryKeys(supabase, tenantId),
       supabase
         .from("profession_catalog")
         .select("key, name, industry_key")
@@ -272,7 +271,6 @@ export async function listAvailableCatalogProfessions(
   if (catalogError) throw catalogError;
   if (existingError) throw existingError;
 
-  const allowedIndustries = new Set(industries.map((row) => row.key));
   const takenKeys = new Set(
     (existing ?? []).map((row) => (row.catalog_key ? String(row.catalog_key) : "")).filter(Boolean)
   );
@@ -280,12 +278,12 @@ export async function listAvailableCatalogProfessions(
     (existing ?? []).map((row) => String(row.name ?? "").trim().toLowerCase()).filter(Boolean)
   );
 
+  // Include catalog rows for industries not yet bound to the tenant so the
+  // Add Industry modal can pre-select professions before create.
   return (catalog ?? [])
     .filter((row) => {
       const key = String(row.key);
       const name = String(row.name ?? "").trim().toLowerCase();
-      const industryKey = String(row.industry_key ?? "").trim();
-      if (allowedIndustries.size > 0 && !allowedIndustries.has(industryKey)) return false;
       return !takenKeys.has(key) && !takenNames.has(name);
     })
     .map((row) => {
