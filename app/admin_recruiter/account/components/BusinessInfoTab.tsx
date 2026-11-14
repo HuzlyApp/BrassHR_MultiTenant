@@ -424,7 +424,7 @@ export default function BusinessInfoTab() {
       {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
 
       <CompanyAccountSummaryCard />
-      <AccountTenantHeader />
+      {/* <AccountTenantHeader /> */}
 
       <form onSubmit={handleSubmit} className="space-y-5">
       {!organization ? (

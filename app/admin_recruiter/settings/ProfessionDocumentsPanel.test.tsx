@@ -75,7 +75,7 @@ describe("ProfessionDocumentsPanel", () => {
   let availableProfessions: AvailableProfession[];
   let savedBody: { professionId?: string; documents?: Array<{ name: string; documentKind: string }> } | null;
   let deletedProfessionId: string | null;
-  let lastCreateBody: { name?: string; catalogKey?: string } | null;
+  let lastCreateBody: { name?: string; catalogKey?: string; industryKey?: string } | null;
   let lastPatch: { id: string | null; body: { name?: string } | null };
 
   beforeEach(() => {
@@ -108,12 +108,20 @@ describe("ProfessionDocumentsPanel", () => {
             canManage: true,
             industryKey: "healthcare",
             industryLabel: "Healthcare",
+            industries: [
+              { key: "healthcare", label: "Healthcare", isPrimary: true },
+              { key: "technology", label: "Technology / IT Services", isPrimary: false },
+            ],
             availableProfessions,
             professions,
           });
         }
         if (url.endsWith("/api/admin/professions") && method === "POST") {
-          const body = JSON.parse(String(init?.body ?? "{}")) as { catalogKey?: string; name?: string };
+          const body = JSON.parse(String(init?.body ?? "{}")) as {
+            catalogKey?: string;
+            name?: string;
+            industryKey?: string;
+          };
           lastCreateBody = body;
           if (body.name?.trim()) {
             const created: Profession = {
@@ -170,18 +178,28 @@ describe("ProfessionDocumentsPanel", () => {
     );
   });
 
+  async function expandIndustry(user: ReturnType<typeof userEvent.setup>, label: string) {
+    expect(await screen.findByText(label)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: new RegExp(label) }));
+  }
+
   it("adds a custom profession and saves documents", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<ProfessionDocumentsPanel />);
 
+    expect(await screen.findByText("Healthcare")).toBeTruthy();
+    expect(screen.getByText("Technology / IT Services")).toBeTruthy();
+    await expandIndustry(user, "Healthcare");
     expect(await screen.findByRole("link", { name: "Nursing" })).toBeTruthy();
-    expect(screen.getByText("Healthcare")).toBeTruthy();
 
-    await user.type(screen.getByLabelText("Custom profession name"), "Solar Technician");
-    await user.click(screen.getByRole("button", { name: "Add profession" }));
+    await user.type(
+      screen.getByLabelText("Custom profession name for Healthcare"),
+      "Solar Technician"
+    );
+    await user.click(screen.getAllByRole("button", { name: "Add profession" })[0]!);
 
     await waitFor(() => {
-      expect(lastCreateBody).toEqual({ name: "Solar Technician" });
+      expect(lastCreateBody).toEqual({ name: "Solar Technician", industryKey: "healthcare" });
     });
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession?profession=custom-1");
@@ -209,14 +227,17 @@ describe("ProfessionDocumentsPanel", () => {
     const user = userEvent.setup();
     render(<ProfessionDocumentsPanel />);
 
-    expect(await screen.findByRole("link", { name: "Nursing" })).toBeTruthy();
+    expect(await screen.findByText("Technology / IT Services")).toBeTruthy();
+    await expandIndustry(user, "Technology / IT Services");
 
-    await user.click(screen.getByLabelText("Select catalog profession"));
-    await user.click(screen.getByRole("option", { name: "IT Support (Technology)" }));
+    await user.click(
+      screen.getByLabelText("Select catalog profession for Technology / IT Services")
+    );
+    await user.click(screen.getByRole("option", { name: "IT Support" }));
     await user.click(screen.getByRole("button", { name: "Add from catalog" }));
 
     await waitFor(() => {
-      expect(lastCreateBody).toEqual({ catalogKey: "it_support" });
+      expect(lastCreateBody).toEqual({ catalogKey: "it_support", industryKey: "technology" });
     });
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/admin_recruiter/settings/profession?profession=it-support");
@@ -252,6 +273,8 @@ describe("ProfessionDocumentsPanel", () => {
     ];
     const { rerender } = render(<ProfessionDocumentsPanel />);
 
+    await expandIndustry(user, "Healthcare");
+    await expandIndustry(user, "Technology / IT Services");
     expect(await screen.findByRole("link", { name: "Nursing" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Nursing" })).toBeNull();
 
