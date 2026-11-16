@@ -10,6 +10,12 @@ export type CreateShiftInput = {
   startHour?: number | null;
   endHour?: number | null;
   ratePerHour?: number | null;
+  /** Explicit FSD mode; omitted by legacy callers. */
+  isInternal?: boolean;
+  clientId?: string | null;
+  departmentId?: string | null;
+  jobCategoryId?: string | null;
+  numberOfPeopleNeeded?: number;
 };
 
 export async function createTenantShift(
@@ -26,9 +32,9 @@ export async function createTenantShift(
   }
 
   const facilityId = input.facilityId?.trim() || null;
-  let clientId: string | null = null;
+  let clientId: string | null = input.clientId ?? null;
 
-  if (facilityId) {
+  if (facilityId && input.isInternal === undefined) {
     const { data: facilityRow } = await supabase
       .from("facility")
       .select("id, client_id")
@@ -41,7 +47,7 @@ export async function createTenantShift(
     }
   }
 
-  if (!clientId) {
+  if (!clientId && input.isInternal === undefined) {
     // Check if an existing client exists for this tenant
     const { data: clientRow } = await supabase
       .from("clients")
@@ -66,9 +72,17 @@ export async function createTenantShift(
       start_date: input.startDate,
       end_date: input.endDate || input.startDate,
       rate_per_hour: input.ratePerHour ?? null,
+      ...(input.isInternal !== undefined ? {
+        is_internal: input.isInternal,
+        department_id: input.departmentId ?? null,
+        job_category_id: input.jobCategoryId ?? null,
+        number_of_people_needed: input.numberOfPeopleNeeded ?? 1,
+      } : {}),
     })
-    .select("id, title, start_date, end_date, facility_id, client_id, rate_per_hour")
-    .single();
+    .select(input.isInternal !== undefined
+      ? "id, title, description, start_date, end_date, facility_id, client_id, department_id, is_internal, job_category_id, number_of_people_needed, rate_per_hour"
+      : "id, title, start_date, end_date, facility_id, client_id, rate_per_hour")
+    .single<{ id: string } & Record<string, unknown>>();
 
   if (shiftError) {
     console.error("[createTenantShift] shift insert error:", shiftError);
