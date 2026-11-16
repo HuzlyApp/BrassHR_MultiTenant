@@ -36,8 +36,8 @@ export function accountTabHref(slug: AccountTabSlug): string {
 /** Tabs shown in the account page tab bar (Personal Settings). */
 export const ACCOUNT_TAB_NAV = [
   { slug: "personal" as const, label: "Profile" },
-  { slug: "account-security" as const, label: "Account & Settings" },
+  { slug: "account-security" as const, label: "Account & Security" },
   // Notification + Call hidden from Personal Settings for now.
-  // { slug: "notifications" as const, label: "Notification" },
-  // { slug: "call" as const, label: "Call" },
+  { slug: "notifications" as const, label: "Notification" },
+  { slug: "call" as const, label: "Call" },
 ];
