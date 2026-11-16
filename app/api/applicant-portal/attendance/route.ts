@@ -3,6 +3,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { findApplicantByUserId } from "@/lib/applicant-portal";
 import { easternDateString } from "@/lib/datetime/eastern";
 import { syncAttendanceDayToTimesheet } from "@/lib/timesheets/sync-from-attendance";
+import { readApplicantPortalTenantSlugFromRequest } from "@/lib/applicant-portal/request";
+import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
+import { timeApiError } from "@/lib/timesheets/api-context";
 
 export const runtime = "nodejs";
 
@@ -70,6 +73,7 @@ function validLocation(input: LocationPayload | undefined): {
 } | null {
   if (!input || input.permissionStatus !== "granted") return null;
   if (typeof input.latitude !== "number" || typeof input.longitude !== "number") return null;
+  if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) return null;
   if (input.latitude < -90 || input.latitude > 90) return null;
   if (input.longitude < -180 || input.longitude > 180) return null;
   const timestamp = input.timestamp ? new Date(input.timestamp) : new Date();
@@ -157,7 +161,17 @@ async function resolveApplicant(req: NextRequest) {
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user?.id) return null;
 
-  const applicant = await findApplicantByUserId(supabase, data.user.id);
+  const slug=readApplicantPortalTenantSlugFromRequest(req);
+  if(slug && !/^[a-z0-9-]{2,63}$/.test(slug)) return null;
+  const {data:profile,error:profileError}=await supabase.from("users").select("tenant_id,is_active").eq("id",data.user.id).maybeSingle();
+  if(profileError) throw profileError;
+  if(profile?.is_active===false) return null;
+  const tenantId=slug?await resolveTenantIdBySlug(supabase,slug):profile?.tenant_id;
+  if(!tenantId) return null;
+  const {data:membership,error:membershipError}=await supabase.from("user_roles").select("is_active").eq("tenant_id",tenantId).eq("user_id",data.user.id).maybeSingle();
+  if(membershipError) throw membershipError;
+  if(membership?.is_active===false) return null;
+  const applicant = await findApplicantByUserId(supabase, data.user.id,tenantId);
   if (!applicant?.id) return null;
 
   return { supabase, workerId: applicant.id, tenantId: applicant.tenant_id };
@@ -183,6 +197,7 @@ function parseIsoDateOnly(value: string | null): string | null {
 async function attendancePayload(
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
   workerId: string,
+  tenantId: string,
   options?: { start?: string | null; end?: string | null }
 ) {
   const today = easternDateString(new Date());
@@ -195,6 +210,7 @@ async function attendancePayload(
     .from("applicant_attendance_logs")
     .select("*")
     .eq("worker_id", workerId)
+    .eq("tenant_id",tenantId)
     .order("attendance_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -216,6 +232,7 @@ async function attendancePayload(
       .from("applicant_attendance_logs")
       .select("*")
       .eq("worker_id", workerId)
+      .eq("tenant_id",tenantId)
       .eq("attendance_date", today)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -224,6 +241,7 @@ async function attendancePayload(
       .from("applicant_attendance_logs")
       .select("*")
       .eq("worker_id", workerId)
+      .eq("tenant_id",tenantId)
       .eq("status", "clocked_in")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -255,7 +273,7 @@ export async function GET(req: NextRequest) {
     const end = req.nextUrl.searchParams.get("end");
 
     return NextResponse.json(
-      await attendancePayload(resolved.supabase, resolved.workerId, { start, end })
+      await attendancePayload(resolved.supabase, resolved.workerId,resolved.tenantId, { start, end })
     );
   } catch (err) {
     console.error("[applicant-portal/attendance:get]", err);
@@ -279,6 +297,7 @@ export async function POST(req: NextRequest) {
       .from("applicant_attendance_logs")
       .select("*")
       .eq("worker_id", resolved.workerId)
+      .eq("tenant_id",resolved.tenantId)
       .eq("status", "clocked_in")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -301,6 +320,7 @@ export async function POST(req: NextRequest) {
           updated_at: nowIso,
         })
         .eq("id", active.id)
+        .eq("tenant_id",resolved.tenantId)
         .eq("status", "clocked_in")
         .is("break_started_at", null);
       if (error) throw error;
@@ -322,6 +342,7 @@ export async function POST(req: NextRequest) {
           updated_at: now.toISOString(),
         })
         .eq("id", active.id)
+        .eq("tenant_id",resolved.tenantId)
         .eq("status", "clocked_in");
       if (error) throw error;
 
@@ -413,6 +434,7 @@ export async function POST(req: NextRequest) {
             updated_at: clockOutAt.toISOString(),
           })
           .eq("id", active.id)
+          .eq("tenant_id",resolved.tenantId)
           .eq("status", "clocked_in");
         if (error) throw error;
 
@@ -431,9 +453,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid attendance action." }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, ...(await attendancePayload(resolved.supabase, resolved.workerId)) });
+    return NextResponse.json({ ok: true, ...(await attendancePayload(resolved.supabase, resolved.workerId,resolved.tenantId)) });
   } catch (err) {
     console.error("[applicant-portal/attendance:post]", err);
+    if (["P0001","P0002","42501","23503","23514","23505"].includes((err as {code?:string}|null)?.code??"")) return timeApiError(err);
     const message = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

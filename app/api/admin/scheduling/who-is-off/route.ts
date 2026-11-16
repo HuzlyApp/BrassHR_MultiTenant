@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { tenantTimeOffQuery } from "@/lib/scheduling/time-off-service";
 
 export const runtime = "nodejs";
 
@@ -123,12 +124,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Service unavailable. Please try again later." }, { status: 503 });
     }
 
-    let timeOffQuery = supabase
-      .from("worker_time_off")
-      .select(
-        "id, worker_id, facility_id, off_type, start_date, end_date, days, worker!inner(first_name, last_name, job_role), facility(name)"
-      )
-      .eq("tenant_id", scope.tenantId)
+    let timeOffQuery = tenantTimeOffQuery(supabase, scope.tenantId)
       .lte("start_date", endCheck.value)
       .gte("end_date", startCheck.value)
       .order("start_date", { ascending: true })

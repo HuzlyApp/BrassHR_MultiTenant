@@ -32,6 +32,13 @@ type NamedRow = {
   name: string | null;
 };
 
+/** Shared employee block query for the legacy week grid and v1 range API. */
+export function tenantEmployeeShiftQuery(supabase: SupabaseClient, tenantId: string, startDate: string, endDate: string) {
+  return supabase.from("employee_schedule_shifts")
+    .select("id,worker_id,facility_id,department_id,work_date,start_time,end_time,title,rate_per_hour,notes", { count: "exact" })
+    .eq("tenant_id", tenantId).gte("work_date", startDate).lte("work_date", endDate);
+}
+
 function employeeName(row: WorkerRow): string {
   const name = `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim();
   return name || "Employee";
@@ -80,14 +87,7 @@ export async function loadEmployeeScheduleWeek(
 
   if (workerError) throw workerError;
 
-  let shiftQuery = supabase
-    .from("employee_schedule_shifts")
-    .select(
-      "id, worker_id, facility_id, department_id, work_date, start_time, end_time, title, rate_per_hour, notes"
-    )
-    .eq("tenant_id", tenantId)
-    .gte("work_date", startDate)
-    .lte("work_date", endDate)
+  let shiftQuery = tenantEmployeeShiftQuery(supabase, tenantId, startDate, endDate)
     .order("work_date", { ascending: true })
     .order("start_time", { ascending: true });
 

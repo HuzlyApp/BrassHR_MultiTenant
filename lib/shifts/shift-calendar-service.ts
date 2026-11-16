@@ -172,7 +172,7 @@ export async function loadShiftCalendarForTenant(
       ? supabase.from("facility").select("id, name").eq("tenant_id", tenantId).in("id", facilityIds)
       : Promise.resolve({ data: [] as FacilityRow[], error: null }),
     jobCategoryIds.length
-      ? supabase.from("job_categories").select("id, name").in("id", jobCategoryIds)
+      ? supabase.from("job_categories").select("id, name").eq("tenant_id", tenantId).in("id", jobCategoryIds)
       : Promise.resolve({ data: [] as JobCategoryRow[], error: null }),
     supabase.from("shift_cancellations").select("shift_id").eq("tenant_id", tenantId).in("shift_id", shiftIds),
   ]);

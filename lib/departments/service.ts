@@ -59,6 +59,63 @@ type WorkerRow = {
 
 const NAME_MAX = 80;
 
+export type DepartmentApiRecord = {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  parent_department_id: string | null;
+  is_active: boolean;
+};
+
+const API_COLUMNS = "id, name, code, description, parent_department_id, is_active";
+
+/** API projection of the existing catalog; every operation is tenant-scoped. */
+export async function listDepartmentApiRecords(
+  supabase: SupabaseClient, tenantId: string, includeInactive: boolean, page: number, limit: number,
+) {
+  let query = supabase.from("departments").select(API_COLUMNS, { count: "exact" })
+    .eq("tenant_id", tenantId);
+  if (!includeInactive) query = query.eq("is_active", true);
+  const { data, error, count } = await query.order("name").order("id")
+    .range((page - 1) * limit, page * limit - 1);
+  if (error) throw error;
+  return { departments: (data ?? []) as DepartmentApiRecord[], total: count ?? 0, page, limit };
+}
+
+export async function writeDepartmentApiRecord(
+  supabase: SupabaseClient, tenantId: string, id: string | null,
+  input: Partial<Omit<DepartmentApiRecord, "id">>,
+) {
+  const patch = { ...input };
+  if (patch.name !== undefined) {
+    const error = validateDepartmentName(patch.name);
+    if (error) throw Object.assign(new Error(error), { code: "VALIDATION_ERROR" });
+    patch.name = normalizeDepartmentName(patch.name);
+  }
+  if (patch.parent_department_id) {
+    const { data, error } = await supabase.from("departments").select("id")
+      .eq("tenant_id", tenantId).eq("id", patch.parent_department_id).maybeSingle();
+    if (error) throw error;
+    if (!data) throw Object.assign(new Error("Parent department not found in tenant"), { code: "23503" });
+  }
+  const query = id
+    ? supabase.from("departments").update(patch).eq("tenant_id", tenantId).eq("id", id)
+    : supabase.from("departments").insert({ ...patch, tenant_id: tenantId });
+  const { data, error } = await query.select(API_COLUMNS).maybeSingle();
+  if (error) throw error;
+  if (id && data && patch.name !== undefined) {
+    await syncDepartmentJobLabels(supabase, tenantId, id, patch.name);
+  }
+  return data as DepartmentApiRecord | null;
+}
+
+async function syncDepartmentJobLabels(supabase: SupabaseClient, tenantId: string, departmentId: string, name: string) {
+  const { error } = await supabase.from("job_requisitions").update({ department: name })
+    .eq("tenant_id", tenantId).eq("department_id", departmentId);
+  if (error) throw error;
+}
+
 export function normalizeDepartmentName(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -314,12 +371,7 @@ export async function updateDepartment(
   if (!update.data) throw new Error("Department not found.");
 
   if (typeof patch.name === "string") {
-    const { error: labelError } = await supabase
-      .from("job_requisitions")
-      .update({ department: patch.name })
-      .eq("tenant_id", tenantId)
-      .eq("department_id", departmentId);
-    if (labelError) throw labelError;
+    await syncDepartmentJobLabels(supabase, tenantId, departmentId, patch.name);
   }
 }
 

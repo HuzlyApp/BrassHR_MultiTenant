@@ -11,8 +11,8 @@ export type DepartmentApiContext = {
   auth: StaffApiAuthContext;
 };
 
-export async function requireDepartmentRead(): Promise<DepartmentApiContext | NextResponse> {
-  const auth = await requireStaffApiSession();
+export async function requireDepartmentRead(request?: Request): Promise<DepartmentApiContext | NextResponse> {
+  const auth = await requireStaffApiSession(request);
   if (auth instanceof NextResponse) return auth;
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
@@ -21,8 +21,8 @@ export async function requireDepartmentRead(): Promise<DepartmentApiContext | Ne
   return { supabase, tenantId, auth };
 }
 
-export async function requireDepartmentWrite(): Promise<DepartmentApiContext | NextResponse> {
-  const resolved = await requireDepartmentRead();
+export async function requireDepartmentWrite(request?: Request): Promise<DepartmentApiContext | NextResponse> {
+  const resolved = await requireDepartmentRead(request);
   if (resolved instanceof NextResponse) return resolved;
   const forbidden = requireWorkflowAdmin(resolved.auth);
   if (forbidden) return forbidden;

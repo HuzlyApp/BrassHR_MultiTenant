@@ -364,6 +364,19 @@ export function actionForMethod(method: string): PermissionAction {
 /** Legacy URLs must use the same grants as the canonical staff endpoint. */
 export function canonicalStaffApiPath(path: string): string {
   const aliases: Array<[string, string]> = [
+    ["/api/v1/clock-events", "/api/admin/scheduling/clock-events"],
+    ["/api/v1/clock-ins", "/api/admin/scheduling/clock-ins"],
+    ["/api/v1/timesheets", "/api/admin/timesheets"],
+    ["/api/v1/worker-requests", "/api/admin/scheduling/worker-requests"],
+    ["/api/v1/schedules", "/api/admin/scheduling"],
+    ["/api/v1/tenant-holidays", "/api/admin/scheduling/holidays"],
+    ["/api/v1/shifts", "/api/admin/shifts"],
+    ["/api/v1/me/permissions", "/api/admin/access"],
+    ["/api/v1/departments", "/api/admin/departments"],
+    ["/api/v1/tenants/me/features", "/api/admin/access"],
+    ["/api/v1/tenants/me/edition", "/api/admin/users"],
+    ["/api/v1/tenants/me/feature-overrides", "/api/admin/users"],
+    ["/api/v1/admin/edition-features", "/api/admin/users"],
     ["/api/requisitions", "/api/admin/jobs"],
     ["/api/onboarding/preview-config", "/api/admin/onboarding"],
     ["/api/workers", "/api/admin/candidates"],
