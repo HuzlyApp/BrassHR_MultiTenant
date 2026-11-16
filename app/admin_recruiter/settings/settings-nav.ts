@@ -6,8 +6,8 @@ import {
   CreditCard,
   FileStack,
   Library,
-  LifeBuoy,
   ListChecks,
+  Plug,
   Users,
   Wand2,
   Workflow,
@@ -67,7 +67,7 @@ export type SettingsNavGroup = {
 };
 
 /** Secondary Settings sidebar — only items that already exist in the app.
- * Personal Settings (Profile, Account & Security, Notifications) live in the
+ * Personal Settings (Profile, Account & Settings) live in the
  * top-right user dropdown only — not in this mini-sidebar.
  */
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
@@ -116,7 +116,15 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/branding", "/admin_recruiter/settings/hiring-theme"],
       },
-      // Call + Integrations live in the top-right account menu (beside Personal Settings).
+      {
+        id: "integrations",
+        label: "Integrations",
+        href: "/admin_recruiter/settings/integrations",
+        icon: Plug,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/integrations"],
+      },
+      // Call lives in the top-right account menu (Personal Settings).
       // {
       //   id: "call",
       //   label: "Call",
@@ -142,15 +150,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/billing"],
       },
-      {
-        id: "help",
-        label: "Help & Support",
-        href: "/admin_recruiter/help-support",
-        icon: LifeBuoy,
-        // Visible to every staff role via settings mini-sidebar (not main rail).
-        resourceKey: "settings_help",
-        matchPrefixes: ["/admin_recruiter/help-support"],
-      },
+      // Help & Support → main sidebar (below Settings) + profile menu.
     ],
   },
   {
@@ -223,7 +223,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     ],
   },
   // Roles & Permissions → User Management tab.
-  // Call + Integrations → top-right account menu.
+  // Call → top-right account menu; Integrations → Company Settings (below Branding).
   // Reports → main sidebar (below Pay).
   // {
   //   id: "administration",
@@ -324,12 +324,7 @@ export function visibleSettingsNavGroups(
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) =>
-          // Help & Support stays under Settings for every staff role.
-          item.resourceKey === "settings_help" ||
-          viewKeys.has(item.resourceKey)
-      ),
+      items: group.items.filter((item) => viewKeys.has(item.resourceKey)),
     }))
     .filter((group) => group.items.length > 0);
 }
@@ -378,7 +373,6 @@ export const SETTINGS_MINI_SIDEBAR_PREFIXES: string[] = Array.from(
       "/admin_recruiter/dashboard/onboarding-builder",
       "/admin_recruiter/template-builder",
       "/admin_recruiter/email-templates",
-      "/admin_recruiter/help-support",
     ])
   )
 );

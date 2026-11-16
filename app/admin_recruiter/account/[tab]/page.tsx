@@ -12,6 +12,10 @@ export default async function AdminRecruiterAccountTabPage({ params }: PageProps
   if (tab === "business-info") {
     redirect("/admin_recruiter/settings/company-profile");
   }
+  // Integrations moved to Company Settings (below Branding).
+  if (tab === "integrations") {
+    redirect("/admin_recruiter/settings/integrations");
+  }
   if (!isAccountTabSlug(tab)) {
     redirect("/admin_recruiter/account/personal");
   }

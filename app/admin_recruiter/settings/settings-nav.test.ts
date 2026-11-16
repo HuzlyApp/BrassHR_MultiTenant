@@ -45,9 +45,6 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/settings/admin-console",
       "/admin_recruiter/settings/roles",
       "/admin_recruiter/settings/departments",
-
-      // Help & Support
-      "/admin_recruiter/help-support",
     ];
 
     for (const path of testPaths) {
@@ -67,7 +64,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/account/security",
       "/admin_recruiter/account/notifications",
       "/admin_recruiter/account/call",
-      "/admin_recruiter/account/integrations",
+      "/admin_recruiter/help-support",
       "/admin_recruiter/notifications",
       "/admin_recruiter/reports",
       "/admin_recruiter/dashboard/overview",
@@ -163,11 +160,12 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "user-management",
       "departments",
       "branding",
+      "integrations",
       "billing",
-      "help",
     ]);
     expect(appGroup?.items.some((item) => item.id === "call")).toBe(false);
     expect(appGroup?.items.some((item) => item.id === "task")).toBe(false);
+    expect(appGroup?.items.some((item) => item.id === "help")).toBe(false);
     expect(
       SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "roles")
     ).toBe(false);
@@ -236,25 +234,25 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(isSettingsMiniSidebarPath("/admin_recruiter/account/security")).toBe(false);
   });
 
-  it("keeps Help & Support in Settings for every role; Reports lives on the main sidebar", () => {
+  it("keeps Help & Support and Reports off the Settings mini-sidebar", () => {
     const limited = visibleSettingsNavGroups(
       SETTINGS_NAV_GROUPS,
       new Set(["settings_profile"])
     );
     const ids = limited.flatMap((group) => group.items.map((item) => item.id));
-    expect(ids).toContain("help");
+    expect(ids).not.toContain("help");
     expect(ids).not.toContain("reports");
-    const helpItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find((item) => item.id === "help");
-    expect(helpItem?.href).toBe("/admin_recruiter/help-support");
+    expect(
+      SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "help")
+    ).toBe(false);
     expect(
       SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "reports")
     ).toBe(false);
     const appGroup = SETTINGS_NAV_GROUPS.find((g) => g.id === "app");
-    expect(appGroup?.items.some((item) => item.id === "help")).toBe(true);
     expect(appGroup?.items.some((item) => item.id === "departments")).toBe(true);
   });
 
-  it("opens Settings to branding for admins and a permitted page for recruiters", () => {
+  it("opens Settings to branding for admins and falls back when no Settings pages are permitted", () => {
     expect(resolveSettingsLandingHref(new Set(["*"]), true)).toBe(SETTINGS_LANDING_HREF);
     expect(
       resolveSettingsLandingHref(

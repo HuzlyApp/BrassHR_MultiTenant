@@ -76,11 +76,12 @@ describe("Settings Reports Redirection", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/admin_recruiter/account/call");
   });
 
-  it("redirects section=integrations to account Integrations settings", async () => {
+  it("does not redirect section=integrations, rendering IntegrationsSettingsPanel instead", async () => {
     mockRedirect.mockClear();
-    await SettingsSectionPage({
+    const result = await SettingsSectionPage({
       params: Promise.resolve({ section: "integrations" }),
     });
-    expect(mockRedirect).toHaveBeenCalledWith("/admin_recruiter/account/integrations");
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(result).toBeDefined();
   });
 });

@@ -603,8 +603,9 @@ export function AdminRecruiterHeader({
                 onClick={() => setShowProfileMenu(false)}
                 className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
               >
-                Account &amp; Security
+                Account &amp; Settings
               </Link>
+              {/* Hidden for now — restore when Notification / Call ship in Personal Settings.
               <Link
                 href="/admin_recruiter/account/notifications"
                 onClick={() => setShowProfileMenu(false)}
@@ -619,12 +620,13 @@ export function AdminRecruiterHeader({
               >
                 Call
               </Link>
+              */}
               <Link
-                href="/admin_recruiter/account/integrations"
+                href="/admin_recruiter/help-support"
                 onClick={() => setShowProfileMenu(false)}
                 className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
               >
-                Integrations
+                Help &amp; Support
               </Link>
               <button
                 type="button"
