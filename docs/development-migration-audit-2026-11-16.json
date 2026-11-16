@@ -1,0 +1,1065 @@
+{
+  "project": "mgucromvpnxntwyssltd",
+  "environment": "development",
+  "review_date": "2026-11-16",
+  "production_changed": false,
+  "scope": "FSD feature, department, staff authorization and scheduling prerequisites only; not a claim of full historical parity.",
+  "counts": {
+    "local": 351,
+    "remote": 144,
+    "matched": 116,
+    "different_version": 17,
+    "not_reconciled": 218
+  },
+  "sources_covered_by_bundle": [
+    "20261027020000_tenant_categories.sql",
+    "20261028010000_role_module_permissions.sql",
+    "20261030193000_departments.sql",
+    "20261104173000_settings_help_always_granted.sql",
+    "20261106120000_organization_clients_permission.sql",
+    "20261106121500_scheduling_timesheets_permission.sql",
+    "20261107041000_employee_schedule_shifts.sql",
+    "20261107043000_employee_timesheet_entries.sql",
+    "20261116141533_edition_feature_resolution.sql",
+    "20261116144135_department_hierarchy.sql"
+  ],
+  "unreconciled": [
+    {
+      "file": "20260410170000_worker_documents_ssn_dl_back_urls.sql",
+      "status": "different_version",
+      "remote_version": "20260410170100"
+    },
+    {
+      "file": "20260511185306_tenants_subdomain_domain.sql",
+      "status": "different_version",
+      "remote_version": "20260512180000"
+    },
+    {
+      "file": "20260602152000_applicant_continuation_links.sql",
+      "status": "different_version",
+      "remote_version": "20260602153758"
+    },
+    {
+      "file": "20260609182333_applicant_messages_realtime_rls.sql",
+      "status": "different_version",
+      "remote_version": "20260610180000"
+    },
+    {
+      "file": "20260609194049_worker_screening_checklist_items.sql",
+      "status": "different_version",
+      "remote_version": "20260610191000"
+    },
+    {
+      "file": "20260610175724_migrate_nexusmedpro_to_brasshr_email_domain.sql",
+      "status": "different_version",
+      "remote_version": "20260611120000"
+    },
+    {
+      "file": "20260619192752_support_tickets_staff_management.sql",
+      "status": "different_version",
+      "remote_version": "20260620120000"
+    },
+    {
+      "file": "20260630140000_worker_profile_detail_columns.sql",
+      "status": "different_version",
+      "remote_version": "20260630140100"
+    },
+    {
+      "file": "20260701150000_worker_profile_skills.sql",
+      "status": "different_version",
+      "remote_version": "20260701150100"
+    },
+    {
+      "file": "20260704120000_resume_continuation_email_template.sql",
+      "status": "different_version",
+      "remote_version": "20260704120100"
+    },
+    {
+      "file": "20260707150000_seed_global_email_templates.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260707160000_seed_skill_catalog.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260707170000_seed_onboarding_step_library.sql",
+      "status": "different_version",
+      "remote_version": "20260625180100"
+    },
+    {
+      "file": "20260708120000_tenant_favicon_url.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260708120000_worker_for_approval_status.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260708130000_fix_worker_status_default.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260709120000_add_carrboro_nc_signup_city.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260713150000_worker_profile_skills_worker_write.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260713160000_worker_about_me.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260715152746_sync_prod_missing_tables_to_staging.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260715224421_fix_builder_draft_agreement_to_references.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260716060000_default_workflow_add_reference.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260716070000_fix_builder_draft_agreement_to_references.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260717104500_seed_reference_us_timezones.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260717231055_job_requisitions_and_workflow_assignments.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260720183000_default_w2_1099_phase_workflow_presets.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260720194500_onboarding_flow_routing_metadata.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260720201000_onboarding_flows_template_fk_to_onboarding_templates.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260720202000_workflow_mappings_standalone.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260720203000_drop_workflow_mapping_placement_type.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260720204000_upgrade_legacy_job_requisitions.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260722104006_job_requisition_figma_post_fields.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260722105231_job_requisition_msp_source_details_fields.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260723153000_align_applicant_workflow_instances_for_jobs.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260724122616_job_application_recruiting_statuses.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260727090726_applicant_profiles_admin_candidate_fields.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260728120000_job_requisition_delete_cascade.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260803142527_recruiter_activity_logs.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260804195343_job_requisition_sources_imports_expansion.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260805212112_expand_workflow_mapping_criteria.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260806150000_allied_health_specialties.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810112341_allow_null_profession_id_msp_jobs.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810132135_job_application_ai_match_analysis.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810140633_multi_app_per_tenant_workflow_unique.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810140700_multi_app_per_tenant_application_id_scope.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810140942_multi_app_per_tenant_backfill_and_uniques.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810142435_application_statuses_and_history.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260810222237_application_statuses_and_history.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260811140000_job_requisition_commission_fields.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260811154500_job_requisitions_eor_tenant_id.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260812061612_firma_signing_session_upsert_conflict_fix.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813120000_application_status_archived.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813143000_worker_resumes_multi_upload.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813150000_worker_resumes_job_application.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813160000_worker_resumes_job_application_backfill.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813170000_worker_resumes_uploaded_by.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813182330_complete_non_navigable_parameterized_job_application.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813182542_fix_parameterized_pending_backfill_ranking.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813200000_job_screening_questions.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813210000_interview_calendar_invitations.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813220000_candidate_analysis_workspace.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260813230000_rls_adversarial_hardening.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260814010000_job_application_workflow_phase.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260814081200_drop_msp_job_source_required_chk.sql",
+      "status": "different_version",
+      "remote_version": "20260814081314"
+    },
+    {
+      "file": "20260814120000_tenants_firma_workspace_id_unique.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260817183000_job_requisition_acceptable_match_rate.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260820120000_tenant_skill_assessment_settings.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260820123000_tenant_skill_assessment_settings_revoke_anon.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260820140000_default_rnr_worker_workflow.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260821125716_applicant_attendance_breaks.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260821130847_applicant_attendance_break_intervals.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260825111504_support_notifications_and_staff_ticket_create.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260826203722_claim_worker_candidates_bulk.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260826205119_pre_post_hire_phase_separation.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260826205643_convert_candidate_to_employment_worker_atomic.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260826213511_post_hire_conversion_visibility.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260827141500_bulk_delete_workers_atomic.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260827220520_staff_invitations_and_membership_status.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260828080423_default_application_status_catalog.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260831163000_fix_worker_status_metrics_workforce.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260831164500_dashboard_analytics_pipeline_fallback.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260902120000_fix_bulk_delete_workers.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907095856_job_requisition_postal_code.sql",
+      "status": "different_version",
+      "remote_version": "20260907095940"
+    },
+    {
+      "file": "20260907151129_match_requirement_verification_notes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907151313_candidates_list_pagination_and_metrics.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907173736_candidates_search_resume_and_skills.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907174237_candidates_search_rpc_skills.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907174803_candidates_search_keep_email_at.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907180503_candidates_search_reliability_and_index_use.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907181349_backfill_missing_tenant_configs.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907181404_candidates_search_rpc_trigram_match.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907181917_candidates_search_reload_pgrst_schema.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907182808_candidates_search_rpc_indexed_unions.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907183249_candidates_search_rpc_fast_path.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260907183300_candidate_kpi_metrics_rpc_ensure.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260908125933_job_requisition_status_open_paused_filled.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260908135941_job_requisition_assignee_tags_is_hot.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260910040000_one_verification_note_per_requirement.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260910042700_reload_pgrst_schema_for_requirement_notes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260910134437_ai_prompt_catalog.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260910134510_ai_prompt_catalog_seed_prompts.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260910140858_service_area_gates.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260911010000_job_applications_tenant_worker_created_idx.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260911040000_disable_service_area_location_holds.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260911053000_candidate_match_extract_empty_requirements.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260911181709_reactivate_phase1_service_area_holds.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260911204637_open_job_service_area_backstop.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914150000_seed_pre_hire_intake_steps.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914154500_seed_pre_hire_screening_interview_steps.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914160000_move_adverse_action_to_compliance.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914162000_seed_pre_hire_offer_agreement_steps.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914163500_document_upload_post_hire_payroll.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914164000_welcome_complete_post_hire.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914165000_consolidate_post_hire_payroll_tax.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260914170000_seed_welcome_complete_figma_steps.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260915163426_map_prehire_posthire_ui_step_library.sql",
+      "status": "different_version",
+      "remote_version": "20260915163746"
+    },
+    {
+      "file": "20260917165444_ai_match_stage_and_screening_uploads.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260918120000_ai_match_progression_follow_up_submission.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260922055203_candidates_search_phone_like_digits.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260923031700_candidates_search_msp_source_job_id.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260923065943_remote_all_states_default.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260923075243_signup_us_states_dc_territories.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260923124315_profession_catalog_fsd_seed_and_remap.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260925133000_ai_match_progression_prompt_variants.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260925160000_submission_resume_improvement_and_evidence.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260928170000_staff_list_page_counts.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929033000_submission_resume_randstad_word_prompt.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929042000_submission_resume_anti_shrink_prompt.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929090000_next_step_ready_email_template.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929140000_quick_match_prompt_v4_core_seat.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929150000_staff_list_fit_rank_quick_low.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929233000_candidates_list_bounded_unique_page.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260929233000_match_requirement_mandatory_confirmed.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20260930120000_requirement_not_met_precedence.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261001013000_match_resume_worker_ids_trigram.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261001120000_applicant_workflow_step_reviews.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261001140000_compliance_checks_facility_approvals.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261001150000_scope_staff_select_policies_to_authenticated.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261002143000_follow_up_questions_always_generate.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261002150000_follow_up_uses_step1_and_step2_context.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261002150000_reset_auto_completed_post_hire_profile_steps.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261002160000_post_hire_step_ready_email_template.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261002161000_call_pack_questions_always_generate.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261002211433_count_unique_active_candidate_profiles.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261005120000_worker_direct_deposit_accounts.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261005121000_repair_cross_phase_hire_stage_names.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261005130000_backfill_admin_resume_uploader.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261006140000_msp_candidate_submission.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261006234500_application_status_groups.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261006235900_collapse_status_groups_to_three.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007010000_fsd_aliases_and_recruiter_step_verification.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007020000_restore_prehire_status_catalog_six_groups.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007030000_prehire_stage_status_assignments.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007031000_prehire_stage_group_assignments.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007120612_add_change_source_to_status_history.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007140000_worker_extra_files.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261007180000_submission_resume_use_screening_and_follow_up.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261008013000_ai_match_stage_statuses_and_step_notes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261008180138_employment_worker_transfer_snapshot.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261009090000_submission_resume_content_rules_first.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261009203000_status_stage_lanes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261009220000_status_stage_lane_names.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261009223000_status_group_button_lanes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261009234500_follow_up_exception_status.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261010120000_applicant_certification_types.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261010123000_retire_duplicate_follow_up_status.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261012120000_recruiter_agreement_signed_email_template.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261012183000_pay_rate_accepted_and_employment_agreement.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261012235900_workflow_stage_status_scopes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013030000_remove_status_groups.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013043000_stage_status_notes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013051500_stage_lane_free_text_note.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013053000_zipstaff_prehire_status_catalog.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013054500_zipstaff_ai_analysis_status_catalog.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013061000_sync_zipstaff_status_catalog_to_staging.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013064000_default_stage_status_catalog_all_tenants.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261013120000_staff_application_list_hide_converted_workers.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261014013000_profession_workflow_document_catalog.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261014090000_job_list_metrics_hide_converted_workers.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261014140500_stage_button_labels.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261014180000_tenant_profession_upload_documents.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261014183000_completion_owner_candidate_or_recruiter.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261014200000_worker_submitted_documents_uploaded_by.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261015001500_tenant_application_button_labels.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261015004500_job_application_tenant_profession.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261015014000_zipstaff_nexus_profession_documents.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261015050000_profession_document_expiry_multi_file.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261015112025_remove_ai_analysis_status_catalog.sql",
+      "status": "different_version",
+      "remote_version": "20261015113427"
+    },
+    {
+      "file": "20261016002712_candidate_kpi_metrics_unique_profiles.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261016064839_rename_agreement_esign_to_authorization_esign.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261016140500_add_phase_completion_milestone_steps.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261017030000_replace_step_library_master_list.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261017033000_step_library_category_order.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261017040000_industry_workflow_presets.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261019162219_move_record_selection_to_compliance.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261020060105_point_worker_extra_files_at_worker.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261020110000_relax_onboarding_step_sort_order_unique.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261020174000_interview_stage_recruiter_default.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261020175000_submission_stage_recruiter_default.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261021114408_status_reason_codes_by_lane.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261021143000_hire_journey_theme.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261021160000_independent_stage_reason_code_lanes.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261022033000_workflow_mappings_tenant_profession.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261022133000_offer_prep_recruiter_default.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261022152551_application_status_versions.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261022203000_submission_resume_preserve_source_prompt.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261023133000_post_hire_access_after_required_pre_hire.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261023190000_manager_approval_recruiter_default.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261024120000_worker_resumes_file_hash_idx.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261026113000_profession_document_vaccination_other.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261026120000_application_list_analyzed_tab.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261027021000_staff_roles_hr_manager_finance_support.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261027023000_staff_roles_policy_split.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261028020000_security_auth_events.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261028095904_make_commission_fixed_amount_optional.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261103175351_team_productivity_analytics.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261103175708_tenant_professions_immutable_no_edit.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261103180020_tenant_professions_allow_name_edit.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261106103000_dialpad_call_api_permission.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261107044000_worker_time_off.sql",
+      "status": "different_version",
+      "remote_version": "20261106202322"
+    },
+    {
+      "file": "20261110010000_tenant_inbound_api_keys.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261110013000_integrations_api_permission.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261110014500_job_applications_source_api.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261110020000_job_applications_source_match.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261111020000_applicant_email_required_guard.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261112040000_worker_user_settings_fields.sql",
+      "status": "different_version",
+      "remote_version": "20261111194443"
+    },
+    {
+      "file": "20261112063046_worker_profession_document_uploads_uploaded_by.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261112065801_worker_profession_document_uploads_cert_meta.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261112080428_staff_user_settings_profile_fields.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261112105858_staff_application_list_unique_applicants.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261112140000_allow_auth_linked_applicant_profile_without_email.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261112161856_tenant_task_settings.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261113110000_tenant_profession_documents_created_by.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261113185538_security_rpc_access_boundaries.sql",
+      "status": "not_reconciled"
+    },
+    {
+      "file": "20261113192554_security_data_api_write_boundaries.sql",
+      "status": "not_reconciled"
+    }
+  ],
+  "remote_only": [
+    {
+      "version": "20260409000000",
+      "name": "baseline_core_schema"
+    },
+    {
+      "version": "20260409010000",
+      "name": "baseline_supporting_catalog"
+    },
+    {
+      "version": "20260706140000",
+      "name": "healthcare_skill_assessment_catalog"
+    },
+    {
+      "version": "20260714154039",
+      "name": "job_requisition_ats_complete"
+    },
+    {
+      "version": "20260714162720",
+      "name": "job_requisitions"
+    },
+    {
+      "version": "20260714162813",
+      "name": "job_requisition_ats_columns_dev"
+    },
+    {
+      "version": "20260715152359",
+      "name": "fix_permissive_skill_answer_rls"
+    },
+    {
+      "version": "20260715152938",
+      "name": "sync_prod_missing_tables_part1_enums_core"
+    },
+    {
+      "version": "20260715153021",
+      "name": "sync_prod_missing_tables_part2_shifts_logs"
+    },
+    {
+      "version": "20260911200513",
+      "name": "add_premade_workflow_preset_columns"
+    },
+    {
+      "version": "20260911200720",
+      "name": "seed_default_w2_1099_workflow_presets"
+    },
+    {
+      "version": "20260911200755",
+      "name": "seed_default_rnr_workflow_preset"
+    }
+  ],
+  "duplicate_local_versions": [
+    [
+      "20260410170000_add_worker_status.sql",
+      "20260410170000_worker_documents_ssn_dl_back_urls.sql"
+    ],
+    [
+      "20260630140000_performance_query_indexes.sql",
+      "20260630140000_worker_profile_detail_columns.sql"
+    ],
+    [
+      "20260701150000_worker_onboarding_application_submission.sql",
+      "20260701150000_worker_profile_skills.sql"
+    ],
+    [
+      "20260704120000_applicant_conversation_reads_and_worker_converted_status.sql",
+      "20260704120000_resume_continuation_email_template.sql"
+    ],
+    [
+      "20260708120000_tenant_favicon_url.sql",
+      "20260708120000_worker_for_approval_status.sql"
+    ],
+    [
+      "20260929233000_candidates_list_bounded_unique_page.sql",
+      "20260929233000_match_requirement_mandatory_confirmed.sql"
+    ],
+    [
+      "20261002150000_follow_up_uses_step1_and_step2_context.sql",
+      "20261002150000_reset_auto_completed_post_hire_profile_steps.sql"
+    ]
+  ]
+}

@@ -17,6 +17,33 @@ const ROOT = path.resolve(__dirname, "../..");
 const NON_PAGE_DIRS = new Set(["components", "hooks"]);
 
 describe("permission catalog", () => {
+  it("maps time APIs to existing Scheduling grants",()=>{
+    for(const path of ["/api/v1/clock-events","/api/v1/clock-ins","/api/v1/timesheets","/api/v1/timesheets/id/approve"]) {
+      expect(classifyProtectedPath(path)).toMatchObject({kind:"resource",resourceKey:"scheduling"});
+    }
+  });
+  it("maps worker request list and review routes to Scheduling grants", () => {
+    for (const path of ["/api/v1/worker-requests", "/api/v1/worker-requests/id/approve", "/api/v1/worker-requests/id/reject"]) {
+      expect(classifyProtectedPath(path)).toMatchObject({ kind: "resource", resourceKey: "scheduling" });
+    }
+  });
+  it("protects the v1 scheduling routes with existing scheduling grants", () => {
+    for (const path of ["/api/v1/schedules", "/api/v1/schedules/who-is-off", "/api/v1/tenant-holidays", "/api/v1/shifts", "/api/v1/shifts/shift-id/assignments"]) {
+      expect(classifyProtectedPath(path)).toMatchObject({ kind: "resource", resourceKey: "scheduling" });
+    }
+  });
+  it("protects edition administration with company grants and permits feature discovery as a shell read", () => {
+    expect(classifyProtectedPath("/api/v1/tenants/me/features").kind).toBe("shell");
+    expect(classifyProtectedPath("/api/v1/me/permissions").kind).toBe("shell");
+    expect(classifyProtectedPath("/api/v1/departments")).toMatchObject({ kind: "resource", resourceKey: "settings_company" });
+    for (const path of [
+      "/api/v1/tenants/me/edition",
+      "/api/v1/tenants/me/feature-overrides/bill_rates",
+      "/api/v1/admin/edition-features",
+    ]) {
+      expect(classifyProtectedPath(path)).toMatchObject({ kind: "resource", resourceKey: "settings_company" });
+    }
+  });
   it("keeps dashboard out of the role editor and always granted", () => {
     expect(editorPermissionResources().some((resource) => resource.key === "dashboard")).toBe(false);
     expect(PERMISSION_RESOURCES.find((resource) => resource.key === "dashboard")?.alwaysGranted).toBe(true);

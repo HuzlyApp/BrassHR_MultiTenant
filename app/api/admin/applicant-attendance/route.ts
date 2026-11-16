@@ -8,7 +8,7 @@ import {
   type ClockInScheduleShift,
 } from "@/lib/attendance/clock-ins";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { addEasternDays, easternDateString, startOfEasternWeek } from "@/lib/datetime/eastern";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
@@ -85,8 +85,8 @@ function personName(first: string | null | undefined, last: string | null | unde
   return [first, last].filter(Boolean).join(" ").trim();
 }
 
-async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean> {
-  const { error } = await supabase.from("applicant_attendance_logs").select("claimed_at").limit(0);
+async function supportsClaimTracking(supabase: SupabaseClient,tenantId:string): Promise<boolean> {
+  const { error } = await supabase.from("applicant_attendance_logs").select("claimed_at").eq("tenant_id",tenantId).limit(0);
   if (!error) return true;
   if (error.message.toLowerCase().includes("claimed_at")) return false;
   throw error;
@@ -106,12 +106,13 @@ export async function GET(req: NextRequest) {
     const auth = await requireStaffApiSession();
     if (auth instanceof NextResponse) return auth;
 
-    const scope = await resolveStaffTenantScope(auth.authUser);
     const supabase = createServiceRoleClient();
     if (!supabase) {
       return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
     }
 
+    const tenantId=await resolveStaffTenantId(supabase,auth);
+    if(!tenantId) return NextResponse.json({error:"Select an authorized tenant"},{status:403});
     const url = req.nextUrl;
     const fallbackWeek = currentEasternWeek();
     const start = parseDateParam(url.searchParams.get("start")) ?? fallbackWeek.start;
@@ -124,7 +125,6 @@ export async function GET(req: NextRequest) {
     const facilityFilter = url.searchParams.get("facility")?.trim() ?? "";
     const departmentFilter = url.searchParams.get("department")?.trim() ?? "";
     const statusParam = url.searchParams.get("status")?.trim() ?? "";
-    const tenantId = scope.mode === "scoped" ? scope.tenantId : null;
 
     let shiftQuery = supabase
       .from("employee_schedule_shifts")
@@ -146,12 +146,10 @@ export async function GET(req: NextRequest) {
     let facilityQuery = supabase.from("facility").select("id, name").order("name", { ascending: true });
     let departmentQuery = supabase.from("departments").select("id, name").order("name", { ascending: true });
 
-    if (tenantId) {
-      shiftQuery = shiftQuery.eq("tenant_id", tenantId);
-      logQuery = logQuery.eq("tenant_id", tenantId);
-      facilityQuery = facilityQuery.eq("tenant_id", tenantId);
-      departmentQuery = departmentQuery.eq("tenant_id", tenantId);
-    }
+    shiftQuery = shiftQuery.eq("tenant_id", tenantId);
+    logQuery = logQuery.eq("tenant_id", tenantId);
+    facilityQuery = facilityQuery.eq("tenant_id", tenantId);
+    departmentQuery = departmentQuery.eq("tenant_id", tenantId);
 
     const [shiftRes, logRes, facilityRes, departmentRes] = await Promise.all([
       shiftQuery,
@@ -184,16 +182,18 @@ export async function GET(req: NextRequest) {
         supabase
           .from("workers")
           .select("id, candidate_id, first_name, last_name, email, job_role")
+          .eq("tenant_id",tenantId)
           .in("id", chunk)
       ),
       queryInChunks<EmploymentWorker>(candidateIdsFromLogs, (chunk) =>
         supabase
           .from("workers")
           .select("id, candidate_id, first_name, last_name, email, job_role")
+          .eq("tenant_id",tenantId)
           .in("candidate_id", chunk)
       ),
       queryInChunks<CandidateWorker>(candidateIdsFromLogs, (chunk) =>
-        supabase.from("worker").select("id, first_name, last_name, email, job_role").in("id", chunk)
+        supabase.from("worker").select("id, first_name, last_name, email, job_role").eq("tenant_id",tenantId).in("id", chunk)
       ),
     ]);
     if (employmentRes.error) throw employmentRes.error;
@@ -322,13 +322,14 @@ export async function PATCH(req: NextRequest) {
     const auth = await requireStaffApiSession();
     if (auth instanceof NextResponse) return auth;
 
-    const scope = await resolveStaffTenantScope(auth.authUser);
     const supabase = createServiceRoleClient();
     if (!supabase) {
       return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
     }
 
-    const claimTrackingEnabled = await supportsClaimTracking(supabase);
+    const tenantId=await resolveStaffTenantId(supabase,auth);
+    if(!tenantId) return NextResponse.json({error:"Select an authorized tenant"},{status:403});
+    const claimTrackingEnabled = await supportsClaimTracking(supabase,tenantId);
     if (!claimTrackingEnabled) {
       return NextResponse.json(
         {
@@ -356,7 +357,7 @@ export async function PATCH(req: NextRequest) {
       .select("id, tenant_id, worker_id, attendance_date, status, claimed_at")
       .eq("id", idCheck.value);
 
-    if (scope.mode === "scoped") lookup = lookup.eq("tenant_id", scope.tenantId);
+    lookup = lookup.eq("tenant_id", tenantId);
 
     const { data: existing, error: lookupError } = await lookup.maybeSingle();
     if (lookupError) throw lookupError;
@@ -378,7 +379,7 @@ export async function PATCH(req: NextRequest) {
       })
       .eq("id", idCheck.value);
 
-    if (scope.mode === "scoped") update = update.eq("tenant_id", scope.tenantId);
+    update = update.eq("tenant_id", tenantId);
 
     const { error: updateError } = await update;
     if (updateError) throw updateError;
