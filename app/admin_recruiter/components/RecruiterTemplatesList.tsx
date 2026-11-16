@@ -4,14 +4,28 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ChevronDown, FileSignature, Plus, Search } from "lucide-react";
+import { FileSignature, FolderPlus, Plus, Search } from "lucide-react";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
+import CreateFolderModal from "@/app/admin_recruiter/components/CreateFolderModal";
+import FolderCreateSuccessModal from "@/app/admin_recruiter/components/FolderCreateSuccessModal";
 import {
-  RECRUITER_TEMPLATE_CATEGORIES,
-  RECRUITER_TEMPLATE_CATEGORY_LABELS,
-  RECRUITER_TEMPLATE_STATUSES,
-} from "@/lib/recruiter-templates/constants";
+  FolderCard,
+  NAVY,
+  SectionHeading,
+  TemplateCard,
+} from "@/app/admin_recruiter/components/RecruiterTemplateCards";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import type { RecruiterTemplateListItem } from "@/lib/recruiter-templates/types";
+import {
+  countFolderStatuses,
+  createTemplateFolder,
+  deleteTemplateFolder,
+  getAssignedTemplateIds,
+  readTemplateFolders,
+  resolveFolderStorageScope,
+  updateTemplateFolder,
+  type RecruiterTemplateFolder,
+} from "@/lib/recruiter-templates/template-folders-storage";
 
 type ListResponse = {
   templates?: RecruiterTemplateListItem[];
@@ -20,130 +34,35 @@ type ListResponse = {
   detail?: string;
 };
 
-function statusBadgeClass(status: string): string {
-  switch (status) {
-    case "active":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
-    case "archived":
-      return "bg-slate-100 text-slate-600 ring-slate-500/20";
-    default:
-      return "bg-amber-50 text-amber-800 ring-amber-600/20";
-  }
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", { timeZone: "America/New_York", 
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-const fieldClassName =
-  "w-full min-w-0 rounded-lg border border-[#D0D5DD] bg-white px-2.5 py-1.5 text-[13px] text-[#101828] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)] min-[700px]:px-3 min-[700px]:py-2 min-[700px]:text-sm";
-
-const selectClassName = `${fieldClassName} cursor-pointer appearance-none pr-9 min-[700px]:pr-10`;
-
-const actionBtnClass =
-  "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-[#D0D5DD] px-2 py-1 text-[11px] font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50 min-[700px]:px-2.5 min-[700px]:py-1.5 min-[700px]:text-xs";
-
-const actionDangerClass =
-  "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-[#D0D5DD] px-2 py-1 text-[11px] font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50 min-[700px]:px-2.5 min-[700px]:py-1.5 min-[700px]:text-xs";
-
-const actionDeleteClass =
-  "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-[#FDA29B] px-2 py-1 text-[11px] font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50 min-[700px]:px-2.5 min-[700px]:py-1.5 min-[700px]:text-xs";
-
-function TemplateActions({
-  template,
-  busy,
-  onAction,
-}: {
-  template: RecruiterTemplateListItem;
-  busy: boolean;
-  onAction: (action: "duplicate" | "archive" | "delete" | "signing-request") => void;
-}) {
-  return (
-    <div className="flex flex-nowrap items-center justify-end gap-1.5 min-[700px]:gap-2">
-      <Link
-        href={`/admin_recruiter/template-builder/${template.id}`}
-        className={actionBtnClass}
-      >
-        Edit
-      </Link>
-      <Link
-        href={`/admin_recruiter/template-builder/${template.id}?preview=1`}
-        className={actionBtnClass}
-      >
-        Preview
-      </Link>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => onAction("duplicate")}
-        className={actionBtnClass}
-      >
-        Duplicate
-      </button>
-      {template.status === "active" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onAction("signing-request")}
-          className={actionBtnClass}
-        >
-          Signing request
-        </button>
-      ) : null}
-      {template.status !== "archived" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onAction("archive")}
-          className={actionDangerClass}
-        >
-          Archive
-        </button>
-      ) : (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onAction("delete")}
-          className={actionDeleteClass}
-        >
-          Delete
-        </button>
-      )}
-    </div>
-  );
-}
-
-type DocumentTemplateTab = "esign" | "normal";
+type DocumentTemplateTab = "all" | "esign" | "normal";
 
 export default function RecruiterTemplatesList() {
   const router = useRouter();
+  const branding = useTenantBranding();
+  const primary = branding.primaryHex || NAVY;
+  const folderScope = resolveFolderStorageScope(branding.id, branding.slug);
+
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<RecruiterTemplateListItem[]>([]);
+  const [folders, setFolders] = useState<RecruiterTemplateFolder[]>([]);
   const [tenantMissing, setTenantMissing] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [documentTab, setDocumentTab] = useState<DocumentTemplateTab>("esign");
+  const [documentTab, setDocumentTab] = useState<DocumentTemplateTab>("all");
   const [actionId, setActionId] = useState<string | null>(null);
 
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams();
-    if (search.trim()) params.set("search", search.trim());
-    if (statusFilter) params.set("status", statusFilter);
-    if (categoryFilter) params.set("category", categoryFilter);
-    const qs = params.toString();
-    return qs ? `?${qs}` : "";
-  }, [search, statusFilter, categoryFilter]);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
+  const [successFolder, setSuccessFolder] = useState<{ name: string; id: string } | null>(null);
+
+  const refreshFolders = useCallback(() => {
+    setFolders(readTemplateFolders(folderScope));
+  }, [folderScope]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await recruiterTemplateFetch(`/api/admin/recruiter-templates${queryString}`);
+      const res = await recruiterTemplateFetch("/api/admin/recruiter-templates");
       const payload = (await res.json()) as ListResponse;
       if (!res.ok) {
         if (payload.code === "TENANT_REQUIRED") {
@@ -160,19 +79,51 @@ export default function RecruiterTemplatesList() {
     } finally {
       setLoading(false);
     }
-  }, [queryString]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const visibleTemplates = useMemo(() => {
-    return templates.filter((template) =>
-      documentTab === "esign"
-        ? Boolean(template.firma_template_id)
-        : !template.firma_template_id
-    );
+  useEffect(() => {
+    refreshFolders();
+  }, [refreshFolders]);
+
+  const filteredByTab = useMemo(() => {
+    return templates.filter((template) => {
+      if (documentTab === "esign") return Boolean(template.firma_template_id);
+      if (documentTab === "normal") return !template.firma_template_id;
+      return true;
+    });
   }, [documentTab, templates]);
+
+  const searchFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return filteredByTab;
+    return filteredByTab.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.description ?? "").toLowerCase().includes(q)
+    );
+  }, [filteredByTab, search]);
+
+  const assignedIds = useMemo(() => getAssignedTemplateIds(folders), [folders]);
+
+  const uncategorized = useMemo(
+    () => searchFiltered.filter((t) => !assignedIds.has(t.id)),
+    [assignedIds, searchFiltered]
+  );
+
+  const firstActiveId = useMemo(
+    () => searchFiltered.find((t) => t.status === "active")?.id ?? null,
+    [searchFiltered]
+  );
+
+  const visibleFolders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return folders;
+    return folders.filter((f) => f.name.toLowerCase().includes(q));
+  }, [folders, search]);
 
   const runAction = async (
     templateId: string,
@@ -232,28 +183,74 @@ export default function RecruiterTemplatesList() {
     }
   };
 
+  const handleCreateFolder = async (payload: { name: string; templateIds: string[] }) => {
+    setCreatingFolder(true);
+    setFolderError(null);
+    try {
+      const folder = createTemplateFolder(folderScope, payload.name, payload.templateIds);
+      refreshFolders();
+      setCreateFolderOpen(false);
+      setSuccessFolder({ name: folder.name, id: folder.id });
+    } catch (e) {
+      setFolderError(e instanceof Error ? e.message : "Could not create folder");
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
+  const handleRenameFolder = (folder: RecruiterTemplateFolder) => {
+    const next = window.prompt("Rename folder", folder.name);
+    if (next == null) return;
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === folder.name) return;
+    updateTemplateFolder(folderScope, folder.id, { name: trimmed });
+    refreshFolders();
+    toast.success("Folder renamed");
+  };
+
+  const handleDeleteFolder = (folder: RecruiterTemplateFolder) => {
+    if (!window.confirm(`Delete folder “${folder.name}”? Templates stay uncategorized.`)) return;
+    deleteTemplateFolder(folderScope, folder.id);
+    refreshFolders();
+    toast.success("Folder deleted");
+  };
+
   return (
-    <div className="space-y-3 min-[700px]:space-y-6">
-      <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between lg:items-center">
+    <div className="space-y-5 min-[700px]:space-y-6">
+      <div className="flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-start min-[640px]:justify-between">
         <div className="min-w-0">
-          <h1 className="text-base font-semibold leading-6 text-[#101828] min-[700px]:text-xl min-[700px]:leading-7">
-            Template Builder
+          <h1 className="text-xl font-semibold leading-7 text-[#101828] min-[700px]:text-2xl">
+            Templates
           </h1>
-          <p className="mt-0.5 text-[12px] leading-4 text-[#667085] min-[700px]:mt-1 min-[700px]:text-sm min-[700px]:leading-5">
-            Create and manage e-signature templates for recruiting workflows.
+          <p className="mt-1 text-sm leading-5 text-[#667085]">
+            Create and organize recruiting document templates into libraries.
           </p>
         </div>
-        <Link
-          href="/admin_recruiter/template-builder/new"
-          className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-accent)] px-3 text-[13px] font-semibold text-white shadow-sm min-[480px]:w-auto min-[700px]:h-10 min-[700px]:gap-2 min-[700px]:px-4 min-[700px]:text-sm"
-        >
-          <Plus className="h-3.5 w-3.5 min-[700px]:h-4 min-[700px]:w-4" />
-          New template
-        </Link>
+        <div className="flex w-full flex-col gap-2 min-[480px]:flex-row min-[640px]:w-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setFolderError(null);
+              setCreateFolderOpen(true);
+            }}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#D0D5DD] bg-white px-3.5 text-sm font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+          >
+            <FolderPlus className="h-4 w-4" />
+            Create a folder
+          </button>
+          <Link
+            href="/admin_recruiter/template-builder/new"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold text-white hover:brightness-95"
+            style={{ backgroundColor: primary }}
+          >
+            <Plus className="h-4 w-4" />
+            New Template
+          </Link>
+        </div>
       </div>
 
       {tenantMissing ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900 min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-semibold">Tenant required</p>
           <p className="mt-1">
             Select a tenant using the tenant switcher in the header before managing templates.
@@ -261,177 +258,154 @@ export default function RecruiterTemplatesList() {
         </div>
       ) : null}
 
-      <div className="flex gap-6 border-b border-[#E5E7EB]">
-        {(
-          [
-            ["esign", "Esign Documents"],
-            ["normal", "Normal Documents"],
-          ] as const
-        ).map(([key, label]) => {
-          const active = documentTab === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setDocumentTab(key)}
-              className={`-mb-px border-b-2 pb-2.5 text-sm font-medium ${
-                active
-                  ? "border-[color:var(--brand-primary,#BC8B41)] text-[#111827]"
-                  : "border-transparent text-[#6B7280]"
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col gap-2 rounded-xl border border-[#EAECF0] bg-white p-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-3 min-[700px]:p-4">
-        <div className="flex h-9 w-full min-w-0 max-w-none items-center rounded-md border border-[#D0D5DD] bg-white px-2.5 transition-colors focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] min-[700px]:h-9 min-[700px]:max-w-[360px] min-[700px]:px-3">
-          <Search
-            className="mr-1.5 h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)] min-[700px]:mr-2 min-[700px]:h-4 min-[700px]:w-4"
-            aria-hidden
-          />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-5 border-b border-[#E5E7EB]">
+          {(
+            [
+              ["all", "All"],
+              ["esign", "Esign Documents"],
+              ["normal", "Normal Documents"],
+            ] as const
+          ).map(([key, label]) => {
+            const active = documentTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDocumentTab(key)}
+                className={`-mb-px border-b-2 pb-2.5 text-sm font-medium ${
+                  active
+                    ? "border-[color:var(--brand-primary,#012352)] text-[#111827]"
+                    : "border-transparent text-[#6B7280]"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex h-10 w-full max-w-md items-center rounded-lg border border-[#D0D5DD] bg-white px-3 focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] sm:ml-auto">
+          <Search className="mr-2 h-4 w-4 shrink-0 text-[#98A2B3]" aria-hidden />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search templates..."
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-[#101828] outline-none placeholder:text-[#98A2B3] min-[700px]:text-sm"
-          />
-        </div>
-        <div className="relative w-full min-[700px]:ml-auto min-[700px]:w-auto min-[700px]:min-w-[140px]">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={selectClassName}
-          >
-            <option value="">All statuses</option>
-            {RECRUITER_TEMPLATE_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#667085] min-[700px]:right-3 min-[700px]:h-4 min-[700px]:w-4"
-            aria-hidden
-          />
-        </div>
-        <div className="relative w-full min-[700px]:w-auto min-[700px]:min-w-[160px]">
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className={selectClassName}
-          >
-            <option value="">All types</option>
-            {RECRUITER_TEMPLATE_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {RECRUITER_TEMPLATE_CATEGORY_LABELS[category]}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#667085] min-[700px]:right-3 min-[700px]:h-4 min-[700px]:w-4"
-            aria-hidden
+            placeholder="Search templates or folders…"
+            className="min-w-0 flex-1 bg-transparent text-sm text-[#101828] outline-none placeholder:text-[#98A2B3]"
           />
         </div>
       </div>
 
-      {loading ? null : visibleTemplates.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#D0D5DD] bg-white px-4 py-12 text-center min-[700px]:px-6 min-[700px]:py-16">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] min-[700px]:h-12 min-[700px]:w-12">
-            <FileSignature className="h-5 w-5 text-[#667085] min-[700px]:h-6 min-[700px]:w-6" />
+      {loading ? (
+        <div className="rounded-xl border border-[#EAECF0] bg-white px-4 py-12 text-center text-sm text-[#667085]">
+          Loading templates…
+        </div>
+      ) : templates.length === 0 && folders.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[#D0D5DD] bg-white px-6 py-16 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F2F4F7]">
+            <FileSignature className="h-6 w-6 text-[#667085]" />
           </div>
-          <h2 className="mt-3 text-base font-semibold text-[#101828] min-[700px]:mt-4 min-[700px]:text-lg">
-            {templates.length === 0
-              ? "No templates yet"
-              : documentTab === "esign"
-                ? "No e-sign documents"
-                : "No normal documents"}
-          </h2>
-          <p className="mt-1.5 text-[13px] text-[#667085] min-[700px]:mt-2 min-[700px]:text-sm">
-            {templates.length === 0
-              ? "Create your first recruiting template to get started."
-              : documentTab === "esign"
-                ? "Templates linked to Firma e-sign appear here."
-                : "Templates without a Firma e-sign link appear here."}
+          <h2 className="mt-4 text-lg font-semibold text-[#101828]">No templates yet</h2>
+          <p className="mt-2 text-sm text-[#667085]">
+            Create your first recruiting template or organize work with a folder.
           </p>
-          <Link
-            href="/admin_recruiter/template-builder/new"
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-3.5 py-2 text-[13px] font-semibold text-white min-[700px]:mt-6 min-[700px]:px-4 min-[700px]:py-2.5 min-[700px]:text-sm"
-          >
-            <Plus className="h-3.5 w-3.5 min-[700px]:h-4 min-[700px]:w-4" />
-            Create your first recruiting template
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCreateFolderOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-4 py-2.5 text-sm font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+            >
+              <FolderPlus className="h-4 w-4" />
+              Create a folder
+            </button>
+            <Link
+              href="/admin_recruiter/template-builder/new"
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ backgroundColor: primary }}
+            >
+              <Plus className="h-4 w-4" />
+              New Template
+            </Link>
+          </div>
         </div>
       ) : (
-        <div className="-mx-1 overflow-x-auto rounded-xl border border-[#EAECF0] bg-white min-[700px]:mx-0">
-          <table className="min-w-[640px] w-full divide-y divide-[#EAECF0] text-[12px] min-[700px]:min-w-[720px] min-[700px]:text-sm">
-            <thead className="bg-[#F3F4F6]">
-              <tr>
-                <th className="px-2.5 py-2 text-left text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
-                  Name
-                </th>
-                <th className="px-2.5 py-2 text-left text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
-                  Type
-                </th>
-                <th className="px-2.5 py-2 text-left text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
-                  Status
-                </th>
-                <th className="px-2.5 py-2 text-left text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
-                  Created
-                </th>
-                <th className="px-2.5 py-2 text-left text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
-                  Updated
-                </th>
-                <th className="px-2.5 py-2 text-right text-[11px] font-medium text-[#667085] min-[700px]:px-4 min-[700px]:py-3 min-[700px]:text-sm">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#EAECF0]">
-              {visibleTemplates.map((template) => (
-                <tr key={template.id} className="hover:bg-[#FCFCFD]">
-                  <td className="px-2.5 py-2 min-[700px]:px-4 min-[700px]:py-3">
-                    <div className="max-w-[140px] font-medium text-[#101828] min-[700px]:max-w-none">
-                      {template.name}
-                    </div>
-                    {template.description ? (
-                      <div className="mt-0.5 line-clamp-1 max-w-[140px] text-[10px] text-[#667085] min-[700px]:max-w-none min-[700px]:text-xs">
-                        {template.description}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-[#344054] min-[700px]:px-4 min-[700px]:py-3">
-                    {RECRUITER_TEMPLATE_CATEGORY_LABELS[template.category]}
-                  </td>
-                  <td className="px-2.5 py-2 min-[700px]:px-4 min-[700px]:py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ring-inset min-[700px]:px-2.5 min-[700px]:text-xs ${statusBadgeClass(template.status)}`}
-                    >
-                      {template.status}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-[#667085] min-[700px]:px-4 min-[700px]:py-3">
-                    {formatDate(template.created_at)}
-                  </td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-[#667085] min-[700px]:px-4 min-[700px]:py-3">
-                    {formatDate(template.updated_at)}
-                  </td>
-                  <td className="px-2.5 py-2 min-[700px]:px-4 min-[700px]:py-3">
-                    <TemplateActions
-                      template={template}
-                      busy={actionId === template.id}
-                      onAction={(action) => void runAction(template.id, action)}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-8">
+          <section>
+            <SectionHeading title="Uncategorized" count={uncategorized.length} />
+            {uncategorized.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] px-4 py-8 text-center text-sm text-[#667085]">
+                {searchFiltered.length === 0
+                  ? "No templates match this filter."
+                  : "All matching templates are in a library folder."}
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {uncategorized.map((template) => (
+                  <TemplateCard
+                    key={template.id}
+                    template={template}
+                    busy={actionId === template.id}
+                    showDefaultBadge={template.id === firstActiveId}
+                    onAction={(action) => void runAction(template.id, action)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <SectionHeading title="Libraries" count={visibleFolders.length} />
+            {visibleFolders.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] px-4 py-8 text-center">
+                <p className="text-sm text-[#667085]">
+                  No folders yet. Create a library to group templates.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCreateFolderOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-primary,#012352)] hover:underline"
+                >
+                  <FolderPlus className="h-4 w-4" />
+                  Create a folder
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {visibleFolders.map((folder) => (
+                  <FolderCard
+                    key={folder.id}
+                    folder={folder}
+                    counts={countFolderStatuses(folder, templates)}
+                    href={`/admin_recruiter/template-builder/folder/${folder.id}`}
+                    onRename={() => handleRenameFolder(folder)}
+                    onDelete={() => handleDeleteFolder(folder)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
+
+      <CreateFolderModal
+        open={createFolderOpen}
+        onClose={() => setCreateFolderOpen(false)}
+        onCreate={handleCreateFolder}
+        templates={templates.map((t) => ({ id: t.id, name: t.name, status: t.status }))}
+        creating={creatingFolder}
+        error={folderError}
+      />
+
+      <FolderCreateSuccessModal
+        open={Boolean(successFolder)}
+        folderName={successFolder?.name ?? ""}
+        folderHref={
+          successFolder
+            ? `/admin_recruiter/template-builder/folder/${successFolder.id}`
+            : "/admin_recruiter/template-builder"
+        }
+        onClose={() => setSuccessFolder(null)}
+      />
     </div>
   );
 }
