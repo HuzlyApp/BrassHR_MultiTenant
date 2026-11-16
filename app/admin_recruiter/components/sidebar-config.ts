@@ -400,6 +400,7 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
       `${SETTINGS_ROUTE}/user-management`,
       `${SETTINGS_ROUTE}/admin-console`,
       `${SETTINGS_ROUTE}/roles`,
+      `${SETTINGS_ROUTE}/departments`,
       `${SETTINGS_ROUTE}/hiring-theme`,
       "/admin_recruiter/account/business-info",
     ],
@@ -412,17 +413,21 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
       {
         label: "User Management",
         href: `${SETTINGS_ROUTE}/user-management`,
-        matchPrefixes: [`${SETTINGS_ROUTE}/user-management`, `${SETTINGS_ROUTE}/admin-console`],
+        matchPrefixes: [
+          `${SETTINGS_ROUTE}/user-management`,
+          `${SETTINGS_ROUTE}/admin-console`,
+          `${SETTINGS_ROUTE}/roles`,
+        ],
+      },
+      {
+        label: "Departments",
+        href: `${SETTINGS_ROUTE}/departments`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/departments`],
       },
       {
         label: "Branding",
         href: SETTINGS_BRANDING_ROUTE,
         matchPrefixes: [SETTINGS_BRANDING_ROUTE, `${SETTINGS_ROUTE}/hiring-theme`],
-      },
-      {
-        label: "User Roles",
-        href: `${SETTINGS_ROUTE}/roles`,
-        matchPrefixes: [`${SETTINGS_ROUTE}/roles`],
       },
     ],
   },
@@ -472,20 +477,12 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
     resourceKey: "settings_help",
     matchPrefixes: [HELP_SUPPORT_ROUTE],
   },
-  {
-    label: "Reports",
-    href: "#",
-    resourceKey: "settings_reports",
-    matchPrefixes: [REPORTS_BASE],
-    children: REPORTS_CHILDREN,
-  },
 ];
 
 const SETTINGS_MATCH_PREFIXES = [
   SETTINGS_ROUTE,
   "/admin_recruiter/account/business-info",
   HELP_SUPPORT_ROUTE,
-  REPORTS_BASE,
 ];
 
 /** Company admin: Automation lives under Settings (Templates already under Hiring Setup). */
@@ -584,6 +581,14 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
+    label: "Reports",
+    href: "#",
+    resourceKey: "settings_reports",
+    iconType: ICON.reports,
+    matchPrefixes: [REPORTS_BASE],
+    children: REPORTS_CHILDREN,
+  },
+  {
     label: "Mail",
     href: MAIL_ROUTE,
     resourceKey: "mail",
@@ -597,7 +602,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.chat,
     matchPrefixes: ["/admin_recruiter/messages"],
   },
-  // Help & Support + Reports live under Settings mini-sidebar only (SETTINGS_CHILDREN).
+  // Help & Support lives under Settings mini-sidebar; Reports is on the main rail below Pay.
   ADMIN_SETTINGS_SECTION,
 ];
 

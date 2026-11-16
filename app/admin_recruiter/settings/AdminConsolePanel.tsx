@@ -18,12 +18,13 @@ import {
   type StaffAccountStatus,
   type StaffDirectoryRow,
 } from "@/lib/admin/staff-directory-types";
+import RolePermissionsPanel from "@/app/admin_recruiter/settings/RolePermissionsPanel";
 
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 
 type StaffRoleOption = { key: string; label: string; isAdmin: boolean };
 
-type ConsoleTab = "admins" | "recruiters";
+type ConsoleTab = "admins" | "recruiters" | "roles";
 
 const PAGE_SIZES = [5, 10, 20] as const;
 const ADMIN_ROLE_KEYS = new Set(["admin", "owner", "god_admin"]);
@@ -222,8 +223,14 @@ function RowActionMenu({
 
 export default function AdminConsolePanel({
   embedInSettingsPage = false,
+  canEdit = true,
+  canDelete = true,
+  initialTab = "admins",
 }: {
   embedInSettingsPage?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  initialTab?: ConsoleTab;
 } = {}) {
   const [users, setUsers] = useState<StaffDirectoryRow[]>([]);
   const [roleOptions, setRoleOptions] = useState<StaffRoleOption[]>([]);
@@ -233,7 +240,7 @@ export default function AdminConsolePanel({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [tab, setTab] = useState<ConsoleTab>("admins");
+  const [tab, setTab] = useState<ConsoleTab>(initialTab);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(5);
   const [page, setPage] = useState(1);
   const [confirm, setConfirm] = useState<{
@@ -301,6 +308,11 @@ export default function AdminConsolePanel({
   }, []);
 
   function defaultRoleForTab(nextTab: ConsoleTab): string {
+    if (nextTab === "roles") {
+      return roleOptions.find((option) => option.key === "recruiter")?.key
+        ?? roleOptions.find((option) => !option.isAdmin)?.key
+        ?? "recruiter";
+    }
     if (nextTab === "admins") {
       return roleOptions.find((option) => option.isAdmin)?.key ?? "admin";
     }
@@ -432,15 +444,17 @@ export default function AdminConsolePanel({
             </p>
           </div>
         )}
-        <button
-          type="button"
-          onClick={openInvite}
-          disabled={loading}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60"
-        >
-          <UserPlus className="h-4 w-4" aria-hidden />
-          Invite User
-        </button>
+        {tab === "roles" ? null : (
+          <button
+            type="button"
+            onClick={openInvite}
+            disabled={loading}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden />
+            Invite User
+          </button>
+        )}
       </div>
 
       {error ? (
@@ -457,6 +471,7 @@ export default function AdminConsolePanel({
           [
             ["admins", "Admins"],
             ["recruiters", "Recruiters"],
+            ["roles", "Roles & Permissions"],
           ] as const
         ).map(([key, label]) => {
           const active = tab === key;
@@ -479,6 +494,9 @@ export default function AdminConsolePanel({
         })}
       </div>
 
+      {tab === "roles" ? (
+        <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />
+      ) : (
       <div className="overflow-hidden rounded-lg bg-white">
         {loading ? (
           <div className="space-y-2 p-4" aria-busy="true">
@@ -744,6 +762,7 @@ export default function AdminConsolePanel({
           </div>
         ) : null}
       </div>
+      )}
 
       {inviteOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">

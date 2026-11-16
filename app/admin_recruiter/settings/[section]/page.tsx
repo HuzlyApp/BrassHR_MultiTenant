@@ -28,6 +28,12 @@ export default async function SettingsSectionPage({ params }: PageProps) {
   if (section === "notifications") {
     redirect("/admin_recruiter/account/notifications");
   }
+  if (section === "call") {
+    redirect("/admin_recruiter/account/call");
+  }
+  if (section === "integrations") {
+    redirect("/admin_recruiter/account/integrations");
+  }
   if (section === "template-builder") {
     redirect("/admin_recruiter/template-builder");
   }

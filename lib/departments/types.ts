@@ -1,6 +1,7 @@
 export type DepartmentRecord = {
   id: string;
   name: string;
+  code: string | null;
   description: string | null;
   isActive: boolean;
   jobCount: number;

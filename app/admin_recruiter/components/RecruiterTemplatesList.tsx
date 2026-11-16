@@ -118,6 +118,8 @@ function TemplateActions({
   );
 }
 
+type DocumentTemplateTab = "esign" | "normal";
+
 export default function RecruiterTemplatesList() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -126,6 +128,7 @@ export default function RecruiterTemplatesList() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [documentTab, setDocumentTab] = useState<DocumentTemplateTab>("esign");
   const [actionId, setActionId] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
@@ -162,6 +165,14 @@ export default function RecruiterTemplatesList() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const visibleTemplates = useMemo(() => {
+    return templates.filter((template) =>
+      documentTab === "esign"
+        ? Boolean(template.firma_template_id)
+        : !template.firma_template_id
+    );
+  }, [documentTab, templates]);
 
   const runAction = async (
     templateId: string,
@@ -250,6 +261,31 @@ export default function RecruiterTemplatesList() {
         </div>
       ) : null}
 
+      <div className="flex gap-6 border-b border-[#E5E7EB]">
+        {(
+          [
+            ["esign", "Esign Documents"],
+            ["normal", "Normal Documents"],
+          ] as const
+        ).map(([key, label]) => {
+          const active = documentTab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setDocumentTab(key)}
+              className={`-mb-px border-b-2 pb-2.5 text-sm font-medium ${
+                active
+                  ? "border-[color:var(--brand-primary,#BC8B41)] text-[#111827]"
+                  : "border-transparent text-[#6B7280]"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-col gap-2 rounded-xl border border-[#EAECF0] bg-white p-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-3 min-[700px]:p-4">
         <div className="flex h-9 w-full min-w-0 max-w-none items-center rounded-md border border-[#D0D5DD] bg-white px-2.5 transition-colors focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] min-[700px]:h-9 min-[700px]:max-w-[360px] min-[700px]:px-3">
           <Search
@@ -302,16 +338,24 @@ export default function RecruiterTemplatesList() {
         </div>
       </div>
 
-      {loading ? null : templates.length === 0 ? (
+      {loading ? null : visibleTemplates.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#D0D5DD] bg-white px-4 py-12 text-center min-[700px]:px-6 min-[700px]:py-16">
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[#F2F4F7] min-[700px]:h-12 min-[700px]:w-12">
             <FileSignature className="h-5 w-5 text-[#667085] min-[700px]:h-6 min-[700px]:w-6" />
           </div>
           <h2 className="mt-3 text-base font-semibold text-[#101828] min-[700px]:mt-4 min-[700px]:text-lg">
-            No templates yet
+            {templates.length === 0
+              ? "No templates yet"
+              : documentTab === "esign"
+                ? "No e-sign documents"
+                : "No normal documents"}
           </h2>
           <p className="mt-1.5 text-[13px] text-[#667085] min-[700px]:mt-2 min-[700px]:text-sm">
-            Create your first recruiting template to get started.
+            {templates.length === 0
+              ? "Create your first recruiting template to get started."
+              : documentTab === "esign"
+                ? "Templates linked to Firma e-sign appear here."
+                : "Templates without a Firma e-sign link appear here."}
           </p>
           <Link
             href="/admin_recruiter/template-builder/new"
@@ -347,7 +391,7 @@ export default function RecruiterTemplatesList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAECF0]">
-              {templates.map((template) => (
+              {visibleTemplates.map((template) => (
                 <tr key={template.id} className="hover:bg-[#FCFCFD]">
                   <td className="px-2.5 py-2 min-[700px]:px-4 min-[700px]:py-3">
                     <div className="max-w-[140px] font-medium text-[#101828] min-[700px]:max-w-none">

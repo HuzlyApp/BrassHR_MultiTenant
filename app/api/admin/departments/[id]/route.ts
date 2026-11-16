@@ -27,6 +27,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
+    code?: string | null;
     description?: string | null;
     isActive?: boolean;
   };
