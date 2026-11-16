@@ -119,7 +119,7 @@ describe("staff workflow step review rules", () => {
   it("only offers transitions that change the status", () => {
     expect(allowedStaffActions("pending")).toEqual(["complete", "reject"]);
     expect(allowedStaffActions("in_progress")).toEqual(["complete", "reject"]);
-    expect(allowedStaffActions("failed")).toEqual(["complete", "reopen"]);
+    expect(allowedStaffActions("failed")).toEqual(["reopen"]);
     expect(allowedStaffActions("completed")).toEqual(["reopen"]);
     expect(staffActionTargetStatus("complete")).toBe("completed");
     expect(staffActionTargetStatus("reject")).toBe("failed");
