@@ -14,6 +14,8 @@ export default defineConfig({
     setupFiles: ["./lib/test-utils/vitest-setup.ts"],
     include: ["lib/**/*.test.ts", "lib/**/*.test.tsx", "app/**/*.test.ts", "app/**/*.test.tsx"],
     pool: "threads",
+    // Bound concurrency so module-heavy tests do not exhaust the runner and time out.
+    maxWorkers: 4,
   },
   resolve: {
     alias: {

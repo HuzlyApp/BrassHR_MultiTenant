@@ -45,6 +45,9 @@ function createSupabaseMock(options: {
       if (table === "tenants") {
         return { select: vi.fn(() => tenantQuery) };
       }
+      if (table === "tenant_categories") {
+        return { select: () => ({ eq: vi.fn(() => ({ maybeSingle: async () => ({ data: { category: "staffing" }, error: null }) })) }) };
+      }
       if (table === "job_requisitions") {
         return { select: vi.fn(() => jobQuery) };
       }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { changeApplicationStatusBySystemKey } from "./service";
 import {
   ApplicationStatusError,
   type ChangeApplicationStatusResult,
@@ -174,7 +175,6 @@ describe("changeApplicationStatusBySystemKey mock path", () => {
       from,
     };
 
-    const { changeApplicationStatusBySystemKey } = await import("./service");
     const result = await changeApplicationStatusBySystemKey(supabase as never, {
       tenantId: "t1",
       applicationId: "app-1",

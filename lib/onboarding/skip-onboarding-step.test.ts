@@ -7,12 +7,12 @@ describe("skipOnboardingStep", () => {
     const onNavigate = vi.fn();
 
     await skipOnboardingStep({
-      step: { step_key: "professional_license" },
+      step: { id: "license-step", step_key: "professional_license" },
       updateStepStatus,
       onNavigate,
     });
 
-    expect(updateStepStatus).toHaveBeenCalledWith("professional_license", "skipped", undefined);
+    expect(updateStepStatus).toHaveBeenCalledWith("professional_license", "skipped", undefined, "license-step");
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
@@ -35,7 +35,7 @@ describe("skipOnboardingStep", () => {
     const onNavigate = vi.fn();
 
     await skipOnboardingStep({
-      step: { step_key: "references" },
+      step: { id: "reference-step", step_key: "references" },
       updateStepStatus,
       onNavigate,
     });
