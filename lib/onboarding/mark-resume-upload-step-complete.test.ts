@@ -54,7 +54,8 @@ describe("markResumeUploadStepComplete", () => {
     expect(updateStepStatus).toHaveBeenCalledWith(
       "resume_upload",
       "completed",
-      { resume_path: "tenant/resume.pdf" }
+      { resume_path: "tenant/resume.pdf" },
+      undefined
     );
   });
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CallSettingsPanel from "@/app/admin_recruiter/settings/CallSettingsPanel";
@@ -16,6 +16,11 @@ vi.mock("@/lib/dialpad/cti", async () => {
 });
 
 describe("CallSettingsPanel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockReturnValue(window);
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
   it("opens a ringing screen and asks Dialpad to call the number", async () => {
     vi.stubGlobal(
       "fetch",

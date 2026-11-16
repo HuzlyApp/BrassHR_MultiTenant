@@ -15,6 +15,7 @@ const canvasWithoutReferences: SerializableWorkflowState = {
       required: true,
       settings: {
         required: true,
+        phase: "pre_hire",
         clientPerforms: true,
         useBraasPartner: false,
         notifyHrOnFail: false,
@@ -36,6 +37,7 @@ const canvasWithoutReferences: SerializableWorkflowState = {
       required: true,
       settings: {
         required: true,
+        phase: "pre_hire",
         clientPerforms: true,
         useBraasPartner: false,
         notifyHrOnFail: false,

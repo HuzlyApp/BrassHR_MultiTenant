@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   ChevronLeft,
@@ -19,12 +19,12 @@ import {
 import toast from "react-hot-toast";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import type { TimesheetRow, TimesheetMetrics, DayDetail } from "@/app/api/admin/timesheets/route";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
+import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { addEasternDays, easternDateString, easternWeekdayIndex, formatEastern } from "@/lib/datetime/eastern";
 
 function toIsoDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return easternDateString(date);
 }
 
 function statusBadge(status: string) {
@@ -41,6 +41,9 @@ function statusBadge(status: string) {
 }
 
 export default function TimesheetsPage() {
+  const { canEdit } = useModulePermission("scheduling");
+  const approvingRef = useRef(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<TimesheetRow[]>([]);
   const [totalResults, setTotalResults] = useState(0);
@@ -72,17 +75,15 @@ export default function TimesheetsPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const weekDates = useMemo(() => {
     const today = new Date();
-    const baseMon = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const weekday = baseMon.getDay();
+    const weekday = easternWeekdayIndex(today);
     const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
-    baseMon.setDate(baseMon.getDate() + mondayOffset + weekOffset * 7);
+    const baseMon = addEasternDays(today, mondayOffset + weekOffset * 7);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(baseMon);
-      d.setDate(baseMon.getDate() + i);
-      const dayName = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
-      const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const d = addEasternDays(baseMon, i);
+      const dayName = formatEastern(d, { weekday: "short" }).toUpperCase();
+      const monthDay = formatEastern(d, { month: "short", day: "numeric" });
       days.push({ dayName, monthDay, fullDate: d });
     }
     return days;
@@ -92,7 +93,7 @@ export default function TimesheetsPage() {
     if (weekDates.length < 7) return "";
     const start = weekDates[0].monthDay;
     const end = weekDates[6].monthDay;
-    const year = weekDates[6].fullDate.getFullYear();
+    const year = toIsoDate(weekDates[6].fullDate).slice(0, 4);
     return `${start} - ${end}, ${year}`;
   }, [weekDates]);
 
@@ -118,7 +119,9 @@ export default function TimesheetsPage() {
       if (selectedDepartment && selectedDepartment !== "all") params.set("department", selectedDepartment);
       if (selectedJobTitle && selectedJobTitle !== "all") params.set("jobTitle", selectedJobTitle);
 
-      const res = await fetch(`/api/admin/timesheets?${params.toString()}`);
+      const res = await fetch(`/api/admin/timesheets?${params.toString()}`, {
+        ...(await staffFetchInit()), cache: "no-store",
+      });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         setRows(data.timesheets ?? []);
@@ -140,7 +143,9 @@ export default function TimesheetsPage() {
     }
   }, [page, pageSize, appliedSearch, selectedFacility, selectedDepartment, selectedJobTitle, weekDates]);
 
+  const refreshRef = useRef(loadData);
   useEffect(() => {
+    refreshRef.current = loadData;
     void loadData();
   }, [loadData]);
 
@@ -222,10 +227,31 @@ export default function TimesheetsPage() {
     toast.success("Timesheets exported successfully!");
   };
 
-  const handleApproveTimesheet = (row: TimesheetRow) => {
-    toast.success(`Timesheet for ${row.name} approved.`);
-    setActiveMenuId(null);
-    setSelectedTimesheet(null);
+  const handleApproveTimesheet = async (row: TimesheetRow) => {
+    if (!canEdit || !row.timesheetId || row.approvalStatus !== "submitted" || approvingRef.current) return;
+    approvingRef.current = true;
+    setApprovingId(row.timesheetId);
+    try {
+      const res = await fetch(`/api/v1/timesheets/${encodeURIComponent(row.timesheetId)}/approve`, {
+        ...(await staffFetchInit({ "Content-Type": "application/json" })),
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const result = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(result?.error || "Could not approve timesheet. Please try again.");
+      if (result?.id !== row.timesheetId || result?.status !== "approved") {
+        throw new Error("Approval was not confirmed. Refresh and try again.");
+      }
+      toast.success(`Timesheet for ${row.name} approved.`);
+      setActiveMenuId(null);
+      setSelectedTimesheet((current) => current?.timesheetId === row.timesheetId ? null : current);
+      await refreshRef.current();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not approve timesheet. Please try again.");
+    } finally {
+      approvingRef.current = false;
+      setApprovingId(null);
+    }
   };
 
   return (
@@ -535,6 +561,7 @@ export default function TimesheetsPage() {
                       >
                         {row.status}
                       </span>
+                      <div className="mt-1 text-xs capitalize text-[#64748B]">{row.approvalStatus ?? "Not submitted"}</div>
                     </td>
                     <td
                       className="px-2 py-4 text-center"
@@ -548,6 +575,7 @@ export default function TimesheetsPage() {
                           type="button"
                           className="rounded-md p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
                           title="Actions"
+                          aria-label={`Actions for ${row.name}`}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
@@ -571,10 +599,12 @@ export default function TimesheetsPage() {
                             <button
                               type="button"
                               onClick={() => handleApproveTimesheet(row)}
+                              disabled={!canEdit || !row.timesheetId || row.approvalStatus !== "submitted" || approvingId !== null}
+                              title={!canEdit ? "Scheduling edit permission is required" : row.approvalStatus !== "submitted" ? "Only submitted timesheets can be approved" : undefined}
                               className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[#15803D] hover:bg-[#F0FDF4]"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5 text-[#16A34A]" />
-                              <span>Approve Timesheet</span>
+                              <span>{approvingId !== null && approvingId === row.timesheetId ? "Approving…" : row.approvalStatus === "approved" ? "Approved" : "Approve Timesheet"}</span>
                             </button>
                           </div>
                         )}
@@ -671,6 +701,9 @@ export default function TimesheetsPage() {
         >
           <div
             className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl transition-all max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selectedTimesheet.name} timesheet`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -685,6 +718,7 @@ export default function TimesheetsPage() {
                   >
                     {selectedTimesheet.status}
                   </span>
+                  <span className="text-xs capitalize text-[#64748B]">{selectedTimesheet.approvalStatus ?? "Not submitted"}</span>
                 </div>
                 <p className="mt-1 text-xs text-[#64748B]">
                   {selectedTimesheet.jobRole} • {selectedTimesheet.facility} • {selectedTimesheet.department}
@@ -763,11 +797,13 @@ export default function TimesheetsPage() {
               <button
                 type="button"
                 onClick={() => handleApproveTimesheet(selectedTimesheet)}
+                disabled={!canEdit || !selectedTimesheet.timesheetId || selectedTimesheet.approvalStatus !== "submitted" || approvingId !== null}
+                title={!canEdit ? "Scheduling edit permission is required" : selectedTimesheet.approvalStatus !== "submitted" ? "Only submitted timesheets can be approved" : undefined}
                 className="flex h-9 items-center gap-1.5 rounded-lg px-4 text-xs font-semibold text-white shadow-sm transition hover:brightness-95"
                 style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Approve Timesheet</span>
+                <span>{approvingId !== null && approvingId === selectedTimesheet.timesheetId ? "Approving…" : selectedTimesheet.approvalStatus === "approved" ? "Approved" : "Approve Timesheet"}</span>
               </button>
             </div>
           </div>

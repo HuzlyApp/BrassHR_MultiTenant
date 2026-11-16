@@ -7,8 +7,8 @@ const ZIPSTAFF_TENANT = "9b1b72ab-2d9f-4a2c-9839-bbae260ec15a";
 const NEXUS_TENANT = "8e13d397-263b-424a-8348-490c900550c0";
 const APPLICANT_ID = "a28c284c-ed9f-476c-94dc-954fdd934603";
 
-vi.mock("@/lib/tenant/client-onboarding-slug", () => ({
-  resolveClientOnboardingTenantSlug: vi.fn(() => "zipstaff"),
+vi.mock("@/lib/tenant/resolve-tenant-context", () => ({
+  resolveTenantSlugForClient: vi.fn(() => ({ slug: "zipstaff" })),
 }));
 
 vi.mock("@/lib/onboarding/resolve-tenant-id-by-slug", () => ({
