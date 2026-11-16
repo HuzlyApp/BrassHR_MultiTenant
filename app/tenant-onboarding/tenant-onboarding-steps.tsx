@@ -16,7 +16,7 @@ import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityTog
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
   COMPANY_SIZE_OPTIONS,
-  INDUSTRY_OPTIONS,
+  // INDUSTRY_OPTIONS, // Industry select commented out — primary industry syncs from hire-for list.
   TENANT_GOAL_OPTIONS,
   brandingFontStack,
   TENANT_BRANDING_FONT_OPTIONS,
@@ -25,7 +25,7 @@ import {
   type TenantBrandingThemeMode,
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
-import { activeUserFacingIndustries, industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
+import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 import {
   addressVerificationMessage,
   normalizeBusinessZipInput,
@@ -537,6 +537,7 @@ export function BusinessStep({
   }, [selectedStateCode]);
 
   const [fieldErrors, setFieldErrors] = useState<BusinessInfoFieldErrors>({});
+  const [hireForError, setHireForError] = useState<string | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -694,6 +695,8 @@ export function BusinessStep({
     }
   };
 
+  const hireForRequiredMessage = "Select at least one industry.";
+
   const handleContinue = async () => {
     setSubmitAttempted(true);
     setSubmitError(null);
@@ -706,8 +709,15 @@ export function BusinessStep({
     if (addressVerifyError) {
       errors.address = addressVerifyError;
     }
+    const hireForEmpty = (businessInfo.hireForIndustryKeys ?? []).length === 0;
+    const nextHireForError = hireForEmpty ? hireForRequiredMessage : null;
+    setHireForError(nextHireForError);
+    // Industry field is hidden; surface empty primary industry as hire-for validation.
+    if (hireForEmpty && errors.industry) {
+      delete errors.industry;
+    }
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) {
+    if (Object.keys(errors).length > 0 || nextHireForError) {
       return;
     }
 
@@ -771,6 +781,7 @@ export function BusinessStep({
           error={showFieldError("companyName")}
         />
 
+        {/* Industry select hidden for now — primary industry is derived from hire-for checkboxes.
         <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
           <SelectField
             label="Industry"
@@ -796,11 +807,22 @@ export function BusinessStep({
             error={showFieldError("companySize")}
           />
         </div>
+        */}
+        <SelectField
+          label="Number of Employees"
+          required
+          value={businessInfo.companySize}
+          onChange={(value) => handleBusinessFieldChange({ companySize: value })}
+          placeholder="Select size"
+          options={COMPANY_SIZE_OPTIONS}
+          error={showFieldError("companySize")}
+        />
 
         <div>
-          <p className="text-sm font-medium text-[#334155]">Industries you hire for</p>
-          <p className="mt-1 text-sm text-[#64748B]">
-            Select every industry this organization staffs. New jobs default to your primary industry.
+          <FieldLabel required>Industries you hire for</FieldLabel>
+          <p className="-mt-1 text-sm text-[#64748B]">
+            Select every industry this company supports. New jobs default to your primary industry and
+            can be overridden per job.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2 min-[600px]:grid-cols-2">
             {activeUserFacingIndustries().map((item) => {
@@ -817,7 +839,16 @@ export function BusinessStep({
                           ? current
                           : [...current, item.key]
                         : current.filter((key) => key !== item.key);
-                      handleBusinessFieldChange({ hireForIndustryKeys: next });
+                      const primary =
+                        activeUserFacingIndustries().find((entry) => entry.key === next[0])?.label ??
+                        "";
+                      handleBusinessFieldChange({
+                        hireForIndustryKeys: next,
+                        industry: primary,
+                      });
+                      if (submitAttempted) {
+                        setHireForError(next.length === 0 ? hireForRequiredMessage : null);
+                      }
                     }}
                     className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[#012352]"
                     style={{ accentColor: '#012352' }}
@@ -827,6 +858,7 @@ export function BusinessStep({
               );
             })}
           </div>
+          <FieldError message={submitAttempted ? hireForError : null} />
         </div>
 
         <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
@@ -876,7 +908,7 @@ export function BusinessStep({
         </div>
 
         <AddressAutocompleteField
-          label="Business Address"
+          label="Address"
           required
           value={businessInfo.address}
           onChange={(value) => {
@@ -899,7 +931,7 @@ export function BusinessStep({
 
         <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
           <TextField
-            label="Business Phone"
+            label="Phone"
             required
             value={businessInfo.phone}
             onChange={(value) => handleBusinessFieldChange({ phone: formatPhoneNumber(value) })}
@@ -911,7 +943,7 @@ export function BusinessStep({
             error={showFieldError("phone")}
           />
           <TextField
-            label="Business Email Address"
+            label="Email Address"
             required
             value={businessInfo.email}
             onChange={(value) => handleBusinessFieldChange({ email: value })}

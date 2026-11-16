@@ -401,6 +401,7 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
       `${SETTINGS_ROUTE}/admin-console`,
       `${SETTINGS_ROUTE}/roles`,
       `${SETTINGS_ROUTE}/departments`,
+      `${SETTINGS_ROUTE}/integrations`,
       `${SETTINGS_ROUTE}/hiring-theme`,
       "/admin_recruiter/account/business-info",
     ],
@@ -428,6 +429,11 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
         label: "Branding",
         href: SETTINGS_BRANDING_ROUTE,
         matchPrefixes: [SETTINGS_BRANDING_ROUTE, `${SETTINGS_ROUTE}/hiring-theme`],
+      },
+      {
+        label: "Integrations",
+        href: `${SETTINGS_ROUTE}/integrations`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/integrations`],
       },
     ],
   },
@@ -471,19 +477,20 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
     resourceKey: "settings_company",
     matchPrefixes: [`${SETTINGS_ROUTE}/billing`],
   },
-  {
-    label: "Help & Support",
-    href: HELP_SUPPORT_ROUTE,
-    resourceKey: "settings_help",
-    matchPrefixes: [HELP_SUPPORT_ROUTE],
-  },
 ];
 
 const SETTINGS_MATCH_PREFIXES = [
   SETTINGS_ROUTE,
   "/admin_recruiter/account/business-info",
-  HELP_SUPPORT_ROUTE,
 ];
+
+const HELP_SUPPORT_SECTION: SidebarSection = {
+  label: "Help & Support",
+  href: HELP_SUPPORT_ROUTE,
+  resourceKey: "settings_help",
+  iconType: ICON.help,
+  matchPrefixes: [HELP_SUPPORT_ROUTE],
+};
 
 /** Company admin: Automation lives under Settings (Templates already under Hiring Setup). */
 const ADMIN_SETTINGS_CHILDREN: SidebarLink[] = [
@@ -508,13 +515,8 @@ function settingsSection(children: SidebarLink[], matchPrefixes: string[]): Side
 }
 
 const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
-  // {
-  //   label: "Help & Support",
-  //   href: "/admin_recruiter/help-support",
-  //   iconType: ICON.help,
-  //   matchPrefixes: ["/admin_recruiter/help-support"],
-  // }, // Moved under Settings.
   settingsSection(SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES),
+  HELP_SUPPORT_SECTION,
 ];
 
 const ADMIN_SETTINGS_SECTION = settingsSection(ADMIN_SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES);
@@ -602,8 +604,9 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.chat,
     matchPrefixes: ["/admin_recruiter/messages"],
   },
-  // Help & Support lives under Settings mini-sidebar; Reports is on the main rail below Pay.
+  // Reports is on the main rail below Pay; Help & Support sits below Settings.
   ADMIN_SETTINGS_SECTION,
+  HELP_SUPPORT_SECTION,
 ];
 
 /** Brass HR platform god admin viewing admin recruiter. */

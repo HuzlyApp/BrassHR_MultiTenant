@@ -1,8 +1,9 @@
 export const ACCOUNT_TABS = [
   { slug: "personal", label: "Profile" },
-  { slug: "account-security", label: "Account & Security" },
+  { slug: "account-security", label: "Account & Settings" },
   { slug: "notifications", label: "Notification" },
   { slug: "call", label: "Call" },
+  // Legacy slug — redirects to Settings → Integrations.
   { slug: "integrations", label: "Integrations" },
   // Legacy slugs kept for redirects / deep links.
   { slug: "account-settings", label: "Account" },
@@ -26,14 +27,17 @@ export function accountTabHref(slug: AccountTabSlug): string {
   if (slug === "account-settings" || slug === "security") {
     return "/admin_recruiter/account/account-security";
   }
+  if (slug === "integrations") {
+    return "/admin_recruiter/settings/integrations";
+  }
   return `/admin_recruiter/account/${slug}`;
 }
 
 /** Tabs shown in the account page tab bar (Personal Settings). */
 export const ACCOUNT_TAB_NAV = [
   { slug: "personal" as const, label: "Profile" },
-  { slug: "account-security" as const, label: "Account & Security" },
-  { slug: "notifications" as const, label: "Notification" },
-  { slug: "call" as const, label: "Call" },
-  { slug: "integrations" as const, label: "Integrations" },
+  { slug: "account-security" as const, label: "Account & Settings" },
+  // Notification + Call hidden from Personal Settings for now.
+  // { slug: "notifications" as const, label: "Notification" },
+  // { slug: "call" as const, label: "Call" },
 ];
