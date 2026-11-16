@@ -612,6 +612,20 @@ export function AdminRecruiterHeader({
               >
                 Notification
               </Link>
+              <Link
+                href="/admin_recruiter/account/call"
+                onClick={() => setShowProfileMenu(false)}
+                className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+              >
+                Call
+              </Link>
+              <Link
+                href="/admin_recruiter/account/integrations"
+                onClick={() => setShowProfileMenu(false)}
+                className="block rounded-md px-2 py-1 text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+              >
+                Integrations
+              </Link>
               <button
                 type="button"
                 onClick={async () => {

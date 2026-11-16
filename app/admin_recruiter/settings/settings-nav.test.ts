@@ -39,16 +39,13 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/template-builder",
       "/admin_recruiter/email-templates",
 
-      // Administration
+      // Administration (roles lives under User Management)
       "/admin_recruiter/settings/admin-console",
       "/admin_recruiter/settings/roles",
-      "/admin_recruiter/settings/integrations",
+      "/admin_recruiter/settings/departments",
 
       // Help & Support
       "/admin_recruiter/help-support",
-
-      // Reports
-      "/admin_recruiter/reports",
     ];
 
     for (const path of testPaths) {
@@ -66,7 +63,11 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
       "/admin_recruiter/account/account-security",
       "/admin_recruiter/account/account-settings",
       "/admin_recruiter/account/security",
+      "/admin_recruiter/account/notifications",
+      "/admin_recruiter/account/call",
+      "/admin_recruiter/account/integrations",
       "/admin_recruiter/notifications",
+      "/admin_recruiter/reports",
       "/admin_recruiter/dashboard/overview",
       "/admin_recruiter/dashboard/home",
       "/admin_recruiter/jobs",
@@ -138,18 +139,25 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     const statusesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "statuses"
     );
-    expect(statusesItem?.label).toBe("Status Catalog");
+    expect(statusesItem?.label).toBe("Statuses");
 
     const appGroup = SETTINGS_NAV_GROUPS.find((g) => g.id === "app");
     expect(appGroup?.items.map((item) => item.id)).toEqual([
       "company-profile",
       "user-management",
+      "departments",
       "branding",
-      "call",
-      "task",
       "billing",
       "help",
     ]);
+    expect(appGroup?.items.some((item) => item.id === "call")).toBe(false);
+    expect(appGroup?.items.some((item) => item.id === "task")).toBe(false);
+    expect(
+      SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "roles")
+    ).toBe(false);
+    expect(
+      isSettingsNavItemActive(userManagementItem!, "/admin_recruiter/settings/roles")
+    ).toBe(true);
 
     const templatesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "templates"
@@ -212,22 +220,22 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(isSettingsMiniSidebarPath("/admin_recruiter/account/security")).toBe(false);
   });
 
-  it("keeps Help & Support and Reports in Settings for every role", () => {
+  it("keeps Help & Support in Settings for every role; Reports lives on the main sidebar", () => {
     const limited = visibleSettingsNavGroups(
       SETTINGS_NAV_GROUPS,
       new Set(["settings_profile"])
     );
     const ids = limited.flatMap((group) => group.items.map((item) => item.id));
     expect(ids).toContain("help");
-    expect(ids).toContain("reports");
+    expect(ids).not.toContain("reports");
     const helpItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find((item) => item.id === "help");
     expect(helpItem?.href).toBe("/admin_recruiter/help-support");
-    const reportsItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
-      (item) => item.id === "reports"
-    );
-    expect(reportsItem?.href).toBe("/admin_recruiter/reports");
+    expect(
+      SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "reports")
+    ).toBe(false);
     const appGroup = SETTINGS_NAV_GROUPS.find((g) => g.id === "app");
     expect(appGroup?.items.some((item) => item.id === "help")).toBe(true);
+    expect(appGroup?.items.some((item) => item.id === "departments")).toBe(true);
   });
 
   it("opens Settings to branding for admins and a permitted page for recruiters", () => {

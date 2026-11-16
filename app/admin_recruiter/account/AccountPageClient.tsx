@@ -6,6 +6,8 @@ import AccountTabNav from "@/app/admin_recruiter/account/components/AccountTabNa
 import PersonalTab from "@/app/admin_recruiter/account/components/PersonalTab";
 import AccountSecurityTab from "@/app/admin_recruiter/account/components/AccountSecurityTab";
 import NotificationsSettingsPanel from "@/app/admin_recruiter/settings/NotificationsSettingsPanel";
+import CallSettingsPanel from "@/app/admin_recruiter/settings/CallSettingsPanel";
+import IntegrationsSettingsPanel from "@/app/admin_recruiter/settings/IntegrationsSettingsPanel";
 import { accountTabHref, type AccountTabSlug } from "@/app/admin_recruiter/account/account-tabs";
 
 type AccountPageClientProps = {
@@ -33,6 +35,8 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
       {activeTab === "personal" ? <PersonalTab /> : null}
       {showSecurity ? <AccountSecurityTab /> : null}
       {activeTab === "notifications" ? <NotificationsSettingsPanel /> : null}
+      {activeTab === "call" ? <CallSettingsPanel /> : null}
+      {activeTab === "integrations" ? <IntegrationsSettingsPanel /> : null}
     </div>
   );
 }

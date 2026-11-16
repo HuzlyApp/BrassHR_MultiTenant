@@ -29,12 +29,30 @@ export async function requireDepartmentWrite(): Promise<DepartmentApiContext | N
   return resolved;
 }
 
+export function departmentErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.message === "string" && record.message.trim()) return record.message.trim();
+    if (typeof record.details === "string" && record.details.trim()) return record.details.trim();
+    if (typeof record.hint === "string" && record.hint.trim()) return record.hint.trim();
+  }
+  return "Could not update departments";
+}
+
 export function departmentErrorStatus(error: unknown): { status: number; message: string } {
-  const message = error instanceof Error ? error.message : "Could not update departments";
+  const message = departmentErrorMessage(error);
   if (/already exists/i.test(message)) return { status: 409, message };
   if (/not found/i.test(message)) return { status: 404, message };
   if (/enter a department|characters or fewer|activate this department|before deleting|before assigning/i.test(message)) {
     return { status: 400, message };
+  }
+  if (/column .*code.* does not exist|Could not find the 'code' column/i.test(message)) {
+    return {
+      status: 503,
+      message:
+        "Department number support is not on this database yet. Apply migration 20261114190000_departments_code.sql, then retry.",
+    };
   }
   return { status: 500, message };
 }

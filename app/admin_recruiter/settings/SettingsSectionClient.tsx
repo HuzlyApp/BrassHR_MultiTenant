@@ -27,9 +27,6 @@ function SettingsPanelFallback() {
   );
 }
 
-const RolePermissionsPanel = dynamic(() => import("@/app/admin_recruiter/settings/RolePermissionsPanel"), {
-  loading: SettingsPanelFallback,
-});
 const AdminConsolePanel = dynamic(() => import("@/app/admin_recruiter/settings/AdminConsolePanel"), {
   loading: SettingsPanelFallback,
 });
@@ -115,8 +112,13 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
         <SettingsSectionHeader title={meta.title} description={meta.description} />
       ) : null}
 
-      {section === "roles" ? (
-        <RolePermissionsPanel canEdit={canEdit} canDelete={canDelete} />
+      {section === "user-management" || section === "roles" ? (
+        <AdminConsolePanel
+          embedInSettingsPage
+          canEdit={canEdit}
+          canDelete={canDelete}
+          initialTab={section === "roles" ? "roles" : "admins"}
+        />
       ) : section === "templates" ? (
         <TemplatesSettingsPanel />
       ) : (
@@ -146,7 +148,6 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
               <BrandingSettingsPanel initialMainTab="hiring-journey" />
             </Suspense>
           ) : null}
-          {section === "user-management" ? <AdminConsolePanel embedInSettingsPage /> : null}
           {section === "billing" ? (
             <Suspense fallback={<SettingsPanelFallback />}>
               <AccountSettingsBillingPanel />

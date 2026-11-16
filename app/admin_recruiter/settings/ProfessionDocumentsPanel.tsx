@@ -1394,11 +1394,11 @@ export default function ProfessionDocumentsPanel({
               ) : null}
             </div>
 
-            <div className="border-t border-[#F1F5F9] p-4 sm:p-5">
+            <div id="assessment" className="scroll-mt-4 border-t border-[#F1F5F9] p-4 sm:p-5">
               <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5">
                 <Suspense
                   fallback={
-                    <p className="text-sm text-[#64748B]">Loading skill assessmentâ€¦</p>
+                    <p className="text-sm text-[#64748B]">Loading skill assessment…</p>
                   }
                 >
                   <AssessmentSettingsPanel
@@ -1683,7 +1683,24 @@ export default function ProfessionDocumentsPanel({
                                         {profession.name}
                                       </Link>
                                     </td>
-                                    <td className="px-4 py-3 text-[#64748B]">{assessmentLabel}</td>
+                                    <td className="px-4 py-3">
+                                      {assessmentLabel !== "—" ? (
+                                        <div className="min-w-0">
+                                          <Link
+                                            href={`${professionDetailHref(profession.id)}#assessment`}
+                                            className="text-sm font-medium text-[#C2410C] hover:underline"
+                                            title={assessmentLabel}
+                                          >
+                                            View Assessment
+                                          </Link>
+                                          <p className="mt-0.5 truncate text-xs text-[#64748B]" title={assessmentLabel}>
+                                            {assessmentLabel}
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <span className="text-sm text-[#94A3B8]">—</span>
+                                      )}
+                                    </td>
                                     <td className="px-4 py-3">
                                       <Link
                                         href={professionDetailHref(profession.id)}

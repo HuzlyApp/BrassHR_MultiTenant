@@ -67,4 +67,20 @@ describe("Settings Reports Redirection", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
     expect(result).toBeDefined();
   });
+
+  it("redirects section=call to account Call settings", async () => {
+    mockRedirect.mockClear();
+    await SettingsSectionPage({
+      params: Promise.resolve({ section: "call" }),
+    });
+    expect(mockRedirect).toHaveBeenCalledWith("/admin_recruiter/account/call");
+  });
+
+  it("redirects section=integrations to account Integrations settings", async () => {
+    mockRedirect.mockClear();
+    await SettingsSectionPage({
+      params: Promise.resolve({ section: "integrations" }),
+    });
+    expect(mockRedirect).toHaveBeenCalledWith("/admin_recruiter/account/integrations");
+  });
 });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StageConfigModal, stageSummary, StatusCountPills } from "./StageConfigModal";
 import { buildPreHireStageDraft, type StageConfigDraft } from "./pre-hire-stage-draft";
+import SettingsSelect from "./SettingsSelect";
 import toast from "react-hot-toast";
 import {
   normalizeStageStatusLane,
@@ -512,51 +513,63 @@ export default function CandidateStatusesPanel() {
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold tracking-tight text-[#012352]">
-                  Pre-Hire workflow status catalog
-                </h3>
-                <p className="mt-1 max-w-xl text-xs leading-5 text-[#64748B]">
-                  Stages in workflow order. Open a stage to rename a status or review who changed it. Deleting a status shows the candidates and jobs still on it, and those records stay if any are tied to it.
-                </p>
-              </div>
-              <label className="block shrink-0 text-xs font-medium text-[#334155] sm:w-56" htmlFor="status-workflow-scope">
-                Workflow
-                <select
-                  id="status-workflow-scope"
-                  value={workflowScopeId}
-                  disabled={Boolean(configStage)}
-                  onChange={(event) => setWorkflowScopeId(event.target.value)}
-                  className="mt-1 h-8 w-full rounded-md border border-[#CBD5E1] bg-white px-2.5 text-sm font-normal disabled:bg-[#F1F5F9]"
-                >
-                  <option value="">All workflows</option>
-                  {workflows.map((workflow) => (
-                    <option key={workflow.id} value={workflow.id}>
-                      {workflow.name}
-                      {workflow.status && workflow.status !== "published" ? ` (${workflow.status})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+        <div className="space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 max-w-2xl">
+              <h3 className="text-base font-semibold tracking-tight text-[#0F172A]">
+                Pre-Hire workflow status catalog
+              </h3>
+              <p className="mt-1.5 text-sm leading-6 text-[#64748B]">
+                Stages in workflow order. Open a stage to rename a status or review who changed it.
+                Deleting a status shows the candidates and jobs still on it, and those records stay if
+                any are tied to it.
+              </p>
             </div>
-            <ol className="mt-3 divide-y divide-[#EEF2F6] overflow-hidden rounded-xl border border-[#E2E8F0]">
-              {stageViews.map((view, index) => (
-                <li key={view.stage} className="flex items-center gap-3 bg-white px-3 py-2.5">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-[11px] font-semibold tabular-nums text-[#012352]">
+            <div className="block w-full shrink-0 text-sm font-medium text-[#334155] sm:max-w-[220px]">
+              <label htmlFor="status-workflow-scope" className="block">
+                Workflow
+              </label>
+              <SettingsSelect
+                id="status-workflow-scope"
+                aria-label="Workflow"
+                value={workflowScopeId}
+                disabled={Boolean(configStage)}
+                className="mt-1.5"
+                onChange={setWorkflowScopeId}
+                options={[
+                  { value: "", label: "All workflows" },
+                  ...workflows.map((workflow) => ({
+                    value: workflow.id,
+                    label:
+                      workflow.status && workflow.status !== "published"
+                        ? `${workflow.name} (${workflow.status})`
+                        : workflow.name,
+                  })),
+                ]}
+              />
+            </div>
+          </div>
+
+          <ol className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+            {stageViews.map((view, index) => (
+              <li
+                key={view.stage}
+                className="flex flex-col gap-3 border-b border-[#EEF2F6] px-4 py-4 last:border-b-0 sm:flex-row sm:items-center sm:gap-4 sm:px-5 sm:py-5"
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#012352] text-sm font-semibold tabular-nums text-white">
                     {index + 1}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[#0F172A]">{view.stage}</p>
-                        <p className="truncate text-xs text-[#64748B]">{view.summary}</p>
-                      </div>
-                      <StatusCountPills counts={view.counts} />
-                    </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#0F172A] sm:text-[15px]">
+                      {view.stage}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-[#64748B]">{view.summary}</p>
                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 sm:ml-auto sm:shrink-0 sm:justify-end">
+                  <StatusCountPills counts={view.counts} />
                   <button
                     type="button"
                     onClick={() => {
@@ -564,14 +577,14 @@ export default function CandidateStatusesPanel() {
                       setConfigStage(view.stage);
                     }}
                     aria-label={`Configure ${view.stage}`}
-                    className="inline-flex h-8 shrink-0 items-center rounded-md border border-[#CBD5E1] bg-white px-2.5 text-xs font-semibold text-[#012352] transition hover:bg-[#F8FAFC]"
+                    className="inline-flex h-9 shrink-0 items-center rounded-lg border border-[#012352] bg-white px-3.5 text-sm font-semibold text-[#012352] transition hover:bg-[#F8FAFC]"
                   >
                     Configure
                   </button>
-                </li>
-              ))}
-            </ol>
-          </div>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
       {configView ? (

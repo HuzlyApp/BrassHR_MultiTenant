@@ -1,19 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BarChart3,
   Briefcase,
   Building2,
-  ClipboardCheck,
   ClipboardList,
   CreditCard,
   FileStack,
   Library,
   LifeBuoy,
   ListChecks,
-  Phone,
-  Plug,
   Users,
-  Shield,
   Wand2,
   Workflow,
 } from "lucide-react";
@@ -78,7 +73,7 @@ export type SettingsNavGroup = {
 export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   {
     id: "app",
-    label: "App Settings",
+    label: "Company Settings",
     items: [
       {
         id: "company-profile",
@@ -100,7 +95,16 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         matchPrefixes: [
           "/admin_recruiter/settings/user-management",
           "/admin_recruiter/settings/admin-console",
+          "/admin_recruiter/settings/roles",
         ],
+      },
+      {
+        id: "departments",
+        label: "Departments",
+        href: "/admin_recruiter/settings/departments",
+        icon: Building2,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/departments"],
       },
       {
         id: "branding",
@@ -110,22 +114,24 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/branding", "/admin_recruiter/settings/hiring-theme"],
       },
-      {
-        id: "call",
-        label: "Call",
-        href: "/admin_recruiter/settings/call",
-        icon: Phone,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/call"],
-      },
-      {
-        id: "task",
-        label: "Task",
-        href: "/admin_recruiter/settings/task",
-        icon: ClipboardCheck,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/task"],
-      },
+      // Call + Integrations live in the top-right account menu (beside Personal Settings).
+      // {
+      //   id: "call",
+      //   label: "Call",
+      //   href: "/admin_recruiter/settings/call",
+      //   icon: Phone,
+      //   resourceKey: "settings_company",
+      //   matchPrefixes: ["/admin_recruiter/settings/call"],
+      // },
+      // Task settings hidden from Settings mini-sidebar for now.
+      // {
+      //   id: "task",
+      //   label: "Task",
+      //   href: "/admin_recruiter/settings/task",
+      //   icon: ClipboardCheck,
+      //   resourceKey: "settings_company",
+      //   matchPrefixes: ["/admin_recruiter/settings/task"],
+      // },
       {
         id: "billing",
         label: "Billing & Subscription",
@@ -194,7 +200,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       },
       {
         id: "statuses",
-        label: "Status Catalog",
+        label: "Statuses",
         href: "/admin_recruiter/settings/statuses",
         icon: ListChecks,
         resourceKey: "settings_company",
@@ -214,50 +220,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       },
     ],
   },
-  {
-    id: "administration",
-    label: "Administration",
-    items: [
-      {
-        id: "roles",
-        label: "Roles & Permissions",
-        href: "/admin_recruiter/settings/roles",
-        icon: Shield,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/roles"],
-      },
-      {
-        id: "departments",
-        label: "Departments",
-        href: "/admin_recruiter/settings/departments",
-        icon: Building2,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/departments"],
-      },
-      {
-        id: "integrations",
-        label: "Integrations",
-        href: "/admin_recruiter/settings/integrations",
-        icon: Plug,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/integrations"],
-      },
-    ],
-  },
-  {
-    id: "reports",
-    label: "Reports",
-    items: [
-      {
-        id: "reports",
-        label: "Reports",
-        href: "/admin_recruiter/reports",
-        icon: BarChart3,
-        resourceKey: "settings_reports",
-        matchPrefixes: ["/admin_recruiter/reports", "/admin_recruiter/settings/reports"],
-      },
-    ],
-  },
+  // Roles & Permissions → User Management tab.
+  // Call + Integrations → top-right account menu.
+  // Reports → main sidebar (below Pay).
+  // {
+  //   id: "administration",
+  //   label: "Administration",
+  //   items: [...],
+  // },
 ];
 
 /** In-app settings sections rendered under /admin_recruiter/settings/[section]. */
@@ -283,19 +253,19 @@ export const SETTINGS_SECTION_META: Record<
   },
   "user-management": {
     title: "User Management",
-    description: "Manage users, invitations, and administrative access for your organization.",
+    description: "Manage users, invitations, roles, and administrative access for your organization.",
   },
   billing: {
     title: "Billing & Subscription",
     description: "View trial status, billing details, and subscription information.",
   },
   roles: {
-    title: "Roles & Permissions",
-    description: "Manage users, roles, and access permissions.",
+    title: "User Management",
+    description: "Manage users, invitations, roles, and administrative access for your organization.",
   },
   departments: {
     title: "Departments",
-    description: "Create departments and map them to jobs or candidates.",
+    description: "Manage your departments",
   },
   integrations: {
     title: "Integrations",
@@ -310,7 +280,7 @@ export const SETTINGS_SECTION_META: Record<
     description: "Build and manage skill assessments for your hiring flow.",
   },
   statuses: {
-    title: "Status Catalog",
+    title: "Statuses",
     description: "Manage statuses used in your recruitment pipeline. Customize labels, colors, and workflows.",
   },
   templates: {
@@ -354,9 +324,8 @@ export function visibleSettingsNavGroups(
       ...group,
       items: group.items.filter(
         (item) =>
-          // Help & Support + Reports stay under Settings for every staff role.
+          // Help & Support stays under Settings for every staff role.
           item.resourceKey === "settings_help" ||
-          item.resourceKey === "settings_reports" ||
           viewKeys.has(item.resourceKey)
       ),
     }))
@@ -408,7 +377,6 @@ export const SETTINGS_MINI_SIDEBAR_PREFIXES: string[] = Array.from(
       "/admin_recruiter/template-builder",
       "/admin_recruiter/email-templates",
       "/admin_recruiter/help-support",
-      "/admin_recruiter/reports",
     ])
   )
 );

@@ -2,6 +2,8 @@ export const ACCOUNT_TABS = [
   { slug: "personal", label: "Profile" },
   { slug: "account-security", label: "Account & Security" },
   { slug: "notifications", label: "Notification" },
+  { slug: "call", label: "Call" },
+  { slug: "integrations", label: "Integrations" },
   // Legacy slugs kept for redirects / deep links.
   { slug: "account-settings", label: "Account" },
   { slug: "security", label: "Security" },
@@ -10,7 +12,7 @@ export const ACCOUNT_TABS = [
 export type AccountTabSlug = (typeof ACCOUNT_TABS)[number]["slug"];
 
 /** Company admin tabs. Hidden from recruiter / manager / limited staff roles. */
-const RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS = new Set<AccountTabSlug>();
+const RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS = new Set<AccountTabSlug>(["call", "integrations"]);
 
 export function isRecruiterHiddenAccountTab(slug: AccountTabSlug): boolean {
   return RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS.has(slug);
@@ -27,9 +29,11 @@ export function accountTabHref(slug: AccountTabSlug): string {
   return `/admin_recruiter/account/${slug}`;
 }
 
-/** Tabs shown in the account page tab bar. */
+/** Tabs shown in the account page tab bar (Personal Settings). */
 export const ACCOUNT_TAB_NAV = [
   { slug: "personal" as const, label: "Profile" },
   { slug: "account-security" as const, label: "Account & Security" },
   { slug: "notifications" as const, label: "Notification" },
+  { slug: "call" as const, label: "Call" },
+  { slug: "integrations" as const, label: "Integrations" },
 ];
