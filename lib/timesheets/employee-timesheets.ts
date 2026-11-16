@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TimesheetListInput } from "./v1-contract";
 
 export type DailyHours = {
   mon: string;
@@ -23,6 +24,8 @@ export type DayDetail = {
 export type TimesheetRow = {
   id: string;
   workerId: string;
+  timesheetId?: string | null;
+  approvalStatus?: TimesheetListInput["status"] | null;
   name: string;
   jobRole: string;
   facility: string;
@@ -213,6 +216,16 @@ export async function loadEmployeeTimesheets(
   }
 
   const workerIds = [...new Set(entries.map((row) => row.worker_id))];
+  // The display row ID is an employee ID; approvals require the exact weekly sheet ID.
+  const { data: sheets, error: sheetError } = await supabase
+    .from("timesheets")
+    .select("id,worker_id,status")
+    .eq("tenant_id", tenantId)
+    .in("worker_id", workerIds)
+    .eq("period_start", startDate)
+    .eq("period_end", endDate);
+  if (sheetError) throw sheetError;
+  const sheetsByWorker = new Map((sheets ?? []).map((sheet) => [sheet.worker_id, sheet]));
   const facilityIds = [...new Set(entries.map((row) => row.facility_id).filter(Boolean))] as string[];
   const departmentIds = [...new Set(entries.map((row) => row.department_id).filter(Boolean))] as string[];
 
@@ -316,6 +329,8 @@ export async function loadEmployeeTimesheets(
     rows.push({
       id: workerId,
       workerId,
+      timesheetId: sheetsByWorker.get(workerId)?.id ?? null,
+      approvalStatus: sheetsByWorker.get(workerId)?.status ?? null,
       name: employeeName(worker, workerId),
       jobRole,
       facility,

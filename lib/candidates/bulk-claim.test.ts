@@ -34,6 +34,9 @@ function createFakeSupabase(state: { workers: FakeRow[]; rpcAvailable: boolean }
           },
         };
       }
+      if (table === "analytics_activity_events") {
+        return { insert: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: "event-1" }, error: null }) }) }) };
+      }
       if (table === "recruiter_activity_logs") {
         return {
           insert: async () => ({ error: null }),
