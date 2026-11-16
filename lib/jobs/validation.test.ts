@@ -137,7 +137,7 @@ describe("job requisition validation", () => {
     expect(errors.professionId).toBe("Profession is required.");
   });
 
-  it("requires commission fees for MSP Recruit & Release publish", () => {
+  it("allows omitted commission fees for MSP Recruit & Release publish", () => {
     const errors = validatePublishableJob(
       {
         ...validJob,
@@ -155,8 +155,8 @@ describe("job requisition validation", () => {
       },
       null
     );
-    expect(errors.commissionPercent).toBeDefined();
-    expect(errors.commissionFixedAmount).toBeDefined();
+    expect(errors.commissionPercent).toBeUndefined();
+    expect(errors.commissionFixedAmount).toBeUndefined();
   });
 
   it("requires a worksite city and state to publish onsite jobs", () => {

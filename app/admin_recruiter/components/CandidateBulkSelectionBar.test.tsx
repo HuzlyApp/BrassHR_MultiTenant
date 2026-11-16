@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { CandidateBulkSelectionBar } from "@/app/admin_recruiter/components/CandidateBulkSelectionBar";
 
+vi.mock("@/lib/admin/hooks/use-staff-module-access", () => ({ useModulePermission: () => ({ canView: true, canEdit: true, canDelete: true }) }));
+
 describe("CandidateBulkSelectionBar", () => {
   it("shows snackbar actions for export, archive, and delete", () => {
     const onArchive = vi.fn();

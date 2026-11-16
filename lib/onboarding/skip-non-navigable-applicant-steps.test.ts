@@ -17,7 +17,7 @@ function step(
 }
 
 describe("skipNonNavigableApplicantSteps", () => {
-  it("marks Parameterized Job Application as completed, not skipped", async () => {
+  it("does not auto-complete the dedicated job-screening step", async () => {
     const enabledSteps = [
       step({
         id: "resume",
@@ -84,18 +84,6 @@ describe("skipNonNavigableApplicantSteps", () => {
       beforeIndex: 2,
     });
 
-    expect(updateStepStatus).toHaveBeenCalledWith(
-      "profile_information",
-      "completed",
-      expect.objectContaining({
-        system_completed: true,
-        reason: "non_navigable_placeholder",
-      })
-    );
-    expect(updateStepStatus).not.toHaveBeenCalledWith(
-      "profile_information",
-      "skipped",
-      expect.anything()
-    );
+    expect(updateStepStatus).not.toHaveBeenCalled();
   });
 });

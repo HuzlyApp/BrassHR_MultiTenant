@@ -58,27 +58,27 @@ function jobWorkflowConfig(): TenantOnboardingConfig {
 }
 
 describe("applicant-step-navigability", () => {
-  it("treats parameterized job application as non-navigable", () => {
+  it("keeps the dedicated job-screening screen navigable", () => {
     const config = jobWorkflowConfig();
     const parameterized = config.steps[1]!;
-    expect(applicantStepHasNavigableScreen(parameterized, config.steps)).toBe(false);
+    expect(applicantStepHasNavigableScreen(parameterized, config.steps)).toBe(true);
   });
 
-  it("finds references after resume when parameterized is in between", () => {
+  it("finds job screening after resume", () => {
     const config = jobWorkflowConfig();
     const nextIdx = findNavigableStepIndex(config.steps, 0, 1);
-    expect(nextIdx).toBe(2);
+    expect(nextIdx).toBe(1);
   });
 
-  it("adjacentStepRoute skips parameterized job application", () => {
+  it("adjacentStepRoute visits job screening before references", () => {
     const config = jobWorkflowConfig();
     const resume = config.steps[0]!;
     const route = adjacentStepRoute(config, resume, 1, "demo");
-    expect(route).toContain(APPLICATION_ROUTES.addReferences);
-    expect(route).not.toContain("stepKey=profile_information");
+    expect(route).toContain(APPLICATION_ROUTES.jobScreening);
+    expect(route).toContain("stepKey=profile_information");
   });
 
-  it("resolveNextIncompleteStepIndex skips non-navigable pending steps", () => {
+  it("resolveNextIncompleteStepIndex includes pending job screening", () => {
     const config = jobWorkflowConfig();
     const progress = {
       progressId: "p1",
@@ -92,6 +92,6 @@ describe("applicant-step-navigability", () => {
         },
       ],
     };
-    expect(resolveNextIncompleteStepIndex(config.steps, progress)).toBe(3);
+    expect(resolveNextIncompleteStepIndex(config.steps, progress)).toBe(2);
   });
 });

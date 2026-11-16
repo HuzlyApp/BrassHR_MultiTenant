@@ -6,6 +6,9 @@ import userEvent from "@testing-library/user-event";
 import SecurityTab from "@/app/admin_recruiter/account/components/SecurityTab";
 import { PASSWORD_UPDATE_SUCCESS_MESSAGE } from "@/lib/account/password-update";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock("@/lib/admin/hooks/use-staff-module-access", () => ({ useModulePermission: () => ({ canView: true, canEdit: true, canDelete: true }) }));
+
 const mockRefresh = vi.fn(async () => undefined);
 const mockUpdateUser = vi.fn();
 const mockSignInWithPassword = vi.fn();

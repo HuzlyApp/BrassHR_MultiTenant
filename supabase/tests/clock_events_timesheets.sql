@@ -106,7 +106,7 @@ BEGIN
   sheet:=public.transition_timesheet(a,sheet.id,reviewer,'approve','Reviewed');
   PERFORM public.transition_timesheet(a,sheet.id,reviewer,'approve','Retry');
   IF sheet.regular_minutes<>100 OR sheet.reviewed_by<>reviewer THEN RAISE EXCEPTION 'Approval snapshot wrong'; END IF;
-  IF (SELECT count(*) FROM public.activity_log WHERE entity_type='timesheet' AND entity_id=sheet.id::text AND metadata->>'tenant_id'=a::text AND action='approve')<>1 THEN
+  IF (SELECT count(*) FROM public.activity_logs WHERE tenant_id=a AND entity_type='timesheet' AND entity_id=sheet.id AND action='approve')<>1 THEN
     RAISE EXCEPTION 'Idempotent approval duplicated audit'; END IF;
   BEGIN
     PERFORM public.record_clock_event(a,employee,owner_id,'clock_in',NULL,NULL,1,2,clock_timestamp(),'granted','127.0.0.1');
