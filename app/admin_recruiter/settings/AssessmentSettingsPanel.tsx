@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
   ChevronDown,
   Copy,
   Eye,
@@ -14,6 +15,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import AssessmentPreviewModal from "@/app/admin_recruiter/settings/AssessmentPreviewModal";
+import { assessmentDetailHref } from "@/app/admin_recruiter/settings/assessment-routes";
 import {
   catalogsAreEqual,
   cloneSkillAssessmentCatalog,
@@ -42,6 +44,11 @@ type AssessmentSettingsPanelProps = {
   professionName?: string | null;
   /** Compact layout under Profession detail (hides global scoring chrome). */
   embedded?: boolean;
+  /**
+   * Full-page chrome for `/settings/assessment/[professionId]`:
+   * back link, profession title, and description above the editor.
+   */
+  fullPage?: boolean;
 };
 
 const QUESTION_TYPE_LABELS: Record<SkillQuestionType, string> = {
@@ -346,6 +353,7 @@ export default function AssessmentSettingsPanel({
   professionId: professionIdProp = null,
   professionName: professionNameProp = null,
   embedded = false,
+  fullPage = false,
 }: AssessmentSettingsPanelProps) {
   const searchParams = useSearchParams();
   const professionIdFromQuery = searchParams.get("profession")?.trim() || null;
@@ -566,9 +574,47 @@ export default function AssessmentSettingsPanel({
     );
   }
 
+  const statusBadge = dirty ? (
+    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+      Unsaved
+    </span>
+  ) : unpublished ? (
+    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+      Unpublished draft
+    </span>
+  ) : (
+    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+      Published
+    </span>
+  );
+
   return (
     <section className="space-y-5">
-      {embedded ? (
+      {fullPage ? (
+        <div className="space-y-4">
+          <Link
+            href="/admin_recruiter/settings/assessment"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#012352] hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Back to Assessment
+          </Link>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                Assessment
+              </p>
+              <h1 className="mt-0.5 truncate text-2xl font-semibold tracking-tight text-[#0F172A]">
+                {professionName || "Profession assessment"}
+              </h1>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Categories and questions applicants complete for this profession.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">{statusBadge}</div>
+          </div>
+        </div>
+      ) : embedded ? (
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-[#0F172A]">
@@ -579,23 +625,13 @@ export default function AssessmentSettingsPanel({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {dirty ? (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-                Unsaved
-              </span>
-            ) : unpublished ? (
-              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
-                Unpublished draft
-              </span>
-            ) : (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-                Published
-              </span>
-            )}
+            {statusBadge}
             <Link
-              href={`/admin_recruiter/settings/assessment${
-                professionId ? `?profession=${encodeURIComponent(professionId)}` : ""
-              }`}
+              href={
+                professionId
+                  ? assessmentDetailHref(professionId)
+                  : "/admin_recruiter/settings/assessment"
+              }
               className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
             >
               Open full assessment
@@ -604,19 +640,7 @@ export default function AssessmentSettingsPanel({
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          {dirty ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-              Unsaved
-            </span>
-          ) : unpublished ? (
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
-              Unpublished draft
-            </span>
-          ) : (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-              Published
-            </span>
-          )}
+          {statusBadge}
           {professionId && professionName ? (
             <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#475569]">
               Filtered · {professionName}

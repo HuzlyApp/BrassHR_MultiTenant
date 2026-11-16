@@ -96,6 +96,8 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
           "/admin_recruiter/settings/user-management",
           "/admin_recruiter/settings/admin-console",
           "/admin_recruiter/settings/roles",
+          "/admin_recruiter/settings/roles/new",
+          "/admin_recruiter/settings/roles/success",
         ],
       },
       {
@@ -277,7 +279,7 @@ export const SETTINGS_SECTION_META: Record<
   },
   assessment: {
     title: "Assessment",
-    description: "Build and manage skill assessments for your hiring flow.",
+    description: "Evaluate candidates' skills with profession-linked assessments.",
   },
   statuses: {
     title: "Statuses",

@@ -33,7 +33,9 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
 
       // Recruitment
       "/admin_recruiter/settings/profession",
+      "/admin_recruiter/settings/profession/some-id",
       "/admin_recruiter/settings/assessment",
+      "/admin_recruiter/settings/assessment/some-id",
       "/admin_recruiter/settings/statuses",
       "/admin_recruiter/settings/templates",
       "/admin_recruiter/template-builder",
@@ -113,6 +115,20 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     ).toBe(true);
     expect(
       isSettingsNavItemActive(companyProfileItem!, "/admin_recruiter/account/business-info")
+    ).toBe(true);
+
+    const assessmentItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "assessment"
+    );
+    expect(assessmentItem).toBeDefined();
+    expect(
+      isSettingsNavItemActive(assessmentItem!, "/admin_recruiter/settings/assessment")
+    ).toBe(true);
+    expect(
+      isSettingsNavItemActive(
+        assessmentItem!,
+        "/admin_recruiter/settings/assessment/profession-123"
+      )
     ).toBe(true);
 
     const userManagementItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(

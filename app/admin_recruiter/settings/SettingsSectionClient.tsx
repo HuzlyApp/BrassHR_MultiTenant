@@ -36,7 +36,7 @@ const ProfessionDocumentsPanel = dynamic(() => import("@/app/admin_recruiter/set
 const CandidateStatusesPanel = dynamic(() => import("@/app/admin_recruiter/settings/CandidateStatusesPanel"), {
   loading: SettingsPanelFallback,
 });
-const AssessmentSettingsPanel = dynamic(() => import("@/app/admin_recruiter/settings/AssessmentSettingsPanel"), {
+const AssessmentListClient = dynamic(() => import("@/app/admin_recruiter/settings/AssessmentListClient"), {
   loading: SettingsPanelFallback,
 });
 const DepartmentsPanel = dynamic(() => import("@/app/admin_recruiter/settings/DepartmentsPanel"), {
@@ -94,7 +94,8 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
     section !== "departments" &&
     section !== "integrations" &&
     section !== "billing" &&
-    section !== "profession";
+    section !== "profession" &&
+    section !== "assessment";
 
   if (!loading && !canView) {
     return (
@@ -126,6 +127,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           disabled={
             !canEdit &&
             section !== "profession" &&
+            section !== "assessment" &&
             section !== "billing" &&
             section !== "company-profile"
           }
@@ -155,7 +157,11 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
           ) : null}
           {section === "departments" ? <DepartmentsPanel /> : null}
           {section === "integrations" ? <IntegrationsSettingsPanel /> : null}
-          {section === "assessment" ? <AssessmentSettingsPanel /> : null}
+          {section === "assessment" ? (
+            <Suspense fallback={<SettingsPanelFallback />}>
+              <AssessmentListClient />
+            </Suspense>
+          ) : null}
           {section === "profession" ? (
             <Suspense fallback={<SettingsPanelFallback />}>
               <ProfessionDocumentsPanel />
