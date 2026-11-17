@@ -145,7 +145,7 @@ export type WorkflowChangeConfirmationDetails = {
   nextWorkflowName: string | null;
 };
 
-/** Job form fields plus admin Add-candidate and job-patch fields. */
+/** Job form fields plus admin Add-candidate, job-patch, and inbound applicant fields. */
 export type FieldErrors = Partial<
   Record<
     | keyof JobRequisitionInput
@@ -158,7 +158,8 @@ export type FieldErrors = Partial<
     | "is_hot"
     | "remoteAllowedStates"
     | "worksite_state"
-    | "work_state",
+    | "work_state"
+    | "file",
     string
   >
 >;
