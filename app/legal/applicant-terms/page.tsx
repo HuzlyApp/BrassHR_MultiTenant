@@ -1,12 +1,18 @@
 import LegalDocumentPage from "@/app/components/legal/LegalDocumentPage"
-import { APPLICANT_TERMS } from "@/lib/legal/applicant-terms"
+import { loadSystemLegalDocument } from "@/lib/legal/load-document"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Applicant Terms and Conditions | BrassHR",
-  description: "BrassHR Applicant / Candidate Terms and Conditions.",
+  title: "Applicant Terms | BrassHR",
+  description: "BrassHR applicant and candidate terms and conditions.",
 }
 
-export default function ApplicantTermsPage() {
-  return <LegalDocumentPage document={APPLICANT_TERMS} fallbackHref="/worker-signin" />
+type PageProps = {
+  searchParams: Promise<{ tenant?: string; returnTo?: string }>
+}
+
+export default async function ApplicantTermsPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const document = await loadSystemLegalDocument("applicant_terms", params.tenant ?? null)
+  return <LegalDocumentPage document={document} fallbackHref="/worker-signin" />
 }

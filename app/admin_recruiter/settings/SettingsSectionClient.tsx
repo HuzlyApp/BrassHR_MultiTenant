@@ -57,7 +57,6 @@ const AccountSettingsBillingPanel = dynamic(
   () => import("@/app/admin_recruiter/account/components/AccountSettingsBillingPanel"),
   { loading: SettingsPanelFallback }
 );
-
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
     case "company-profile":

@@ -668,7 +668,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                     {section.label}
                   </span>
                 ) : null}
-                {isCollapsed && section.active ? (
+                {section.active ? (
                   <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                 ) : null}
                 <NavPendingCue />

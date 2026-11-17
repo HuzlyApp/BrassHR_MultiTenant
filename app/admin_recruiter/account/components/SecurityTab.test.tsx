@@ -13,6 +13,7 @@ const mockRefresh = vi.fn(async () => undefined);
 const mockUpdateUser = vi.fn();
 const mockSignInWithPassword = vi.fn();
 const mockFrom = vi.fn();
+const mockFetch = vi.fn();
 
 const authUser = {
   id: "auth-user-1",
@@ -72,6 +73,16 @@ vi.mock("@/lib/account/fetch-account-data", () => ({
   syncAccountChecklist: vi.fn(async () => ({ user_id: "auth-user-1", security_completed: true })),
 }));
 
+vi.mock("@/app/components/tenant/TenantBrandingContext", () => ({
+  useTenantBranding: () => ({ primaryHex: "#012352", companyName: "Zip Staff" }),
+}));
+
+async function fillValidPasswordForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
+  await user.type(screen.getByLabelText("New Password"), "BrassHRPass1!");
+  await user.type(screen.getByLabelText("Confirm Password"), "BrassHRPass1!");
+}
+
 describe("SecurityTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -87,9 +98,34 @@ describe("SecurityTab", () => {
         })),
       })),
     });
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/account/password-change/request")) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            email: authUser.email,
+            resendCount: 0,
+            maxResends: 5,
+            expiresInSeconds: 300,
+            resendAvailableInSeconds: 30,
+          }),
+        };
+      }
+      if (url.includes("/api/account/password-change/confirm")) {
+        return {
+          ok: true,
+          json: async () => ({ ok: true, email: authUser.email }),
+        };
+      }
+      return { ok: false, json: async () => ({ error: "Unexpected fetch" }) };
+    });
+    vi.stubGlobal("fetch", mockFetch);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -114,10 +150,8 @@ describe("SecurityTab", () => {
     render(<SecurityTab />);
 
     await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
-    const newPassword = screen.getByLabelText("New Password");
-    const confirmPassword = screen.getByLabelText("Confirm Password");
-    await user.type(newPassword, "BrassHRPass1!");
-    await user.type(confirmPassword, "BrassHRPass2!");
+    await user.type(screen.getByLabelText("New Password"), "BrassHRPass1!");
+    await user.type(screen.getByLabelText("Confirm Password"), "BrassHRPass2!");
 
     expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
   });
@@ -127,10 +161,8 @@ describe("SecurityTab", () => {
     render(<SecurityTab />);
 
     await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
-    const newPassword = screen.getByLabelText("New Password");
-    const confirmPassword = screen.getByLabelText("Confirm Password");
-    await user.type(newPassword, "weak");
-    await user.type(confirmPassword, "weak");
+    await user.type(screen.getByLabelText("New Password"), "weak");
+    await user.type(screen.getByLabelText("Confirm Password"), "weak");
 
     expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
   });
@@ -145,50 +177,86 @@ describe("SecurityTab", () => {
     expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
   });
 
-  it("updates Supabase Auth password on successful submit", async () => {
+  it("opens OTP modal after validating current password via API (no browser re-login)", async () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
-    const newPassword = screen.getByLabelText("New Password");
-    const confirmPassword = screen.getByLabelText("Confirm Password");
-    await user.type(newPassword, "BrassHRPass1!");
-    await user.type(confirmPassword, "BrassHRPass1!");
+    await fillValidPasswordForm(user);
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => {
-      expect(mockSignInWithPassword).toHaveBeenCalledWith({
-        email: "zipstaffcom@gmail.com",
-        password: "CurrentPass1!",
-      });
-      expect(mockUpdateUser).toHaveBeenCalledWith({ password: "BrassHRPass1!" });
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/account/password-change/request",
+        expect.objectContaining({
+          method: "POST",
+        })
+      );
     });
 
-    expect(screen.getByRole("status")).toHaveTextContent(PASSWORD_UPDATE_SUCCESS_MESSAGE);
-    expect(mockRefresh).toHaveBeenCalled();
+    expect(mockSignInWithPassword).not.toHaveBeenCalled();
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(await screen.findByRole("dialog", { name: /enter code/i })).toBeInTheDocument();
+    expect(screen.getByText(/we've sent a verification code/i)).toBeInTheDocument();
   });
 
   it("shows an error when the current password is incorrect", async () => {
-    mockSignInWithPassword.mockResolvedValue({
-      data: { user: null },
-      error: { message: "Invalid login credentials" },
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/account/password-change/request")) {
+        return {
+          ok: false,
+          json: async () => ({
+            error: "Current password is incorrect.",
+            code: "INVALID_CREDENTIALS",
+            field: "password",
+          }),
+        };
+      }
+      return { ok: false, json: async () => ({ error: "Unexpected fetch" }) };
     });
 
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    await user.type(screen.getByLabelText("Current Password"), "WrongPass1!");
-    await user.type(screen.getByLabelText("New Password"), "BrassHRPass1!");
-    await user.type(screen.getByLabelText("Confirm Password"), "BrassHRPass1!");
+    await fillValidPasswordForm(user);
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("Current password is incorrect.");
     });
     expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: /enter code/i })).not.toBeInTheDocument();
   });
 
-  it("shows Supabase Auth error messages on failure", async () => {
+  it("verifies OTP then updates password and shows success without browser sign-in", async () => {
+    const user = userEvent.setup();
+    render(<SecurityTab />);
+
+    await fillValidPasswordForm(user);
+    await user.click(screen.getByRole("button", { name: /update password/i }));
+
+    expect(await screen.findByRole("dialog", { name: /enter code/i })).toBeInTheDocument();
+
+    const digitInputs = screen.getAllByLabelText(/digit \d/i);
+    for (let i = 0; i < 6; i += 1) {
+      await user.type(digitInputs[i]!, String(i + 1));
+    }
+    await user.click(screen.getByRole("button", { name: /verify code/i }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/account/password-change/confirm",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(mockUpdateUser).toHaveBeenCalledWith({ password: "BrassHRPass1!" });
+    });
+
+    expect(mockSignInWithPassword).not.toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
+    expect(await screen.findByText("Password updated")).toBeInTheDocument();
+    expect(screen.getByText(PASSWORD_UPDATE_SUCCESS_MESSAGE)).toBeInTheDocument();
+  });
+
+  it("shows Supabase Auth error messages on password update failure after OTP", async () => {
     mockUpdateUser.mockRejectedValue(
       new Error("New password should be different from the old password.")
     );
@@ -196,12 +264,15 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
-    const newPassword = screen.getByLabelText("New Password");
-    const confirmPassword = screen.getByLabelText("Confirm Password");
-    await user.type(newPassword, "BrassHRPass1!");
-    await user.type(confirmPassword, "BrassHRPass1!");
+    await fillValidPasswordForm(user);
     await user.click(screen.getByRole("button", { name: /update password/i }));
+    expect(await screen.findByRole("dialog", { name: /enter code/i })).toBeInTheDocument();
+
+    const digitInputs = screen.getAllByLabelText(/digit \d/i);
+    for (let i = 0; i < 6; i += 1) {
+      await user.type(digitInputs[i]!, "1");
+    }
+    await user.click(screen.getByRole("button", { name: /verify code/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
@@ -214,20 +285,24 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    await user.type(screen.getByLabelText("Current Password"), "CurrentPass1!");
-    const newPassword = screen.getByLabelText("New Password");
-    const confirmPassword = screen.getByLabelText("Confirm Password");
-    await user.type(newPassword, "BrassHRPass1!");
-    await user.type(confirmPassword, "BrassHRPass1!");
+    await fillValidPasswordForm(user);
     await user.click(screen.getByRole("button", { name: /update password/i }));
+    expect(await screen.findByRole("dialog", { name: /enter code/i })).toBeInTheDocument();
+
+    const digitInputs = screen.getAllByLabelText(/digit \d/i);
+    for (let i = 0; i < 6; i += 1) {
+      await user.type(digitInputs[i]!, "9");
+    }
+    await user.click(screen.getByRole("button", { name: /verify code/i }));
 
     await waitFor(() => {
       expect(mockUpdateUser).toHaveBeenCalled();
     });
 
     const usersUpdateCalls = mockFrom.mock.calls.filter(([table]) => table === "users");
-    for (const [, chain] of usersUpdateCalls) {
-      const updateArg = chain?.update?.mock?.calls?.[0]?.[0];
+    for (const call of usersUpdateCalls) {
+      const chain = call[1] as { update?: { mock?: { calls?: unknown[][] } } } | undefined;
+      const updateArg = chain?.update?.mock?.calls?.[0]?.[0] as Record<string, unknown> | undefined;
       if (updateArg) {
         expect(updateArg).not.toHaveProperty("password");
       }
