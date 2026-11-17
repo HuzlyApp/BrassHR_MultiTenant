@@ -2070,7 +2070,7 @@ export default function JobApplicationsPage() {
     return countUniqueMultiJobApplicants(
       baseFilteredRows,
       (row) => Number(row.appliedJobCount ?? 1),
-      (row) => resolveApplicationWorkerId(row) || row.id
+      (row) => applicantGroupKey(row)
     );
   }, [baseFilteredRows, listMeta.paged, hasClientFilters, listMeta.multiJobApplicantCount]);
 
@@ -2079,23 +2079,38 @@ export default function JobApplicationsPage() {
     return baseFilteredRows.filter((row) => Number(row.appliedJobCount ?? 1) > 1);
   }, [baseFilteredRows, highlightMultiJobApplicants]);
 
-  const resultTotal = (listMeta.paged && !hasClientFilters) ? listMeta.total : filteredRows.length;
+  // Group before paging on client-filtered paths so page size counts unique applicants.
+  // Server-paged paths already return one row per email/worker from staff_application_list_page.
+  const uniqueFilteredRows = useMemo(
+    () => groupApplicantRows(filteredRows),
+    [filteredRows]
+  );
+  const resultTotal = (listMeta.paged && !hasClientFilters)
+    ? listMeta.total
+    : uniqueFilteredRows.length;
   const totalPages = Math.max(1, Math.ceil(resultTotal / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageStart = resultTotal === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const pageEnd = (listMeta.paged && !hasClientFilters)
-    ? rows.length === 0
-      ? 0
-      : pageStart + rows.length - 1
-    : Math.min(currentPage * pageSize, resultTotal);
-  const paginatedRows = (listMeta.paged && !hasClientFilters)
-    ? rows
-    : filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  // Always one row per applicant. Multi-job apps collapse; badge opens ApplicantJobsPopover.
-  const displayRows = useMemo(() => groupApplicantRows(paginatedRows), [paginatedRows]);
+  const displayRows = useMemo(() => {
+    if (listMeta.paged && !hasClientFilters) {
+      return groupApplicantRows(rows);
+    }
+    return uniqueFilteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  }, [
+    listMeta.paged,
+    hasClientFilters,
+    rows,
+    uniqueFilteredRows,
+    currentPage,
+    pageSize,
+  ]);
+  const pageEnd = resultTotal === 0
+    ? 0
+    : pageStart + displayRows.length - 1;
 
   const displayTotal = resultTotal;
+  // Keep a flat id list for selection helpers that still expect ApplicationRow[].
+  const paginatedRows = displayRows;
 
   const listColumns = ensureActionsLast(
     listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS

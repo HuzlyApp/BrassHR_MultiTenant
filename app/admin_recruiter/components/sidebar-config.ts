@@ -35,6 +35,7 @@ const ICON = {
   schedule: "Schedule",
   tickets: "Tickets",
   reports: "Reports",
+  legalDocuments: "Legal Documents",
   finance: "Finance",
   taskboard: "Taskboard",
   shifts: "Tickets",
@@ -383,39 +384,57 @@ const EXTRA_TOP_SECTIONS: SidebarSection[] = [
   },
 ];
 
-const PROFILE_ROUTE = "/admin_recruiter/account/personal";
 const SETTINGS_ROUTE = "/admin_recruiter/settings";
 const SETTINGS_BRANDING_ROUTE = `${SETTINGS_ROUTE}/branding`;
+const SETTINGS_COMPANY_PROFILE_ROUTE = `${SETTINGS_ROUTE}/company-profile`;
 const HELP_SUPPORT_ROUTE = "/admin_recruiter/help-support";
-const NOTIFICATIONS_ROUTE = "/admin_recruiter/notifications";
 
-/** Admins see Personal Settings > Profile. Recruiters get Profile as a direct Settings item. */
+/** App Settings rail children. Personal Settings live in the header user dropdown. */
 const SETTINGS_CHILDREN: SidebarLink[] = [
   {
     label: "Company",
     href: "#",
     resourceKey: "settings_company",
     matchPrefixes: [
+      SETTINGS_COMPANY_PROFILE_ROUTE,
       SETTINGS_BRANDING_ROUTE,
+      `${SETTINGS_ROUTE}/user-management`,
       `${SETTINGS_ROUTE}/admin-console`,
       `${SETTINGS_ROUTE}/roles`,
+      `${SETTINGS_ROUTE}/departments`,
+      `${SETTINGS_ROUTE}/integrations`,
       `${SETTINGS_ROUTE}/hiring-theme`,
+      "/admin_recruiter/account/business-info",
     ],
     children: [
+      {
+        label: "Company Profile",
+        href: SETTINGS_COMPANY_PROFILE_ROUTE,
+        matchPrefixes: [SETTINGS_COMPANY_PROFILE_ROUTE, "/admin_recruiter/account/business-info"],
+      },
+      {
+        label: "User Management",
+        href: `${SETTINGS_ROUTE}/user-management`,
+        matchPrefixes: [
+          `${SETTINGS_ROUTE}/user-management`,
+          `${SETTINGS_ROUTE}/admin-console`,
+          `${SETTINGS_ROUTE}/roles`,
+        ],
+      },
+      {
+        label: "Departments",
+        href: `${SETTINGS_ROUTE}/departments`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/departments`],
+      },
       {
         label: "Branding",
         href: SETTINGS_BRANDING_ROUTE,
         matchPrefixes: [SETTINGS_BRANDING_ROUTE, `${SETTINGS_ROUTE}/hiring-theme`],
       },
       {
-        label: "Admin Console",
-        href: `${SETTINGS_ROUTE}/admin-console`,
-        matchPrefixes: [`${SETTINGS_ROUTE}/admin-console`],
-      },
-      {
-        label: "User Roles",
-        href: `${SETTINGS_ROUTE}/roles`,
-        matchPrefixes: [`${SETTINGS_ROUTE}/roles`],
+        label: "Integrations",
+        href: `${SETTINGS_ROUTE}/integrations`,
+        matchPrefixes: [`${SETTINGS_ROUTE}/integrations`],
       },
     ],
   },
@@ -436,7 +455,7 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
         matchPrefixes: [`${SETTINGS_ROUTE}/profession`],
       },
       {
-        label: "Statuses",
+        label: "Status Catalog",
         href: `${SETTINGS_ROUTE}/statuses`,
         matchPrefixes: [`${SETTINGS_ROUTE}/statuses`],
       },
@@ -454,59 +473,25 @@ const SETTINGS_CHILDREN: SidebarLink[] = [
     ],
   },
   {
-    label: "Personal Settings",
-    href: "#",
-    resourceKey: "settings_profile",
-    matchPrefixes: ["/admin_recruiter/account"],
-    children: [
-      {
-        label: "Profile",
-        href: PROFILE_ROUTE,
-        matchPrefixes: ["/admin_recruiter/account/personal"],
-      },
-      {
-        label: "Account",
-        href: "/admin_recruiter/account/account-settings",
-        matchPrefixes: [
-          "/admin_recruiter/account/account-settings",
-          "/admin_recruiter/account/business-info",
-        ],
-      },
-      {
-        label: "Security",
-        href: "/admin_recruiter/account/security",
-        matchPrefixes: ["/admin_recruiter/account/security"],
-      },
-    ],
-  },
-  {
-    label: "Notifications",
-    href: NOTIFICATIONS_ROUTE,
-    resourceKey: "settings_notifications",
-    matchPrefixes: [NOTIFICATIONS_ROUTE],
-  },
-  {
-    label: "Help & Support",
-    href: HELP_SUPPORT_ROUTE,
-    resourceKey: "settings_help",
-    matchPrefixes: [HELP_SUPPORT_ROUTE],
-  },
-  {
-    label: "Reports",
-    href: "#",
-    resourceKey: "settings_reports",
-    matchPrefixes: [REPORTS_BASE],
-    children: REPORTS_CHILDREN,
+    label: "Billing & Subscription",
+    href: `${SETTINGS_ROUTE}/billing`,
+    resourceKey: "settings_company",
+    matchPrefixes: [`${SETTINGS_ROUTE}/billing`],
   },
 ];
 
 const SETTINGS_MATCH_PREFIXES = [
   SETTINGS_ROUTE,
-  "/admin_recruiter/account",
-  HELP_SUPPORT_ROUTE,
-  NOTIFICATIONS_ROUTE,
-  REPORTS_BASE,
+  "/admin_recruiter/account/business-info",
 ];
+
+const HELP_SUPPORT_SECTION: SidebarSection = {
+  label: "Help & Support",
+  href: HELP_SUPPORT_ROUTE,
+  resourceKey: "settings_help",
+  iconType: ICON.help,
+  matchPrefixes: [HELP_SUPPORT_ROUTE],
+};
 
 /** Company admin: Automation lives under Settings (Templates already under Hiring Setup). */
 const ADMIN_SETTINGS_CHILDREN: SidebarLink[] = [
@@ -531,13 +516,8 @@ function settingsSection(children: SidebarLink[], matchPrefixes: string[]): Side
 }
 
 const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
-  // {
-  //   label: "Help & Support",
-  //   href: "/admin_recruiter/help-support",
-  //   iconType: ICON.help,
-  //   matchPrefixes: ["/admin_recruiter/help-support"],
-  // }, // Moved under Settings.
   settingsSection(SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES),
+  HELP_SUPPORT_SECTION,
 ];
 
 const ADMIN_SETTINGS_SECTION = settingsSection(ADMIN_SETTINGS_CHILDREN, SETTINGS_MATCH_PREFIXES);
@@ -604,6 +584,21 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
+    label: "Reports",
+    href: "#",
+    resourceKey: "settings_reports",
+    iconType: ICON.reports,
+    matchPrefixes: [REPORTS_BASE],
+    children: REPORTS_CHILDREN,
+  },
+  {
+    label: "Legal Documents",
+    href: "/admin_recruiter/legal-documents",
+    resourceKey: "settings_company",
+    iconType: ICON.legalDocuments,
+    matchPrefixes: ["/admin_recruiter/legal-documents"],
+  },
+  {
     label: "Mail",
     href: MAIL_ROUTE,
     resourceKey: "mail",
@@ -617,8 +612,9 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.chat,
     matchPrefixes: ["/admin_recruiter/messages"],
   },
-  // Help & Support + Reports live under Settings mini-sidebar only (SETTINGS_CHILDREN).
+  // Reports is on the main rail below Pay; Help & Support sits below Settings.
   ADMIN_SETTINGS_SECTION,
+  HELP_SUPPORT_SECTION,
 ];
 
 /** Brass HR platform god admin viewing admin recruiter. */
@@ -668,6 +664,13 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: AUTOMATION_CHILDREN,
   },
   ...EXTRA_TOP_SECTIONS,
+  {
+    label: "Legal Documents",
+    href: "/admin_recruiter/legal-documents",
+    resourceKey: "settings_company",
+    iconType: ICON.legalDocuments,
+    matchPrefixes: ["/admin_recruiter/legal-documents"],
+  },
   // {
   //   label: "Profile",
   //   href: "/admin_recruiter/account/personal",

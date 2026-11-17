@@ -218,7 +218,7 @@ function FieldTable({
 
 export default function IntegrationsApiDocs() {
   return (
-    <section className="mt-6 rounded-xl border border-[#E5E7EB] bg-white p-5">
+    <section className="rounded-xl border border-[#E5E7EB] bg-white p-5">
       <div className="mb-2 flex items-start gap-3">
         <div className="mt-0.5 rounded-lg bg-[#F3F4F6] p-2 text-[#012352]">
           <BookOpen className="h-4 w-4" aria-hidden />

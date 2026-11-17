@@ -9,6 +9,7 @@ export type IntegrationErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "UNPROCESSABLE"
   | "RATE_LIMITED"
+  | "SERVICE_UNAVAILABLE"
   | "INTERNAL";
 
 export type IntegrationErrorDetail = {

@@ -1,15 +1,8 @@
 "use client";
 
-import AccountSettingsBillingPanel from "@/app/admin_recruiter/account/components/AccountSettingsBillingPanel";
-import AccountPreferencesPanel from "@/app/admin_recruiter/account/components/AccountPreferencesPanel";
-import FirmaIntegrationPanel from "@/app/admin_recruiter/account/components/FirmaIntegrationPanel";
+import AccountSecurityTab from "@/app/admin_recruiter/account/components/AccountSecurityTab";
 
+/** @deprecated Prefer AccountSecurityTab — kept for any remaining imports. */
 export default function AccountSettingsTab() {
-  return (
-    <div className="space-y-6">
-      <AccountPreferencesPanel />
-      <FirmaIntegrationPanel />
-      <AccountSettingsBillingPanel />
-    </div>
-  );
+  return <AccountSecurityTab />;
 }

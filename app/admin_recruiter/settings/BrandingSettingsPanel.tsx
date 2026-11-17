@@ -19,7 +19,9 @@ import {
 import { notifyBrandingUpdated } from "@/lib/tenant/branding-events";
 import {
   brandingFontFamily,
+  TENANT_BRANDING_FONT_SIZE_OPTIONS,
   type TenantBranding,
+  type TenantBrandingFontSizeId,
 } from "@/lib/tenant/tenant-branding";
 import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPreview";
 import HireJourneyThemePanel from "@/app/admin_recruiter/settings/HireJourneyThemePanel";
@@ -341,6 +343,7 @@ export default function BrandingSettingsPanel({
   const [primaryFontId, setPrimaryFontId] = useState(currentBranding.primaryFontId);
   const [headingFontId, setHeadingFontId] = useState(currentBranding.headingFontId);
   const [bodyFontId, setBodyFontId] = useState(currentBranding.bodyFontId);
+  const [baseFontSizeId, setBaseFontSizeId] = useState(currentBranding.baseFontSizeId);
   const [fontColor, setFontColor] = useState(currentBranding.fontColor);
   const [headingColor, setHeadingColor] = useState(currentBranding.headingColor);
   const [mutedTextColor, setMutedTextColor] = useState(currentBranding.mutedTextColor);
@@ -381,6 +384,7 @@ export default function BrandingSettingsPanel({
     setPrimaryFontId(branding.primaryFontId);
     setHeadingFontId(branding.headingFontId);
     setBodyFontId(branding.bodyFontId);
+    setBaseFontSizeId(branding.baseFontSizeId);
     setFontColor(branding.fontColor);
     setHeadingColor(branding.headingColor);
     setMutedTextColor(branding.mutedTextColor);
@@ -496,6 +500,7 @@ export default function BrandingSettingsPanel({
       primaryFontId,
       headingFontId,
       bodyFontId,
+      baseFontSizeId,
       fontColor,
       headingColor,
       mutedTextColor,
@@ -505,6 +510,7 @@ export default function BrandingSettingsPanel({
     [
       accentHex,
       backgroundPreview,
+      baseFontSizeId,
       bodyFontId,
       buttonColor,
       buttonText,
@@ -607,6 +613,7 @@ export default function BrandingSettingsPanel({
           primaryFont: primaryFontId,
           headingFont: headingFontId,
           bodyFont: bodyFontId,
+          baseFontSize: baseFontSizeId,
           fontColor,
           headingColor,
           mutedTextColor,
@@ -1017,6 +1024,27 @@ export default function BrandingSettingsPanel({
                       <div className="rounded-xl border border-[#E5E7EB] bg-white p-3.5">
                         <FontSelect label="Body font" value={bodyFontId} onChange={setBodyFontId} />
                       </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-[14px]">
+                    <p className="text-sm font-semibold leading-5 text-black">Font Size</p>
+                    <div className="rounded-xl border border-[#E5E7EB] bg-white p-3.5 sm:max-w-sm">
+                      <label className="block space-y-2">
+                        <span className="block text-sm font-semibold text-[#0F172A]">Base font size</span>
+                        <select
+                          value={baseFontSizeId}
+                          onChange={(event) =>
+                            setBaseFontSizeId(event.target.value as TenantBrandingFontSizeId)
+                          }
+                          className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)]"
+                        >
+                          {TENANT_BRANDING_FONT_SIZE_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   </div>
                   <div className="flex flex-col gap-[14px]">

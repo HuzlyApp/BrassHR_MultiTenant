@@ -1,15 +1,19 @@
 export const ACCOUNT_TABS = [
-  { slug: "personal", label: "Personal" },
-  { slug: "business-info", label: "Business Info" },
-  { slug: "account-settings", label: "Account Settings" },
+  { slug: "personal", label: "Profile" },
+  { slug: "account-security", label: "Account & Settings" },
+  { slug: "notifications", label: "Notification" },
+  { slug: "call", label: "Call" },
+  // Legacy slug — redirects to Settings → Integrations.
+  { slug: "integrations", label: "Integrations" },
+  // Legacy slugs kept for redirects / deep links.
+  { slug: "account-settings", label: "Account" },
   { slug: "security", label: "Security" },
-  // { slug: "checklist", label: "Checklist" }, // Hidden for now; keep for future enablement
 ] as const;
 
 export type AccountTabSlug = (typeof ACCOUNT_TABS)[number]["slug"];
 
-/** Company admin tabs. Hidden from recruiter and client roles. */
-const RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS = new Set<AccountTabSlug>(["business-info", "account-settings"]);
+/** Company admin tabs. Hidden from recruiter / manager / limited staff roles. */
+const RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS = new Set<AccountTabSlug>(["call", "integrations"]);
 
 export function isRecruiterHiddenAccountTab(slug: AccountTabSlug): boolean {
   return RECRUITER_HIDDEN_ACCOUNT_TAB_SLUGS.has(slug);
@@ -20,5 +24,20 @@ export function isAccountTabSlug(value: string): value is AccountTabSlug {
 }
 
 export function accountTabHref(slug: AccountTabSlug): string {
+  if (slug === "account-settings" || slug === "security") {
+    return "/admin_recruiter/account/account-security";
+  }
+  if (slug === "integrations") {
+    return "/admin_recruiter/settings/integrations";
+  }
   return `/admin_recruiter/account/${slug}`;
 }
+
+/** Tabs shown in the account page tab bar (Personal Settings). */
+export const ACCOUNT_TAB_NAV = [
+  { slug: "personal" as const, label: "Profile" },
+  { slug: "account-security" as const, label: "Account & Security" },
+  // Notification + Call hidden from Personal Settings for now.
+  { slug: "notifications" as const, label: "Notification" },
+  { slug: "call" as const, label: "Call" },
+];

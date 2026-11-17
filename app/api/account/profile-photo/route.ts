@@ -103,3 +103,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }
+
+export async function DELETE() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) throw authError;
+    if (!user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const svc = createServiceRoleClient();
+    if (!svc) {
+      return NextResponse.json({ error: "Server not configured" }, { status: 503 });
+    }
+
+    const { error: updateError } = await svc
+      .from("users")
+      .update({
+        profile_photo: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (updateError) throw updateError;
+
+    return NextResponse.json({ ok: true, profilePhotoUrl: null });
+  } catch (err) {
+    console.error("[account/profile-photo:delete]", err);
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
+  }
+}

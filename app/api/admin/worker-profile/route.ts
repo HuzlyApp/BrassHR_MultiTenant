@@ -854,6 +854,8 @@ export async function GET(req: NextRequest) {
             resumePath: resumePathCanonical,
             resumePathRaw: resumePathStored,
             legacyUrls,
+            candidateName: applicantName,
+            workerUserId: userIdForLegacy,
           },
           { onboardingConfigVersion, legacyReviewRows: legacyReviewRows ?? [] }
         )

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { industryLabelForKey } from "@/lib/ai-catalog/industry-catalog";
 import {
   assertEmploymentFlowHasProfession,
   type EmploymentFlowType,
@@ -6,6 +7,63 @@ import {
 } from "@/lib/professions/catalog";
 
 type Db = SupabaseClient;
+
+export type TenantIndustryOption = {
+  key: string;
+  label: string;
+  isPrimary: boolean;
+};
+
+async function listTenantIndustryKeys(
+  supabase: Db,
+  tenantId: string
+): Promise<{ primaryKey: string | null; industries: TenantIndustryOption[] }> {
+  const [{ data: tenant, error: tenantError }, { data: rows, error: industryError }] =
+    await Promise.all([
+      supabase.from("tenants").select("primary_industry_key").eq("id", tenantId).maybeSingle(),
+      supabase
+        .from("tenant_industry")
+        .select("industry_key, is_primary")
+        .eq("tenant_id", tenantId),
+    ]);
+  if (tenantError) throw tenantError;
+  if (industryError) throw industryError;
+
+  const primaryKey =
+    (tenant?.primary_industry_key as string | null)?.trim() ||
+    (rows ?? []).find((row) => row.is_primary === true)?.industry_key?.toString().trim() ||
+    null;
+
+  const fromRows = (rows ?? [])
+    .map((row) => {
+      const key = String(row.industry_key ?? "").trim();
+      if (!key) return null;
+      return {
+        key,
+        label: industryLabelForKey(key) ?? key,
+        isPrimary: row.is_primary === true || key === primaryKey,
+      } satisfies TenantIndustryOption;
+    })
+    .filter((row): row is TenantIndustryOption => Boolean(row));
+
+  const industries =
+    fromRows.length > 0
+      ? fromRows.sort((a, b) => {
+          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+          return a.label.localeCompare(b.label);
+        })
+      : primaryKey
+        ? [
+            {
+              key: primaryKey,
+              label: industryLabelForKey(primaryKey) ?? primaryKey,
+              isPrimary: true,
+            },
+          ]
+        : [];
+
+  return { primaryKey, industries };
+}
 
 export type WorkflowDocumentRow = {
   id: string;
@@ -21,24 +79,36 @@ export type WorkflowDocumentRow = {
 };
 
 export async function listTenantProfessions(supabase: Db, tenantId: string) {
-  const { data: tenant, error: tenantError } = await supabase
-    .from("tenants")
-    .select("primary_industry_key")
-    .eq("id", tenantId)
-    .maybeSingle();
-  if (tenantError) throw tenantError;
+  const [{ primaryKey, industries }, professionsResult] = await Promise.all([
+    listTenantIndustryKeys(supabase, tenantId),
+    supabase
+      .from("tenant_professions")
+      .select("id, name, catalog_key, industry_key, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
+  ]);
+  if (professionsResult.error) throw professionsResult.error;
 
-  const { data, error } = await supabase
-    .from("tenant_professions")
-    .select("id, name, catalog_key, industry_key, is_active")
-    .eq("tenant_id", tenantId)
-    .eq("is_active", true)
-    .order("name", { ascending: true });
-  if (error) throw error;
+  const professionIndustryKeys = new Set(
+    (professionsResult.data ?? [])
+      .map((row) => String(row.industry_key ?? "").trim())
+      .filter(Boolean)
+  );
+  const knownKeys = new Set(industries.map((row) => row.key));
+  for (const key of professionIndustryKeys) {
+    if (knownKeys.has(key)) continue;
+    industries.push({
+      key,
+      label: industryLabelForKey(key) ?? key,
+      isPrimary: false,
+    });
+  }
 
   return {
-    industryKey: (tenant?.primary_industry_key as string | null) ?? null,
-    professions: data ?? [],
+    industryKey: primaryKey,
+    industries,
+    professions: professionsResult.data ?? [],
   };
 }
 
@@ -208,6 +278,8 @@ export async function listAvailableCatalogProfessions(
     (existing ?? []).map((row) => String(row.name ?? "").trim().toLowerCase()).filter(Boolean)
   );
 
+  // Include catalog rows for industries not yet bound to the tenant so the
+  // Add Industry modal can pre-select professions before create.
   return (catalog ?? [])
     .filter((row) => {
       const key = String(row.key);
@@ -228,27 +300,32 @@ export async function listAvailableCatalogProfessions(
 export async function addTenantProfessionFromCatalog(
   supabase: Db,
   tenantId: string,
-  catalogKey: string
+  catalogKey: string,
+  preferredIndustryKey?: string | null
 ) {
   const key = catalogKey.trim();
   if (!/^[a-z][a-z0-9_]{1,62}$/.test(key)) throw new Error("Choose a profession.");
 
-  const { data: tenant, error: tenantError } = await supabase
-    .from("tenants")
-    .select("primary_industry_key")
-    .eq("id", tenantId)
-    .maybeSingle();
-  if (tenantError) throw tenantError;
-  const industryKey = (tenant?.primary_industry_key as string | null)?.trim();
-  if (!industryKey) throw new Error("Set the tenant industry before adding a profession.");
+  const { primaryKey, industries } = await listTenantIndustryKeys(supabase, tenantId);
+  const allowed = new Set(industries.map((row) => row.key));
 
   const { data: catalog, error: catalogError } = await supabase
     .from("profession_catalog")
-    .select("key, name, is_active")
+    .select("key, name, is_active, industry_key")
     .eq("key", key)
     .maybeSingle();
   if (catalogError) throw catalogError;
   if (!catalog || catalog.is_active !== true) throw new Error("That profession is not available.");
+
+  const catalogIndustry = String(catalog.industry_key ?? "").trim();
+  const preferred = preferredIndustryKey?.trim() || "";
+  const industryKey =
+    (preferred && allowed.has(preferred) ? preferred : null) ||
+    (catalogIndustry && (allowed.size === 0 || allowed.has(catalogIndustry))
+      ? catalogIndustry
+      : null) ||
+    primaryKey;
+  if (!industryKey) throw new Error("Set the tenant industry before adding a profession.");
 
   const name = String(catalog.name ?? "").trim();
   if (!name) throw new Error("That profession is not available.");
@@ -412,19 +489,18 @@ export async function deactivateTenantProfession(
 export async function addTenantProfession(
   supabase: Db,
   tenantId: string,
-  name: string
+  name: string,
+  preferredIndustryKey?: string | null
 ) {
   const label = name.trim();
   if (!label) throw new Error("Profession name is required.");
   if (label.length > 80) throw new Error("Profession name must be 80 characters or fewer.");
 
-  const { data: tenant, error: tenantError } = await supabase
-    .from("tenants")
-    .select("primary_industry_key")
-    .eq("id", tenantId)
-    .maybeSingle();
-  if (tenantError) throw tenantError;
-  const industryKey = (tenant?.primary_industry_key as string | null)?.trim();
+  const { primaryKey, industries } = await listTenantIndustryKeys(supabase, tenantId);
+  const allowed = new Set(industries.map((row) => row.key));
+  const preferred = preferredIndustryKey?.trim() || "";
+  const industryKey =
+    (preferred && (allowed.size === 0 || allowed.has(preferred)) ? preferred : null) || primaryKey;
   if (!industryKey) throw new Error("Set the tenant industry before adding a profession.");
 
   const { data: existing, error: existingError } = await supabase

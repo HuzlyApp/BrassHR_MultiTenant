@@ -23,6 +23,7 @@ type WorkerResumeSource = {
   parse_status: string | null;
   parsed_data: unknown;
   parsed_json: unknown;
+  file_hash?: string | null;
   uploaded_by_user_id?: string | null;
 };
 
@@ -63,7 +64,7 @@ export async function ensureApplicationResumeFromWorker(args: {
   const { data: scopedRows, error: scopedError } = await supabase
     .from("worker_resumes")
     .select(
-      "id, extracted_text, file_name, original_file_name, storage_path, file_url, file_type, file_size_bytes, text_length, job_application_id, parsing_status, parse_status, parsed_data, parsed_json, uploaded_at, uploaded_by_user_id"
+      "id, extracted_text, file_name, original_file_name, storage_path, file_url, file_type, file_size_bytes, text_length, job_application_id, parsing_status, parse_status, parsed_data, parsed_json, file_hash, uploaded_at, uploaded_by_user_id"
     )
     .eq("tenant_id", tenantId)
     .eq("job_application_id", applicationId)
@@ -81,7 +82,7 @@ export async function ensureApplicationResumeFromWorker(args: {
   const { data: source, error: sourceError } = await supabase
     .from("worker_resumes")
     .select(
-      "id, extracted_text, file_name, original_file_name, storage_path, file_url, file_type, file_size_bytes, text_length, job_application_id, parsing_status, parse_status, parsed_data, parsed_json, uploaded_at, uploaded_by_user_id"
+      "id, extracted_text, file_name, original_file_name, storage_path, file_url, file_type, file_size_bytes, text_length, job_application_id, parsing_status, parse_status, parsed_data, parsed_json, file_hash, uploaded_at, uploaded_by_user_id"
     )
     .eq("tenant_id", tenantId)
     .eq("worker_id", workerId)
@@ -125,6 +126,7 @@ export async function ensureApplicationResumeFromWorker(args: {
     file_name: sourceRow.file_name || sourceRow.original_file_name,
     file_type: sourceRow.file_type,
     file_size_bytes: sourceRow.file_size_bytes,
+    file_hash: sourceRow.file_hash ?? null,
     extracted_text: sourceRow.extracted_text,
     text_length:
       sourceRow.text_length ??

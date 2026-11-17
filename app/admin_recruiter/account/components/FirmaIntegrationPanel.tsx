@@ -243,6 +243,7 @@ export default function FirmaIntegrationPanel() {
                 : "Enter workspace ID"
             }
             autoComplete="off"
+            disabled={true}
           />
         </div>
 

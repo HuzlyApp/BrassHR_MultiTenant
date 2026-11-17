@@ -136,6 +136,7 @@ function normalizeCategory(raw: unknown, index: number, usedSlugs: Set<string>):
   const row = asRecord(raw) ?? {};
   const name = asString(row.name ?? row.title).trim() || `Category ${index + 1}`;
   const questionsRaw = Array.isArray(row.questions) ? row.questions : [];
+  const professionRaw = row.professionId ?? row.profession_id;
   return {
     id: asString(row.id).trim() || crypto.randomUUID(),
     name,
@@ -144,6 +145,7 @@ function normalizeCategory(raw: unknown, index: number, usedSlugs: Set<string>):
     slug: uniqueSlug(asString(row.slug) || name, usedSlugs),
     sortOrder: asNumber(row.sortOrder ?? row.sort_order ?? row.order_number, index + 1),
     isActive: asBoolean(row.isActive ?? row.is_enabled ?? row.is_active, true),
+    professionId: asNullableString(professionRaw),
     questions: questionsRaw
       .map((question, questionIndex) => normalizeQuestion(question, questionIndex))
       .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -190,6 +192,16 @@ export function activeSkillCategories(catalog: SkillAssessmentCatalog): SkillCat
   return catalog.categories.filter((category) => category.isActive);
 }
 
+/** Categories for one profession. Shared (null professionId) categories stay on the global Assessment page. */
+export function skillCategoriesForProfession(
+  catalog: SkillAssessmentCatalog,
+  professionId: string | null | undefined
+): SkillCategoryDraft[] {
+  const id = professionId?.trim();
+  if (!id) return catalog.categories;
+  return catalog.categories.filter((category) => category.professionId === id);
+}
+
 export function findSkillCategoryBySlug(
   catalog: SkillAssessmentCatalog,
   slug: string
@@ -218,7 +230,10 @@ export function catalogsAreEqual(a: SkillAssessmentCatalog, b: SkillAssessmentCa
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-export function createEmptySkillCategory(sortOrder: number): SkillCategoryDraft {
+export function createEmptySkillCategory(
+  sortOrder: number,
+  professionId: string | null = null
+): SkillCategoryDraft {
   return {
     id: crypto.randomUUID(),
     name: "New category",
@@ -227,6 +242,7 @@ export function createEmptySkillCategory(sortOrder: number): SkillCategoryDraft 
     slug: uniqueSlug(`category-${sortOrder}`, new Set()),
     sortOrder,
     isActive: true,
+    professionId,
     questions: [],
   };
 }

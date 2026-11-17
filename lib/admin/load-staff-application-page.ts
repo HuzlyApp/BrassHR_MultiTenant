@@ -25,7 +25,7 @@ const APPLICATION_SELECT = `id, status, status_id, source, workflow_phase, post_
 
 const HYDRATE_CHUNK = 80;
 
-type ListId = { id: string; aiMatchStatus: string | null };
+type ListId = { id: string; aiMatchStatus: string | null; appliedJobs?: number | null };
 
 type ListPageJson = {
   ids?: ListId[];
@@ -151,30 +151,40 @@ async function hydrateApplications(
 async function decorateApplications(
   supabase: SupabaseClient,
   tenantId: string,
-  applications: Array<Record<string, unknown>>
+  applications: Array<Record<string, unknown>>,
+  appliedJobsById?: Map<string, number>
 ) {
+  // Prefer RPC email-scoped counts; fall back to worker-scoped counts for older RPCs.
   const countByWorker = new Map<string, number>();
-  const workerIds = Array.from(
-    new Set(
-      applications
-        .map((row) => String(row.worker_id ?? "").trim())
-        .filter(Boolean)
-    )
-  );
-  if (workerIds.length > 0) {
-    for (let offset = 0; offset < workerIds.length; offset += HYDRATE_CHUNK) {
-      const chunk = workerIds.slice(offset, offset + HYDRATE_CHUNK);
-      const { data: workerApps, error } = await supabase
-        .from("job_applications")
-        .select("worker_id")
-        .eq("tenant_id", tenantId)
-        .in("worker_id", chunk)
-        .not("status", "in", JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER);
-      if (error) throw error;
-      for (const app of workerApps ?? []) {
-        const workerIdValue = String((app as { worker_id?: string | null }).worker_id ?? "");
-        if (!workerIdValue) continue;
-        countByWorker.set(workerIdValue, (countByWorker.get(workerIdValue) ?? 0) + 1);
+  const needsWorkerFallback =
+    !appliedJobsById ||
+    applications.some((row) => {
+      const id = String(row.id ?? "");
+      return id && !appliedJobsById.has(id);
+    });
+  if (needsWorkerFallback) {
+    const workerIds = Array.from(
+      new Set(
+        applications
+          .map((row) => String(row.worker_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+    if (workerIds.length > 0) {
+      for (let offset = 0; offset < workerIds.length; offset += HYDRATE_CHUNK) {
+        const chunk = workerIds.slice(offset, offset + HYDRATE_CHUNK);
+        const { data: workerApps, error } = await supabase
+          .from("job_applications")
+          .select("worker_id")
+          .eq("tenant_id", tenantId)
+          .in("worker_id", chunk)
+          .not("status", "in", JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER);
+        if (error) throw error;
+        for (const app of workerApps ?? []) {
+          const workerIdValue = String((app as { worker_id?: string | null }).worker_id ?? "");
+          if (!workerIdValue) continue;
+          countByWorker.set(workerIdValue, (countByWorker.get(workerIdValue) ?? 0) + 1);
+        }
       }
     }
   }
@@ -215,10 +225,17 @@ async function decorateApplications(
     const workerIdValue = String(row.worker_id ?? "").trim();
     const applicationId = String(row.id ?? "");
     const assignedRecruiterUserId = String(row.assigned_recruiter_user_id ?? "").trim();
+    const rpcAppliedJobs = applicationId ? appliedJobsById?.get(applicationId) : undefined;
+    const appliedJobCount =
+      typeof rpcAppliedJobs === "number" && Number.isFinite(rpcAppliedJobs) && rpcAppliedJobs > 0
+        ? rpcAppliedJobs
+        : workerIdValue
+          ? countByWorker.get(workerIdValue) ?? 1
+          : 1;
     return {
       ...row,
       statusName: statusJoin?.name ?? null,
-      appliedJobCount: workerIdValue ? countByWorker.get(workerIdValue) ?? 1 : 1,
+      appliedJobCount,
       statusNote: noteByApplication.get(applicationId) || null,
       assignedRecruiter: assignedRecruiterUserId
         ? recruitersById.get(assignedRecruiterUserId) ?? {
@@ -351,6 +368,15 @@ export async function loadStaffApplicationPage(
 
   let pageIds = ids.map((row) => String(row.id ?? "")).filter(Boolean);
   let total = Number(pageJson.total ?? 0);
+  const appliedJobsById = new Map<string, number>();
+  for (const row of ids) {
+    const id = String(row.id ?? "").trim();
+    if (!id) continue;
+    const appliedJobs = Number(row.appliedJobs ?? 0);
+    if (Number.isFinite(appliedJobs) && appliedJobs > 0) {
+      appliedJobsById.set(id, appliedJobs);
+    }
+  }
 
   // Older list functions treat ?tab=analyzed as a status id and return no rows.
   if (analyzedRequested && !rpcSupportsAnalyzedTab) {
@@ -368,6 +394,14 @@ export async function loadStaffApplicationPage(
     const orderedIds = (Array.isArray(allJson.ids) ? allJson.ids : [])
       .map((row) => String(row.id ?? ""))
       .filter(Boolean);
+    for (const row of Array.isArray(allJson.ids) ? allJson.ids : []) {
+      const id = String(row.id ?? "").trim();
+      if (!id) continue;
+      const appliedJobs = Number(row.appliedJobs ?? 0);
+      if (Number.isFinite(appliedJobs) && appliedJobs > 0) {
+        appliedJobsById.set(id, appliedJobs);
+      }
+    }
     const analyzedIds = await keepAnalyzedIdsInOrder(supabase, tenantId, orderedIds);
     total = analyzedIds.length;
     const start = exporting ? 0 : (page - 1) * pageSize;
@@ -378,7 +412,8 @@ export async function loadStaffApplicationPage(
   const applications = await decorateApplications(
     supabase,
     tenantId,
-    await hydrateApplications(supabase, tenantId, pageIds)
+    await hydrateApplications(supabase, tenantId, pageIds),
+    appliedJobsById
   );
 
   return {

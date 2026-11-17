@@ -5,14 +5,20 @@ export type AccountProfile = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  preferred_name: string | null;
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  birthdate: string | null;
   avatar_url: string | null;
   role: string | null;
   role_label?: string | null;
   is_admin?: boolean;
   job_title: string | null;
+  department_id: string | null;
+  employee_id: string | null;
+  work_location: string | null;
+  bio: string | null;
   organization_id: string | null;
   address_line1: string | null;
   address_line2: string | null;
@@ -53,6 +59,7 @@ export type AccountSettings = {
   timezone: string;
   language: string;
   date_format: string;
+  time_format: string;
   theme: string;
   email_notifications: boolean;
   sms_notifications: boolean;
@@ -89,6 +96,7 @@ export const DEFAULT_ACCOUNT_SETTINGS: Omit<AccountSettings, "user_id" | "create
   timezone: "America/New_York",
   language: "en",
   date_format: "MM/DD/YYYY",
+  time_format: "12h",
   theme: "system",
   email_notifications: true,
   sms_notifications: false,

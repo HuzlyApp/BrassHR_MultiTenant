@@ -35,6 +35,7 @@ function category(
     slug,
     sortOrder,
     isActive: true,
+    professionId: null,
     questions: questions
       .slice()
       .sort((a, b) => a.quizNumber - b.quizNumber)

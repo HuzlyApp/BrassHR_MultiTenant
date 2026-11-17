@@ -1,9 +1,12 @@
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
-import { normalizeBrandingFontId } from "@/lib/tenant/tenant-branding";
+import {
+  normalizeBrandingFontId,
+  normalizeBrandingFontSizeId,
+} from "@/lib/tenant/tenant-branding";
 import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 
 export const TENANT_BRANDING_SELECT =
-  "id, name, slug, logo_url, login_logo_url, signup_logo_url, favicon_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color, hire_journey_theme";
+  "id, name, slug, logo_url, login_logo_url, signup_logo_url, favicon_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color, base_font_size, hire_journey_theme";
 
 export type TenantBrandingUpdateInput = {
   primaryColor?: string | null;
@@ -21,6 +24,7 @@ export type TenantBrandingUpdateInput = {
   primaryFont?: string | null;
   headingFont?: string | null;
   bodyFont?: string | null;
+  baseFontSize?: string | null;
   fontColor?: string | null;
   headingColor?: string | null;
   mutedTextColor?: string | null;
@@ -65,6 +69,7 @@ type BrandingPatch = Partial<
     | "primary_font"
     | "heading_font"
     | "body_font"
+    | "base_font_size"
     | "font_color"
     | "heading_color"
     | "muted_text_color"
@@ -146,6 +151,11 @@ export function buildTenantBrandingUpdate(body: TenantBrandingUpdateInput): Bran
   }
   if ("bodyFont" in body) {
     patch.body_font = body.bodyFont ? normalizeBrandingFontId(body.bodyFont) : null;
+  }
+  if ("baseFontSize" in body) {
+    patch.base_font_size = body.baseFontSize
+      ? normalizeBrandingFontSizeId(body.baseFontSize)
+      : null;
   }
 
   return patch;

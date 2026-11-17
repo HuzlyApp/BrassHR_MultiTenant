@@ -18,11 +18,17 @@ type RawUserRow = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  preferred_name: string | null;
   email: string | null;
   phone: string | null;
+  birthdate: string | null;
   role: string | null;
   profile_photo: string | null;
   job_title: string | null;
+  department_id: string | null;
+  employee_id: string | null;
+  work_location: string | null;
+  bio: string | null;
   tenant_id: string | null;
   address_line1: string | null;
   address_line2: string | null;
@@ -47,12 +53,18 @@ function mapProfileRow(
     id: row?.id ?? authUser?.id ?? "",
     first_name,
     last_name,
+    preferred_name: row?.preferred_name ?? null,
     full_name: buildFullName(first_name, last_name),
     email: authUser?.email ?? row?.email ?? null,
     phone: row?.phone ?? authUser?.phone ?? null,
+    birthdate: row?.birthdate ?? null,
     avatar_url: avatarUrl,
     role: row?.role ?? null,
     job_title: row?.job_title ?? null,
+    department_id: row?.department_id ?? null,
+    employee_id: row?.employee_id ?? null,
+    work_location: row?.work_location ?? null,
+    bio: row?.bio ?? null,
     organization_id: row?.tenant_id ?? null,
     address_line1: row?.address_line1 ?? null,
     address_line2: row?.address_line2 ?? null,
@@ -160,7 +172,7 @@ export async function fetchAccountData(supabase: SupabaseClient): Promise<Accoun
   const { data: userRow, error: profileError } = await supabase
     .from("users")
     .select(
-      "id, first_name, last_name, email, phone, role, profile_photo, job_title, tenant_id, address_line1, address_line2, city, state, zip_code, created_at, updated_at"
+      "id, first_name, last_name, preferred_name, email, phone, birthdate, role, profile_photo, job_title, department_id, employee_id, work_location, bio, tenant_id, address_line1, address_line2, city, state, zip_code, created_at, updated_at"
     )
     .eq("id", user.id)
     .maybeSingle<RawUserRow>();

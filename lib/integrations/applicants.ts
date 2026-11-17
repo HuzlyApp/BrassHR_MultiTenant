@@ -188,7 +188,13 @@ async function uploadInboundResume(
     contentType,
     upsert: true,
   });
-  if (error) throw new Error(error.message || "Failed to upload resume");
+  if (error) {
+    throw new JobValidationError(
+      "Failed to store resume file. Please retry.",
+      { file: error.message || "Failed to upload resume" },
+      "STORAGE_UNAVAILABLE"
+    );
+  }
   return { path, fileName: safeName };
 }
 
@@ -387,20 +393,35 @@ export async function uploadInboundApplicantResume(
   const phone = identity.phone || null;
 
   if (!hasName || !email) {
-    const stagingKey = randomUUID();
-    await uploadInboundResume(
-      supabase,
-      input.tenantId,
-      stagingKey,
-      prepared.resumeBytes,
-      prepared.resumeFileName,
-      prepared.resumeContentType
-    );
     const details: Record<string, string> = {};
     if (!hasName) details.name = "Could not parse name";
     if (!email) details.email = "Could not parse email";
+
+    const stagingKey = randomUUID();
+    let storedForReview = false;
+    try {
+      await uploadInboundResume(
+        supabase,
+        input.tenantId,
+        stagingKey,
+        prepared.resumeBytes,
+        prepared.resumeFileName,
+        prepared.resumeContentType
+      );
+      storedForReview = true;
+    } catch (storageError) {
+      // Parse failure is the primary client outcome; do not convert storage issues into 500.
+      console.error(
+        "[inbound-api.applicants.resume] failed to store unparseable resume for review",
+        storageError instanceof Error ? storageError.message : storageError
+      );
+      details.storage = "Resume file could not be stored for manual review";
+    }
+
     throw new JobValidationError(
-      "Resume could not be parsed into a createable profile. File was stored for manual review.",
+      storedForReview
+        ? "Resume could not be parsed into a createable profile. File was stored for manual review."
+        : "Resume could not be parsed into a createable profile.",
       details,
       "UNPROCESSABLE"
     );

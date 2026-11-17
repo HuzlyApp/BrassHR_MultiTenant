@@ -975,7 +975,7 @@ export default function SignupPage() {
 
             <div className="mt-[24px] space-y-[22px] min-[1440px]:mt-[30px] min-[1440px]:space-y-[26px]">
               <AddressAutocompleteField
-                label="Address 1"
+                label="Business Address 1"
                 required
                 value={form.address1}
                 onChange={(value) => {
@@ -1001,7 +1001,7 @@ export default function SignupPage() {
 
               <div onBlur={() => setTouchedAddress2(true)}>
                 <TextField
-                  label="Address 2"
+                  label="Business Address 2"
                   value={form.address2}
                   onChange={(value) => update("address2", value)}
                   placeholder="Apt, Suite, Unit, etc."

@@ -25,7 +25,7 @@ describe("parseCandidateDetailRoute", () => {
     });
   });
 
-  it("parses figma tab routes including ai-analysis and pre-hire", () => {
+  it("parses figma tab routes including ai-analysis, licenses, and pre-hire", () => {
     expect(
       parseCandidateDetailRoute(
         "/admin_recruiter/new/ai-analysis/bffbde92-8b3f-457b-899c-e0f866453d79"
@@ -33,6 +33,15 @@ describe("parseCandidateDetailRoute", () => {
     ).toEqual({
       applicantId: "bffbde92-8b3f-457b-899c-e0f866453d79",
       activeTab: "AI Analysis",
+    });
+
+    expect(
+      parseCandidateDetailRoute(
+        "/admin_recruiter/new/licenses/bffbde92-8b3f-457b-899c-e0f866453d79"
+      )
+    ).toEqual({
+      applicantId: "bffbde92-8b3f-457b-899c-e0f866453d79",
+      activeTab: "Licenses & Certifications",
     });
 
     expect(

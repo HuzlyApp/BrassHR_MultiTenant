@@ -40,24 +40,32 @@ export default function AccountTenantHeader({
   const displayName = loading ? "Loading…" : ownerName;
 
   return (
-    <div className="mb-6 rounded-lg border border-[#E5E7EB] bg-white px-4 py-4 sm:px-5 sm:py-5">
+    <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold leading-7 text-[#012352]">{companyName}</h2>
-          <div className="mt-2 space-y-1.5">
+          <h2 className="text-xl font-semibold tracking-tight text-[#0F172A]">{companyName}</h2>
+          <div className="mt-2.5 space-y-1.5">
             <p className="flex items-center gap-2 text-sm text-[#64748B]">
-              <Building2 className="h-4 w-4 shrink-0 text-[var(--brand-primary,#BC8B41)]" aria-hidden />
+              <Building2
+                className="h-4 w-4 shrink-0"
+                style={{ color: "var(--brand-secondary, #012352)" }}
+                aria-hidden
+              />
               Account #{accountNumber}
             </p>
             <p className="flex items-center gap-2 text-sm text-[#64748B]">
-              <Link2 className="h-4 w-4 shrink-0 text-[var(--brand-primary,#BC8B41)]" aria-hidden />
+              <Link2
+                className="h-4 w-4 shrink-0"
+                style={{ color: "var(--brand-secondary, #012352)" }}
+                aria-hidden
+              />
               {accountDomain}
             </p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md border border-[#E2E8F0] bg-[#F8FAFC]">
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[#E2E8F0] bg-[#F8FAFC]">
             {ownerPhotoSrc ? (
               <img
                 src={ownerPhotoSrc}
@@ -79,7 +87,7 @@ export default function AccountTenantHeader({
             )}
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#012352]">{displayName}</p>
+            <p className="text-sm font-semibold text-[#0F172A]">{displayName}</p>
             <p className="mt-0.5 text-xs text-[#64748B]">{ownerRole}</p>
           </div>
         </div>

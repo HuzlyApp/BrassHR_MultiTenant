@@ -24,10 +24,23 @@ export type TenantBrandingRow = {
   muted_text_color?: string | null;
   button_text?: string | null;
   button_color?: string | null;
+  base_font_size?: string | null;
   hire_journey_theme?: unknown | null;
 };
 
 export type TenantBrandingFontId = "inter" | "impact" | "roboto" | "poppins" | "ubuntu";
+
+export type TenantBrandingFontSizeId = "sm" | "md" | "lg";
+
+export const TENANT_BRANDING_FONT_SIZE_OPTIONS: Array<{
+  id: TenantBrandingFontSizeId;
+  label: string;
+  px: number;
+}> = [
+  { id: "sm", label: "Small (14px)", px: 14 },
+  { id: "md", label: "Medium (16px)", px: 16 },
+  { id: "lg", label: "Large (18px)", px: 18 },
+];
 
 /** Runtime branding used by UI (+ CSS vars). */
 export type TenantBranding = {
@@ -51,6 +64,7 @@ export type TenantBranding = {
   primaryFontId: TenantBrandingFontId;
   headingFontId: TenantBrandingFontId;
   bodyFontId: TenantBrandingFontId;
+  baseFontSizeId: TenantBrandingFontSizeId;
   fontColor: string;
   headingColor: string;
   mutedTextColor: string;
@@ -157,6 +171,7 @@ export const FALLBACK_ACCENT = BRAAS_ACCENT;
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 const DEFAULT_BACKGROUND = "/images/handshake.jpg";
 const DEFAULT_FONT_ID: TenantBrandingFontId = "inter";
+const DEFAULT_FONT_SIZE_ID: TenantBrandingFontSizeId = "md";
 const DEFAULT_FONT_COLOR = "#0F172A";
 const DEFAULT_HEADING_COLOR = "#0F172A";
 const DEFAULT_MUTED_COLOR = "#64748B";
@@ -189,6 +204,20 @@ export function normalizeBrandingFontId(value: string | null | undefined): Tenan
   return DEFAULT_FONT_ID;
 }
 
+export function normalizeBrandingFontSizeId(
+  value: string | null | undefined
+): TenantBrandingFontSizeId {
+  const key = value?.trim().toLowerCase();
+  if (key === "sm" || key === "md" || key === "lg") return key;
+  if (key === "14" || key === "14px") return "sm";
+  if (key === "18" || key === "18px") return "lg";
+  return DEFAULT_FONT_SIZE_ID;
+}
+
+export function brandingFontSizePx(sizeId: TenantBrandingFontSizeId): number {
+  return TENANT_BRANDING_FONT_SIZE_OPTIONS.find((option) => option.id === sizeId)?.px ?? 16;
+}
+
 export function brandingFontFamily(fontId: TenantBrandingFontId): string {
   return FONT_FAMILY_BY_ID[fontId] ?? FONT_FAMILY_BY_ID.inter;
 }
@@ -211,6 +240,7 @@ function brandingTypographyDefaults(primaryHex: string) {
     primaryFontId: DEFAULT_FONT_ID,
     headingFontId: DEFAULT_FONT_ID,
     bodyFontId: DEFAULT_FONT_ID,
+    baseFontSizeId: DEFAULT_FONT_SIZE_ID,
     fontColor: DEFAULT_FONT_COLOR,
     headingColor: DEFAULT_HEADING_COLOR,
     mutedTextColor: DEFAULT_MUTED_COLOR,
@@ -351,6 +381,7 @@ export function brandingFromTenantRow(
     primaryFontId: normalizeBrandingFontId(row.primary_font ?? typography.primaryFontId),
     headingFontId: normalizeBrandingFontId(row.heading_font ?? row.primary_font ?? typography.headingFontId),
     bodyFontId: normalizeBrandingFontId(row.body_font ?? row.primary_font ?? typography.bodyFontId),
+    baseFontSizeId: normalizeBrandingFontSizeId(row.base_font_size ?? typography.baseFontSizeId),
     fontColor: row.font_color?.trim() || typography.fontColor,
     headingColor: row.heading_color?.trim() || typography.headingColor,
     mutedTextColor: row.muted_text_color?.trim() || typography.mutedTextColor,
@@ -390,10 +421,12 @@ export function brandingToCssVars(b: TenantBranding): Record<string, string> {
     "--brand-font-primary": brandingFontFamily(b.primaryFontId),
     "--brand-font-heading": brandingFontFamily(b.headingFontId),
     "--brand-font-body": brandingFontFamily(b.bodyFontId),
+    "--brand-font-size": `${brandingFontSizePx(b.baseFontSizeId)}px`,
     "--brand-text": b.fontColor,
     "--brand-heading": b.headingColor,
     "--brand-muted": b.mutedTextColor,
     "--brand-button": b.buttonColor,
+    fontSize: `${brandingFontSizePx(b.baseFontSizeId)}px`,
   };
 }
 

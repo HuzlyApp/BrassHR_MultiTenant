@@ -36,6 +36,8 @@ export type SkillCategoryDraft = {
   slug: string;
   sortOrder: number;
   isActive: boolean;
+  /** When set, category belongs to that profession’s assessment. Null = shared / global. */
+  professionId: string | null;
   questions: SkillQuestionDraft[];
 };
 

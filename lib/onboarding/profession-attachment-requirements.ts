@@ -10,6 +10,11 @@ export type ProfessionAttachmentFile = {
   fileCount?: number;
   issuedDate?: string | null;
   expiryDate?: string | null;
+  issuingOrganization?: string | null;
+  scope?: string | null;
+  validity?: string | null;
+  /** Raw auth user id when known (path heuristic or future column). */
+  uploadedByUserId?: string | null;
 };
 
 function isResumeAttachmentRow(row: AdminAttachmentRequirement): boolean {
@@ -51,10 +56,15 @@ function legacyFileForDocument(
   return { url: null, key: null };
 }
 
+function attachmentHasUpload(row: AdminAttachmentRequirement): boolean {
+  if (row.url) return true;
+  return Boolean(row.files?.some((file) => Boolean(file.url)));
+}
+
 /**
  * Documents on the attachments page come from profession settings.
- * Workflow rows such as Nursing License or SSN Card stay only when that name is in settings,
- * and an existing upload with the same name is mapped onto that settings row.
+ * Same-name workflow uploads map onto settings rows. Other pre/post-hire
+ * uploads that are not in settings are kept so recruiter/candidate files still show.
  */
 export function applyProfessionDocumentsToAttachments(
   rows: AdminAttachmentRequirement[],
@@ -69,12 +79,15 @@ export function applyProfessionDocumentsToAttachments(
     previousByName.set(documentNameKey(row.title), row);
   }
 
+  const matchedWorkflowIds = new Set<string>();
+
   const professionRows: AdminAttachmentRequirement[] = [...documents]
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
     .map((doc, index) => {
       const uploads = filesByDocumentId.get(doc.id) ?? [];
       const latest = uploads[uploads.length - 1];
       const mapped = previousByName.get(documentNameKey(doc.name));
+      if (mapped) matchedWorkflowIds.add(mapped.id);
       const legacyFile = legacyFileForDocument(doc.name, legacy);
       const files =
         uploads.length > 0
@@ -83,6 +96,7 @@ export function applyProfessionDocumentsToAttachments(
               url: upload.signedUrl,
               filename: upload.originalFileName?.trim() || fileNameFromUrl(upload.signedUrl),
               status: upload.status,
+              uploaded_by: upload.uploadedByUserId ?? null,
             }))
           : mapped?.url
             ? [
@@ -94,6 +108,7 @@ export function applyProfessionDocumentsToAttachments(
                       ? mapped.filename
                       : fileNameFromUrl(mapped.url),
                   status: mapped.status,
+                  uploaded_by: mapped.uploaded_by ?? null,
                 },
               ]
             : legacyFile.url
@@ -103,6 +118,7 @@ export function applyProfessionDocumentsToAttachments(
                     url: legacyFile.url,
                     filename: fileNameFromUrl(legacyFile.url),
                     status: "uploaded",
+                    uploaded_by: null,
                   },
                 ]
               : [];
@@ -127,10 +143,31 @@ export function applyProfessionDocumentsToAttachments(
         has_expiration: doc.hasExpiration,
         issued_date: latest?.issuedDate ?? null,
         expiry_date: latest?.expiryDate ?? null,
+        issuing_organization: latest?.issuingOrganization ?? null,
+        scope: latest?.scope ?? null,
+        validity: latest?.validity ?? null,
+        uploaded_by:
+          latest?.uploadedByUserId ??
+          mapped?.uploaded_by ??
+          files[0]?.uploaded_by ??
+          null,
+        uploaded_at: mapped?.uploaded_at ?? null,
       };
     });
 
-  return [...resumeRows, ...professionRows];
+  const matchedProfessionNames = new Set(
+    documents.map((doc) => documentNameKey(doc.name)).filter(Boolean)
+  );
+
+  const extraWorkflowRows = rows.filter((row) => {
+    if (isResumeAttachmentRow(row)) return false;
+    if (matchedWorkflowIds.has(row.id)) return false;
+    if (matchedProfessionNames.has(documentNameKey(row.title))) return false;
+    return attachmentHasUpload(row);
+  });
+
+  const merged = [...resumeRows, ...professionRows, ...extraWorkflowRows];
+  return merged.map((row, index) => ({ ...row, sort_order: index }));
 }
 
 async function professionIdForFlows(

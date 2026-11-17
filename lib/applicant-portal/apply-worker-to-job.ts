@@ -35,6 +35,7 @@ type WorkerResumeRow = {
   parse_status: string | null;
   parsed_data: Record<string, unknown> | null;
   job_application_id: string | null;
+  file_hash: string | null;
 };
 
 async function getLatestWorkerResume(
@@ -44,7 +45,7 @@ async function getLatestWorkerResume(
   const { data, error } = await supabase
     .from("worker_resumes")
     .select(
-      "id, file_url, storage_path, original_file_name, file_name, file_type, file_size_bytes, extracted_text, text_length, parsing_status, parse_status, parsed_data, job_application_id, uploaded_at"
+      "id, file_url, storage_path, original_file_name, file_name, file_type, file_size_bytes, extracted_text, text_length, parsing_status, parse_status, parsed_data, job_application_id, file_hash, uploaded_at"
     )
     .eq("worker_id", applicant.id)
     .eq("tenant_id", applicant.tenant_id)
@@ -115,6 +116,7 @@ async function linkResumeToApplication(
       fileType: resume.file_type,
       fileSizeBytes: resume.file_size_bytes,
       extractedText: resume.extracted_text,
+      fileHash: resume.file_hash,
       jobApplicationId: applicationId,
       uploadedByUserId,
       uploaderRole: "worker",

@@ -1,0 +1,1266 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, Plus } from "lucide-react";
+import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
+import BrandedEditIcon from "@/app/admin_recruiter/components/BrandedEditIcon";
+import AddLicenseCertModal, {
+  type LicenseCertFormValues,
+  type LicenseCertKind,
+} from "@/app/admin_recruiter/components/AddLicenseCertModal";
+import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
+import {
+  fetchStaffDetailJson,
+  invalidateStaffDetailCache,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
+import { isProfessionDocumentExpired } from "@/lib/onboarding/profession-step-uploads";
+
+type AttachmentRequirement = {
+  id: string;
+  title: string;
+  url: string | null;
+  filename: string;
+  required_document_id?: string | null;
+  submitted_document_id?: string | null;
+  status?: string | null;
+  document_kind?: ProfessionDocumentKind | null;
+  has_expiration?: boolean;
+  issued_date?: string | null;
+  expiry_date?: string | null;
+  issuing_organization?: string | null;
+  scope?: string | null;
+  validity?: string | null;
+  uploaded_by?: string | null;
+  files?: Array<{
+    id: string;
+    url: string | null;
+    filename: string;
+    uploaded_by?: string | null;
+  }>;
+};
+
+type CredentialRow = {
+  id: string;
+  required_document_id: string;
+  license_name: string;
+  issuing_organization: string | null;
+  scope: string | null;
+  validity: string | null;
+  issued_date: string | null;
+  expiry_date: string | null;
+  document_url: string | null;
+  original_file_name: string | null;
+};
+
+type SettingsDocument = {
+  id: string;
+  name: string;
+  documentKind: ProfessionDocumentKind;
+  isRequired: boolean;
+  hasExpiration: boolean;
+  createdBy?: string | null;
+};
+
+type SettingsCatalog = {
+  canManage: boolean;
+  canEditCandidateCredentials?: boolean;
+  currentUserId?: string | null;
+  workerProfessionId: string | null;
+  savedProfessionId: string | null;
+  professions: Array<{
+    id: string;
+    name: string;
+    documents: SettingsDocument[];
+  }>;
+};
+
+type DisplayRow = {
+  key: string;
+  kind: LicenseCertKind;
+  title: string;
+  requiredDocumentId: string | null;
+  createdBy: string | null;
+  isRequired: boolean;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  hasExpiration: boolean;
+  scope: string | null;
+  issuingOrganization: string | null;
+  validity: string | null;
+  documentUrl: string | null;
+  filename: string | null;
+  uploadedBy: string | null;
+  professionUploadId: string | null;
+  submittedDocumentId: string | null;
+};
+
+type LocalMeta = {
+  issuedDate?: string | null;
+  expiryDate?: string | null;
+  hasExpiration?: boolean;
+  scope?: string | null;
+  issuingOrganization?: string | null;
+  validity?: string | null;
+  documentUrl?: string | null;
+  filename?: string | null;
+  uploadedBy?: string | null;
+};
+
+function formatDisplayDate(iso: string | null | undefined): string {
+  if (!iso?.trim()) return "—";
+  const d = new Date(`${iso.trim()}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function dash(value: string | null | undefined): string {
+  const text = value?.trim();
+  return text ? text : "—";
+}
+
+type CredentialValidityStatus = "Active" | "Expired" | "Not uploaded";
+
+function resolveCredentialValidity(
+  documentUrl: string | null | undefined,
+  expiryDate: string | null | undefined
+): CredentialValidityStatus {
+  if (!documentUrl?.trim()) return "Not uploaded";
+  if (isProfessionDocumentExpired(expiryDate)) return "Expired";
+  return "Active";
+}
+
+function ValidityStatusBadge({ status }: { status: CredentialValidityStatus }) {
+  if (status === "Not uploaded") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#F3F4F6] px-2.5 py-1 text-xs font-semibold text-[#6B7280]">
+        Not uploaded
+      </span>
+    );
+  }
+  if (status === "Expired") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#FEE2E2] px-2.5 py-1 text-xs font-semibold text-[#B91C1C]">
+        Expired
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-md bg-[#DCFCE7] px-2.5 py-1 text-xs font-semibold text-[#166534]">
+      Active
+    </span>
+  );
+}
+
+function nameKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+}
+
+export default function CandidateLicenseCertificationsPanel({
+  workerId,
+}: {
+  workerId: string;
+}) {
+  const { displayName: currentUserName, roleLabel: currentUserRoleLabel } =
+    useAdminHeaderData();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [requirements, setRequirements] = useState<AttachmentRequirement[]>([]);
+  const [credentials, setCredentials] = useState<CredentialRow[]>([]);
+  const [settings, setSettings] = useState<SettingsCatalog | null>(null);
+  const [selectedProfessionId, setSelectedProfessionId] = useState("");
+  const [modalKind, setModalKind] = useState<LicenseCertKind | null>(null);
+  const [editing, setEditing] = useState<DisplayRow | null>(null);
+  const [pendingDeleteField, setPendingDeleteField] = useState<DisplayRow | null>(null);
+  const [pendingDeleteFile, setPendingDeleteFile] = useState<DisplayRow | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [localMetaByName, setLocalMetaByName] = useState<Record<string, LocalMeta>>({});
+
+  const isAdmin = Boolean(settings?.canManage);
+  const currentUserId = settings?.currentUserId?.trim() || "";
+  const canEditCredentials =
+    settings?.canEditCandidateCredentials !== false && Boolean(settings);
+
+  const fetchSnapshot = useCallback(async () => {
+    invalidateStaffDetailCache(workerId);
+    const bust = `t=${Date.now()}`;
+    const profileUrl = `${workerProfileApiUrl(workerId)}&${bust}`;
+    const [profileResult, settingsRes, credentialsRes] = await Promise.all([
+      fetchStaffDetailJson<{
+        attachment_requirements?: AttachmentRequirement[];
+        error?: string;
+      }>(profileUrl, { bust: true }),
+      fetch(
+        `/api/admin/profession-documents?workerId=${encodeURIComponent(workerId)}&${bust}`,
+        { cache: "no-store" }
+      ),
+      fetch(
+        `/api/admin/worker-credentials?workerId=${encodeURIComponent(workerId)}&${bust}`,
+        { cache: "no-store" }
+      ),
+    ]);
+
+    if (!profileResult.ok) {
+      throw new Error(profileResult.payload.error || "Could not load documents.");
+    }
+
+    const settingsPayload = (await settingsRes.json()) as SettingsCatalog & {
+      error?: string;
+    };
+    if (!settingsRes.ok) {
+      throw new Error(settingsPayload.error || "Could not load document settings.");
+    }
+
+    const credentialsPayload = (await credentialsRes.json().catch(() => ({}))) as {
+      credentials?: CredentialRow[];
+      error?: string;
+    };
+    if (!credentialsRes.ok) {
+      throw new Error(credentialsPayload.error || "Could not load credentials.");
+    }
+
+    return {
+      requirements: profileResult.payload.attachment_requirements ?? [],
+      settings: settingsPayload,
+      credentials: credentialsPayload.credentials ?? [],
+    };
+  }, [workerId]);
+
+  const applySnapshot = useCallback(
+    (snapshot: {
+      requirements: AttachmentRequirement[];
+      settings: SettingsCatalog;
+      credentials: CredentialRow[];
+    }) => {
+      setRequirements(snapshot.requirements);
+      setSettings(snapshot.settings);
+      setCredentials(snapshot.credentials);
+      const lockedId =
+        snapshot.settings.savedProfessionId || snapshot.settings.workerProfessionId || "";
+      if (lockedId) {
+        setSelectedProfessionId(lockedId);
+        return;
+      }
+      setSelectedProfessionId((current) =>
+        current && snapshot.settings.professions.some((profession) => profession.id === current)
+          ? current
+          : ""
+      );
+    },
+    []
+  );
+
+  const load = useCallback(async () => {
+    setError(null);
+    const snapshot = await fetchSnapshot();
+    applySnapshot(snapshot);
+    return snapshot;
+  }, [applySnapshot, fetchSnapshot]);
+
+  const reloadAfterMutation = useCallback(
+    async (expectedName?: string) => {
+      const expectedKey = expectedName ? nameKey(expectedName) : null;
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          const snapshot = await fetchSnapshot();
+          if (!expectedKey) {
+            applySnapshot(snapshot);
+            return;
+          }
+          const inSettings = (snapshot.settings.professions ?? []).some((profession) =>
+            profession.documents.some(
+              (document) =>
+                (document.documentKind === "license" ||
+                  document.documentKind === "certificate") &&
+                nameKey(document.name) === expectedKey
+            )
+          );
+          const inRequirements = snapshot.requirements.some(
+            (row) =>
+              (row.document_kind === "license" || row.document_kind === "certificate") &&
+              nameKey(row.title) === expectedKey
+          );
+          if (inSettings || inRequirements) {
+            applySnapshot(snapshot);
+            return;
+          }
+          // Keep optimistic UI if the API is still lagging.
+        } catch (err) {
+          lastError = err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+      }
+      if (lastError) throw lastError;
+    },
+    [applySnapshot, fetchSnapshot]
+  );
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    void load()
+      .catch((err: unknown) => {
+        if (alive) setError(err instanceof Error ? err.message : "Could not load licenses.");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const professionLocked = Boolean(
+    settings?.savedProfessionId || settings?.workerProfessionId
+  );
+  const professionId = professionLocked
+    ? settings?.savedProfessionId || settings?.workerProfessionId || selectedProfessionId
+    : selectedProfessionId;
+  const selectedProfession =
+    settings?.professions.find((profession) => profession.id === professionId) ?? null;
+  const professionOptions = useMemo(
+    () => (settings?.professions ?? []).map((profession) => profession.name).filter(Boolean),
+    [settings?.professions]
+  );
+  const professionName = selectedProfession?.name?.trim() || "";
+
+  function setProfessionByName(name: string) {
+    if (professionLocked) return;
+    const match =
+      settings?.professions.find((profession) => profession.name === name) ?? null;
+    setSelectedProfessionId(match?.id ?? "");
+    setError(null);
+    setModalError(null);
+  }
+
+  const rows = useMemo(() => {
+    const credentialByName = new Map(
+      credentials.map((row) => [nameKey(row.license_name), row] as const)
+    );
+    const requirementByDocId = new Map<string, AttachmentRequirement>();
+    const requirementByName = new Map<string, AttachmentRequirement>();
+    for (const row of requirements) {
+      if (row.document_kind !== "license" && row.document_kind !== "certificate") continue;
+      if (row.required_document_id) {
+        requirementByDocId.set(row.required_document_id, row);
+      }
+      requirementByName.set(nameKey(row.title), row);
+    }
+
+    // Profession settings are the source of truth for add/edit; enrich with uploads.
+    const fromSettings: DisplayRow[] = (selectedProfession?.documents ?? [])
+      .filter(
+        (document) =>
+          document.documentKind === "license" || document.documentKind === "certificate"
+      )
+      .map((document) => {
+        const key = nameKey(document.name);
+        const requirement =
+          (document.id ? requirementByDocId.get(document.id) : undefined) ||
+          requirementByName.get(key);
+        const credential = credentialByName.get(key);
+        const local = localMetaByName[key];
+        const fileUrl =
+          local?.documentUrl ||
+          requirement?.files?.find((file) => file.url)?.url ||
+          requirement?.url ||
+          credential?.document_url ||
+          null;
+        const filename =
+          local?.filename ||
+          requirement?.files?.find((file) => file.filename)?.filename ||
+          (requirement?.filename && requirement.filename !== "—"
+            ? requirement.filename
+            : null) ||
+          credential?.original_file_name ||
+          null;
+        const uploadedBy =
+          requirement?.files?.find((file) => file.uploaded_by)?.uploaded_by ||
+          requirement?.uploaded_by ||
+          local?.uploadedBy ||
+          null;
+        const primaryFile = requirement?.files?.find((file) => file.url) ?? null;
+        return {
+          key: document.id || `settings-${key}`,
+          kind: document.documentKind === "license" ? "license" : "certificate",
+          title: document.name,
+          requiredDocumentId: document.id || null,
+          createdBy: document.createdBy ?? null,
+          isRequired: document.isRequired,
+          issuedDate:
+            local?.issuedDate ?? requirement?.issued_date ?? credential?.issued_date ?? null,
+          expiryDate:
+            local?.expiryDate ?? requirement?.expiry_date ?? credential?.expiry_date ?? null,
+          hasExpiration:
+            local?.hasExpiration ??
+            (document.hasExpiration ||
+              Boolean(requirement?.expiry_date || credential?.expiry_date)),
+          scope: local?.scope ?? requirement?.scope ?? credential?.scope ?? null,
+          issuingOrganization:
+            local?.issuingOrganization ??
+            requirement?.issuing_organization ??
+            credential?.issuing_organization ??
+            null,
+          validity:
+            local?.validity ?? requirement?.validity ?? credential?.validity ?? null,
+          documentUrl: fileUrl,
+          filename,
+          uploadedBy: fileUrl ? uploadedBy : null,
+          professionUploadId: primaryFile?.id ?? null,
+          submittedDocumentId: requirement?.submitted_document_id ?? null,
+        } satisfies DisplayRow;
+      });
+
+    const knownNames = new Set(fromSettings.map((row) => nameKey(row.title)));
+
+    const fromRequirementsOnly: DisplayRow[] = requirements
+      .filter(
+        (row) =>
+          (row.document_kind === "license" || row.document_kind === "certificate") &&
+          !knownNames.has(nameKey(row.title))
+      )
+      .map((row) => {
+        const key = nameKey(row.title);
+        const credential = credentialByName.get(key);
+        const local = localMetaByName[key];
+        const fileUrl =
+          local?.documentUrl ||
+          row.files?.find((file) => file.url)?.url ||
+          row.url ||
+          credential?.document_url ||
+          null;
+        const filename =
+          local?.filename ||
+          row.files?.find((file) => file.filename)?.filename ||
+          (row.filename && row.filename !== "—" ? row.filename : null) ||
+          credential?.original_file_name ||
+          null;
+        const uploadedBy =
+          row.files?.find((file) => file.uploaded_by)?.uploaded_by ||
+          row.uploaded_by ||
+          local?.uploadedBy ||
+          null;
+        const primaryFile = row.files?.find((file) => file.url) ?? null;
+        knownNames.add(key);
+        return {
+          key: row.id,
+          kind: row.document_kind === "license" ? "license" : "certificate",
+          title: row.title,
+          requiredDocumentId: row.required_document_id ?? null,
+          createdBy: null,
+          isRequired: true,
+          issuedDate: local?.issuedDate ?? row.issued_date ?? credential?.issued_date ?? null,
+          expiryDate: local?.expiryDate ?? row.expiry_date ?? credential?.expiry_date ?? null,
+          hasExpiration:
+            local?.hasExpiration ??
+            (row.has_expiration === true ||
+              Boolean(row.expiry_date || credential?.expiry_date)),
+          scope: local?.scope ?? row.scope ?? credential?.scope ?? null,
+          issuingOrganization:
+            local?.issuingOrganization ??
+            row.issuing_organization ??
+            credential?.issuing_organization ??
+            null,
+          validity: local?.validity ?? row.validity ?? credential?.validity ?? null,
+          documentUrl: fileUrl,
+          filename,
+          uploadedBy: fileUrl ? uploadedBy : null,
+          professionUploadId: primaryFile?.id ?? null,
+          submittedDocumentId: row.submitted_document_id ?? null,
+        } satisfies DisplayRow;
+      });
+
+    const fromCredentialsOnly: DisplayRow[] = credentials
+      .filter((row) => !knownNames.has(nameKey(row.license_name)))
+      .map((row) => {
+        const key = nameKey(row.license_name);
+        const local = localMetaByName[key];
+        const looksLikeLicense = /license/i.test(row.license_name);
+        const documentUrl = local?.documentUrl || row.document_url || null;
+        return {
+          key: `credential-${row.id}`,
+          kind: looksLikeLicense ? "license" : "certificate",
+          title: row.license_name,
+          requiredDocumentId: row.required_document_id,
+          createdBy: null,
+          isRequired: true,
+          issuedDate: local?.issuedDate ?? row.issued_date,
+          expiryDate: local?.expiryDate ?? row.expiry_date,
+          hasExpiration:
+            local?.hasExpiration ?? Boolean(local?.expiryDate || row.expiry_date),
+          scope: local?.scope ?? row.scope,
+          issuingOrganization: local?.issuingOrganization ?? row.issuing_organization,
+          validity: local?.validity ?? row.validity,
+          documentUrl,
+          filename: local?.filename || row.original_file_name || null,
+          uploadedBy: documentUrl ? local?.uploadedBy ?? null : null,
+          professionUploadId: null,
+          submittedDocumentId: null,
+        } satisfies DisplayRow;
+      });
+
+    return [...fromSettings, ...fromRequirementsOnly, ...fromCredentialsOnly];
+  }, [selectedProfession, requirements, credentials, localMetaByName]);
+
+  const licenseRows = rows.filter((row) => row.kind === "license");
+  const certificateRows = rows.filter((row) => row.kind === "certificate");
+
+  function canDeleteField(row: DisplayRow): boolean {
+    if (!row.requiredDocumentId) return false;
+    if (isAdmin) return true;
+    return Boolean(currentUserId && row.createdBy && row.createdBy === currentUserId);
+  }
+
+  function canDeleteFile(row: DisplayRow): boolean {
+    return Boolean(
+      canEditCredentials &&
+        row.documentUrl &&
+        (row.professionUploadId || row.submittedDocumentId)
+    );
+  }
+
+  async function saveProfessionDocuments(nextDocuments: SettingsDocument[]) {
+    if (!professionId) {
+      throw new Error("Select a profession before adding licenses or certifications.");
+    }
+    const response = await fetch("/api/admin/profession-documents", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        professionId,
+        workerId,
+        documents: nextDocuments.map((document) => ({
+          ...(document.id ? { id: document.id } : {}),
+          name: document.name,
+          documentKind: document.documentKind,
+          isRequired: document.isRequired,
+          hasExpiration: document.hasExpiration,
+        })),
+      }),
+    });
+    const payload = (await response.json()) as {
+      error?: string;
+      documents?: SettingsDocument[];
+      professionId?: string;
+    };
+    if (!response.ok) throw new Error(payload.error || "Could not save documents");
+    if (payload.professionId) {
+      setSelectedProfessionId(payload.professionId);
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              savedProfessionId: payload.professionId ?? current.savedProfessionId,
+            }
+          : current
+      );
+    }
+    return payload.documents ?? nextDocuments;
+  }
+
+  async function uploadForDocument(
+    documentId: string,
+    title: string,
+    values: LicenseCertFormValues
+  ) {
+    const fd = new FormData();
+    fd.append("workerId", workerId);
+    fd.append("documentTitle", title);
+    fd.append("requiredDocumentId", documentId);
+    fd.append("issuedDate", values.hasExpiration ? values.issuedDate : "");
+    fd.append("expiryDate", values.hasExpiration ? values.expiryDate : "");
+    fd.append("issuingOrganization", values.issuingOrganization || "");
+    fd.append("scope", values.scope || "");
+    fd.append("validity", values.validity || "");
+    if (values.file) {
+      fd.append("file", values.file);
+    } else {
+      fd.append("attachmentKind", "profession_meta");
+    }
+    const res = await fetch("/api/admin/worker-attachment-upload", {
+      method: "POST",
+      body: fd,
+    });
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      // Meta-only save can 404 when no file exists yet; keep the row from settings.
+      if (!values.file && res.status === 404) return;
+      throw new Error(json.error || "Upload failed");
+    }
+  }
+
+  function patchSettingsDocuments(nextDocuments: SettingsDocument[]) {
+    if (!professionId) return;
+    setSettings((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        professions: current.professions.map((profession) =>
+          profession.id === professionId
+            ? { ...profession, documents: nextDocuments }
+            : profession
+        ),
+      };
+    });
+  }
+
+  async function handleSubmit(values: LicenseCertFormValues) {
+    if (!modalKind) return;
+    if (!canEditCredentials) {
+      setModalError("You do not have permission to add or edit these documents.");
+      return;
+    }
+    if (editing && !canDeleteField(editing) && !isAdmin) {
+      // Recruiter may still upload/replace a file on an admin field without editing the field.
+      if (!values.file && editing.requiredDocumentId) {
+        setModalError("You can upload a file for this field, but only an administrator can edit it.");
+        return;
+      }
+      if (editing.requiredDocumentId && values.file) {
+        setSaving(true);
+        setModalError(null);
+        try {
+          await uploadForDocument(editing.requiredDocumentId, editing.title, {
+            ...values,
+            name: editing.title,
+            isRequired: editing.isRequired,
+            hasExpiration: editing.hasExpiration,
+          });
+          setModalKind(null);
+          setEditing(null);
+          await reloadAfterMutation(editing.title);
+        } catch (err) {
+          setModalError(err instanceof Error ? err.message : "Could not save.");
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+      setModalError("You can only edit license or certification fields that you added.");
+      return;
+    }
+    if (!professionId) {
+      setModalError("Select a profession before adding licenses or certifications.");
+      return;
+    }
+    setSaving(true);
+    setModalError(null);
+    try {
+      const currentDocs = selectedProfession?.documents ?? [];
+      let documentId = editing?.requiredDocumentId ?? null;
+      const previousNameKey = editing ? nameKey(editing.title) : null;
+      let savedDocuments: SettingsDocument[] = currentDocs;
+
+      if (editing && documentId) {
+        const nextDocs = currentDocs.map((document) =>
+          document.id === documentId
+            ? {
+                ...document,
+                name: values.name,
+                documentKind: modalKind,
+                isRequired: values.isRequired,
+                hasExpiration: values.hasExpiration,
+              }
+            : document
+        );
+        savedDocuments = await saveProfessionDocuments(nextDocs);
+        patchSettingsDocuments(savedDocuments);
+        await uploadForDocument(documentId, values.name, values);
+      } else {
+        savedDocuments = await saveProfessionDocuments([
+          ...currentDocs,
+          {
+            id: "",
+            name: values.name,
+            documentKind: modalKind,
+            isRequired: values.isRequired,
+            hasExpiration: values.hasExpiration,
+          },
+        ]);
+        patchSettingsDocuments(savedDocuments);
+        const match =
+          savedDocuments.find((document) => nameKey(document.name) === nameKey(values.name)) ??
+          null;
+        documentId = match?.id ?? null;
+        if (documentId) {
+          await uploadForDocument(documentId, values.name, values);
+        }
+      }
+
+      // Best-effort metadata save when a matching workflow credential target exists.
+      if (
+        documentId &&
+        (values.issuingOrganization || values.scope || values.validity || values.file)
+      ) {
+        const credentialsCatalog = await fetch(
+          `/api/admin/worker-credentials?workerId=${encodeURIComponent(workerId)}&t=${Date.now()}`,
+          { cache: "no-store" }
+        );
+        const catalogPayload = (await credentialsCatalog.json().catch(() => ({}))) as {
+          documents?: Array<{ id: string; name: string }>;
+        };
+        const workflowDoc = (catalogPayload.documents ?? []).find(
+          (document) => nameKey(document.name) === nameKey(values.name)
+        );
+        if (workflowDoc) {
+          const form = new FormData();
+          form.append("workerId", workerId);
+          form.append("requiredDocumentId", workflowDoc.id);
+          if (values.issuingOrganization) {
+            form.append("issuingOrganization", values.issuingOrganization);
+          }
+          if (values.scope) form.append("scope", values.scope);
+          if (values.validity) form.append("validity", values.validity);
+          if (values.issuedDate) form.append("issuedDate", values.issuedDate);
+          if (values.expiryDate) form.append("expiryDate", values.expiryDate);
+          if (values.file) form.append("file", values.file);
+          await fetch("/api/admin/worker-credentials", { method: "POST", body: form });
+        }
+      }
+
+      const nextKey = nameKey(values.name);
+      const staffUploaderLabel = currentUserName?.trim()
+        ? currentUserRoleLabel?.trim()
+          ? `${currentUserName.trim()} (${currentUserRoleLabel.trim()})`
+          : currentUserName.trim()
+        : null;
+      const optimisticMeta: LocalMeta = {
+        issuedDate: values.hasExpiration ? values.issuedDate || null : null,
+        expiryDate: values.hasExpiration ? values.expiryDate || null : null,
+        hasExpiration: values.hasExpiration,
+        scope: values.scope || null,
+        issuingOrganization: values.issuingOrganization || null,
+        validity: values.validity || null,
+        documentUrl: values.file
+          ? URL.createObjectURL(values.file)
+          : editing?.documentUrl ?? null,
+        filename: values.file?.name ?? editing?.filename ?? null,
+        uploadedBy: values.file
+          ? staffUploaderLabel
+          : editing?.uploadedBy ?? null,
+      };
+      setLocalMetaByName((current) => {
+        const next = { ...current };
+        if (previousNameKey && previousNameKey !== nextKey) {
+          delete next[previousNameKey];
+        }
+        next[nextKey] = optimisticMeta;
+        return next;
+      });
+
+      setModalKind(null);
+      setEditing(null);
+      await reloadAfterMutation(values.name);
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function requestDeleteField(row: DisplayRow) {
+    if (!canDeleteField(row)) {
+      setError("You can only delete license or certification fields that you added.");
+      return;
+    }
+    if (!row.requiredDocumentId || !selectedProfession) {
+      setError("This item cannot be deleted from profession settings.");
+      return;
+    }
+    setDeleteError(null);
+    setPendingDeleteFile(null);
+    setPendingDeleteField(row);
+  }
+
+  function requestDeleteFile(row: DisplayRow) {
+    if (!canDeleteFile(row)) {
+      setError("No uploaded file is available to delete.");
+      return;
+    }
+    setDeleteError(null);
+    setPendingDeleteField(null);
+    setPendingDeleteFile(row);
+  }
+
+  async function confirmDeleteField() {
+    if (!pendingDeleteField || !selectedProfession) return;
+    if (!pendingDeleteField.requiredDocumentId) {
+      setDeleteError("This item cannot be deleted from profession settings.");
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    setError(null);
+    try {
+      const remaining = await saveProfessionDocuments(
+        selectedProfession.documents.filter(
+          (document) => document.id !== pendingDeleteField.requiredDocumentId
+        )
+      );
+      patchSettingsDocuments(remaining);
+      setLocalMetaByName((current) => {
+        const next = { ...current };
+        delete next[nameKey(pendingDeleteField.title)];
+        return next;
+      });
+      setPendingDeleteField(null);
+      await reloadAfterMutation();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmDeleteFile() {
+    if (!pendingDeleteFile) return;
+    setDeleting(true);
+    setDeleteError(null);
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/profession-documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId,
+          professionUploadId: pendingDeleteFile.professionUploadId,
+          submittedDocumentId: pendingDeleteFile.submittedDocumentId,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not delete file");
+      setLocalMetaByName((current) => {
+        const next = { ...current };
+        const key = nameKey(pendingDeleteFile.title);
+        next[key] = {
+          ...(next[key] ?? {}),
+          documentUrl: null,
+          filename: null,
+          uploadedBy: null,
+        };
+        return next;
+      });
+      setPendingDeleteFile(null);
+      await reloadAfterMutation();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete file.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function openAdd(kind: LicenseCertKind) {
+    if (!canEditCredentials) {
+      setError("You do not have permission to add licenses or certifications.");
+      return;
+    }
+    setEditing(null);
+    setModalError(null);
+    setModalKind(kind);
+  }
+
+  function openEdit(row: DisplayRow) {
+    if (!canEditCredentials) {
+      setError("You do not have permission to edit these documents.");
+      return;
+    }
+    setEditing(row);
+    setModalError(null);
+    setModalKind(row.kind);
+  }
+
+  if (loading) {
+    return <div className="mt-2 h-48 animate-pulse rounded-xl bg-[#F3F4F6]" />;
+  }
+
+  return (
+    <div className="space-y-8">
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="max-w-md space-y-1.5">
+        <label htmlFor="license-cert-profession" className="block text-sm font-medium text-[#374151]">
+          Profession
+        </label>
+        {professionLocked ? (
+          <input
+            id="license-cert-profession"
+            value={professionName || "—"}
+            readOnly
+            disabled
+            className="h-11 w-full cursor-not-allowed rounded-lg border border-[#D1D5DB] bg-[#F8FAFC] px-3 text-sm font-semibold text-[#111827] outline-none"
+          />
+        ) : (
+          <select
+            id="license-cert-profession"
+            value={professionName}
+            disabled={!settings?.canManage || professionOptions.length === 0}
+            onChange={(event) => setProfessionByName(event.target.value)}
+            className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat px-3 pr-10 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+            }}
+          >
+            <option value="">
+              {professionOptions.length === 0
+                ? "No professions in settings"
+                : "Select profession"}
+            </option>
+            {professionOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="text-xs text-[#64748B]">
+          {professionLocked
+            ? "Profession comes from the job and cannot be changed here."
+            : "This job has no profession. Select one from settings, then add licenses or certifications."}
+        </p>
+      </div>
+
+      <CredentialSection
+        title="License"
+        addLabel="Add License"
+        columns="license"
+        rows={licenseRows}
+        onAdd={() => openAdd("license")}
+        onEdit={openEdit}
+        onDeleteField={requestDeleteField}
+        onDeleteFile={requestDeleteFile}
+        canAdd={canEditCredentials}
+        canEditRow={(row) => canEditCredentials && (isAdmin || canDeleteField(row) || Boolean(row.documentUrl))}
+        canDeleteField={canDeleteField}
+        canDeleteFile={canDeleteFile}
+      />
+
+      <CredentialSection
+        title="Certifications"
+        addLabel="Add Certification"
+        columns="certificate"
+        rows={certificateRows}
+        onAdd={() => openAdd("certificate")}
+        onEdit={openEdit}
+        onDeleteField={requestDeleteField}
+        onDeleteFile={requestDeleteFile}
+        canAdd={canEditCredentials}
+        canEditRow={(row) => canEditCredentials && (isAdmin || canDeleteField(row) || Boolean(row.documentUrl))}
+        canDeleteField={canDeleteField}
+        canDeleteFile={canDeleteFile}
+      />
+
+      <AddLicenseCertModal
+        open={modalKind != null}
+        kind={modalKind ?? "license"}
+        mode={editing ? "edit" : "add"}
+        initial={
+          editing
+            ? {
+                name: editing.title,
+                isRequired: editing.isRequired,
+                hasExpiration: editing.hasExpiration || Boolean(editing.expiryDate),
+                issuedDate: editing.issuedDate ?? "",
+                expiryDate: editing.expiryDate ?? "",
+                issuingOrganization: editing.issuingOrganization ?? "",
+                scope: editing.scope ?? "",
+                validity: editing.validity ?? "",
+              }
+            : null
+        }
+        existingFile={
+          editing?.filename || editing?.documentUrl
+            ? {
+                name: editing.filename || "Uploaded document",
+                url: editing.documentUrl,
+              }
+            : null
+        }
+        saving={saving}
+        error={modalError}
+        professionOptions={professionOptions}
+        professionValue={professionName}
+        professionLocked={professionLocked}
+        onProfessionChange={setProfessionByName}
+        onClose={() => {
+          if (saving) return;
+          setModalKind(null);
+          setEditing(null);
+          setModalError(null);
+        }}
+        onSubmit={(values) => void handleSubmit(values)}
+      />
+
+      <BulkDeleteConfirmModal
+        open={pendingDeleteField != null}
+        busy={deleting}
+        error={deleteError}
+        requireConfirmationText="DELETE"
+        title={
+          pendingDeleteField?.kind === "certificate"
+            ? "Delete certification field?"
+            : "Delete license field?"
+        }
+        description={
+          pendingDeleteField ? (
+            <p>
+              Are you sure you want to delete the{" "}
+              <span className="font-semibold text-[#101828]">{pendingDeleteField.title}</span>{" "}
+              field? This removes it from the profession list and cannot be undone.
+            </p>
+          ) : null
+        }
+        onCancel={() => {
+          if (deleting) return;
+          setPendingDeleteField(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDeleteField()}
+      />
+
+      <BulkDeleteConfirmModal
+        open={pendingDeleteFile != null}
+        busy={deleting}
+        error={deleteError}
+        requireConfirmationText="DELETE"
+        title="Delete uploaded document?"
+        description={
+          pendingDeleteFile ? (
+            <p>
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-[#101828]">
+                {pendingDeleteFile.filename || pendingDeleteFile.title}
+              </span>
+              ? The field stays; only the uploaded file is removed.
+            </p>
+          ) : null
+        }
+        onCancel={() => {
+          if (deleting) return;
+          setPendingDeleteFile(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDeleteFile()}
+      />
+    </div>
+  );
+}
+
+function CredentialSection({
+  title,
+  addLabel,
+  columns,
+  rows,
+  onAdd,
+  onEdit,
+  onDeleteField,
+  onDeleteFile,
+  canAdd,
+  canEditRow,
+  canDeleteField,
+  canDeleteFile,
+}: {
+  title: string;
+  addLabel: string;
+  columns: LicenseCertKind;
+  rows: DisplayRow[];
+  onAdd: () => void;
+  onEdit: (row: DisplayRow) => void;
+  onDeleteField: (row: DisplayRow) => void;
+  onDeleteFile: (row: DisplayRow) => void;
+  canAdd: boolean;
+  canEditRow: (row: DisplayRow) => boolean;
+  canDeleteField: (row: DisplayRow) => boolean;
+  canDeleteFile: (row: DisplayRow) => boolean;
+}) {
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold text-[#111827]">{title}</h3>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={!canAdd}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          {addLabel}
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  {columns === "certificate" ? "Certificate name" : "License name"}
+                </th>
+                {columns === "certificate" ? (
+                  <>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      Issuing organization
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      Scope
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                      Validity period
+                    </th>
+                  </>
+                ) : null}
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Issued date
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Expiry date
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Validity
+                </th>
+                {columns === "license" ? (
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                    Scope
+                  </th>
+                ) : null}
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Uploaded by
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Download
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns === "certificate" ? 10 : 8}
+                    className="px-4 py-8 text-center text-sm text-[#6B7280]"
+                  >
+                    No {title.toLowerCase()} yet.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.key} className="border-b border-[#F3F4F6] last:border-b-0">
+                    <td className="px-4 py-3.5 text-sm font-medium text-[#111827]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{row.title}</span>
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            row.isRequired
+                              ? "bg-[#FEF3C7] text-[#92400E]"
+                              : "bg-[#F3F4F6] text-[#4B5563]"
+                          }`}
+                        >
+                          {row.isRequired ? "Required" : "Optional"}
+                        </span>
+                      </div>
+                    </td>
+                    {columns === "certificate" ? (
+                      <>
+                        <td className="px-4 py-3.5 text-sm text-[#374151]">
+                          {dash(row.issuingOrganization)}
+                        </td>
+                        <td className="px-4 py-3.5 text-sm text-[#374151]">{dash(row.scope)}</td>
+                        <td className="px-4 py-3.5 text-sm text-[#374151]">
+                          {dash(row.validity)}
+                        </td>
+                      </>
+                    ) : null}
+                    <td className="px-4 py-3.5 text-sm text-[#374151]">
+                      {formatDisplayDate(row.issuedDate)}
+                    </td>
+                    <td className="px-4 py-3.5 text-sm text-[#374151]">
+                      {row.hasExpiration || row.expiryDate
+                        ? formatDisplayDate(row.expiryDate)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <ValidityStatusBadge
+                        status={resolveCredentialValidity(row.documentUrl, row.expiryDate)}
+                      />
+                    </td>
+                    {columns === "license" ? (
+                      <td className="px-4 py-3.5 text-sm text-[#374151]">{dash(row.scope)}</td>
+                    ) : null}
+                    <td className="px-4 py-3.5 text-sm text-[#374151]">
+                      {dash(row.uploadedBy)}
+                    </td>
+                    <td className="px-4 py-3.5 text-sm">
+                      {row.documentUrl ? (
+                        <a
+                          href={row.documentUrl}
+                          download={row.filename || undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline"
+                        >
+                          <Download className="h-3.5 w-3.5" aria-hidden />
+                          Download
+                        </a>
+                      ) : (
+                        <span className="text-[#9CA3AF]">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end gap-2">
+                        {canDeleteFile(row) ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteFile(row)}
+                            className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[#B91C1C] transition hover:bg-[#FEF2F2]"
+                            aria-label={`Delete uploaded file for ${row.title}`}
+                          >
+                            Remove file
+                          </button>
+                        ) : null}
+                        {canDeleteField(row) ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteField(row)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
+                            aria-label={`Delete ${row.title} field`}
+                          >
+                            <BrandedDeleteIcon className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={!canEditRow(row)}
+                          onClick={() => onEdit(row)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] disabled:opacity-40"
+                          aria-label={`Edit ${row.title}`}
+                        >
+                          <BrandedEditIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}

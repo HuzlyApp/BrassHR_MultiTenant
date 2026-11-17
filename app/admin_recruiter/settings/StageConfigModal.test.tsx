@@ -69,7 +69,7 @@ describe("StageConfigModal", () => {
     expect(screen.getByText("No alternate statuses. This category is optional.")).toBeTruthy();
     expect(screen.getByText("No closing statuses. This category is optional.")).toBeTruthy();
     expect(screen.getAllByText("No reason codes.")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Save changes" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Save Changes" })).toHaveProperty("disabled", true);
   });
 
   it("keeps reason codes inside their own section and saves the edited lists", async () => {
@@ -80,14 +80,15 @@ describe("StageConfigModal", () => {
     expect(screen.getByText("Not a Fit")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Remove Unreachable" })).toBeTruthy();
 
-    await user.selectOptions(screen.getByLabelText("Add an existing status to Alternate"), "follow");
+    await user.click(screen.getByRole("button", { name: "Add an existing status to Alternate" }));
+    await user.click(screen.getByRole("option", { name: "Follow-up Needed" }));
     const alternateReasons = screen.getByLabelText("Search or add an alternate reason code");
     await user.type(alternateReasons, "C2C Only");
     await user.click(alternateReasons.parentElement!.querySelector("button")!);
     expect(screen.getByText("C2C Only belongs with Closing.")).toBeTruthy();
     await user.clear(alternateReasons);
 
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(onSave).toHaveBeenCalledTimes(1);
     const draft = onSave.mock.calls[0][0] as StageConfigDraft;
     expect(draft.lanes.alternate.map((status) => status.name)).toEqual(["Follow-up Needed"]);
@@ -118,7 +119,7 @@ describe("StageConfigModal", () => {
     await user.clear(input);
     await user.type(input, "Contact Attempted");
     await user.click(screen.getByRole("button", { name: "Apply status name" }));
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(onSave).toHaveBeenCalledTimes(1);
     const draft = onSave.mock.calls[0][0] as StageConfigDraft;
     expect(draft.lanes.happy_path[0]).toMatchObject({

@@ -26,7 +26,10 @@ export default async function SettingsSectionPage({ params }: PageProps) {
     redirect("/admin_recruiter/help-support");
   }
   if (section === "notifications") {
-    redirect("/admin_recruiter/notifications");
+    redirect("/admin_recruiter/account/notifications");
+  }
+  if (section === "call") {
+    redirect("/admin_recruiter/account/call");
   }
   if (section === "template-builder") {
     redirect("/admin_recruiter/template-builder");
@@ -34,14 +37,20 @@ export default async function SettingsSectionPage({ params }: PageProps) {
   if (section === "email-templates") {
     redirect("/admin_recruiter/email-templates");
   }
+  if (section === "legal-documents") {
+    redirect("/admin_recruiter/legal-documents");
+  }
   if (section === "security") {
-    redirect("/admin_recruiter/account/security");
+    redirect("/admin_recruiter/account/account-security");
+  }
+  if (section === "admin-console") {
+    redirect("/admin_recruiter/settings/user-management");
   }
   if (section === "profile") {
     redirect("/admin_recruiter/account/personal");
   }
   if (section === "account") {
-    redirect("/admin_recruiter/account/account-settings");
+    redirect("/admin_recruiter/account/account-security");
   }
   if (section === "automation") {
     redirect("/admin_recruiter/dashboard/onboarding-flows");
