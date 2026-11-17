@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingShellGradient, brandingToCssVars } from "@/lib/tenant/tenant-branding"
+import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens"
 import type { LegalDocument, LegalSection } from "@/lib/legal/types"
 
 type TermsSection = {
@@ -68,8 +69,12 @@ export default function TermsAndConditionsPage() {
         if (!res.ok) return
         const payload = (await res.json()) as { document?: LegalDocument }
         if (cancelled || !payload.document?.sections?.length) return
-        setDocTitle(payload.document.title || "Terms & Conditions")
-        setSections(sectionsFromLegal(payload.document.sections))
+        const personalized = applyCompanyNameToLegalDocument(
+          payload.document,
+          branding.companyName
+        )
+        setDocTitle(personalized.title || "Terms & Conditions")
+        setSections(sectionsFromLegal(personalized.sections))
       } catch {
         /* keep fallback */
       }

@@ -1,4 +1,5 @@
 import { APPLICANT_TERMS } from "@/lib/legal/applicant-terms";
+import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens";
 import { DATA_PROCESSING_ADDENDUM } from "@/lib/legal/data-processing-addendum";
 import {
   SYSTEM_LEGAL_DOCUMENT_META,
@@ -15,12 +16,21 @@ const DEFAULT_BY_KEY: Record<SystemLegalDocumentKey, LegalDocument> = {
   data_processing_addendum: DATA_PROCESSING_ADDENDUM,
 };
 
-export function getDefaultLegalDocument(key: SystemLegalDocumentKey): LegalDocument {
-  return DEFAULT_BY_KEY[key];
+/** Platform template. Pass companyName to personalize for a tenant. */
+export function getDefaultLegalDocument(
+  key: SystemLegalDocumentKey,
+  companyName?: string | null
+): LegalDocument {
+  const base = DEFAULT_BY_KEY[key];
+  if (!companyName?.trim()) return base;
+  return applyCompanyNameToLegalDocument(base, companyName);
 }
 
-export function getDefaultLegalDocumentPayload(key: SystemLegalDocumentKey) {
-  const doc = getDefaultLegalDocument(key);
+export function getDefaultLegalDocumentPayload(
+  key: SystemLegalDocumentKey,
+  companyName?: string | null
+) {
+  const doc = getDefaultLegalDocument(key, companyName);
   const meta = SYSTEM_LEGAL_DOCUMENT_META[key];
   return {
     document_key: key,

@@ -2,6 +2,8 @@ import "server-only";
 
 import { cookies, headers } from "next/headers";
 import { createClient as createSb } from "@supabase/supabase-js";
+import { seedMissingSystemDocuments } from "@/lib/legal/admin-service";
+import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens";
 import { getDefaultLegalDocument } from "@/lib/legal/defaults";
 import {
   isSystemLegalDocumentKey,
@@ -30,11 +32,6 @@ function normalizeSections(value: unknown): LegalSection[] {
       return { title, paragraphs };
     })
     .filter((section): section is LegalSection => section !== null);
-}
-
-function fallbackDocument(documentKey: string): LegalDocument | null {
-  if (!isSystemLegalDocumentKey(documentKey)) return null;
-  return getDefaultLegalDocument(documentKey);
 }
 
 async function resolveTenantSlugFromRequest(explicitSlug?: string | null): Promise<string | null> {
@@ -66,18 +63,33 @@ export async function loadPublishedLegalDocument(options: {
 }): Promise<LegalDocument> {
   const documentKey = options.documentKey.trim().toLowerCase();
   const publishedOnly = options.publishedOnly !== false;
-  const fallback = fallbackDocument(documentKey);
 
   try {
     const slug = await resolveTenantSlugFromRequest(options.tenantSlug);
-    const supabase = createServiceRoleClient() ?? createPublicClient();
+    const service = createServiceRoleClient();
+    const supabase = service ?? createPublicClient();
+
     if (!supabase || !slug) {
-      return fallback ?? { title: "Legal document", lastUpdated: null, sections: [] };
+      // No tenant context — only system templates, still without a tenant company name.
+      if (isSystemLegalDocumentKey(documentKey)) {
+        return getDefaultLegalDocument(documentKey);
+      }
+      return { title: "Legal document", lastUpdated: null, sections: [] };
     }
 
     const tenant = await resolvePublicTenant(supabase, slug);
     if (!tenant) {
-      return fallback ?? { title: "Legal document", lastUpdated: null, sections: [] };
+      if (isSystemLegalDocumentKey(documentKey)) {
+        return getDefaultLegalDocument(documentKey);
+      }
+      return { title: "Legal document", lastUpdated: null, sections: [] };
+    }
+
+    const companyName = tenant.name;
+
+    // Prefer service role so we can seed + personalize for this tenant.
+    if (service && isSystemLegalDocumentKey(documentKey)) {
+      await seedMissingSystemDocuments(service, tenant.id, null, companyName);
     }
 
     let query = supabase
@@ -89,26 +101,36 @@ export async function loadPublishedLegalDocument(options: {
     if (publishedOnly) query = query.eq("is_published", true);
 
     const { data, error } = await query.maybeSingle();
-    if (error || !data) {
-      return fallback ?? { title: "Legal document", lastUpdated: null, sections: [] };
+
+    if (!error && data) {
+      const sections = normalizeSections((data as { sections?: unknown }).sections);
+      if (sections.length > 0) {
+        return applyCompanyNameToLegalDocument(
+          legalRecordToDocument({
+            title: String((data as { title?: string }).title || "Legal document"),
+            last_updated_label:
+              typeof (data as { last_updated_label?: string | null }).last_updated_label === "string"
+                ? (data as { last_updated_label: string }).last_updated_label
+                : null,
+            sections,
+          }),
+          companyName
+        );
+      }
     }
 
-    const sections = normalizeSections((data as { sections?: unknown }).sections);
-    if (sections.length === 0) {
-      return fallback ?? { title: "Legal document", lastUpdated: null, sections: [] };
+    // Tenant resolved but row missing — return personalized system template (and seed next time via service).
+    if (isSystemLegalDocumentKey(documentKey)) {
+      return getDefaultLegalDocument(documentKey, companyName);
     }
 
-    return legalRecordToDocument({
-      title: String((data as { title?: string }).title || fallback?.title || "Legal document"),
-      last_updated_label:
-        typeof (data as { last_updated_label?: string | null }).last_updated_label === "string"
-          ? (data as { last_updated_label: string }).last_updated_label
-          : null,
-      sections,
-    });
+    return { title: "Legal document", lastUpdated: null, sections: [] };
   } catch (error) {
     console.error("[legal] loadPublishedLegalDocument", error);
-    return fallback ?? { title: "Legal document", lastUpdated: null, sections: [] };
+    if (isSystemLegalDocumentKey(documentKey)) {
+      return getDefaultLegalDocument(documentKey);
+    }
+    return { title: "Legal document", lastUpdated: null, sections: [] };
   }
 }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSb } from "@supabase/supabase-js";
+import { seedMissingSystemDocuments } from "@/lib/legal/admin-service";
+import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens";
 import { getDefaultLegalDocument } from "@/lib/legal/defaults";
 import { isSystemLegalDocumentKey } from "@/lib/legal/document-keys";
 import { legalRecordToDocument, type LegalSection } from "@/lib/legal/types";
@@ -34,7 +36,7 @@ function publicClient() {
   });
 }
 
-/** GET — public published legal document by key + tenant slug (falls back to platform defaults). */
+/** GET — published legal document for a tenant, with company name personalization. */
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -45,31 +47,43 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "key is required" }, { status: 400 });
     }
 
-    const fallback = isSystemLegalDocumentKey(documentKey)
-      ? getDefaultLegalDocument(documentKey)
-      : null;
-
     if (!tenantSlug) {
-      if (!fallback) {
+      if (!isSystemLegalDocumentKey(documentKey)) {
         return NextResponse.json({ error: "Document not found" }, { status: 404 });
       }
-      return NextResponse.json({ document: fallback, source: "default" });
+      return NextResponse.json({
+        document: getDefaultLegalDocument(documentKey),
+        source: "template",
+      });
     }
 
-    const supabase = createServiceRoleClient() ?? publicClient();
+    const service = createServiceRoleClient();
+    const supabase = service ?? publicClient();
     if (!supabase) {
-      if (!fallback) {
+      if (!isSystemLegalDocumentKey(documentKey)) {
         return NextResponse.json({ error: "Document not found" }, { status: 404 });
       }
-      return NextResponse.json({ document: fallback, source: "default" });
+      return NextResponse.json({
+        document: getDefaultLegalDocument(documentKey),
+        source: "template",
+      });
     }
 
     const tenant = await resolvePublicTenant(supabase, tenantSlug);
     if (!tenant) {
-      if (!fallback) {
+      if (!isSystemLegalDocumentKey(documentKey)) {
         return NextResponse.json({ error: "Document not found" }, { status: 404 });
       }
-      return NextResponse.json({ document: fallback, source: "default" });
+      return NextResponse.json({
+        document: getDefaultLegalDocument(documentKey),
+        source: "template",
+      });
+    }
+
+    const companyName = tenant.name;
+
+    if (service && isSystemLegalDocumentKey(documentKey)) {
+      await seedMissingSystemDocuments(service, tenant.id, null, companyName);
     }
 
     const { data, error } = await supabase
@@ -82,32 +96,37 @@ export async function GET(req: Request) {
 
     if (error) throw error;
 
-    if (!data) {
-      if (!fallback) {
-        return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    if (data) {
+      const sections = normalizeSections((data as { sections?: unknown }).sections);
+      if (sections.length > 0) {
+        return NextResponse.json({
+          tenantId: tenant.id,
+          companyName,
+          source: "tenant",
+          document: applyCompanyNameToLegalDocument(
+            legalRecordToDocument({
+              title: String((data as { title: string }).title),
+              last_updated_label:
+                typeof (data as { last_updated_label?: string | null }).last_updated_label === "string"
+                  ? (data as { last_updated_label: string }).last_updated_label
+                  : null,
+              sections,
+            }),
+            companyName
+          ),
+        });
       }
-      return NextResponse.json({ document: fallback, source: "default", tenantId: tenant.id });
     }
 
-    const sections = normalizeSections((data as { sections?: unknown }).sections);
-    if (sections.length === 0) {
-      if (!fallback) {
-        return NextResponse.json({ error: "Document not found" }, { status: 404 });
-      }
-      return NextResponse.json({ document: fallback, source: "default", tenantId: tenant.id });
+    if (!isSystemLegalDocumentKey(documentKey)) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
     return NextResponse.json({
       tenantId: tenant.id,
-      source: "tenant",
-      document: legalRecordToDocument({
-        title: String((data as { title: string }).title),
-        last_updated_label:
-          typeof (data as { last_updated_label?: string | null }).last_updated_label === "string"
-            ? (data as { last_updated_label: string }).last_updated_label
-            : null,
-        sections,
-      }),
+      companyName,
+      source: "tenant_template",
+      document: getDefaultLegalDocument(documentKey, companyName),
     });
   } catch (e) {
     console.error("[legal/documents]", e);

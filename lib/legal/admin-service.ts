@@ -1,6 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  applyCompanyNameToSections,
+  applyCompanyNameToText,
+} from "@/lib/legal/company-tokens";
 import { getDefaultLegalDocumentPayload } from "@/lib/legal/defaults";
 import {
   SYSTEM_LEGAL_DOCUMENT_KEYS,
@@ -43,10 +47,72 @@ function mapRow(row: Record<string, unknown>): LegalDocumentRecord {
   };
 }
 
-async function seedMissingSystemDocuments(
+async function loadTenantCompanyName(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  const name = (data as { name?: string } | null)?.name?.trim() || null;
+  return name;
+}
+
+function stillHasPlatformCompanyTokens(value: unknown): boolean {
+  const raw = JSON.stringify(value ?? "");
+  return (
+    raw.includes("ZipStaff") ||
+    raw.includes("{{company_name}}") ||
+    raw.includes("{{company}}") ||
+    raw.includes("[ZipStaff Legal Entity]")
+  );
+}
+
+/** Rewrite stored policies that still say ZipStaff / tokens to the tenant company name. */
+export async function personalizeStoredLegalDocuments(
   supabase: SupabaseClient,
   tenantId: string,
-  actorUserId: string | null
+  companyName: string,
+  actorUserId: string | null = null
+): Promise<void> {
+  const name = companyName.trim();
+  if (!name) return;
+
+  const { data, error } = await supabase
+    .from("legal_documents")
+    .select("id, title, last_updated_label, sections")
+    .eq("tenant_id", tenantId);
+
+  if (error || !data?.length) return;
+
+  for (const row of data) {
+    if (!stillHasPlatformCompanyTokens(row)) continue;
+    const sections = normalizeSections((row as { sections?: unknown }).sections);
+    await supabase
+      .from("legal_documents")
+      .update({
+        title: applyCompanyNameToText(String((row as { title?: string }).title ?? ""), name),
+        last_updated_label:
+          typeof (row as { last_updated_label?: string | null }).last_updated_label === "string"
+            ? applyCompanyNameToText((row as { last_updated_label: string }).last_updated_label, name)
+            : null,
+        sections: applyCompanyNameToSections(sections, name),
+        updated_by: actorUserId,
+      })
+      .eq("id", (row as { id: string }).id)
+      .eq("tenant_id", tenantId);
+  }
+}
+
+/** Seed missing system policies for a tenant, personalized with the tenant company name. */
+export async function seedMissingSystemDocuments(
+  supabase: SupabaseClient,
+  tenantId: string,
+  actorUserId: string | null,
+  companyName?: string | null
 ): Promise<void> {
   const { data: existing, error } = await supabase
     .from("legal_documents")
@@ -58,20 +124,26 @@ async function seedMissingSystemDocuments(
 
   const have = new Set((existing ?? []).map((row) => String((row as { document_key: string }).document_key)));
   const missing = SYSTEM_LEGAL_DOCUMENT_KEYS.filter((key) => !have.has(key));
-  if (missing.length === 0) return;
+  const resolvedName = companyName?.trim() || (await loadTenantCompanyName(supabase, tenantId));
 
-  const rows = missing.map((key) => {
-    const payload = getDefaultLegalDocumentPayload(key);
-    return {
-      tenant_id: tenantId,
-      ...payload,
-      created_by: actorUserId,
-      updated_by: actorUserId,
-    };
-  });
+  if (missing.length > 0 && resolvedName) {
+    const rows = missing.map((key) => {
+      const payload = getDefaultLegalDocumentPayload(key, resolvedName);
+      return {
+        tenant_id: tenantId,
+        ...payload,
+        created_by: actorUserId,
+        updated_by: actorUserId,
+      };
+    });
 
-  const { error: insertError } = await supabase.from("legal_documents").insert(rows);
-  if (insertError && insertError.code !== "23505") throw insertError;
+    const { error: insertError } = await supabase.from("legal_documents").insert(rows);
+    if (insertError && insertError.code !== "23505") throw insertError;
+  }
+
+  if (resolvedName) {
+    await personalizeStoredLegalDocuments(supabase, tenantId, resolvedName, actorUserId);
+  }
 }
 
 export async function listAdminLegalDocuments(
@@ -79,7 +151,8 @@ export async function listAdminLegalDocuments(
   tenantId: string,
   actorUserId: string | null
 ): Promise<LegalDocumentRecord[]> {
-  await seedMissingSystemDocuments(supabase, tenantId, actorUserId);
+  const companyName = await loadTenantCompanyName(supabase, tenantId);
+  await seedMissingSystemDocuments(supabase, tenantId, actorUserId, companyName);
 
   const { data, error } = await supabase
     .from("legal_documents")
@@ -234,7 +307,8 @@ export async function resetAdminLegalDocumentToDefault(
   actorUserId: string | null,
   documentKey: SystemLegalDocumentKey
 ): Promise<LegalDocumentRecord> {
-  const payload = getDefaultLegalDocumentPayload(documentKey);
+  const companyName = await loadTenantCompanyName(supabase, tenantId);
+  const payload = getDefaultLegalDocumentPayload(documentKey, companyName);
   const { data, error } = await supabase
     .from("legal_documents")
     .update({
@@ -254,7 +328,7 @@ export async function resetAdminLegalDocumentToDefault(
 
   if (error) throw error;
   if (!data) {
-    await seedMissingSystemDocuments(supabase, tenantId, actorUserId);
+    await seedMissingSystemDocuments(supabase, tenantId, actorUserId, companyName);
     const { data: seeded, error: seededError } = await supabase
       .from("legal_documents")
       .select("*")
