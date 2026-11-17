@@ -91,6 +91,10 @@ import {
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 import type { VerificationNote } from "@/lib/jobs/match-analysis/verification-notes";
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema";
+import {
+  applicationReferenceSourceTagClassName,
+  formatApplicationReferenceSourceLabel,
+} from "@/lib/jobs/application-reference-source";
 import { deepMatchSubmitBanner, isDeepMatchStage, publicMatchScore } from "@/lib/jobs/match-analysis/match-stage";
 import {
   DEEP_MATCH_BLOCKED_NOT_READY,
@@ -1547,6 +1551,13 @@ export function AiAnalysisOverviewClient({
                           className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${fitBandTagClassName(statusFitBand)}`}
                         >
                           {fitBandLabel(statusFitBand)}
+                        </span>
+                      ) : null}
+                      {formatApplicationReferenceSourceLabel(app?.source) ? (
+                        <span
+                          className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(app?.source)}`}
+                        >
+                          {formatApplicationReferenceSourceLabel(app?.source)}
                         </span>
                       ) : null}
                     </div>

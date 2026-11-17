@@ -21,6 +21,7 @@ import {
   type ImportExperienceBucket,
   type ImportSearchTab,
 } from "@/lib/jobs/candidate-import-match";
+import { applicationReferenceSourceTagClassName } from "@/lib/jobs/application-reference-source";
 import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
@@ -40,6 +41,7 @@ type ImportSearchResponse = {
     locations: string[];
     roles: string[];
     statuses: Array<{ id: string; name: string; color: string | null }>;
+    sources: Array<{ id: string; name: string }>;
   };
 };
 
@@ -59,6 +61,7 @@ type FiltersState = {
   previousTitle: string;
   skills: string[];
   tags: string[];
+  source: string;
 };
 
 const EMPTY_FILTERS: FiltersState = {
@@ -70,6 +73,7 @@ const EMPTY_FILTERS: FiltersState = {
   previousTitle: "",
   skills: [],
   tags: [],
+  source: "",
 };
 
 const FILTER_SELECT_CLASS =
@@ -227,6 +231,7 @@ export default function ImportCandidatesModal({
         if (filters.previousTitle) params.set("previousTitle", filters.previousTitle);
         if (filters.skills.length) params.set("skills", filters.skills.join(","));
         if (filters.tags.length) params.set("tags", filters.tags.join(","));
+        if (filters.source) params.set("source", filters.source);
 
         const response = await fetch(
           `/api/admin/jobs/${encodeURIComponent(jobId)}/candidates/import?${params.toString()}`,
@@ -676,6 +681,22 @@ export default function ImportCandidatesModal({
                           />
                         </div>
                       </div>
+                      <label className="text-xs font-medium text-[#64748B] sm:col-span-2">
+                        Source
+                        <select
+                          value={filters.source}
+                          onChange={(event) => updateFilter("source", event.target.value)}
+                          className={FILTER_SELECT_CLASS}
+                          style={FILTER_SELECT_CHEVRON}
+                        >
+                          <option value="">Any source</option>
+                          {(payload?.facets.sources ?? []).map((source) => (
+                            <option key={source.id} value={source.id}>
+                              {source.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   ) : null}
                   <div className="flex flex-wrap items-center gap-4">
@@ -733,7 +754,7 @@ export default function ImportCandidatesModal({
                       </p>
                     </div>
                   ) : (
-                    <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1240px] border-collapse text-left text-sm">
                       <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F3F4F6] text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                         <tr>
                           <th className="w-12 px-4 py-3">
@@ -746,6 +767,7 @@ export default function ImportCandidatesModal({
                           </th>
                           <th className="min-w-[160px] px-4 py-3">Candidate</th>
                           <th className="min-w-[180px] px-4 py-3">Email</th>
+                          <th className="min-w-[150px] px-4 py-3">Source</th>
                           <th className="min-w-[140px] px-4 py-3">Current Role</th>
                           <th className="min-w-[140px] px-4 py-3">Location</th>
                           <th className="w-[100px] px-4 py-3">Experience</th>
@@ -798,6 +820,18 @@ export default function ImportCandidatesModal({
                               </td>
                               <td className="max-w-[220px] px-4 py-3.5 align-middle">
                                 <TruncatedCell value={row.email} />
+                              </td>
+                              <td className="px-4 py-3.5 align-middle">
+                                {row.sourceLabel ? (
+                                  <span
+                                    className={`inline-flex max-w-[180px] truncate rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(row.source)}`}
+                                    title={row.sourceLabel}
+                                  >
+                                    {row.sourceLabel}
+                                  </span>
+                                ) : (
+                                  <span className="text-[#94A3B8]">—</span>
+                                )}
                               </td>
                               <td className="max-w-[180px] px-4 py-3.5 align-middle">
                                 <TruncatedCell value={row.currentRole} />

@@ -19,6 +19,10 @@ import {
 import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression"
 import { getCandidateJobTitleOptions, resolveCandidateMatchJobTitle } from "@/lib/admin/candidate-match-job-title"
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status"
+import {
+  applicationReferenceSourceTagClassName,
+  formatApplicationReferenceSourceLabel,
+} from "@/lib/jobs/application-reference-source"
 import type { AnalysisMode } from "@/lib/jobs/match-analysis/schema"
 
 const LINK_CLASS =
@@ -194,6 +198,22 @@ export function renderListCell(
         >
           {sourceJobId || "—"}
         </span>
+      )
+    }
+    case "source": {
+      const label = formatApplicationReferenceSourceLabel(c.referenceSource)
+      if (!label) {
+        return <span className="text-sm text-[#94A3B8]">—</span>
+      }
+      return (
+        <div className="inline-flex justify-center">
+          <span
+            className={`inline-flex max-w-[180px] truncate items-center justify-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-[15px] ${applicationReferenceSourceTagClassName(c.referenceSource)}`}
+            title={label}
+          >
+            {label}
+          </span>
+        </div>
       )
     }
     case "assignee": {

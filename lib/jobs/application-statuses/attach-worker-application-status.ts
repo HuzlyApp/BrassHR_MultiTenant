@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import {
+  normalizeApplicationReferenceSource,
+  type ApplicationReferenceSource,
+} from "@/lib/jobs/application-reference-source";
 
 export type WorkerApplicationStatusSummary = {
   applicationId: string;
@@ -13,6 +17,11 @@ export type WorkerApplicationStatusSummary = {
   sourceJobId: string | null;
   /** Job requisition source, used to hide MSP-only or Internal-only stages. */
   sourceType: string | null;
+  /**
+   * How the application was created: applicant (onboarding), admin (manual
+   * resume upload), api (inbound Integration API), or match (Candidate Match).
+   */
+  referenceSource: ApplicationReferenceSource | null;
   ambiguous: boolean;
 };
 
@@ -21,6 +30,7 @@ type AppRow = {
   worker_id: string | null;
   status: string | null;
   status_id: string | null;
+  source?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
   application_statuses:
@@ -72,6 +82,7 @@ function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSumm
     clientName: clientNameFromJob(job),
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
+    referenceSource: normalizeApplicationReferenceSource(row.source),
     ambiguous,
   };
 }
@@ -92,7 +103,7 @@ export async function getApplicationStatusSummariesForWorkers(
     let query = supabase
       .from("job_applications")
       .select(
-        "id, worker_id, status, status_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
+        "id, worker_id, status, status_id, source, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
       )
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")')
