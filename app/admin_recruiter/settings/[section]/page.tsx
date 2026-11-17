@@ -37,6 +37,9 @@ export default async function SettingsSectionPage({ params }: PageProps) {
   if (section === "email-templates") {
     redirect("/admin_recruiter/email-templates");
   }
+  if (section === "legal-documents") {
+    redirect("/admin_recruiter/legal-documents");
+  }
   if (section === "security") {
     redirect("/admin_recruiter/account/account-security");
   }

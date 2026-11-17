@@ -391,6 +391,7 @@ export default function AccountPreferencesPanel({
                 disabled
               />
             </div>
+            {/* Hidden on Account & Security — password is updated via SecurityTab form below.
             <button
               type="button"
               className={BTN_SECONDARY_OUTLINE}
@@ -399,6 +400,7 @@ export default function AccountPreferencesPanel({
             >
               Change Password
             </button>
+            */}
           </div>
         </div>
 

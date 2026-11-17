@@ -1,5 +1,5 @@
 import LegalDocumentPage from "@/app/components/legal/LegalDocumentPage"
-import { PRIVACY_POLICY } from "@/lib/legal/privacy-policy"
+import { loadSystemLegalDocument } from "@/lib/legal/load-document"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -7,6 +7,12 @@ export const metadata: Metadata = {
   description: "BrassHR Privacy Policy — how ZipStaff Inc. collects, uses, and protects personal information.",
 }
 
-export default function PrivacyPolicyPage() {
-  return <LegalDocumentPage document={PRIVACY_POLICY} fallbackHref="/signup" />
+type PageProps = {
+  searchParams: Promise<{ tenant?: string; returnTo?: string }>
+}
+
+export default async function PrivacyPolicyPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const document = await loadSystemLegalDocument("privacy_policy", params.tenant ?? null)
+  return <LegalDocumentPage document={document} fallbackHref="/signup" />
 }

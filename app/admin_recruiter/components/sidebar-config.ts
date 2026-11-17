@@ -35,6 +35,7 @@ const ICON = {
   schedule: "Schedule",
   tickets: "Tickets",
   reports: "Reports",
+  legalDocuments: "Legal Documents",
   finance: "Finance",
   taskboard: "Taskboard",
   shifts: "Tickets",
@@ -591,6 +592,13 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: REPORTS_CHILDREN,
   },
   {
+    label: "Legal Documents",
+    href: "/admin_recruiter/legal-documents",
+    resourceKey: "settings_company",
+    iconType: ICON.legalDocuments,
+    matchPrefixes: ["/admin_recruiter/legal-documents"],
+  },
+  {
     label: "Mail",
     href: MAIL_ROUTE,
     resourceKey: "mail",
@@ -656,6 +664,13 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: AUTOMATION_CHILDREN,
   },
   ...EXTRA_TOP_SECTIONS,
+  {
+    label: "Legal Documents",
+    href: "/admin_recruiter/legal-documents",
+    resourceKey: "settings_company",
+    iconType: ICON.legalDocuments,
+    matchPrefixes: ["/admin_recruiter/legal-documents"],
+  },
   // {
   //   label: "Profile",
   //   href: "/admin_recruiter/account/personal",

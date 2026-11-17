@@ -22,9 +22,19 @@ function mapResumeError(error: unknown): NextResponse {
     if (error.code === "NOT_FOUND") {
       return integrationError(404, "NOT_FOUND", error.message, details);
     }
+    if (error.code === "STORAGE_UNAVAILABLE") {
+      return integrationError(503, "SERVICE_UNAVAILABLE", error.message, details);
+    }
     return integrationError(400, "VALIDATION_ERROR", error.message, details);
   }
-  console.error("[api/v1/applicants/resume]", error);
+
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
+  console.error("[api/v1/applicants/resume]", {
+    message,
+    stack,
+    name: error instanceof Error ? error.name : typeof error,
+  });
   return integrationError(
     500,
     "INTERNAL",

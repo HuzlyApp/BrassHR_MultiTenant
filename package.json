@@ -45,6 +45,7 @@
     "docx": "^9.7.2",
     "emoji-picker-react": "^4.19.1",
     "framer-motion": "^12.35.0",
+    "geist": "^1.9.2",
     "groq-sdk": "^1.1.1",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",

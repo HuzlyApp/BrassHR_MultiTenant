@@ -3,8 +3,9 @@
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type { CSSProperties } from "react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens"
 import type { LegalDocument } from "@/lib/legal/types"
 import { brandingShellGradient, brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
@@ -37,6 +38,11 @@ export default function LegalDocumentPage({
   const [isAtBottom, setIsAtBottom] = useState(false)
   const [returnHref, setReturnHref] = useState(fallbackHref)
 
+  const personalizedDocument = useMemo(
+    () => applyCompanyNameToLegalDocument(document, branding.companyName),
+    [document, branding.companyName]
+  )
+
   const shellStyle: CSSProperties = {
     ...brandingToCssVars(branding),
     background: brandingShellGradient(branding),
@@ -51,7 +57,7 @@ export default function LegalDocumentPage({
     if (!el) return
     const reachedBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
     if (reachedBottom) setIsAtBottom(true)
-  }, [document.title])
+  }, [personalizedDocument.title])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -91,14 +97,14 @@ export default function LegalDocumentPage({
             className="text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl"
             style={{ color: branding.headingColor, fontFamily: "var(--brand-font-heading)" }}
           >
-            {document.title}
+            {personalizedDocument.title}
           </h1>
-          {document.lastUpdated ? (
+          {personalizedDocument.lastUpdated ? (
             <p
               className="mt-2 text-sm"
               style={{ color: branding.mutedTextColor, fontFamily: "var(--brand-font-body)" }}
             >
-              {document.lastUpdated}
+              {personalizedDocument.lastUpdated}
             </p>
           ) : null}
         </header>
@@ -110,7 +116,7 @@ export default function LegalDocumentPage({
           style={{ fontFamily: "var(--brand-font-body)" }}
         >
           <div className="space-y-6 sm:space-y-7">
-            {document.sections.map((section) => (
+            {personalizedDocument.sections.map((section) => (
               <section key={section.title}>
                 <h2
                   className="text-base font-semibold sm:text-lg"

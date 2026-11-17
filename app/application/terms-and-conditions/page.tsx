@@ -8,13 +8,15 @@ import { useRouter } from "next/navigation"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingShellGradient, brandingToCssVars } from "@/lib/tenant/tenant-branding"
+import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens"
+import type { LegalDocument, LegalSection } from "@/lib/legal/types"
 
 type TermsSection = {
   title: string
   content: string
 }
 
-function buildTermsSections(companyName: string): TermsSection[] {
+function buildFallbackTerms(companyName: string): TermsSection[] {
   return [
     { title: "1. Acceptance", content: `By using ${companyName}, you agree to these Terms & Conditions.` },
     { title: "2. Eligibility", content: "You must provide true details and valid work credentials." },
@@ -29,12 +31,21 @@ function buildTermsSections(companyName: string): TermsSection[] {
   ]
 }
 
+function sectionsFromLegal(sections: LegalSection[]): TermsSection[] {
+  return sections.map((section) => ({
+    title: section.title,
+    content: section.paragraphs.join("\n\n"),
+  }))
+}
+
 export default function TermsAndConditionsPage() {
   const branding = useTenantBranding()
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(false)
   const [agreed, setAgreed] = useState(false)
+  const [docTitle, setDocTitle] = useState("Terms & Conditions")
+  const [sections, setSections] = useState<TermsSection[] | null>(null)
 
   const shellStyle: CSSProperties = {
     ...brandingToCssVars(branding),
@@ -42,7 +53,37 @@ export default function TermsAndConditionsPage() {
   }
   const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
 
-  const content = useMemo(() => buildTermsSections(branding.companyName), [branding.companyName])
+  const content = useMemo(() => {
+    if (sections && sections.length > 0) return sections
+    return buildFallbackTerms(branding.companyName)
+  }, [sections, branding.companyName])
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const tenant = branding.slug?.trim().toLowerCase()
+        const qs = new URLSearchParams({ key: "applicant_terms" })
+        if (tenant) qs.set("tenant", tenant)
+        const res = await fetch(`/api/legal/documents?${qs.toString()}`, { cache: "no-store" })
+        if (!res.ok) return
+        const payload = (await res.json()) as { document?: LegalDocument }
+        if (cancelled || !payload.document?.sections?.length) return
+        const personalized = applyCompanyNameToLegalDocument(
+          payload.document,
+          branding.companyName
+        )
+        setDocTitle(personalized.title || "Terms & Conditions")
+        setSections(sectionsFromLegal(personalized.sections))
+      } catch {
+        /* keep fallback */
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [branding.slug])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -54,7 +95,7 @@ export default function TermsAndConditionsPage() {
         localStorage.setItem("step1TermsOpened", "true")
       }
     }
-  }, [])
+  }, [content])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -80,7 +121,7 @@ export default function TermsAndConditionsPage() {
       style={shellStyle}
     >
       <div className="w-full max-w-4xl rounded-xl bg-white p-4 shadow-2xl sm:p-6 md:p-8">
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl md:text-3xl">Terms & Conditions</h1>
+        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl md:text-3xl">{docTitle}</h1>
 
         <div
           ref={scrollRef}
@@ -91,7 +132,13 @@ export default function TermsAndConditionsPage() {
             {content.map((section) => (
               <div key={section.title}>
                 <h2 className="text-base font-semibold text-slate-900">{section.title}</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-700">{section.content}</p>
+                <div className="mt-1 space-y-2">
+                  {section.content.split("\n\n").map((paragraph, index) => (
+                    <p key={`${section.title}-${index}`} className="text-sm leading-6 text-slate-700">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
               </div>
             ))}
             <p className="pt-2 text-sm font-medium text-slate-900">
