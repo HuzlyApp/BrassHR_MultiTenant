@@ -10,6 +10,7 @@ import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStat
 import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
 import ProfessionDocumentsPanel from "@/app/admin_recruiter/settings/ProfessionDocumentsPanel";
 import RolePermissionsPanel from "@/app/admin_recruiter/settings/RolePermissionsPanel";
+import IntegrationsSettingsPanel from "@/app/admin_recruiter/settings/IntegrationsSettingsPanel";
 
 function SettingsContent() {
   const router = useRouter();
@@ -97,6 +98,13 @@ function SettingsContent() {
           Status catalog
         </h2>
         <CandidateStatusesPanel />
+      </section>
+
+      <section aria-labelledby="integrations-heading">
+        <h2 id="integrations-heading" className="sr-only">
+          Integrations
+        </h2>
+        <IntegrationsSettingsPanel />
       </section>
       </fieldset>
 

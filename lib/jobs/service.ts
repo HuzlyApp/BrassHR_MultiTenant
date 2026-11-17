@@ -2017,6 +2017,11 @@ export type CreateAdminCandidateInput = {
   resumePath?: string | null;
   resumeFileName?: string | null;
   workLocation?: ServiceAreaLocation | null;
+  /**
+   * Application channel. Defaults to admin (staff Add candidate).
+   * Use `api` for inbound Integration API uploads.
+   */
+  source?: "admin" | "api" | null;
 };
 
 /**
@@ -2233,6 +2238,7 @@ export async function createAdminJobApplication(
   });
 
   const nowIso = new Date().toISOString();
+  const applicationSource = input.source === "api" ? "api" : "admin";
   const { data: application, error: applicationError } = await supabase
     .from("job_applications")
     .insert({
@@ -2243,7 +2249,7 @@ export async function createAdminJobApplication(
       worker_id: linkedWorkerId,
       status: "new",
       submitted_at: nowIso,
-      source: "admin",
+      source: applicationSource,
       created_by_staff_user_id: input.createdByStaffUserId ?? null,
       assigned_recruiter_user_id: null,
     })

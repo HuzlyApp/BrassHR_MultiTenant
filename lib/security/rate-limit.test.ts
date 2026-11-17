@@ -6,6 +6,9 @@ import {
 } from "@/lib/security/rate-limit";
 
 describe("checkRateLimit", () => {
+  it("fails closed when a shared limiter is required but unavailable", async () => {
+    await expect(checkRateLimit({ namespace: "critical", key: "a", limit: 5, windowMs: 60000, failClosed: true })).rejects.toThrow("Shared rate limit unavailable");
+  });
   beforeEach(() => {
     delete process.env.REDIS_URL;
     delete process.env.REDIS_TOKEN;

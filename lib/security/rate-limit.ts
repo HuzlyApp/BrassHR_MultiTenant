@@ -1,3 +1,4 @@
+import { clientIpFromHeaders } from "@/lib/auth/auth-failure-guard";
 import "server-only";
 
 import { Redis as UpstashRedis } from "@upstash/redis";
@@ -180,10 +181,7 @@ async function getRedisStore(): Promise<RateLimitStore | null> {
 }
 
 export function getClientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = req.headers.get("x-real-ip")?.trim();
-  const cfIp = req.headers.get("cf-connecting-ip")?.trim();
-  return forwarded || realIp || cfIp || "unknown";
+  return clientIpFromHeaders(req.headers);
 }
 
 /** Positive integer from env, otherwise the fallback. Treats 0 / NaN / negatives as unset. */
@@ -217,6 +215,7 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
     }
   }
 
+  if (options.failClosed) throw new Error("Shared rate limit unavailable");
   const result = incrementMemory(key, options.windowMs);
   return {
     allowed: result.count <= options.limit,

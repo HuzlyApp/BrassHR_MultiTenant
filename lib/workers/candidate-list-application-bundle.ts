@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { queryInChunks } from "@/lib/supabase/chunked-in-query";
+import { normalizeApplicationReferenceSource } from "@/lib/jobs/application-reference-source";
 import type { WorkerApplicationStatusSummary } from "@/lib/jobs/application-statuses/attach-worker-application-status";
 import {
   pickWorkerJobMatchSummary,
@@ -16,6 +17,7 @@ type BundleAppRow = {
   worker_id: string | null;
   status: string | null;
   status_id: string | null;
+  source?: string | null;
   assigned_recruiter_user_id?: string | null;
   job_requisition_id?: string | null;
   ai_match_status: string | null;
@@ -98,15 +100,18 @@ function toStatusSummary(
   const status = one(row.application_statuses);
   const job = one(row.job_requisitions);
   const sourceJobId = job?.external_requisition_id?.trim() || "";
+  const jobRequisitionId = row.job_requisition_id?.trim() || "";
   return {
     applicationId: row.id,
     statusId: status?.id ?? row.status_id,
     statusName: status?.name ?? null,
     systemKey: status?.system_key ?? row.status,
     jobTitle: job?.public_title ?? null,
+    jobRequisitionId: jobRequisitionId || null,
     clientName: clientNameFromJob(job),
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
+    referenceSource: normalizeApplicationReferenceSource(row.source),
     ambiguous,
   };
 }
@@ -153,6 +158,7 @@ export async function loadCandidateListApplicationBundle(
           "worker_id",
           "status",
           "status_id",
+          "source",
           "assigned_recruiter_user_id",
           "job_requisition_id",
           "ai_match_status",

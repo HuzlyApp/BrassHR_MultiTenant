@@ -194,6 +194,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
       "/api/admin/profession-documents",
       "/api/admin/tenant-firma-settings",
       "/api/admin/tenants",
+      "/api/admin/integrations",
     ],
     sortOrder: 110,
     alwaysGranted: false,
