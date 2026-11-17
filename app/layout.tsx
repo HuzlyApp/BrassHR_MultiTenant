@@ -1,51 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter, Poppins, Roboto, Ubuntu } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
 import TenantBrandingHead from "@/app/components/tenant/TenantBrandingHead";
 import IdleSessionGuard from "@/app/components/IdleSessionGuard";
 import AuthSessionSync from "@/app/components/AuthSessionSync";
+import {
+  geistMono,
+  geistSans,
+  tenantBrandingInter,
+  tenantBrandingPoppins,
+  tenantBrandingRoboto,
+  tenantBrandingUbuntu,
+} from "@/app/fonts";
 import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const tenantBrandingInter = Inter({
-  subsets: ["latin"],
-  variable: "--font-tenant-branding-inter",
-  display: "swap",
-});
-
-const tenantBrandingRoboto = Roboto({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-tenant-branding-roboto",
-  display: "swap",
-});
-
-const tenantBrandingPoppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-tenant-branding-poppins",
-  display: "swap",
-});
-
-const tenantBrandingUbuntu = Ubuntu({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-tenant-branding-ubuntu",
-  display: "swap",
-});
 
 /** Supabase is in us-east-1. Pin rendering to Washington, D.C. instead of the visitor region. */
 export const preferredRegion = "iad1";
