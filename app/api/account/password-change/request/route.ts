@@ -85,16 +85,23 @@ export async function POST(req: NextRequest) {
       password: currentPassword,
     });
 
+    // Default signOut scope is "global" and revokes EVERY session for the user
+    // (including the browser tab). Always use "local" here so only this
+    // ephemeral verification session is cleared.
+    const clearEphemeralSession = async () => {
+      await ephemeral.auth.signOut({ scope: "local" });
+    };
+
     if (signInError || !signInData.user) {
       return loginAuthErrorResponse("Current password is incorrect.", "INVALID_CREDENTIALS", 401, "password");
     }
 
     if (signInData.user.id !== auth.userId) {
-      await ephemeral.auth.signOut();
+      await clearEphemeralSession();
       return loginAuthErrorResponse("Current password is incorrect.", "INVALID_CREDENTIALS", 401, "password");
     }
 
-    await ephemeral.auth.signOut();
+    await clearEphemeralSession();
 
     const sent = await sendPasswordChangeOtp(email, auth.userId);
     if (!sent.ok) {
