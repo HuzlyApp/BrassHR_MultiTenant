@@ -225,6 +225,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
       "/api/account/settings",
       "/api/account/profile-photo",
       "/api/account/deactivate",
+      "/api/account/password-change",
     ],
     sortOrder: 120,
     alwaysGranted: false,
