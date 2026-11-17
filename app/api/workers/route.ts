@@ -934,6 +934,7 @@ export async function GET(req: Request) {
                       application_client_name: summary.clientName,
                       application_source_job_id: summary.sourceJobId,
                       application_source_type: summary.sourceType,
+                      application_reference_source: summary.referenceSource,
                     }
                   : primaryJobTitle
                     ? { application_job_title: primaryJobTitle }

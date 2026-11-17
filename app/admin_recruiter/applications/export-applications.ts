@@ -16,12 +16,14 @@ import {
   applicationCurrentStageMeta,
   applicationStatusLabel,
 } from "@/lib/jobs/application-status";
+import { formatApplicationReferenceSourceLabel } from "@/lib/jobs/application-reference-source";
 import { listingDisplayFitBand } from "@/lib/jobs/match-analysis/progression";
 
 export type ApplicationExportRow = ApplicationApplicantSource & {
   id: string;
   status: string;
   statusName?: string | null;
+  source?: string | null;
   created_at: string;
   submitted_at?: string | null;
   ai_match_score?: number | null;
@@ -97,6 +99,10 @@ function buildColumns(includeJob: boolean): ExportColumn<ApplicationExportRow>[]
     {
       header: "Current Stage",
       value: (row) => applicationCurrentStageMeta(row.status, row.statusName).label,
+    },
+    {
+      header: "Source",
+      value: (row) => formatApplicationReferenceSourceLabel(row.source) || "—",
     },
     {
       header: "Application Date",

@@ -1,6 +1,7 @@
 export type ApplicationColumnId =
   | "candidates"
   | "contact"
+  | "source"
   | "clientName"
   | "matches"
   | "fit"
@@ -22,6 +23,7 @@ export type ApplicationColumnId =
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
   { id: "candidates", label: "Candidate" },
   { id: "contact", label: "Contact" },
+  { id: "source", label: "Source" },
   { id: "clientName", label: "Client Name" },
   { id: "matches", label: "Match %" },
   { id: "fit", label: "Fit" },
@@ -49,6 +51,7 @@ export const APPLICATION_EDITABLE_COLUMNS = APPLICATION_COLUMN_OPTIONS.filter(
 export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
   "contact",
+  "source",
   "clientName",
   "fit",
   "conf",
@@ -95,7 +98,8 @@ function insertAfter(
 function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationColumnId[] {
   let next = [...order];
   next = insertAfter(next, "contact", "candidates");
-  next = insertAfter(next, "clientName", "contact");
+  next = insertAfter(next, "source", "contact");
+  next = insertAfter(next, "clientName", "source");
   // Match % is optional — not force-added; recruiters can enable it via Edit Columns.
   next = insertAfter(next, "fit", "clientName");
   next = insertAfter(next, "conf", "fit");
@@ -111,6 +115,13 @@ function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationC
 /** Keep Actions last so the AI icon + menu stay on the far right. */
 export function ensureActionsLast(order: ApplicationColumnId[]): ApplicationColumnId[] {
   return [...order.filter((id) => id !== "actions"), "actions"];
+}
+
+/** Ensure saved layouts pick up newly defaulted columns like Source. */
+export function ensureDefaultApplicationColumns(
+  order: ApplicationColumnId[]
+): ApplicationColumnId[] {
+  return ensureActionsLast(ensureDefaultListingColumns(order));
 }
 
 function parseStoredColumnOrder(parsed: unknown): ApplicationColumnId[] | null {
@@ -136,7 +147,7 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
     const previous = current ? null : readStoredColumnOrder(PREVIOUS_STORAGE_KEY);
     const stored = current ?? (previous ? withoutRetiredProgressStatusColumn(previous) : null);
     if (!stored) return [...DEFAULT_APPLICATION_COLUMNS];
-    return ensureActionsLast(ensureDefaultListingColumns(stored));
+    return ensureDefaultApplicationColumns(stored);
   } catch {
     return [...DEFAULT_APPLICATION_COLUMNS];
   }
@@ -169,6 +180,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "workflow",
   "dateApplied",
   "evaluation",
+  "source",
   "actions",
 ]);
 
@@ -176,6 +188,7 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : "";
   if (colId === "candidates") return "min-w-[220px]";
   if (colId === "contact") return "min-w-[200px]";
+  if (colId === "source") return `min-w-[160px] whitespace-nowrap${center}`;
   if (colId === "clientName") return "min-w-[140px] whitespace-nowrap";
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
   if (colId === "fit") return `min-w-[88px] whitespace-nowrap${center}`;

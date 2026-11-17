@@ -782,6 +782,32 @@ export async function GET(req: NextRequest) {
 
     const statusLabel = formatPipelineStatusLabel(statusNorm)
 
+    let appSummary: import("@/lib/jobs/application-statuses/attach-worker-application-status").WorkerApplicationStatusSummary | null = null
+    if (tenantIdForWorker) {
+      try {
+        const { getApplicationStatusSummaryForWorker } = await import(
+          "@/lib/jobs/application-statuses/attach-worker-application-status"
+        )
+        appSummary = await getApplicationStatusSummaryForWorker(supabase, {
+          tenantId: tenantIdForWorker,
+          workerId,
+        })
+      } catch (appErr) {
+        console.warn("[admin/worker-profile] application summary lookup", appErr)
+      }
+    }
+
+    const { formatApplicationReferenceSourceLabel } = await import(
+      "@/lib/jobs/application-reference-source"
+    )
+    // Prefer job_applications.source (onboarding self-apply vs staff resume upload).
+    // Do not fall back to job requisition source_type (MSP/Internal).
+    const resolvedSource =
+      formatApplicationReferenceSourceLabel(appSummary?.referenceSource) ||
+      asTrimmedString(w.source) ||
+      asTrimmedString(w.lead_source) ||
+      null
+
     const resolvedDocumentUrl = await resolveDocUrl(docs?.document_url, storageAuthUrlFromFiles)
     const storageAuthUrl = resolvedDocumentUrl ?? firmaSigning?.iframe_url ?? null
     const agreementW2Url =
@@ -994,7 +1020,7 @@ export async function GET(req: NextRequest) {
       activity_logs: activityLogs,
       activity_history: activityLogs,
       activity: {
-        source: "Onboarding application",
+        source: resolvedSource,
         created_at: createdAt,
         updated_at: updatedAt,
       },

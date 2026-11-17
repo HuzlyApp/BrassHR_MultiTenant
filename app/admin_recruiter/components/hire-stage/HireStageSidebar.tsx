@@ -3,6 +3,10 @@
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
+import {
+  applicationReferenceSourceTagClassName,
+  formatApplicationReferenceSourceLabel,
+} from "@/lib/jobs/application-reference-source";
 import type { HireStageLifecycle } from "@/lib/onboarding/hire-stage-groups";
 import { HireFigmaIcon, PRE_HIRE_UI_ICONS } from "./hire-figma-assets";
 
@@ -14,6 +18,7 @@ export type HireStageSidebarProfile = {
   workType: string | null;
   department: string | null;
   location: string | null;
+  /** Raw application channel: `applicant` | `admin`. */
   source: string | null;
   dateApplied: string | null;
 };
@@ -77,6 +82,7 @@ export function HireStageSidebar({
 }) {
   const phaseLabel = lifecycle === "pre_hire" ? "Pre-hire" : "Post-hire";
   const clamped = Math.max(0, Math.min(100, progressPercent));
+  const sourceLabel = formatApplicationReferenceSourceLabel(profile.source);
 
   return (
     <aside className="flex w-full max-w-[366px] flex-col gap-4 self-center lg:w-[366px] lg:shrink-0 lg:self-start">
@@ -158,7 +164,18 @@ export function HireStageSidebar({
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="shrink-0 font-semibold text-black">Source</dt>
-            <dd className="text-right text-[#6B7280]">{profile.source || "—"}</dd>
+            <dd className="text-right">
+              {sourceLabel ? (
+                <span
+                  className={`inline-flex max-w-[160px] truncate rounded-md px-2 py-0.5 text-[11px] font-semibold ${applicationReferenceSourceTagClassName(profile.source)}`}
+                  title={sourceLabel}
+                >
+                  {sourceLabel}
+                </span>
+              ) : (
+                <span className="text-[#94A3B8]">—</span>
+              )}
+            </dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="shrink-0 font-semibold text-black">Date Applied</dt>

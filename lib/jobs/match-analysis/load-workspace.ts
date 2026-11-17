@@ -98,7 +98,7 @@ export async function loadMatchAnalysisWorkspace(
   const { data: application, error } = await supabase
     .from("job_applications")
     .select(
-      "id, tenant_id, job_requisition_id, worker_id, status, status_id, created_at, updated_at, submitted_at, created_by_staff_user_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analysis, ai_analyzed_at, ai_analyzed_by, ai_analysis_error, ai_analysis_progress, ai_analysis_version, ai_analysis_model, recruiter_decision, recruiter_decision_note, recruiter_decision_at, recruiter_decision_by, application_statuses(id, name, system_key)"
+      "id, tenant_id, job_requisition_id, worker_id, status, status_id, source, created_at, updated_at, submitted_at, created_by_staff_user_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analysis, ai_analyzed_at, ai_analyzed_by, ai_analysis_error, ai_analysis_progress, ai_analysis_version, ai_analysis_model, recruiter_decision, recruiter_decision_note, recruiter_decision_at, recruiter_decision_by, application_statuses(id, name, system_key)"
     )
     .eq("id", applicationId)
     .eq("tenant_id", tenantId)
