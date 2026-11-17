@@ -7,6 +7,7 @@ export type SidebarIconType =
   | "Shifts"
   | "Tickets"
   | "Reports"
+  | "Legal Documents"
   | "Finance"
   | "Taskboard"
   | "Template Builder"

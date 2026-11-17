@@ -193,7 +193,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     description: "Manage organization settings, branding, and roles.",
     kind: "settings_section",
     parentKey: "settings",
-    pagePrefixes: ["/admin_recruiter/settings"],
+    pagePrefixes: ["/admin_recruiter/settings", "/admin_recruiter/legal-documents"],
     apiPrefixes: [
       "/api/admin/users",
       "/api/admin/roles",

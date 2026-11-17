@@ -8,7 +8,6 @@ import {
   Library,
   ListChecks,
   Plug,
-  Scale,
   Users,
   Wand2,
   Workflow,
@@ -30,7 +29,6 @@ export type SettingsNavItemId =
   | "roles"
   | "departments"
   | "integrations"
-  | "legal-documents"
   | "help"
   | "reports";
 
@@ -48,7 +46,6 @@ export type SettingsSectionSlug =
   | "assessment"
   | "statuses"
   | "templates"
-  | "legal-documents"
   | "hiring-theme";
 
 export type SettingsNavItem = {
@@ -126,14 +123,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: Plug,
         resourceKey: "settings_company",
         matchPrefixes: ["/admin_recruiter/settings/integrations"],
-      },
-      {
-        id: "legal-documents",
-        label: "Legal Documents",
-        href: "/admin_recruiter/settings/legal-documents",
-        icon: Scale,
-        resourceKey: "settings_company",
-        matchPrefixes: ["/admin_recruiter/settings/legal-documents"],
       },
       // Call lives in the top-right account menu (Personal Settings).
       // {
@@ -299,11 +288,6 @@ export const SETTINGS_SECTION_META: Record<
   templates: {
     title: "Templates",
     description: "Document, email, and onboarding templates.",
-  },
-  "legal-documents": {
-    title: "Legal Documents",
-    description:
-      "View, update, and add privacy policies, terms, and other legal documents shown to applicants, workers, and tenant users.",
   },
   "hiring-theme": {
     title: "Hiring journey",

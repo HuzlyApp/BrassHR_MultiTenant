@@ -14,6 +14,7 @@ const ALL_SIDEBAR_ICON_TYPES: SidebarIconType[] = [
   "Shifts",
   "Tickets",
   "Reports",
+  "Legal Documents",
   "Finance",
   "Taskboard",
   "Template Builder",

@@ -57,11 +57,6 @@ const AccountSettingsBillingPanel = dynamic(
   () => import("@/app/admin_recruiter/account/components/AccountSettingsBillingPanel"),
   { loading: SettingsPanelFallback }
 );
-const LegalDocumentsPanel = dynamic(
-  () => import("@/app/admin_recruiter/settings/LegalDocumentsPanel"),
-  { loading: SettingsPanelFallback }
-);
-
 function resourceKeyForSection(section: SettingsSectionSlug): string {
   switch (section) {
     case "company-profile":
@@ -74,7 +69,6 @@ function resourceKeyForSection(section: SettingsSectionSlug): string {
     case "roles":
     case "departments":
     case "integrations":
-    case "legal-documents":
     case "profession":
     case "assessment":
     case "statuses":
@@ -100,8 +94,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
     section !== "integrations" &&
     section !== "billing" &&
     section !== "profession" &&
-    section !== "assessment" &&
-    section !== "legal-documents";
+    section !== "assessment";
 
   if (!loading && !canView) {
     return (
@@ -128,11 +121,6 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
         />
       ) : section === "templates" ? (
         <TemplatesSettingsPanel />
-      ) : section === "legal-documents" ? (
-        <div className="space-y-6">
-          <SettingsSectionHeader title={meta.title} description={meta.description} />
-          <LegalDocumentsPanel canEdit={canEdit} />
-        </div>
       ) : (
         <fieldset
           disabled={
