@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifySupportTicketCreated } from "@/lib/notifications/create-notification";
 import { insertTicketMessage } from "@/lib/support-tickets/support-ticket-messages";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
+import {
+  notifyDepartmentPrimaryContact,
+  resolveTicketCategoryLabel,
+} from "@/lib/support-tickets/notify-department-primary-contact";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
@@ -51,6 +55,14 @@ export async function insertSupportTicket(
     params.notifyStaff === true ||
     (params.notifyStaff !== false && !createdByStaffUserId);
 
+  const rawCategory = params.input.category?.trim() || "general";
+  let category = rawCategory;
+  try {
+    category = await resolveTicketCategoryLabel(supabase, params.tenantId, rawCategory);
+  } catch (resolveError) {
+    console.error("[support-tickets:resolve-category]", resolveError);
+  }
+
   const { data, error } = await supabase
     .from("support_tickets")
     .insert({
@@ -60,7 +72,7 @@ export async function insertSupportTicket(
       recruiter_id: createdByStaffUserId,
       subject,
       description,
-      category: params.input.category?.trim() || "general",
+      category,
       source: params.input.source?.trim() || "manual",
       status: "Open",
       priority: params.input.priority ?? "normal",
@@ -103,6 +115,19 @@ export async function insertSupportTicket(
     });
   } catch (notifyError) {
     console.error("[support-tickets:notify-created]", notifyError);
+  }
+
+  try {
+    await notifyDepartmentPrimaryContact(supabase, {
+      tenantId: params.tenantId,
+      // Prefer original id so lookup stays exact; name works as fallback.
+      category: rawCategory,
+      ticketId: ticket.id,
+      subject,
+      description,
+    });
+  } catch (departmentNotifyError) {
+    console.error("[support-tickets:notify-department]", departmentNotifyError);
   }
 
   return { ticket };

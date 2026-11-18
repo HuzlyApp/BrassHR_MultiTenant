@@ -4,28 +4,83 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { SUPPORT_DEPARTMENTS } from "@/lib/support-tickets/support-departments";
+import type { DepartmentRecord } from "@/lib/departments/types";
+
+type MenuDepartment = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+};
 
 type Props = {
   onSelectDepartment: (category: string) => void;
   buttonClassName?: string;
   buttonStyle?: React.CSSProperties;
   label?: string;
+  /** When provided, skip the org-departments fetch and use these options. */
+  departments?: MenuDepartment[];
 };
 
 const MENU_WIDTH = 280;
 const MENU_ESTIMATED_HEIGHT = 360;
+
+const FALLBACK_DEPARTMENTS: MenuDepartment[] = SUPPORT_DEPARTMENTS.map((dept) => ({
+  id: dept.id,
+  category: dept.category,
+  title: dept.title,
+  description: dept.description,
+}));
+
+function toMenuDepartments(rows: DepartmentRecord[]): MenuDepartment[] {
+  return rows
+    .filter((row) => row.isActive)
+    .map((row) => ({
+      id: row.id,
+      category: row.id,
+      title: row.name,
+      description: row.description?.trim() || row.primaryContact?.trim() || "Open a ticket for this department.",
+    }));
+}
 
 export function OpenTicketDepartmentMenu({
   onSelectDepartment,
   buttonClassName,
   buttonStyle,
   label = "Open a Ticket",
+  departments: departmentsProp,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({ visibility: "hidden" });
+  const [departments, setDepartments] = useState<MenuDepartment[]>(
+    departmentsProp?.length ? departmentsProp : FALLBACK_DEPARTMENTS
+  );
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+
+  useEffect(() => {
+    if (departmentsProp) {
+      setDepartments(departmentsProp.length ? departmentsProp : FALLBACK_DEPARTMENTS);
+      return;
+    }
+    let alive = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/departments", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        const rows = (payload.departments ?? []) as DepartmentRecord[];
+        const mapped = toMenuDepartments(rows);
+        if (alive && mapped.length > 0) setDepartments(mapped);
+      } catch {
+        // Keep fallback catalog.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [departmentsProp]);
 
   const updatePosition = useCallback(() => {
     const button = buttonRef.current;
@@ -55,7 +110,7 @@ export function OpenTicketDepartmentMenu({
   useLayoutEffect(() => {
     if (!open) return;
     updatePosition();
-  }, [open, updatePosition]);
+  }, [open, updatePosition, departments]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,7 +172,7 @@ export function OpenTicketDepartmentMenu({
               style={menuStyle}
               className="z-[250] max-h-[min(70vh,420px)] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1.5 shadow-xl"
             >
-              {SUPPORT_DEPARTMENTS.map((dept) => (
+              {departments.map((dept) => (
                 <button
                   key={dept.id}
                   type="button"

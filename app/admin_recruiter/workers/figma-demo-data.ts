@@ -24,6 +24,7 @@ export type WorkerListRow = {
   hiredDate?: string;
   billRate?: string;
   department?: string;
+  departmentId?: string | null;
   specialty?: string;
   profession?: string;
   shiftType?: string;

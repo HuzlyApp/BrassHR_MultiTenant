@@ -141,15 +141,34 @@ export async function GET(req: NextRequest) {
 
     // 1. Fetch candidate profiles from `worker`
     const candidatesMap = new Map<string, any>();
+    const orgDepartmentIds = new Set<string>();
     if (candidateIds.length > 0) {
       const { data: candidateRows } = await supabase
         .from("worker")
-        .select("id, hourly_rate, experience_years, created_at, status, job_role, city, state")
+        .select(
+          "id, hourly_rate, experience_years, created_at, status, job_role, city, state, department_id"
+        )
         .in("id", candidateIds);
       if (candidateRows) {
         for (const c of candidateRows) {
           candidatesMap.set(c.id, c);
+          const departmentId = String((c as { department_id?: string | null }).department_id ?? "").trim();
+          if (departmentId) orgDepartmentIds.add(departmentId);
         }
+      }
+    }
+
+    const orgDepartmentNames = new Map<string, string>();
+    if (orgDepartmentIds.size > 0 && tenantId) {
+      const { data: departmentRows } = await supabase
+        .from("departments")
+        .select("id, name")
+        .eq("tenant_id", tenantId)
+        .in("id", [...orgDepartmentIds]);
+      for (const row of departmentRows ?? []) {
+        const id = String((row as { id?: string }).id ?? "");
+        const name = String((row as { name?: string | null }).name ?? "").trim();
+        if (id && name) orgDepartmentNames.set(id, name);
       }
     }
 
@@ -389,7 +408,15 @@ export async function GET(req: NextRequest) {
           client,
           experience,
           facilities: facilities.length > 0 ? facilities : null,
-          department: jobReq?.department || (snapshot.department as string | null) || null,
+          department:
+            (() => {
+              const orgDepartmentId = String(candidate?.department_id ?? "").trim();
+              if (orgDepartmentId && orgDepartmentNames.has(orgDepartmentId)) {
+                return orgDepartmentNames.get(orgDepartmentId) ?? null;
+              }
+              return jobReq?.department || (snapshot.department as string | null) || null;
+            })(),
+          department_id: String(candidate?.department_id ?? "").trim() || null,
           specialty: (snapshot.specialty as string | null) || candidate?.specialty || null,
           profession: (snapshot.profession as string | null) || candidate?.profession || null,
           shift_type: jobReq?.shift_type || shift?.shift_type || null,

@@ -7,6 +7,7 @@ import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDet
 import { TicketFileUploadFields } from "@/app/components/support/TicketFileUploadFields";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { SUPPORT_DEPARTMENT_CATEGORY_OPTIONS } from "@/lib/support-tickets/support-departments";
+import type { DepartmentRecord } from "@/lib/departments/types";
 import type { SupportTicketListItem, SupportTicketPriority } from "@/lib/support-tickets/types";
 
 type WorkerOption = {
@@ -15,6 +16,8 @@ type WorkerOption = {
   email: string | null;
   jobRole: string | null;
 };
+
+type CategoryOption = { value: string; label: string };
 
 type Props = {
   open: boolean;
@@ -26,7 +29,7 @@ type Props = {
   requireWorker?: boolean;
 };
 
-const CATEGORY_OPTIONS = SUPPORT_DEPARTMENT_CATEGORY_OPTIONS;
+const FALLBACK_CATEGORY_OPTIONS: CategoryOption[] = SUPPORT_DEPARTMENT_CATEGORY_OPTIONS;
 
 const PRIORITY_OPTIONS: { value: SupportTicketPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -73,13 +76,43 @@ export function StaffCreateSupportTicketModal({
   const [fileUrl, setFileUrl] = useState("");
   const [attachedUrls, setAttachedUrls] = useState<string[]>([]);
   const [uploadResetKey, setUploadResetKey] = useState(0);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>(FALLBACK_CATEGORY_OPTIONS);
   const wasOpenRef = useRef(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const resolvedDefaultCategory = useMemo(() => {
-    const match = CATEGORY_OPTIONS.find((option) => option.value === defaultCategory);
-    return match?.value ?? "";
-  }, [defaultCategory]);
+    if (!defaultCategory) return "";
+    const match = categoryOptions.find(
+      (option) =>
+        option.value === defaultCategory ||
+        option.label.toLowerCase() === defaultCategory.toLowerCase()
+    );
+    return match?.value ?? (categoryOptions.some((o) => o.value === defaultCategory) ? defaultCategory : "");
+  }, [defaultCategory, categoryOptions]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/departments", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        const rows = ((payload.departments ?? []) as DepartmentRecord[]).filter((row) => row.isActive);
+        if (!alive || rows.length === 0) return;
+        setCategoryOptions(
+          rows.map((row) => ({
+            value: row.id,
+            label: row.name,
+          }))
+        );
+      } catch {
+        // Keep fallback support categories.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -101,6 +134,11 @@ export function StaffCreateSupportTicketModal({
     }
     wasOpenRef.current = open;
   }, [open, defaultApplicantId, resolvedDefaultCategory]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!category && resolvedDefaultCategory) setCategory(resolvedDefaultCategory);
+  }, [open, category, resolvedDefaultCategory]);
 
   useEffect(() => {
     if (!open) return;
@@ -368,7 +406,7 @@ export function StaffCreateSupportTicketModal({
                   <option value="" disabled>
                     Select department.
                   </option>
-                  {CATEGORY_OPTIONS.map((option) => (
+                  {categoryOptions.map((option) => (
                     <option key={option.value} value={option.value} className="text-[#0F172A]">
                       {option.label}
                     </option>

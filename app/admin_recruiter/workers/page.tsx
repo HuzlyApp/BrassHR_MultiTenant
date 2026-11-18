@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -129,6 +129,7 @@ function mapApiWorkerToRow(w: any): WorkerListRow {
     hiredDate: w.hired_date || formatDateShort(w.converted_at || w.created_at),
     billRate: w.bill_rate || (snapshot.bill_rate as string | null) || "—",
     department: w.department || (snapshot.department as string | null) || "—",
+    departmentId: w.department_id ? String(w.department_id) : null,
     specialty: w.specialty || (snapshot.specialty as string | null) || "—",
     profession: w.profession || (snapshot.profession as string | null) || "—",
     shiftType: w.shift_type || (snapshot.shift_type as string | null) || "—",
@@ -146,6 +147,7 @@ function mapApiWorkerToRow(w: any): WorkerListRow {
 
 export default function WorkersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const branding = useTenantBranding();
   const secondaryColor = branding.secondaryHex || BRAAS_SECONDARY || "#012352";
 
@@ -155,6 +157,9 @@ export default function WorkersPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [clientFilter, setClientFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [departmentIdFilter, setDepartmentIdFilter] = useState(
+    () => searchParams.get("departmentId")?.trim() || ""
+  );
 
   // Selection & Columns
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -163,8 +168,12 @@ export default function WorkersPage() {
 
   // Filters Modal
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
-  const [extendedFilters, setExtendedFilters] = useState<WorkersExtendedFilterValues>({
-    ...EMPTY_WORKERS_EXTENDED_FILTERS,
+  const [extendedFilters, setExtendedFilters] = useState<WorkersExtendedFilterValues>(() => {
+    const department = searchParams.get("department")?.trim() || "";
+    return {
+      ...EMPTY_WORKERS_EXTENDED_FILTERS,
+      ...(department ? { department } : {}),
+    };
   });
 
   // Sorting
@@ -318,11 +327,14 @@ export default function WorkersPage() {
 
   const departmentOptions = useMemo(() => {
     const set = new Set<string>();
+    if (extendedFilters.department && extendedFilters.department !== "All") {
+      set.add(extendedFilters.department);
+    }
     for (const w of workers) {
       if (w.department && w.department !== "—") set.add(w.department);
     }
     return ["All", ...Array.from(set).sort()];
-  }, [workers]);
+  }, [workers, extendedFilters.department]);
 
   const shiftTypeOptions = useMemo(() => {
     const set = new Set<string>(["Day", "Night", "Rotating"]);
@@ -356,8 +368,22 @@ export default function WorkersPage() {
     setRoleFilter(next.role);
     setClientFilter(next.client);
     setStatusFilter(next.status);
+    // Clearing/changing department in the modal drops the deep-link id filter.
+    setDepartmentIdFilter("");
     setCurrentPage(1);
   };
+
+  useEffect(() => {
+    const department = searchParams.get("department")?.trim() || "";
+    const departmentId = searchParams.get("departmentId")?.trim() || "";
+    if (!department && !departmentId) return;
+    setDepartmentIdFilter(departmentId);
+    if (department) {
+      setExtendedFilters((prev) =>
+        prev.department === department ? prev : { ...prev, department }
+      );
+    }
+  }, [searchParams]);
 
   // Filter & Search
   const filteredWorkers = useMemo(() => {
@@ -412,7 +438,9 @@ export default function WorkersPage() {
         (w.location || "").toLowerCase().includes(extendedFilters.location.toLowerCase())
       );
     }
-    if (extendedFilters.department && extendedFilters.department !== "All") {
+    if (departmentIdFilter) {
+      list = list.filter((w) => (w.departmentId || "") === departmentIdFilter);
+    } else if (extendedFilters.department && extendedFilters.department !== "All") {
       list = list.filter(
         (w) => (w.department || "").toLowerCase() === extendedFilters.department.toLowerCase()
       );
@@ -533,7 +561,17 @@ export default function WorkersPage() {
     }
 
     return list;
-  }, [workers, searchQuery, roleFilter, clientFilter, statusFilter, extendedFilters, sortColumn, sortDirection]);
+  }, [
+    workers,
+    searchQuery,
+    roleFilter,
+    clientFilter,
+    statusFilter,
+    departmentIdFilter,
+    extendedFilters,
+    sortColumn,
+    sortDirection,
+  ]);
 
   // Pagination calculation
   const totalItems = filteredWorkers.length;

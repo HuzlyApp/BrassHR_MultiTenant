@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TicketsSubNav } from "@/app/admin_recruiter/tickets/TicketsSubNav";
 import { OpenTicketDepartmentMenu } from "@/app/components/support/OpenTicketDepartmentMenu";
 import { StaffCreateSupportTicketModal } from "@/app/admin_recruiter/tickets/support/StaffCreateSupportTicketModal";
@@ -13,14 +13,77 @@ import {
   SUPPORT_DEPARTMENTS,
   // isSupportDeskOnline,
 } from "@/lib/support-tickets/support-departments";
+import type { DepartmentRecord } from "@/lib/departments/types";
 import type { SupportTicketListItem } from "@/lib/support-tickets/types";
+
+type DepartmentCard = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+};
 
 export default function SupportDepartmentsClient() {
   const branding = useTenantBranding();
   const secondaryColor = branding.secondaryHex || "#012352";
   const [createOpen, setCreateOpen] = useState(false);
-  const [defaultCategory, setDefaultCategory] = useState("general");
+  const [defaultCategory, setDefaultCategory] = useState("");
+  const [orgDepartments, setOrgDepartments] = useState<DepartmentRecord[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
   // const online = isSupportDeskOnline();
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      setLoadingDepartments(true);
+      try {
+        const response = await fetch("/api/admin/departments", { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Could not load departments");
+        if (alive) setOrgDepartments((payload.departments ?? []) as DepartmentRecord[]);
+      } catch {
+        if (alive) setOrgDepartments([]);
+      } finally {
+        if (alive) setLoadingDepartments(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const cards = useMemo<DepartmentCard[]>(() => {
+    const active = orgDepartments.filter((row) => row.isActive);
+    if (active.length > 0) {
+      return active.map((row) => ({
+        id: row.id,
+        category: row.id,
+        title: row.name,
+        description:
+          row.description?.trim() ||
+          (row.primaryContact
+            ? `Tickets route to ${row.primaryContact}`
+            : "Open a ticket for this department."),
+      }));
+    }
+    return SUPPORT_DEPARTMENTS.map((dept) => ({
+      id: dept.id,
+      category: dept.category,
+      title: dept.title,
+      description: dept.description,
+    }));
+  }, [orgDepartments]);
+
+  const menuDepartments = useMemo(
+    () =>
+      cards.map((dept) => ({
+        id: dept.id,
+        category: dept.category,
+        title: dept.title,
+        description: dept.description,
+      })),
+    [cards]
+  );
 
   function openCreate(category: string) {
     setDefaultCategory(category);
@@ -34,6 +97,7 @@ export default function SupportDepartmentsClient() {
   const openTicketAction = (
     <OpenTicketDepartmentMenu
       onSelectDepartment={openCreate}
+      departments={menuDepartments}
       buttonStyle={{ backgroundColor: secondaryColor }}
     />
   );
@@ -58,49 +122,46 @@ export default function SupportDepartmentsClient() {
       <TicketsSubNav action={openTicketAction} />
 
       <div className="px-8">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {SUPPORT_DEPARTMENTS.map((dept) => (
-            <article
-              key={dept.id}
-              className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm"
-            >
-              <h2
-                className="text-base font-semibold text-[#0F172A]"
-                style={BRAND_FONT_HEADING_STYLE}
+        {loadingDepartments ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-40 rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] motion-safe:animate-pulse"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {cards.map((dept) => (
+              <article
+                key={dept.id}
+                className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm"
               >
-                {dept.title}
-              </h2>
-              <p
-                className="mt-2 flex-1 text-sm leading-6 text-[#64748B]"
-                style={BRAND_FONT_BODY_STYLE}
-              >
-                {dept.description}
-              </p>
-              <button
-                type="button"
-                onClick={() => openCreate(dept.category)}
-                className="mt-5 min-h-11 w-full rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
-                style={{ backgroundColor: secondaryColor }}
-              >
-                Open a Ticket
-              </button>
-              {/* Online/Offline status + hours — hidden for now
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-                <span
-                  className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${
-                    online ? "bg-[#DCFCE7] text-[#15803D]" : "bg-[#FEE2E2] text-[#B91C1C]"
-                  }`}
+                <h2
+                  className="text-base font-semibold text-[#0F172A]"
+                  style={BRAND_FONT_HEADING_STYLE}
                 >
-                  {online ? "Online" : "Offline"}
-                </span>
-                <span className="text-xs text-[#64748B]" style={BRAND_FONT_BODY_STYLE}>
-                  {dept.hoursLabel}
-                </span>
-              </div>
-              */}
-            </article>
-          ))}
-        </div>
+                  {dept.title}
+                </h2>
+                <p
+                  className="mt-2 flex-1 text-sm leading-6 text-[#64748B]"
+                  style={BRAND_FONT_BODY_STYLE}
+                >
+                  {dept.description}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => openCreate(dept.category)}
+                  className="mt-5 min-h-11 w-full rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
+                  style={{ backgroundColor: secondaryColor }}
+                >
+                  Open a Ticket
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
 
       <StaffCreateSupportTicketModal
