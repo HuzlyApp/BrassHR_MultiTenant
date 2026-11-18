@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const sectionSchema = z.object({
   title: z.string().trim().min(1).max(300),
-  paragraphs: z.array(z.string().trim().min(1).max(20000)).min(1).max(200),
+  paragraphs: z.array(z.string().trim().min(1).max(100000)).min(1).max(200),
 });
 
 export const legalDocumentKeySchema = z
