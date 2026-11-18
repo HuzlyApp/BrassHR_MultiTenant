@@ -5,6 +5,7 @@ import { AlertTriangle, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
+import SuccessModal from "@/app/components/SuccessModal";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -19,12 +20,22 @@ import {
   type AuthenticatorFactor,
 } from "@/lib/auth/authenticator-mfa";
 import {
+  EMAIL_CHANGE_SUCCESS_MESSAGE,
+  normalizeAccountEmail,
+  validateEmailChange,
+} from "@/lib/account/email-change";
+import {
   getPasswordRules,
   isPasswordStrongEnough,
   PASSWORD_UPDATE_SUCCESS_MESSAGE,
   updateAuthUserPassword,
   validatePasswordUpdate,
 } from "@/lib/account/password-update";
+import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
+import {
+  LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+  LOGIN_OTP_TTL_SECONDS,
+} from "@/lib/auth/login-otp-constants";
 import { EASTERN_TIME_LABEL, EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel, SelectField } from "./account-form-fields";
@@ -33,6 +44,7 @@ import {
   AccountLoadingSkeleton,
   AccountSuccessBanner,
 } from "./AccountFormStatus";
+import AccountOtpModal from "./AccountOtpModal";
 
 const LANGUAGE_OPTIONS = [
   { value: "en", label: "English (US)" },
@@ -104,6 +116,17 @@ export default function AccountPreferencesPanel({
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [nextEmail, setNextEmail] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
+  const [emailOtpOpen, setEmailOtpOpen] = useState(false);
+  const [emailOtpSubmitting, setEmailOtpSubmitting] = useState(false);
+  const [emailOtpVerified, setEmailOtpVerified] = useState(false);
+  const [emailOtpError, setEmailOtpError] = useState<LoginAuthErrorPayload | null>(null);
+  const [emailOtpResendCount, setEmailOtpResendCount] = useState(0);
+  const [emailOtpMaxResends, setEmailOtpMaxResends] = useState(5);
+  const [emailOtpExpiresInSeconds, setEmailOtpExpiresInSeconds] = useState(LOGIN_OTP_TTL_SECONDS);
+  const [emailOtpResendCooldownSeconds, setEmailOtpResendCooldownSeconds] = useState(
+    LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+  );
+  const [emailSuccessOpen, setEmailSuccessOpen] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -207,24 +230,129 @@ export default function AccountPreferencesPanel({
     }
   }
 
+  const parseAuthError = async (res: Response): Promise<LoginAuthErrorPayload> => {
+    const json = (await res.json().catch(() => ({}))) as Partial<LoginAuthErrorPayload>;
+    return {
+      error: typeof json.error === "string" ? json.error : "Something went wrong. Try again.",
+      code: json.code ?? "UNKNOWN",
+      field: json.field ?? null,
+      ...(typeof json.retryAfterSec === "number" ? { retryAfterSec: json.retryAfterSec } : {}),
+    };
+  };
+
+  const requestEmailChangeOtp = async (newEmailValue: string) => {
+    const res = await fetch("/api/account/email-change/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newEmail: newEmailValue }),
+    });
+    if (!res.ok) throw await parseAuthError(res);
+
+    const json = (await res.json()) as {
+      resendCount?: number;
+      maxResends?: number;
+      expiresInSeconds?: number;
+      resendAvailableInSeconds?: number;
+    };
+
+    setEmailOtpResendCount(typeof json.resendCount === "number" ? json.resendCount : 0);
+    setEmailOtpMaxResends(typeof json.maxResends === "number" ? json.maxResends : 5);
+    setEmailOtpExpiresInSeconds(
+      typeof json.expiresInSeconds === "number" ? json.expiresInSeconds : LOGIN_OTP_TTL_SECONDS
+    );
+    setEmailOtpResendCooldownSeconds(
+      typeof json.resendAvailableInSeconds === "number"
+        ? json.resendAvailableInSeconds
+        : LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+    );
+  };
+
   async function handleChangeEmail(event: FormEvent) {
     event.preventDefault();
-    const trimmed = nextEmail.trim();
-    if (!trimmed) {
-      toast.error("Enter a new email address.");
+    const trimmed = normalizeAccountEmail(nextEmail);
+    const validationError = validateEmailChange(trimmed, email);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
+
     setEmailBusy(true);
+    setEmailOtpError(null);
+    setEmailOtpVerified(false);
     try {
-      const { error: updateError } = await supabaseBrowser.auth.updateUser({ email: trimmed });
-      if (updateError) throw updateError;
-      toast.success("Check your inbox to confirm the new email.");
+      await requestEmailChangeOtp(trimmed);
+      setNextEmail(trimmed);
       setEmailModalOpen(false);
-      setNextEmail("");
+      setEmailOtpOpen(true);
     } catch (err) {
-      toast.error(messageFrom(err, "Could not update email."));
+      if (err && typeof err === "object" && "error" in err && typeof err.error === "string") {
+        toast.error(err.error);
+      } else {
+        toast.error(messageFrom(err, "Could not start email update."));
+      }
     } finally {
       setEmailBusy(false);
+    }
+  }
+
+  async function handleEmailOtpSendAgain() {
+    setEmailOtpError(null);
+    try {
+      await requestEmailChangeOtp(nextEmail);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err) {
+        setEmailOtpError(err as LoginAuthErrorPayload);
+        throw err;
+      }
+      const payload: LoginAuthErrorPayload = {
+        error: "Could not send verification code. Try again.",
+        code: "OTP_SEND_FAILED",
+        field: null,
+      };
+      setEmailOtpError(payload);
+      throw payload;
+    }
+  }
+
+  async function handleEmailOtpVerify(codeValue: string) {
+    setEmailOtpSubmitting(true);
+    setEmailOtpError(null);
+    try {
+      const confirmRes = await fetch("/api/account/email-change/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: codeValue,
+          newEmail: nextEmail,
+        }),
+      });
+      if (!confirmRes.ok) throw await parseAuthError(confirmRes);
+
+      setEmailOtpVerified(true);
+
+      // Refresh browser auth user so the new email shows without logout.
+      await supabaseBrowser.auth.refreshSession();
+      await refresh();
+
+      setEmailOtpOpen(false);
+      setEmailOtpVerified(false);
+      setNextEmail("");
+      setEmailSuccessOpen(true);
+      toast.success(EMAIL_CHANGE_SUCCESS_MESSAGE);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err && typeof err.error === "string") {
+        setEmailOtpError(err as LoginAuthErrorPayload);
+        setEmailOtpVerified(false);
+      } else {
+        setEmailOtpError({
+          error: messageFrom(err, "Could not update email."),
+          code: "UNKNOWN",
+          field: null,
+        });
+        setEmailOtpVerified(false);
+      }
+    } finally {
+      setEmailOtpSubmitting(false);
     }
   }
 
@@ -647,7 +775,8 @@ export default function AccountPreferencesPanel({
           >
             <h3 className="text-lg font-semibold text-[#0F172A]">Change Email</h3>
             <p className="mt-1 text-sm text-[#64748B]">
-              We may send a confirmation link to your new address before it takes effect.
+              Enter your new email. We&apos;ll send a verification code to your current email (
+              {email || "this account"}) before the change is applied.
             </p>
             <div className="mt-4">
               <FieldLabel htmlFor="next-email">New email</FieldLabel>
@@ -657,6 +786,7 @@ export default function AccountPreferencesPanel({
                 className={FIELD}
                 value={nextEmail}
                 onChange={(event) => setNextEmail(event.target.value)}
+                autoComplete="email"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -674,11 +804,44 @@ export default function AccountPreferencesPanel({
                 style={{ backgroundColor: "var(--brand-primary, #012352)" }}
                 disabled={emailBusy}
               >
-                {emailBusy ? "Saving..." : "Update Email"}
+                {emailBusy ? "Sending code..." : "Continue"}
               </button>
             </div>
           </form>
         </div>
+      ) : null}
+
+      {showPreferences ? (
+        <AccountOtpModal
+          open={emailOtpOpen}
+          email={email}
+          submitting={emailOtpSubmitting}
+          verified={emailOtpVerified}
+          authError={emailOtpError}
+          resendCount={emailOtpResendCount}
+          maxResends={emailOtpMaxResends}
+          expiresInSeconds={emailOtpExpiresInSeconds}
+          resendCooldownSeconds={emailOtpResendCooldownSeconds}
+          onClose={() => {
+            if (emailOtpSubmitting) return;
+            setEmailOtpOpen(false);
+            setEmailOtpError(null);
+            setEmailOtpVerified(false);
+          }}
+          onClearError={() => setEmailOtpError(null)}
+          onVerify={handleEmailOtpVerify}
+          onSendAgain={handleEmailOtpSendAgain}
+        />
+      ) : null}
+
+      {showPreferences ? (
+        <SuccessModal
+          open={emailSuccessOpen}
+          onClose={() => setEmailSuccessOpen(false)}
+          title="Email updated"
+          message={EMAIL_CHANGE_SUCCESS_MESSAGE}
+          autoCloseMs={4000}
+        />
       ) : null}
 
       {showPreferences && passwordModalOpen ? (

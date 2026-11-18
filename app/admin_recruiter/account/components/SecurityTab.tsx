@@ -30,7 +30,7 @@ import {
   AccountSaveButton,
 } from "./AccountFormStatus";
 import AccountPreferencesPanel from "./AccountPreferencesPanel";
-import PasswordChangeOtpModal from "./PasswordChangeOtpModal";
+import AccountOtpModal from "./AccountOtpModal";
 
 /** Fixed validation colors — never tied to tenant brand colors. */
 const VALID_GREEN = "#16a34a";
@@ -432,7 +432,7 @@ export default function SecurityTab() {
 
       <AccountPreferencesPanel variant="mfa-deactivate" />
 
-      <PasswordChangeOtpModal
+      <AccountOtpModal
         open={otpOpen}
         email={email}
         submitting={otpSubmitting}
