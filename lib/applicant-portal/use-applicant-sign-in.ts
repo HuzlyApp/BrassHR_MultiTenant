@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { applicantPortalApiPath } from "@/lib/applicant-portal/client-tenant";
+import { portalHomePath } from "@/lib/auth/portal-rbac";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { applicationPath } from "@/lib/tenant/with-tenant";
 
@@ -12,6 +13,7 @@ type LookupResponse = {
   statusLabel?: string;
   message?: string;
   requiresPasswordSetup?: boolean;
+  portalRole?: "candidate" | "worker";
 };
 
 export type ApplicantSignInMode = "email" | "password" | "setup";
@@ -19,7 +21,10 @@ export type ApplicantSignInMode = "email" | "password" | "setup";
 const unapprovedMessage =
   "Your application has not been approved yet. You will be able to access your applicant dashboard once your application has been approved.";
 
-export function useApplicantSignIn(tenantSlug: string | null) {
+export function useApplicantSignIn(
+  tenantSlug: string | null,
+  portal: "worker" | "candidate" = "worker"
+) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -105,7 +110,33 @@ export function useApplicantSignIn(tenantSlug: string | null) {
       return;
     }
 
+    const mismatch = await rejectWrongPortal();
+    if (mismatch) {
+      setError(mismatch);
+      return;
+    }
+
     setSignInReady(true);
+  }
+
+  async function rejectWrongPortal(): Promise<string | null> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    const token = data.session?.access_token;
+    const res = await fetch(applicantPortalApiPath("/api/applicant-portal/session", tenantSlug), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: "no-store",
+    });
+    const payload = await parseResponse(res);
+    const role = payload.portalRole;
+    const wrongCandidate = portal === "candidate" && role !== "candidate";
+    const wrongWorker = portal === "worker" && role === "candidate";
+    if (!res.ok || wrongCandidate || wrongWorker) {
+      await supabaseBrowser.auth.signOut();
+      if (wrongCandidate) return "This email is a worker account. Use Worker sign in.";
+      if (wrongWorker) return "This email is a candidate account. Use Candidate sign in.";
+      return payload.error || unapprovedMessage;
+    }
+    return null;
   }
 
   async function handlePasswordLogin(event: FormEvent<HTMLFormElement>) {
@@ -129,24 +160,18 @@ export function useApplicantSignIn(tenantSlug: string | null) {
       return;
     }
 
-    const { data } = await supabaseBrowser.auth.getSession();
-    const token = data.session?.access_token;
-    const res = await fetch(applicantPortalApiPath("/api/applicant-portal/session", tenantSlug), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      cache: "no-store",
-    });
-    const payload = await parseResponse(res);
+    const mismatch = await rejectWrongPortal();
     setLoading(false);
 
-    if (!res.ok) {
-      setError(payload.error || unapprovedMessage);
+    if (mismatch) {
+      setError(mismatch);
       return;
     }
 
     setSignInReady(true);
   }
 
-  function completeSignIn(rememberMe: boolean) {
+  async function completeSignIn(rememberMe: boolean) {
     try {
       const normalizedEmail = email.trim().toLowerCase();
       if (rememberMe && normalizedEmail) {
@@ -159,7 +184,7 @@ export function useApplicantSignIn(tenantSlug: string | null) {
     }
 
     if (!tenantSlug) return;
-    router.push(applicationPath("/application/home", tenantSlug));
+    router.push(applicationPath(portalHomePath(portal), tenantSlug));
   }
 
   function resetToEmail() {

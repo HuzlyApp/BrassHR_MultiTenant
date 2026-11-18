@@ -2054,6 +2054,10 @@ export function PreviewCard({ b }: { b: TenantBranding }) {
               <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
                 Worker sign in
               </span>
+              <span className="px-1.5 text-slate-300">·</span>
+              <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                Candidate sign in
+              </span>
             </p>
           </div>
         </div>
@@ -2087,6 +2091,10 @@ export function PreviewCard({ b }: { b: TenantBranding }) {
             Already approved?{" "}
             <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
               Worker sign in
+            </span>
+            <span className="px-1.5 text-slate-300">·</span>
+            <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+              Candidate sign in
             </span>
           </p>
         </div>

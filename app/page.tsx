@@ -17,7 +17,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 // import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
-import { workerSignInHref } from "@/lib/auth/worker-sign-in";
+import { candidateSignInHref, workerSignInHref } from "@/lib/auth/worker-sign-in";
 import { fetchTenantBranding } from "@/lib/tenant/fetch-tenant-branding";
 import {
   persistOnboardingSlugCookie,
@@ -194,6 +194,9 @@ export default function Home() {
   const workerSignInUrl = workerSignInHref({
     tenant: resolvedPortalSlug,
   });
+  const candidateSignInUrl = candidateSignInHref({
+    tenant: resolvedPortalSlug,
+  });
 
   const primaryCtaLabel =
     entryCtaLabel ??
@@ -318,6 +321,14 @@ export default function Home() {
                 >
                   Worker sign in
                 </Link>
+                <span className="px-1.5 text-slate-300">·</span>
+                <Link
+                  href={candidateSignInUrl}
+                  style={{ color: "var(--brand-primary)" }}
+                  className="text-[15px] font-semibold leading-6 underline-offset-4 hover:underline"
+                >
+                  Candidate sign in
+                </Link>
               </p>
             ) : null}
             </div>
@@ -360,6 +371,14 @@ export default function Home() {
                   className="text-[14px] font-semibold leading-5 underline-offset-4 hover:underline"
                 >
                   Worker sign in
+                </Link>
+                <span className="px-1.5 text-slate-300">·</span>
+                <Link
+                  href={candidateSignInUrl}
+                  style={{ color: "var(--brand-primary)" }}
+                  className="text-[14px] font-semibold leading-5 underline-offset-4 hover:underline"
+                >
+                  Candidate sign in
                 </Link>
               </p>
             ) : null}

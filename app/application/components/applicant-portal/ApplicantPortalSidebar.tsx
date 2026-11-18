@@ -277,7 +277,12 @@ export function ApplicantPortalSidebar({
             <button
               type="button"
               onClick={() => {
-                router.push(applicationPath("/application/home", tenantQuery));
+                router.push(
+                  applicationPath(
+                    candidatePortal ? "/application/candidate/jobs" : "/application/home",
+                    tenantQuery
+                  )
+                );
                 handleNavClick();
               }}
               aria-label="Go to home"

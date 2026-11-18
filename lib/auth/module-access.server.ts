@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPortalRole } from "@/lib/auth/app-role";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import {
   GOD_ADMIN_API_PREFIXES,
@@ -147,7 +148,7 @@ async function resolveTenantId(
 function canonicalRoleKey(raw: string | null | undefined, aliases: AliasRow[], tenantRoleKeys: Set<string>): string | null {
   if (typeof raw !== "string") return null;
   const token = raw.trim().toLowerCase();
-  if (!token || token === "worker") return null;
+  if (!token || isPortalRole(token)) return null;
   if (tenantRoleKeys.has(token)) return token;
   const match = aliases.find(
     (row) =>

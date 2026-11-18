@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
+import { syncPortalRole } from "@/lib/auth/assign-portal-role";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import {
   findApplicantByEmail,
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const appMetadata = {
       platform: "nexus",
-      role: "worker",
+      role: "candidate",
       tenant_id: applicant.tenant_id,
     };
     const existingAuthUser = await findAuthUserByEmail(supabase, email);
@@ -102,6 +103,12 @@ export async function POST(req: NextRequest) {
     if (!authUserId) {
       return NextResponse.json({ error: "Could not resolve applicant auth account." }, { status: 400 });
     }
+
+    await syncPortalRole(supabase, {
+      userId: authUserId,
+      tenantId: applicant.tenant_id,
+      role: "candidate",
+    });
 
     const { error: workerUserError } = await supabase
       .from("worker")

@@ -1,4 +1,5 @@
 export type ApplicantSession = {
+  portalRole?: "candidate" | "worker";
   applicant: {
     id: string;
     tenantId: string;

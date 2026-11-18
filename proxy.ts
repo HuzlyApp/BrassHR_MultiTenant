@@ -8,6 +8,7 @@ import { authorizeStaffHttpAccess } from "@/lib/auth/module-access.server";
 import { supabaseAuthCookieOptions } from "@/lib/auth/session-cookie";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { isStaffRole, parseAppRole } from "@/lib/auth/app-role";
+import { portalHomePath, portalPageRedirect } from "@/lib/auth/portal-rbac";
 import { resolveAuthenticatedRecruiterRedirectUrl } from "@/lib/auth/recruiter-dashboard-redirect";
 import { isAppRouterFlightRequest } from "@/lib/tenant/tenant-vanity-url";
 import {
@@ -351,6 +352,7 @@ async function proxyInner(request: NextRequest) {
     pathname.startsWith("/application") ||
     pathname === "/worker-onboarding" ||
     pathname === "/worker-signin" ||
+    pathname === "/candidate-signin" ||
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname === "/login" ||
@@ -431,7 +433,8 @@ async function proxyInner(request: NextRequest) {
         request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
         request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase() ||
         tenantLabel;
-      const applicationUrl = new URL("/application/home", request.url);
+      const homeRole = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
+      const applicationUrl = new URL(portalHomePath(homeRole), request.url);
       if (tenant && tenant.length >= 2) {
         applicationUrl.searchParams.set("tenant", tenant);
       }
@@ -737,6 +740,16 @@ async function proxyInner(request: NextRequest) {
   if (pathname.startsWith("/application") || pathname === "/worker-onboarding") {
     const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
 
+    if (user && !isAnonymousUser && pathname.startsWith("/application")) {
+      const portalRole = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
+      const redirectPath = portalPageRedirect(pathname, portalRole);
+      if (redirectPath) {
+        const destination = request.nextUrl.clone();
+        destination.pathname = redirectPath;
+        return withSessionCookies(response, NextResponse.redirect(destination));
+      }
+    }
+
     let outgoing = response;
     if (tenantSlug) {
       outgoing = NextResponse.next({
@@ -752,7 +765,9 @@ async function proxyInner(request: NextRequest) {
 
   if (
     pathname === "/worker-signin" ||
-    pathname.startsWith("/worker-signin/")
+    pathname.startsWith("/worker-signin/") ||
+    pathname === "/candidate-signin" ||
+    pathname.startsWith("/candidate-signin/")
   ) {
     const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
     if (tenantSlug) {
@@ -821,6 +836,7 @@ export const config = {
     "/application/:path*",
     "/worker-onboarding",
     "/worker-signin",
+    "/candidate-signin",
     "/api/workers",
     "/api/workers/:path*",
     "/api/search-workers",

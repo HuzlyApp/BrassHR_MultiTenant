@@ -14,7 +14,9 @@ function shouldPreserveApplicationJobToken(pathname: string): boolean {
     pathname === "/jobs" ||
     pathname.startsWith("/jobs/") ||
     pathname === "/worker-signin" ||
-    pathname.startsWith("/worker-signin/")
+    pathname.startsWith("/worker-signin/") ||
+    pathname === "/candidate-signin" ||
+    pathname.startsWith("/candidate-signin/")
   );
 }
 

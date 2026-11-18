@@ -115,6 +115,7 @@ describe("path helpers", () => {
     expect(isAuthEntryPath("/login?role=admin_recruiter")).toBe(false);
     expect(isAuthEntryPath("/login")).toBe(true);
     expect(isAuthEntryPath("/worker-signin")).toBe(true);
+    expect(isAuthEntryPath("/candidate-signin")).toBe(true);
     expect(isSessionGuardedPath("/admin_recruiter/dashboard")).toBe(true);
     expect(isSessionGuardedPath("/godadmin/tenants")).toBe(true);
     expect(isSessionGuardedPath("/admin")).toBe(false);

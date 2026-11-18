@@ -16,11 +16,11 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 
-function WorkerSignInLoadingShell() {
+export function PortalSignInLoadingShell() {
   return <div className="min-h-screen bg-white" />;
 }
 
-function WorkerSignInPageContent() {
+export function PortalSignInScreen({ portal = "worker" }: { portal?: "worker" | "candidate" }) {
   const searchParams = useSearchParams();
   const [brand, setBrand] = useState<TenantBranding | null>(null);
   const [brandLoaded, setBrandLoaded] = useState(false);
@@ -90,21 +90,21 @@ function WorkerSignInPageContent() {
   }, []);
 
   if (!brandLoaded || !brand) {
-    return <WorkerSignInLoadingShell />;
+    return <PortalSignInLoadingShell />;
   }
 
   return (
     <LoginPageShell brand={brand} hideArtOnMobile>
       <LoginBrandHeader brand={brand} />
-      <WorkerSignInForm tenantSlug={tenantSlug} brand={brand} />
+      <WorkerSignInForm tenantSlug={tenantSlug} brand={brand} portal={portal} />
     </LoginPageShell>
   );
 }
 
 export default function WorkerSignInPage() {
   return (
-    <Suspense fallback={<WorkerSignInLoadingShell />}>
-      <WorkerSignInPageContent />
+    <Suspense fallback={<PortalSignInLoadingShell />}>
+      <PortalSignInScreen portal="worker" />
     </Suspense>
   );
 }

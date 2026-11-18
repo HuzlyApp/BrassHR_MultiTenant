@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPortalRole } from "@/lib/auth/app-role";
 import { loadStaffRoles, staffStorageKeys } from "@/lib/admin/staff-roles";
 
 export type StaffAccessFlags = {
@@ -87,7 +88,7 @@ export async function loadStaffAccessFlags(
   }
   const isStaffToken = (role: string | null | undefined) => {
     const key = String(role ?? "").trim().toLowerCase();
-    if (!key || key === "worker") return false;
+    if (!key || isPortalRole(key)) return false;
     return staffRoles.size === 0 || staffRoles.has(key);
   };
   const matching = tenantId

@@ -40,6 +40,12 @@ export function idleSessionCookieOptions(maxAgeSeconds: number = Math.ceil(IDLE_
 /** Login / sign-in destinations after an idle logout. */
 export function idleLogoutRedirectPath(pathname: string): string {
   if (
+    pathname.startsWith("/application/candidate") ||
+    pathname.startsWith("/candidate-signin")
+  ) {
+    return "/candidate-signin?error=idle";
+  }
+  if (
     pathname.startsWith("/application") ||
     pathname === "/worker-onboarding" ||
     pathname.startsWith("/worker-signin")

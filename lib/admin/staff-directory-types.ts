@@ -1,3 +1,5 @@
+import { isPortalRole } from "@/lib/auth/app-role";
+
 /** Catalog key from public.staff_roles. Recruiter is stored as "client". */
 export type StaffConsoleRole = string;
 
@@ -74,7 +76,7 @@ export function isLimitedStaffConsoleRole(role: string | null | undefined, isAdm
   if (isAdmin === true) return false;
   if (typeof role !== "string") return false;
   const key = role.trim().toLowerCase();
-  if (!key || key === "worker") return false;
+  if (!key || isPortalRole(key)) return false;
   return !FULL_CONSOLE_ROLES.has(key);
 }
 

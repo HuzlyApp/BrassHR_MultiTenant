@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { isStaffRole } from "@/lib/auth/app-role";
 import { loadSessionGrants } from "@/lib/auth/module-access.server";
 import { atomicPermissions } from "@/lib/auth/atomic-permissions";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
     const { edition, features } = await loadTenantFeatures(supabase, tenantId);
     if (!auth.authUser) return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     let permissions: string[] = [];
-    if (auth.role !== "worker" || auth.godAdmin) {
+    if (isStaffRole(auth.role) || auth.godAdmin) {
       const jar = await cookies();
       const access = await loadSessionGrants({ user: auth.authUser,
         tenantSlug: jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value ?? null });

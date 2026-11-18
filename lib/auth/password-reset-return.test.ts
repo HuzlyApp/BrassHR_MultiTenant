@@ -8,6 +8,7 @@ import {
 describe("password-reset-return", () => {
   it("allows worker and admin return paths", () => {
     expect(safePasswordResetReturnPath("/worker-signin")).toBe("/worker-signin");
+    expect(safePasswordResetReturnPath("/candidate-signin")).toBe("/candidate-signin");
     expect(safePasswordResetReturnPath("/admin")).toBe("/admin");
     expect(safePasswordResetReturnPath("/login")).toBe("/admin");
     expect(safePasswordResetReturnPath("https://evil.com")).toBe("/admin");

@@ -107,7 +107,9 @@ export function isAuthEntryPath(pathname: string): boolean {
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname === "/worker-signin" ||
-    pathname.startsWith("/worker-signin/")
+    pathname.startsWith("/worker-signin/") ||
+    pathname === "/candidate-signin" ||
+    pathname.startsWith("/candidate-signin/")
   );
 }
 
