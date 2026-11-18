@@ -13,7 +13,9 @@ import {
   WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
   WORKER_SIDEBAR_ICON_TYPES,
+  CANDIDATE_SIDEBAR_SECTIONS,
   WORKER_SIDEBAR_SECTIONS,
+  isCandidatePortalPath,
   type WorkerSidebarLink,
   type WorkerSidebarSection,
 } from "@/app/application/components/applicant-portal/worker-sidebar-config";
@@ -137,6 +139,9 @@ export function ApplicantPortalSidebar({
     onMobileClose?.();
   };
 
+  const candidatePortal = isCandidatePortalPath(pathname);
+  const navSections = candidatePortal ? CANDIDATE_SIDEBAR_SECTIONS : WORKER_SIDEBAR_SECTIONS;
+
   const isLinkActive = (link: WorkerSidebarLink) => {
     const pathMatches = link.matchPrefixes.some((prefix) =>
       link.matchExact
@@ -185,7 +190,7 @@ export function ApplicantPortalSidebar({
 
   const renderedSections = useMemo(
     () =>
-      WORKER_SIDEBAR_SECTIONS.map((section) => {
+      navSections.map((section) => {
         const childActive = section.children?.some((child) => isLinkActive(child)) ?? false;
         const sectionPathActive = isSectionPathActive(section);
         const sectionActive = sectionPathActive || childActive;
@@ -205,17 +210,17 @@ export function ApplicantPortalSidebar({
             })) ?? [],
         };
       }),
-    [pathname, scheduleViewParam, scheduleTabParam]
+    [navSections, pathname, scheduleViewParam, scheduleTabParam]
   );
 
   useEffect(() => {
-    const activeParents = WORKER_SIDEBAR_SECTIONS.filter(
+    const activeParents = navSections.filter(
       (section) =>
         isSectionPathActive(section) || section.children?.some((child) => isLinkActive(child))
     ).map((section) => section.label);
     if (activeParents.length === 0) return;
     setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
-  }, [pathname, scheduleViewParam, scheduleTabParam]);
+  }, [navSections, pathname, scheduleViewParam, scheduleTabParam]);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -305,10 +310,10 @@ export function ApplicantPortalSidebar({
             {!isCollapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
-                  {branding.companyName}
+                  {candidatePortal ? "Candidate Portal" : branding.companyName}
                 </p>
                 <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
-                  Dashboard
+                  {candidatePortal ? branding.companyName : "Dashboard"}
                 </p>
               </div>
             ) : null}
@@ -513,7 +518,11 @@ export function ApplicantPortalSidebar({
         >
           {!isCollapsed || isMobileRail ? (
             <Link
-              href="/application/applicant-dashboard/profile"
+              href={
+                candidatePortal
+                  ? applicationPath("/application/candidate/profile", tenantQuery)
+                  : "/application/applicant-dashboard/profile"
+              }
               onClick={handleNavClick}
               title="Profile"
               aria-label="Open profile"
@@ -529,7 +538,9 @@ export function ApplicantPortalSidebar({
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] leading-5 font-semibold text-[color:var(--brand-secondary)]">{applicantName}</p>
-              <p className="truncate text-[10px] leading-[15px] font-light text-[#94A3B8]">Worker</p>
+              <p className="truncate text-[10px] leading-[15px] font-light text-[#94A3B8]">
+                {candidatePortal ? "Candidate" : "Worker"}
+              </p>
             </div>
           ) : null}
           <button

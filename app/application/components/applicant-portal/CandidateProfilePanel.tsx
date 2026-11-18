@@ -1,0 +1,603 @@
+"use client";
+
+import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
+import { Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
+import { formatPhoneNumber } from "@/lib/phone";
+import { US_STATE_CODE_TO_NAME } from "@/lib/us-state-names";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
+import {
+  WORKER_BTN_OUTLINE,
+  WORKER_BTN_PRIMARY,
+  WORKER_BTN_PRIMARY_SM,
+} from "./worker-portal-buttons";
+import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
+  WORKER_SCHEDULE_CARD_CLASS,
+} from "./worker-schedule-typography";
+import { CandidatePageIntro, CandidateSettingsTabs } from "./candidate-portal-ui";
+
+type ProfileForm = {
+  firstName: string;
+  lastName: string;
+  preferredName: string;
+  email: string;
+  phone: string;
+  birthdate: string;
+  jobTitle: string;
+  departmentId: string;
+  employeeId: string;
+  companyWorkLocation: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
+  bio: string;
+};
+
+type DepartmentOption = { id: string; name: string };
+
+type FieldErrors = Partial<Record<keyof ProfileForm, string>>;
+
+const STATE_OPTIONS = Object.entries(US_STATE_CODE_TO_NAME).sort((a, b) =>
+  a[1].localeCompare(b[1])
+);
+
+const EMPTY_FORM: ProfileForm = {
+  firstName: "",
+  lastName: "",
+  preferredName: "",
+  email: "",
+  phone: "",
+  birthdate: "",
+  jobTitle: "",
+  departmentId: "",
+  employeeId: "",
+  companyWorkLocation: "",
+  address1: "",
+  address2: "",
+  city: "",
+  state: "",
+  zip: "",
+  bio: "",
+};
+
+const FIELD_CLASS =
+  "h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
+
+function FieldLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
+  return (
+    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+      {children}
+    </label>
+  );
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return <h2 className="text-base font-semibold text-[#0F172A]">{children}</h2>;
+}
+
+export function CandidateProfilePanel() {
+  const branding = useTenantBranding();
+  const { sessionReady, authHeaders, setProfilePhotoUrl } = useApplicantPortal();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
+  const [baseline, setBaseline] = useState<ProfileForm>(EMPTY_FORM);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    let alive = true;
+
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const headers = await authHeaders();
+        if (!headers) throw new Error("You need to sign in again.");
+        const res = await fetch("/api/applicant-portal/user-settings", {
+          headers,
+          cache: "no-store",
+        });
+        const payload = (await res.json().catch(() => ({}))) as {
+          profile?: ProfileForm & { profilePhotoUrl?: string | null; displayName?: string };
+          departments?: DepartmentOption[];
+          error?: string;
+        };
+        if (!res.ok) throw new Error(payload.error || "Could not load settings.");
+        if (!alive) return;
+
+        const next: ProfileForm = {
+          firstName: payload.profile?.firstName ?? "",
+          lastName: payload.profile?.lastName ?? "",
+          preferredName: payload.profile?.preferredName ?? "",
+          email: payload.profile?.email ?? "",
+          phone: payload.profile?.phone ?? "",
+          birthdate: payload.profile?.birthdate ?? "",
+          jobTitle: payload.profile?.jobTitle ?? "",
+          departmentId: payload.profile?.departmentId ?? "",
+          employeeId: payload.profile?.employeeId ?? "",
+          companyWorkLocation: payload.profile?.companyWorkLocation ?? "",
+          address1: payload.profile?.address1 ?? "",
+          address2: payload.profile?.address2 ?? "",
+          city: payload.profile?.city ?? "",
+          state: payload.profile?.state ?? "",
+          zip: payload.profile?.zip ?? "",
+          bio: payload.profile?.bio ?? "",
+        };
+        setForm(next);
+        setBaseline(next);
+        setDepartments(payload.departments ?? []);
+        setPhotoUrl(payload.profile?.profilePhotoUrl ?? null);
+        setDisplayName(payload.profile?.displayName ?? "");
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : "Could not load settings.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [authHeaders, sessionReady]);
+
+  function updateField<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleCancel() {
+    setForm(baseline);
+    setFieldErrors({});
+    setError(null);
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      const headers = await authHeaders();
+      if (!headers) throw new Error("You need to sign in again.");
+      const res = await fetch("/api/applicant-portal/user-settings", {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ section: "profile", ...form }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        profile?: ProfileForm & { profilePhotoUrl?: string | null; displayName?: string };
+        departments?: DepartmentOption[];
+        fieldErrors?: FieldErrors;
+        error?: string;
+      };
+      if (!res.ok) {
+        if (payload.fieldErrors) setFieldErrors(payload.fieldErrors);
+        throw new Error(payload.error || "Could not save profile.");
+      }
+      const next: ProfileForm = {
+        firstName: payload.profile?.firstName ?? form.firstName,
+        lastName: payload.profile?.lastName ?? form.lastName,
+        preferredName: payload.profile?.preferredName ?? form.preferredName,
+        email: payload.profile?.email ?? form.email,
+        phone: payload.profile?.phone ?? form.phone,
+        birthdate: payload.profile?.birthdate ?? form.birthdate,
+        jobTitle: payload.profile?.jobTitle ?? form.jobTitle,
+        departmentId: payload.profile?.departmentId ?? form.departmentId,
+        employeeId: payload.profile?.employeeId ?? form.employeeId,
+        companyWorkLocation: payload.profile?.companyWorkLocation ?? form.companyWorkLocation,
+        address1: payload.profile?.address1 ?? form.address1,
+        address2: payload.profile?.address2 ?? form.address2,
+        city: payload.profile?.city ?? form.city,
+        state: payload.profile?.state ?? form.state,
+        zip: payload.profile?.zip ?? form.zip,
+        bio: payload.profile?.bio ?? form.bio,
+      };
+      setForm(next);
+      setBaseline(next);
+      if (payload.departments) setDepartments(payload.departments);
+      toast.success("Profile saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePhotoSelected(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    const localPreview = URL.createObjectURL(file);
+    setPhotoUrl(localPreview);
+    try {
+      const headers = await authHeaders();
+      if (!headers) throw new Error("You need to sign in again.");
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/applicant-portal/profile-photo", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        profilePhotoUrl?: string | null;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Could not upload photo.");
+      URL.revokeObjectURL(localPreview);
+      const nextUrl = payload.profilePhotoUrl ?? null;
+      setPhotoUrl(nextUrl);
+      setProfilePhotoUrl(nextUrl);
+      toast.success("Photo updated.");
+    } catch (err) {
+      URL.revokeObjectURL(localPreview);
+      setPhotoUrl(null);
+      setError(err instanceof Error ? err.message : "Could not upload photo.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemovePhoto() {
+    if (!photoUrl || uploading) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      if (!headers) throw new Error("You need to sign in again.");
+      const res = await fetch("/api/applicant-portal/profile-photo", {
+        method: "DELETE",
+        headers,
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(payload.error || "Could not remove photo.");
+      setPhotoUrl(null);
+      setProfilePhotoUrl(null);
+      toast.success("Photo removed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove photo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const avatarName =
+    displayName ||
+    [form.firstName, form.lastName].filter(Boolean).join(" ").trim() ||
+    "Worker";
+
+  return (
+    <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-10`}>
+      <CandidatePageIntro
+        title="Profile & Account"
+        subtitle="Manage your personal and professional information, login details and account preferences."
+      />
+      <CandidateSettingsTabs active="profile" />
+
+      <section className="space-y-5">
+        {loading ? (
+          <div className="space-y-4">
+            <div className="h-20 rounded-xl bg-[#F1F5F9] motion-safe:animate-pulse" />
+            <div className="h-40 rounded-xl bg-[#F1F5F9] motion-safe:animate-pulse" />
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-4 rounded-xl border border-[#E5E7EB] bg-white p-5 sm:flex-row sm:items-center">
+              <div
+                className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-2xl font-semibold text-white"
+                style={!photoUrl ? workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex) : undefined}
+              >
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  workerAvatarInitial(avatarName)
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-[#111827]">Profile Picture</p>
+                <p className="text-xs text-[#6B7280]">
+                  Recommended size: 400 × 400px. JPG, PNG (max 2MB)
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={WORKER_BTN_PRIMARY_SM}
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Change Photo"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className={WORKER_BTN_OUTLINE}
+                    disabled={uploading || !photoUrl}
+                    onClick={() => void handleRemovePhoto()}
+                  >
+                    Remove
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg,image/webp"
+                    className="sr-only"
+                    onChange={(event) => void handlePhotoSelected(event.target.files?.[0])}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={`${WORKER_SCHEDULE_CARD_CLASS} space-y-4 p-5`}>
+              <SectionTitle>Personal Information</SectionTitle>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <FieldLabel htmlFor="settings-first-name">First Name</FieldLabel>
+                  <input
+                    id="settings-first-name"
+                    className={FIELD_CLASS}
+                    value={form.firstName}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    onChange={(event) => updateField("firstName", event.target.value)}
+                  />
+                  {fieldErrors.firstName ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-last-name">Last Name</FieldLabel>
+                  <input
+                    id="settings-last-name"
+                    className={FIELD_CLASS}
+                    value={form.lastName}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    onChange={(event) => updateField("lastName", event.target.value)}
+                  />
+                  {fieldErrors.lastName ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-preferred-name">Preferred Name</FieldLabel>
+                  <input
+                    id="settings-preferred-name"
+                    className={FIELD_CLASS}
+                    value={form.preferredName}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    onChange={(event) => updateField("preferredName", event.target.value)}
+                  />
+                  {fieldErrors.preferredName ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.preferredName}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-email">Email Address</FieldLabel>
+                  <input
+                    id="settings-email"
+                    type="email"
+                    className={FIELD_CLASS}
+                    value={form.email}
+                    onChange={(event) => updateField("email", event.target.value)}
+                  />
+                  {fieldErrors.email ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-phone">Phone Number</FieldLabel>
+                  <div className="flex overflow-hidden rounded-lg border border-[#D1D5DB] focus-within:border-[color:var(--brand-primary)]">
+                    <span className="inline-flex items-center border-r border-[#E5E7EB] bg-[#F8FAFC] px-3 text-sm font-medium text-[#334155]">
+                      +1
+                    </span>
+                    <input
+                      id="settings-phone"
+                      className="h-10 min-w-0 flex-1 border-0 bg-white px-3 text-sm text-[#0F172A] outline-none"
+                      value={form.phone}
+                      onChange={(event) => updateField("phone", formatPhoneNumber(event.target.value))}
+                    />
+                  </div>
+                  {fieldErrors.phone ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-birthdate">Birthdate</FieldLabel>
+                  <input
+                    id="settings-birthdate"
+                    type="date"
+                    className={FIELD_CLASS}
+                    value={form.birthdate}
+                    disabled
+                    readOnly
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={`${WORKER_SCHEDULE_CARD_CLASS} space-y-4 p-5`}>
+              <SectionTitle>Professional Information</SectionTitle>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <FieldLabel htmlFor="settings-job-title">Job Title</FieldLabel>
+                  <input
+                    id="settings-job-title"
+                    className={FIELD_CLASS}
+                    value={form.jobTitle}
+                    onChange={(event) => updateField("jobTitle", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-department">Department</FieldLabel>
+                  <select
+                    id="settings-department"
+                    className={FIELD_CLASS}
+                    value={form.departmentId}
+                    disabled
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-employee-id">Employee ID</FieldLabel>
+                  <input
+                    id="settings-employee-id"
+                    className={FIELD_CLASS}
+                    value={form.employeeId}
+                    disabled
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-company-work-location">Company Work Location</FieldLabel>
+                  <input
+                    id="settings-company-work-location"
+                    className={FIELD_CLASS}
+                    value={form.companyWorkLocation}
+                    placeholder="Assigned by your recruiter"
+                    disabled
+                    readOnly
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="settings-bio">Bio</FieldLabel>
+                  <textarea
+                    id="settings-bio"
+                    rows={4}
+                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
+                    value={form.bio}
+                    maxLength={1000}
+                    placeholder="Tell others a little about yourself"
+                    onChange={(event) => updateField("bio", event.target.value)}
+                  />
+                  {fieldErrors.bio ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.bio}</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <SectionTitle>Worker Address</SectionTitle>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="settings-address1">Address Line 1</FieldLabel>
+                  <input
+                    id="settings-address1"
+                    className={FIELD_CLASS}
+                    value={form.address1}
+                    autoComplete="address-line1"
+                    placeholder="Street address"
+                    onChange={(event) => updateField("address1", event.target.value)}
+                  />
+                  {fieldErrors.address1 ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address1}</p>
+                  ) : null}
+                </div>
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="settings-address2">Address Line 2</FieldLabel>
+                  <input
+                    id="settings-address2"
+                    className={FIELD_CLASS}
+                    value={form.address2}
+                    autoComplete="address-line2"
+                    placeholder="Apt, suite, unit (optional)"
+                    onChange={(event) => updateField("address2", event.target.value)}
+                  />
+                  {fieldErrors.address2 ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address2}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-city">City</FieldLabel>
+                  <input
+                    id="settings-city"
+                    className={FIELD_CLASS}
+                    value={form.city}
+                    autoComplete="address-level2"
+                    onChange={(event) => updateField("city", event.target.value)}
+                  />
+                  {fieldErrors.city ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-state">State</FieldLabel>
+                  <select
+                    id="settings-state"
+                    className={FIELD_CLASS}
+                    value={form.state}
+                    autoComplete="address-level1"
+                    onChange={(event) => updateField("state", event.target.value)}
+                  >
+                    <option value="">Select state</option>
+                    {STATE_OPTIONS.map(([code, name]) => (
+                      <option key={code} value={code}>
+                        {code} — {name}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors.state ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.state}</p>
+                  ) : null}
+                </div>
+                <div>
+                  <FieldLabel htmlFor="settings-zip">Zipcode</FieldLabel>
+                  <input
+                    id="settings-zip"
+                    className={FIELD_CLASS}
+                    value={form.zip}
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    placeholder="12345"
+                    onChange={(event) => updateField("zip", event.target.value)}
+                  />
+                  {fieldErrors.zip ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.zip}</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse justify-end gap-2 border-t border-[#E5E7EB] pt-5 sm:flex-row">
+              <button type="button" className={WORKER_BTN_OUTLINE} onClick={handleCancel} disabled={saving}>
+                Cancel
+              </button>
+              <button type="submit" className={WORKER_BTN_PRIMARY} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+    </div>
+  );
+}

@@ -1,4 +1,7 @@
-import { WORKER_SIDEBAR_SECTIONS } from "@/app/application/components/applicant-portal/worker-sidebar-config";
+import {
+  CANDIDATE_SIDEBAR_SECTIONS,
+  WORKER_SIDEBAR_SECTIONS,
+} from "@/app/application/components/applicant-portal/worker-sidebar-config";
 
 export type WorkerPortalSearchItem = {
   id: string;
@@ -47,7 +50,7 @@ const SECTION_KEYWORDS: Record<string, string[]> = {
 function flattenSidebarSearchItems(): WorkerPortalSearchItem[] {
   const items: WorkerPortalSearchItem[] = [];
 
-  for (const section of WORKER_SIDEBAR_SECTIONS) {
+  for (const section of [...WORKER_SIDEBAR_SECTIONS, ...CANDIDATE_SIDEBAR_SECTIONS]) {
     if (section.preventNavigation) continue;
 
     if (section.children?.length) {

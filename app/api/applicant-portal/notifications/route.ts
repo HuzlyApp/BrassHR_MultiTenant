@@ -73,6 +73,22 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, updated: Boolean(data) });
     }
 
+    if (body.action === "delete_notification") {
+      const notificationId = body.notificationId?.trim();
+      if (!notificationId) {
+        return NextResponse.json({ error: "notificationId is required." }, { status: 400 });
+      }
+
+      const { error } = await auth.supabase
+        .from("notifications")
+        .delete()
+        .eq("id", notificationId)
+        .eq("user_id", auth.user.id);
+      if (error) throw error;
+
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.action === "mark_notifications_read") {
       const { error } = await auth.supabase
         .from("notifications")

@@ -41,6 +41,7 @@ export type ResolveApplicantOnboardingRouteInput = {
 
 const EXEMPT_PATH_PREFIXES = [
   "/application/applicant-dashboard",
+  "/application/candidate",
   "/application/continue",
   "/application/onboarding",
 ] as const;

@@ -74,6 +74,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         const skipApplicantAuth =
           window.location.pathname.startsWith("/application/applicant-dashboard") ||
           window.location.pathname.startsWith("/application/home") ||
+          window.location.pathname.startsWith("/application/candidate") ||
           isOnboardingDraftPreview(window.location.search);
 
         if (skipApplicantAuth && isOnboardingDraftPreview(window.location.search)) {
