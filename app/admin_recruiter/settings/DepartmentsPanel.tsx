@@ -10,14 +10,24 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, MoreHorizontal, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CircleHelp, ChevronDown, MoreHorizontal, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
-import type { DepartmentRecord, DepartmentTarget } from "@/lib/departments/types";
+import type {
+  DepartmentMember,
+  DepartmentMemberRef,
+  DepartmentRecord,
+  DepartmentTarget,
+} from "@/lib/departments/types";
 import {
   ListPaginationControls,
   ListPaginationShowLabel,
 } from "@/app/admin_recruiter/components/ListPaginationControls";
 import SettingsSelect from "./SettingsSelect";
+
+function memberKey(member: DepartmentMemberRef): string {
+  return `${member.kind}:${member.id}`;
+}
 
 type AssignmentKind = "job" | "candidate";
 type StatusFilter = "all" | "active" | "inactive";
@@ -43,6 +53,7 @@ function memberInitials(label: string): string {
 }
 
 export default function DepartmentsPanel() {
+  const router = useRouter();
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -56,8 +67,9 @@ export default function DepartmentsPanel() {
   const [draftCode, setDraftCode] = useState("");
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [draftPrimaryContact, setDraftPrimaryContact] = useState("");
   const [draftActive, setDraftActive] = useState(true);
-  const [invitedMemberIds, setInvitedMemberIds] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<DepartmentMemberRef[]>([]);
   const [saving, setSaving] = useState(false);
   const [jobs, setJobs] = useState<DepartmentTarget[]>([]);
   const [candidates, setCandidates] = useState<DepartmentTarget[]>([]);
@@ -236,8 +248,9 @@ export default function DepartmentsPanel() {
     setDraftCode("");
     setDraftName("");
     setDraftDescription("");
+    setDraftPrimaryContact("");
     setDraftActive(true);
-    setInvitedMemberIds([]);
+    setSelectedMembers([]);
     setPanelMode("create");
     setMenuId(null);
   }
@@ -247,10 +260,19 @@ export default function DepartmentsPanel() {
     setDraftCode(department.code ?? "");
     setDraftName(department.name);
     setDraftDescription(department.description ?? "");
+    setDraftPrimaryContact(department.primaryContact ?? "");
     setDraftActive(department.isActive);
-    setInvitedMemberIds([]);
+    setSelectedMembers([]);
     setPanelMode("edit");
     setMenuId(null);
+  }
+
+  function openMembers(department: DepartmentRecord) {
+    const params = new URLSearchParams({
+      department: department.name,
+      departmentId: department.id,
+    });
+    router.push(`/admin_recruiter/workers?${params.toString()}`);
   }
 
   function openManage(department: DepartmentRecord) {
@@ -263,7 +285,7 @@ export default function DepartmentsPanel() {
   function closePanel() {
     setPanelMode(null);
     setSelectedId(null);
-    setInvitedMemberIds([]);
+    setSelectedMembers([]);
     setSaving(false);
   }
 
@@ -280,7 +302,8 @@ export default function DepartmentsPanel() {
           name: trimmedName,
           code: trimmedCode,
           description: draftDescription.trim() || null,
-          memberIds: invitedMemberIds,
+          primaryContact: draftPrimaryContact.trim() || null,
+          members: selectedMembers,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -312,6 +335,7 @@ export default function DepartmentsPanel() {
           name: trimmedName,
           code: trimmedCode,
           description: draftDescription.trim() || null,
+          primaryContact: draftPrimaryContact.trim() || null,
           isActive: draftActive,
         }),
       });
@@ -326,6 +350,7 @@ export default function DepartmentsPanel() {
                   name: trimmedName,
                   code: trimmedCode,
                   description: draftDescription.trim() || null,
+                  primaryContact: draftPrimaryContact.trim() || null,
                   isActive: draftActive,
                 }
               : department
@@ -491,7 +516,14 @@ export default function DepartmentsPanel() {
                         {department.description?.trim() || "—"}
                       </td>
                       <td className="px-5 py-4 text-sm tabular-nums text-[#64748B]">
-                        {department.candidateCount}
+                        <button
+                          type="button"
+                          onClick={() => openMembers(department)}
+                          className="rounded-md px-1.5 py-0.5 font-semibold text-[#012352] underline-offset-2 transition hover:bg-[#F8FAFC] hover:underline"
+                          aria-label={`View ${department.candidateCount} workers in ${department.name}`}
+                        >
+                          {department.candidateCount}
+                        </button>
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -611,14 +643,16 @@ export default function DepartmentsPanel() {
           code={draftCode}
           name={draftName}
           description={draftDescription}
+          primaryContact={draftPrimaryContact}
           isActive={draftActive}
-          invitedMemberIds={invitedMemberIds}
+          selectedMembers={selectedMembers}
           saving={saving}
           onCodeChange={setDraftCode}
           onNameChange={setDraftName}
           onDescriptionChange={setDraftDescription}
+          onPrimaryContactChange={setDraftPrimaryContact}
           onActiveChange={setDraftActive}
-          onInvitedMemberIdsChange={setInvitedMemberIds}
+          onSelectedMembersChange={setSelectedMembers}
           onClose={closePanel}
           onSave={() => void (panelMode === "create" ? createDepartment() : saveDepartment())}
         />
@@ -652,14 +686,16 @@ function DepartmentFormModal({
   code,
   name,
   description,
+  primaryContact,
   isActive,
-  invitedMemberIds,
+  selectedMembers,
   saving,
   onCodeChange,
   onNameChange,
   onDescriptionChange,
+  onPrimaryContactChange,
   onActiveChange,
-  onInvitedMemberIdsChange,
+  onSelectedMembersChange,
   onClose,
   onSave,
 }: {
@@ -667,23 +703,29 @@ function DepartmentFormModal({
   code: string;
   name: string;
   description: string;
+  primaryContact: string;
   isActive: boolean;
-  invitedMemberIds: string[];
+  selectedMembers: DepartmentMemberRef[];
   saving: boolean;
   onCodeChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
+  onPrimaryContactChange: (value: string) => void;
   onActiveChange: (value: boolean) => void;
-  onInvitedMemberIdsChange: (ids: string[]) => void;
+  onSelectedMembersChange: (members: DepartmentMemberRef[]) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
   const title = mode === "create" ? "Add New Department" : "Edit Department";
   const [membersOpen, setMembersOpen] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
-  const [memberResults, setMemberResults] = useState<DepartmentTarget[]>([]);
+  const [memberResults, setMemberResults] = useState<DepartmentMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const membersRef = useRef<HTMLDivElement>(null);
+  const selectedKeys = useMemo(
+    () => new Set(selectedMembers.map((member) => memberKey(member))),
+    [selectedMembers]
+  );
 
   useEffect(() => {
     if (!membersOpen) return;
@@ -701,13 +743,13 @@ function DepartmentFormModal({
       setMembersLoading(true);
       void (async () => {
         try {
-          const params = new URLSearchParams({ kind: "candidate", q: memberQuery.trim() });
+          const params = new URLSearchParams({ kind: "member", q: memberQuery.trim() });
           const response = await fetch(`/api/admin/departments/search?${params.toString()}`, {
             cache: "no-store",
           });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(payload.error || "Search failed");
-          if (!cancelled) setMemberResults((payload.results ?? []) as DepartmentTarget[]);
+          if (!cancelled) setMemberResults((payload.results ?? []) as DepartmentMember[]);
         } catch (error) {
           if (!cancelled) {
             setMemberResults([]);
@@ -724,12 +766,13 @@ function DepartmentFormModal({
     };
   }, [membersOpen, memberQuery, mode]);
 
-  function toggleInvite(memberId: string) {
-    onInvitedMemberIdsChange(
-      invitedMemberIds.includes(memberId)
-        ? invitedMemberIds.filter((id) => id !== memberId)
-        : [...invitedMemberIds, memberId]
-    );
+  function toggleMember(member: DepartmentMember) {
+    const key = memberKey(member);
+    if (selectedKeys.has(key)) {
+      onSelectedMembersChange(selectedMembers.filter((item) => memberKey(item) !== key));
+      return;
+    }
+    onSelectedMembersChange([...selectedMembers, { kind: member.kind, id: member.id }]);
   }
 
   const canSave = Boolean(code.trim() && name.trim()) && !saving;
@@ -806,6 +849,38 @@ function DepartmentFormModal({
             </div>
           </label>
 
+          <label className="block space-y-1.5">
+            <span className={`${labelClassName} inline-flex items-center gap-1.5`}>
+              Primary Contact Email / Email Alias
+              <span className="group relative inline-flex">
+                <button
+                  type="button"
+                  tabIndex={0}
+                  aria-label="Primary contact help"
+                  className="inline-flex text-[#94A3B8] transition hover:text-[#64748B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#012352]/30"
+                >
+                  <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+                </button>
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-56 -translate-x-1/2 rounded-lg bg-[#0F172A] px-2.5 py-2 text-left text-[11px] font-normal leading-4 text-white shadow-lg group-hover:block group-focus-within:block"
+                >
+                  This is the individual or email alias that will receive support tickets for this
+                  department
+                </span>
+              </span>
+            </span>
+            <input
+              type="email"
+              value={primaryContact}
+              onChange={(event) => onPrimaryContactChange(event.target.value)}
+              maxLength={254}
+              disabled={saving}
+              placeholder="finance@company.com"
+              className={inputClassName}
+            />
+          </label>
+
           {mode === "edit" ? (
             <label className="flex items-center gap-2 text-sm text-[#334155]">
               <input
@@ -828,9 +903,9 @@ function DepartmentFormModal({
                 onClick={() => setMembersOpen((current) => !current)}
                 className={`${inputClassName} flex items-center justify-between text-left`}
               >
-                <span className={invitedMemberIds.length ? "text-[#0F172A]" : "text-[#94A3B8]"}>
-                  {invitedMemberIds.length
-                    ? `${invitedMemberIds.length} member${invitedMemberIds.length === 1 ? "" : "s"} selected`
+                <span className={selectedMembers.length ? "text-[#0F172A]" : "text-[#94A3B8]"}>
+                  {selectedMembers.length
+                    ? `${selectedMembers.length} member${selectedMembers.length === 1 ? "" : "s"} selected`
                     : "Add Member"}
                 </span>
                 <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden />
@@ -855,13 +930,15 @@ function DepartmentFormModal({
                     {membersLoading ? (
                       <li className="px-3 py-3 text-sm text-[#94A3B8]">Searching…</li>
                     ) : memberResults.length === 0 ? (
-                      <li className="px-3 py-3 text-sm text-[#94A3B8]">No members found</li>
+                      <li className="px-3 py-3 text-sm text-[#94A3B8]">
+                        No workers found
+                      </li>
                     ) : (
                       memberResults.map((member) => {
-                        const invited = invitedMemberIds.includes(member.id);
+                        const selected = selectedKeys.has(memberKey(member));
                         return (
                           <li
-                            key={member.id}
+                            key={memberKey(member)}
                             className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#F8FAFC]"
                           >
                             <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-xs font-semibold text-[#012352]">
@@ -871,21 +948,28 @@ function DepartmentFormModal({
                               <span className="block truncate text-sm font-medium text-[#0F172A]">
                                 {member.label}
                               </span>
-                              <span className="mt-0.5 inline-flex rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-medium text-[#166534]">
-                                Active
+                              <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                <span className="inline-flex rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-medium text-[#166534]">
+                                  {member.status === "active" ? "Active" : "Inactive"}
+                                </span>
+                                {member.roleLabel ? (
+                                  <span className="inline-flex rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[11px] font-medium text-[#3730A3]">
+                                    {member.roleLabel}
+                                  </span>
+                                ) : null}
                               </span>
                             </span>
                             <button
                               type="button"
                               disabled={saving}
-                              onClick={() => toggleInvite(member.id)}
+                              onClick={() => toggleMember(member)}
                               className={
-                                invited
+                                selected
                                   ? "inline-flex h-8 shrink-0 items-center rounded-lg bg-[#012352] px-3 text-xs font-semibold text-white"
                                   : "inline-flex h-8 shrink-0 items-center rounded-lg border border-[#012352] bg-white px-3 text-xs font-semibold text-[#012352]"
                               }
                             >
-                              {invited ? "Invite Sent" : "Send Invite"}
+                              {selected ? "Added" : "Add"}
                             </button>
                           </li>
                         );

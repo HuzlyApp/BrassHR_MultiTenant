@@ -250,7 +250,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     kind: "settings_section",
     parentKey: "settings",
     pagePrefixes: ["/admin_recruiter/help-support", "/admin_recruiter/support-tickets", "/admin_recruiter/tickets"],
-    apiPrefixes: ["/api/admin/faqs"],
+    apiPrefixes: ["/api/admin/faqs", "/api/support-tickets"],
     sortOrder: 140,
     // Settings mini-sidebar only — available to every authenticated staff role.
     alwaysGranted: true,

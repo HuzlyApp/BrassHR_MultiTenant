@@ -2,48 +2,80 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Circle, ExternalLink } from "lucide-react";
+import { ChevronRight, Link2 } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import {
-  CANDIDATES_PAGE_SUBTITLE_CLASS,
-  CANDIDATES_PAGE_SUBTITLE_STYLE,
-  CANDIDATES_PAGE_TITLE_CLASS,
-  CANDIDATES_PAGE_TITLE_STYLE,
-} from "@/app/admin_recruiter/candidates/candidates-typography";
+  ListPaginationControls,
+  ListPaginationShowLabel,
+} from "@/app/admin_recruiter/components/ListPaginationControls";
 import { TicketsSubNav } from "@/app/admin_recruiter/tickets/TicketsSubNav";
+import { OpenTicketDepartmentMenu } from "@/app/components/support/OpenTicketDepartmentMenu";
 import { SupportTicketDetailModal } from "@/app/admin_recruiter/tickets/support/SupportTicketDetailModal";
 import { StaffCreateSupportTicketModal } from "@/app/admin_recruiter/tickets/support/StaffCreateSupportTicketModal";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import {
+  BRAND_FONT_BODY_STYLE,
+  BRAND_FONT_HEADING_STYLE,
+} from "@/lib/tenant/branding-typography-styles";
+import { getSupportDepartmentByCategory } from "@/lib/support-tickets/support-departments";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 import type { SupportTicketListItem } from "@/lib/support-tickets/types";
 
 type SidebarFilter = "open" | "closed" | "archived";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
-function formatLastUpdated(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("en-US", { timeZone: "America/New_York", 
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function shortTicketId(id: string): string {
+  const compact = id.replace(/-/g, "").slice(0, 7).toUpperCase();
+  if (compact.length < 3) return `#${id.slice(0, 8).toUpperCase()}`;
+  return `#${compact.slice(0, 2)}-${compact.slice(2)}`;
 }
 
 function formatCategory(value: string | null | undefined): string {
   const text = (value ?? "general").trim();
+  const dept = getSupportDepartmentByCategory(text);
+  if (dept) return dept.title;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function statusTone(status: string): string {
+function formatLastUpdatedParts(value: string | null | undefined): { date: string; time: string } {
+  if (!value) return { date: "—", time: "" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: "—", time: "" };
+  const dateLabel = date.toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const weekday = date.toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+  });
+  const time = date.toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return { date: dateLabel, time: `${weekday} at ${time}` };
+}
+
+function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
-  if (normalized === "closed" || normalized === "resolved") return "text-[#64748B]";
-  if (normalized === "in progress") return "text-[#2563EB]";
-  return "text-[#16A34A]";
+  if (normalized === "closed" || normalized === "resolved") {
+    return "bg-[rgba(37,99,235,0.15)] text-[#2563EB]";
+  }
+  if (normalized === "in progress" || normalized === "pending") {
+    return "bg-[rgba(37,99,235,0.12)] text-[#2563EB]";
+  }
+  return "bg-[rgba(22,163,74,0.12)] text-[#16A34A]";
+}
+
+function statusLabel(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "resolved" || normalized === "closed") return "Completed";
+  return status;
 }
 
 function matchesSidebarFilter(ticket: SupportTicketListItem, filter: SidebarFilter): boolean {
@@ -66,14 +98,17 @@ function SidebarFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-11 w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+      className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-3 text-left transition ${
         active
-          ? "border-[#E5E7EB] bg-[#F4F4F4] text-[color:var(--brand-primary)]"
-          : "border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#FAFBFC]"
+          ? "bg-[color:var(--brand-secondary,#012352)] text-white"
+          : "bg-transparent text-[#374151] hover:bg-[#F9FAFB]"
       }`}
     >
-      <span className="text-xs font-semibold">{label}</span>
-      <ChevronRight className="h-3.5 w-3.5 text-[#94A3B8]" aria-hidden />
+      <span className="text-xs font-normal leading-4">{label}</span>
+      <ChevronRight
+        className={`h-3.5 w-3.5 ${active ? "text-white" : "text-[#94A3B8]"}`}
+        aria-hidden
+      />
     </button>
   );
 }
@@ -81,6 +116,8 @@ function SidebarFilterButton({
 export default function SupportTicketsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const branding = useTenantBranding();
+  const secondaryColor = branding.secondaryHex || "#012352";
   const [tickets, setTickets] = useState<SupportTicketListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,8 +125,10 @@ export default function SupportTicketsClient() {
   const [selectedTicket, setSelectedTicket] = useState<SupportTicketListItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [defaultCategory, setDefaultCategory] = useState("general");
   const [closing, setClosing] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -136,18 +175,26 @@ export default function SupportTicketsClient() {
 
   useEffect(() => {
     setPage(1);
-  }, [sidebarFilter]);
+  }, [sidebarFilter, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / pageSize));
   const safePage = Math.min(page, totalPages);
+  const pageStart = filteredTickets.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const pageEnd = Math.min(safePage * pageSize, filteredTickets.length);
   const paginatedTickets = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE;
-    return filteredTickets.slice(start, start + PAGE_SIZE);
-  }, [filteredTickets, safePage]);
+    const start = (safePage - 1) * pageSize;
+    return filteredTickets.slice(start, start + pageSize);
+  }, [filteredTickets, safePage, pageSize]);
 
   function openTicketDetail(ticket: SupportTicketListItem) {
     setSelectedTicket(ticket);
     setDetailOpen(true);
+  }
+
+  function openTicketChat(ticket: SupportTicketListItem) {
+    router.push(
+      `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticket.id)}`
+    );
   }
 
   function handleCreated(ticket: SupportTicketListItem) {
@@ -244,27 +291,32 @@ export default function SupportTicketsClient() {
     }
   }
 
+  function openCreate(category: string) {
+    setDefaultCategory(category);
+    setCreateOpen(true);
+  }
+
   const openTicketAction = (
-    <button
-      type="button"
-      onClick={() => setCreateOpen(true)}
-      className="min-h-11 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white"
-      style={{
-        background: "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-      }}
-    >
-      Open a Ticket
-    </button>
+    <OpenTicketDepartmentMenu
+      onSelectDepartment={openCreate}
+      buttonStyle={{ backgroundColor: secondaryColor }}
+    />
   );
 
   return (
     <div className="pb-8">
       <div className="px-8 pt-6">
-        <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
+        <h1
+          className="m-0 text-2xl font-semibold leading-8 tracking-normal text-[color:var(--brand-secondary,#012352)]"
+          style={BRAND_FONT_HEADING_STYLE}
+        >
           Support Tickets
         </h1>
-        <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-          Manage your help tickets
+        <p
+          className="m-0 mt-0.5 text-xs font-normal leading-4 tracking-normal text-[#6B7280]"
+          style={BRAND_FONT_BODY_STYLE}
+        >
+          Manage your help tickets.
         </p>
       </div>
 
@@ -277,13 +329,13 @@ export default function SupportTicketsClient() {
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
           {loading ? (
             <DashboardPageLoader label="Loading support tickets..." className="min-h-[480px]" />
           ) : (
-            <div className="grid min-h-[520px] lg:grid-cols-[290px_minmax(0,1fr)]">
-              <aside className="border-b border-[#E5E7EB] p-5 lg:border-b-0 lg:border-r">
-                <div className="space-y-3">
+            <div className="grid min-h-[520px] gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+              <aside className="rounded-lg border border-[#E5E7EB] p-5">
+                <div className="space-y-3.5">
                   <SidebarFilterButton
                     label="Open Ticket"
                     active={sidebarFilter === "open"}
@@ -302,144 +354,129 @@ export default function SupportTicketsClient() {
                 </div>
               </aside>
 
-              <section className="min-w-0">
+              <section className="flex min-w-0 flex-col justify-between">
                 {filteredTickets.length === 0 ? (
-                  <div className="flex min-h-[420px] flex-col items-center justify-center px-6 py-12 text-center">
-                    <p className="text-base font-medium text-[#0F172A]">No tickets in this view</p>
-                    <p className="mt-2 max-w-md text-sm text-[#64748B]">
+                  <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-[#E5E7EB] px-6 py-12 text-center">
+                    <p className="text-base font-medium text-[color:var(--brand-secondary,#012352)]">
+                      No tickets in this view
+                    </p>
+                    <p className="mt-2 max-w-md text-sm text-[#6B7280]">
                       Create a ticket on behalf of a worker, or wait for applicant submissions from
                       Help & Support.
                     </p>
                     {sidebarFilter === "open" ? (
-                      <button
-                        type="button"
-                        onClick={() => setCreateOpen(true)}
-                        className="mt-4 min-h-11 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                        }}
-                      >
-                        Open a Ticket
-                      </button>
+                      <div className="mt-4">
+                        <OpenTicketDepartmentMenu
+                          onSelectDepartment={openCreate}
+                          buttonClassName="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+                          buttonStyle={{ backgroundColor: secondaryColor }}
+                        />
+                      </div>
                     ) : null}
                   </div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-left">
-                        <thead>
-                          <tr className="border-b border-[#E5E7EB] bg-[#FAFBFC] text-xs font-medium uppercase tracking-wide text-[#64748B]">
-                            <th className="px-3 py-3 font-medium normal-case">Department</th>
-                            <th className="px-3 py-3 font-medium normal-case">Subject</th>
-                            <th className="px-3 py-3 font-medium normal-case">Applicant</th>
-                            <th className="px-3 py-3 font-medium normal-case">Status</th>
-                            <th className="px-3 py-3 font-medium normal-case">Last Updated</th>
-                            <th className="px-3 py-3" aria-hidden />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paginatedTickets.map((ticket) => (
-                            <tr
-                              key={ticket.id}
-                              className="border-b border-[#F1F5F9] transition hover:bg-[#FAFBFC]"
-                            >
-                              <td className="px-3 py-4 text-sm text-[#0F172A]">
-                                {formatCategory(ticket.category)}
-                              </td>
-                              <td className="px-3 py-4">
-                                <button
-                                  type="button"
-                                  onClick={() => openTicketDetail(ticket)}
-                                  className="group flex w-full items-start justify-between gap-3 text-left"
-                                >
-                                  <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium text-[#0F172A]">
-                                      {ticket.subject ?? "Support request"}
-                                    </span>
-                                    <span className="mt-0.5 block truncate text-xs text-[#64748B]">
-                                      {descriptionPreview(ticket.description, 60)}
-                                    </span>
-                                  </span>
-                                  <ExternalLink
-                                    className="mt-0.5 h-4 w-4 shrink-0 text-[#94A3B8] opacity-0 transition group-hover:opacity-100"
-                                    aria-hidden
-                                  />
-                                </button>
-                              </td>
-                              <td className="px-3 py-4">
-                                <p className="truncate text-sm text-[#0F172A]">
-                                  {ticket.applicant_name ?? "Applicant"}
-                                </p>
-                                <p className="truncate text-xs text-[#64748B]">
-                                  {ticket.applicant_email ?? "—"}
-                                </p>
-                              </td>
-                              <td className="px-3 py-4">
-                                <span
-                                  className={`inline-flex items-center gap-1.5 text-sm ${statusTone(ticket.status)}`}
-                                >
-                                  <Circle className="h-2.5 w-2.5 fill-current" aria-hidden />
-                                  {ticket.status}
-                                </span>
-                              </td>
-                              <td className="px-3 py-4 text-sm text-[#334155]">
-                                {formatLastUpdated(ticket.updated_at ?? ticket.created_at)}
-                              </td>
-                              <td className="px-3 py-4 text-right">
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => openTicketDetail(ticket)}
-                                    className="min-h-11 text-sm font-medium text-[#012352] hover:text-[color:var(--brand-primary)]"
-                                  >
-                                    View
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      router.push(
-                                        `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticket.id)}`
-                                      )
-                                    }
-                                    className="min-h-11 text-sm font-medium text-[#012352] hover:text-[color:var(--brand-primary)]"
-                                  >
-                                    Chat
-                                  </button>
-                                </div>
-                              </td>
+                    <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left">
+                          <thead>
+                            <tr className="border-b border-[#E5E7EB] text-[10px] font-normal leading-[15px] text-black">
+                              <th className="px-3 py-2 font-normal">Department</th>
+                              <th className="px-3 py-2 font-normal">Subject</th>
+                              <th className="w-[130px] px-3 py-2 font-normal">Status</th>
+                              <th className="px-3 py-2 font-normal">Last Updated</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {paginatedTickets.map((ticket) => {
+                              const updated = formatLastUpdatedParts(
+                                ticket.updated_at ?? ticket.created_at
+                              );
+                              return (
+                                <tr
+                                  key={ticket.id}
+                                  className="border-b border-[#E5E7EB] transition hover:bg-[#FAFBFC]"
+                                >
+                                  <td className="px-3 py-3 text-xs leading-4 text-black">
+                                    {formatCategory(ticket.category)}
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => openTicketDetail(ticket)}
+                                        className="min-w-0 flex-1 text-left"
+                                      >
+                                        <span
+                                          className="block truncate text-xs leading-4"
+                                          style={{ color: secondaryColor }}
+                                        >
+                                          {shortTicketId(ticket.id)}
+                                        </span>
+                                        <span className="mt-0.5 block truncate text-[10px] leading-[15px] text-[#6B7280]">
+                                          {ticket.subject?.trim() ||
+                                            descriptionPreview(ticket.description, 60) ||
+                                            "Support request"}
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openTicketChat(ticket)}
+                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[color:var(--brand-secondary,#012352)]"
+                                        aria-label={`Open chat for ${shortTicketId(ticket.id)}`}
+                                        title="Open support chat"
+                                      >
+                                        <Link2 className="h-[18px] w-[18px]" aria-hidden />
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="w-[130px] px-3 py-3">
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] leading-[15px] ${statusBadgeClass(ticket.status)}`}
+                                    >
+                                      {statusLabel(ticket.status)}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <div className="text-[10px] leading-[15px] text-[#6B7280]">
+                                      <p>{updated.date}</p>
+                                      {updated.time ? <p>{updated.time}</p> : null}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] px-4 py-3 text-sm text-[#64748B]">
-                      <p>
-                        Showing {(safePage - 1) * PAGE_SIZE + 1}–
-                        {Math.min(safePage * PAGE_SIZE, filteredTickets.length)} of{" "}
-                        {filteredTickets.length}
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-xs text-[#6B7280]">
+                      <p className="whitespace-nowrap">
+                        Showing{" "}
+                        <span className="text-black">
+                          {pageStart}-{pageEnd}
+                        </span>{" "}
+                        of {filteredTickets.length} results
                       </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={safePage <= 1}
-                          onClick={() => setPage((current) => Math.max(1, current - 1))}
-                          className="min-h-11 rounded-lg border border-[#E2E8F0] px-3 py-1.5 disabled:opacity-50"
-                        >
-                          Previous
-                        </button>
-                        <span>
-                          Page {safePage} of {totalPages}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={safePage >= totalPages}
-                          onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                          className="min-h-11 rounded-lg border border-[#E2E8F0] px-3 py-1.5 disabled:opacity-50"
-                        >
-                          Next
-                        </button>
+                      <div className="flex flex-wrap items-center gap-3.5">
+                        <ListPaginationShowLabel
+                          pageSize={pageSize}
+                          options={PAGE_SIZE_OPTIONS}
+                          onPageSizeChange={(size) => {
+                            setPageSize(size);
+                            setPage(1);
+                          }}
+                        />
+                        <ListPaginationControls
+                          currentPage={safePage}
+                          totalPages={totalPages}
+                          onPageChange={setPage}
+                          activeStyle={{
+                            backgroundColor: secondaryColor,
+                            borderColor: secondaryColor,
+                          }}
+                        />
                       </div>
                     </div>
                   </>
@@ -467,6 +504,8 @@ export default function SupportTicketsClient() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSuccess={handleCreated}
+        defaultCategory={defaultCategory}
+        requireWorker={false}
       />
     </div>
   );

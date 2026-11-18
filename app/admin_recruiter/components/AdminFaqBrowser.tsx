@@ -112,7 +112,7 @@ function FaqCardItem({
   onToggle: () => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
+    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <button
         type="button"
         onClick={onToggle}
@@ -121,14 +121,14 @@ function FaqCardItem({
       >
         <span className="min-w-0 flex-1">
           <span
-            className="block text-base font-semibold leading-6 text-[#1d2739]"
+            className="block text-base font-semibold leading-6 text-[color:var(--brand-secondary,#012352)]"
             style={CANDIDATES_PAGE_TITLE_STYLE}
           >
             {faq.question}
           </span>
           {!expanded ? (
             <span
-              className="mt-1 block text-sm font-normal leading-5 text-[#718096]"
+              className="mt-1 block text-sm font-normal leading-5 text-[#6B7280]"
               style={CANDIDATES_PAGE_SUBTITLE_STYLE}
             >
               {answerPreview(faq.answer)}
@@ -143,9 +143,9 @@ function FaqCardItem({
         />
       </button>
       {expanded ? (
-        <div className="border-t border-[#F1F5F9] px-5 pb-4 pt-3">
+        <div className="border-t border-[#E5E7EB] px-5 pb-4 pt-3">
           <p
-            className="whitespace-pre-wrap text-sm font-normal leading-6 text-[#475569]"
+            className="whitespace-pre-wrap text-sm font-normal leading-6 text-[#6B7280]"
             style={CANDIDATES_PAGE_SUBTITLE_STYLE}
           >
             {faq.answer}
@@ -164,6 +164,13 @@ type AdminFaqBrowserProps = {
   emptyConfiguredMessage?: string;
   searchInputId?: string;
   showSearchBar?: boolean;
+  /** Optional controlled search value (Help & Support hero search). */
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
+  /** Center section title + empty state (Help & Support). */
+  contentAlign?: "start" | "center";
+  /** Bump to force a FAQ list reload after create/edit. */
+  refreshKey?: number;
   /** Defaults to staff `/api/admin/faqs`. Worker help uses the applicant FAQ endpoint. */
   fetchUrl?: string;
   getAuthHeaders?: () => Promise<Record<string, string> | null>;
@@ -177,6 +184,10 @@ export default function AdminFaqBrowser({
   emptyConfiguredMessage = "No FAQ articles are configured yet.",
   searchInputId,
   showSearchBar = true,
+  searchQuery: controlledSearchQuery,
+  onSearchQueryChange,
+  contentAlign = "start",
+  refreshKey = 0,
   fetchUrl = "/api/admin/faqs",
   getAuthHeaders,
 }: AdminFaqBrowserProps) {
@@ -184,7 +195,9 @@ export default function AdminFaqBrowser({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [uncontrolledSearchQuery, setUncontrolledSearchQuery] = useState("");
+  const searchQuery = controlledSearchQuery ?? uncontrolledSearchQuery;
+  const setSearchQuery = onSearchQueryChange ?? setUncontrolledSearchQuery;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
@@ -211,7 +224,7 @@ export default function AdminFaqBrowser({
 
   useEffect(() => {
     void loadFaqs();
-  }, [loadFaqs]);
+  }, [loadFaqs, refreshKey]);
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
@@ -257,19 +270,23 @@ export default function AdminFaqBrowser({
   }, [filteredFaqs, safePage]);
 
   const emptyState = (
-    <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center">
-      <p className="text-base font-semibold text-[#1d2739]" style={CANDIDATES_PAGE_TITLE_STYLE}>
+    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-6 py-12 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <p
+        className="text-base font-semibold text-[color:var(--brand-secondary,#012352)]"
+        style={CANDIDATES_PAGE_TITLE_STYLE}
+      >
         No articles found
       </p>
-      <p className="mt-2 max-w-md text-sm text-[#718096]" style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+      <p className="mt-2 max-w-md text-sm text-[#6B7280]" style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
         {faqs.length === 0 ? emptyConfiguredMessage : "Try a different search term."}
       </p>
     </div>
   );
+  const isCentered = contentAlign === "center";
 
   const paginationBarClass =
     variant === "cards"
-      ? "mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] pt-4 text-sm text-[#64748B]"
+      ? "mt-5 flex flex-wrap items-center justify-between gap-3 pt-1 text-sm text-[#6B7280]"
       : "flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8F0] px-4 py-3 text-sm text-[#64748B]";
 
   const paginationBar =
@@ -318,11 +335,13 @@ export default function AdminFaqBrowser({
           <>
             <div
               className={`mb-5 flex flex-wrap items-center gap-3 ${
-                showSearchBar ? "justify-between" : ""
+                showSearchBar ? "justify-between" : isCentered ? "justify-center" : ""
               }`}
             >
               <h2
-                className="text-xl font-semibold leading-7 text-[#012352]"
+                className={`text-xl font-semibold leading-7 text-[color:var(--brand-secondary,#012352)] ${
+                  isCentered ? "text-center" : ""
+                }`}
                 style={CANDIDATES_PAGE_TITLE_STYLE}
               >
                 {sectionTitle}
@@ -339,7 +358,7 @@ export default function AdminFaqBrowser({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search questions..."
-                    className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[#1d2739] placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:outline-none focus:ring-1 focus:ring-(--brand-primary)"
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[color:var(--brand-secondary,#012352)] placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:outline-none focus:ring-1 focus:ring-(--brand-primary)"
                     style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                   />
                 </label>

@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifySupportTicketCreated } from "@/lib/notifications/create-notification";
 import { insertTicketMessage } from "@/lib/support-tickets/support-ticket-messages";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
+import {
+  notifyDepartmentPrimaryContact,
+  resolveTicketCategoryLabel,
+} from "@/lib/support-tickets/notify-department-primary-contact";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
@@ -22,7 +26,8 @@ export async function insertSupportTicket(
     tenantId: string;
     /** Auth user who owns/requests the ticket (usually the worker). */
     userId: string;
-    applicantId: string;
+    /** Worker requester when creating on behalf; null for staff self-service tickets. */
+    applicantId: string | null;
     input: CreateSupportTicketInput;
     files?: File[];
     /** Staff user creating on behalf of the worker (auditing via recruiter_id). */
@@ -46,6 +51,17 @@ export async function insertSupportTicket(
 
   const initialSenderRole = params.initialSenderRole ?? "applicant";
   const createdByStaffUserId = params.createdByStaffUserId?.trim() || null;
+  const shouldNotifyStaff =
+    params.notifyStaff === true ||
+    (params.notifyStaff !== false && !createdByStaffUserId);
+
+  const rawCategory = params.input.category?.trim() || "general";
+  let category = rawCategory;
+  try {
+    category = await resolveTicketCategoryLabel(supabase, params.tenantId, rawCategory);
+  } catch (resolveError) {
+    console.error("[support-tickets:resolve-category]", resolveError);
+  }
 
   const { data, error } = await supabase
     .from("support_tickets")
@@ -56,7 +72,7 @@ export async function insertSupportTicket(
       recruiter_id: createdByStaffUserId,
       subject,
       description,
-      category: params.input.category?.trim() || "general",
+      category,
       source: params.input.source?.trim() || "manual",
       status: "Open",
       priority: params.input.priority ?? "normal",
@@ -91,12 +107,27 @@ export async function insertSupportTicket(
       ticketId: ticket.id,
       subject,
       createdByUserId: createdByStaffUserId ?? params.userId,
-      notifyStaff: params.notifyStaff !== false && !createdByStaffUserId,
+      notifyStaff: shouldNotifyStaff,
       notifyApplicantUserId:
-        params.notifyApplicant && createdByStaffUserId ? params.userId : null,
+        params.notifyApplicant && createdByStaffUserId && params.applicantId
+          ? params.userId
+          : null,
     });
   } catch (notifyError) {
     console.error("[support-tickets:notify-created]", notifyError);
+  }
+
+  try {
+    await notifyDepartmentPrimaryContact(supabase, {
+      tenantId: params.tenantId,
+      // Prefer original id so lookup stays exact; name works as fallback.
+      category: rawCategory,
+      ticketId: ticket.id,
+      subject,
+      description,
+    });
+  } catch (departmentNotifyError) {
+    console.error("[support-tickets:notify-department]", departmentNotifyError);
   }
 
   return { ticket };
@@ -132,7 +163,6 @@ export async function listStaffSupportTickets(
     .select(
       "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by, worker:applicant_id(first_name, last_name, email)"
     )
-    .not("applicant_id", "is", null)
     .order("created_at", { ascending: false });
 
   if (tenantId) {

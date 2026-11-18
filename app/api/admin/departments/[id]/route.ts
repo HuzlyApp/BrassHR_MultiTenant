@@ -29,6 +29,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     name?: string;
     code?: string | null;
     description?: string | null;
+    primaryContact?: string | null;
     isActive?: boolean;
   };
 
