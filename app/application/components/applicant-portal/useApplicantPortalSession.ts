@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { applicantPortalApiPath } from "@/lib/applicant-portal/client-tenant";
+import { portalPageRedirect } from "@/lib/auth/portal-rbac";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import type { ApplicantSession } from "@/app/application/components/applicant-portal/types";
 
 export function useApplicantPortalAuthHeaders() {
@@ -28,6 +30,7 @@ export function useApplicantPortalAuthHeaders() {
 
 export function useApplicantPortalSession() {
   const router = useRouter();
+  const pathname = usePathname();
   const authHeaders = useApplicantPortalAuthHeaders();
   const [session, setSession] = useState<ApplicantSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,7 @@ export function useApplicantPortalSession() {
 
   useEffect(() => {
     let alive = true;
+    let leaving = false;
     void (async () => {
       try {
         const headers = await authHeaders();
@@ -49,17 +53,24 @@ export function useApplicantPortalSession() {
         const payload = (await res.json().catch(() => ({}))) as ApplicantSession & { error?: string };
         if (!res.ok) throw new Error(payload.error || "Could not load session.");
         if (!alive) return;
+        const redirectTo = portalPageRedirect(pathname, payload.portalRole);
+        if (redirectTo) {
+          leaving = true;
+          const tenant = new URLSearchParams(window.location.search).get("tenant");
+          router.replace(applicationPath(redirectTo, tenant));
+          return;
+        }
         setSession(payload);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load session.");
       } finally {
-        if (alive) setLoading(false);
+        if (alive && !leaving) setLoading(false);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [authHeaders, router]);
+  }, [authHeaders, pathname, router]);
 
   return { session, loading, error, authHeaders };
 }

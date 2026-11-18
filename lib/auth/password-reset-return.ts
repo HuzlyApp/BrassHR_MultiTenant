@@ -1,5 +1,5 @@
 /** Allowed post-reset destinations (path only). */
-const ALLOWED_RETURN_PATHS = new Set(["/admin", "/worker-signin"]);
+const ALLOWED_RETURN_PATHS = new Set(["/admin", "/worker-signin", "/candidate-signin"]);
 
 /**
  * Normalize the forget/reset `return` path. Defaults to admin company login.

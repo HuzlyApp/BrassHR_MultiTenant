@@ -7,6 +7,8 @@ import {
   findApplicantByUserId,
   normalizeApplicantStatus,
 } from "@/lib/applicant-portal";
+import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
+import { portalRoleFromResolved } from "@/lib/auth/portal-rbac";
 import { resolveApplicantPortalTenantId } from "@/lib/applicant-portal/request";
 
 export const runtime = "nodejs";
@@ -38,9 +40,11 @@ export async function GET(req: NextRequest) {
     if (!applicant?.id) return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
 
     const status = normalizeApplicantStatus(applicant.status);
+    const portalRole = portalRoleFromResolved(await resolveAppRoleForUser(data.user));
 
     return NextResponse.json({
       ok: true,
+      portalRole,
       applicant: {
         id: applicant.id,
         tenantId: applicant.tenant_id,

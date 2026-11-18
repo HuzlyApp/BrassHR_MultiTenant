@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { isPortalRole } from "@/lib/auth/app-role";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 export type AssignableTeamMember = {
@@ -30,7 +31,7 @@ type AssignRecruiterModalProps = {
 
 function isAssignableStaffRole(role: string | undefined): boolean {
   const key = role?.trim().toLowerCase() ?? "";
-  return Boolean(key) && key !== "worker";
+  return Boolean(key) && !isPortalRole(key);
 }
 
 function assigneeRoleLabel(member: AssignableTeamMember): string | null {

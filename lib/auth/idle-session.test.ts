@@ -42,6 +42,11 @@ describe("idleLogoutRedirectPath", () => {
     expect(idleLogoutRedirectPath("/worker-onboarding")).toBe("/worker-signin?error=idle");
   });
 
+  it("sends candidates back to candidate sign-in", () => {
+    expect(idleLogoutRedirectPath("/application/candidate")).toBe("/candidate-signin?error=idle");
+    expect(idleLogoutRedirectPath("/candidate-signin")).toBe("/candidate-signin?error=idle");
+  });
+
   it("sends staff to admin login", () => {
     expect(idleLogoutRedirectPath("/admin_recruiter/dashboard")).toBe("/admin?error=idle");
     expect(idleLogoutRedirectPath("/godadmin/tenants")).toBe("/admin?error=idle");

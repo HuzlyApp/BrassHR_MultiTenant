@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isStaffRole } from "@/lib/auth/app-role";
 import { requireApiSession, requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireUserManagement } from "@/lib/auth/user-management";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
@@ -23,7 +24,7 @@ export async function requireEditionContext(request: Request, manage = false) {
   const supabase = createServiceRoleClient();
   if (!supabase) return editionError(new Error("Supabase not configured"));
   let tenantId: string | null = null;
-  if (auth.authUser && (auth.role !== "worker" || auth.godAdmin)) {
+  if (auth.authUser && (isStaffRole(auth.role) || auth.godAdmin)) {
     tenantId = await resolveStaffTenantId(supabase, { ...auth, authUser: auth.authUser });
   } else if (auth.authUser && !auth.authUser.is_anonymous) {
     // Workers can read only their own profile tenant, never a client-supplied id.

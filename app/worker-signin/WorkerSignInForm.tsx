@@ -8,6 +8,7 @@ import { interStyle, loginFormOptionsStackClass, loginFormStackClass, loginInput
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { LEGAL_ROUTES } from "@/lib/legal/routes";
+import { candidateSignInHref, workerSignInHref } from "@/lib/auth/worker-sign-in";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import {
   clearWorkerSignInDraft,
@@ -145,7 +146,7 @@ function LoginFormOptions({
         </label>
         <Link
           href={buildForgotPasswordHref({
-            returnTo: "/worker-signin",
+            returnTo: returnToHref.split("?")[0] || "/worker-signin",
             tenant: tenantSlug,
           })}
           className="text-[14px] font-normal leading-[20px] hover:underline"
@@ -226,9 +227,10 @@ function LoginFormOptions({
 type Props = {
   tenantSlug: string | null;
   brand: TenantBranding;
+  portal?: "worker" | "candidate";
 };
 
-export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
+export default function WorkerSignInForm({ tenantSlug, brand, portal = "worker" }: Props) {
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -254,9 +256,14 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     setError,
     signInReady,
     completeSignIn,
-  } = useApplicantSignIn(tenantSlug);
+  } = useApplicantSignIn(tenantSlug, portal);
 
-  const returnToHref = withTenant("/worker-signin", tenantSlug);
+  const signInPath = portal === "candidate" ? "/candidate-signin" : "/worker-signin";
+  const returnToHref = withTenant(signInPath, tenantSlug);
+  const otherSignInHref =
+    portal === "candidate"
+      ? workerSignInHref({ tenant: tenantSlug })
+      : candidateSignInHref({ tenant: tenantSlug });
 
   useEffect(() => {
     if (searchParams.get("error") === "idle") {
@@ -342,10 +349,12 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
           Login
         </h1>
         <p className="mt-1 text-[14px] font-normal leading-[20px] text-[#6b7280] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]" style={interStyle}>
-          Worker sign in
+          {portal === "candidate" ? "Candidate sign in" : "Worker sign in"}
         </p>
         <p className="mt-1 text-[13px] font-normal leading-[18px] text-[#6b7280] sm:mt-[8px] sm:text-[14px] sm:leading-[20px]" style={interStyle}>
-          Approved applicants can sign in to view status, message your recruiter, and complete next steps.
+          {portal === "candidate"
+            ? "Sign in with your email to find jobs, track applications, and manage your profile."
+            : "Approved applicants can sign in to view status, message your recruiter, and complete next steps."}
         </p>
       </div>
 
@@ -563,6 +572,16 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       <p className="mt-2 text-center text-[14px] font-normal leading-[20px] text-[#374151] sm:mt-0" style={interStyle}>
+        {portal === "candidate" ? "Signing in as a worker?" : "Signing in as a candidate?"}{" "}
+        <Link
+          href={otherSignInHref}
+          className="font-semibold underline"
+          style={{ color: "var(--brand-secondary)" }}
+        >
+          {portal === "candidate" ? "Worker sign in" : "Candidate sign in"}
+        </Link>
+      </p>
+      <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
         Need to sign in as a recruiter?{" "}
         <Link
           href={recruiterSignInHref({ tenant: tenantSlug })}

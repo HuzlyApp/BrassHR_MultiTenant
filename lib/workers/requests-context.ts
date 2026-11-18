@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isCandidateRole, isStaffRole } from "@/lib/auth/app-role";
 import { requireApiSession } from "@/lib/auth/api-session";
 import { requireSchedulingContext, schedulingError } from "@/lib/scheduling/api-context";
 import { readApplicantPortalTenantSlugFromRequest } from "@/lib/applicant-portal/request";
@@ -10,7 +11,10 @@ import { WorkerRequestError } from "./requests-contract";
 export async function requireWorkerRequestContext(request: Request, review = false, checkSchedulingFeature = true) {
   const auth = await requireApiSession();
   if (auth instanceof NextResponse) return auth;
-  if (review || auth.role !== "worker" || auth.godAdmin) {
+  if (isCandidateRole(auth.role) && !auth.godAdmin) {
+    throw new WorkerRequestError("Candidates cannot access worker requests", "FORBIDDEN", 403);
+  }
+  if (review || isStaffRole(auth.role) || auth.godAdmin) {
     const staff = checkSchedulingFeature ? await requireSchedulingContext(request) : await requireSchedulingContext(request,false);
     if (staff instanceof NextResponse) return staff;
     return { ...staff, ownWorkerIds: null as string[] | null };

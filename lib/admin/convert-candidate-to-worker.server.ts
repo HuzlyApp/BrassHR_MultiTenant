@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin/convert-candidate-to-worker";
 import { collectEmploymentWorkerTransferSnapshot } from "@/lib/admin/employment-worker-transfer";
 import { changeApplicationStatusBySystemKey } from "@/lib/jobs/application-statuses/service";
+import { syncPortalRole } from "@/lib/auth/assign-portal-role";
 import { activatePostHire } from "@/lib/onboarding/activate-post-hire";
 
 export type ConvertCandidateResult =
@@ -392,6 +393,28 @@ export async function convertCandidateToWorker(
   }
 
   if (!base.ok) return base;
+
+  const portalAdmin = (supabase as { auth?: { admin?: { getUserById?: unknown } } }).auth?.admin;
+  if (portalAdmin?.getUserById) {
+    try {
+      const { data: linked } = await supabase
+        .from("worker")
+        .select("user_id")
+        .eq("id", candidate.id)
+        .eq("tenant_id", candidate.tenant_id)
+        .maybeSingle();
+      const linkedUserId = typeof linked?.user_id === "string" ? linked.user_id : null;
+      if (linkedUserId) {
+        await syncPortalRole(supabase, {
+          userId: linkedUserId,
+          tenantId: candidate.tenant_id,
+          role: "worker",
+        });
+      }
+    } catch (error) {
+      console.error("[convert-candidate] portal role", error);
+    }
+  }
 
   const postHire = await activatePostHireForConversion(supabase, {
     tenantId: candidate.tenant_id,

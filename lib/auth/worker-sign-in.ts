@@ -1,10 +1,19 @@
-/** Applicant / worker portal sign-in entry. */
-export function workerSignInHref(options?: { tenant?: string | null }): string {
+function portalSignInHref(path: string, options?: { tenant?: string | null }): string {
   const params = new URLSearchParams();
   const tenant = options?.tenant?.trim().toLowerCase();
   if (tenant && tenant.length >= 2) {
     params.set("tenant", tenant);
   }
   const qs = params.toString();
-  return qs ? `/worker-signin?${qs}` : "/worker-signin";
+  return qs ? `${path}?${qs}` : path;
+}
+
+/** Hired worker portal sign-in. */
+export function workerSignInHref(options?: { tenant?: string | null }): string {
+  return portalSignInHref("/worker-signin", options);
+}
+
+/** Candidate portal sign-in. */
+export function candidateSignInHref(options?: { tenant?: string | null }): string {
+  return portalSignInHref("/candidate-signin", options);
 }

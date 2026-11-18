@@ -42,6 +42,14 @@ describe("worker request identity and tenant scope", () => {
     expect(await requireWorkerRequestContext(request, true)).toBe(denied);
     expect(mocks.staff).toHaveBeenCalledWith(request);
   });
+  it("rejects candidates before opening worker request data", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-a", authUser: { id: "user-a" }, role: "candidate", godAdmin: false });
+    await expect(
+      requireWorkerRequestContext(new Request("https://example.test/api/v1/worker-requests"))
+    ).rejects.toMatchObject({ status: 403, code: "FORBIDDEN" });
+    expect(mocks.client).not.toHaveBeenCalled();
+    expect(mocks.staff).not.toHaveBeenCalled();
+  });
   it("scopes worker ownership to both validated tenant and authenticated user", async () => {
     const filters = database();
     const result = await requireWorkerRequestContext(new Request("https://example.test/api/v1/worker-requests?tenant_id=foreign"));
