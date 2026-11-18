@@ -339,7 +339,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
   useEffect(() => {
     void refreshConfig();
-  }, [refreshConfig, tenantFromUrl, resolvedJobToken]);
+  }, [refreshConfig, tenantFromUrl, resolvedJobToken, sessionReady]);
 
   useEffect(() => {
     void refreshProgressOnly();

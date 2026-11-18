@@ -1,3 +1,4 @@
+import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
 import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -10,6 +11,7 @@ import { jobValidationServiceAreaResponse } from "@/lib/service-area/http";
 import {
   loadApplicationScreeningContext,
   loadJobScreeningQuestions,
+  mergeApplicationScreeningViews,
   upsertApplicationScreeningAnswers,
   type ApplicationScreeningAnswerInput,
 } from "@/lib/jobs/screening-questions";
@@ -28,9 +30,54 @@ type Body = {
   workLocation?: unknown;
 };
 
+async function publicScreeningQuestions(req: NextRequest) {
+  const jobToken = normalizeJobToken(req.nextUrl.searchParams.get("jobToken"));
+  const tenantSlug =
+    req.nextUrl.searchParams.get("tenantSlug")?.trim().toLowerCase() ||
+    readOnboardingTenantSlugFromRequest(req);
+  if (!jobToken || !tenantSlug) return null;
+
+  const url = getSupabaseUrl();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+
+  const supabase = createClient(url, key);
+  const tenant = await resolvePublicTenant(supabase, tenantSlug);
+  if (!tenant) return null;
+
+  const { data: job, error: jobError } = await supabase
+    .from("job_requisitions")
+    .select("id")
+    .eq("tenant_id", tenant.id)
+    .eq("public_job_token", jobToken)
+    .maybeSingle();
+  if (jobError || !job) return null;
+
+  const questions = await loadJobScreeningQuestions(supabase, tenant.id, String(job.id), {
+    activeOnly: true,
+  });
+  return NextResponse.json({
+    applicationId: null,
+    jobId: job.id,
+    questions: mergeApplicationScreeningViews({ questions, answers: [] }),
+    hasQuestions: questions.length > 0,
+    assessment: null,
+  });
+}
+
 export async function GET(req: NextRequest) {
-  const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
-  if (accessDenied) return accessDenied;
+  let accessDenied: NextResponse | null = null;
+  try {
+    accessDenied = await authorizeOnboardingRequest(req as NextRequest);
+  } catch (error) {
+    rethrowDynamicServerUsage(error);
+    accessDenied = NextResponse.json({ error: "Unable to verify access" }, { status: 403 });
+  }
+  if (accessDenied) {
+    const publicResponse = await publicScreeningQuestions(req).catch(() => null);
+    if (publicResponse) return publicResponse;
+    return accessDenied;
+  }
 
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() ?? "";
