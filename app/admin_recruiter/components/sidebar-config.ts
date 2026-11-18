@@ -35,7 +35,6 @@ const ICON = {
   schedule: "Schedule",
   tickets: "Tickets",
   reports: "Reports",
-  legalDocuments: "Legal Documents",
   finance: "Finance",
   taskboard: "Taskboard",
   shifts: "Tickets",
@@ -260,6 +259,8 @@ const WORKFORCE_CHILDREN: SidebarLink[] = [
 
 const WORKFLOW_MAPPINGS_ROUTE = `${DASHBOARD_BASE}/workflow-mappings`;
 
+const LEGAL_DOCUMENTS_ROUTE = "/admin_recruiter/legal-documents";
+
 const AUTOMATION_CHILDREN: SidebarLink[] = [
   {
     label: "Workflows",
@@ -271,6 +272,12 @@ const AUTOMATION_CHILDREN: SidebarLink[] = [
     href: `${DASHBOARD_BASE}/workflowlibrary`,
     matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
   },
+  {
+    label: "Legal Documents",
+    href: LEGAL_DOCUMENTS_ROUTE,
+    resourceKey: "settings_company",
+    matchPrefixes: [LEGAL_DOCUMENTS_ROUTE],
+  },
 ];
 
 const AUTOMATION_ACTIVE_PREFIXES = [
@@ -279,6 +286,7 @@ const AUTOMATION_ACTIVE_PREFIXES = [
   TEMPLATES_ROUTE,
   WORKFLOW_MAPPINGS_ROUTE,
   `${DASHBOARD_BASE}/workflowlibrary`,
+  LEGAL_DOCUMENTS_ROUTE,
 ];
 
 export const CLIENTS_ROUTE = "/admin_recruiter/clients";
@@ -592,13 +600,6 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: REPORTS_CHILDREN,
   },
   {
-    label: "Legal Documents",
-    href: "/admin_recruiter/legal-documents",
-    resourceKey: "settings_company",
-    iconType: ICON.legalDocuments,
-    matchPrefixes: ["/admin_recruiter/legal-documents"],
-  },
-  {
     label: "Mail",
     href: MAIL_ROUTE,
     resourceKey: "mail",
@@ -664,13 +665,6 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: AUTOMATION_CHILDREN,
   },
   ...EXTRA_TOP_SECTIONS,
-  {
-    label: "Legal Documents",
-    href: "/admin_recruiter/legal-documents",
-    resourceKey: "settings_company",
-    iconType: ICON.legalDocuments,
-    matchPrefixes: ["/admin_recruiter/legal-documents"],
-  },
   // {
   //   label: "Profile",
   //   href: "/admin_recruiter/account/personal",

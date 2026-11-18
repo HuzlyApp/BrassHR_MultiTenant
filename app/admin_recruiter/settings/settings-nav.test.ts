@@ -225,12 +225,23 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(workflowGroup?.items.map((item) => item.id)).toEqual([
       "workflows",
       "library",
+      "legal-documents",
     ]);
+
+    const legalDocumentsItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
+      (item) => item.id === "legal-documents"
+    );
+    expect(legalDocumentsItem).toBeDefined();
+    expect(legalDocumentsItem!.href).toBe("/admin_recruiter/legal-documents");
+    expect(
+      isSettingsNavItemActive(legalDocumentsItem!, "/admin_recruiter/legal-documents")
+    ).toBe(true);
   });
 
   it("recognizes settings routes where settings icon acts as a main sidebar toggle", () => {
     expect(isSettingsMiniSidebarPath("/admin_recruiter/settings/roles")).toBe(true);
     expect(isSettingsMiniSidebarPath("/admin_recruiter/settings/branding")).toBe(true);
+    expect(isSettingsMiniSidebarPath("/admin_recruiter/legal-documents")).toBe(true);
     expect(isSettingsMiniSidebarPath("/admin_recruiter/account/security")).toBe(false);
   });
 

@@ -17,8 +17,10 @@ import {
   isSystemLegalDocumentKey,
   type LegalDocumentAudience,
 } from "@/lib/legal/document-keys";
+import { legalHtmlToSections, legalSectionsToHtml } from "@/lib/legal/policy-html";
 import { legalDocumentPublicPath } from "@/lib/legal/routes";
-import type { LegalDocumentRecord, LegalSection } from "@/lib/legal/types";
+import type { LegalDocumentRecord } from "@/lib/legal/types";
+import LegalPolicyEditor from "@/app/admin_recruiter/settings/LegalPolicyEditor";
 
 type LoadResponse = {
   tenantName?: string | null;
@@ -36,14 +38,8 @@ async function authHeaders(): Promise<HeadersInit> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function emptySection(): LegalSection {
-  return { title: "New section", paragraphs: [""] };
-}
-
 const inputClass =
   "h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/25 disabled:bg-[#F8FAFC]";
-const textareaClass =
-  "w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#111827] outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/25 disabled:bg-[#F8FAFC]";
 const labelClass = "text-sm font-medium text-[#667085]";
 
 export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: boolean }) {
@@ -60,7 +56,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("");
   const [audience, setAudience] = useState<LegalDocumentAudience>("all");
   const [isPublished, setIsPublished] = useState(true);
-  const [sections, setSections] = useState<LegalSection[]>([emptySection()]);
+  const [bodyHtml, setBodyHtml] = useState("");
 
   const selected = useMemo(
     () => documents.find((d) => d.id === selectedId) ?? null,
@@ -73,14 +69,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
     setLastUpdatedLabel(item.last_updated_label ?? "");
     setAudience(item.audience);
     setIsPublished(item.is_published);
-    setSections(
-      item.sections.length > 0
-        ? item.sections.map((s) => ({
-            title: s.title,
-            paragraphs: s.paragraphs.length > 0 ? [...s.paragraphs] : [""],
-          }))
-        : [emptySection()]
-    );
+    setBodyHtml(legalSectionsToHtml(item.sections ?? []));
   }, []);
 
   const load = useCallback(async () => {
@@ -135,7 +124,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
     setLastUpdatedLabel("");
     setAudience("all");
     setIsPublished(true);
-    setSections([emptySection()]);
+    setBodyHtml("");
   };
 
   const selectDocument = (id: string) => {
@@ -143,70 +132,15 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
     setSelectedId(id);
   };
 
-  const updateSectionTitle = (index: number, value: string) => {
-    setSections((prev) => prev.map((s, i) => (i === index ? { ...s, title: value } : s)));
-  };
-
-  const updateParagraph = (sectionIndex: number, paragraphIndex: number, value: string) => {
-    setSections((prev) =>
-      prev.map((s, i) =>
-        i === sectionIndex
-          ? {
-              ...s,
-              paragraphs: s.paragraphs.map((p, pi) => (pi === paragraphIndex ? value : p)),
-            }
-          : s
-      )
-    );
-  };
-
-  const addParagraph = (sectionIndex: number) => {
-    setSections((prev) =>
-      prev.map((s, i) =>
-        i === sectionIndex ? { ...s, paragraphs: [...s.paragraphs, ""] } : s
-      )
-    );
-  };
-
-  const removeParagraph = (sectionIndex: number, paragraphIndex: number) => {
-    setSections((prev) =>
-      prev.map((s, i) =>
-        i === sectionIndex
-          ? {
-              ...s,
-              paragraphs:
-                s.paragraphs.length <= 1
-                  ? [""]
-                  : s.paragraphs.filter((_, pi) => pi !== paragraphIndex),
-            }
-          : s
-      )
-    );
-  };
-
-  const addSection = () => setSections((prev) => [...prev, emptySection()]);
-
-  const removeSection = (index: number) => {
-    setSections((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
-  };
-
-  const cleanedSections = (): LegalSection[] =>
-    sections
-      .map((s) => ({
-        title: s.title.trim(),
-        paragraphs: s.paragraphs.map((p) => p.trim()).filter(Boolean),
-      }))
-      .filter((s) => s.title && s.paragraphs.length > 0);
-
   const save = async () => {
     if (!canEdit) return;
-    const nextSections = cleanedSections();
     if (!title.trim()) {
       toast.error("Title is required.");
       return;
     }
+    const nextSections = legalHtmlToSections(bodyHtml);
     if (nextSections.length === 0) {
-      toast.error("Add at least one section with content.");
+      toast.error("Add policy content before saving.");
       return;
     }
 
@@ -543,83 +477,18 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-[#101828]">Sections</h3>
-                {canEdit ? (
-                  <button
-                    type="button"
-                    onClick={addSection}
-                    className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
-                  >
-                    Add section
-                  </button>
-                ) : null}
+                <h3 className="text-sm font-semibold text-[#101828]">Policy content</h3>
+                <p className="text-xs text-[#98A2B3]">
+                  Same rich editor as job description — paste, format, and copy.
+                </p>
               </div>
-
-              {sections.map((section, sectionIndex) => (
-                <div
-                  key={`section-${sectionIndex}`}
-                  className="rounded-xl border border-[#EAECF0] bg-[#FCFCFD] p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="min-w-0 flex-1 space-y-1.5">
-                      <span className={labelClass}>Section title</span>
-                      <input
-                        className={inputClass}
-                        value={section.title}
-                        onChange={(e) => updateSectionTitle(sectionIndex, e.target.value)}
-                        disabled={!canEdit}
-                      />
-                    </label>
-                    {canEdit && sections.length > 1 ? (
-                      <button
-                        type="button"
-                        onClick={() => removeSection(sectionIndex)}
-                        className="mt-5 text-sm font-medium text-[#B42318] hover:underline"
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-3 space-y-2">
-                    <span className={labelClass}>Paragraphs</span>
-                    {section.paragraphs.map((paragraph, paragraphIndex) => (
-                      <div key={`p-${sectionIndex}-${paragraphIndex}`} className="flex gap-2">
-                        <textarea
-                          className={`${textareaClass} min-h-[84px] flex-1`}
-                          value={paragraph}
-                          onChange={(e) =>
-                            updateParagraph(sectionIndex, paragraphIndex, e.target.value)
-                          }
-                          disabled={!canEdit}
-                          placeholder="Write policy paragraph… Use • at the start for bullets."
-                        />
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => removeParagraph(sectionIndex, paragraphIndex)}
-                            className="mt-1 h-9 shrink-0 rounded-lg px-2 text-xs font-medium text-[#667085] hover:bg-white"
-                            aria-label="Remove paragraph"
-                          >
-                            ✕
-                          </button>
-                        ) : null}
-                      </div>
-                    ))}
-                    {canEdit ? (
-                      <button
-                        type="button"
-                        onClick={() => addParagraph(sectionIndex)}
-                        className="text-xs font-medium text-[color:var(--brand-primary)] hover:underline"
-                      >
-                        Add paragraph
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
+              <LegalPolicyEditor
+                value={bodyHtml}
+                onChange={setBodyHtml}
+                disabled={!canEdit}
+              />
             </div>
           </div>
         </section>
