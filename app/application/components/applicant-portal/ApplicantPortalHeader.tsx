@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
@@ -14,6 +14,7 @@ import {
   searchWorkerPortal,
   type WorkerPortalSearchItem,
 } from "./worker-portal-search";
+import { isCandidatePortalPath } from "./worker-sidebar-config";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 
@@ -57,7 +58,10 @@ export function ApplicantPortalHeader({
   onOpenMessages,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const candidatePortal = isCandidatePortalPath(pathname);
+  const roleLabel = candidatePortal ? "Candidate" : "Worker";
   const tenantQuery = searchParams?.get("tenant");
   const { profilePhotoUrl, authHeaders } = useApplicantPortal();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -510,7 +514,7 @@ export function ApplicantPortalHeader({
                 <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
                   {applicantName}
                 </p>
-                <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">Worker</p>
+                <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{roleLabel}</p>
               </div>
               <ChevronDown className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />
             </button>
@@ -518,27 +522,36 @@ export function ApplicantPortalHeader({
             {profileOpen ? (
               <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
                 <p className="px-2 py-1 text-[12px] font-semibold text-[#012352]">{applicantName}</p>
-                <p className="px-2 pb-2 text-[11px] text-[#64748B]">Worker</p>
+                <p className="px-2 pb-2 text-[11px] text-[#64748B]">{roleLabel}</p>
                 <button
                   type="button"
                   onClick={() => {
                     setProfileOpen(false);
-                    router.push(applicationPath("/application/applicant-dashboard/settings/profile", tenantQuery));
+                    router.push(
+                      applicationPath(
+                        candidatePortal
+                          ? "/application/candidate/profile"
+                          : "/application/applicant-dashboard/settings/profile",
+                        tenantQuery
+                      )
+                    );
                   }}
                   className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
                 >
-                  Profile
+                  {candidatePortal ? "Profile & Account" : "Profile"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileOpen(false);
-                    router.push(applicationPath("/application/applicant-dashboard/settings/account", tenantQuery));
-                  }}
-                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
-                >
-                  Account
-                </button>
+                {candidatePortal ? null : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      router.push(applicationPath("/application/applicant-dashboard/settings/account", tenantQuery));
+                    }}
+                    className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
+                  >
+                    Account
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -547,7 +560,7 @@ export function ApplicantPortalHeader({
                   }}
                   className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
                 >
-                  Help
+                  {candidatePortal ? "Help & Support" : "Help"}
                 </button>
                 <button
                   type="button"

@@ -10,7 +10,9 @@ function ApplicantOnboardingGateInner({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const onboarding = useOnboardingConfigOptional();
 
-  const isApplicantDashboard = pathname.startsWith("/application/applicant-dashboard");
+  const isApplicantDashboard =
+    pathname.startsWith("/application/applicant-dashboard") ||
+    pathname.startsWith("/application/candidate");
 
   if (isApplicantDashboard || !onboarding) {
     return <>{children}</>;

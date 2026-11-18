@@ -145,6 +145,63 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
 ];
 
+/**
+ * Candidate portal sidebar — Figma "Candidate Portal":
+ * Find Jobs, Applications, Resumes, Job Alerts, Notifications, Profile.
+ */
+export const CANDIDATE_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
+  {
+    label: "Find Jobs",
+    href: "/application/candidate/jobs",
+    iconType: "Jobs",
+    matchPrefixes: ["/application/candidate/jobs"],
+    matchExact: true,
+  },
+  {
+    label: "Applications",
+    href: "/application/candidate/applications",
+    iconType: "Applicant",
+    matchPrefixes: ["/application/candidate/applications"],
+    matchExact: true,
+  },
+  {
+    label: "Resumes",
+    href: "/application/candidate/resumes",
+    iconType: "Legal Documents",
+    matchPrefixes: ["/application/candidate/resumes"],
+    matchExact: true,
+  },
+  {
+    label: "Job Alerts",
+    href: "/application/candidate/job-alerts",
+    iconType: "Mail",
+    matchPrefixes: ["/application/candidate/job-alerts"],
+    matchExact: true,
+  },
+  {
+    label: "Notifications",
+    href: "/application/candidate/notifications",
+    iconType: "Notifications",
+    matchPrefixes: ["/application/candidate/notifications"],
+    matchExact: true,
+  },
+  {
+    label: "Profile",
+    href: "/application/candidate/profile",
+    iconType: "My Profile",
+    matchPrefixes: ["/application/candidate/profile", "/application/candidate/account"],
+  },
+];
+
+const CANDIDATE_PORTAL_PREFIXES = CANDIDATE_SIDEBAR_SECTIONS.flatMap((section) => section.matchPrefixes);
+
+export function isCandidatePortalPath(pathname: string | null | undefined): boolean {
+  const path = pathname ?? "";
+  return CANDIDATE_PORTAL_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+  );
+}
+
 export { ICON as WORKER_SIDEBAR_ICON_TYPES };
 
 export const WORKER_SIDEBAR_EXPANDED_WIDTH = 272;

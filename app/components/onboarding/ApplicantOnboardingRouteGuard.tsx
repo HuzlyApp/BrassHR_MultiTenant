@@ -39,7 +39,8 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     searchParams.get("mode")?.trim().toLowerCase() === "test";
   const isApplicantDashboard =
     pathname.startsWith("/application/applicant-dashboard") ||
-    pathname.startsWith("/application/home");
+    pathname.startsWith("/application/home") ||
+    pathname.startsWith("/application/candidate");
 
   const enabledSteps = useMemo(
     () => resolveApplicantEnabledSteps(onboarding?.config ?? null, onboarding?.loadingConfig ?? true),
