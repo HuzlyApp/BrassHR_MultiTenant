@@ -22,7 +22,8 @@ export async function insertSupportTicket(
     tenantId: string;
     /** Auth user who owns/requests the ticket (usually the worker). */
     userId: string;
-    applicantId: string;
+    /** Worker requester when creating on behalf; null for staff self-service tickets. */
+    applicantId: string | null;
     input: CreateSupportTicketInput;
     files?: File[];
     /** Staff user creating on behalf of the worker (auditing via recruiter_id). */
@@ -46,6 +47,9 @@ export async function insertSupportTicket(
 
   const initialSenderRole = params.initialSenderRole ?? "applicant";
   const createdByStaffUserId = params.createdByStaffUserId?.trim() || null;
+  const shouldNotifyStaff =
+    params.notifyStaff === true ||
+    (params.notifyStaff !== false && !createdByStaffUserId);
 
   const { data, error } = await supabase
     .from("support_tickets")
@@ -91,9 +95,11 @@ export async function insertSupportTicket(
       ticketId: ticket.id,
       subject,
       createdByUserId: createdByStaffUserId ?? params.userId,
-      notifyStaff: params.notifyStaff !== false && !createdByStaffUserId,
+      notifyStaff: shouldNotifyStaff,
       notifyApplicantUserId:
-        params.notifyApplicant && createdByStaffUserId ? params.userId : null,
+        params.notifyApplicant && createdByStaffUserId && params.applicantId
+          ? params.userId
+          : null,
     });
   } catch (notifyError) {
     console.error("[support-tickets:notify-created]", notifyError);
@@ -132,7 +138,6 @@ export async function listStaffSupportTickets(
     .select(
       "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by, worker:applicant_id(first_name, last_name, email)"
     )
-    .not("applicant_id", "is", null)
     .order("created_at", { ascending: false });
 
   if (tenantId) {

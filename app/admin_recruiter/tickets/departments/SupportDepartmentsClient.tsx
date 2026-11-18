@@ -108,6 +108,7 @@ export default function SupportDepartmentsClient() {
         onClose={() => setCreateOpen(false)}
         onSuccess={handleCreated}
         defaultCategory={defaultCategory}
+        requireWorker={false}
       />
     </div>
   );

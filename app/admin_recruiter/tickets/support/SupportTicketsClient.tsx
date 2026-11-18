@@ -505,6 +505,7 @@ export default function SupportTicketsClient() {
         onClose={() => setCreateOpen(false)}
         onSuccess={handleCreated}
         defaultCategory={defaultCategory}
+        requireWorker={false}
       />
     </div>
   );

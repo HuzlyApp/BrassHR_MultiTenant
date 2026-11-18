@@ -22,6 +22,8 @@ type Props = {
   onSuccess?: (ticket: SupportTicketListItem) => void;
   defaultApplicantId?: string | null;
   defaultCategory?: string;
+  /** When false (Help & Support), hide worker assignment. Chat keeps this true. */
+  requireWorker?: boolean;
 };
 
 const CATEGORY_OPTIONS = SUPPORT_DEPARTMENT_CATEGORY_OPTIONS;
@@ -45,6 +47,7 @@ export function StaffCreateSupportTicketModal({
   onSuccess,
   defaultApplicantId = null,
   defaultCategory = "general",
+  requireWorker = true,
 }: Props) {
   const branding = useTenantBranding();
   const secondaryColor = branding.secondaryHex || "#012352";
@@ -113,7 +116,7 @@ export function StaffCreateSupportTicketModal({
   }, [open, onClose, submitting]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !requireWorker) return;
     let alive = true;
     setLoadingWorkers(true);
     const timer = window.setTimeout(() => {
@@ -146,7 +149,7 @@ export function StaffCreateSupportTicketModal({
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [open, search]);
+  }, [open, search, requireWorker]);
 
   const selectedWorker = useMemo(
     () => workers.find((worker) => worker.id === applicantId) ?? null,
@@ -165,7 +168,9 @@ export function StaffCreateSupportTicketModal({
       applicantId?: string;
       category?: string;
     } = {};
-    if (!applicantId) nextErrors.applicantId = "Select a worker for this ticket.";
+    if (requireWorker && !applicantId) {
+      nextErrors.applicantId = "Select a worker for this ticket.";
+    }
     if (!category) nextErrors.category = "Select a department.";
     if (!subject.trim()) nextErrors.subject = "Subject is required.";
     if (!description.trim()) nextErrors.description = "Please describe the request.";
@@ -177,6 +182,9 @@ export function StaffCreateSupportTicketModal({
         ? `${description.trim()}\n\nAttached file URLs:\n${attachedUrls.map((url) => `- ${url}`).join("\n")}`
         : description.trim();
 
+    const ticketSource = requireWorker ? "staff_on_behalf" : "staff";
+    const resolvedApplicantId = requireWorker ? applicantId : null;
+
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -187,8 +195,8 @@ export function StaffCreateSupportTicketModal({
         form.set("description", descriptionWithUrls);
         form.set("category", category);
         form.set("priority", priority);
-        form.set("source", "staff_on_behalf");
-        form.set("applicantId", applicantId!);
+        form.set("source", ticketSource);
+        if (resolvedApplicantId) form.set("applicantId", resolvedApplicantId);
         selectedFiles.forEach((file) => form.append("files", file));
         res = await fetch("/api/support-tickets", {
           method: "POST",
@@ -205,8 +213,8 @@ export function StaffCreateSupportTicketModal({
             description: descriptionWithUrls,
             category,
             priority,
-            source: "staff_on_behalf",
-            applicantId,
+            source: ticketSource,
+            ...(resolvedApplicantId ? { applicantId: resolvedApplicantId } : {}),
           }),
         });
       }
@@ -270,74 +278,76 @@ export function StaffCreateSupportTicketModal({
               </div>
             ) : null}
 
-            <div>
-              <label htmlFor="staff-ticket-worker-search" className={LABEL_CLASS}>
-                Worker
-              </label>
-              {selectedWorker ? (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3.5 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[#0F172A]">{selectedWorker.name}</p>
-                    <p className="truncate text-xs text-[#64748B]">
-                      {selectedWorker.email ?? selectedWorker.jobRole ?? "Worker"}
-                    </p>
+            {requireWorker ? (
+              <div>
+                <label htmlFor="staff-ticket-worker-search" className={LABEL_CLASS}>
+                  Worker
+                </label>
+                {selectedWorker ? (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3.5 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[#0F172A]">{selectedWorker.name}</p>
+                      <p className="truncate text-xs text-[#64748B]">
+                        {selectedWorker.email ?? selectedWorker.jobRole ?? "Worker"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setApplicantId(null)}
+                      disabled={submitting}
+                      className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-[color:var(--brand-secondary,#012352)] hover:bg-white disabled:opacity-60"
+                    >
+                      Change
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setApplicantId(null)}
-                    disabled={submitting}
-                    className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-[color:var(--brand-secondary,#012352)] hover:bg-white disabled:opacity-60"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-                    <input
-                      id="staff-ticket-worker-search"
-                      value={search}
-                      onChange={(event) => {
-                        setSearch(event.target.value);
-                        if (errors.applicantId) {
-                          setErrors((current) => ({ ...current, applicantId: undefined }));
-                        }
-                      }}
-                      placeholder="Search workers by name or email"
-                      className={`${FIELD_CLASS} pl-9 ${errors.applicantId ? "border-red-400" : ""}`}
-                    />
-                  </div>
-                  <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-[#E5E7EB]">
-                    {loadingWorkers ? (
-                      <CandidateDetailLoader label="Loading workers..." className="min-h-0 py-6" />
-                    ) : workers.length === 0 ? (
-                      <p className="px-3 py-4 text-sm text-[#64748B]">No workers found.</p>
-                    ) : (
-                      workers.slice(0, 12).map((worker) => (
-                        <button
-                          key={worker.id}
-                          type="button"
-                          onClick={() => {
-                            setApplicantId(worker.id);
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                      <input
+                        id="staff-ticket-worker-search"
+                        value={search}
+                        onChange={(event) => {
+                          setSearch(event.target.value);
+                          if (errors.applicantId) {
                             setErrors((current) => ({ ...current, applicantId: undefined }));
-                          }}
-                          className="flex w-full flex-col items-start border-b border-[#F1F5F9] px-3 py-2.5 text-left transition hover:bg-[#F8FAFC] last:border-b-0"
-                        >
-                          <span className="text-sm font-medium text-[#0F172A]">{worker.name}</span>
-                          <span className="text-xs text-[#64748B]">
-                            {worker.email ?? worker.jobRole ?? "Worker"}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </>
-              )}
-              {errors.applicantId ? (
-                <p className="mt-1 text-xs text-red-600">{errors.applicantId}</p>
-              ) : null}
-            </div>
+                          }
+                        }}
+                        placeholder="Search workers by name or email"
+                        className={`${FIELD_CLASS} pl-9 ${errors.applicantId ? "border-red-400" : ""}`}
+                      />
+                    </div>
+                    <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-[#E5E7EB]">
+                      {loadingWorkers ? (
+                        <CandidateDetailLoader label="Loading workers..." className="min-h-0 py-6" />
+                      ) : workers.length === 0 ? (
+                        <p className="px-3 py-4 text-sm text-[#64748B]">No workers found.</p>
+                      ) : (
+                        workers.slice(0, 12).map((worker) => (
+                          <button
+                            key={worker.id}
+                            type="button"
+                            onClick={() => {
+                              setApplicantId(worker.id);
+                              setErrors((current) => ({ ...current, applicantId: undefined }));
+                            }}
+                            className="flex w-full flex-col items-start border-b border-[#F1F5F9] px-3 py-2.5 text-left transition hover:bg-[#F8FAFC] last:border-b-0"
+                          >
+                            <span className="text-sm font-medium text-[#0F172A]">{worker.name}</span>
+                            <span className="text-xs text-[#64748B]">
+                              {worker.email ?? worker.jobRole ?? "Worker"}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+                {errors.applicantId ? (
+                  <p className="mt-1 text-xs text-red-600">{errors.applicantId}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div>
               <label htmlFor="staff-ticket-category" className={LABEL_CLASS}>

@@ -115,13 +115,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (!applicantId) {
-    return NextResponse.json(
-      { error: "Select a worker to create a support ticket on their behalf." },
-      { status: 400 }
-    );
-  }
-
   const supabase = getServiceClient();
   if (!supabase) {
     return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
@@ -130,6 +123,42 @@ export async function POST(req: NextRequest) {
   const scope = await resolveStaffTenantScope(staffAuth.authUser);
   if (scope.mode !== "scoped") {
     return NextResponse.json({ error: "Select a tenant before creating a ticket." }, { status: 400 });
+  }
+
+  // Help & Support: staff can open a ticket without assigning a worker.
+  if (!applicantId) {
+    const result = await insertSupportTicket(supabase, {
+      tenantId: scope.tenantId,
+      userId: staffAuth.userId,
+      applicantId: null,
+      input: {
+        subject,
+        description,
+        category: category || "general",
+        priority,
+        source: source || "staff",
+      },
+      files,
+      createdByStaffUserId: staffAuth.userId,
+      initialSenderRole: "staff",
+      notifyStaff: true,
+      notifyApplicant: false,
+    });
+
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json(
+      {
+        ticket: {
+          ...result.ticket,
+          applicant_name: null,
+          applicant_email: null,
+        },
+      },
+      { status: 201 }
+    );
   }
 
   const { data: worker, error: workerError } = await supabase
