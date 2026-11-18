@@ -8,6 +8,7 @@ import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { authorizeStaffHttpAccess } from "@/lib/auth/module-access.server";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
 import { hasVerifiedStaffSession } from "@/lib/auth/staff-session-verification";
 
 export const APPLICANT_ACCESS_COOKIE = "brass_applicant_access";
@@ -129,7 +130,12 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
       if (!worker) return denied();
     }
     return null;
-  } catch {
+  } catch (error) {
+    rethrowDynamicServerUsage(error);
+    console.error(
+      "[onboarding] access verification failed",
+      error instanceof Error ? error.message : "unknown"
+    );
     return NextResponse.json({ error: "Unable to verify access" }, { status: 403 });
   }
 }

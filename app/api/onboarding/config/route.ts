@@ -1,3 +1,4 @@
+import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
 import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -17,16 +18,32 @@ export const runtime = "nodejs";
 
 /** Public/worker-safe onboarding config (no correct_answer on questions). */
 export async function GET(req: NextRequest) {
-  if (req.nextUrl.searchParams.has("applicantId")) {
-    const accessDenied = await authorizeOnboardingRequest(req);
-    if (accessDenied) return accessDenied;
+  const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
+  const tenantIdParam = req.nextUrl.searchParams.get("tenantId")?.trim() || "";
+  const jobToken = normalizeJobToken(req.nextUrl.searchParams.get("job_token"));
+  let applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
+  let applicationId = req.nextUrl.searchParams.get("applicationId")?.trim() || "";
+
+  if (applicantId) {
+    let accessDenied: NextResponse | null = null;
+    try {
+      accessDenied = await authorizeOnboardingRequest(req);
+    } catch (error) {
+      rethrowDynamicServerUsage(error);
+      console.error(
+        "[onboarding/config] applicant access check failed",
+        error instanceof Error ? error.message : "unknown"
+      );
+      accessDenied = NextResponse.json({ error: "Unable to verify access" }, { status: 403 });
+    }
+    if (accessDenied) {
+      // A public job application must still load when the stored applicant id cannot be verified.
+      if (!jobToken) return accessDenied;
+      applicantId = "";
+      applicationId = "";
+    }
   }
   try {
-    const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
-    const tenantIdParam = req.nextUrl.searchParams.get("tenantId")?.trim() || "";
-    const jobToken = normalizeJobToken(req.nextUrl.searchParams.get("job_token"));
-    const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
-    const applicationId = req.nextUrl.searchParams.get("applicationId")?.trim() || "";
 
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
