@@ -299,7 +299,7 @@ export default function LegalPolicyEditor({ value, onChange, disabled = false, e
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative max-h-[min(55vh,480px)] min-h-[280px] overflow-y-auto overscroll-contain">
           {isEmpty ? (
             <div
               aria-hidden
@@ -316,7 +316,7 @@ export default function LegalPolicyEditor({ value, onChange, disabled = false, e
             aria-disabled={disabled}
             contentEditable={!disabled}
             suppressContentEditableWarning
-            className="legal-policy-editor relative min-h-[420px] cursor-text px-3 py-3 text-sm leading-6 text-[#334155] outline-none disabled:cursor-not-allowed"
+            className="legal-policy-editor relative min-h-[280px] cursor-text px-3 py-3 text-sm leading-6 text-[#334155] outline-none disabled:cursor-not-allowed"
             onInput={emitChange}
             onPaste={handlePaste}
             onBlur={emitChange}
