@@ -8,6 +8,7 @@ import {
   Library,
   ListChecks,
   Plug,
+  Scale,
   Users,
   Wand2,
   Workflow,
@@ -22,6 +23,7 @@ export type SettingsNavItemId =
   | "task"
   | "library"
   | "workflows"
+  | "legal-documents"
   | "profession"
   | "assessment"
   | "statuses"
@@ -177,6 +179,14 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         icon: Library,
         resourceKey: "settings_automation",
         matchPrefixes: ["/admin_recruiter/dashboard/workflowlibrary"],
+      },
+      {
+        id: "legal-documents",
+        label: "Legal Documents",
+        href: "/admin_recruiter/legal-documents",
+        icon: Scale,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/legal-documents"],
       },
     ],
   },
