@@ -6,11 +6,12 @@ import { usePathname } from "next/navigation";
 type TicketsTab = "support" | "departments" | "knowledgebase";
 
 function tabClass(active: boolean): string {
+  // Figma BrassTab: 12px / 16px, gold active underline, gray inactive.
   const base =
-    "inline-flex items-center border-b-[1.5px] px-2 pb-2.5 pt-1 text-sm font-normal leading-5 transition-colors";
+    "inline-flex items-center border-b-[1.5px] px-3.5 py-3 text-[12px] font-normal leading-4 transition-colors";
   return active
-    ? `${base} border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]`
-    : `${base} border-transparent text-[#012352] hover:text-[color:var(--brand-primary)]`;
+    ? `${base} border-[color:var(--brand-primary,#BC8B41)] text-[color:var(--brand-primary,#BC8B41)]`
+    : `${base} border-transparent text-[#374151] hover:text-[color:var(--brand-primary,#BC8B41)]`;
 }
 
 const TAB_LINKS: Array<{ id: TicketsTab; href: string; label: string }> = [

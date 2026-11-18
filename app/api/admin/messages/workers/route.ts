@@ -13,6 +13,14 @@ function getServiceClient() {
   return createClient(url, key);
 }
 
+function wantsEmploymentWorkersOnly(req: NextRequest): boolean {
+  const raw =
+    req.nextUrl.searchParams.get("employmentOnly")?.trim().toLowerCase() ??
+    req.nextUrl.searchParams.get("scope")?.trim().toLowerCase() ??
+    "";
+  return raw === "1" || raw === "true" || raw === "employment";
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
@@ -30,18 +38,50 @@ export async function GET(req: NextRequest) {
 
     const query = req.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
     const excludeRaw = req.nextUrl.searchParams.get("excludeGroupId")?.trim() ?? "";
+    const employmentOnly = wantsEmploymentWorkersOnly(req);
+
+    let employmentCandidateIds: Set<string> | null = null;
+    if (employmentOnly) {
+      const employmentRes = await supabase
+        .from("workers")
+        .select("candidate_id")
+        .eq("tenant_id", scope.tenantId)
+        .not("candidate_id", "is", null)
+        .limit(500);
+      if (employmentRes.error) throw employmentRes.error;
+      employmentCandidateIds = new Set(
+        (employmentRes.data ?? [])
+          .map((row) => String((row as { candidate_id?: string | null }).candidate_id ?? "").trim())
+          .filter(Boolean)
+      );
+      if (employmentCandidateIds.size === 0) {
+        return NextResponse.json({ workers: [] });
+      }
+    }
 
     let workersQuery = supabase
       .from("worker")
-      .select("id, first_name, last_name, email, job_role")
+      .select("id, first_name, last_name, email, job_role, user_id")
       .eq("tenant_id", scope.tenantId)
       .order("first_name", { ascending: true })
-      .limit(50);
+      .limit(employmentOnly ? 200 : 50);
+
+    if (employmentCandidateIds) {
+      workersQuery = workersQuery.in("id", Array.from(employmentCandidateIds));
+    }
 
     const workersRes = await workersQuery;
     if (workersRes.error) throw workersRes.error;
 
-    let workers = (workersRes.data ?? []) as (WorkerSummary & { job_role?: string | null })[];
+    let workers = (workersRes.data ?? []) as (WorkerSummary & {
+      job_role?: string | null;
+      user_id?: string | null;
+    })[];
+
+    if (employmentOnly) {
+      // Support tickets require a linked portal account; exclude leftover candidate-only rows.
+      workers = workers.filter((worker) => Boolean(worker.user_id));
+    }
 
     if (excludeRaw) {
       const membersRes = await supabase
@@ -66,6 +106,10 @@ export async function GET(req: NextRequest) {
           .join(" ");
         return haystack.includes(query);
       });
+    }
+
+    if (employmentOnly) {
+      workers = workers.slice(0, 50);
     }
 
     return NextResponse.json({

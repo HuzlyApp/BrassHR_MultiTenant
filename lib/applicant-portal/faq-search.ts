@@ -95,11 +95,20 @@ export async function searchFaqForInquiry(
   const trimmed = inquiry.trim();
   if (!trimmed) return null;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("faqs")
     .select("id, tenant_id, category, question, answer")
     .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
+    .eq("is_published", true)
     .order("created_at", { ascending: true });
+  let { data, error } = await query;
+  if (error && /column .*is_published.* does not exist/i.test(error.message ?? "")) {
+    ({ data, error } = await supabase
+      .from("faqs")
+      .select("id, tenant_id, category, question, answer")
+      .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
+      .order("created_at", { ascending: true }));
+  }
   if (error) throw error;
 
   const faqs = (data ?? []) as FaqRow[];

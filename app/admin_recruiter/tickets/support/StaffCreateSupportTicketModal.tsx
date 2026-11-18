@@ -106,6 +106,7 @@ export function StaffCreateSupportTicketModal({
       void (async () => {
         try {
           const params = new URLSearchParams();
+          params.set("employmentOnly", "1");
           if (search.trim()) params.set("q", search.trim());
           const res = await fetch(`/api/admin/messages/workers?${params.toString()}`, {
             cache: "no-store",

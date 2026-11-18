@@ -139,6 +139,21 @@ describe("permission catalog", () => {
       kind: "resource",
       resourceKey: "scheduling",
     });
+    expect(classifyProtectedPath("/api/support-tickets")).toMatchObject({
+      kind: "resource",
+      resourceKey: "settings_help",
+      alwaysGranted: true,
+    });
+    expect(classifyProtectedPath("/api/support-tickets/id/messages")).toMatchObject({
+      kind: "resource",
+      resourceKey: "settings_help",
+      alwaysGranted: true,
+    });
+    expect(classifyProtectedPath("/admin_recruiter/tickets/support")).toMatchObject({
+      kind: "resource",
+      resourceKey: "settings_help",
+      alwaysGranted: true,
+    });
   });
 
   it("classifies every admin API directory", () => {

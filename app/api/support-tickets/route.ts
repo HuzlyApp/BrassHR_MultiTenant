@@ -146,6 +146,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const { data: employmentWorker, error: employmentError } = await supabase
+    .from("workers")
+    .select("id")
+    .eq("tenant_id", scope.tenantId)
+    .eq("candidate_id", worker.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (employmentError) {
+    console.error("[support-tickets:post:staff:employment]", employmentError);
+    return NextResponse.json({ error: "Could not verify worker employment status." }, { status: 500 });
+  }
+
+  if (!employmentWorker) {
+    return NextResponse.json(
+      { error: "Select an employment worker. Candidates and applicants cannot be ticket requesters." },
+      { status: 400 }
+    );
+  }
+
   if (!worker.user_id) {
     return NextResponse.json(
       { error: "This worker does not have a linked user account yet." },
