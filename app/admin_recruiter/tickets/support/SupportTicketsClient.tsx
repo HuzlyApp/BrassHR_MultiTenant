@@ -9,6 +9,7 @@ import {
   ListPaginationShowLabel,
 } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { TicketsSubNav } from "@/app/admin_recruiter/tickets/TicketsSubNav";
+import { OpenTicketDepartmentMenu } from "@/app/components/support/OpenTicketDepartmentMenu";
 import { SupportTicketDetailModal } from "@/app/admin_recruiter/tickets/support/SupportTicketDetailModal";
 import { StaffCreateSupportTicketModal } from "@/app/admin_recruiter/tickets/support/StaffCreateSupportTicketModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -16,6 +17,7 @@ import {
   BRAND_FONT_BODY_STYLE,
   BRAND_FONT_HEADING_STYLE,
 } from "@/lib/tenant/branding-typography-styles";
+import { getSupportDepartmentByCategory } from "@/lib/support-tickets/support-departments";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 import type { SupportTicketListItem } from "@/lib/support-tickets/types";
 
@@ -31,6 +33,8 @@ function shortTicketId(id: string): string {
 
 function formatCategory(value: string | null | undefined): string {
   const text = (value ?? "general").trim();
+  const dept = getSupportDepartmentByCategory(text);
+  if (dept) return dept.title;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
@@ -121,6 +125,7 @@ export default function SupportTicketsClient() {
   const [selectedTicket, setSelectedTicket] = useState<SupportTicketListItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [defaultCategory, setDefaultCategory] = useState("general");
   const [closing, setClosing] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -286,15 +291,16 @@ export default function SupportTicketsClient() {
     }
   }
 
+  function openCreate(category: string) {
+    setDefaultCategory(category);
+    setCreateOpen(true);
+  }
+
   const openTicketAction = (
-    <button
-      type="button"
-      onClick={() => setCreateOpen(true)}
-      className="inline-flex min-h-9 items-center justify-center rounded-lg px-3 py-2.5 text-xs font-semibold leading-4 text-white transition hover:brightness-95"
-      style={{ backgroundColor: secondaryColor }}
-    >
-      Open a Ticket
-    </button>
+    <OpenTicketDepartmentMenu
+      onSelectDepartment={openCreate}
+      buttonStyle={{ backgroundColor: secondaryColor }}
+    />
   );
 
   return (
@@ -359,14 +365,13 @@ export default function SupportTicketsClient() {
                       Help & Support.
                     </p>
                     {sidebarFilter === "open" ? (
-                      <button
-                        type="button"
-                        onClick={() => setCreateOpen(true)}
-                        className="mt-4 inline-flex min-h-9 items-center justify-center rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
-                        style={{ backgroundColor: secondaryColor }}
-                      >
-                        Open a Ticket
-                      </button>
+                      <div className="mt-4">
+                        <OpenTicketDepartmentMenu
+                          onSelectDepartment={openCreate}
+                          buttonClassName="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+                          buttonStyle={{ backgroundColor: secondaryColor }}
+                        />
+                      </div>
                     ) : null}
                   </div>
                 ) : (
@@ -499,6 +504,7 @@ export default function SupportTicketsClient() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSuccess={handleCreated}
+        defaultCategory={defaultCategory}
       />
     </div>
   );

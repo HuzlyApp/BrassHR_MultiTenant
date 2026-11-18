@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Paperclip, Search, Ticket, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import SuccessModal from "@/app/components/SuccessModal";
-import ChatPendingAttachment from "@/app/components/ChatPendingAttachment";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
-import { validateSupportTicketFile } from "@/lib/support-tickets/support-ticket-file-validation";
+import { TicketFileUploadFields } from "@/app/components/support/TicketFileUploadFields";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { SUPPORT_DEPARTMENT_CATEGORY_OPTIONS } from "@/lib/support-tickets/support-departments";
 import type { SupportTicketListItem, SupportTicketPriority } from "@/lib/support-tickets/types";
 
 type WorkerOption = {
@@ -20,15 +21,10 @@ type Props = {
   onClose: () => void;
   onSuccess?: (ticket: SupportTicketListItem) => void;
   defaultApplicantId?: string | null;
+  defaultCategory?: string;
 };
 
-const CATEGORY_OPTIONS = [
-  { value: "general", label: "General" },
-  { value: "billing", label: "Billing" },
-  { value: "documents", label: "Documents" },
-  { value: "onboarding", label: "Onboarding" },
-  { value: "technical", label: "Technical" },
-];
+const CATEGORY_OPTIONS = SUPPORT_DEPARTMENT_CATEGORY_OPTIONS;
 
 const PRIORITY_OPTIONS: { value: SupportTicketPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -37,16 +33,25 @@ const PRIORITY_OPTIONS: { value: SupportTicketPriority; label: string }[] = [
   { value: "urgent", label: "Urgent" },
 ];
 
+const FIELD_CLASS =
+  "h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-secondary,#012352)]";
+const SELECT_CLASS =
+  "h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white py-2 pl-3.5 pr-11 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-secondary,#012352)]";
+const LABEL_CLASS = "mb-1.5 block text-sm font-medium text-[#374151]";
+
 export function StaffCreateSupportTicketModal({
   open,
   onClose,
   onSuccess,
   defaultApplicantId = null,
+  defaultCategory = "general",
 }: Props) {
+  const branding = useTenantBranding();
+  const secondaryColor = branding.secondaryHex || "#012352";
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("general");
-  const [priority, setPriority] = useState<SupportTicketPriority>("normal");
+  const [category, setCategory] = useState("");
+  const [priority, setPriority] = useState<SupportTicketPriority>("high");
   const [applicantId, setApplicantId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
@@ -55,35 +60,44 @@ export function StaffCreateSupportTicketModal({
     subject?: string;
     description?: string;
     applicantId?: string;
+    category?: string;
   }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [createdTicket, setCreatedTicket] = useState<SupportTicketListItem | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileUrl, setFileUrl] = useState("");
+  const [attachedUrls, setAttachedUrls] = useState<string[]>([]);
+  const [uploadResetKey, setUploadResetKey] = useState(0);
   const wasOpenRef = useRef(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  const resolvedDefaultCategory = useMemo(() => {
+    const match = CATEGORY_OPTIONS.find((option) => option.value === defaultCategory);
+    return match?.value ?? "";
+  }, [defaultCategory]);
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       setSubject("");
       setDescription("");
-      setCategory("general");
-      setPriority("normal");
+      setCategory(resolvedDefaultCategory);
+      setPriority("high");
       setApplicantId(defaultApplicantId);
       setSearch("");
       setErrors({});
       setSubmitError(null);
       setShowSuccess(false);
       setCreatedTicket(null);
-      setSelectedFile(null);
-      setUploadError(null);
+      setSelectedFiles([]);
+      setFileUrl("");
+      setAttachedUrls([]);
+      setUploadResetKey((current) => current + 1);
       window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     }
     wasOpenRef.current = open;
-  }, [open, defaultApplicantId]);
+  }, [open, defaultApplicantId, resolvedDefaultCategory]);
 
   useEffect(() => {
     if (!open) return;
@@ -145,26 +159,37 @@ export function StaffCreateSupportTicketModal({
     event.preventDefault();
     if (submitting) return;
 
-    const nextErrors: { subject?: string; description?: string; applicantId?: string } = {};
+    const nextErrors: {
+      subject?: string;
+      description?: string;
+      applicantId?: string;
+      category?: string;
+    } = {};
     if (!applicantId) nextErrors.applicantId = "Select a worker for this ticket.";
+    if (!category) nextErrors.category = "Select a department.";
     if (!subject.trim()) nextErrors.subject = "Subject is required.";
     if (!description.trim()) nextErrors.description = "Please describe the request.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    const descriptionWithUrls =
+      attachedUrls.length > 0
+        ? `${description.trim()}\n\nAttached file URLs:\n${attachedUrls.map((url) => `- ${url}`).join("\n")}`
+        : description.trim();
+
     setSubmitting(true);
     setSubmitError(null);
     try {
       let res: Response;
-      if (selectedFile) {
+      if (selectedFiles.length > 0) {
         const form = new FormData();
         form.set("subject", subject.trim());
-        form.set("description", description.trim());
+        form.set("description", descriptionWithUrls);
         form.set("category", category);
         form.set("priority", priority);
         form.set("source", "staff_on_behalf");
         form.set("applicantId", applicantId!);
-        form.set("file", selectedFile);
+        selectedFiles.forEach((file) => form.append("files", file));
         res = await fetch("/api/support-tickets", {
           method: "POST",
           credentials: "include",
@@ -177,7 +202,7 @@ export function StaffCreateSupportTicketModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             subject: subject.trim(),
-            description: description.trim(),
+            description: descriptionWithUrls,
             category,
             priority,
             source: "staff_on_behalf",
@@ -216,50 +241,38 @@ export function StaffCreateSupportTicketModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="staff-create-support-ticket-title"
-          className="max-h-[min(92vh,760px)] w-full max-w-[640px] overflow-y-auto rounded-[20px] border border-[#E5E7EB] bg-white shadow-xl"
+          className="flex max-h-[min(92vh,820px)] w-full max-w-[600px] flex-col overflow-hidden rounded-[20px] border border-[#E5E7EB] bg-white shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center justify-end border-b border-[#E5E7EB] px-3.5 py-3">
+          <div className="flex shrink-0 items-center justify-between px-5 py-3">
+            <h2
+              id="staff-create-support-ticket-title"
+              className="text-2xl font-semibold leading-8 text-[#0F172A]"
+            >
+              Create a Ticket
+            </h2>
             <button
               ref={closeButtonRef}
               type="button"
               aria-label="Close"
               onClick={onClose}
               disabled={submitting}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black text-white transition hover:brightness-110 disabled:opacity-60"
+              className="inline-flex h-[30px] w-8 items-center justify-center rounded-lg border border-[color:var(--brand-secondary,#012352)] text-[color:var(--brand-secondary,#012352)] transition hover:bg-[#F8FAFC] disabled:opacity-60"
             >
-              <X className="h-4 w-4" aria-hidden />
+              <X className="h-3 w-3" aria-hidden />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5 p-5 pt-4">
-            <div className="flex items-center gap-3 px-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F4F4F4] text-[#012352]">
-                <Ticket className="h-6 w-6" aria-hidden />
-              </div>
-              <div>
-                <h2
-                  id="staff-create-support-ticket-title"
-                  className="text-2xl font-semibold text-[#0F172A]"
-                >
-                  Create Support Ticket
-                </h2>
-                <p className="mt-0.5 text-sm text-[#64748B]">
-                  Open a ticket on behalf of a worker. The worker remains the requester; you are
-                  recorded as the creator.
-                </p>
-              </div>
-            </div>
-
+          <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-5">
             {submitError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {submitError}
               </div>
             ) : null}
 
-            <div className="px-2">
-              <label htmlFor="staff-ticket-worker-search" className="mb-1 block text-sm text-[#374151]">
-                Worker <span className="text-red-600">*</span>
+            <div>
+              <label htmlFor="staff-ticket-worker-search" className={LABEL_CLASS}>
+                Worker
               </label>
               {selectedWorker ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3.5 py-2.5">
@@ -273,7 +286,7 @@ export function StaffCreateSupportTicketModal({
                     type="button"
                     onClick={() => setApplicantId(null)}
                     disabled={submitting}
-                    className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-[#012352] hover:bg-white disabled:opacity-60"
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-[color:var(--brand-secondary,#012352)] hover:bg-white disabled:opacity-60"
                   >
                     Change
                   </button>
@@ -292,12 +305,10 @@ export function StaffCreateSupportTicketModal({
                         }
                       }}
                       placeholder="Search workers by name or email"
-                      className={`h-11 w-full rounded-lg border bg-white pl-9 pr-3.5 text-sm text-[#0F172A] outline-none focus:border-(--brand-primary) ${
-                        errors.applicantId ? "border-red-400" : "border-[#CBD5E1]"
-                      }`}
+                      className={`${FIELD_CLASS} pl-9 ${errors.applicantId ? "border-red-400" : ""}`}
                     />
                   </div>
-                  <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-[#E5E7EB]">
+                  <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-[#E5E7EB]">
                     {loadingWorkers ? (
                       <CandidateDetailLoader label="Loading workers..." className="min-h-0 py-6" />
                     ) : workers.length === 0 ? (
@@ -328,33 +339,49 @@ export function StaffCreateSupportTicketModal({
               ) : null}
             </div>
 
-            <div className="grid gap-4 px-2 sm:grid-cols-2">
-              <div>
-                <label htmlFor="staff-ticket-category" className="mb-1 block text-sm text-[#374151]">
-                  Category
-                </label>
+            <div>
+              <label htmlFor="staff-ticket-category" className={LABEL_CLASS}>
+                Department
+              </label>
+              <div className="relative">
                 <select
                   id="staff-ticket-category"
                   value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-(--brand-primary)"
+                  onChange={(event) => {
+                    setCategory(event.target.value);
+                    if (errors.category) setErrors((current) => ({ ...current, category: undefined }));
+                  }}
+                  className={`${SELECT_CLASS} ${!category ? "text-[#94A3B8]" : ""} ${
+                    errors.category ? "border-red-400" : ""
+                  }`}
                 >
+                  <option value="" disabled>
+                    Select department.
+                  </option>
                   {CATEGORY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="text-[#0F172A]">
                       {option.label}
                     </option>
                   ))}
                 </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                  aria-hidden
+                />
               </div>
-              <div>
-                <label htmlFor="staff-ticket-priority" className="mb-1 block text-sm text-[#374151]">
-                  Priority
-                </label>
+              {errors.category ? <p className="mt-1 text-xs text-red-600">{errors.category}</p> : null}
+            </div>
+
+            <div>
+              <label htmlFor="staff-ticket-priority" className={LABEL_CLASS}>
+                Priority
+              </label>
+              <div className="relative">
                 <select
                   id="staff-ticket-priority"
                   value={priority}
                   onChange={(event) => setPriority(event.target.value as SupportTicketPriority)}
-                  className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-(--brand-primary)"
+                  className={SELECT_CLASS}
                 >
                   {PRIORITY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -362,11 +389,15 @@ export function StaffCreateSupportTicketModal({
                     </option>
                   ))}
                 </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                  aria-hidden
+                />
               </div>
             </div>
 
-            <div className="px-2">
-              <label htmlFor="staff-ticket-subject" className="mb-1 block text-sm text-[#374151]">
+            <div>
+              <label htmlFor="staff-ticket-subject" className={LABEL_CLASS}>
                 Subject
               </label>
               <input
@@ -377,16 +408,16 @@ export function StaffCreateSupportTicketModal({
                   if (errors.subject) setErrors((current) => ({ ...current, subject: undefined }));
                 }}
                 placeholder="Subject"
-                className={`h-11 w-full rounded-lg border px-3.5 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-(--brand-primary) ${
-                  errors.subject ? "border-red-400" : "border-[#CBD5E1]"
+                className={`${FIELD_CLASS} placeholder:text-[#94A3B8] ${
+                  errors.subject ? "border-red-400" : ""
                 }`}
               />
               {errors.subject ? <p className="mt-1 text-xs text-red-600">{errors.subject}</p> : null}
             </div>
 
-            <div className="px-2">
-              <label htmlFor="staff-ticket-description" className="mb-1 block text-sm text-[#374151]">
-                Details of request
+            <div>
+              <label htmlFor="staff-ticket-description" className={LABEL_CLASS}>
+                Message
               </label>
               <textarea
                 id="staff-ticket-description"
@@ -398,9 +429,9 @@ export function StaffCreateSupportTicketModal({
                   }
                 }}
                 rows={4}
-                placeholder="Describe the issue or request"
-                className={`min-h-[100px] w-full resize-y rounded-lg border px-3.5 py-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-(--brand-primary) ${
-                  errors.description ? "border-red-400" : "border-[#CBD5E1]"
+                placeholder="Message..."
+                className={`min-h-[110px] w-full resize-y rounded-lg border border-[#CBD5E1] bg-white px-3.5 py-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-secondary,#012352)] ${
+                  errors.description ? "border-red-400" : ""
                 }`}
               />
               {errors.description ? (
@@ -408,64 +439,34 @@ export function StaffCreateSupportTicketModal({
               ) : null}
             </div>
 
-            <div className="px-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  if (!file) {
-                    setSelectedFile(null);
-                    setUploadError(null);
-                    return;
-                  }
-                  const validation = validateSupportTicketFile(file);
-                  if (validation) {
-                    setUploadError(validation);
-                    setSelectedFile(null);
-                    return;
-                  }
-                  setUploadError(null);
-                  setSelectedFile(file);
-                }}
-              />
-              {selectedFile ? (
-                <ChatPendingAttachment file={selectedFile} onRemove={() => setSelectedFile(null)} />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={submitting}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:opacity-60"
-                >
-                  <Paperclip className="h-4 w-4" />
-                  Attach file (optional)
-                </button>
-              )}
-              {uploadError ? <p className="mt-1 text-xs text-red-600">{uploadError}</p> : null}
-            </div>
+            <TicketFileUploadFields
+              files={selectedFiles}
+              onFilesChange={setSelectedFiles}
+              fileUrl={fileUrl}
+              onFileUrlChange={setFileUrl}
+              attachedUrls={attachedUrls}
+              onAttachedUrlsChange={setAttachedUrls}
+              disabled={submitting}
+              resetKey={uploadResetKey}
+            />
 
-            <div className="flex gap-5 px-2 pb-2 pt-1">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
-                className="min-h-11 flex-1 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-semibold text-[#012352] transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                style={{ borderColor: secondaryColor, color: secondaryColor }}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="min-h-11 flex-1 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                }}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ backgroundColor: secondaryColor }}
               >
-                {submitting ? "Creating..." : "Create Ticket"}
+                {submitting ? "Submitting..." : "Submit"}
               </button>
             </div>
           </form>
