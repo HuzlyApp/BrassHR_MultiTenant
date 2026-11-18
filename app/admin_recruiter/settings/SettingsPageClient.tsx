@@ -9,6 +9,7 @@ import HireJourneyThemePanel from "@/app/admin_recruiter/settings/HireJourneyThe
 import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
 import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
 import ProfessionDocumentsPanel from "@/app/admin_recruiter/settings/ProfessionDocumentsPanel";
+import IntegrationsSettingsPanel from "@/app/admin_recruiter/settings/IntegrationsSettingsPanel";
 import RolePermissionsPanel from "@/app/admin_recruiter/settings/RolePermissionsPanel";
 
 function SettingsContent() {
@@ -97,6 +98,13 @@ function SettingsContent() {
           Status catalog
         </h2>
         <CandidateStatusesPanel />
+      </section>
+
+      <section aria-labelledby="integrations-heading">
+        <h2 id="integrations-heading" className="sr-only">
+          Integrations
+        </h2>
+        <IntegrationsSettingsPanel />
       </section>
       </fieldset>
 

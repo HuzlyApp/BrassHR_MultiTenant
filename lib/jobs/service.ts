@@ -1685,13 +1685,20 @@ export async function startOrResumeJobApplication(
   }
 
   if (!profileId) {
+    if (!normalizedEmail) {
+      throw new JobValidationError(
+        "Email is required.",
+        { email: "Email is required." },
+        "EMAIL_REQUIRED"
+      );
+    }
     const { data: profile, error: profileError } = await supabase
       .from("applicant_profiles")
       .insert({
         tenant_id: input.tenantId,
         auth_user_id: input.applicantAuthUserId,
         worker_id: input.workerId ?? null,
-        email: input.email?.trim() || null,
+        email: input.email!.trim(),
         normalized_email: normalizedEmail,
       })
       .select("id")
