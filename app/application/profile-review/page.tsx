@@ -1,5 +1,6 @@
 "use client"
 
+import { applicantAuthHeaders } from "@/lib/onboarding/applicant-auth-headers"
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { workerSignInHref } from "@/lib/auth/worker-sign-in"
 import { applicationPath } from "@/lib/tenant/with-tenant"
@@ -536,8 +537,9 @@ function Step1ReviewContent() {
     // Never save against the platform default tenant — that causes false DUPLICATE_EMAIL 409s.
     if (!tenantSlug) return false
 
+    const auth = await applicantAuthHeaders({ "Content-Type": "application/json" })
     const payload = {
-      applicantId,
+      applicantId: auth.applicantId || applicantId,
       firstName: form.firstName,
       lastName: form.lastName,
       address1: form.address1,
@@ -562,7 +564,7 @@ function Step1ReviewContent() {
 
     const saveRes = await fetch("/api/onboarding/save-worker", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: auth.headers,
       body: JSON.stringify(payload),
     })
     if (saveRes.status === 409) {
@@ -672,7 +674,8 @@ function Step1ReviewContent() {
 
     try {
       const verified = addressValidationPayload()
-      const applicantId = getScopedApplicantId() || ""
+      const auth = await applicantAuthHeaders({ "Content-Type": "application/json" })
+      const applicantId = auth.applicantId || getScopedApplicantId() || ""
       if (!applicantId) throw new Error("Missing applicant ID")
 
       const tenantSlug =
@@ -709,7 +712,7 @@ function Step1ReviewContent() {
 
       const saveRes = await fetch("/api/onboarding/save-worker", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: auth.headers,
         body: JSON.stringify(payload),
       })
 
@@ -740,7 +743,7 @@ function Step1ReviewContent() {
         try {
           const reqRes = await fetch("/api/onboarding/worker-requirements", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: auth.headers,
             body: JSON.stringify({
               applicantId,
               resume_path: resumeStoragePath.trim(),

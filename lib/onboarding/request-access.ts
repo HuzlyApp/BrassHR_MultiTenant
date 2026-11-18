@@ -1,5 +1,6 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
@@ -72,18 +73,37 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
       const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
       const token = bearer || req.cookies.get(APPLICANT_ACCESS_COOKIE)?.value;
       if (token && !isDraftPreviewApplicantId(applicantId)) {
-        const { data, error } = await svc.auth.getUser(token);
-        if (error || !data.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        userId = data.user.id;
+        try {
+          const { data, error } = await svc.auth.getUser(token);
+          if (error || !data.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+          userId = data.user.id;
+        } catch (error) {
+          rethrowDynamicServerUsage(error);
+          console.error(
+            "[onboarding] applicant token lookup failed",
+            error instanceof Error ? error.message : "unknown"
+          );
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
       } else {
         // Staff preview and staff document views retain the normal permission boundary.
-        const { data, error } = await (await createClient()).auth.getUser();
-        if (error || !data.user || data.user.is_anonymous) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        if (!(await hasVerifiedStaffSession(data.user))) return denied();
-        const decision = await authorizeStaffHttpAccess({ user: data.user, pathname: isDraftPreviewApplicantId(applicantId) ? "/api/admin/onboarding" : "/api/admin/candidates", method: req.method, tenantSlug });
+        let staffUser: User | null = null;
+        try {
+          const { data, error } = await (await createClient()).auth.getUser();
+          if (!error && data.user && !data.user.is_anonymous) staffUser = data.user;
+        } catch (error) {
+          rethrowDynamicServerUsage(error);
+          console.error(
+            "[onboarding] staff session lookup failed",
+            error instanceof Error ? error.message : "unknown"
+          );
+        }
+        if (!staffUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!(await hasVerifiedStaffSession(staffUser))) return denied();
+        const decision = await authorizeStaffHttpAccess({ user: staffUser, pathname: isDraftPreviewApplicantId(applicantId) ? "/api/admin/onboarding" : "/api/admin/candidates", method: req.method, tenantSlug });
         if (!decision.ok) return denied();
-        const { data: profile } = await svc.from("users").select("god_admin").eq("id", data.user.id).maybeSingle();
-        const staffTenant = await resolveEffectiveAdminTenantId(svc, { userId: data.user.id, authUser: data.user, godAdmin: isGodAdminUser(data.user) || profile?.god_admin === true });
+        const { data: profile } = await svc.from("users").select("god_admin").eq("id", staffUser.id).maybeSingle();
+        const staffTenant = await resolveEffectiveAdminTenantId(svc, { userId: staffUser.id, authUser: staffUser, godAdmin: isGodAdminUser(staffUser) || profile?.god_admin === true });
         if (!staffTenant || (tenantId && tenantId !== staffTenant)) return denied();
         tenantId = staffTenant;
         if (isDraftPreviewApplicantId(applicantId)) return null;

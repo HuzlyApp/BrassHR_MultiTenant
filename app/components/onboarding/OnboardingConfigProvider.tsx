@@ -26,6 +26,7 @@ import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { currentApplicationJobToken, rememberApplicationJobToken } from "@/lib/tenant/with-tenant";
+import { applicantAuthHeaders } from "@/lib/onboarding/applicant-auth-headers";
 import { applySavedStepToProgress } from "@/lib/onboarding/apply-saved-step-progress";
 import type { ApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 
@@ -170,13 +171,14 @@ export default function OnboardingConfigProvider({ children }: { children: React
     const requestId = ++progressFetchSeq.current;
     setLoadingProgress(true);
     try {
-      const params = new URLSearchParams({ applicantId: aid, tenant: slug });
+      const auth = await applicantAuthHeaders();
+      const params = new URLSearchParams({ applicantId: auth.applicantId || aid, tenant: slug });
       if (resolvedJobToken) params.set("job_token", resolvedJobToken);
       const scopedApplicationId = applicationIdFromUrl || applicationId;
       if (scopedApplicationId) params.set("applicationId", scopedApplicationId);
       const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
         `/api/onboarding/progress?${params}`,
-        { cache: "no-store" }
+        { cache: "no-store", headers: auth.headers }
       );
       if (requestId !== progressFetchSeq.current) return;
       if (progRes.ok) {
@@ -353,7 +355,8 @@ export default function OnboardingConfigProvider({ children }: { children: React
       stepId?: string
     ) => {
       if (isDraftPreview) return;
-      const aid = readApplicantId();
+      const auth = await applicantAuthHeaders({ "Content-Type": "application/json" });
+      const aid = auth.applicantId || readApplicantId();
       if (!aid) throw new Error("Could not save your response.");
       const search = typeof window !== "undefined" ? window.location.search : "";
       const slug = resolveClientOnboardingTenantSlug(search);
@@ -371,7 +374,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
       latestProgressWrite.current.set(savedStepId, writeSeq);
       const res = await fetch("/api/onboarding/progress/step", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: auth.headers,
         body: JSON.stringify({
           applicantId: aid,
           tenantSlug: slug,
