@@ -12,6 +12,7 @@ import {
   BRAND_FONT_BODY_STYLE,
   BRAND_FONT_HEADING_STYLE,
 } from "@/lib/tenant/branding-typography-styles";
+import type { FaqListItem } from "@/lib/faqs/types";
 
 const FAQ_SEARCH_INPUT_ID = "help-support-faq-search";
 const ACTION_ICON_GRAY = "#94A3B8";
@@ -79,8 +80,11 @@ export default function HelpSupportClient() {
   const greetingName = useMemo(() => firstNameFromDisplayName(displayName), [displayName]);
   const [faqSearchQuery, setFaqSearchQuery] = useState("");
   const [faqSearchVisible, setFaqSearchVisible] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
+  const [editingFaq, setEditingFaq] = useState<FaqListItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingFaqId, setDeletingFaqId] = useState<string | null>(null);
   const [faqRefreshKey, setFaqRefreshKey] = useState(0);
 
   function focusFaqSearch() {
@@ -92,7 +96,23 @@ export default function HelpSupportClient() {
     }, 300);
   }
 
-  async function handleCreateFaq(input: {
+  function openCreate() {
+    setEditorMode("create");
+    setEditingFaq(null);
+    setEditorOpen(true);
+  }
+
+  function openEdit(faq: FaqListItem) {
+    if (!faq.tenant_id) {
+      toast.error("Platform FAQs are read-only.");
+      return;
+    }
+    setEditorMode("edit");
+    setEditingFaq(faq);
+    setEditorOpen(true);
+  }
+
+  async function handleSubmitFaq(input: {
     category: string;
     question: string;
     answer: string;
@@ -101,22 +121,66 @@ export default function HelpSupportClient() {
   }) {
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/faqs", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const payload = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(payload.error || "Could not create FAQ.");
-      toast.success("FAQ created");
-      setCreateOpen(false);
+      if (editorMode === "edit") {
+        if (!editingFaq) return;
+        const res = await fetch(`/api/admin/faqs/${encodeURIComponent(editingFaq.id)}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(payload.error || "Could not save FAQ.");
+        toast.success("FAQ updated");
+      } else {
+        const res = await fetch("/api/admin/faqs", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(payload.error || "Could not create FAQ.");
+        toast.success("FAQ created");
+      }
+      setEditorOpen(false);
+      setEditingFaq(null);
       setFaqRefreshKey((current) => current + 1);
       document.getElementById("help-faq-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create FAQ.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : editorMode === "edit"
+            ? "Could not save FAQ."
+            : "Could not create FAQ."
+      );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteFaq(faq: FaqListItem) {
+    if (!faq.tenant_id) {
+      toast.error("Platform FAQs cannot be deleted.");
+      return;
+    }
+    const confirmed = window.confirm(`Delete FAQ “${faq.question}”?`);
+    if (!confirmed) return;
+    setDeletingFaqId(faq.id);
+    try {
+      const res = await fetch(`/api/admin/faqs/${encodeURIComponent(faq.id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(payload.error || "Could not delete FAQ.");
+      toast.success("FAQ deleted");
+      setFaqRefreshKey((current) => current + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete FAQ.");
+    } finally {
+      setDeletingFaqId(null);
     }
   }
 
@@ -182,51 +246,50 @@ export default function HelpSupportClient() {
           </label>
         </div>
 
-        <div id="help-faq-section" className="mt-8 w-full max-w-3xl">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div id="help-faq-section" className="mt-8 w-full">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-[#6B7280]" style={BRAND_FONT_BODY_STYLE}>
               Looking to add or edit articles?
             </p>
             <button
               type="button"
-              onClick={() => setCreateOpen(true)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95"
+              onClick={openCreate}
+              className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95"
               style={{ backgroundColor: secondaryColor }}
             >
               <Plus className="h-4 w-4" aria-hidden />
               Add FAQ
             </button>
-            <Link
-              href="/admin_recruiter/tickets/knowledgebase"
-              className="text-sm font-semibold text-[color:var(--brand-secondary,#012352)] underline-offset-2 hover:underline"
-            >
-              Manage FAQs
-            </Link>
           </div>
           <AdminFaqBrowser
             variant="cards"
             contentAlign="start"
             refreshKey={faqRefreshKey}
+            fetchUrl="/api/admin/faqs?manage=1"
             loadingLabel="Loading help articles..."
             emptyConfiguredMessage="No FAQ articles are available yet. Use Add FAQ to create the first one."
             searchInputId={FAQ_SEARCH_INPUT_ID}
             showSearchBar={faqSearchVisible}
             searchQuery={faqSearchQuery}
             onSearchQueryChange={setFaqSearchQuery}
+            onEditFaq={openEdit}
+            onDeleteFaq={(faq) => void handleDeleteFaq(faq)}
+            deletingFaqId={deletingFaqId}
           />
         </div>
       </div>
 
       <FaqEditorModal
-        open={createOpen}
-        mode="create"
-        initial={null}
+        open={editorOpen}
+        mode={editorMode}
+        initial={editingFaq}
         submitting={submitting}
         onClose={() => {
           if (submitting) return;
-          setCreateOpen(false);
+          setEditorOpen(false);
+          setEditingFaq(null);
         }}
-        onSubmit={handleCreateFaq}
+        onSubmit={handleSubmitFaq}
       />
     </div>
   );

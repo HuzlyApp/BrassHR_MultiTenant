@@ -5,6 +5,7 @@ import { ChevronDown, X } from "lucide-react";
 import SuccessModal from "@/app/components/SuccessModal";
 import { TicketFileUploadFields } from "@/app/components/support/TicketFileUploadFields";
 import { SUPPORT_DEPARTMENT_CATEGORY_OPTIONS } from "@/lib/support-tickets/support-departments";
+import { validateTicketSubjectAndMessage } from "@/lib/support-tickets/ticket-field-validation";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 
 export type SupportTicketFormValues = {
@@ -113,10 +114,11 @@ export function CreateSupportTicketModal({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const nextErrors: { subject?: string; description?: string; category?: string } = {};
+    const fieldErrors = validateTicketSubjectAndMessage({ subject, description });
+    const nextErrors: { subject?: string; description?: string; category?: string } = {
+      ...fieldErrors,
+    };
     if (!category) nextErrors.category = "Select a department.";
-    if (!subject.trim()) nextErrors.subject = "Subject is required.";
-    if (!description.trim()) nextErrors.description = "Please describe your request.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 

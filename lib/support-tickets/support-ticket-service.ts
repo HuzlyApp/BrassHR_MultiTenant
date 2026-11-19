@@ -6,6 +6,10 @@ import {
   notifyDepartmentPrimaryContact,
   resolveTicketCategoryLabel,
 } from "@/lib/support-tickets/notify-department-primary-contact";
+import {
+  firstTicketSubjectMessageError,
+  validateTicketSubjectAndMessage,
+} from "@/lib/support-tickets/ticket-field-validation";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
@@ -40,14 +44,15 @@ export async function insertSupportTicket(
   }
 ): Promise<{ ticket: SupportTicketRow } | { error: string }> {
   const description = params.input.description.trim();
-  if (!description) {
-    return { error: "Please describe your issue." };
+  const subjectInput = (params.input.subject ?? "").trim();
+  const subjectMessageError = firstTicketSubjectMessageError(
+    validateTicketSubjectAndMessage({ subject: subjectInput, description })
+  );
+  if (subjectMessageError) {
+    return { error: subjectMessageError };
   }
 
-  const subject = summarizeTicketSubject(description, params.input.subject);
-  if (!subject.trim()) {
-    return { error: "Subject is required." };
-  }
+  const subject = summarizeTicketSubject(description, subjectInput);
 
   const initialSenderRole = params.initialSenderRole ?? "applicant";
   const createdByStaffUserId = params.createdByStaffUserId?.trim() || null;

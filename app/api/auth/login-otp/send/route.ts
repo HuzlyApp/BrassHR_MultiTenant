@@ -8,6 +8,7 @@ import { resolveGodAdminServer } from "@/lib/auth/resolve-god-admin-server";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
 import { resolveRecruiterOnboardingStatus } from "@/lib/auth/recruiter-onboarding-status.server";
 import { sendSupabaseLoginOtp } from "@/lib/auth/send-login-otp-email";
+import { completeStaffPasswordSetup } from "@/lib/admin/complete-staff-password-setup";
 import { loadStaffAccessFlags, staffAccessDeniedMessage } from "@/lib/admin/staff-access";
 import { createEphemeralAuthClient } from "@/lib/supabase/ephemeral-auth-client";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -86,7 +87,21 @@ export async function POST(req: NextRequest) {
         }
         const svc = createServiceRoleClient();
         if (svc) {
-          const flags = await loadStaffAccessFlags(svc, signInData.user.id);
+          let flags = await loadStaffAccessFlags(svc, signInData.user.id);
+          // Password auth succeeded → Auth password is already set. If the invite
+          // completion endpoint failed earlier (OTP gate), clear the stuck flag now.
+          if (flags.mustChangePassword) {
+            try {
+              await completeStaffPasswordSetup(svc, {
+                userId: signInData.user.id,
+                email: signInData.user.email,
+                request: req,
+              });
+              flags = { ...flags, mustChangePassword: false };
+            } catch (setupErr) {
+              console.error("[auth/login-otp/send] password setup completion", setupErr);
+            }
+          }
           const denied = staffAccessDeniedMessage(flags);
           if (denied) {
             await auth.auth.signOut();

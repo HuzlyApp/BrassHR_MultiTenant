@@ -3,6 +3,10 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { FaqListItem } from "@/lib/faqs/types";
+import {
+  type FaqFieldErrors,
+  validateFaqFields,
+} from "@/lib/faqs/faq-validation";
 
 const CATEGORY_SUGGESTIONS = [
   "General",
@@ -13,6 +17,12 @@ const CATEGORY_SUGGESTIONS = [
   "Payments",
   "Technical",
 ];
+
+const FIELD_ERROR_CLASS = "mt-1 text-xs font-medium text-[#B42318]";
+const INPUT_BASE_CLASS =
+  "h-11 w-full rounded-lg border bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]";
+const TEXTAREA_BASE_CLASS =
+  "min-h-[140px] w-full resize-y rounded-lg border bg-white px-3.5 py-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]";
 
 type Props = {
   open: boolean;
@@ -29,6 +39,10 @@ type Props = {
   }) => Promise<void> | void;
 };
 
+function fieldBorderClass(hasError: boolean): string {
+  return hasError ? "border-[#F04438]" : "border-[#CBD5E1]";
+}
+
 export function FaqEditorModal({
   open,
   mode,
@@ -40,9 +54,11 @@ export function FaqEditorModal({
   const [category, setCategory] = useState("General");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
-  const [sortOrder, setSortOrder] = useState(0);
+  const [sortOrderText, setSortOrderText] = useState("0");
   const [isPublished, setIsPublished] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FaqFieldErrors>({});
   const [error, setError] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
 
@@ -51,9 +67,11 @@ export function FaqEditorModal({
       setCategory(initial?.category?.trim() || "General");
       setQuestion(initial?.question ?? "");
       setAnswer(initial?.answer ?? "");
-      setSortOrder(initial?.sort_order ?? 0);
+      setSortOrderText(String(initial?.sort_order ?? 0));
       setIsPublished(initial?.is_published !== false);
+      setFieldErrors({});
       setError(null);
+      setAttempted(false);
       window.setTimeout(() => closeRef.current?.focus(), 0);
     }
     wasOpen.current = open;
@@ -74,26 +92,49 @@ export function FaqEditorModal({
 
   if (!open) return null;
 
+  function clearFieldError(field: keyof FaqFieldErrors) {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (submitting) return;
-    if (!question.trim()) {
-      setError("Question is required.");
-      return;
-    }
-    if (!answer.trim()) {
-      setError("Answer is required.");
+    setAttempted(true);
+    const nextErrors = validateFaqFields({ category, question, answer });
+    setFieldErrors(nextErrors);
+    if (nextErrors.category || nextErrors.question || nextErrors.answer) {
+      setError(null);
       return;
     }
     setError(null);
+    const parsedSort = Number.parseInt(sortOrderText, 10);
     await onSubmit({
-      category: category.trim() || "General",
+      category: category.trim(),
       question: question.trim(),
       answer: answer.trim(),
-      sortOrder,
+      sortOrder: Number.isFinite(parsedSort) && parsedSort >= 0 ? parsedSort : 0,
       isPublished,
     });
   }
+
+  function handleSortOrderChange(raw: string) {
+    if (raw === "") {
+      setSortOrderText("");
+      return;
+    }
+    if (!/^\d+$/.test(raw)) return;
+    // Drop leading zeros while typing (e.g. "05" → "5") so default 0 is replaced.
+    setSortOrderText(String(Number(raw)));
+  }
+
+  const showCategoryError = attempted && Boolean(fieldErrors.category);
+  const showQuestionError = attempted && Boolean(fieldErrors.question);
+  const showAnswerError = attempted && Boolean(fieldErrors.answer);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -127,7 +168,7 @@ export function FaqEditorModal({
           </button>
         </div>
 
-        <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4 px-5 py-4">
+        <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4 px-5 py-4" noValidate>
           {error ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -139,42 +180,70 @@ export function FaqEditorModal({
             <input
               list="faq-category-suggestions"
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
+              onChange={(event) => {
+                setCategory(event.target.value);
+                clearFieldError("category");
+              }}
+              className={`${INPUT_BASE_CLASS} ${fieldBorderClass(showCategoryError)}`}
               placeholder="General"
               disabled={submitting}
+              aria-invalid={showCategoryError}
+              aria-describedby={showCategoryError ? "faq-category-error" : undefined}
             />
             <datalist id="faq-category-suggestions">
               {CATEGORY_SUGGESTIONS.map((item) => (
                 <option key={item} value={item} />
               ))}
             </datalist>
+            {showCategoryError ? (
+              <p id="faq-category-error" className={FIELD_ERROR_CLASS} role="alert">
+                {fieldErrors.category}
+              </p>
+            ) : null}
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-[#374151]">Question</span>
             <input
               value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
+              onChange={(event) => {
+                setQuestion(event.target.value);
+                clearFieldError("question");
+              }}
+              className={`${INPUT_BASE_CLASS} ${fieldBorderClass(showQuestionError)}`}
               placeholder="How do I open a support ticket?"
               maxLength={300}
               disabled={submitting}
-              required
+              aria-invalid={showQuestionError}
+              aria-describedby={showQuestionError ? "faq-question-error" : undefined}
             />
+            {showQuestionError ? (
+              <p id="faq-question-error" className={FIELD_ERROR_CLASS} role="alert">
+                {fieldErrors.question}
+              </p>
+            ) : null}
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-[#374151]">Answer</span>
             <textarea
               value={answer}
-              onChange={(event) => setAnswer(event.target.value)}
-              className="min-h-[140px] w-full resize-y rounded-lg border border-[#CBD5E1] bg-white px-3.5 py-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
+              onChange={(event) => {
+                setAnswer(event.target.value);
+                clearFieldError("answer");
+              }}
+              className={`${TEXTAREA_BASE_CLASS} ${fieldBorderClass(showAnswerError)}`}
               placeholder="Write a clear answer for staff and workers."
               maxLength={8000}
               disabled={submitting}
-              required
+              aria-invalid={showAnswerError}
+              aria-describedby={showAnswerError ? "faq-answer-error" : undefined}
             />
+            {showAnswerError ? (
+              <p id="faq-answer-error" className={FIELD_ERROR_CLASS} role="alert">
+                {fieldErrors.answer}
+              </p>
+            ) : null}
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -184,9 +253,11 @@ export function FaqEditorModal({
                 type="number"
                 min={0}
                 step={1}
-                value={sortOrder}
-                onChange={(event) => setSortOrder(Number(event.target.value) || 0)}
-                className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
+                inputMode="numeric"
+                value={sortOrderText}
+                onChange={(event) => handleSortOrderChange(event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
+                className={`${INPUT_BASE_CLASS} border-[#CBD5E1]`}
                 disabled={submitting}
               />
             </label>
@@ -195,7 +266,8 @@ export function FaqEditorModal({
                 type="checkbox"
                 checked={isPublished}
                 onChange={(event) => setIsPublished(event.target.checked)}
-                className="h-4 w-4 rounded border-[#CBD5E1]"
+                className="h-4 w-4 cursor-pointer rounded-[4px] border-[#CBD5E1] accent-[color:var(--brand-secondary,#012352)]"
+                style={{ accentColor: "var(--brand-secondary, #012352)" }}
                 disabled={submitting}
               />
               Published (visible in Help)

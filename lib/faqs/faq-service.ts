@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { firstFaqFieldError, validateFaqFields } from "@/lib/faqs/faq-validation";
 import type { FaqListItem, FaqUpsertInput } from "@/lib/faqs/types";
 
 const FAQ_SELECT =
@@ -27,8 +28,7 @@ function normalizeFaqRow(row: Record<string, unknown>): FaqListItem {
 }
 
 function normalizeCategory(value: string): string {
-  const text = value.trim().replace(/\s+/g, " ");
-  return text || "General";
+  return value.trim().replace(/\s+/g, " ");
 }
 
 function normalizeQuestion(value: string): string {
@@ -61,8 +61,8 @@ function assertUpsertInput(input: FaqUpsertInput): {
   const category = normalizeCategory(input.category ?? "");
   const question = normalizeQuestion(input.question ?? "");
   const answer = normalizeAnswer(input.answer ?? "");
-  if (!question) throw new FaqServiceError("Question is required.", 400, "VALIDATION_ERROR");
-  if (!answer) throw new FaqServiceError("Answer is required.", 400, "VALIDATION_ERROR");
+  const fieldError = firstFaqFieldError(validateFaqFields({ category, question, answer }));
+  if (fieldError) throw new FaqServiceError(fieldError, 400, "VALIDATION_ERROR");
   if (question.length > 300) {
     throw new FaqServiceError("Question must be 300 characters or fewer.", 400, "VALIDATION_ERROR");
   }
