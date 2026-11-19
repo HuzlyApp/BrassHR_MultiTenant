@@ -157,6 +157,32 @@ export function isApplicationPipelineStatus(value: string): value is Application
   return (APPLICATION_PIPELINE_STATUSES as readonly string[]).includes(value);
 }
 
+type ApproveStatusLike = {
+  id: string;
+  name: string;
+  systemKey?: string | null;
+};
+
+/**
+ * Green Accept / Approve icon target.
+ * Prefer system_key "approved"; otherwise a recruiter "Approved …" status
+ * (not MSP/Client approved variants). Never falls back to hired.
+ */
+export function resolveApproveStatusOption<T extends ApproveStatusLike>(
+  options: T[]
+): T | null {
+  const byKey = options.find((option) => option.systemKey === "approved");
+  if (byKey) return byKey;
+
+  const byName = options.find((option) => {
+    const name = option.name.trim().toLowerCase();
+    if (!name.includes("approv")) return false;
+    if (/\bmsp\b|\bclient\b/.test(name)) return false;
+    return true;
+  });
+  return byName ?? null;
+}
+
 export function isArchivedApplicationStatus(
   status: string | null | undefined,
   systemKey?: string | null

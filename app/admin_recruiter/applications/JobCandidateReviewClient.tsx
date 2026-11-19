@@ -46,6 +46,7 @@ import {
 import {
   applicationStatusLabel,
   normalizeApplicationStatus,
+  resolveApproveStatusOption,
 } from "@/lib/jobs/application-status";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
@@ -896,6 +897,15 @@ export default function JobCandidateReviewClient() {
     beginStatusChange(option);
   }
 
+  function beginApproveStatusChange() {
+    const option = resolveApproveStatusOption(statusOptions);
+    if (!option) {
+      toast.error("Approved status is not configured for this organization.");
+      return;
+    }
+    beginStatusChange(option);
+  }
+
   async function confirmStatusChange() {
     if (!selected || !pendingStatus) return;
     setStatusBusy(true);
@@ -935,7 +945,7 @@ export default function JobCandidateReviewClient() {
       toast.success(
         payload.unchanged
           ? "Status unchanged"
-          : payload.postHire?.activated
+          : payload.postHire?.emailSent
             ? `Status updated to ${payload.application?.statusName ?? pendingStatus.name}. Onboarding invitation sent.`
             : `Status updated to ${payload.application?.statusName ?? pendingStatus.name}`
       );
@@ -1329,9 +1339,9 @@ export default function JobCandidateReviewClient() {
                       <button
                         type="button"
                         className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#16A34A] transition hover:bg-[#F0FDF4] sm:h-8 sm:w-8"
-                        aria-label="Accept"
-                        title="Accept"
-                        onClick={() => beginStatusChangeBySystemKey("hired")}
+                        aria-label="Approve"
+                        title="Approve"
+                        onClick={() => beginApproveStatusChange()}
                       >
                         <Check className="h-4 w-4" strokeWidth={2.25} />
                       </button>

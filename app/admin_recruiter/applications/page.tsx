@@ -86,6 +86,7 @@ import {
   applicationStatusDotClassName,
   applicationStatusLabel,
   normalizeApplicationStatus,
+  resolveApproveStatusOption,
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
 import {
@@ -2181,6 +2182,15 @@ export default function JobApplicationsPage() {
     beginStatusChange(applicationId, option);
   }
 
+  function beginApproveStatusChange(applicationId: string) {
+    const option = resolveApproveStatusOption(statusOptions);
+    if (!option) {
+      toast.error("Approved status is not configured for this organization.");
+      return;
+    }
+    beginStatusChange(applicationId, option);
+  }
+
   async function confirmStatusChange() {
     if (!pendingStatusChange || statusBusyId) return;
     const { applicationId, toOption } = pendingStatusChange;
@@ -2526,15 +2536,16 @@ export default function JobApplicationsPage() {
       case "interest": {
         const currentStatus = normalizeApplicationStatus(row.status);
         const busy = statusBusyId === row.id;
+        const approveStatus = resolveApproveStatusOption(statusOptions);
         return (
           <div className="inline-flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-1.5 py-1">
             <button
               type="button"
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#16A34A] transition hover:bg-white"
-              aria-label="Accept candidate"
-              title="Accept"
-              onClick={() => beginStatusChangeBySystemKey(row.id, "hired")}
-              disabled={busy || currentStatus === "hired"}
+              aria-label="Approve candidate"
+              title="Approve"
+              onClick={() => beginApproveStatusChange(row.id)}
+              disabled={busy || Boolean(approveStatus && applicationRowStatusId(row) === approveStatus.id)}
             >
               <Check className="h-4 w-4" strokeWidth={2.25} />
             </button>
