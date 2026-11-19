@@ -43,6 +43,10 @@ describe("validateOwnerSignupDetails", () => {
     lastName: "Doe",
     workEmail: "jane@acme.com",
     jobTitle: "HR",
+    companyName: "Harbor City Brews",
+    industry: "Hospitality / Food Service",
+    isStaffingCompany: false as boolean | null,
+    phone: "2135550198",
     city: "Los Angeles",
     state: "California",
     zipCode: "90012",
@@ -50,7 +54,7 @@ describe("validateOwnerSignupDetails", () => {
     address2: "",
   };
 
-  it("requires a 5-digit ZIP code", () => {
+  it("rejects a partial ZIP when one is provided", () => {
     const error = validateOwnerSignupDetails({
       ...validBase,
       zipCode: "900",
@@ -58,7 +62,26 @@ describe("validateOwnerSignupDetails", () => {
     expect(error).toMatch(/5-digit/i);
   });
 
-  it("requires a street number in address 1", () => {
+  it("allows signup without ZIP or street address", () => {
+    expect(
+      validateOwnerSignupDetails({
+        ...validBase,
+        jobTitle: "",
+        zipCode: "",
+        address1: "",
+      })
+    ).toBeNull();
+  });
+
+  it("requires company name, industry, and staffing answer", () => {
+    expect(validateOwnerSignupDetails({ ...validBase, companyName: "" })).toMatch(/company name/i);
+    expect(validateOwnerSignupDetails({ ...validBase, industry: "" })).toMatch(/industry/i);
+    expect(validateOwnerSignupDetails({ ...validBase, isStaffingCompany: null })).toMatch(
+      /staffing company/i
+    );
+  });
+
+  it("validates street address format when address 1 is provided", () => {
     const error = validateOwnerSignupDetails({
       ...validBase,
       address1: "uyrtert",

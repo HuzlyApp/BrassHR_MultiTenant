@@ -224,6 +224,11 @@ function SignupPreview({ branding }: { branding: TenantBranding }) {
             <PreviewField label="First Name" />
             <PreviewField label="Last Name" />
           </div>
+          <div className="mt-3 space-y-2.5">
+            <PreviewField label="Work Email" />
+            <PreviewField label="Mobile Phone" />
+            <PreviewField label="Password" />
+          </div>
 
           <div className="mt-5 flex-1" />
 
@@ -231,7 +236,7 @@ function SignupPreview({ branding }: { branding: TenantBranding }) {
             className="mt-4 flex h-9 w-full shrink-0 items-center justify-center rounded-[6px] text-[11px] font-semibold text-white"
             style={buttonStyle}
           >
-            Next
+            Submit and Continue
           </div>
         </div>
 
