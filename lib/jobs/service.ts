@@ -2200,10 +2200,36 @@ export async function createAdminJobApplication(
       })
       .select("id, worker_id")
       .single();
-    if (profileError) throw profileError;
-    profileId = String(profile.id);
-    linkedWorkerId = profile.worker_id ? String(profile.worker_id) : null;
-  } else {
+    if (profileError) {
+      // Concurrent add-from-resume / race with another intake path can hit
+      // applicant_profiles_tenant_email_uidx after a empty lookup.
+      const isDuplicate =
+        profileError.code === "23505" ||
+        /duplicate key|unique constraint/i.test(String(profileError.message ?? ""));
+      if (!isDuplicate) throw profileError;
+
+      const { data: raced, error: racedError } = await supabase
+        .from("applicant_profiles")
+        .select("id, worker_id")
+        .eq("tenant_id", input.tenantId)
+        .eq("normalized_email", normalizedEmail)
+        .maybeSingle();
+      if (racedError || !raced?.id) throw profileError;
+
+      profileId = String(raced.id);
+      linkedWorkerId = raced.worker_id ? String(raced.worker_id) : null;
+      await assertNoActiveApplicationForJob(supabase, {
+        tenantId: input.tenantId,
+        jobRequisitionId: String(job.id),
+        applicantProfileId: profileId,
+      });
+    } else {
+      profileId = String(profile.id);
+      linkedWorkerId = profile.worker_id ? String(profile.worker_id) : null;
+    }
+  }
+
+  if (profileId) {
     const { error: profileUpdateError } = await supabase
       .from("applicant_profiles")
       .update(profileFields)

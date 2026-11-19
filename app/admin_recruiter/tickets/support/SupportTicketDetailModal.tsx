@@ -13,6 +13,7 @@ import type {
   SupportTicketMessageWithAttachments,
 } from "@/lib/support-tickets/types";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
+import { formatSupportTicketNumber } from "@/lib/support-tickets/ticket-number";
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
@@ -28,9 +29,6 @@ function formatDateTime(value: string | null | undefined): string {
   });
 }
 
-function shortTicketId(id: string): string {
-  return `#${id.slice(0, 8).toUpperCase()}`;
-}
 
 type Props = {
   ticket: SupportTicketListItem | null;
@@ -114,7 +112,9 @@ export function SupportTicketDetailModal({
         <div className="overflow-y-auto p-5">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F4F4F4] text-[#012352]">
-              <span className="text-xs font-bold">{shortTicketId(ticket.id)}</span>
+              <span className="text-xs font-bold">
+                {formatSupportTicketNumber(ticket.ticket_number, ticket.id)}
+              </span>
             </div>
             <div>
               <h2 id="ticket-detail-title" className="text-2xl font-semibold text-[#0F172A]">

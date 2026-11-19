@@ -4,9 +4,10 @@ import { useState } from "react";
 import { CreateSupportTicketModal } from "@/app/application/components/applicant-portal/CreateSupportTicketModal";
 import { WorkerTicketsSubNav } from "@/app/application/components/applicant-portal/WorkerTicketsSubNav";
 import {
-  isWorkerSupportDeskOnline,
+  // isWorkerSupportDeskOnline,
   WORKER_SUPPORT_DEPARTMENTS,
 } from "@/app/application/components/applicant-portal/worker-support-departments";
+import { OpenTicketDepartmentMenu } from "@/app/components/support/OpenTicketDepartmentMenu";
 import { useApplicantPortalAuthHeaders } from "@/app/application/components/applicant-portal/useApplicantPortalSession";
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
@@ -20,7 +21,7 @@ export function WorkerTicketsDepartmentsClient() {
   const authHeaders = useApplicantPortalAuthHeaders();
   const [createOpen, setCreateOpen] = useState(false);
   const [defaultCategory, setDefaultCategory] = useState("general");
-  const online = isWorkerSupportDeskOnline();
+  // const online = isWorkerSupportDeskOnline();
 
   function openCreate(category: string) {
     setDefaultCategory(category);
@@ -28,16 +29,14 @@ export function WorkerTicketsDepartmentsClient() {
   }
 
   const openTicketAction = (
-    <button
-      type="button"
-      onClick={() => openCreate("general")}
-      className="min-h-11 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white"
-      style={{
-        background: "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+    <OpenTicketDepartmentMenu
+      onSelectDepartment={openCreate}
+      buttonClassName="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white"
+      buttonStyle={{
+        background:
+          "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
       }}
-    >
-      Open a Ticket
-    </button>
+    />
   );
 
   return (
@@ -72,6 +71,7 @@ export function WorkerTicketsDepartmentsClient() {
             >
               Open a Ticket
             </button>
+            {/* Online/Offline status + hours — hidden for now
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <span
                 className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -82,6 +82,7 @@ export function WorkerTicketsDepartmentsClient() {
               </span>
               <span className="text-xs text-[#64748B]">{dept.hoursLabel}</span>
             </div>
+            */}
           </article>
         ))}
       </div>

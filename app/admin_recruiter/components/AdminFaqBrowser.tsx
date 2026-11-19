@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, MoreVertical, Pencil, Search, Trash2 } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
@@ -106,46 +106,118 @@ function FaqCardItem({
   faq,
   expanded,
   onToggle,
+  menuOpen,
+  onMenuToggle,
+  onEdit,
+  onDelete,
+  deleting,
 }: {
   faq: FaqListItem;
   expanded: boolean;
   onToggle: () => void;
+  menuOpen?: boolean;
+  onMenuToggle?: () => void;
+  onEdit?: (faq: FaqListItem) => void;
+  onDelete?: (faq: FaqListItem) => void;
+  deleting?: boolean;
 }) {
+  const canManage = Boolean(onEdit || onDelete) && Boolean(faq.tenant_id);
+
   return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-[#FAFBFC]"
-      >
-        <span className="min-w-0 flex-1">
-          <span
-            className="block text-base font-semibold leading-6 text-[#1d2739]"
-            style={CANDIDATES_PAGE_TITLE_STYLE}
-          >
-            {faq.question}
-          </span>
-          {!expanded ? (
+    <div
+      className={`relative rounded-lg border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${
+        menuOpen ? "z-30" : "z-0"
+      }`}
+    >
+      <div className="flex items-stretch gap-1 px-2 py-1 sm:px-3 sm:py-1.5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center gap-4 rounded-lg px-3 py-3 text-left transition hover:bg-[#FAFBFC] sm:px-2"
+        >
+          <span className="min-w-0 flex-1">
             <span
-              className="mt-1 block text-sm font-normal leading-5 text-[#718096]"
-              style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              className="block text-base font-semibold leading-6 text-[color:var(--brand-secondary,#012352)]"
+              style={CANDIDATES_PAGE_TITLE_STYLE}
             >
-              {answerPreview(faq.answer)}
+              {faq.question}
             </span>
-          ) : null}
-        </span>
-        <ChevronRight
-          className={`h-5 w-5 shrink-0 text-[#94A3B8] transition-transform duration-200 ${
-            expanded ? "rotate-90" : ""
-          }`}
-          aria-hidden
-        />
-      </button>
+            {!expanded ? (
+              <span
+                className="mt-1 block text-sm font-normal leading-5 text-[#6B7280]"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                {answerPreview(faq.answer)}
+              </span>
+            ) : null}
+          </span>
+          <ChevronRight
+            className={`h-5 w-5 shrink-0 text-[#94A3B8] transition-transform duration-200 ${
+              expanded ? "rotate-90" : ""
+            }`}
+            aria-hidden
+          />
+        </button>
+
+        {canManage ? (
+          <div className="relative flex shrink-0 items-center pr-1">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onMenuToggle?.();
+              }}
+              disabled={deleting}
+              className={`rounded-md p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A] disabled:opacity-50 ${
+                menuOpen ? "bg-[#F1F5F9] text-[#0F172A]" : ""
+              }`}
+              title="FAQ actions"
+              aria-label={`Actions for ${faq.question}`}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+            >
+              <MoreVertical className="h-4 w-4" aria-hidden />
+            </button>
+            {menuOpen ? (
+              <div
+                role="menu"
+                className="absolute right-0 bottom-full z-50 mb-1 w-44 overflow-visible rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {onEdit ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => onEdit(faq)}
+                    disabled={deleting}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-[#64748B]" aria-hidden />
+                    Edit
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => onDelete(faq)}
+                    disabled={deleting}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    {deleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       {expanded ? (
-        <div className="border-t border-[#F1F5F9] px-5 pb-4 pt-3">
+        <div className="border-t border-[#E5E7EB] px-5 pb-4 pt-3">
           <p
-            className="whitespace-pre-wrap text-sm font-normal leading-6 text-[#475569]"
+            className="whitespace-pre-wrap text-sm font-normal leading-6 text-[#6B7280]"
             style={CANDIDATES_PAGE_SUBTITLE_STYLE}
           >
             {faq.answer}
@@ -164,9 +236,20 @@ type AdminFaqBrowserProps = {
   emptyConfiguredMessage?: string;
   searchInputId?: string;
   showSearchBar?: boolean;
+  /** Optional controlled search value (Help & Support hero search). */
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
+  /** Center section title + empty state (Help & Support). */
+  contentAlign?: "start" | "center";
+  /** Bump to force a FAQ list reload after create/edit. */
+  refreshKey?: number;
   /** Defaults to staff `/api/admin/faqs`. Worker help uses the applicant FAQ endpoint. */
   fetchUrl?: string;
   getAuthHeaders?: () => Promise<Record<string, string> | null>;
+  /** When set, card rows show a three-dot menu for tenant FAQs. */
+  onEditFaq?: (faq: FaqListItem) => void;
+  onDeleteFaq?: (faq: FaqListItem) => void;
+  deletingFaqId?: string | null;
 };
 
 export default function AdminFaqBrowser({
@@ -177,16 +260,44 @@ export default function AdminFaqBrowser({
   emptyConfiguredMessage = "No FAQ articles are configured yet.",
   searchInputId,
   showSearchBar = true,
+  searchQuery: controlledSearchQuery,
+  onSearchQueryChange,
+  contentAlign = "start",
+  refreshKey = 0,
   fetchUrl = "/api/admin/faqs",
   getAuthHeaders,
+  onEditFaq,
+  onDeleteFaq,
+  deletingFaqId = null,
 }: AdminFaqBrowserProps) {
   const [faqs, setFaqs] = useState<FaqListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [uncontrolledSearchQuery, setUncontrolledSearchQuery] = useState("");
+  const searchQuery = controlledSearchQuery ?? uncontrolledSearchQuery;
+  const setSearchQuery = onSearchQueryChange ?? setUncontrolledSearchQuery;
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-faq-actions-menu]")) return;
+      setMenuOpenId(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpenId(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpenId]);
 
   const loadFaqs = useCallback(async () => {
     setLoading(true);
@@ -211,7 +322,7 @@ export default function AdminFaqBrowser({
 
   useEffect(() => {
     void loadFaqs();
-  }, [loadFaqs]);
+  }, [loadFaqs, refreshKey]);
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
@@ -257,19 +368,23 @@ export default function AdminFaqBrowser({
   }, [filteredFaqs, safePage]);
 
   const emptyState = (
-    <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center">
-      <p className="text-base font-semibold text-[#1d2739]" style={CANDIDATES_PAGE_TITLE_STYLE}>
+    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-6 py-12 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <p
+        className="text-base font-semibold text-[color:var(--brand-secondary,#012352)]"
+        style={CANDIDATES_PAGE_TITLE_STYLE}
+      >
         No articles found
       </p>
-      <p className="mt-2 max-w-md text-sm text-[#718096]" style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+      <p className="mt-2 max-w-md text-sm text-[#6B7280]" style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
         {faqs.length === 0 ? emptyConfiguredMessage : "Try a different search term."}
       </p>
     </div>
   );
+  const isCentered = contentAlign === "center";
 
   const paginationBarClass =
     variant === "cards"
-      ? "mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] pt-4 text-sm text-[#64748B]"
+      ? "mt-5 flex flex-wrap items-center justify-between gap-3 pt-1 text-sm text-[#6B7280]"
       : "flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8F0] px-4 py-3 text-sm text-[#64748B]";
 
   const paginationBar =
@@ -318,11 +433,13 @@ export default function AdminFaqBrowser({
           <>
             <div
               className={`mb-5 flex flex-wrap items-center gap-3 ${
-                showSearchBar ? "justify-between" : ""
+                showSearchBar ? "justify-between" : isCentered ? "justify-center" : ""
               }`}
             >
               <h2
-                className="text-xl font-semibold leading-7 text-[#012352]"
+                className={`text-xl font-semibold leading-7 text-[color:var(--brand-secondary,#012352)] ${
+                  isCentered ? "text-center" : ""
+                }`}
                 style={CANDIDATES_PAGE_TITLE_STYLE}
               >
                 {sectionTitle}
@@ -339,7 +456,7 @@ export default function AdminFaqBrowser({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search questions..."
-                    className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[#1d2739] placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:outline-none focus:ring-1 focus:ring-(--brand-primary)"
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[color:var(--brand-secondary,#012352)] placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:outline-none focus:ring-1 focus:ring-(--brand-primary)"
                     style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                   />
                 </label>
@@ -362,12 +479,37 @@ export default function AdminFaqBrowser({
               <>
                 <div className="space-y-3">
                   {paginatedFaqs.map((faq) => (
-                    <FaqCardItem
-                      key={faq.id}
-                      faq={faq}
-                      expanded={expandedId === faq.id}
-                      onToggle={() => setExpandedId((current) => (current === faq.id ? null : faq.id))}
-                    />
+                    <div key={faq.id} data-faq-actions-menu>
+                      <FaqCardItem
+                        faq={faq}
+                        expanded={expandedId === faq.id}
+                        onToggle={() => {
+                          setMenuOpenId(null);
+                          setExpandedId((current) => (current === faq.id ? null : faq.id));
+                        }}
+                        menuOpen={menuOpenId === faq.id}
+                        onMenuToggle={() =>
+                          setMenuOpenId((current) => (current === faq.id ? null : faq.id))
+                        }
+                        onEdit={
+                          onEditFaq
+                            ? (item) => {
+                                setMenuOpenId(null);
+                                onEditFaq(item);
+                              }
+                            : undefined
+                        }
+                        onDelete={
+                          onDeleteFaq
+                            ? (item) => {
+                                setMenuOpenId(null);
+                                onDeleteFaq(item);
+                              }
+                            : undefined
+                        }
+                        deleting={deletingFaqId === faq.id}
+                      />
+                    </div>
                   ))}
                 </div>
                 {paginationBar}

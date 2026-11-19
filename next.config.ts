@@ -94,6 +94,7 @@ const nextConfig: NextConfig = {
   agentRules: false,
   experimental: {
     optimizePackageImports: ["lucide-react", "react-icons"],
+    agentUpgrade: "security",
   },
   // Keep PDF.js out of the server chunk. The bundled pdf-parse build throws
   // "bad XRef entry" on valid PDFs (including ReportLab résumés).

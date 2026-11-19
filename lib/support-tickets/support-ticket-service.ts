@@ -2,12 +2,26 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifySupportTicketCreated } from "@/lib/notifications/create-notification";
 import { insertTicketMessage } from "@/lib/support-tickets/support-ticket-messages";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
+import {
+  notifyDepartmentPrimaryContact,
+  resolveTicketCategoryLabel,
+} from "@/lib/support-tickets/notify-department-primary-contact";
+import {
+  firstTicketSubjectMessageError,
+  validateTicketSubjectAndMessage,
+} from "@/lib/support-tickets/ticket-field-validation";
+import { buildSupportTicketNumber } from "@/lib/support-tickets/ticket-number";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
   SupportTicketRow,
   SupportTicketSenderRole,
 } from "@/lib/support-tickets/types";
+
+const SUPPORT_TICKET_COLUMNS =
+  "id, tenant_id, user_id, applicant_id, recruiter_id, ticket_number, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by";
+
+const SUPPORT_TICKET_COLUMNS_WITH_WORKER = `${SUPPORT_TICKET_COLUMNS}, worker:applicant_id(first_name, last_name, email)`;
 
 export function summarizeTicketSubject(description: string, subject?: string): string {
   const trimmedSubject = subject?.trim();
@@ -22,7 +36,8 @@ export async function insertSupportTicket(
     tenantId: string;
     /** Auth user who owns/requests the ticket (usually the worker). */
     userId: string;
-    applicantId: string;
+    /** Worker requester when creating on behalf; null for staff self-service tickets. */
+    applicantId: string | null;
     input: CreateSupportTicketInput;
     files?: File[];
     /** Staff user creating on behalf of the worker (auditing via recruiter_id). */
@@ -35,35 +50,50 @@ export async function insertSupportTicket(
   }
 ): Promise<{ ticket: SupportTicketRow } | { error: string }> {
   const description = params.input.description.trim();
-  if (!description) {
-    return { error: "Please describe your issue." };
+  const subjectInput = (params.input.subject ?? "").trim();
+  const subjectMessageError = firstTicketSubjectMessageError(
+    validateTicketSubjectAndMessage({ subject: subjectInput, description })
+  );
+  if (subjectMessageError) {
+    return { error: subjectMessageError };
   }
 
-  const subject = summarizeTicketSubject(description, params.input.subject);
-  if (!subject.trim()) {
-    return { error: "Subject is required." };
-  }
+  const subject = summarizeTicketSubject(description, subjectInput);
 
   const initialSenderRole = params.initialSenderRole ?? "applicant";
   const createdByStaffUserId = params.createdByStaffUserId?.trim() || null;
+  const shouldNotifyStaff =
+    params.notifyStaff === true ||
+    (params.notifyStaff !== false && !createdByStaffUserId);
+
+  const rawCategory = params.input.category?.trim() || "general";
+  let category = rawCategory;
+  try {
+    category = await resolveTicketCategoryLabel(supabase, params.tenantId, rawCategory);
+  } catch (resolveError) {
+    console.error("[support-tickets:resolve-category]", resolveError);
+  }
+
+  const ticketId = crypto.randomUUID();
+  const ticketNumber = buildSupportTicketNumber(ticketId);
 
   const { data, error } = await supabase
     .from("support_tickets")
     .insert({
+      id: ticketId,
       user_id: params.userId,
       tenant_id: params.tenantId,
       applicant_id: params.applicantId,
       recruiter_id: createdByStaffUserId,
+      ticket_number: ticketNumber,
       subject,
       description,
-      category: params.input.category?.trim() || "general",
+      category,
       source: params.input.source?.trim() || "manual",
       status: "Open",
       priority: params.input.priority ?? "normal",
     })
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .single();
 
   if (error || !data) {
@@ -91,12 +121,27 @@ export async function insertSupportTicket(
       ticketId: ticket.id,
       subject,
       createdByUserId: createdByStaffUserId ?? params.userId,
-      notifyStaff: params.notifyStaff !== false && !createdByStaffUserId,
+      notifyStaff: shouldNotifyStaff,
       notifyApplicantUserId:
-        params.notifyApplicant && createdByStaffUserId ? params.userId : null,
+        params.notifyApplicant && createdByStaffUserId && params.applicantId
+          ? params.userId
+          : null,
     });
   } catch (notifyError) {
     console.error("[support-tickets:notify-created]", notifyError);
+  }
+
+  try {
+    await notifyDepartmentPrimaryContact(supabase, {
+      tenantId: params.tenantId,
+      // Prefer original id so lookup stays exact; name works as fallback.
+      category: rawCategory,
+      ticketId: ticket.id,
+      subject,
+      description,
+    });
+  } catch (departmentNotifyError) {
+    console.error("[support-tickets:notify-department]", departmentNotifyError);
   }
 
   return { ticket };
@@ -108,9 +153,7 @@ export async function listApplicantSupportTickets(
 ): Promise<SupportTicketListItem[]> {
   const { data, error } = await supabase
     .from("support_tickets")
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .eq("applicant_id", applicantId)
     .order("created_at", { ascending: false });
 
@@ -129,10 +172,7 @@ export async function listStaffSupportTickets(
 ): Promise<SupportTicketListItem[]> {
   let query = supabase
     .from("support_tickets")
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by, worker:applicant_id(first_name, last_name, email)"
-    )
-    .not("applicant_id", "is", null)
+    .select(SUPPORT_TICKET_COLUMNS_WITH_WORKER)
     .order("created_at", { ascending: false });
 
   if (tenantId) {
@@ -170,9 +210,7 @@ export async function getSupportTicketById(
 ): Promise<SupportTicketListItem | null> {
   const { data, error } = await supabase
     .from("support_tickets")
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by, worker:applicant_id(first_name, last_name, email)"
-    )
+    .select(SUPPORT_TICKET_COLUMNS_WITH_WORKER)
     .eq("id", ticketId)
     .maybeSingle();
 
@@ -211,9 +249,7 @@ export async function closeSupportTicket(
       resolved_at: now,
     })
     .eq("id", params.ticketId)
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .maybeSingle();
 
   if (error || !data) {
@@ -239,9 +275,7 @@ export async function archiveSupportTicket(
       closed_by: null,
     })
     .eq("id", params.ticketId)
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .maybeSingle();
 
   if (error || !data) {
@@ -265,9 +299,7 @@ export async function reopenSupportTicket(
       closed_by: null,
     })
     .eq("id", params.ticketId)
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .maybeSingle();
 
   if (error || !data) {

@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sendDepartmentAssignmentEmail } from "@/lib/departments/send-department-assignment-email";
 import type {
   DepartmentAssignmentKind,
+  DepartmentMember,
+  DepartmentMemberRef,
   DepartmentRecord,
   DepartmentTarget,
 } from "./types";
@@ -10,11 +13,15 @@ type DepartmentRow = {
   name: string;
   code: string | null;
   description: string | null;
+  primary_contact: string | null;
   is_active: boolean;
 };
 
 const CODE_MAX = 40;
 const DESCRIPTION_MAX = 100;
+const PRIMARY_CONTACT_MAX = 254;
+const PRIMARY_CONTACT_EMAIL_RE =
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function normalizeDepartmentCode(value: unknown): string | null {
   const code = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -37,6 +44,23 @@ export function validateDepartmentDescription(value: unknown): string | null {
   const description = String(value ?? "");
   if (description.length > DESCRIPTION_MAX) {
     return `Description must be ${DESCRIPTION_MAX} characters or fewer.`;
+  }
+  return null;
+}
+
+export function normalizeDepartmentPrimaryContact(value: unknown): string | null {
+  const contact = String(value ?? "").replace(/\s+/g, " ").trim();
+  return contact || null;
+}
+
+export function validateDepartmentPrimaryContact(value: unknown): string | null {
+  const contact = normalizeDepartmentPrimaryContact(value);
+  if (!contact) return null;
+  if (contact.length > PRIMARY_CONTACT_MAX) {
+    return `Primary contact must be ${PRIMARY_CONTACT_MAX} characters or fewer.`;
+  }
+  if (!PRIMARY_CONTACT_EMAIL_RE.test(contact)) {
+    return "Enter a valid primary contact email or alias.";
   }
   return null;
 }
@@ -165,14 +189,23 @@ async function loadNameMap(
   return names;
 }
 
+function departmentErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string") {
+    return String((error as { message: string }).message);
+  }
+  return error instanceof Error ? error.message : "";
+}
+
 function isMissingCodeColumn(error: unknown): boolean {
-  const message =
-    error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"
-      ? String((error as { message: string }).message)
-      : error instanceof Error
-        ? error.message
-        : "";
-  return /column .*code.* does not exist|Could not find the 'code' column/i.test(message);
+  return /column .*code.* does not exist|Could not find the 'code' column/i.test(
+    departmentErrorMessage(error)
+  );
+}
+
+function isMissingPrimaryContactColumn(error: unknown): boolean {
+  return /column .*primary_contact.* does not exist|Could not find the 'primary_contact' column/i.test(
+    departmentErrorMessage(error)
+  );
 }
 
 export async function listDepartments(
@@ -182,13 +215,17 @@ export async function listDepartments(
   const departmentsQuery = () =>
     supabase
       .from("departments")
-      .select("id, name, code, description, is_active")
+      .select("id, name, code, description, primary_contact, is_active")
       .eq("tenant_id", tenantId)
       .order("name", { ascending: true });
-  const departmentsFallbackQuery = () =>
+  const departmentsFallbackQuery = (includeCode: boolean) =>
     supabase
       .from("departments")
-      .select("id, name, description, is_active")
+      .select(
+        includeCode
+          ? "id, name, code, description, is_active"
+          : "id, name, description, is_active"
+      )
       .eq("tenant_id", tenantId)
       .order("name", { ascending: true });
 
@@ -209,8 +246,13 @@ export async function listDepartments(
   let departments: Array<Record<string, unknown>> | null = (departmentsResult.data ??
     null) as Array<Record<string, unknown>> | null;
   let departmentError = departmentsResult.error;
+  if (departmentError && isMissingPrimaryContactColumn(departmentError)) {
+    const fallback = await departmentsFallbackQuery(true);
+    departments = (fallback.data ?? null) as Array<Record<string, unknown>> | null;
+    departmentError = fallback.error;
+  }
   if (departmentError && isMissingCodeColumn(departmentError)) {
-    const fallback = await departmentsFallbackQuery();
+    const fallback = await departmentsFallbackQuery(false);
     departments = (fallback.data ?? null) as Array<Record<string, unknown>> | null;
     departmentError = fallback.error;
   }
@@ -237,11 +279,14 @@ export async function listDepartments(
     const id = String(row.id);
     const description = typeof row.description === "string" ? row.description.trim() : null;
     const code = typeof row.code === "string" ? row.code.trim() || null : null;
+    const primaryContact =
+      typeof row.primary_contact === "string" ? row.primary_contact.trim() || null : null;
     return {
       id,
       name: String(row.name ?? ""),
       code,
       description: description || null,
+      primaryContact,
       isActive: Boolean(row.is_active),
       jobCount: jobCounts.get(id) ?? 0,
       candidateCount: candidateCounts.get(id) ?? 0,
@@ -252,7 +297,12 @@ export async function listDepartments(
 export async function createDepartment(
   supabase: SupabaseClient,
   tenantId: string,
-  input: { name: string; code?: string | null; description?: string | null }
+  input: {
+    name: string;
+    code?: string | null;
+    description?: string | null;
+    primaryContact?: string | null;
+  }
 ): Promise<DepartmentRecord> {
   const nameError = validateDepartmentName(input.name);
   if (nameError) throw new Error(nameError);
@@ -260,9 +310,12 @@ export async function createDepartment(
   if (codeError) throw new Error(codeError);
   const descriptionError = validateDepartmentDescription(input.description);
   if (descriptionError) throw new Error(descriptionError);
+  const primaryContactError = validateDepartmentPrimaryContact(input.primaryContact);
+  if (primaryContactError) throw new Error(primaryContactError);
   const name = normalizeDepartmentName(input.name);
   const code = normalizeDepartmentCode(input.code);
   const description = normalizeDepartmentDescription(input.description);
+  const primaryContact = normalizeDepartmentPrimaryContact(input.primaryContact);
 
   let insert = await supabase
     .from("departments")
@@ -271,9 +324,23 @@ export async function createDepartment(
       name,
       code,
       description,
+      primary_contact: primaryContact,
     })
-    .select("id, name, code, description, is_active")
+    .select("id, name, code, description, primary_contact, is_active")
     .single();
+
+  if (insert.error && isMissingPrimaryContactColumn(insert.error)) {
+    insert = await supabase
+      .from("departments")
+      .insert({
+        tenant_id: tenantId,
+        name,
+        code,
+        description,
+      })
+      .select("id, name, code, description, is_active")
+      .single();
+  }
 
   if (insert.error && isMissingCodeColumn(insert.error)) {
     insert = await supabase
@@ -307,6 +374,10 @@ export async function createDepartment(
     name: row.name,
     code: typeof row.code === "string" ? row.code.trim() || null : code,
     description: row.description?.trim() || null,
+    primaryContact:
+      typeof row.primary_contact === "string"
+        ? row.primary_contact.trim() || null
+        : primaryContact,
     isActive: row.is_active,
     jobCount: 0,
     candidateCount: 0,
@@ -317,7 +388,13 @@ export async function updateDepartment(
   supabase: SupabaseClient,
   tenantId: string,
   departmentId: string,
-  input: { name?: string; code?: string | null; description?: string | null; isActive?: boolean }
+  input: {
+    name?: string;
+    code?: string | null;
+    description?: string | null;
+    primaryContact?: string | null;
+    isActive?: boolean;
+  }
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
   if (input.name != null) {
@@ -335,6 +412,11 @@ export async function updateDepartment(
     if (descriptionError) throw new Error(descriptionError);
     patch.description = normalizeDepartmentDescription(input.description);
   }
+  if (input.primaryContact !== undefined) {
+    const primaryContactError = validateDepartmentPrimaryContact(input.primaryContact);
+    if (primaryContactError) throw new Error(primaryContactError);
+    patch.primary_contact = normalizeDepartmentPrimaryContact(input.primaryContact);
+  }
   if (typeof input.isActive === "boolean") {
     patch.is_active = input.isActive;
   }
@@ -347,6 +429,18 @@ export async function updateDepartment(
     .eq("tenant_id", tenantId)
     .select("id")
     .maybeSingle();
+
+  if (update.error && isMissingPrimaryContactColumn(update.error) && "primary_contact" in patch) {
+    const { primary_contact: _ignored, ...withoutContact } = patch;
+    if (Object.keys(withoutContact).length === 0) return;
+    update = await supabase
+      .from("departments")
+      .update(withoutContact)
+      .eq("id", departmentId)
+      .eq("tenant_id", tenantId)
+      .select("id")
+      .maybeSingle();
+  }
 
   if (update.error && isMissingCodeColumn(update.error) && "code" in patch) {
     const { code: _ignored, ...withoutCode } = patch;
@@ -442,6 +536,8 @@ async function requireDepartment(
     name: row.name,
     code: typeof row.code === "string" ? row.code : null,
     description: row.description,
+    primary_contact:
+      typeof row.primary_contact === "string" ? row.primary_contact.trim() || null : null,
     is_active: row.is_active,
   };
 }
@@ -590,4 +686,197 @@ export async function setDepartmentAssignment(
   const { data, error } = await query.select("id").maybeSingle();
   if (error) throw error;
   if (!data) throw new Error(assigned ? "Candidate not found." : "That candidate is not in this department.");
+
+}
+
+function formatPersonName(firstName: string | null, lastName: string | null, email: string | null): string {
+  const name = `${firstName ?? ""} ${lastName ?? ""}`.trim();
+  return name || email?.trim() || "Unnamed member";
+}
+
+async function loadTenantName(supabase: SupabaseClient, tenantId: string): Promise<string> {
+  const { data } = await supabase.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+  return String((data as { name?: string | null } | null)?.name ?? "your organization");
+}
+
+/** Search employment workers only (staff are not assignable here). */
+export async function searchDepartmentMembers(
+  supabase: SupabaseClient,
+  tenantId: string,
+  query: string
+): Promise<DepartmentMember[]> {
+  const pattern = searchPattern(query);
+  const quoted = `"${pattern}"`;
+  const hasQuery = pattern !== "%%";
+  const results: DepartmentMember[] = [];
+
+  const employmentRes = await supabase
+    .from("workers")
+    .select("candidate_id")
+    .eq("tenant_id", tenantId)
+    .not("candidate_id", "is", null)
+    .limit(500);
+  if (employmentRes.error) throw employmentRes.error;
+  const employmentIds = [
+    ...new Set(
+      (employmentRes.data ?? [])
+        .map((row) => String((row as { candidate_id?: string | null }).candidate_id ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (employmentIds.length === 0) return [];
+
+  let workerQuery = supabase
+    .from("worker")
+    .select("id, first_name, last_name, email, department_id, user_id")
+    .eq("tenant_id", tenantId)
+    .in("id", employmentIds)
+    .order("first_name", { ascending: true })
+    .limit(40);
+  if (hasQuery) {
+    workerQuery = workerQuery.or(
+      `first_name.ilike.${quoted},last_name.ilike.${quoted},email.ilike.${quoted}`
+    );
+  }
+  const { data, error } = await workerQuery;
+  if (error) throw error;
+  const names = await loadNameMap(
+    supabase,
+    tenantId,
+    ((data ?? []) as WorkerRow[]).map((row) => row.department_id ?? "")
+  );
+  for (const row of (data ?? []) as WorkerRow[]) {
+    results.push({
+      kind: "worker",
+      id: row.id,
+      label: formatPersonName(row.first_name, row.last_name, row.email),
+      email: row.email?.trim() || null,
+      roleLabel: "Worker",
+      status: "active",
+      departmentId: row.department_id,
+      departmentName: row.department_id ? names.get(row.department_id) ?? null : null,
+    });
+  }
+
+  const needle = query.trim().toLowerCase();
+  return results
+    .filter((member) => {
+      if (!needle) return true;
+      return [member.label, member.email, member.roleLabel]
+        .map((part) => part?.toLowerCase() ?? "")
+        .join(" ")
+        .includes(needle);
+    })
+    .slice(0, 40);
+}
+
+export async function addDepartmentMember(
+  supabase: SupabaseClient,
+  tenantId: string,
+  departmentId: string,
+  member: DepartmentMemberRef,
+  options?: { sendEmail?: boolean }
+): Promise<DepartmentMember> {
+  const department = await requireDepartment(supabase, tenantId, departmentId);
+  if (!department.is_active) {
+    throw new Error("Activate this department before assigning members.");
+  }
+  if (member.kind !== "worker") {
+    throw new Error("Only employment workers can be assigned to departments.");
+  }
+
+  const { data: employment, error: employmentError } = await supabase
+    .from("workers")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("candidate_id", member.id)
+    .limit(1)
+    .maybeSingle();
+  if (employmentError) throw employmentError;
+  if (!employment) {
+    throw new Error("Only employment workers can be assigned to departments.");
+  }
+
+  const { data: worker, error: workerError } = await supabase
+    .from("worker")
+    .select("id, first_name, last_name, email, department_id")
+    .eq("tenant_id", tenantId)
+    .eq("id", member.id)
+    .maybeSingle();
+  if (workerError) throw workerError;
+  if (!worker) throw new Error("Worker not found.");
+
+  const email = (worker as WorkerRow).email?.trim() || null;
+  const label = formatPersonName(
+    (worker as WorkerRow).first_name,
+    (worker as WorkerRow).last_name,
+    (worker as WorkerRow).email
+  );
+  const roleLabel = "Worker";
+
+  const { error: updateError } = await supabase
+    .from("worker")
+    .update({ department_id: departmentId })
+    .eq("tenant_id", tenantId)
+    .eq("id", member.id);
+  if (updateError) throw updateError;
+
+  if (options?.sendEmail !== false && email) {
+    const tenantName = await loadTenantName(supabase, tenantId);
+    const sent = await sendDepartmentAssignmentEmail({
+      email,
+      memberName: label,
+      departmentName: department.name,
+      tenantName,
+      roleLabel,
+    });
+    if (!sent.ok && sent.reason !== "config") {
+      console.warn("[departments] assignment email failed", sent.message);
+    }
+  }
+
+  return {
+    kind: "worker",
+    id: member.id,
+    label,
+    email,
+    roleLabel,
+    status: "active",
+    departmentId,
+    departmentName: department.name,
+  };
+}
+
+export async function removeDepartmentMember(
+  supabase: SupabaseClient,
+  tenantId: string,
+  departmentId: string,
+  member: DepartmentMemberRef
+): Promise<void> {
+  await requireDepartment(supabase, tenantId, departmentId);
+  if (member.kind !== "worker") {
+    throw new Error("Only employment workers can be removed from departments.");
+  }
+  const { error } = await supabase
+    .from("worker")
+    .update({ department_id: null })
+    .eq("tenant_id", tenantId)
+    .eq("id", member.id)
+    .eq("department_id", departmentId);
+  if (error) throw error;
+}
+
+export async function assignDepartmentMembers(
+  supabase: SupabaseClient,
+  tenantId: string,
+  departmentId: string,
+  members: DepartmentMemberRef[]
+): Promise<number> {
+  let assigned = 0;
+  for (const member of members) {
+    await addDepartmentMember(supabase, tenantId, departmentId, member, { sendEmail: true });
+    assigned += 1;
+  }
+  return assigned;
 }

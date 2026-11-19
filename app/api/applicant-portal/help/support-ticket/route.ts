@@ -7,6 +7,10 @@ import {
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import { insertSupportTicket } from "@/lib/support-tickets/support-ticket-service";
 import { parseSupportTicketCreateBody } from "@/lib/support-tickets/parse-create-request";
+import {
+  firstTicketSubjectMessageError,
+  validateTicketSubjectAndMessage,
+} from "@/lib/support-tickets/ticket-field-validation";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
@@ -30,11 +34,14 @@ export async function POST(req: NextRequest) {
 
     const body = await parseSupportTicketCreateBody(req);
 
-    if (!body.subject) {
-      return NextResponse.json({ error: "Subject is required." }, { status: 400 });
-    }
-    if (!body.description) {
-      return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
+    const subjectMessageError = firstTicketSubjectMessageError(
+      validateTicketSubjectAndMessage({
+        subject: body.subject,
+        description: body.description,
+      })
+    );
+    if (subjectMessageError) {
+      return NextResponse.json({ error: subjectMessageError }, { status: 400 });
     }
     if (body.priority && !PRIORITIES.has(body.priority)) {
       return NextResponse.json({ error: "Invalid priority." }, { status: 400 });

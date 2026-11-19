@@ -1,17 +1,33 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import toast from "react-hot-toast";
 import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
+import SuccessModal from "@/app/components/SuccessModal";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { accountRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
+import {
+  EMAIL_CHANGE_SUCCESS_MESSAGE,
+  normalizeAccountEmail,
+  validateEmailChange,
+} from "@/lib/account/email-change";
+import {
+  PHONE_CHANGE_SUCCESS_MESSAGE,
+  normalizeAccountPhone,
+  validatePhoneChange,
+} from "@/lib/account/phone-change";
 import { resolvePersonalProfileFields } from "@/lib/account/resolve-personal-profile-fields";
 import { isLimitedStaffConsoleRole } from "@/lib/admin/staff-directory-types";
 import {
   filterCandidateFieldInput,
-  validateCandidateFieldInput,
 } from "@/lib/admin/worker-profile-field-client";
+import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
+import {
+  LOGIN_OTP_RESEND_COOLDOWN_SECONDS,
+  LOGIN_OTP_TTL_SECONDS,
+} from "@/lib/auth/login-otp-constants";
 import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
 import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
 import {
@@ -24,10 +40,10 @@ import { isValidStep1Zip5, step1ZipStateMessage } from "@/lib/onboardingStep1Val
 import {
   addressValidationMessage,
   normalizeBusinessZipInput,
-  phoneValidationMessage,
 } from "@/lib/tenant/business-info-validation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import AccountOtpModal from "./AccountOtpModal";
 import { FIELD, FieldLabel, SelectField } from "./account-form-fields";
 import { StaffProfilePhotoUpload } from "./StaffProfilePhotoUpload";
 import {
@@ -93,8 +109,34 @@ export default function PersonalTab() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
-  const [emailChangeNotice, setEmailChangeNotice] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailOtpOpen, setEmailOtpOpen] = useState(false);
+  const [emailOtpSubmitting, setEmailOtpSubmitting] = useState(false);
+  const [emailOtpVerified, setEmailOtpVerified] = useState(false);
+  const [emailOtpError, setEmailOtpError] = useState<LoginAuthErrorPayload | null>(null);
+  const [emailOtpResendCount, setEmailOtpResendCount] = useState(0);
+  const [emailOtpMaxResends, setEmailOtpMaxResends] = useState(5);
+  const [emailOtpExpiresInSeconds, setEmailOtpExpiresInSeconds] = useState(LOGIN_OTP_TTL_SECONDS);
+  const [emailOtpResendCooldownSeconds, setEmailOtpResendCooldownSeconds] = useState(
+    LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+  );
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [emailSuccessOpen, setEmailSuccessOpen] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneOtpOpen, setPhoneOtpOpen] = useState(false);
+  const [phoneOtpSubmitting, setPhoneOtpSubmitting] = useState(false);
+  const [phoneOtpVerified, setPhoneOtpVerified] = useState(false);
+  const [phoneOtpError, setPhoneOtpError] = useState<LoginAuthErrorPayload | null>(null);
+  const [phoneOtpResendCount, setPhoneOtpResendCount] = useState(0);
+  const [phoneOtpMaxResends, setPhoneOtpMaxResends] = useState(5);
+  const [phoneOtpExpiresInSeconds, setPhoneOtpExpiresInSeconds] = useState(LOGIN_OTP_TTL_SECONDS);
+  const [phoneOtpResendCooldownSeconds, setPhoneOtpResendCooldownSeconds] = useState(
+    LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+  );
+  const [pendingPhone, setPendingPhone] = useState("");
+  const [phoneSuccessOpen, setPhoneSuccessOpen] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
   const [birthdateError, setBirthdateError] = useState<string | null>(null);
@@ -337,12 +379,277 @@ export default function PersonalTab() {
     setZipCode(resolvedFields.zipCode);
     setSaveError(null);
     setSaveSuccess(null);
-    setEmailChangeNotice(null);
+    setEmailError(null);
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
     setBirthdateError(null);
     setJobTitleError(null);
+  }
+
+  const accountEmail = (user?.email ?? profile?.email ?? "").trim();
+
+  const parseAuthError = async (res: Response): Promise<LoginAuthErrorPayload> => {
+    const json = (await res.json().catch(() => ({}))) as Partial<LoginAuthErrorPayload>;
+    return {
+      error: typeof json.error === "string" ? json.error : "Something went wrong. Try again.",
+      code: json.code ?? "UNKNOWN",
+      field: json.field ?? null,
+      ...(typeof json.retryAfterSec === "number" ? { retryAfterSec: json.retryAfterSec } : {}),
+    };
+  };
+
+  const requestEmailChangeOtp = async (newEmailValue: string) => {
+    const res = await fetch("/api/account/email-change/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newEmail: newEmailValue }),
+    });
+    if (!res.ok) throw await parseAuthError(res);
+
+    const json = (await res.json()) as {
+      resendCount?: number;
+      maxResends?: number;
+      expiresInSeconds?: number;
+      resendAvailableInSeconds?: number;
+      newEmail?: string;
+    };
+
+    setEmailOtpResendCount(typeof json.resendCount === "number" ? json.resendCount : 0);
+    setEmailOtpMaxResends(typeof json.maxResends === "number" ? json.maxResends : 5);
+    setEmailOtpExpiresInSeconds(
+      typeof json.expiresInSeconds === "number" ? json.expiresInSeconds : LOGIN_OTP_TTL_SECONDS
+    );
+    setEmailOtpResendCooldownSeconds(
+      typeof json.resendAvailableInSeconds === "number"
+        ? json.resendAvailableInSeconds
+        : LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+    );
+    if (typeof json.newEmail === "string") {
+      setPendingEmail(json.newEmail);
+    }
+  };
+
+  async function handleUpdateEmailAddress() {
+    if (!accountEmail) {
+      toast.error("No email is available on this account to send a verification code.");
+      return;
+    }
+
+    const validationError = validateEmailChange(workEmail, accountEmail);
+    if (validationError) {
+      setEmailError(validationError);
+      toast.error(validationError);
+      return;
+    }
+
+    setEmailBusy(true);
+    setEmailError(null);
+    setEmailOtpError(null);
+    setEmailOtpVerified(false);
+    try {
+      const normalized = normalizeAccountEmail(workEmail);
+      setPendingEmail(normalized);
+      await requestEmailChangeOtp(normalized);
+      setEmailOtpOpen(true);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err && typeof err.error === "string") {
+        setEmailError(err.error);
+        toast.error(err.error);
+      } else {
+        toast.error("Could not start email update.");
+      }
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function handleEmailOtpSendAgain() {
+    setEmailOtpError(null);
+    try {
+      await requestEmailChangeOtp(pendingEmail || workEmail);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err) {
+        setEmailOtpError(err as LoginAuthErrorPayload);
+        throw err;
+      }
+      const payload: LoginAuthErrorPayload = {
+        error: "Could not send verification code. Try again.",
+        code: "OTP_SEND_FAILED",
+        field: null,
+      };
+      setEmailOtpError(payload);
+      throw payload;
+    }
+  }
+
+  async function handleEmailOtpVerify(codeValue: string) {
+    setEmailOtpSubmitting(true);
+    setEmailOtpError(null);
+    try {
+      const confirmRes = await fetch("/api/account/email-change/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: codeValue,
+          newEmail: pendingEmail || workEmail,
+        }),
+      });
+      if (!confirmRes.ok) throw await parseAuthError(confirmRes);
+
+      const json = (await confirmRes.json().catch(() => ({}))) as { email?: string };
+      setEmailOtpVerified(true);
+      if (typeof json.email === "string") {
+        setWorkEmail(json.email);
+      }
+      await supabaseBrowser.auth.refreshSession();
+      await refresh();
+      setEmailOtpOpen(false);
+      setEmailOtpVerified(false);
+      setPendingEmail("");
+      setEmailSuccessOpen(true);
+      toast.success(EMAIL_CHANGE_SUCCESS_MESSAGE);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err && typeof err.error === "string") {
+        setEmailOtpError(err as LoginAuthErrorPayload);
+        setEmailOtpVerified(false);
+      } else {
+        setEmailOtpError({
+          error: "Could not update email.",
+          code: "UNKNOWN",
+          field: null,
+        });
+        setEmailOtpVerified(false);
+      }
+    } finally {
+      setEmailOtpSubmitting(false);
+    }
+  }
+
+  const requestPhoneChangeOtp = async (newPhoneValue: string) => {
+    const res = await fetch("/api/account/phone-change/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newPhone: newPhoneValue }),
+    });
+    if (!res.ok) throw await parseAuthError(res);
+
+    const json = (await res.json()) as {
+      resendCount?: number;
+      maxResends?: number;
+      expiresInSeconds?: number;
+      resendAvailableInSeconds?: number;
+      newPhone?: string;
+    };
+
+    setPhoneOtpResendCount(typeof json.resendCount === "number" ? json.resendCount : 0);
+    setPhoneOtpMaxResends(typeof json.maxResends === "number" ? json.maxResends : 5);
+    setPhoneOtpExpiresInSeconds(
+      typeof json.expiresInSeconds === "number" ? json.expiresInSeconds : LOGIN_OTP_TTL_SECONDS
+    );
+    setPhoneOtpResendCooldownSeconds(
+      typeof json.resendAvailableInSeconds === "number"
+        ? json.resendAvailableInSeconds
+        : LOGIN_OTP_RESEND_COOLDOWN_SECONDS
+    );
+    if (typeof json.newPhone === "string") {
+      setPendingPhone(json.newPhone);
+    }
+  };
+
+  async function handleUpdatePhoneNumber() {
+    if (!accountEmail) {
+      toast.error("No email is available on this account to send a verification code.");
+      return;
+    }
+
+    const validationError = validatePhoneChange(phone, resolvedFields.phone);
+    if (validationError) {
+      setPhoneError(validationError);
+      toast.error(validationError);
+      return;
+    }
+
+    setPhoneBusy(true);
+    setPhoneError(null);
+    setPhoneOtpError(null);
+    setPhoneOtpVerified(false);
+    try {
+      const normalized = normalizeAccountPhone(phone);
+      setPendingPhone(normalized);
+      await requestPhoneChangeOtp(normalized);
+      setPhoneOtpOpen(true);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err && typeof err.error === "string") {
+        setPhoneError(err.error);
+        toast.error(err.error);
+      } else {
+        toast.error("Could not start phone update.");
+      }
+    } finally {
+      setPhoneBusy(false);
+    }
+  }
+
+  async function handlePhoneOtpSendAgain() {
+    setPhoneOtpError(null);
+    try {
+      await requestPhoneChangeOtp(pendingPhone || phone);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err) {
+        setPhoneOtpError(err as LoginAuthErrorPayload);
+        throw err;
+      }
+      const payload: LoginAuthErrorPayload = {
+        error: "Could not send verification code. Try again.",
+        code: "OTP_SEND_FAILED",
+        field: null,
+      };
+      setPhoneOtpError(payload);
+      throw payload;
+    }
+  }
+
+  async function handlePhoneOtpVerify(codeValue: string) {
+    setPhoneOtpSubmitting(true);
+    setPhoneOtpError(null);
+    try {
+      const confirmRes = await fetch("/api/account/phone-change/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: codeValue,
+          newPhone: pendingPhone || phone,
+        }),
+      });
+      if (!confirmRes.ok) throw await parseAuthError(confirmRes);
+
+      const json = (await confirmRes.json().catch(() => ({}))) as { phone?: string };
+      setPhoneOtpVerified(true);
+      if (typeof json.phone === "string") {
+        setPhone(json.phone);
+      }
+      await refresh();
+      setPhoneOtpOpen(false);
+      setPhoneOtpVerified(false);
+      setPendingPhone("");
+      setPhoneSuccessOpen(true);
+      toast.success(PHONE_CHANGE_SUCCESS_MESSAGE);
+    } catch (err) {
+      if (err && typeof err === "object" && "error" in err && typeof err.error === "string") {
+        setPhoneOtpError(err as LoginAuthErrorPayload);
+        setPhoneOtpVerified(false);
+      } else {
+        setPhoneOtpError({
+          error: "Could not update phone number.",
+          code: "UNKNOWN",
+          field: null,
+        });
+        setPhoneOtpVerified(false);
+      }
+    } finally {
+      setPhoneOtpSubmitting(false);
+    }
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -352,7 +659,7 @@ export default function PersonalTab() {
     setSaving(true);
     setSaveError(null);
     setSaveSuccess(null);
-    setEmailChangeNotice(null);
+    setEmailError(null);
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
@@ -391,9 +698,6 @@ export default function PersonalTab() {
       return;
     }
 
-    const nextPhoneError = phone.trim()
-      ? phoneValidationMessage(phone, { required: false })
-      : null;
     const nextAddressError = address.trim()
       ? addressValidationMessage(address, { required: false })
       : null;
@@ -406,24 +710,27 @@ export default function PersonalTab() {
       }
     }
 
-    setPhoneError(nextPhoneError);
     setAddressError(nextAddressError);
     setZipError(nextZipError);
 
-    if (nextPhoneError || nextAddressError || nextZipError) {
+    if (nextAddressError || nextZipError) {
       setSaving(false);
       return;
     }
 
+    // Existing phone changes require OTP via "Update phone number".
+    // First-time add (no saved phone yet) can still save with the profile form.
     let phoneToSave: string | null = null;
-    if (phone.trim()) {
-      const phoneCheck = validateCandidateFieldInput("phone", phone);
-      if (!phoneCheck.ok) {
-        setPhoneError(phoneCheck.error);
+    if (resolvedFields.phone.trim()) {
+      phoneToSave = formatPhoneNumber(resolvedFields.phone);
+    } else if (phone.trim()) {
+      const firstPhoneError = validatePhoneChange(phone, "");
+      if (firstPhoneError) {
+        setPhoneError(firstPhoneError);
         setSaving(false);
         return;
       }
-      phoneToSave = formatPhoneNumber(phoneCheck.value);
+      phoneToSave = normalizeAccountPhone(phone);
     }
 
     const zipToSave = zipCode.trim() ? normalizeBusinessZipInput(zipCode).slice(0, 5) : null;
@@ -432,8 +739,8 @@ export default function PersonalTab() {
       : addressLine2.trim() || null;
 
     try {
-      const trimmedEmail = workEmail.trim();
-      const emailChanged = trimmedEmail && trimmedEmail !== (user.email ?? "");
+      // Email changes require OTP via "Update email address" — keep auth email here.
+      const trimmedEmail = accountEmail;
 
       const nextJobTitle = canEditProfessionalFields
         ? jobTitle.trim() || null
@@ -471,16 +778,6 @@ export default function PersonalTab() {
         .eq("id", user.id);
 
       if (profileError) throw profileError;
-
-      if (emailChanged) {
-        const { error: emailError } = await supabaseBrowser.auth.updateUser({
-          email: trimmedEmail,
-        });
-        if (emailError) throw emailError;
-        setEmailChangeNotice(
-          "A confirmation email may be sent to verify your new address before it takes effect."
-        );
-      }
 
       await refresh();
       const refreshed = await syncAccountChecklist(supabaseBrowser, {
@@ -533,6 +830,7 @@ export default function PersonalTab() {
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Profile</h1>
@@ -544,7 +842,6 @@ export default function PersonalTab() {
       {error ? <AccountErrorBanner message={error} /> : null}
       {saveError ? <AccountErrorBanner message={saveError} /> : null}
       {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
-      {emailChangeNotice ? <AccountSuccessBanner message={emailChangeNotice} /> : null}
 
       <section className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-5">
         <div
@@ -614,16 +911,44 @@ export default function PersonalTab() {
               className={FIELD}
             />
           </label>
-          <label className="block">
+          <div className="block">
             <FieldLabel>Email Address</FieldLabel>
-            <input
-              type="email"
-              value={workEmail}
-              onChange={(e) => setWorkEmail(e.target.value)}
-              className={FIELD}
-            />
-          </label>
-          <label className="block">
+            <div
+              className={`flex overflow-hidden rounded-md border bg-white focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] ${
+                emailError ? "border-[#FCA5A5]" : "border-[#D1D5DB]"
+              }`}
+            >
+              <input
+                type="email"
+                value={workEmail}
+                onChange={(e) => {
+                  setWorkEmail(e.target.value);
+                  if (emailError) setEmailError(null);
+                }}
+                className="h-11 min-w-0 flex-1 border-0 bg-white px-3 text-sm text-[#111827] outline-none"
+                autoComplete="email"
+              />
+              {accountEmail ? (
+                <button
+                  type="button"
+                  onClick={() => void handleUpdateEmailAddress()}
+                  disabled={emailBusy || emailOtpSubmitting}
+                  className="shrink-0 px-3 text-sm font-medium underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ color: "var(--brand-secondary, #012352)" }}
+                >
+                  {emailBusy ? "Sending..." : "Update email address"}
+                </button>
+              ) : null}
+            </div>
+            {accountEmail ? (
+              <p className="mt-1 text-xs text-[#64748B]">
+                We&apos;ll send a verification code to your current email before saving a new
+                address.
+              </p>
+            ) : null}
+            {emailError ? <p className="mt-1 text-xs text-[#B91C1C]">{emailError}</p> : null}
+          </div>
+          <div className="block">
             <FieldLabel>Phone Number</FieldLabel>
             <div
               className={`flex overflow-hidden rounded-md border bg-white focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] ${
@@ -643,9 +968,25 @@ export default function PersonalTab() {
                 className="h-11 min-w-0 flex-1 border-0 bg-white px-3 text-sm text-[#111827] outline-none"
                 autoComplete="tel"
               />
+              {resolvedFields.phone.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => void handleUpdatePhoneNumber()}
+                  disabled={phoneBusy || phoneOtpSubmitting}
+                  className="shrink-0 px-3 text-sm font-medium underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ color: "var(--brand-secondary, #012352)" }}
+                >
+                  {phoneBusy ? "Sending..." : "Update phone number"}
+                </button>
+              ) : null}
             </div>
+            {resolvedFields.phone.trim() ? (
+              <p className="mt-1 text-xs text-[#64748B]">
+                We&apos;ll send a verification code to your email before saving a new phone number.
+              </p>
+            ) : null}
             {phoneError ? <p className="mt-1 text-xs text-[#B91C1C]">{phoneError}</p> : null}
-          </label>
+          </div>
           <label className="block">
             <FieldLabel>
               Birthdate
@@ -874,5 +1215,64 @@ export default function PersonalTab() {
         </button>
       </div>
     </form>
+
+    <AccountOtpModal
+      open={emailOtpOpen}
+      email={accountEmail}
+      submitting={emailOtpSubmitting}
+      verified={emailOtpVerified}
+      authError={emailOtpError}
+      resendCount={emailOtpResendCount}
+      maxResends={emailOtpMaxResends}
+      expiresInSeconds={emailOtpExpiresInSeconds}
+      resendCooldownSeconds={emailOtpResendCooldownSeconds}
+      onClose={() => {
+        if (emailOtpSubmitting) return;
+        setEmailOtpOpen(false);
+        setEmailOtpError(null);
+        setEmailOtpVerified(false);
+      }}
+      onClearError={() => setEmailOtpError(null)}
+      onVerify={handleEmailOtpVerify}
+      onSendAgain={handleEmailOtpSendAgain}
+    />
+
+    <SuccessModal
+      open={emailSuccessOpen}
+      onClose={() => setEmailSuccessOpen(false)}
+      title="Email updated"
+      message={EMAIL_CHANGE_SUCCESS_MESSAGE}
+      autoCloseMs={4000}
+    />
+
+    <AccountOtpModal
+      open={phoneOtpOpen}
+      email={accountEmail}
+      submitting={phoneOtpSubmitting}
+      verified={phoneOtpVerified}
+      authError={phoneOtpError}
+      resendCount={phoneOtpResendCount}
+      maxResends={phoneOtpMaxResends}
+      expiresInSeconds={phoneOtpExpiresInSeconds}
+      resendCooldownSeconds={phoneOtpResendCooldownSeconds}
+      onClose={() => {
+        if (phoneOtpSubmitting) return;
+        setPhoneOtpOpen(false);
+        setPhoneOtpError(null);
+        setPhoneOtpVerified(false);
+      }}
+      onClearError={() => setPhoneOtpError(null)}
+      onVerify={handlePhoneOtpVerify}
+      onSendAgain={handlePhoneOtpSendAgain}
+    />
+
+    <SuccessModal
+      open={phoneSuccessOpen}
+      onClose={() => setPhoneSuccessOpen(false)}
+      title="Phone updated"
+      message={PHONE_CHANGE_SUCCESS_MESSAGE}
+      autoCloseMs={4000}
+    />
+  </>
   );
 }

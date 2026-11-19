@@ -149,6 +149,42 @@ describe("parseAndValidateMatchAnalysis", () => {
     }
   });
 
+  it("truncates oversized named_products_in_jobs instead of failing Quick Match parse", () => {
+    const products = Array.from({ length: 55 }, (_, i) => `Product ${i + 1}`);
+    const parsed = parseAndValidateMatchAnalysis(
+      JSON.stringify({
+        step: "quick_match",
+        quick_route: "REVIEW",
+        extracted_resume: {
+          headline: "Platform engineer",
+          years_estimated: 10,
+          recent_titles: Array.from({ length: 30 }, (_, i) => `Title ${i + 1}`),
+          named_products_in_jobs: products,
+          education: "BS CS",
+        },
+        mandatory_requirements: [
+          {
+            requirement: "Kubernetes",
+            status: "CONFIRMED",
+            evidence: "recent role",
+            evidence_source: "JOB_BULLET",
+          },
+        ],
+        preferred_requirements: [],
+        blocking_requirements: [],
+        items_to_verify: [],
+      })
+    );
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.data.quick_match?.extracted_resume.named_products_in_jobs).toHaveLength(40);
+      expect(parsed.data.quick_match?.extracted_resume.recent_titles).toHaveLength(20);
+      expect(parsed.data.quick_match?.extracted_resume.named_products_in_jobs[0]).toBe(
+        "Product 1"
+      );
+    }
+  });
+
   it("rejects an unknown requirement status instead of saving it as Verify or Strong", () => {
     const parsed = parseAndValidateMatchAnalysis(
       JSON.stringify({

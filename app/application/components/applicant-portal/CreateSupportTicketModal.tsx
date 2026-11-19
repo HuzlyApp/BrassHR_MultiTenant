@@ -1,11 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Paperclip, Ticket, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import SuccessModal from "@/app/components/SuccessModal";
-import ChatPendingAttachment from "@/app/components/ChatPendingAttachment";
-import { WORKER_SUPPORT_DEPARTMENTS } from "@/app/application/components/applicant-portal/worker-support-departments";
-import { validateSupportTicketFile } from "@/lib/support-tickets/support-ticket-file-validation";
+import { TicketFileUploadFields } from "@/app/components/support/TicketFileUploadFields";
+import { SUPPORT_DEPARTMENT_CATEGORY_OPTIONS } from "@/lib/support-tickets/support-departments";
+import { validateTicketSubjectAndMessage } from "@/lib/support-tickets/ticket-field-validation";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 
 export type SupportTicketFormValues = {
@@ -30,16 +30,7 @@ type Props = {
   onSuccessAction?: (ticketId: string) => void;
 };
 
-const CATEGORY_OPTIONS = [
-  ...WORKER_SUPPORT_DEPARTMENTS.map((dept) => ({
-    value: dept.category,
-    label: dept.title,
-  })),
-  { value: "billing", label: "Billing" },
-  { value: "documents", label: "Documents" },
-  { value: "onboarding", label: "Onboarding" },
-  { value: "technical", label: "Technical" },
-];
+const CATEGORY_OPTIONS = SUPPORT_DEPARTMENT_CATEGORY_OPTIONS;
 
 const PRIORITY_OPTIONS: { value: SupportTicketPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -47,6 +38,12 @@ const PRIORITY_OPTIONS: { value: SupportTicketPriority; label: string }[] = [
   { value: "high", label: "High" },
   { value: "urgent", label: "Urgent" },
 ];
+
+const FIELD_CLASS =
+  "h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-secondary,#012352)]";
+const SELECT_CLASS =
+  "h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white py-2 pl-3.5 pr-11 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-secondary,#012352)]";
+const LABEL_CLASS = "mb-1.5 block text-sm font-medium text-[#374151]";
 
 export function CreateSupportTicketModal({
   open,
@@ -63,30 +60,39 @@ export function CreateSupportTicketModal({
 }: Props) {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("general");
-  const [priority, setPriority] = useState<SupportTicketPriority>("normal");
-  const [errors, setErrors] = useState<{ subject?: string; description?: string }>({});
+  const [category, setCategory] = useState("");
+  const [priority, setPriority] = useState<SupportTicketPriority>("high");
+  const [errors, setErrors] = useState<{
+    subject?: string;
+    description?: string;
+    category?: string;
+  }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [createdTicketId, setCreatedTicketId] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileUrl, setFileUrl] = useState("");
+  const [attachedUrls, setAttachedUrls] = useState<string[]>([]);
+  const [uploadResetKey, setUploadResetKey] = useState(0);
   const wasOpenRef = useRef(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       setSubject(defaultSubject);
       setDescription(defaultDescription);
-      setCategory(defaultCategory || "general");
-      setPriority("normal");
+      setCategory(defaultCategory || "");
+      setPriority("high");
       setErrors({});
       setSubmitError(null);
       setShowSuccess(false);
       setCreatedTicketId(null);
-      setSelectedFile(null);
-      setUploadError(null);
+      setSelectedFiles([]);
+      setFileUrl("");
+      setAttachedUrls([]);
+      setUploadResetKey((current) => current + 1);
+      window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     }
     wasOpenRef.current = open;
   }, [open, defaultCategory, defaultDescription, defaultSubject]);
@@ -104,15 +110,22 @@ export function CreateSupportTicketModal({
     };
   }, [open, onClose, submitting, showSuccess]);
 
-  if (!open) return null;
+  if (!open && !showSuccess) return null;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const nextErrors: { subject?: string; description?: string } = {};
-    if (!subject.trim()) nextErrors.subject = "Subject is required.";
-    if (!description.trim()) nextErrors.description = "Please describe your request.";
+    const fieldErrors = validateTicketSubjectAndMessage({ subject, description });
+    const nextErrors: { subject?: string; description?: string; category?: string } = {
+      ...fieldErrors,
+    };
+    if (!category) nextErrors.category = "Select a department.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
+
+    const descriptionWithUrls =
+      attachedUrls.length > 0
+        ? `${description.trim()}\n\nAttached file URLs:\n${attachedUrls.map((url) => `- ${url}`).join("\n")}`
+        : description.trim();
 
     setSubmitting(true);
     setSubmitError(null);
@@ -121,14 +134,14 @@ export function CreateSupportTicketModal({
       if (!headers) throw new Error("You need to sign in again.");
 
       let res: Response;
-      if (selectedFile) {
+      if (selectedFiles.length > 0) {
         const form = new FormData();
         form.set("subject", subject.trim());
-        form.set("description", description.trim());
+        form.set("description", descriptionWithUrls);
         form.set("category", category);
         form.set("priority", priority);
         form.set("source", "ai_fallback");
-        form.set("file", selectedFile);
+        selectedFiles.forEach((file) => form.append("files", file));
         res = await fetch(submitEndpoint, {
           method: "POST",
           headers,
@@ -140,7 +153,7 @@ export function CreateSupportTicketModal({
           headers: { ...headers, "Content-Type": "application/json" },
           body: JSON.stringify({
             subject: subject.trim(),
-            description: description.trim(),
+            description: descriptionWithUrls,
             category,
             priority,
             source: "ai_fallback",
@@ -185,78 +198,86 @@ export function CreateSupportTicketModal({
 
   return (
     <>
-      {!showSuccess ? (
+      {open && !showSuccess ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-support-ticket-title"
-            className="w-full max-w-[600px] overflow-hidden rounded-[20px] border border-[#E5E7EB] bg-white shadow-xl"
+            className="flex max-h-[min(92vh,820px)] w-full max-w-[600px] flex-col overflow-hidden rounded-[20px] border border-[#E5E7EB] bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
-              <h2 id="create-support-ticket-title" className="text-lg font-semibold text-[#0F172A]">
+            <div className="flex shrink-0 items-center justify-between px-5 py-3">
+              <h2
+                id="create-support-ticket-title"
+                className="text-2xl font-semibold leading-8 text-[#0F172A]"
+              >
                 Create a Ticket
               </h2>
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="Close"
                 onClick={onClose}
                 disabled={submitting}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-white transition hover:brightness-110 disabled:opacity-60"
+                className="inline-flex h-[30px] w-8 items-center justify-center rounded-lg border border-[color:var(--brand-secondary,#012352)] text-[color:var(--brand-secondary,#012352)] transition hover:bg-[#F8FAFC] disabled:opacity-60"
               >
-                <X className="h-4 w-4" aria-hidden />
+                <X className="h-3 w-3" aria-hidden />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5 p-5 pt-4">
-              <div className="flex items-center gap-3 px-2">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F4F4F4] text-[#012352]">
-                  <Ticket className="h-6 w-6" aria-hidden />
-                </div>
-                <div>
-                  <p className="text-sm text-[#64748B]">
-                    Please describe your issue or request. Our support team or recruiter will review it.
-                  </p>
-                </div>
-              </div>
-
+            <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-5">
               {submitError ? (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                   {submitError}
                 </div>
               ) : null}
 
-              <div className="grid gap-4 px-2 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="ticket-category" className="mb-1 block text-sm text-[#374151]">
-                    Department
-                  </label>
+              <div>
+                <label htmlFor="ticket-category" className={LABEL_CLASS}>
+                  Department
+                </label>
+                <div className="relative">
                   <select
                     id="ticket-category"
                     value={category}
-                    onChange={(event) => setCategory(event.target.value)}
-                    className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-(--brand-primary)"
+                    onChange={(event) => {
+                      setCategory(event.target.value);
+                      if (errors.category) setErrors((current) => ({ ...current, category: undefined }));
+                    }}
+                    className={`${SELECT_CLASS} ${!category ? "text-[#94A3B8]" : ""} ${
+                      errors.category ? "border-red-400" : ""
+                    }`}
                   >
                     <option value="" disabled>
-                      Select department
+                      Select department.
                     </option>
                     {CATEGORY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
+                      <option key={option.value} value={option.value} className="text-[#0F172A]">
                         {option.label}
                       </option>
                     ))}
                   </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                    aria-hidden
+                  />
                 </div>
-                <div>
-                  <label htmlFor="ticket-priority" className="mb-1 block text-sm text-[#374151]">
-                    Priority
-                  </label>
+                {errors.category ? (
+                  <p className="mt-1 text-xs text-red-600">{errors.category}</p>
+                ) : null}
+              </div>
+
+              <div>
+                <label htmlFor="ticket-priority" className={LABEL_CLASS}>
+                  Priority
+                </label>
+                <div className="relative">
                   <select
                     id="ticket-priority"
                     value={priority}
                     onChange={(event) => setPriority(event.target.value as SupportTicketPriority)}
-                    className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-(--brand-primary)"
+                    className={SELECT_CLASS}
                   >
                     {PRIORITY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -264,11 +285,15 @@ export function CreateSupportTicketModal({
                       </option>
                     ))}
                   </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                    aria-hidden
+                  />
                 </div>
               </div>
 
-              <div className="px-2">
-                <label htmlFor="ticket-subject" className="mb-1 block text-sm text-[#374151]">
+              <div>
+                <label htmlFor="ticket-subject" className={LABEL_CLASS}>
                   Subject
                 </label>
                 <input
@@ -279,15 +304,15 @@ export function CreateSupportTicketModal({
                     if (errors.subject) setErrors((current) => ({ ...current, subject: undefined }));
                   }}
                   placeholder="Subject"
-                  className={`h-11 w-full rounded-lg border px-3.5 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-(--brand-primary) ${
-                    errors.subject ? "border-red-400" : "border-[#CBD5E1]"
+                  className={`${FIELD_CLASS} placeholder:text-[#94A3B8] ${
+                    errors.subject ? "border-red-400" : ""
                   }`}
                 />
                 {errors.subject ? <p className="mt-1 text-xs text-red-600">{errors.subject}</p> : null}
               </div>
 
-              <div className="px-2">
-                <label htmlFor="ticket-description" className="mb-1 block text-sm text-[#374151]">
+              <div>
+                <label htmlFor="ticket-description" className={LABEL_CLASS}>
                   Message
                 </label>
                 <textarea
@@ -301,8 +326,8 @@ export function CreateSupportTicketModal({
                   }}
                   rows={4}
                   placeholder="Message..."
-                  className={`min-h-[100px] w-full resize-y rounded-lg border px-3.5 py-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-(--brand-primary) ${
-                    errors.description ? "border-red-400" : "border-[#CBD5E1]"
+                  className={`min-h-[110px] w-full resize-y rounded-lg border border-[#CBD5E1] bg-white px-3.5 py-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-secondary,#012352)] ${
+                    errors.description ? "border-red-400" : ""
                   }`}
                 />
                 {errors.description ? (
@@ -310,65 +335,30 @@ export function CreateSupportTicketModal({
                 ) : null}
               </div>
 
-              <div className="px-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    if (!file) {
-                      setSelectedFile(null);
-                      setUploadError(null);
-                      return;
-                    }
-                    const validation = validateSupportTicketFile(file);
-                    if (validation) {
-                      setUploadError(validation);
-                      setSelectedFile(null);
-                      return;
-                    }
-                    setUploadError(null);
-                    setSelectedFile(file);
-                  }}
-                />
-                {selectedFile ? (
-                  <ChatPendingAttachment file={selectedFile} onRemove={() => setSelectedFile(null)} />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={submitting}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:opacity-60"
-                  >
-                    <Paperclip className="h-4 w-4" />
-                    Upload file
-                  </button>
-                )}
-                {uploadError ? <p className="mt-1 text-xs text-red-600">{uploadError}</p> : null}
-                <p className="mt-1 text-xs text-[#94A3B8]">
-                  Allow file extensions: .jpg, .png, .pdf, .doc, .docx, .txt. Max file size: 10 MB.
-                </p>
-              </div>
+              <TicketFileUploadFields
+                files={selectedFiles}
+                onFilesChange={setSelectedFiles}
+                fileUrl={fileUrl}
+                onFileUrlChange={setFileUrl}
+                attachedUrls={attachedUrls}
+                onAttachedUrlsChange={setAttachedUrls}
+                disabled={submitting}
+                resetKey={uploadResetKey}
+              />
 
-              <div className="flex gap-5 px-2 pb-2 pt-1">
+              <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
                   disabled={submitting}
-                  className="flex-1 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-semibold text-[#012352] transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:var(--brand-secondary,#012352)] px-4 py-2 text-sm font-semibold text-[color:var(--brand-secondary,#012352)] transition hover:bg-[#F8FAFC] disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                  }}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[color:var(--brand-secondary,#012352)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? "Submitting..." : "Submit"}
                 </button>

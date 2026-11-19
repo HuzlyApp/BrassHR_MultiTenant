@@ -6,6 +6,7 @@ import type { CSSProperties } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { applyCompanyNameToLegalDocument } from "@/lib/legal/company-tokens"
+import { looksLikeHtml, sanitizeLegalPolicyHtml } from "@/lib/legal/policy-html"
 import type { LegalDocument } from "@/lib/legal/types"
 import { brandingShellGradient, brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
@@ -115,7 +116,7 @@ export default function LegalDocumentPage({
           className="mt-4 h-[min(520px,62vh)] overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:h-[min(560px,65vh)] sm:p-4 md:p-6"
           style={{ fontFamily: "var(--brand-font-body)" }}
         >
-          <div className="space-y-6 sm:space-y-7">
+          <div className="legal-document-body space-y-6 sm:space-y-7">
             {personalizedDocument.sections.map((section) => (
               <section key={section.title}>
                 <h2
@@ -126,6 +127,17 @@ export default function LegalDocumentPage({
                 </h2>
                 <div className="mt-2 space-y-3">
                   {section.paragraphs.map((paragraph, index) => {
+                    if (looksLikeHtml(paragraph)) {
+                      return (
+                        <div
+                          key={`${section.title}-${index}`}
+                          className="text-sm leading-6 text-slate-700 sm:text-[15px] sm:leading-7 [&_p]:mb-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_b]:font-semibold [&_em]:italic [&_i]:italic"
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizeLegalPolicyHtml(paragraph),
+                          }}
+                        />
+                      )
+                    }
                     const isBullet = paragraph.startsWith("•")
                     return (
                       <p

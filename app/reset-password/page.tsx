@@ -313,7 +313,19 @@ function ResetPasswordContent() {
       }
 
       await updateAuthUserPassword(supabaseBrowser, newPassword);
-      await fetch("/api/auth/password-setup-complete", { method: "POST" }).catch(() => null);
+      const setupRes = await fetch("/api/auth/password-setup-complete", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!setupRes.ok) {
+        const payload = (await setupRes.json().catch(() => ({}))) as { error?: string };
+        console.error(
+          "[reset-password] password-setup-complete failed",
+          setupRes.status,
+          payload.error ?? "unknown"
+        );
+        // Password is already updated in Auth; login OTP send will clear the gate.
+      }
       await supabaseBrowser.auth.signOut();
       setSuccess(true);
       setTimeout(() => {
