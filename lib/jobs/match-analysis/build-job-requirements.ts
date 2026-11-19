@@ -5,6 +5,12 @@ import {
 } from "./schema";
 import { sha256Hex } from "./sha256-hex";
 
+/**
+ * Bumped when requirement extraction rules change so cached
+ * `structured_requirements` rebuild even when JD text is unchanged.
+ */
+export const REQUIREMENTS_PARSER_VERSION = "v2-preferred-benefits";
+
 /** Job columns that feed match analysis / structured requirements. */
 export const JOB_REQUIREMENTS_SOURCE_FIELDS = [
   "public_title",
@@ -125,13 +131,18 @@ function classifyDescriptionHeading(
     return "preferred";
   }
   if (
-    /^(?:about the (?:role|opportunity|job)|job title|job summary|job description|full job description|key responsibilities|responsibilities|what you'll do|what you will do|benefits|work location(?: and schedule)?|employment (?:type|details)|compensation|how to apply)$/i.test(
+    /^(?:about the (?:role|opportunity|job)|job title|job summary|job description|full job description|key responsibilities|responsibilities|what you'll do|what you will do|what we offer|employee benefits|benefits|work location(?: and schedule)?|employment (?:type|details)|compensation|how to apply)$/i.test(
       heading
     )
   ) {
     return "other";
   }
   return null;
+}
+
+/** Soft / preferred phrasing that should not stay on the mandatory list. */
+function isPreferredWordedRequirement(line: string): boolean {
+  return /\b(preferred|nice\s*to\s*have|a\s+plus|valued)\b/i.test(line);
 }
 
 function stripBulletPrefix(line: string): string {
@@ -172,7 +183,7 @@ function splitQualificationBullets(text: string | null | undefined): {
       mode = "preferred";
       continue;
     }
-    if (/\b(preferred|nice\s*to\s*have)\b/i.test(line)) {
+    if (isPreferredWordedRequirement(line)) {
       preferred.push(line);
     } else if (mode === "preferred") {
       preferred.push(line);
@@ -220,6 +231,11 @@ export function extractQualificationSectionsFromDescription(
       mode = "skip";
       continue;
     }
+    if (mode === "skip") continue;
+    if (isPreferredWordedRequirement(line)) {
+      preferred.push(line);
+      continue;
+    }
     if (mode === "mandatory") mandatory.push(line);
     else if (mode === "preferred") preferred.push(line);
   }
@@ -248,8 +264,10 @@ function normalizeFingerprintPart(value: unknown): string {
 }
 
 /**
- * Stable fingerprint of the job text that drives matching.
- * Used to invalidate structured_requirements cache and stale analysis snapshots.
+ * Content-only fingerprint of the job text that drives matching.
+ * Used for analysis staleness (`job_requirements_fingerprint`) and JD-change
+ * detection. Do not include parser version here — that would mark every
+ * existing analysis stale after an extractor-only deploy.
  */
 export function jobRequirementsSourceFingerprint(
   job: Pick<
@@ -328,7 +346,8 @@ export function buildStructuredJobRequirements(
   if (
     cached.success &&
     cachedHasRequirementLists(cached.data) &&
-    cached.data.sourceFingerprint === fingerprint
+    cached.data.sourceFingerprint === fingerprint &&
+    cached.data.parserVersion === REQUIREMENTS_PARSER_VERSION
   ) {
     return cached.data;
   }
@@ -368,6 +387,7 @@ export function buildStructuredJobRequirements(
     specialty: specialty || null,
     location: job.location?.trim() || null,
     sourceFingerprint: fingerprint,
+    parserVersion: REQUIREMENTS_PARSER_VERSION,
   });
 }
 

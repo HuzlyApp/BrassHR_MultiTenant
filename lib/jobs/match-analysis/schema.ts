@@ -374,6 +374,11 @@ export const structuredJobRequirementsSchema = z.object({
   location: z.string().max(300).nullable().optional(),
   /** Hash of JD source fields; cache is ignored when this no longer matches the live job. */
   sourceFingerprint: z.string().max(128).optional(),
+  /**
+   * Requirements extractor version. Cache rebuilds when this differs even if
+   * the JD fingerprint is unchanged. Not used for analysis staleness.
+   */
+  parserVersion: z.string().max(64).optional(),
 });
 
 export type StructuredJobRequirements = z.infer<typeof structuredJobRequirementsSchema>;

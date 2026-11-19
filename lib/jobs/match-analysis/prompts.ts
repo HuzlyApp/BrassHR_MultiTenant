@@ -413,7 +413,9 @@ CONFIRMED = 1.0, PARTIAL = 0.5, NOT_FOUND = 0.
 mand_met = that average on mandatory rows (skip NOT_APPLICABLE).
 pref_met = that average on preferred rows, or 0 if none.
 weighted = 0.8 * mand_met + 0.2 * pref_met. If no preferred rows, weighted = mand_met.
-- LOW_MATCH if any blocker OR core seat is PARTIAL or NOT_FOUND OR weighted <= 0.50 OR confirmed = 0 OR not_found >= 2
+Put preferred-worded JD lines ("preferred", "nice to have", "a plus", "valued") in preferred_requirements, not mandatory.
+- LOW_MATCH if any blocker OR core seat is PARTIAL or NOT_FOUND OR weighted <= 0.50 OR confirmed = 0 OR hard not_found >= 2
+- hard not_found counts only skill/credential/experience gaps. Preferred-worded, physical ability (lift/stand), and logistics/screening rows do not count toward the not_found >= 2 knockout (SOFT NOT_FOUND KNOCKOUT).
 - STRONG if no blocker AND weighted >= 0.70 AND mand_met >= 0.60 AND confirmed / M >= 0.50
 - Else REVIEW
 

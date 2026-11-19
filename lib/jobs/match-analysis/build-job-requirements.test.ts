@@ -5,6 +5,7 @@ import {
   extractQualificationSectionsFromDescription,
   jobRequirementsSourceFingerprint,
   jobRequirementsSourceFieldsChanged,
+  REQUIREMENTS_PARSER_VERSION,
 } from "./build-job-requirements";
 import { jobProfileFromWorkspace } from "../candidate-import-match";
 import { buildMatchAnalysisUserPrompt } from "./prompts";
@@ -45,6 +46,49 @@ describe("extractQualificationSectionsFromDescription", () => {
     );
     expect(extracted.preferred).toHaveLength(3);
     expect(extracted.mandatory.join(" ")).not.toMatch(/Lead implementation of/i);
+  });
+
+  it("moves preferred-worded Required bullets to preferred and skips What We Offer", () => {
+    const coffeeShopHtml = `
+      <p><b>Required Qualifications</b></p>
+      <ul>
+        <li>5+ years of experience as a barista in a coffee shop</li>
+        <li>Strong specialty coffee and espresso skills</li>
+        <li>Health inspection experience and food safety knowledge preferred</li>
+        <li>Food Handler (or ability to obtain) preferred; ServSafe a plus</li>
+        <li>Food service, restaurant, kitchen, or quick-service experience valued</li>
+        <li>Ability to lift 40 lbs and stand for long periods</li>
+      </ul>
+      <p><b>What We Offer</b></p>
+      <ul>
+        <li>Competitive pay based on experience</li>
+        <li>Supportive ownership team and employee drink/food benefits</li>
+        <li>Opportunity to grow with a specialty café</li>
+      </ul>
+    `;
+
+    const extracted = extractQualificationSectionsFromDescription(coffeeShopHtml);
+
+    expect(extracted.mandatory).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/5\+\s*years of experience as a barista/i),
+        expect.stringMatching(/specialty coffee and espresso/i),
+        expect.stringMatching(/lift 40 lbs/i),
+      ])
+    );
+    expect(extracted.mandatory.join(" ")).not.toMatch(/Food Handler/i);
+    expect(extracted.mandatory.join(" ")).not.toMatch(/Health inspection/i);
+    expect(extracted.mandatory.join(" ")).not.toMatch(/quick-service experience valued/i);
+    expect(extracted.mandatory.join(" ")).not.toMatch(/Competitive pay/i);
+    expect(extracted.mandatory.join(" ")).not.toMatch(/What We Offer/i);
+    expect(extracted.preferred).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/Health inspection/i),
+        expect.stringMatching(/Food Handler/i),
+        expect.stringMatching(/quick-service experience valued/i),
+      ])
+    );
+    expect(extracted.preferred.join(" ")).not.toMatch(/Competitive pay/i);
   });
 });
 
@@ -89,11 +133,42 @@ describe("buildStructuredJobRequirements", () => {
         mandatoryRequirements: ["Cached mandatory"],
         preferredRequirements: ["Cached preferred"],
         sourceFingerprint: fingerprint,
+        parserVersion: REQUIREMENTS_PARSER_VERSION,
       },
     });
 
     expect(structured.mandatoryRequirements).toEqual(["Cached mandatory"]);
     expect(structured.preferredRequirements).toEqual(["Cached preferred"]);
+  });
+
+  it("rebuilds cached lists when the parser version changes even if JD fingerprint matches", () => {
+    const job = {
+      public_title: "IT Project Manager",
+      public_description: ZIPSTAFF_IT_PM_HTML,
+      qualifications: null as string | null,
+      responsibilities: null as string | null,
+      special_requirements: null as string | null,
+      required_credentials: [] as string[],
+      years_of_experience: "7 yrs",
+      years_experience_required: 7,
+      location: "Richardson, Texas",
+      specialty: null as string | null,
+    };
+    const fingerprint = jobRequirementsSourceFingerprint(job);
+    const structured = buildStructuredJobRequirements({
+      ...job,
+      structured_requirements: {
+        ...EMPTY_CACHE,
+        mandatoryRequirements: ["Stale parser cache"],
+        preferredRequirements: ["Stale preferred"],
+        sourceFingerprint: fingerprint,
+        parserVersion: "v1-old-parser",
+      },
+    });
+
+    expect(structured.mandatoryRequirements).not.toContain("Stale parser cache");
+    expect(structured.parserVersion).toBe(REQUIREMENTS_PARSER_VERSION);
+    expect(structured.sourceFingerprint).toBe(fingerprint);
   });
 
   it("ignores cached requirement lists when the job description fingerprint changed", () => {
@@ -246,5 +321,24 @@ describe("jobRequirementsSourceFingerprint / fieldsChanged", () => {
     );
     expect(jobRequirementsSourceFieldsChanged(before, after)).toBe(true);
     expect(jobRequirementsSourceFieldsChanged(before, before)).toBe(false);
+  });
+
+  it("keeps analysis staleness fingerprints content-only (stable across parser bumps)", () => {
+    const job = {
+      public_title: "Coffee Shop Manager",
+      public_description: "Required Qualifications\nBarista experience",
+      qualifications: null,
+      responsibilities: null,
+      special_requirements: null,
+      required_credentials: [],
+      years_of_experience: null,
+      years_experience_required: null,
+      location: "Carrboro, NC",
+      specialty: null,
+    };
+    const first = jobRequirementsSourceFingerprint(job);
+    const second = jobRequirementsSourceFingerprint(job);
+    expect(first).toBe(second);
+    expect(first).toMatch(/^[a-f0-9]{64}$/);
   });
 });
