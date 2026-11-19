@@ -125,7 +125,8 @@ export function WorkerTicketDetailModal({ ticket, open, onClose, authHeaders }: 
 
   async function handleQuickReply(event: FormEvent) {
     event.preventDefault();
-    if (isClosed || sending) return;
+    if (!ticket || isClosed || sending) return;
+    const ticketId = ticket.id;
     const text = quickReply.trim();
     if (!text && !selectedFile) return;
 
@@ -140,7 +141,7 @@ export function WorkerTicketDetailModal({ ticket, open, onClose, authHeaders }: 
       if (selectedFile) form.set("file", selectedFile);
 
       const result = await safeFetchJson<{ error?: string }>(
-        `/api/support-tickets/${encodeURIComponent(ticket.id)}/messages`,
+        `/api/support-tickets/${encodeURIComponent(ticketId)}/messages`,
         { method: "POST", headers, body: form }
       );
       if (!result.ok) throw new Error(result.error);
