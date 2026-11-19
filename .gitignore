@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+.playwright-cli/
+scripts/tmp-signup-debug.mjs
+cache/
 
 # debug
 npm-debug.log*

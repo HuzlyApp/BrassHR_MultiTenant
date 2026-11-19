@@ -90,6 +90,8 @@ function buildAppContentSecurityPolicy(frameAncestors: string): string {
 }
 
 const nextConfig: NextConfig = {
+  // Prevent Next.js from rewriting AGENTS.md on every boot (causes HMR/config restart loops).
+  agentRules: false,
   experimental: {
     optimizePackageImports: ["lucide-react", "react-icons"],
     agentUpgrade: "security",
@@ -202,6 +204,21 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     root: process.cwd(),
+  },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          "**/.git/**",
+          "**/node_modules/**",
+          "**/.next/**",
+          "**/.playwright-cli/**",
+          "**/cache/**",
+        ],
+      };
+    }
+    return config;
   },
 };
 
