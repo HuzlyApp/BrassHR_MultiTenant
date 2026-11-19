@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { CircleHelp, ChevronDown, MoreHorizontal, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
+import SuccessModal from "@/app/components/SuccessModal";
 import type {
   DepartmentMember,
   DepartmentMemberRef,
@@ -71,6 +72,7 @@ export default function DepartmentsPanel() {
   const [draftActive, setDraftActive] = useState(true);
   const [selectedMembers, setSelectedMembers] = useState<DepartmentMemberRef[]>([]);
   const [saving, setSaving] = useState(false);
+  const [createSuccessOpen, setCreateSuccessOpen] = useState(false);
   const [jobs, setJobs] = useState<DepartmentTarget[]>([]);
   const [candidates, setCandidates] = useState<DepartmentTarget[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
@@ -312,8 +314,8 @@ export default function DepartmentsPanel() {
       setDepartments((current) =>
         [...current, created].sort((a, b) => a.name.localeCompare(b.name))
       );
-      toast.success("Department added");
       closePanel();
+      setCreateSuccessOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add department");
     } finally {
@@ -489,6 +491,9 @@ export default function DepartmentsPanel() {
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Status
                   </th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                    Primary Contact
+                  </th>
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Action
                   </th>
@@ -497,7 +502,7 @@ export default function DepartmentsPanel() {
               <tbody>
                 {pageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-16 text-center text-sm text-[#6B7280]">
+                    <td colSpan={7} className="px-5 py-16 text-center text-sm text-[#6B7280]">
                       {departments.length === 0
                         ? "No departments yet. Add one to get started."
                         : "No departments match your search."}
@@ -535,6 +540,9 @@ export default function DepartmentsPanel() {
                         >
                           {department.isActive ? "Active" : "Inactive"}
                         </span>
+                      </td>
+                      <td className="max-w-[220px] truncate px-5 py-4 text-sm text-[#64748B]">
+                        {department.primaryContact?.trim() || "—"}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button
@@ -677,6 +685,13 @@ export default function DepartmentsPanel() {
           onClose={closePanel}
         />
       ) : null}
+
+      <SuccessModal
+        open={createSuccessOpen}
+        onClose={() => setCreateSuccessOpen(false)}
+        title="Success!"
+        message="Department added successfully."
+      />
     </section>
   );
 }

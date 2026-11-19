@@ -110,7 +110,7 @@ export function CreateSupportTicketModal({
     };
   }, [open, onClose, submitting, showSuccess]);
 
-  if (!open) return null;
+  if (!open && !showSuccess) return null;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -198,7 +198,7 @@ export function CreateSupportTicketModal({
 
   return (
     <>
-      {!showSuccess ? (
+      {open && !showSuccess ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
           <div
             role="dialog"

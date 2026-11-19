@@ -13,6 +13,8 @@ export type SupportTicketRow = {
   user_id: string;
   applicant_id: string | null;
   recruiter_id: string | null;
+  /** Stored human-readable reference without leading # (e.g. 23-F5B18). */
+  ticket_number?: string | null;
   subject: string | null;
   description: string | null;
   status: SupportTicketStatus;

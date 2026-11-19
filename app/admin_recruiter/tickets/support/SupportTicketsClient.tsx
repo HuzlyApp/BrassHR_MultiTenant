@@ -19,17 +19,12 @@ import {
 } from "@/lib/tenant/branding-typography-styles";
 import { getSupportDepartmentByCategory } from "@/lib/support-tickets/support-departments";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
+import { formatSupportTicketNumber } from "@/lib/support-tickets/ticket-number";
 import type { SupportTicketListItem } from "@/lib/support-tickets/types";
 
 type SidebarFilter = "open" | "closed" | "archived";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
-
-function shortTicketId(id: string): string {
-  const compact = id.replace(/-/g, "").slice(0, 7).toUpperCase();
-  if (compact.length < 3) return `#${id.slice(0, 8).toUpperCase()}`;
-  return `#${compact.slice(0, 2)}-${compact.slice(2)}`;
-}
 
 function formatCategory(value: string | null | undefined): string {
   const text = (value ?? "general").trim();
@@ -200,9 +195,8 @@ export default function SupportTicketsClient() {
   function handleCreated(ticket: SupportTicketListItem) {
     setTickets((current) => [ticket, ...current.filter((item) => item.id !== ticket.id)]);
     setSidebarFilter("open");
-    setSelectedTicket(ticket);
-    setDetailOpen(true);
-    setCreateOpen(false);
+    // Keep create modal mounted so its SuccessModal can show; it closes via onClose.
+    setCreateOpen(true);
   }
 
   async function handleCloseTicket() {
@@ -411,7 +405,7 @@ export default function SupportTicketsClient() {
                                           className="block truncate text-xs leading-4"
                                           style={{ color: secondaryColor }}
                                         >
-                                          {shortTicketId(ticket.id)}
+                                          {formatSupportTicketNumber(ticket.ticket_number, ticket.id)}
                                         </span>
                                         <span className="mt-0.5 block truncate text-[10px] leading-[15px] text-[#6B7280]">
                                           {ticket.subject?.trim() ||
@@ -423,7 +417,7 @@ export default function SupportTicketsClient() {
                                         type="button"
                                         onClick={() => openTicketChat(ticket)}
                                         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[color:var(--brand-secondary,#012352)]"
-                                        aria-label={`Open chat for ${shortTicketId(ticket.id)}`}
+                                        aria-label={`Open chat for ${formatSupportTicketNumber(ticket.ticket_number, ticket.id)}`}
                                         title="Open support chat"
                                       >
                                         <Link2 className="h-[18px] w-[18px]" aria-hidden />

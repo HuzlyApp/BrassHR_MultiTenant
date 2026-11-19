@@ -8,6 +8,7 @@ import { TicketFileUploadFields } from "@/app/components/support/TicketFileUploa
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { SUPPORT_DEPARTMENT_CATEGORY_OPTIONS } from "@/lib/support-tickets/support-departments";
 import { validateTicketSubjectAndMessage } from "@/lib/support-tickets/ticket-field-validation";
+import { formatSupportTicketNumber } from "@/lib/support-tickets/ticket-number";
 import type { DepartmentRecord } from "@/lib/departments/types";
 import type { SupportTicketListItem, SupportTicketPriority } from "@/lib/support-tickets/types";
 
@@ -195,7 +196,7 @@ export function StaffCreateSupportTicketModal({
     [applicantId, workers]
   );
 
-  if (!open) return null;
+  if (!open && !showSuccess) return null;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -280,8 +281,13 @@ export function StaffCreateSupportTicketModal({
     onClose();
   }
 
+  const ticketLabel = createdTicket
+    ? formatSupportTicketNumber(createdTicket.ticket_number, createdTicket.id)
+    : null;
+
   return (
     <>
+      {open && !showSuccess ? (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
         <div
           role="dialog"
@@ -520,15 +526,16 @@ export function StaffCreateSupportTicketModal({
           </form>
         </div>
       </div>
+      ) : null}
 
       <SuccessModal
         open={showSuccess}
         onClose={handleSuccessClose}
         title="Success!"
         message={
-          createdTicket
-            ? `Support ticket created for ${createdTicket.applicant_name ?? "the worker"}.`
-            : "Support ticket created."
+          ticketLabel
+            ? `Ticket ${ticketLabel} has been created.`
+            : "New ticket has been created."
         }
       />
     </>

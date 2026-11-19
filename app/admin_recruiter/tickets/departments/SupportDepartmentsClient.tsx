@@ -91,7 +91,8 @@ export default function SupportDepartmentsClient() {
   }
 
   function handleCreated(_ticket: SupportTicketListItem) {
-    setCreateOpen(false);
+    // Keep create modal mounted so its SuccessModal can show; it closes via onClose.
+    setCreateOpen(true);
   }
 
   const openTicketAction = (

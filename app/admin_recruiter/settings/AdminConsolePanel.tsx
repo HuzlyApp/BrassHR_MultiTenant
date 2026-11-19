@@ -14,6 +14,7 @@ import {
 import { createPortal } from "react-dom";
 import { Check, Mail, MoreHorizontal, UserCheck, UserMinus, UserPlus, UserRound, UserX } from "lucide-react";
 import toast from "react-hot-toast";
+import SuccessModal from "@/app/components/SuccessModal";
 import {
   type StaffAccountStatus,
   type StaffDirectoryRow,
@@ -238,6 +239,8 @@ export default function AdminConsolePanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteSuccessOpen, setInviteSuccessOpen] = useState(false);
+  const [inviteSuccessMessage, setInviteSuccessMessage] = useState("Invitation sent successfully.");
   const [submitting, setSubmitting] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [tab, setTab] = useState<ConsoleTab>(initialTab);
@@ -358,13 +361,14 @@ export default function AdminConsolePanel({
         }
         return;
       }
-      toast.success(
+      setInviteSuccessMessage(
         payload.user?.status === "pending"
           ? "Invitation sent. They’ll appear as Active after they set a password."
           : `${roleOptions.find((option) => option.key === role)?.label ?? "Staff member"} added to this organization.`
       );
       resetInviteForm();
       setInviteOpen(false);
+      setInviteSuccessOpen(true);
       await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Could not send invitation.");
@@ -882,6 +886,13 @@ export default function AdminConsolePanel({
           onConfirm={() => void confirm.run()}
         />
       ) : null}
+
+      <SuccessModal
+        open={inviteSuccessOpen}
+        onClose={() => setInviteSuccessOpen(false)}
+        title="Success!"
+        message={inviteSuccessMessage}
+      />
     </section>
   );
 }
