@@ -40,7 +40,7 @@ export function FaqEditorModal({
   const [category, setCategory] = useState("General");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
-  const [sortOrder, setSortOrder] = useState(0);
+  const [sortOrderText, setSortOrderText] = useState("0");
   const [isPublished, setIsPublished] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -51,7 +51,7 @@ export function FaqEditorModal({
       setCategory(initial?.category?.trim() || "General");
       setQuestion(initial?.question ?? "");
       setAnswer(initial?.answer ?? "");
-      setSortOrder(initial?.sort_order ?? 0);
+      setSortOrderText(String(initial?.sort_order ?? 0));
       setIsPublished(initial?.is_published !== false);
       setError(null);
       window.setTimeout(() => closeRef.current?.focus(), 0);
@@ -86,13 +86,24 @@ export function FaqEditorModal({
       return;
     }
     setError(null);
+    const parsedSort = Number.parseInt(sortOrderText, 10);
     await onSubmit({
       category: category.trim() || "General",
       question: question.trim(),
       answer: answer.trim(),
-      sortOrder,
+      sortOrder: Number.isFinite(parsedSort) && parsedSort >= 0 ? parsedSort : 0,
       isPublished,
     });
+  }
+
+  function handleSortOrderChange(raw: string) {
+    if (raw === "") {
+      setSortOrderText("");
+      return;
+    }
+    if (!/^\d+$/.test(raw)) return;
+    // Drop leading zeros while typing (e.g. "05" → "5") so default 0 is replaced.
+    setSortOrderText(String(Number(raw)));
   }
 
   return (
@@ -184,8 +195,10 @@ export function FaqEditorModal({
                 type="number"
                 min={0}
                 step={1}
-                value={sortOrder}
-                onChange={(event) => setSortOrder(Number(event.target.value) || 0)}
+                inputMode="numeric"
+                value={sortOrderText}
+                onChange={(event) => handleSortOrderChange(event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
                 className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
                 disabled={submitting}
               />
@@ -195,7 +208,8 @@ export function FaqEditorModal({
                 type="checkbox"
                 checked={isPublished}
                 onChange={(event) => setIsPublished(event.target.checked)}
-                className="h-4 w-4 rounded border-[#CBD5E1]"
+                className="h-4 w-4 cursor-pointer rounded-[4px] border-[#CBD5E1] accent-[color:var(--brand-secondary,#012352)]"
+                style={{ accentColor: "var(--brand-secondary, #012352)" }}
                 disabled={submitting}
               />
               Published (visible in Help)
