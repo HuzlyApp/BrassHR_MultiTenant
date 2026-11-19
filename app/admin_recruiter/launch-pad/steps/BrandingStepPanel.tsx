@@ -15,9 +15,9 @@ export function BrandingStepPanel({
   onComplete: () => void;
 }) {
   const [presetIndex, setPresetIndex] = useState(0);
-  const [primary, setPrimary] = useState(BRAND_COLOR_PRESETS[0].primary);
-  const [secondary, setSecondary] = useState(BRAND_COLOR_PRESETS[0].secondary);
-  const [accent, setAccent] = useState(BRAND_COLOR_PRESETS[0].accent);
+  const [primary, setPrimary] = useState<string>(BRAND_COLOR_PRESETS[0].primary);
+  const [secondary, setSecondary] = useState<string>(BRAND_COLOR_PRESETS[0].secondary);
+  const [accent, setAccent] = useState<string>(BRAND_COLOR_PRESETS[0].accent);
   const [saving, setSaving] = useState(false);
 
   const applyPreset = (index: number) => {
