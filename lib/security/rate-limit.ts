@@ -4,12 +4,6 @@ import "server-only";
 import { Redis as UpstashRedis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 import { hashQueryParams } from "@/lib/cache-keys";
-import {
-  getRedisTimeoutMs,
-  isRedisCircuitOpen,
-  markRedisUnavailable,
-  withRedisTimeout,
-} from "@/lib/redis-timeout";
 
 type RateLimitCount = { count: number; retryAfterSec: number };
 
@@ -18,12 +12,6 @@ type RateLimitStore = {
 };
 
 type Bucket = { count: number; expiresAt: number };
-
-type CounterClient = {
-  incr(key: string): Promise<number>;
-  ttl(key: string): Promise<number>;
-  expire(key: string, seconds: number): Promise<unknown>;
-};
 
 export type RateLimitOptions = {
   namespace: string;
@@ -43,6 +31,59 @@ type RateLimitResult = {
 
 const memoryBuckets = new Map<string, Bucket>();
 let storePromise: Promise<RateLimitStore | null> | null = null;
+
+/** Independent from cache circuit — a cache blip must not brick auth/tickets. */
+const RATE_LIMIT_TIMEOUT_MS =
+  Number(process.env.RATE_LIMIT_REDIS_TIMEOUT_MS ?? process.env.CACHE_REDIS_TIMEOUT_MS ?? 8_000) ||
+  8_000;
+const RATE_LIMIT_COOLDOWN_MS =
+  Number(process.env.RATE_LIMIT_REDIS_FAILURE_COOLDOWN_MS ?? 15_000) || 15_000;
+
+type RateLimitCircuitState = { unavailableUntil: number };
+const rateLimitCircuit: RateLimitCircuitState =
+  ((globalThis as typeof globalThis & { __brassRateLimitRedisCircuit?: RateLimitCircuitState })
+    .__brassRateLimitRedisCircuit ??= { unavailableUntil: 0 });
+
+/**
+ * One round-trip: INCR, ensure TTL, return {count, ttl}.
+ * Avoids 3–4 sequential Redis calls that blow a single request timeout on remote Redis.
+ */
+const INCREMENT_LUA = `
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+  redis.call("EXPIRE", KEYS[1], ARGV[1])
+end
+local ttl = redis.call("TTL", KEYS[1])
+if ttl < 0 then
+  redis.call("EXPIRE", KEYS[1], ARGV[1])
+  ttl = tonumber(ARGV[1])
+end
+return {count, ttl}
+`;
+
+function isRateLimitCircuitOpen(): boolean {
+  return rateLimitCircuit.unavailableUntil > Date.now();
+}
+
+function markRateLimitRedisUnavailable(): void {
+  rateLimitCircuit.unavailableUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+}
+
+function withRateLimitTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  const ms = RATE_LIMIT_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise.finally(() => {
+      if (timer) clearTimeout(timer);
+    }),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`rate-limit redis timeout (${label}) after ${ms}ms`)),
+        ms
+      );
+    }),
+  ]);
+}
 
 function hashKey(value: string): string {
   return hashQueryParams(value);
@@ -78,102 +119,91 @@ function toPositiveInt(value: unknown, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.ceil(n) : fallback;
 }
 
-/**
- * INCR then ensure the key has a TTL. Lost expires used to leave a counter that
- * never reset, so recruiters stayed blocked after the hour window.
- */
-async function incrementWithWindow(
-  client: CounterClient,
-  key: string,
-  windowSeconds: number
-): Promise<RateLimitCount> {
-  const count = toPositiveInt(await client.incr(key), 1);
-  if (count === 1) {
-    await client.expire(key, windowSeconds);
-  }
-  let ttl = Number(await client.ttl(key));
-  if (!Number.isFinite(ttl) || ttl < 0) {
-    await client.expire(key, windowSeconds);
-    ttl = windowSeconds;
-  }
+function parseIncrementResult(raw: unknown, windowSeconds: number): RateLimitCount {
+  const pair = Array.isArray(raw) ? raw : null;
+  const count = toPositiveInt(pair?.[0], 1);
+  const ttl = Number(pair?.[1]);
   return {
     count,
-    retryAfterSec: ttl > 0 ? Math.ceil(ttl) : windowSeconds,
+    retryAfterSec:
+      Number.isFinite(ttl) && ttl > 0 ? Math.ceil(ttl) : windowSeconds,
   };
+}
+
+function redisConfigured(): boolean {
+  const url = process.env.REDIS_URL?.trim();
+  return Boolean(url);
 }
 
 async function createUpstashStore(url: string, token: string): Promise<RateLimitStore> {
   const redis = new UpstashRedis({ url, token });
   return {
-    increment: (key, windowSeconds) =>
-      incrementWithWindow(
-        {
-          incr: (k) => redis.incr(k),
-          ttl: (k) => redis.ttl(k),
-          expire: (k, seconds) => redis.expire(k, seconds),
-        },
-        key,
-        windowSeconds
-      ),
+    increment: async (key, windowSeconds) => {
+      const raw = await withRateLimitTimeout(
+        redis.eval(INCREMENT_LUA, [key], [String(windowSeconds)]),
+        "upstash-incr"
+      );
+      return parseIncrementResult(raw, windowSeconds);
+    },
   };
 }
 
 async function createNodeRedisStore(url: string): Promise<RateLimitStore> {
   const { createClient } = await import("redis");
-  const connectMs = getRedisTimeoutMs();
   const client = createClient({
     url,
     socket: {
-      connectTimeout: connectMs,
-      reconnectStrategy: (retries) => (retries > 2 ? false : Math.min(retries * 200, 1000)),
+      connectTimeout: RATE_LIMIT_TIMEOUT_MS,
+      reconnectStrategy: (retries) =>
+        retries > 5 ? false : Math.min(retries * 200, 1000),
     },
   });
   client.on("error", () => {});
   try {
-    await withRedisTimeout(
+    await withRateLimitTimeout(
       (async () => {
         if (!client.isOpen) await client.connect();
       })(),
-      "rate-limit-connect",
+      "connect"
     );
   } catch (error) {
-    markRedisUnavailable();
+    markRateLimitRedisUnavailable();
     void client.destroy();
     throw error;
   }
   return {
-    increment: (key, windowSeconds) =>
-      incrementWithWindow(
-        {
-          incr: (k) => withRedisTimeout(client.incr(k), "rate-limit-incr"),
-          ttl: (k) => withRedisTimeout(client.ttl(k), "rate-limit-ttl"),
-          expire: (k, seconds) =>
-            withRedisTimeout(client.expire(k, seconds), "rate-limit-expire"),
-        },
-        key,
-        windowSeconds
-      ),
+    increment: async (key, windowSeconds) => {
+      const raw = await withRateLimitTimeout(
+        client.eval(INCREMENT_LUA, {
+          keys: [key],
+          arguments: [String(windowSeconds)],
+        }),
+        "incr"
+      );
+      return parseIncrementResult(raw, windowSeconds);
+    },
   };
 }
 
 async function getRedisStore(): Promise<RateLimitStore | null> {
-  if (isRedisCircuitOpen()) return null;
+  if (isRateLimitCircuitOpen()) return null;
   if (!storePromise) {
-    storePromise = withRedisTimeout(
-      (async () => {
-        const url = process.env.REDIS_URL?.trim();
-        if (!url) return null;
-        const token = process.env.REDIS_TOKEN?.trim();
-        if (token) return createUpstashStore(url, token);
-        if (url.startsWith("redis://") || url.startsWith("rediss://")) {
-          return createNodeRedisStore(url);
-        }
-        return null;
-      })(),
-      "rate-limit-adapter",
-    ).catch(() => {
-      markRedisUnavailable();
+    storePromise = (async () => {
+      const url = process.env.REDIS_URL?.trim();
+      if (!url) return null;
+      const token = process.env.REDIS_TOKEN?.trim();
+      if (token) return createUpstashStore(url, token);
+      if (url.startsWith("redis://") || url.startsWith("rediss://")) {
+        return createNodeRedisStore(url);
+      }
+      return null;
+    })().catch((error) => {
+      markRateLimitRedisUnavailable();
       storePromise = null;
+      console.warn(
+        "[rate-limit] redis store unavailable:",
+        error instanceof Error ? error.message : error
+      );
       return null;
     });
   }
@@ -191,31 +221,10 @@ export function envRateLimit(name: string, fallback: number): number {
   return Math.floor(raw);
 }
 
-export async function checkRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
-  const key = rateLimitKey(options.namespace, options.key);
-  const windowSeconds = getWindowSeconds(options.windowMs);
-  const redis = await getRedisStore();
-
-  if (redis) {
-    try {
-      const result = await withRedisTimeout(
-        redis.increment(key, windowSeconds),
-        "rate-limit-check"
-      );
-      return {
-        allowed: result.count <= options.limit,
-        limit: options.limit,
-        remaining: Math.max(0, options.limit - result.count),
-        retryAfterSec: result.retryAfterSec,
-        store: "redis",
-      };
-    } catch {
-      markRedisUnavailable();
-      /* fall through to memory when Redis is slow/unavailable */
-    }
-  }
-
-  if (options.failClosed) throw new Error("Shared rate limit unavailable");
+function memoryResult(
+  key: string,
+  options: RateLimitOptions
+): RateLimitResult {
   const result = incrementMemory(key, options.windowMs);
   return {
     allowed: result.count <= options.limit,
@@ -224,6 +233,48 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
     retryAfterSec: result.retryAfterSec,
     store: "memory",
   };
+}
+
+export async function checkRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
+  const key = rateLimitKey(options.namespace, options.key);
+  const windowSeconds = getWindowSeconds(options.windowMs);
+  const redis = await getRedisStore();
+
+  if (redis) {
+    try {
+      const result = await redis.increment(key, windowSeconds);
+      return {
+        allowed: result.count <= options.limit,
+        limit: options.limit,
+        remaining: Math.max(0, options.limit - result.count),
+        retryAfterSec: result.retryAfterSec,
+        store: "redis",
+      };
+    } catch (error) {
+      markRateLimitRedisUnavailable();
+      storePromise = null;
+      console.warn(
+        `[rate-limit] redis increment failed namespace=${options.namespace}:`,
+        error instanceof Error ? error.message : error
+      );
+      /* fall through to memory */
+    }
+  }
+
+  // failClosed only hard-fails when no shared Redis is configured at all.
+  // If Redis is configured but briefly down, keep serving with in-process memory
+  // so login/tickets are not bricked by a cache/Redis blip.
+  if (options.failClosed && !redisConfigured()) {
+    throw new Error("Shared rate limit unavailable");
+  }
+
+  if (options.failClosed && redisConfigured()) {
+    console.warn(
+      `[rate-limit] falling back to memory namespace=${options.namespace} (redis unavailable)`
+    );
+  }
+
+  return memoryResult(key, options);
 }
 
 export async function enforceRateLimit(
@@ -259,4 +310,5 @@ export async function enforceRateLimit(
 export function __resetRateLimitForTests(): void {
   memoryBuckets.clear();
   storePromise = null;
+  rateLimitCircuit.unavailableUntil = 0;
 }

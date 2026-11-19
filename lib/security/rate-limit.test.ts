@@ -6,13 +6,36 @@ import {
 } from "@/lib/security/rate-limit";
 
 describe("checkRateLimit", () => {
-  it("fails closed when a shared limiter is required but unavailable", async () => {
-    await expect(checkRateLimit({ namespace: "critical", key: "a", limit: 5, windowMs: 60000, failClosed: true })).rejects.toThrow("Shared rate limit unavailable");
-  });
   beforeEach(() => {
     delete process.env.REDIS_URL;
     delete process.env.REDIS_TOKEN;
     __resetRateLimitForTests();
+  });
+
+  it("fails closed when a shared limiter is required but Redis is not configured", async () => {
+    await expect(
+      checkRateLimit({
+        namespace: "critical",
+        key: "a",
+        limit: 5,
+        windowMs: 60000,
+        failClosed: true,
+      })
+    ).rejects.toThrow("Shared rate limit unavailable");
+  });
+
+  it("falls back to memory when failClosed but Redis URL is set and store is unavailable", async () => {
+    // URL present (shared limiter expected) but not a usable redis:// / Upstash token setup.
+    process.env.REDIS_URL = "https://example.invalid/redis";
+    await expect(
+      checkRateLimit({
+        namespace: "critical-fallback",
+        key: "a",
+        limit: 5,
+        windowMs: 60000,
+        failClosed: true,
+      })
+    ).resolves.toMatchObject({ allowed: true, store: "memory" });
   });
 
   it("allows requests under the limit", async () => {
