@@ -176,19 +176,41 @@ export type AnalyzeMatchResponse = z.infer<typeof analyzeMatchResponseSchema>;
 
 const unitInterval = z.coerce.number().min(0).max(1);
 
+/** Clip string length so LLM overflow never fails Zod `.max()`. */
+const clippedString = (max: number) =>
+  z.preprocess((value) => {
+    if (value == null) return "";
+    return String(value).trim().slice(0, max);
+  }, z.string().max(max));
+
+/**
+ * Slice oversized arrays instead of rejecting the whole Quick Match response.
+ * Production: Grok often returns 40+ named_products_in_jobs and fails after repair.
+ */
+function cappedList<T extends z.ZodTypeAny>(item: T, max: number) {
+  return z.preprocess((value) => {
+    if (value == null) return [];
+    if (!Array.isArray(value)) return [];
+    return value.slice(0, max);
+  }, z.array(item).max(max));
+}
+
 export const quickMatchRequirementSchema = z.object({
-  requirement: z.string().trim().min(1).max(2000),
+  requirement: z.preprocess((value) => {
+    const text = String(value ?? "").trim().slice(0, 2000);
+    return text;
+  }, z.string().trim().min(1).max(2000)),
   status: z.enum(REQUIREMENT_STATUSES),
-  evidence: z.string().max(4000).default(""),
+  evidence: clippedString(4000).default(""),
   evidence_source: z.enum(QUICK_EVIDENCE_SOURCES).optional(),
 });
 
 export const quickMatchExtractedResumeSchema = z.object({
-  headline: z.string().max(500).default(""),
+  headline: clippedString(500).default(""),
   years_estimated: optionalYears.default(null),
-  recent_titles: z.array(z.string().max(200)).max(20).default([]),
-  named_products_in_jobs: z.array(z.string().max(200)).max(40).default([]),
-  education: z.string().max(1000).default(""),
+  recent_titles: cappedList(clippedString(200), 20).default([]),
+  named_products_in_jobs: cappedList(clippedString(200), 40).default([]),
+  education: clippedString(1000).default(""),
 });
 
 export const quickMatchCountsSchema = z.object({
@@ -211,14 +233,14 @@ export const quickMatchResponseSchema = z.object({
     named_products_in_jobs: [],
     education: "",
   }),
-  mandatory_requirements: z.array(quickMatchRequirementSchema).max(60).default([]),
-  preferred_requirements: z.array(quickMatchRequirementSchema).max(60).default([]),
+  mandatory_requirements: cappedList(quickMatchRequirementSchema, 60).default([]),
+  preferred_requirements: cappedList(quickMatchRequirementSchema, 60).default([]),
   counts: quickMatchCountsSchema.optional(),
   mand_met: unitInterval.optional(),
   pref_met: unitInterval.optional(),
   weighted: unitInterval.optional(),
-  blocking_requirements: z.array(z.string().max(1000)).max(30).default([]),
-  items_to_verify: z.array(z.string().max(1000)).max(30).default([]),
+  blocking_requirements: cappedList(clippedString(1000), 30).default([]),
+  items_to_verify: cappedList(clippedString(1000), 30).default([]),
 });
 
 export type QuickMatchResponse = z.infer<typeof quickMatchResponseSchema>;
