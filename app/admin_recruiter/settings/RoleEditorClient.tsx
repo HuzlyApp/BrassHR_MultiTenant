@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Search } from "lucide-react";
 import toast from "react-hot-toast";
+import SuccessModal from "@/app/components/SuccessModal";
 import {
   applyGrantSelection,
   seededGrantForRole,
@@ -106,6 +107,8 @@ export default function RoleEditorClient({
   const [saving, setSaving] = useState(false);
   const [moduleQuery, setModuleQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [savedRoleKey, setSavedRoleKey] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -234,14 +237,18 @@ export default function RoleEditorClient({
         invalidateModuleAccess();
       }
       const savedKey = (editing?.roleKey ?? body.roleKey ?? "").trim();
-      router.push(
-        `/admin_recruiter/settings/roles/success${savedKey ? `?role=${encodeURIComponent(savedKey)}` : ""}`
-      );
+      setSavedRoleKey(savedKey);
+      setSuccessOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save role");
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleSuccessClose() {
+    setSuccessOpen(false);
+    router.push(ROLES_LIST_HREF);
   }
 
   async function removeRole() {
@@ -435,6 +442,22 @@ export default function RoleEditorClient({
           </div>
         </div>
       </div>
+
+      <SuccessModal
+        open={successOpen}
+        onClose={handleSuccessClose}
+        title="Success!"
+        message={mode === "edit" ? "Role updated successfully." : "New Role Added"}
+        actionLabel="View"
+        onAction={() => {
+          setSuccessOpen(false);
+          router.push(
+            savedRoleKey
+              ? `/admin_recruiter/settings/roles/${encodeURIComponent(savedRoleKey)}`
+              : ROLES_LIST_HREF
+          );
+        }}
+      />
     </form>
   );
 }

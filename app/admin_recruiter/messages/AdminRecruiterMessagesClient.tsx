@@ -132,6 +132,7 @@ export default function AdminRecruiterMessagesClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showCreateTicket, setShowCreateTicket] = useState(false);
+  const [pendingTicketNavId, setPendingTicketNavId] = useState<string | null>(null);
   const [pinnedWorkerIds, setPinnedWorkerIds] = useState<string[]>([]);
   const [supportTickets, setSupportTickets] = useState<SupportTicketConversationItem[]>([]);
   const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<string | null>(null);
@@ -247,10 +248,9 @@ export default function AdminRecruiterMessagesClient({
     setSelectedSupportTicketId(ticket.id);
     setSelectedWorkerId(null);
     setSelectedGroupId(null);
-    setShowCreateTicket(false);
-    router.replace(
-      `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticket.id)}`
-    );
+    setPendingTicketNavId(ticket.id);
+    // Keep create modal mounted so its SuccessModal can show; navigate after close.
+    setShowCreateTicket(true);
   }
 
   const selectedConversation = conversations.find((item) => item.workerId === selectedWorkerId) ?? null;
@@ -643,7 +643,16 @@ export default function AdminRecruiterMessagesClient({
 
       <StaffCreateSupportTicketModal
         open={showCreateTicket}
-        onClose={() => setShowCreateTicket(false)}
+        onClose={() => {
+          setShowCreateTicket(false);
+          const ticketId = pendingTicketNavId;
+          setPendingTicketNavId(null);
+          if (ticketId) {
+            router.replace(
+              `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticketId)}`
+            );
+          }
+        }}
         onSuccess={handleTicketCreated}
         defaultApplicantId={selectedSupportTicket?.applicant_id ?? selectedWorkerId}
       />

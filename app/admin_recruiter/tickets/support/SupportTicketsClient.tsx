@@ -195,9 +195,8 @@ export default function SupportTicketsClient() {
   function handleCreated(ticket: SupportTicketListItem) {
     setTickets((current) => [ticket, ...current.filter((item) => item.id !== ticket.id)]);
     setSidebarFilter("open");
-    setSelectedTicket(ticket);
-    setDetailOpen(true);
-    setCreateOpen(false);
+    // Keep create modal mounted so its SuccessModal can show; it closes via onClose.
+    setCreateOpen(true);
   }
 
   async function handleCloseTicket() {
