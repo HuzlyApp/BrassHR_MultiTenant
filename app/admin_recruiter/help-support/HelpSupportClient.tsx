@@ -138,7 +138,7 @@ export default function HelpSupportClient() {
           </p>
         </div>
 
-        <div className="flex w-full max-w-[330px] flex-col gap-3.5">
+        <div className="flex w-full flex-col gap-3.5">
           <HelpSupportActionRow
             label="Send us message"
             href="/admin_recruiter/messages"
@@ -182,26 +182,28 @@ export default function HelpSupportClient() {
           </label>
         </div>
 
-        <div id="help-faq-section" className="mt-8 w-full max-w-3xl">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div id="help-faq-section" className="mt-8 w-full">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-[#6B7280]" style={BRAND_FONT_BODY_STYLE}>
               Looking to add or edit articles?
             </p>
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95"
-              style={{ backgroundColor: secondaryColor }}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Add FAQ
-            </button>
-            <Link
-              href="/admin_recruiter/tickets/knowledgebase"
-              className="text-sm font-semibold text-[color:var(--brand-secondary,#012352)] underline-offset-2 hover:underline"
-            >
-              Manage FAQs
-            </Link>
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95"
+                style={{ backgroundColor: secondaryColor }}
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Add FAQ
+              </button>
+              <Link
+                href="/admin_recruiter/tickets/knowledgebase"
+                className="text-sm font-semibold text-[color:var(--brand-secondary,#012352)] underline-offset-2 hover:underline"
+              >
+                Manage FAQs
+              </Link>
+            </div>
           </div>
           <AdminFaqBrowser
             variant="cards"
