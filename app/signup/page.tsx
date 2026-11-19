@@ -884,7 +884,7 @@ export default function SignupPage() {
               />
 
               <div className="w-full">
-                <p className="mb-2 text-[12px] font-semibold leading-4 text-[#374151]" style={interStyle}>
+                <p className="mb-2 text-[12px] font-normal leading-4 text-[#374151]" style={interStyle}>
                   Are you a staffing company?
                 </p>
                 <div className="flex gap-3.5">
@@ -933,7 +933,7 @@ export default function SignupPage() {
                     onChange={(value) => update("city", value)}
                     options={effectiveCityOptions}
                     placeholder={
-                      !form.state ? "Select state first" : citiesLoading ? "Loading…" : "Select city"
+                      !form.state ? "Select state first" : citiesLoading ? "Loading..." : "Select city"
                     }
                     disabled={!form.state || citiesLoading}
                     loading={citiesLoading}
@@ -961,7 +961,7 @@ export default function SignupPage() {
                   className="inline-flex h-10 flex-1 items-center justify-center rounded-lg px-3.5 text-[14px] font-semibold leading-5 text-white transition disabled:opacity-60"
                   style={{ ...interStyle, backgroundColor: NAVY }}
                 >
-                  {submitting ? "Creating…" : "Create an account"}
+                  {submitting ? "Creating..." : "Create an account"}
                 </button>
               </div>
             </div>
