@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { assertResumeObjectPath } from "@/lib/resume/resume-object-path";
+import {
+  assertResumeObjectPath,
+  sanitizeResumeStorageFileName,
+} from "@/lib/resume/resume-object-path";
 import { hashResumeBytes } from "@/lib/resume/resume-file-hash";
 import {
   isAutoQuickMatchFailed,
@@ -21,6 +24,22 @@ describe("resume upload guards", () => {
     expect(() => assertResumeObjectPath("other-user/file.pdf", ["applicant-1"])).toThrow(
       /Invalid resume path/
     );
+  });
+
+  it("sanitizes spaced resume names so finalize path validation accepts them", () => {
+    const applicantId = "b6af40ec-391b-4442-a855-dbeb929c61db";
+    const uploadId = "3bf26436-dfff-48f8-9b56-7033e8552e16";
+    const safeName = sanitizeResumeStorageFileName("2025 Resume (1).pdf");
+    expect(safeName).toBe("2025_Resume_(1).pdf");
+
+    const objectPath = `${applicantId}/${uploadId}-${safeName}`;
+    expect(assertResumeObjectPath(objectPath, [applicantId])).toBe(objectPath);
+    expect(() =>
+      assertResumeObjectPath(
+        `${applicantId}/${uploadId}-2025 Resume (1).pdf`,
+        [applicantId]
+      )
+    ).toThrow(/Invalid resume path/);
   });
 
   it("does not treat a queued Quick Match as a failure", () => {

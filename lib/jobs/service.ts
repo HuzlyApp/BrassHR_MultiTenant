@@ -1685,8 +1685,15 @@ export async function startOrResumeJobApplication(
   }
 
   if (!profileId) {
-    // Resume-first public apply often has auth_user_id/worker_id before email is collected.
-    // Integration/admin intake still requires email in their own validation paths.
+    // Resume-first public apply creates the auth/worker shell before profile-review
+    // collects email. DB allows null email when auth_user_id is set.
+    if (!normalizedEmail && !input.applicantAuthUserId) {
+      throw new JobValidationError(
+        "Email is required.",
+        { email: "Email is required." },
+        "EMAIL_REQUIRED"
+      );
+    }
     const { data: profile, error: profileError } = await supabase
       .from("applicant_profiles")
       .insert({
