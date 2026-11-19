@@ -5,6 +5,8 @@ import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { fetchTenantVanityLabel } from "@/lib/auth/recruiter-dashboard-redirect";
 import { sameTenantId } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { ADMIN_LAUNCH_PAD_ROUTE, isSmbTenantCategory } from "@/lib/signup/smb-post-signup";
+import { getTenantCategory } from "@/lib/tenant/tenant-category";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 import { resolveTenantIdBySlugUncached } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
@@ -35,7 +37,11 @@ export type RecruiterOnboardingStatus = {
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
   tenantSubdomain: string | null;
-  redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
+  redirectTarget:
+    | "/godadmin/tenants"
+    | typeof ADMIN_RECRUITER_HOME_ROUTE
+    | typeof ADMIN_LAUNCH_PAD_ROUTE
+    | "/tenant-onboarding";
 };
 
 function metadataFlag(user: User, key: string): boolean {
@@ -215,10 +221,28 @@ export async function resolveRecruiterOnboardingStatus(
     metadataFlag(user, "tenant_onboarding_completed") ||
     row?.onboarding_completed === true;
 
+  let tenantCategory: string | null = null;
+  if (!godAdmin && activeTenantId) {
+    try {
+      tenantCategory = await getTenantCategory(sb, activeTenantId);
+    } catch {
+      tenantCategory = null;
+    }
+  }
+
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const smbOwner =
+    isSmbTenantCategory(tenantCategory) ||
+    isSmbTenantCategory(meta.tenant_category) ||
+    meta.is_staffing_company === false ||
+    meta.is_staffing_company === "false";
+
   const redirectTarget = godAdmin
     ? "/godadmin/tenants"
     : tenantOnboardingCompleted
-      ? ADMIN_RECRUITER_HOME_ROUTE
+      ? smbOwner
+        ? ADMIN_LAUNCH_PAD_ROUTE
+        : ADMIN_RECRUITER_HOME_ROUTE
       : "/tenant-onboarding";
 
   let tenantSubdomain: string | null = null;
