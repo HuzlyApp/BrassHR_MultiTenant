@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import {
+  buildOwnerSignupUserMetadata,
   buildUsersSignupRow,
   normalizeOwnerSignupBody,
   validateOwnerSignupDetails,
@@ -73,13 +74,15 @@ async function createOwnerSignup(req: Request) {
     return NextResponse.json({ error: "Please select a valid state." }, { status: 400 });
   }
 
-  const zipError = validateOwnerSignupZipForState(
-    payload.zipCode,
-    stateCode,
-    payload.state
-  );
-  if (zipError) {
-    return NextResponse.json({ error: zipError }, { status: 400 });
+  if (payload.zipCode) {
+    const zipError = validateOwnerSignupZipForState(
+      payload.zipCode,
+      stateCode,
+      payload.state
+    );
+    if (zipError) {
+      return NextResponse.json({ error: zipError }, { status: 400 });
+    }
   }
 
   const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -118,14 +121,7 @@ async function createOwnerSignup(req: Request) {
         signup_completed: true,
         tenant_onboarding_completed: false,
       },
-      user_metadata: {
-        first_name: payload.firstName,
-        last_name: payload.lastName,
-        job_title: payload.jobTitle || null,
-        city: payload.city,
-        state: payload.state,
-        zip_code: payload.zipCode,
-      },
+      user_metadata: buildOwnerSignupUserMetadata(payload),
     });
     if (updErr) {
       return NextResponse.json({ error: updErr.message }, { status: 500 });
@@ -153,14 +149,7 @@ async function createOwnerSignup(req: Request) {
       signup_completed: true,
       tenant_onboarding_completed: false,
     },
-    user_metadata: {
-      first_name: payload.firstName,
-      last_name: payload.lastName,
-      job_title: payload.jobTitle || null,
-      city: payload.city,
-      state: payload.state,
-      zip_code: payload.zipCode,
-    },
+    user_metadata: buildOwnerSignupUserMetadata(payload),
   });
 
   if (cuErr || !created.user?.id) {

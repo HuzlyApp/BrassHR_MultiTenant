@@ -1,5 +1,11 @@
+import { industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name";
-import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import { normalizePhoneInput } from "@/lib/phone";
+import {
+  phoneValidationMessage,
+  zipCodeValidationMessage,
+} from "@/lib/tenant/business-info-validation";
+import type { TenantCategory } from "@/lib/tenant/tenant-category";
 
 function isGarbageAddressText(value: string): boolean {
   return /^(.)\1{4,}$/.test(value.replace(/\s/g, ""));
@@ -57,6 +63,12 @@ export type OwnerSignupPayload = {
   address1: string;
   address2: string;
   password: string;
+  phone?: string;
+  companyName?: string;
+  companyWebsite?: string;
+  industry?: string;
+  /** true = Staffing edition, false = SMB */
+  isStaffingCompany?: boolean | null;
   hqState?: string;
   primaryCity?: string;
   primaryState?: string;
@@ -72,7 +84,22 @@ export type SignupCityOption = {
   stateCode: string;
 };
 
+function normalizeOptionalWebsite(value: unknown): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial<OwnerSignupPayload> {
+  const staffingRaw = body.isStaffingCompany;
+  const isStaffingCompany =
+    staffingRaw === true || staffingRaw === "true"
+      ? true
+      : staffingRaw === false || staffingRaw === "false"
+        ? false
+        : null;
+
   return {
     firstName: String(body.firstName ?? "").trim(),
     lastName: String(body.lastName ?? "").trim(),
@@ -80,6 +107,11 @@ export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial
       .trim()
       .toLowerCase(),
     jobTitle: String(body.jobTitle ?? "").trim(),
+    phone: normalizePhoneInput(String(body.phone ?? "")),
+    companyName: String(body.companyName ?? "").trim(),
+    companyWebsite: normalizeOptionalWebsite(body.companyWebsite),
+    industry: String(body.industry ?? "").trim(),
+    isStaffingCompany,
     city: String(body.city ?? "").trim(),
     state: String(body.state ?? "").trim(),
     zipCode: String(body.zipCode ?? "")
@@ -95,6 +127,12 @@ export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial
   };
 }
 
+export function tenantCategoryFromStaffingFlag(
+  isStaffingCompany: boolean | null | undefined
+): TenantCategory {
+  return isStaffingCompany === false ? "SMB" : "Staffing";
+}
+
 export function validateOwnerSignupDetails(
   payload: Partial<OwnerSignupPayload>
 ): string | null {
@@ -103,23 +141,53 @@ export function validateOwnerSignupDetails(
   if (!payload.lastName) return "Last name is required.";
   if (isPersonNameTooLong(payload.lastName)) return personNameTooLongMessage("Last name");
   if (!payload.workEmail?.includes("@")) return "A valid work email is required.";
-  if (!payload.jobTitle) return "Job title is required.";
+  if (!payload.companyName?.trim()) return "Company name is required.";
+  if (!payload.industry?.trim()) return "Industry is required.";
+  if (!industryKeyFromLegacyLabel(payload.industry)) return "Select a valid industry.";
+  if (payload.isStaffingCompany !== true && payload.isStaffingCompany !== false) {
+    return "Select whether you are a staffing company.";
+  }
+  const phoneError = phoneValidationMessage(payload.phone ?? "", { required: false });
+  if (phoneError) return phoneError;
   if (!payload.city) return "City is required.";
   if (!payload.state) return "State is required.";
   if (!(payload.hqState || payload.state)) return "Headquarters state is required.";
   if (!(payload.primaryCity || payload.city) || !(payload.primaryState || payload.state)) {
     return "Primary work location is required.";
   }
-  if (!payload.zipCode || payload.zipCode.length < 5) return "Enter a valid 5-digit ZIP code.";
-  const address1Error = signupAddress1ValidationMessage(payload.address1 ?? "");
-  if (address1Error) return address1Error;
+  const zip = (payload.zipCode ?? "").trim();
+  if (zip && zip.length < 5) return "Enter a valid 5-digit ZIP code.";
   const address1 = (payload.address1 ?? "").trim();
+  if (address1) {
+    const address1Error = signupAddress1ValidationMessage(address1);
+    if (address1Error) return address1Error;
+  }
   const address2 = (payload.address2 ?? "").trim();
   if (address2 && address2 !== address1) {
     const address2Error = signupAddress2ValidationMessage(address2, { sameAsAddress1: false });
     if (address2Error) return address2Error;
   }
   return null;
+}
+
+/** Auth user_metadata written at owner signup for tenant-onboarding prefill. */
+export function buildOwnerSignupUserMetadata(payload: OwnerSignupPayload) {
+  const industryKey = industryKeyFromLegacyLabel(payload.industry ?? "") ?? null;
+  return {
+    first_name: payload.firstName,
+    last_name: payload.lastName,
+    job_title: payload.jobTitle || null,
+    phone: payload.phone || null,
+    city: payload.city,
+    state: payload.state,
+    zip_code: payload.zipCode || null,
+    company_name: payload.companyName || null,
+    company_website: payload.companyWebsite || null,
+    industry: payload.industry || null,
+    industry_key: industryKey,
+    is_staffing_company: payload.isStaffingCompany === true,
+    tenant_category: tenantCategoryFromStaffingFlag(payload.isStaffingCompany),
+  };
 }
 
 /** Validates ZIP format and that the prefix matches the selected US state. */
@@ -154,6 +222,7 @@ export function buildUsersSignupRow(
     first_name: payload.firstName,
     last_name: payload.lastName,
     job_title: payload.jobTitle || null,
+    phone: payload.phone || null,
     address_line1: payload.address1 || null,
     address_line2: payload.address2 || null,
     city: payload.city || null,

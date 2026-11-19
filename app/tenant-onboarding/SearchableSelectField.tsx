@@ -51,6 +51,10 @@ type SearchableSelectFieldProps = {
   emptyMessage?: string
   /** Tighter field sizing for signup mobile layout */
   compact?: boolean
+  /** Dense controls for the centered BrassHR signup card (h-9). */
+  dense?: boolean
+  /** Hide the built-in label when the parent renders its own. */
+  hideLabel?: boolean
   /** Allow confirming a typed value that is not in `options` (any city in an allowed state). */
   allowCustom?: boolean
   /** Open the options panel above the field (useful near the bottom of modals). */
@@ -71,6 +75,8 @@ export default function SearchableSelectField({
   error,
   emptyMessage = "No cities found",
   compact = false,
+  dense = false,
+  hideLabel = false,
   allowCustom = false,
   dropdownPlacement = "down",
 }: SearchableSelectFieldProps) {
@@ -194,12 +200,16 @@ export default function SearchableSelectField({
 
   const displayPlaceholder = loading ? "Loading…" : placeholder
   const isDisabled = disabled || loading
-  const labelClass = compact
-    ? "mb-[6px] block text-[13px] font-medium leading-[18px] text-[#0f172a] min-[1440px]:mb-[8px] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]"
-    : "mb-[8px] block text-[14px] font-medium leading-[20px] text-[#0f172a]"
-  const triggerClass = compact
-    ? "flex h-[48px] w-full cursor-pointer items-center justify-between rounded-[6px] border bg-white px-[12px] pr-10 text-left text-[14px] leading-[22px] outline-none transition min-[1440px]:h-[56px] min-[1440px]:rounded-[8px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
-    : "flex h-[56px] w-full cursor-pointer items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
+  const labelClass = dense
+    ? "mb-2 block text-[12px] font-normal leading-4 text-[#6B7280]"
+    : compact
+      ? "mb-[6px] block text-[13px] font-medium leading-[18px] text-[#0f172a] min-[1440px]:mb-[8px] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]"
+      : "mb-[8px] block text-[14px] font-medium leading-[20px] text-[#0f172a]"
+  const triggerClass = dense
+    ? "flex h-9 w-full cursor-pointer items-center justify-between rounded-lg border bg-white px-2.5 pr-9 text-left text-[12px] leading-4 outline-none transition"
+    : compact
+      ? "flex h-[48px] w-full cursor-pointer items-center justify-between rounded-[6px] border bg-white px-[12px] pr-10 text-left text-[14px] leading-[22px] outline-none transition min-[1440px]:h-[56px] min-[1440px]:rounded-[8px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
+      : "flex h-[56px] w-full cursor-pointer items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
 
   const menu =
     open && !isDisabled && mounted
@@ -273,10 +283,12 @@ export default function SearchableSelectField({
 
   return (
     <div ref={wrapperRef}>
-      <label className={labelClass}>
-        {label}
-        {required ? <span className="ml-1 text-[#DC2626]">*</span> : null}
-      </label>
+      {hideLabel || !label ? null : (
+        <label className={labelClass}>
+          {label}
+          {required ? <span className="ml-1 text-[#DC2626]">*</span> : null}
+        </label>
+      )}
       <div className="relative">
         <button
           ref={triggerRef}
@@ -290,7 +302,7 @@ export default function SearchableSelectField({
             if (!open) onBlur?.()
           }}
           style={
-            compact
+            dense || compact
               ? {
                   fontFamily: inputTypographyStyle.fontFamily,
                   fontWeight: inputTypographyStyle.fontWeight,
@@ -304,13 +316,13 @@ export default function SearchableSelectField({
               : open
                 ? `${activeBorderClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
                 : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
-          } ${compact ? "" : inputTextClass}`}
+          } ${dense || compact ? "" : inputTextClass}`}
         >
           <span className="truncate">{value || displayPlaceholder}</span>
           <ChevronDown
-            className={`pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748b] transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
+            className={`pointer-events-none absolute right-3 top-1/2 ${
+              dense ? "h-4 w-4" : "h-5 w-5"
+            } -translate-y-1/2 text-[#64748b] transition-transform ${open ? "rotate-180" : ""}`}
           />
         </button>
       </div>

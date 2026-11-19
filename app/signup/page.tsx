@@ -6,50 +6,33 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import SignupStepper, { resolveSignupStepperPhase } from "@/app/components/SignupStepper";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
-import { ArrowLeft, Check, X } from "lucide-react";
+import { INDUSTRY_OPTIONS } from "@/app/tenant-onboarding/constants";
+import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
-import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName } from "@/lib/us-state-names";
+import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
-  signupAddress1ValidationMessage,
-  signupAddress2ValidationMessage,
-  signupAddressVerificationMessage,
-} from "@/lib/signup/owner-signup";
-import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
-import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
-import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
-import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
-import {
-  brandingAuthButtonStyle,
   brandingToCssVars,
   defaultTenantBranding,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE } from "@/lib/tenant/tenant-email-uniqueness";
 import { markAccountReadyModalPending } from "@/lib/auth/account-ready-modal";
-import { LEGAL_ROUTES } from "@/lib/legal/routes";
 import {
   clearTenantSignupDraft,
-  legalReturnHref,
   readTenantSignupDraft,
   writeTenantSignupDraft,
 } from "@/lib/signup/tenant-signup-draft";
-// Social auth icons — unused while social signup is commented out on the form.
-// import { FaApple } from "react-icons/fa";
-// import { FaXTwitter } from "react-icons/fa6";
-// import { FcGoogle } from "react-icons/fc";
+import { formatPhoneNumber } from "@/lib/phone";
+import { phoneValidationMessage } from "@/lib/tenant/business-info-validation";
 
-const BRAAS_BLUE = "#104b83";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
-const signupInputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontWeight: 400,
-  letterSpacing: "0",
-} as const;
-const signupInputClass =
-  `h-[48px] w-full rounded-[6px] border bg-white px-[12px] text-[14px] font-normal leading-[22px] tracking-normal placeholder:text-[14px] placeholder:leading-[22px] min-[1440px]:h-[56px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px] min-[1440px]:placeholder:text-[16px] min-[1440px]:placeholder:leading-[24px]`;
+const NAVY = "#012352";
+const LABEL = "#6B7280";
+
 const FALLBACK_STATE_OPTIONS = [
   "California",
   "Arizona",
@@ -59,13 +42,19 @@ const FALLBACK_STATE_OPTIONS = [
   "Illinois",
   "Washington",
 ];
+
 type SignupForm = {
   firstName: string;
   lastName: string;
   workEmail: string;
-  jobTitle: string;
+  phone: string;
+  companyName: string;
+  companyWebsite: string;
+  industry: string;
+  isStaffingCompany: boolean | null;
   city: string;
   state: string;
+  jobTitle: string;
   zipCode: string;
   address1: string;
   address2: string;
@@ -74,7 +63,7 @@ type SignupForm = {
   primaryState: string;
 };
 
-type SignupStep = "details" | "password";
+type SignupStep = "personal" | "company";
 
 type PasswordRule = {
   label: string;
@@ -85,9 +74,14 @@ const initialForm: SignupForm = {
   firstName: "",
   lastName: "",
   workEmail: "",
-  jobTitle: "",
+  phone: "",
+  companyName: "",
+  companyWebsite: "",
+  industry: "",
+  isStaffingCompany: null,
   city: "",
   state: "",
+  jobTitle: "",
   zipCode: "",
   address1: "",
   address2: "",
@@ -104,86 +98,46 @@ async function checkOwnerSignupEmailAvailable(email: string): Promise<boolean> {
   const res = await fetch(`/api/auth/signup/check-email?email=${encodeURIComponent(email)}`, {
     cache: "no-store",
   });
-  if (!res.ok) {
-    throw new Error("Could not validate email");
-  }
+  if (!res.ok) throw new Error("Could not validate email");
   const payload = (await res.json()) as { available?: boolean };
   return payload.available === true;
 }
 
 function getPasswordRules(password: string): PasswordRule[] {
   return [
-    { label: "Password must be at least 12 characters long.", passed: password.length >= 12 },
-    { label: "Password must contain at least one upper case.", passed: /[A-Z]/.test(password) },
-    { label: "One lower case letter.", passed: /[a-z]/.test(password) },
-    { label: "Password must contain at least one number.", passed: /\d/.test(password) },
+    { label: "At least 12 characters", passed: password.length >= 12 },
+    { label: "One uppercase letter", passed: /[A-Z]/.test(password) },
+    { label: "One lowercase letter", passed: /[a-z]/.test(password) },
+    { label: "One number", passed: /\d/.test(password) },
   ];
 }
 
-function getPasswordStrength(score: number) {
-  if (score >= 4) {
-    return { label: "Strong", color: "#16a34a", filledSegments: 4 };
-  }
-  if (score === 3) {
-    return { label: "Medium", color: "#d89b35", filledSegments: 3 };
-  }
-  return { label: "Weak", color: "#ef4565", filledSegments: score > 0 ? Math.max(score, 1) : 0 };
-}
-
-function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
+function FieldLabel({
+  children,
+  required = false,
+  optional = false,
+}: {
+  children: string;
+  required?: boolean;
+  optional?: boolean;
+}) {
   return (
-    <label className="mb-[8px] block text-[13px] font-normal leading-[18px] tracking-normal text-[#0f172a] min-[1440px]:mb-[10px] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]" style={interStyle}>
-      {children}
-      {required ? <span className="ml-1 text-[#ef4565]">*</span> : null}
-    </label>
-  );
-}
-
-function PasswordRuleList({ rules }: { rules: PasswordRule[] }) {
-  return (
-    <div className="mt-[24px] space-y-[8px]">
-      {rules.map((rule) => (
-        <div key={rule.label} className="flex items-center gap-[10px] text-[12px] font-normal leading-[16px] text-[#475569]" style={interStyle}>
-          <span
-            className={`flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full ${
-              rule.passed ? "text-[#0d9488]" : "text-[#ef4565]"
-            }`}
-          >
-            {rule.passed ? <Check className="h-[13px] w-[13px]" strokeWidth={2.5} /> : <X className="h-[13px] w-[13px]" strokeWidth={2.5} />}
-          </span>
-          {rule.label}
-        </div>
-      ))}
+    <div className="mb-2 flex w-full items-center justify-between">
+      <label className="block text-[12px] font-normal leading-4" style={{ ...interStyle, color: LABEL }}>
+        {children}
+        {required ? <span className="ml-0.5 text-[#E11D48]">*</span> : null}
+      </label>
+      {optional ? (
+        <span className="text-[10px] font-normal leading-[15px] text-[#94A3B8]" style={interStyle}>
+          Optional
+        </span>
+      ) : null}
     </div>
   );
 }
 
-function PasswordStrengthMeter({ score }: { score: number }) {
-  const strength = getPasswordStrength(score);
-
-  return (
-    <div className="mt-[12px]">
-      <div className="grid grid-cols-4 gap-[3px]">
-        {[0, 1, 2, 3].map((index) => (
-          <span
-            key={index}
-            className="h-[4px] rounded-full"
-            style={{ backgroundColor: index < strength.filledSegments ? strength.color : "#e4e9f0" }}
-            aria-hidden
-          />
-        ))}
-      </div>
-      <div className="mt-[6px] flex items-center justify-end gap-[8px]">
-        <span className="text-[12px] font-normal leading-[16px]" style={{ ...interStyle, color: strength.color }}>
-          {strength.label}
-        </span>
-        <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[#b5c0cf] text-[10px] leading-none text-[#94a3b8]">
-          i
-        </span>
-      </div>
-    </div>
-  );
-}
+const inputClass =
+  "h-9 w-full rounded-lg border bg-white px-2.5 text-[12px] font-normal leading-4 text-black outline-none transition placeholder:text-[#94A3B8]";
 
 function TextField({
   label,
@@ -191,6 +145,7 @@ function TextField({
   onChange,
   placeholder,
   required,
+  optional,
   type = "text",
   error,
   maxLength,
@@ -198,30 +153,33 @@ function TextField({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
+  placeholder?: string;
   required?: boolean;
+  optional?: boolean;
   type?: "text" | "email";
   error?: string | null;
   maxLength?: number;
 }) {
   return (
-    <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+    <div className="w-full">
+      <FieldLabel required={required} optional={optional}>
+        {label}
+      </FieldLabel>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
-        style={signupInputTypographyStyle}
-        className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] ${
+        style={interStyle}
+        className={`${inputClass} ${
           error
-            ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20"
-            : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
+            ? "border-[#E11D48] focus:border-[#E11D48] focus:ring-2 focus:ring-[#E11D48]/15"
+            : "border-[#CBD5E1] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/20"
         }`}
       />
       {error ? (
-        <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
+        <p className="mt-1.5 text-[12px] leading-4 text-[#E11D48]" style={interStyle}>
           {error}
         </p>
       ) : null}
@@ -234,30 +192,27 @@ function PasswordField({
   value,
   onChange,
   error,
-  onBlur,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   error?: string | null;
-  onBlur?: () => void;
 }) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div>
-      <FieldLabel required>{label}</FieldLabel>
+    <div className="w-full">
+      <FieldLabel>{label}</FieldLabel>
       <div className="relative">
         <input
           type={visible ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          onBlur={onBlur}
-          style={signupInputTypographyStyle}
-          className={`${signupInputClass} pr-12 outline-none transition placeholder:text-[#b5c0cf] ${
+          style={interStyle}
+          className={`${inputClass} pr-10 ${
             error
-              ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20"
-              : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
+              ? "border-[#E11D48] focus:border-[#E11D48] focus:ring-2 focus:ring-[#E11D48]/15"
+              : "border-[#CBD5E1] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/20"
           }`}
         />
         <PasswordVisibilityToggle
@@ -267,7 +222,7 @@ function PasswordField({
         />
       </div>
       {error ? (
-        <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
+        <p className="mt-1.5 text-[12px] leading-4 text-[#E11D48]" style={interStyle}>
           {error}
         </p>
       ) : null}
@@ -275,37 +230,61 @@ function PasswordField({
   );
 }
 
-// function SocialButton({ children, label }: { children: React.ReactNode; label: string }) {
-//   return (
-//     <button
-//       type="button"
-//       aria-label={label}
-//       className="flex h-[34px] w-[34px] items-center justify-center rounded-[6px] border border-[#d7e0ea] bg-white text-[18px] text-black transition hover:bg-[#f8fafc]"
-//     >
-//       {children}
-//     </button>
-//   );
-// }
+function StaffingOption({
+  selected,
+  title,
+  subtitle,
+  onSelect,
+}: {
+  selected: boolean;
+  title: string;
+  subtitle: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex flex-1 flex-col gap-2.5 rounded-lg border p-2 text-left transition ${
+        selected ? "border-[#E5E7EB] bg-[#F3F4F6]" : "border-[#E5E7EB] bg-white"
+      }`}
+    >
+      <span className="flex items-center gap-1.5">
+        <span
+          className={`inline-flex h-4 w-4 items-center justify-center rounded-full border ${
+            selected ? "border-[#012352] bg-[#012352]" : "border-[#CBD5E1] bg-white"
+          }`}
+        >
+          {selected ? <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} /> : null}
+        </span>
+        <span className="text-[12px] font-normal leading-4 text-[#374151]" style={interStyle}>
+          {title}
+        </span>
+      </span>
+      <span className="text-[12px] font-normal leading-4 text-[#374151]" style={interStyle}>
+        {subtitle}
+      </span>
+    </button>
+  );
+}
 
 export default function SignupPage() {
   const [form, setForm] = useState<SignupForm>(initialForm);
-  const [step, setStep] = useState<SignupStep>("details");
+  const [step, setStep] = useState<SignupStep>("personal");
   const [password, setPassword] = useState("");
   const [verifyPassword, setVerifyPassword] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const [touchedEmail, setTouchedEmail] = useState(false);
-  const [touchedZip, setTouchedZip] = useState(false);
-  const [touchedAddress1, setTouchedAddress1] = useState(false);
-  const [touchedAddress2, setTouchedAddress2] = useState(false);
-  const [detailsSubmitAttempted, setDetailsSubmitAttempted] = useState(false);
+  const [personalSubmitAttempted, setPersonalSubmitAttempted] = useState(false);
+  const [companySubmitAttempted, setCompanySubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [stateRows, setStateRows] = useState<SignupStateOption[]>([]);
   const [stateOptions, setStateOptions] = useState<string[]>(FALLBACK_STATE_OPTIONS);
   const [cityOptions, setCityOptions] = useState<string[]>([]);
-  const [locationLoading, setLocationLoading] = useState(true);
   const [citiesLoading, setCitiesLoading] = useState(false);
-  const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
+  const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">(
+    "idle"
+  );
   const emailCheckRequestId = useRef(0);
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [redirecting, setRedirecting] = useState(false);
@@ -315,10 +294,9 @@ export default function SignupPage() {
     const draft = readTenantSignupDraft();
     if (draft) {
       setForm({ ...initialForm, ...draft.form });
-      setStep(draft.step);
+      setStep(draft.step === "company" ? "company" : "personal");
       setPassword(draft.password);
       setVerifyPassword(draft.verifyPassword);
-      setTermsAccepted(draft.termsAccepted);
     }
     setDraftHydrated(true);
   }, []);
@@ -330,9 +308,9 @@ export default function SignupPage() {
       step,
       password,
       verifyPassword,
-      termsAccepted,
+      termsAccepted: true,
     });
-  }, [draftHydrated, form, step, password, verifyPassword, termsAccepted, redirecting]);
+  }, [draftHydrated, form, step, password, verifyPassword, redirecting]);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -356,14 +334,11 @@ export default function SignupPage() {
     };
   }, []);
 
-  const signupButtonStyle = brandingAuthButtonStyle(true);
-
   useEffect(() => {
     const previousHtmlBg = document.documentElement.style.backgroundColor;
     const previousBodyBg = document.body.style.backgroundColor;
-    document.documentElement.style.backgroundColor = "#ffffff";
-    document.body.style.backgroundColor = "#ffffff";
-
+    document.documentElement.style.backgroundColor = "#F3F4F6";
+    document.body.style.backgroundColor = "#F3F4F6";
     return () => {
       document.documentElement.style.backgroundColor = previousHtmlBg;
       document.body.style.backgroundColor = previousBodyBg;
@@ -381,15 +356,14 @@ export default function SignupPage() {
           .order("name", { ascending: true });
 
         if (!active || error || !data?.length) return;
-
         const states = data.map((row) => ({
           code: String(row.code),
           name: String(row.name),
         }));
         setStateRows(states);
         setStateOptions(states.map((row) => row.name));
-      } finally {
-        if (active) setLocationLoading(false);
+      } catch {
+        /* keep fallback */
       }
     })();
     return () => {
@@ -425,9 +399,7 @@ export default function SignupPage() {
           setCityOptions([]);
           return;
         }
-
-        const names = (data ?? []).map((row) => String(row.city_name));
-        setCityOptions(names);
+        setCityOptions((data ?? []).map((row) => String(row.city_name)));
       } catch {
         if (active) setCityOptions([]);
       } finally {
@@ -459,7 +431,9 @@ export default function SignupPage() {
             setEmailCheckStatus("idle");
             return;
           }
-          setEmailCheckStatus(payload.available === false ? "taken" : payload.available === true ? "available" : "idle");
+          setEmailCheckStatus(
+            payload.available === false ? "taken" : payload.available === true ? "available" : "idle"
+          );
         } catch {
           if (emailCheckRequestId.current === requestId) setEmailCheckStatus("idle");
         }
@@ -469,164 +443,99 @@ export default function SignupPage() {
     return () => window.clearTimeout(timer);
   }, [form.workEmail]);
 
-  const workEmailNormalized = form.workEmail.trim().toLowerCase();
   const emailTaken = emailCheckStatus === "taken";
   const emailError = emailTaken
     ? OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE
     : touchedEmail && form.workEmail.trim() && !isValidEmail(form.workEmail)
-      ? "Enter valid email"
+      ? "Enter a valid email"
       : null;
 
-  const zipValidationContext = useMemo(
-    () => ({
-      stateCode: selectedStateCode || undefined,
-      stateName: form.state || undefined,
-    }),
-    [form.state, selectedStateCode]
-  );
-
-  const zipError = useMemo(() => {
-    if (!detailsSubmitAttempted && !touchedZip) return null;
-    return zipCodeValidationMessage(form.zipCode, zipValidationContext);
-  }, [detailsSubmitAttempted, touchedZip, form.zipCode, zipValidationContext]);
-
-  const zipIsValid = useMemo(
-    () => !zipCodeValidationMessage(form.zipCode, zipValidationContext),
-    [form.zipCode, zipValidationContext]
-  );
+  const phoneError = useMemo(() => {
+    if (!personalSubmitAttempted && !form.phone.trim()) return null;
+    return phoneValidationMessage(form.phone, { required: false });
+  }, [form.phone, personalSubmitAttempted]);
 
   const effectiveCityOptions = useMemo(() => {
     const city = form.city.trim();
-    if (!city || cityOptions.includes(city)) {
-      return cityOptions;
-    }
+    if (!city || cityOptions.includes(city)) return cityOptions;
     return [...cityOptions, city].sort((a, b) => a.localeCompare(b));
   }, [cityOptions, form.city]);
 
-  const addressAutocomplete = useAddressAutocomplete(form.address1, {
-    city: form.city,
-    state: form.state,
-    zipCode: form.zipCode,
-  });
-
-  const address1Error = useMemo(() => {
-    if (!detailsSubmitAttempted && !touchedAddress1) return null;
-    return (
-      signupAddress1ValidationMessage(form.address1) ??
-      signupAddressVerificationMessage({
-        address1: form.address1,
-        isAddressVerified: addressAutocomplete.isAddressVerified,
-        showError: true,
-      })
-    );
-  }, [
-    detailsSubmitAttempted,
-    touchedAddress1,
-    form.address1,
-    addressAutocomplete.isAddressVerified,
-  ]);
-
-  const address2Error = useMemo(() => {
-    if (!detailsSubmitAttempted && !touchedAddress2) return null;
-    return signupAddress2ValidationMessage(form.address2, { sameAsAddress1: false });
-  }, [detailsSubmitAttempted, touchedAddress2, form.address2]);
-
-  const address1IsValid = useMemo(
-    () => !signupAddress1ValidationMessage(form.address1),
-    [form.address1]
-  );
-
-  const address2IsValid = useMemo(
-    () => !signupAddress2ValidationMessage(form.address2, { sameAsAddress1: false }),
-    [form.address2]
-  );
-
-  const handleSelectAddressSuggestion = (suggestion: AddressSuggestion) => {
-    const components = addressAutocomplete.selectSuggestion(suggestion);
-    const stateName = components.state
-      ? getStateNameFromCode(components.state) ?? components.state
-      : "";
-    setForm((prev) => ({
-      ...prev,
-      address1: components.address1 || prev.address1,
-      city: components.city || prev.city,
-      state: stateName || prev.state,
-      zipCode: components.zipCode || prev.zipCode,
-    }));
-    setTouchedAddress1(true);
-    setTouchedZip(true);
-  };
-
-  const canContinue = useMemo(() => {
-    return (
-      form.firstName.trim().length > 0 &&
-      form.lastName.trim().length > 0 &&
-      isValidEmail(form.workEmail) &&
-      !emailTaken &&
-      form.jobTitle.trim().length > 0 &&
-      form.city.trim().length > 0 &&
-      form.state.trim().length > 0 &&
-      zipIsValid &&
-      address1IsValid &&
-      addressAutocomplete.isAddressVerified &&
-      address2IsValid
-    );
-  }, [address1IsValid, address2IsValid, addressAutocomplete.isAddressVerified, emailTaken, form, zipIsValid]);
-
   const passwordRules = useMemo(() => getPasswordRules(password), [password]);
-  const passwordScore = passwordRules.filter((rule) => rule.passed).length;
-  const passwordIsStrongEnough = passwordScore === passwordRules.length;
+  const passwordIsStrongEnough = passwordRules.every((rule) => rule.passed);
   const passwordsMatch = password.length > 0 && password === verifyPassword;
   const verifyPasswordError =
-    verifyPassword.trim() && password !== verifyPassword
+    (personalSubmitAttempted || verifyPassword.trim()) && password !== verifyPassword
       ? "Passwords do not match."
       : null;
-  const canCreateAccount = passwordIsStrongEnough && passwordsMatch && termsAccepted;
+  const passwordError =
+    personalSubmitAttempted && password && !passwordIsStrongEnough
+      ? "Password must be at least 12 characters with upper, lower, and a number."
+      : null;
+
+  const canContinuePersonal =
+    form.firstName.trim().length > 0 &&
+    form.lastName.trim().length > 0 &&
+    isValidEmail(form.workEmail) &&
+    !emailTaken &&
+    !phoneError &&
+    passwordIsStrongEnough &&
+    passwordsMatch;
+
+  const canCreateAccount =
+    form.companyName.trim().length > 0 &&
+    form.industry.trim().length > 0 &&
+    form.isStaffingCompany !== null &&
+    form.state.trim().length > 0 &&
+    form.city.trim().length > 0;
 
   const update = <K extends keyof SignupForm>(key: K, value: SignupForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (step === "details") {
-      setTouchedEmail(true);
-      setTouchedZip(true);
-      setTouchedAddress1(true);
-      setTouchedAddress2(true);
-      setDetailsSubmitAttempted(true);
+  const continueToCompany = () => {
+    setTouchedEmail(true);
+    setPersonalSubmitAttempted(true);
+    setSubmitError(null);
 
-      void (async () => {
-        const email = form.workEmail.trim().toLowerCase();
-        if (!isValidEmail(email)) return;
+    void (async () => {
+      const snapshot = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.workEmail.trim().toLowerCase(),
+        phone: form.phone,
+        password,
+        verifyPassword,
+      };
 
-        setEmailCheckStatus("checking");
-        let emailAvailable = false;
-        try {
-          emailAvailable = await checkOwnerSignupEmailAvailable(email);
-        } catch {
-          emailAvailable = false;
-        }
+      if (!snapshot.firstName || !snapshot.lastName) return;
+      if (!isValidEmail(snapshot.email)) return;
+
+      const phoneOk = !phoneValidationMessage(snapshot.phone, { required: false });
+      if (!phoneOk) return;
+
+      const rules = getPasswordRules(snapshot.password);
+      if (!rules.every((rule) => rule.passed) || snapshot.password !== snapshot.verifyPassword) {
+        return;
+      }
+
+      setEmailCheckStatus("checking");
+      try {
+        const emailAvailable = await checkOwnerSignupEmailAvailable(snapshot.email);
         setEmailCheckStatus(emailAvailable ? "available" : "taken");
         if (!emailAvailable) return;
+      } catch {
+        setEmailCheckStatus("idle");
+        setSubmitError("Could not validate email. Check your connection and try again.");
+        return;
+      }
 
-        const detailsReady =
-          form.firstName.trim().length > 0 &&
-          form.lastName.trim().length > 0 &&
-          form.jobTitle.trim().length > 0 &&
-          form.city.trim().length > 0 &&
-          form.state.trim().length > 0 &&
-          zipIsValid &&
-          address1IsValid &&
-          addressAutocomplete.isAddressVerified &&
-          address2IsValid;
+      setStep("company");
+    })();
+  };
 
-        if (!detailsReady) return;
-        setStep("password");
-      })();
-      return;
-    }
-
+  const createAccount = () => {
+    setCompanySubmitAttempted(true);
     if (!canCreateAccount || submitting) return;
 
     void (async () => {
@@ -640,21 +549,25 @@ export default function SignupPage() {
             firstName: form.firstName,
             lastName: form.lastName,
             workEmail: form.workEmail,
-            jobTitle: form.jobTitle,
+            phone: form.phone,
+            companyName: form.companyName,
+            companyWebsite: form.companyWebsite,
+            industry: form.industry,
+            isStaffingCompany: form.isStaffingCompany,
+            jobTitle: form.jobTitle.trim() || "Owner",
             city: form.city,
             state: form.state,
             zipCode: form.zipCode,
             address1: form.address1,
             address2: form.address2,
-            hqState: form.hqState || form.state,
-            primaryCity: form.primaryCity || form.city,
-            primaryState: form.primaryState || form.state,
+            hqState: form.state,
+            primaryCity: form.city,
+            primaryState: form.state,
             password,
           }),
         });
         const payload = (await res.json().catch(() => ({}))) as {
           error?: string;
-          code?: string;
           waitlisted?: boolean;
         };
         if (!res.ok) {
@@ -689,7 +602,15 @@ export default function SignupPage() {
         try {
           localStorage.setItem(
             "braasOwnerSignupDraft",
-            JSON.stringify({ ...form, passwordSet: true })
+            JSON.stringify({
+              ...form,
+              passwordSet: true,
+              companyName: form.companyName,
+              companyWebsite: form.companyWebsite,
+              industry: form.industry,
+              isStaffingCompany: form.isStaffingCompany,
+              phone: form.phone,
+            })
           );
         } catch {
           /* ignore storage errors */
@@ -716,640 +637,338 @@ export default function SignupPage() {
     })();
   };
 
+  const title = step === "personal" ? "Create your account" : "Your Company";
+  const subtitle =
+    step === "personal"
+      ? "Takes about a minute"
+      : "We use this to set your edition and check service area.";
+
   return (
+    <TenantBrandingProvider branding={brand}>
     <main
-      className="min-h-screen w-full overflow-x-hidden bg-white"
-      style={{ ...(brandingToCssVars(brand) as CSSProperties), backgroundColor: "#ffffff" }}
+      className="min-h-screen w-full overflow-x-hidden bg-[#F3F4F6]"
+      style={{ ...(brandingToCssVars(brand) as CSSProperties), backgroundColor: "#F3F4F6" }}
     >
       {redirecting ? <RedirectionProgressModal /> : null}
-      <style>{`
-        .signup-frame {
-          box-sizing: border-box;
-          padding: clamp(32px, 5.55vw, 80px);
-        }
 
-        .signup-layout {
-          display: grid;
-          grid-template-columns: minmax(500px, 590px) minmax(340px, min(38vw, 510px));
-          gap: clamp(40px, 7vw, 180px);
-          justify-content: center;
-          align-items: stretch;
-        }
-
-        .signup-art {
-          height: auto;
-          min-height: clamp(780px, calc(100vh - 96px), 1279px);
-        }
-
-        .signup-form {
-          padding-top: clamp(0px, 1.4vw, 20px);
-        }
-
-        @media (min-width: 1440px) {
-          .signup-frame {
-            padding: 80px;
-          }
-
-          .signup-frame--details {
-            height: auto;
-            min-height: 1024px;
-          }
-
-          .signup-frame--password {
-            height: 1457px;
-          }
-
-          .signup-layout {
-            width: 1280px;
-            grid-template-columns: 590px 510px;
-            gap: 180px;
-          }
-
-          .signup-layout--details {
-            height: auto;
-            min-height: 1279px;
-            align-items: start;
-          }
-
-          .signup-layout--password {
-            height: 1279px;
-          }
-
-          .signup-art {
-            width: 510px;
-            min-height: 1279px;
-          }
-
-          .signup-art--details {
-            height: auto;
-          }
-
-          .signup-art--password {
-            height: 1279px;
-          }
-        }
-
-        @media (max-width: 1100px) {
-          .signup-frame {
-            padding: 28px 24px;
-          }
-
-          .signup-layout {
-            grid-template-columns: 1fr;
-            gap: 32px;
-            width: 100%;
-            max-width: 590px;
-            margin-left: auto;
-            margin-right: auto;
-          }
-
-          .signup-form {
-            max-width: 100%;
-            width: 100%;
-          }
-
-          .signup-frame--password {
-            height: auto;
-          }
-
-          .signup-art,
-          .signup-art.signup-art--password {
-            display: none;
-          }
-
-          .signup-layout--password {
-            height: auto;
-            min-height: 0;
-          }
-        }
-
-        @media (max-width: 767px) {
-          .signup-frame {
-            padding: 24px 20px;
-          }
-        }
-
-        @media (max-width: 639px) {
-          .signup-frame {
-            padding: 16px 20px;
-          }
-
-          .signup-layout {
-            gap: 24px;
-          }
-
-          .signup-form {
-            padding-bottom: 32px;
-            width: 100%;
-          }
-
-          .signup-field-grid label {
-            font-size: 13px;
-            line-height: 18px;
-            margin-bottom: 6px;
-          }
-        }
-
-        @media (min-width: 1101px) and (max-width: 1439px) {
-          .signup-frame {
-            padding: 36px 40px;
-          }
-
-          .signup-layout {
-            grid-template-columns: minmax(0, 590px) minmax(0, min(38vw, 510px));
-            gap: clamp(32px, 5vw, 80px);
-          }
-
-          .signup-art {
-            min-height: clamp(620px, calc(100vh - 96px), 900px);
-          }
-        }
-
-        .signup-layout--password {
-          align-items: stretch;
-        }
-
-        @media (min-width: 1101px) {
-          .signup-art.signup-art--password {
-            height: 100%;
-            min-height: 100%;
-            max-height: none;
-            aspect-ratio: unset;
-            align-self: stretch;
-          }
-        }
-
-      `}</style>
-      <section
-        className={`signup-frame mx-auto min-h-screen w-full max-w-[1440px] rounded-[24px] bg-white${
-          step === "password" ? " signup-frame--password" : " signup-frame--details"
-        }`}
-      >
-        <div
-          className={`signup-layout w-full rounded-[12px] bg-white${
-            step === "password" ? " signup-layout--password" : " signup-layout--details"
-          }`}
+      <section className="mx-auto flex min-h-screen w-full max-w-[1440px] items-start justify-center px-5 py-10 sm:px-10 sm:py-16 lg:px-20 lg:py-20">
+        <form
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            if (step === "personal") continueToCompany();
+            else createAccount();
+          }}
+          className="flex w-full max-w-[400px] flex-col gap-[30px]"
         >
-          <form
-            onSubmit={onSubmit}
-            className="signup-form relative z-10 flex w-full max-w-[590px] flex-col pb-[48px] max-[1100px]:max-w-full"
-          >
-            <Image
-              src={brand.signupLogoUrl}
-              alt={brand.companyName}
-              width={160}
-              height={80}
-              priority
-              className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px] max-[1100px]:mx-auto max-[1100px]:block"
-            />
+          <div className="flex w-full flex-col gap-2.5">
+            <div className="flex h-[115px] w-full items-center justify-center">
+              <Image
+                src={brand.signupLogoUrl}
+                alt={brand.companyName}
+                width={160}
+                height={82}
+                priority
+                className="h-[82px] w-[160px] object-contain"
+              />
+            </div>
 
-            <SignupStepper
-              phase={resolveSignupStepperPhase({ formStep: step, redirecting })}
-            />
-
-            {submitError ? (
-              <p className="mt-[24px] rounded-[8px] border border-[#fecdd3] bg-[#fff1f2] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#be123c]" style={interStyle}>
-                {submitError}
-              </p>
-            ) : null}
-
-            {step === "details" ? (
-              <>
-            <div className="mt-[32px] sm:mt-[44px] min-[1440px]:mt-[58px]">
-              <h1
-                className="text-[24px] font-semibold leading-[30px] tracking-normal sm:text-[26px] sm:leading-[32px] lg:text-[28px] lg:leading-[34px] min-[1440px]:text-[30px] min-[1440px]:leading-[36px]"
-                style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
-              >
-                {brand.signupHeadline}
+            <div className="flex w-full flex-col items-center gap-1 text-center">
+              <h1 className="w-full text-[24px] font-semibold leading-8 text-black" style={interStyle}>
+                {title}
               </h1>
-              <p
-                className="mt-[8px] text-[14px] font-normal leading-[20px] tracking-normal sm:mt-[10px] sm:text-[15px] sm:leading-[22px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
-                style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
-              >
-                {brand.signupSubheadline}
+              <p className="w-full text-[14px] font-normal leading-5 text-[#6B7280]" style={interStyle}>
+                {subtitle}
               </p>
             </div>
 
-            <div className="signup-field-grid mt-[24px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[30px] sm:gap-x-[20px] sm:gap-y-[24px] min-[1440px]:mt-[38px] min-[1440px]:gap-x-[26px] min-[1440px]:gap-y-[30px]">
-              <div className="min-w-0">
-                <TextField
-                  label="First Name"
-                  required
-                  value={form.firstName}
-                  onChange={(value) => update("firstName", value)}
-                  placeholder="First Name"
-                  maxLength={PERSON_NAME_MAX_LENGTH}
-                />
-              </div>
-              <div className="min-w-0">
-                <TextField
-                  label="Last Name"
-                  required
-                  value={form.lastName}
-                  onChange={(value) => update("lastName", value)}
-                  placeholder="Last Name"
-                  maxLength={PERSON_NAME_MAX_LENGTH}
-                />
-              </div>
-              <div className="min-w-0" onBlur={() => setTouchedEmail(true)}>
+            <div className="w-full py-[30px]">
+              <SignupStepper
+                phase={resolveSignupStepperPhase({ formStep: step, redirecting })}
+                className="!mt-0"
+              />
+            </div>
+          </div>
+
+          {submitError ? (
+            <p
+              className="rounded-lg border border-[#FECDD3] bg-[#FFF1F2] px-3.5 py-3 text-[12px] leading-4 text-[#BE123C]"
+              style={interStyle}
+            >
+              {submitError}
+            </p>
+          ) : null}
+
+          {step === "personal" ? (
+            <>
+              <div className="flex w-full flex-col gap-6 rounded-xl border border-[#E5E7EB] bg-white px-5 py-[30px]">
+                <div className="flex gap-3.5">
+                  <TextField
+                    label="First Name"
+                    required
+                    value={form.firstName}
+                    onChange={(value) => update("firstName", value)}
+                    placeholder="First Name"
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    error={
+                      personalSubmitAttempted && !form.firstName.trim() ? "First name is required." : null
+                    }
+                  />
+                  <TextField
+                    label="Last Name"
+                    required
+                    value={form.lastName}
+                    onChange={(value) => update("lastName", value)}
+                    placeholder="Last Name"
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    error={
+                      personalSubmitAttempted && !form.lastName.trim() ? "Last name is required." : null
+                    }
+                  />
+                </div>
+
                 <TextField
                   label="Work Email"
                   required
                   type="email"
                   value={form.workEmail}
-                  onChange={(value) => update("workEmail", value)}
-                  placeholder="Email"
+                  onChange={(value) => {
+                    setTouchedEmail(true);
+                    update("workEmail", value);
+                  }}
+                  placeholder="you@company.com"
                   error={emailError}
                 />
-              </div>
-              <div className="min-w-0">
-                <TextField
-                  label="Job Title"
-                  required
-                  value={form.jobTitle}
-                  onChange={(value) => update("jobTitle", value)}
-                  placeholder="Job title"
-                />
-              </div>
-            </div>
 
-            <div className="mt-[24px] space-y-[22px] min-[1440px]:mt-[30px] min-[1440px]:space-y-[26px]">
-              <AddressAutocompleteField
-                label="Business Address 1"
-                required
-                value={form.address1}
-                onChange={(value) => {
-                  addressAutocomplete.resetVerification();
-                  update("address1", value);
-                }}
-                onBlur={() => setTouchedAddress1(true)}
-                onFocus={addressAutocomplete.openSuggestions}
-                onCloseSuggestions={addressAutocomplete.closeSuggestions}
-                error={address1Error}
-                searchError={
-                  touchedAddress1 || detailsSubmitAttempted
-                    ? addressAutocomplete.searchError
-                    : null
-                }
-                suggestions={addressAutocomplete.suggestions}
-                isLoading={addressAutocomplete.isLoading}
-                isOpen={addressAutocomplete.isOpen}
-                isVerified={addressAutocomplete.isAddressVerified}
-                onSelectSuggestion={handleSelectAddressSuggestion}
-                variant="signup"
-              />
+                <div className="w-full">
+                  <FieldLabel>Mobile Phone</FieldLabel>
+                  <div className="flex w-full items-center">
+                    <div className="flex h-9 shrink-0 items-center gap-2 rounded-l-lg border border-r-0 border-[#CBD5E1] bg-white py-2 pl-2.5 pr-1">
+                      <Image
+                        src="/icons/braas-HR/tenant-onboarding/flag-usa.svg"
+                        alt=""
+                        width={24}
+                        height={16}
+                        className="h-4 w-6 rounded-[1px] object-cover"
+                      />
+                      <span className="flex items-center gap-1 text-[12px] leading-4 text-black" style={interStyle}>
+                        +1
+                        <ChevronDown className="h-[18px] w-[18px] text-[#6B7280]" aria-hidden />
+                      </span>
+                    </div>
+                    <input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(event) => update("phone", formatPhoneNumber(event.target.value))}
+                      placeholder="202 555 0123"
+                      style={interStyle}
+                      className={`h-9 min-w-0 flex-1 rounded-r-lg border bg-white px-2.5 text-[12px] leading-4 text-black outline-none transition placeholder:text-[#94A3B8] ${
+                        phoneError
+                          ? "border-[#E11D48] focus:border-[#E11D48] focus:ring-2 focus:ring-[#E11D48]/15"
+                          : "border-[#CBD5E1] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/20"
+                      }`}
+                    />
+                  </div>
+                  {phoneError ? (
+                    <p className="mt-1.5 text-[12px] leading-4 text-[#E11D48]" style={interStyle}>
+                      {phoneError}
+                    </p>
+                  ) : null}
+                </div>
 
-              <div onBlur={() => setTouchedAddress2(true)}>
-                <TextField
-                  label="Business Address 2"
-                  value={form.address2}
-                  onChange={(value) => update("address2", value)}
-                  placeholder="Apt, Suite, Unit, etc."
-                  error={address2Error}
+                <PasswordField label="Password" value={password} onChange={setPassword} error={passwordError} />
+                <PasswordField
+                  label="Verify Password"
+                  value={verifyPassword}
+                  onChange={setVerifyPassword}
+                  error={verifyPasswordError}
                 />
-              </div>
-            </div>
 
-            <div className="signup-field-grid signup-field-grid--location mt-[18px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[26px] sm:gap-x-[20px] sm:gap-y-[24px] lg:grid-cols-3 min-[1440px]:mt-[30px] min-[1440px]:gap-x-[26px]">
-              <div className="min-w-0">
-                <SearchableSelectField
-                  label="State"
-                  required
-                  compact
-                  loading={locationLoading}
-                  disabled={locationLoading}
-                  value={form.state}
-                  onChange={(value) => {
-                    setForm((prev) => ({ ...prev, state: value, city: "" }));
-                  }}
-                  placeholder={locationLoading ? "Loading…" : "Search state"}
-                  searchPlaceholder="Type to search states"
-                  options={stateOptions}
-                  emptyMessage="No states found. Try another search."
-                />
-              </div>
-              <div className="min-w-0">
-                <SearchableSelectField
-                  label="City"
-                  required
-                  compact
-                  allowCustom
-                  disabled={!form.state}
-                  loading={citiesLoading}
-                  value={form.city}
-                  onChange={(value) => update("city", value)}
-                  placeholder={
-                    !form.state
-                      ? "Select state first"
-                      : citiesLoading
-                        ? "Loading…"
-                        : "Search or enter city"
-                  }
-                  searchPlaceholder="Type any city"
-                  options={effectiveCityOptions}
-                  emptyMessage="Type a city name and press Enter."
-                />
-              </div>
-              <div className="signup-location-zip min-w-0 min-[600px]:col-span-2 lg:col-span-1" onBlur={() => setTouchedZip(true)}>
-                <TextField
-                  label="Zip Code"
-                  required
-                  value={form.zipCode}
-                  onChange={(value) => update("zipCode", value.replace(/\D/g, "").slice(0, 5))}
-                  placeholder="Code"
-                  error={zipError}
-                />
-              </div>
-            </div>
+                {personalSubmitAttempted && password && !passwordIsStrongEnough ? (
+                  <ul className="space-y-1">
+                    {passwordRules.map((rule) => (
+                      <li
+                        key={rule.label}
+                        className={`text-[12px] leading-4 ${rule.passed ? "text-[#16A34A]" : "text-[#6B7280]"}`}
+                        style={interStyle}
+                      >
+                        {rule.passed ? "✓" : "•"} {rule.label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
 
-            <div className="signup-field-grid mt-[18px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[26px] sm:gap-x-[20px]">
-              <div className="min-w-0">
-                <SearchableSelectField
-                  label="Headquarters state"
-                  required
-                  compact
-                  loading={locationLoading}
-                  disabled={locationLoading}
-                  value={form.hqState || form.state}
-                  onChange={(value) => update("hqState", value)}
-                  placeholder="Search state"
-                  searchPlaceholder="Type to search states"
-                  options={stateOptions}
-                  emptyMessage="No states found. Try another search."
-                />
-              </div>
-              <div className="min-w-0">
-                <SearchableSelectField
-                  label="Primary work state"
-                  required
-                  compact
-                  loading={locationLoading}
-                  disabled={locationLoading}
-                  value={form.primaryState || form.state}
-                  onChange={(value) => setForm((prev) => ({ ...prev, primaryState: value, primaryCity: "" }))}
-                  placeholder="Search state"
-                  searchPlaceholder="Type to search states"
-                  options={stateOptions}
-                  emptyMessage="No states found. Try another search."
-                />
-              </div>
-              <div className="min-w-0 min-[600px]:col-span-2">
-                <TextField
-                  label="Primary work city"
-                  required
-                  value={form.primaryCity || form.city}
-                  onChange={(value) => update("primaryCity", value)}
-                  placeholder="City where workers will work"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!canContinue}
-              className="relative z-20 mt-[28px] flex h-[48px] w-full shrink-0 items-center justify-center rounded-[8px] text-[15px] font-semibold leading-[20px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 sm:mt-[32px] sm:h-[50px] sm:text-[15px] min-[1440px]:mt-[38px] min-[1440px]:h-[52px] min-[1440px]:text-[16px] min-[1440px]:leading-[22px]"
-              style={canContinue ? signupButtonStyle : undefined}
-            >
-              Next
-            </button>
-
-            {/* Social auth (Google / Apple / X) — hidden for now
-            <div className="mt-[46px] flex items-center gap-[14px]">
-              <div className="h-px flex-1 bg-[#e7edf4]" />
-              <span className="text-[10px] font-medium uppercase text-[#334155]">OR</span>
-              <div className="h-px flex-1 bg-[#e7edf4]" />
-            </div>
-
-            <div className="mt-[30px] flex justify-center gap-[14px]">
-              <SocialButton label="Continue with Google">
-                <FcGoogle />
-              </SocialButton>
-              <SocialButton label="Continue with Apple">
-                <FaApple />
-              </SocialButton>
-              <SocialButton label="Continue with X">
-                <FaXTwitter className="h-[15px] w-[15px]" />
-              </SocialButton>
-            </div>
-            */}
-
-            {/*
-            <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
-              Already have an account?{" "}
-              <Link href="/signin?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
-                Sign In
-              </Link>
-            </p>
-            */}
-              </>
-            ) : (
-              <>
                 <button
                   type="button"
-                  onClick={() => setStep("details")}
-                  className="mt-[24px] inline-flex items-center gap-[8px] rounded-md px-1 py-1.5 text-[13px] font-medium transition hover:bg-slate-50 sm:mt-[28px] sm:text-[14px] min-[1440px]:mt-[32px]"
-                  style={{ ...interStyle, color: brand.secondaryHex }}
-                  aria-label="Back to organization details"
+                  onClick={continueToCompany}
+                  disabled={emailCheckStatus === "checking"}
+                  className="inline-flex h-10 w-full items-center justify-center rounded-lg px-3.5 text-[14px] font-semibold leading-5 text-white transition disabled:opacity-60"
+                  style={{ ...interStyle, backgroundColor: NAVY }}
                 >
-                  <ArrowLeft className="h-4 w-4" strokeWidth={2.25} />
-                  Back
+                  Submit and Continue
                 </button>
+              </div>
 
-                <div className="mt-[16px] sm:mt-[20px] min-[1440px]:mt-[24px]">
-                  <h1
-                    className="text-[24px] font-semibold leading-[30px] tracking-normal sm:text-[26px] sm:leading-[32px] lg:text-[28px] lg:leading-[34px] min-[1440px]:text-[30px] min-[1440px]:leading-[36px]"
-                    style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+              <div className="flex w-full flex-col gap-6">
+                <div className="flex w-full items-center gap-1 py-1">
+                  <div className="h-px flex-1 bg-[#E5E7EB]" />
+                  <span className="px-1 text-[10px] font-semibold leading-[15px] text-black" style={interStyle}>
+                    OR
+                  </span>
+                  <div className="h-px flex-1 bg-[#E5E7EB]" />
+                </div>
+
+                <div className="flex items-center justify-center gap-2.5">
+                  {[
+                    { src: "/icons/braas-HR/tenant-onboarding/social-google.svg", label: "Google" },
+                    { src: "/icons/braas-HR/tenant-onboarding/social-apple.svg", label: "Apple" },
+                    { src: "/icons/braas-HR/tenant-onboarding/social-x.svg", label: "X" },
+                  ].map((social) => (
+                    <button
+                      key={social.label}
+                      type="button"
+                      aria-label={`${social.label} sign up (coming soon)`}
+                      title="Coming soon"
+                      className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-[#E5E7EB] bg-white p-2.5"
+                    >
+                      <Image src={social.src} alt="" width={20} height={20} className="h-5 w-5 object-contain" />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
+                    Already have an account?
+                  </span>
+                  <Link
+                    href="/login"
+                    className="text-[12px] font-semibold leading-4"
+                    style={{ ...interStyle, color: NAVY }}
                   >
-                    {brand.signupHeadline}
-                  </h1>
-                  <p
-                    className="mt-[8px] text-[14px] font-normal leading-[20px] tracking-normal sm:mt-[10px] sm:text-[15px] sm:leading-[22px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
-                    style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
-                  >
-                    Create a unique new password.
-                  </p>
-                </div>
-
-                <PasswordRuleList rules={passwordRules} />
-
-                <div className="mt-[24px] space-y-[24px] min-[1440px]:space-y-[30px]">
-                  <div>
-                    <PasswordField label="Password" value={password} onChange={setPassword} />
-                    <PasswordStrengthMeter score={passwordScore} />
-                  </div>
-                  <PasswordField
-                    label="Verify Password"
-                    value={verifyPassword}
-                    onChange={setVerifyPassword}
-                    error={verifyPasswordError}
-                  />
-                </div>
-
-                <div
-                  className="mt-[24px] rounded-[8px] border bg-[#f8fafc] px-[12px] py-[14px] sm:mt-[26px] sm:px-[14px] sm:py-[16px] min-[1440px]:mt-[30px]"
-                  style={{
-                    ...interStyle,
-                    borderColor: `${brand.primaryHex}33`,
-                  }}
-                >
-                  <label className="flex cursor-pointer items-start gap-[8px] text-[13px] font-normal leading-[19px] tracking-normal text-[#334155] sm:text-[14px] sm:leading-[20px]">
-                    <span
-                      className="relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border"
-                      style={
-                        termsAccepted
-                          ? {
-                              borderColor: brand.secondaryHex,
-                              backgroundColor: brand.secondaryHex,
-                            }
-                          : {
-                              borderColor: "#d7e0ea",
-                              backgroundColor: "#ffffff",
-                            }
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={termsAccepted}
-                        onChange={(event) => setTermsAccepted(event.target.checked)}
-                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                        aria-label="Agree to Tenant Terms of Service and Privacy Policy"
-                      />
-                      {termsAccepted ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      I agree to the{" "}
-                      <Link
-                        href={legalReturnHref(LEGAL_ROUTES.tenantTerms, "/signup")}
-                        className="font-semibold underline underline-offset-2"
-                        style={{ color: brand.secondaryHex }}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        Tenant Terms of Service
-                      </Link>{" "}
-                      and{" "}
-                      <Link
-                        href={legalReturnHref(LEGAL_ROUTES.privacyPolicy, "/signup")}
-                        className="font-semibold underline underline-offset-2"
-                        style={{ color: brand.secondaryHex }}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        Privacy Policy
-                      </Link>
-                      .
-                    </span>
-                  </label>
-
-                  <p className="mt-[12px] text-[12px] font-normal leading-[18px] text-[#64748b] sm:text-[13px] sm:leading-[19px]">
-                    By creating an organization account you agree to the{" "}
-                    <Link
-                      href={legalReturnHref(LEGAL_ROUTES.tenantTerms, "/signup")}
-                      className="font-medium underline underline-offset-2"
-                      style={{ color: brand.secondaryHex }}
-                    >
-                      Tenant Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link
-                      href={legalReturnHref(LEGAL_ROUTES.privacyPolicy, "/signup")}
-                      className="font-medium underline underline-offset-2"
-                      style={{ color: brand.secondaryHex }}
-                    >
-                      Privacy Policy
-                    </Link>
-                    . The{" "}
-                    <Link
-                      href={legalReturnHref(LEGAL_ROUTES.tenantTerms, "/signup")}
-                      className="font-medium underline underline-offset-2"
-                      style={{ color: brand.secondaryHex }}
-                    >
-                      Tenant Terms
-                    </Link>{" "}
-                    include the{" "}
-                    <Link
-                      href={legalReturnHref(LEGAL_ROUTES.dataProcessingAddendum, "/signup")}
-                      className="font-medium underline underline-offset-2"
-                      style={{ color: brand.secondaryHex }}
-                    >
-                      Data Processing Addendum
-                    </Link>
-                    .
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!canCreateAccount || submitting}
-                  className="mt-[28px] flex h-[48px] w-full items-center justify-center rounded-[8px] align-middle text-[15px] font-semibold leading-[20px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 sm:mt-[32px] sm:h-[50px] min-[1440px]:mt-[38px] min-[1440px]:h-[52px] min-[1440px]:text-[16px] min-[1440px]:leading-[22px]"
-                  style={canCreateAccount && !submitting ? signupButtonStyle : undefined}
-                >
-                  {submitting ? "Creating account…" : "Create an account"}
-                </button>
-
-                {/* Social auth (Google / Apple / X) — hidden for now
-                <div className="mt-[46px] flex items-center gap-[14px]">
-                  <div className="h-px flex-1 bg-[#e7edf4]" />
-                  <span className="text-[10px] font-medium uppercase text-[#334155]">OR</span>
-                  <div className="h-px flex-1 bg-[#e7edf4]" />
-                </div>
-
-                <div className="mt-[30px] flex justify-center gap-[14px]">
-                  <SocialButton label="Continue with Google">
-                    <FcGoogle />
-                  </SocialButton>
-                  <SocialButton label="Continue with Apple">
-                    <FaApple />
-                  </SocialButton>
-                  <SocialButton label="Continue with X">
-                    <FaXTwitter className="h-[15px] w-[15px]" />
-                  </SocialButton>
-                </div>
-                */}
-
-                {/* Keep the sign-in link disabled until the tenant signup flow supports returning users.
-                <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
-                  Already have an account?{" "}
-                  <Link href="/signin?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
                     Sign In
                   </Link>
-                </p>
-                */}
-              </>
-            )}
-          </form>
-
-          <aside
-            className={`signup-art relative flex w-full flex-col items-center justify-center gap-[40px] self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-[30px]${
-              step === "password" ? " signup-art--password" : " signup-art--details"
-            }`}
-          >
-            <Image
-              src="/images/singup-bg-image.jpg"
-              alt="Brass HR signup"
-              fill
-              sizes="510px"
-              priority
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-black/45" />
-            <div className="relative z-10 flex flex-col items-center justify-center gap-[40px] text-center">
-              <Image
-                src="/icons/braas-HR/white-BrassHR-logo.svg"
-                alt="Brass HR"
-                width={160}
-                height={80}
-                priority
-                className="h-[56px] w-[112px] object-contain sm:h-[64px] sm:w-[128px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex w-full flex-col gap-6 rounded-xl border border-[#E5E7EB] bg-white px-5 py-[30px]">
+              <TextField
+                label="Company Name"
+                required
+                value={form.companyName}
+                onChange={(value) => update("companyName", value)}
+                placeholder="Company Name"
+                error={
+                  companySubmitAttempted && !form.companyName.trim() ? "Company name is required." : null
+                }
               />
-              <p
-                className="max-w-[260px] text-center text-[20px] font-bold leading-[26px] tracking-[0.03em] text-white sm:max-w-[280px] sm:text-[22px] sm:leading-[28px] min-[1440px]:max-w-[300px] min-[1440px]:text-[24px] min-[1440px]:leading-[30px]"
-                style={{ fontFamily: "var(--font-geist-mono)" }}
-              >
-                HR Simplified for growing teams
-              </p>
+
+              <TextField
+                label="Company Website"
+                optional
+                value={form.companyWebsite}
+                onChange={(value) => update("companyWebsite", value)}
+                placeholder="www.example.com"
+              />
+
+              <SearchableSelectField
+                label="Industry"
+                dense
+                required
+                value={form.industry}
+                onChange={(value) => update("industry", value)}
+                options={[...INDUSTRY_OPTIONS]}
+                placeholder="Select industry"
+                error={
+                  companySubmitAttempted && !form.industry.trim() ? "Industry is required." : null
+                }
+              />
+
+              <div className="w-full">
+                <p className="mb-2 text-[12px] font-semibold leading-4 text-[#374151]" style={interStyle}>
+                  Are you a staffing company?
+                </p>
+                <div className="flex gap-3.5">
+                  <StaffingOption
+                    selected={form.isStaffingCompany === false}
+                    title="No"
+                    subtitle="We manage our own team"
+                    onSelect={() => update("isStaffingCompany", false)}
+                  />
+                  <StaffingOption
+                    selected={form.isStaffingCompany === true}
+                    title="Yes"
+                    subtitle="We place workers"
+                    onSelect={() => update("isStaffingCompany", true)}
+                  />
+                </div>
+                {companySubmitAttempted && form.isStaffingCompany === null ? (
+                  <p className="mt-1.5 text-[12px] leading-4 text-[#E11D48]" style={interStyle}>
+                    Select an option.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex gap-3.5">
+                <div className="min-w-0 flex-1">
+                  <SearchableSelectField
+                    label="State"
+                    dense
+                    required
+                    value={form.state}
+                    onChange={(value) => {
+                      setForm((prev) => ({ ...prev, state: value, city: "" }));
+                    }}
+                    options={stateOptions}
+                    placeholder="Select state"
+                    error={companySubmitAttempted && !form.state.trim() ? "State is required." : null}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <SearchableSelectField
+                    label="City"
+                    dense
+                    required
+                    allowCustom
+                    value={form.city}
+                    onChange={(value) => update("city", value)}
+                    options={effectiveCityOptions}
+                    placeholder={
+                      !form.state ? "Select state first" : citiesLoading ? "Loading…" : "Select city"
+                    }
+                    disabled={!form.state || citiesLoading}
+                    loading={citiesLoading}
+                    error={companySubmitAttempted && !form.city.trim() ? "City is required." : null}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubmitError(null);
+                    setStep("personal");
+                  }}
+                  className="inline-flex h-10 flex-1 items-center justify-center rounded-lg border px-3.5 text-[14px] font-semibold leading-5 transition"
+                  style={{ ...interStyle, color: NAVY, borderColor: NAVY, backgroundColor: "#FFFFFF" }}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={createAccount}
+                  disabled={submitting}
+                  className="inline-flex h-10 flex-1 items-center justify-center rounded-lg px-3.5 text-[14px] font-semibold leading-5 text-white transition disabled:opacity-60"
+                  style={{ ...interStyle, backgroundColor: NAVY }}
+                >
+                  {submitting ? "Creating…" : "Create an account"}
+                </button>
+              </div>
             </div>
-          </aside>
-        </div>
+          )}
+        </form>
       </section>
     </main>
+    </TenantBrandingProvider>
   );
 }
