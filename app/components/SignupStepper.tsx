@@ -4,19 +4,26 @@ import Image from "next/image";
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
-export const SIGNUP_STEPPER_ITEMS = ["Sign Up", "Preparing your trial", "Account is ready"] as const;
+/** Figma Tenant Onboarding — New: Steper labels */
+export const SIGNUP_STEPPER_ITEMS = [
+  "Personal Info",
+  "Company Info",
+  "Account Created",
+] as const;
 
-export type SignupStepperPhase = "details" | "password" | "preparing" | "ready";
+export type SignupStepperPhase =
+  | "details"
+  | "password"
+  | "personal"
+  | "company"
+  | "preparing"
+  | "ready";
 
-const STEPPER_WIDTH = 670;
-const STEP_WIDTH = 103.666664;
-const LINE_TOP = 7;
 const ICON_SIZE = 16;
-const LINE_INSET = STEP_WIDTH / 2;
 const GOLD = "#BC8B41";
-const TRACK_LINE = "#e8edf4";
-const PENDING_TEXT = "#94a3b8";
-const ACTIVE_TEXT = "#0f172a";
+const TRACK_LINE = "#E5E7EB";
+const PENDING_TEXT = "#6B7280";
+const ACTIVE_TEXT = "#BC8B41";
 
 type SignupStepperProps = {
   phase: SignupStepperPhase;
@@ -26,45 +33,44 @@ type SignupStepperProps = {
 export function getStepperConfig(phase: SignupStepperPhase) {
   switch (phase) {
     case "details":
-      return {
-        completedStepIndex: -1,
-        activeStepIndex: 0,
-        connectorProgress: [0.45, 0] as const,
-      };
     case "password":
+    case "personal":
       return {
         completedStepIndex: -1,
         activeStepIndex: 0,
-        connectorProgress: [0.65, 0] as const,
+        /** Segment fills between steps 0→1 and 1→2 */
+        connectorFilled: [false, false] as const,
       };
-    case "preparing":
+    case "company":
       return {
         completedStepIndex: 0,
         activeStepIndex: 1,
-        connectorProgress: [1, 0.5] as const,
+        connectorFilled: [true, false] as const,
+      };
+    case "preparing":
+      return {
+        completedStepIndex: 1,
+        activeStepIndex: 2,
+        connectorFilled: [true, true] as const,
       };
     case "ready":
       return {
         completedStepIndex: 2,
         activeStepIndex: 3,
-        connectorProgress: [1, 1] as const,
+        connectorFilled: [true, true] as const,
       };
   }
 }
 
-/** Map signup UI state to the public stepper phase (password stays on Sign Up). */
+/** Map signup UI state to the public stepper phase. */
 export function resolveSignupStepperPhase(input: {
-  formStep: "details" | "password";
+  formStep: "details" | "password" | "personal" | "company";
   redirecting: boolean;
 }): SignupStepperPhase {
   if (input.redirecting) return "preparing";
+  if (input.formStep === "company") return "company";
+  if (input.formStep === "personal") return "personal";
   return input.formStep === "password" ? "password" : "details";
-}
-
-/** Gold fill as % of the full track (between first and last icon centers). */
-function getGoldFillPercent(connectorProgress: readonly [number, number]) {
-  const [first, second] = connectorProgress;
-  return (first * 0.5 + second * 0.5) * 100;
 }
 
 export type SignupStepIconVariant = "completed" | "active" | "pending";
@@ -87,10 +93,10 @@ type StepIconProps = {
 function StepIcon({ variant }: StepIconProps) {
   const src =
     variant === "completed"
-      ? "/Indicator.svg"
+      ? "/icons/braas-HR/tenant-onboarding/stepper-completed.svg"
       : variant === "active"
-        ? "/gold-active-indecator.svg"
-        : "/gray-non-complete-indecator.svg";
+        ? "/icons/braas-HR/tenant-onboarding/stepper-active.svg"
+        : "/icons/braas-HR/tenant-onboarding/stepper-pending.svg";
 
   return (
     <Image
@@ -104,59 +110,61 @@ function StepIcon({ variant }: StepIconProps) {
   );
 }
 
+type ProgressLineProps = {
+  filled: boolean;
+};
+
+function ProgressLine({ filled }: ProgressLineProps) {
+  return (
+    <div className="h-[2px] min-w-0 flex-1" aria-hidden>
+      <div
+        className="h-full w-full"
+        style={{ backgroundColor: filled ? GOLD : TRACK_LINE }}
+      />
+    </div>
+  );
+}
+
 export default function SignupStepper({ phase, className = "" }: SignupStepperProps) {
-  const { completedStepIndex, activeStepIndex, connectorProgress } = getStepperConfig(phase);
-  const goldFillPercent = getGoldFillPercent(connectorProgress);
-  const trackWidthExpr = `calc(100% - ${STEP_WIDTH}px)`;
+  const { completedStepIndex, activeStepIndex, connectorFilled } = getStepperConfig(phase);
 
   return (
-    <div
-      className={`mt-[24px] w-full max-w-[670px] ${className}`.trim()}
-    >
-      <div className="relative h-[66px] w-full">
-        <div
-          className="absolute h-[2px]"
-          style={{
-            top: LINE_TOP,
-            left: LINE_INSET,
-            width: trackWidthExpr,
-            backgroundColor: TRACK_LINE,
-          }}
-          aria-hidden
-        />
-        <div
-          className="absolute h-[2px]"
-          style={{
-            top: LINE_TOP,
-            left: LINE_INSET,
-            width: `calc(${trackWidthExpr} * ${goldFillPercent / 100})`,
-            backgroundColor: GOLD,
-          }}
-          aria-hidden
-        />
+    <div className={`mt-[24px] w-full ${className}`.trim()} role="list" aria-label="Signup progress">
+      <div className="flex w-full items-start">
+        {SIGNUP_STEPPER_ITEMS.map((item, index) => {
+          const variant = getSignupStepIconVariant(index, completedStepIndex, activeStepIndex);
+          const isPending = variant === "pending";
+          const isFirst = index === 0;
+          const isLast = index === SIGNUP_STEPPER_ITEMS.length - 1;
+          const leftFilled = index > 0 ? connectorFilled[index - 1] : false;
+          const rightFilled = !isLast ? connectorFilled[index] : false;
 
-        <div className="relative flex w-full items-start justify-between">
-          {SIGNUP_STEPPER_ITEMS.map((item, index) => {
-            const variant = getSignupStepIconVariant(index, completedStepIndex, activeStepIndex);
-            const isPending = variant === "pending";
-
-            return (
-              <div
-                key={item}
-                className="relative z-10 flex flex-col items-center"
-                style={{ width: STEP_WIDTH }}
-              >
-                <StepIcon variant={variant} />
-                <span
-                  className="mt-[12px] w-full text-center text-[10px] font-normal leading-[14px] tracking-normal sm:text-[11px] sm:leading-[15px] min-[1440px]:text-[12px] min-[1440px]:leading-[16px]"
-                  style={{ ...interStyle, color: isPending ? PENDING_TEXT : ACTIVE_TEXT }}
-                >
-                  {item}
-                </span>
+          return (
+            <div
+              key={item}
+              role="listitem"
+              className="flex min-w-0 flex-1 flex-col items-center gap-[10px]"
+              aria-current={variant === "active" ? "step" : undefined}
+            >
+              <div className="flex h-4 w-full items-center">
+                {isFirst ? <div className="min-w-0 flex-1" aria-hidden /> : <ProgressLine filled={Boolean(leftFilled)} />}
+                <div className="flex shrink-0 items-center justify-center">
+                  <StepIcon variant={variant} />
+                </div>
+                {isLast ? <div className="min-w-0 flex-1" aria-hidden /> : <ProgressLine filled={Boolean(rightFilled)} />}
               </div>
-            );
-          })}
-        </div>
+              <span
+                className="w-full px-1 text-center text-[12px] font-normal leading-[16px] tracking-normal"
+                style={{
+                  ...interStyle,
+                  color: isPending ? PENDING_TEXT : ACTIVE_TEXT,
+                }}
+              >
+                {item}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

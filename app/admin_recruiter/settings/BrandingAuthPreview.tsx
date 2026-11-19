@@ -16,7 +16,7 @@ type BrandingAuthPreviewProps = {
   mode: PreviewMode;
 };
 
-const SIGNUP_STEP_LABELS = ["Sign Up", "Preparing your trial", "Account is ready"] as const;
+const SIGNUP_STEP_LABELS = ["Personal Info", "Company Info", "Account Created"] as const;
 
 function PreviewField({ label }: { label: string }) {
   return (
@@ -108,7 +108,7 @@ function PreviewSignupStepper({ primaryHex }: { primaryHex: string }) {
                 <span
                   className="mt-1.5 line-clamp-2 text-center text-[7px] leading-tight"
                   style={{
-                    color: isPending ? "var(--brand-muted)" : "var(--brand-heading)",
+                    color: isPending ? "#6B7280" : primaryHex,
                     fontFamily: "var(--brand-font-body)",
                   }}
                 >
