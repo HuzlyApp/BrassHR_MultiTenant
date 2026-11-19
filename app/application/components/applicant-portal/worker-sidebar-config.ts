@@ -33,7 +33,7 @@ const ICON = {
   help: "Help & Support",
   logout: "Logout",
   time: "Time",
-  pay: "Pay",
+  // pay: "Pay", // Hidden for now — keep for future use.
   taskboard: "Taskboard",
 } as const satisfies Record<string, SidebarIconType>;
 
@@ -41,12 +41,13 @@ const PORTAL_HOME = "/application/applicant-dashboard";
 const WORKER_HOME = "/application/home";
 const SCHEDULE_HOME = `${PORTAL_HOME}/schedule`;
 const TIMESHEETS_HOME = `${SCHEDULE_HOME}/timesheets`;
-const PAY_HOME = `${PORTAL_HOME}/pay`;
-const PAYSLIPS_HOME = `${PAY_HOME}/payslips`;
-const EARNINGS_HOME = `${PAY_HOME}/earnings`;
+// Pay routes — hidden for now; keep for future use.
+// const PAY_HOME = `${PORTAL_HOME}/pay`;
+// const PAYSLIPS_HOME = `${PAY_HOME}/payslips`;
+// const EARNINGS_HOME = `${PAY_HOME}/earnings`;
 const TASKBOARD_HOME = `${PORTAL_HOME}/taskboard`;
 const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
-const PAY_ACTIVE_PREFIXES = [PAY_HOME, PAYSLIPS_HOME, EARNINGS_HOME];
+// const PAY_ACTIVE_PREFIXES = [PAY_HOME, PAYSLIPS_HOME, EARNINGS_HOME];
 
 /** Figma worker Schedule menu — Calendar (month/list schedule). */
 const SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
@@ -77,25 +78,26 @@ const TIME_CHILDREN: WorkerSidebarLink[] = [
   },
 ];
 
-/** Figma worker Pay menu — Payslips + Earnings. */
-const PAY_CHILDREN: WorkerSidebarLink[] = [
-  {
-    label: "Payslips",
-    href: PAYSLIPS_HOME,
-    matchPrefixes: [PAYSLIPS_HOME],
-    matchExact: true,
-  },
-  {
-    label: "Earnings",
-    href: EARNINGS_HOME,
-    matchPrefixes: [EARNINGS_HOME],
-    matchExact: true,
-  },
-];
+/** Figma worker Pay menu — Payslips + Earnings. Hidden for now. */
+// const PAY_CHILDREN: WorkerSidebarLink[] = [
+//   {
+//     label: "Payslips",
+//     href: PAYSLIPS_HOME,
+//     matchPrefixes: [PAYSLIPS_HOME],
+//     matchExact: true,
+//   },
+//   {
+//     label: "Earnings",
+//     href: EARNINGS_HOME,
+//     matchPrefixes: [EARNINGS_HOME],
+//     matchExact: true,
+//   },
+// ];
 
 /**
  * Worker portal sidebar — Figma "Dashboard - Main (Worker)" only:
- * Dashboard, Schedule, Time, Pay, Taskboard, Help & Support.
+ * Dashboard, Schedule, Time, Taskboard, Help & Support.
+ * Pay is hidden for now.
  */
 export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
@@ -123,13 +125,13 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     matchPrefixes: [],
     children: TIME_CHILDREN,
   },
-  {
-    label: "Pay",
-    href: PAYSLIPS_HOME,
-    iconType: ICON.pay,
-    matchPrefixes: PAY_ACTIVE_PREFIXES,
-    children: PAY_CHILDREN,
-  },
+  // {
+  //   label: "Pay",
+  //   href: PAYSLIPS_HOME,
+  //   iconType: ICON.pay,
+  //   matchPrefixes: PAY_ACTIVE_PREFIXES,
+  //   children: PAY_CHILDREN,
+  // }, // Hidden for now — keep for future use.
   {
     label: "Taskboard",
     href: TASKBOARD_HOME,
