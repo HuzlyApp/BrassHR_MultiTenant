@@ -26,6 +26,7 @@ import {
   readTenantSignupDraft,
   writeTenantSignupDraft,
 } from "@/lib/signup/tenant-signup-draft";
+import { ADMIN_LAUNCH_PAD_ROUTE, isSmbOwnerSignup } from "@/lib/signup/smb-post-signup";
 import { formatPhoneNumber } from "@/lib/phone";
 import { phoneValidationMessage } from "@/lib/tenant/business-info-validation";
 
@@ -616,17 +617,54 @@ export default function SignupPage() {
           /* ignore storage errors */
         }
 
-        if (!payload.waitlisted) {
-          await fetch("/api/auth/signup/begin-trial-session", { method: "POST" }).catch(() => null);
+        if (payload.waitlisted) {
+          setRedirecting(true);
+          clearTenantSignupDraft();
+          window.setTimeout(() => {
+            window.location.assign("/signup/waitlist");
+          }, 80);
+          return;
         }
+
+        // SMB skips /your-trial + full-page tenant-onboarding and lands on Launch Pad.
+        if (isSmbOwnerSignup(form)) {
+          const provisionRes = await fetch("/api/auth/signup/provision-smb", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyName: form.companyName,
+              companyWebsite: form.companyWebsite,
+              industry: form.industry,
+              city: form.city,
+              state: form.state,
+              phone: form.phone,
+              isStaffingCompany: false,
+            }),
+          });
+          const provisionPayload = (await provisionRes.json().catch(() => ({}))) as {
+            error?: string;
+            redirectTo?: string;
+          };
+          if (!provisionRes.ok) {
+            setSubmitError(
+              provisionPayload.error ?? "Account created, but workspace setup failed. Try Sign In."
+            );
+            setSubmitting(false);
+            return;
+          }
+          setRedirecting(true);
+          clearTenantSignupDraft();
+          window.setTimeout(() => {
+            window.location.assign(provisionPayload.redirectTo ?? ADMIN_LAUNCH_PAD_ROUTE);
+          }, 80);
+          return;
+        }
+
+        await fetch("/api/auth/signup/begin-trial-session", { method: "POST" }).catch(() => null);
 
         setRedirecting(true);
         clearTenantSignupDraft();
         window.setTimeout(() => {
-          if (payload.waitlisted) {
-            window.location.assign("/signup/waitlist");
-            return;
-          }
           markAccountReadyModalPending(sessionStorage);
           window.location.assign("/your-trial");
         }, 80);

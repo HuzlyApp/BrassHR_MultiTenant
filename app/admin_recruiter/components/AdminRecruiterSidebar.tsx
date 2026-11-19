@@ -656,7 +656,11 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                 className={`group relative flex items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                   isCollapsed,
                   isMobileRail
-                )} ${navTextClass(section.active)}`}
+                )} ${navTextClass(section.active)}${
+                  section.label === "Launch Pad" && section.active && !isCollapsed && !isMobileRail
+                    ? " border border-[#BC8B41]"
+                    : ""
+                }`}
               >
                 <SidebarNavIcon
                   iconType={section.iconType}

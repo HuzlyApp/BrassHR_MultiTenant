@@ -1,5 +1,6 @@
 /** Figma sidebar icon names — maps 1:1 to `Type=` in SVG filenames. */
 export type SidebarIconType =
+  | "Launch Pad"
   | "Dashboard"
   | "Mail"
   | "Chat"

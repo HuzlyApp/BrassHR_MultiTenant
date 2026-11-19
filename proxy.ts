@@ -30,7 +30,7 @@ import {
 import { ensureApplicationTenantQuery, clearTenantSlugCookieOnRootHost } from "@/lib/tenant/ensure-application-tenant-query";
 import {
   fetchOwnerOnboardingStatus,
-  resolvePostAuthRedirect,
+  resolvePostAuthRedirectForUser,
   shouldBlockAdminDashboardAccess,
   shouldBlockTenantOnboardingAccess,
 } from "@/lib/auth/owner-onboarding-status";
@@ -420,8 +420,9 @@ async function proxyInner(request: NextRequest) {
         // setup email. Keep them signed in so the email continuation link can open
         // /tenant-onboarding directly. Only redirect completed / god-admin users.
         if (onboardingStatus.godAdmin || onboardingStatus.tenantOnboardingCompleted) {
-          const destination = resolvePostAuthRedirect(
+          const destination = resolvePostAuthRedirectForUser(
             onboardingStatus,
+            user,
             request.nextUrl.searchParams.get("next")
           );
           return redirectAuthenticatedUser(request, response, user, destination);
@@ -544,8 +545,9 @@ async function proxyInner(request: NextRequest) {
       if (!onboardingStatus.signupCompleted) {
         return response;
       }
-      const destination = resolvePostAuthRedirect(
+      const destination = resolvePostAuthRedirectForUser(
         onboardingStatus,
+        user,
         request.nextUrl.searchParams.get("next")
       );
       if (destination !== "/signup") {
@@ -554,8 +556,9 @@ async function proxyInner(request: NextRequest) {
     }
 
     if (isTenantOnboardingPath && shouldBlockTenantOnboardingAccess(onboardingStatus)) {
-      const destination = resolvePostAuthRedirect(
+      const destination = resolvePostAuthRedirectForUser(
         onboardingStatus,
+        user,
         request.nextUrl.searchParams.get("next")
       );
       return redirectAuthenticatedUser(request, response, user, destination);
@@ -573,8 +576,9 @@ async function proxyInner(request: NextRequest) {
     }
 
     if (isAdminRecruiterPath && shouldBlockAdminDashboardAccess(onboardingStatus)) {
-      const destination = resolvePostAuthRedirect(
+      const destination = resolvePostAuthRedirectForUser(
         onboardingStatus,
+        user,
         request.nextUrl.searchParams.get("next")
       );
       return redirectAuthenticatedUser(request, response, user, destination);
@@ -633,8 +637,9 @@ async function proxyInner(request: NextRequest) {
 
   if (isLoginPath && user && !isAnonymousUser && staffSessionVerified) {
     const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
-    const destination = resolvePostAuthRedirect(
+    const destination = resolvePostAuthRedirectForUser(
       onboardingStatus,
+      user,
       request.nextUrl.searchParams.get("next")
     );
     const destPath = destination.split("?")[0];
