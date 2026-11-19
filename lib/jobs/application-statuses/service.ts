@@ -681,7 +681,9 @@ export async function changeApplicationStatus(
         applicationId: input.applicationId,
         actorUserId: input.changedByUserId,
         origin: input.origin,
-        sendEmail: Boolean(input.origin),
+        // Accept / status icons must not email the candidate. Explicit convert /
+        // placement flows call activatePostHire themselves when email is wanted.
+        sendEmail: false,
       });
       result.postHire = {
         activated: postHire.activated,
