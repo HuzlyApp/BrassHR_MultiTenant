@@ -36,6 +36,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { deriveTenantOnboardingStepStates } from "@/lib/tenant/tenant-onboarding-stepper-status";
+import { parseTenantCategory, type TenantCategory } from "@/lib/tenant/tenant-category";
 
 type Step =
   | "goals"
@@ -105,6 +106,8 @@ export default function TenantOnboardingPage() {
   const [goalsSkipped, setGoalsSkipped] = useState(false);
   const [businessInfoSkipped, setBusinessInfoSkipped] = useState(false);
   const [brandingSkipped, setBrandingSkipped] = useState(false);
+  /** From owner signup metadata so complete does not default SMB → Staffing. */
+  const [signupCategory, setSignupCategory] = useState<TenantCategory | null>(null);
   const [businessInfo, setBusinessInfo] = useState(initialBusinessInfoForm);
   const [orgName, setOrgName] = useState("");
   const [subdomain, setSubdomain] = useState("");
@@ -175,8 +178,19 @@ export default function TenantOnboardingPage() {
     void (async () => {
       const { data: userData } = await supabaseBrowser.auth.getUser();
       const email = userData.user?.email?.trim() ?? "";
+      const meta = (userData.user?.user_metadata ?? {}) as Record<string, unknown>;
+      const fromMeta =
+        parseTenantCategory(meta.tenant_category) ??
+        (meta.is_staffing_company === false || meta.is_staffing_company === "false"
+          ? "SMB"
+          : meta.is_staffing_company === true || meta.is_staffing_company === "true"
+            ? "Staffing"
+            : null);
       if (alive && email) {
         setAdminEmail(email);
+      }
+      if (alive && fromMeta) {
+        setSignupCategory(fromMeta);
       }
     })();
     return () => {
@@ -424,6 +438,7 @@ export default function TenantOnboardingPage() {
           ein: businessInfo.ein,
           industryKeys: businessInfo.hireForIndustryKeys ?? [],
           businessInfoSkipped,
+          category: signupCategory,
         }),
       });
 

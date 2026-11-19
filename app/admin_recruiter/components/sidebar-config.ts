@@ -1,5 +1,6 @@
 import type { SidebarIconType } from "@/app/admin_recruiter/components/sidebar-icons";
 import { CANDIDATE_ROUTE_PREFIXES } from "@/app/admin_recruiter/components/candidates-tabs-config";
+import { ADMIN_LAUNCH_PAD_ROUTE as LAUNCH_PAD_ROUTE } from "@/lib/signup/smb-post-signup";
 
 export type SidebarLink = {
   label: string;
@@ -27,8 +28,11 @@ export type SidebarSection = {
 
 /** Default landing page after admin / recruiter login. */
 export const ADMIN_RECRUITER_HOME_ROUTE = "/admin_recruiter/home";
+/** SMB post-signup / Launch Pad goals screen (Figma). */
+export const ADMIN_LAUNCH_PAD_ROUTE = LAUNCH_PAD_ROUTE;
 
 const ICON = {
+  launchPad: "Launch Pad",
   dashboard: "Dashboard",
   mail: "Mail",
   chat: "Chat",
@@ -532,6 +536,13 @@ const ADMIN_SETTINGS_SECTION = settingsSection(ADMIN_SETTINGS_CHILDREN, SETTINGS
 
 /** Company owner / admin recruiter (client login). */
 export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
+  {
+    label: "Launch Pad",
+    href: ADMIN_LAUNCH_PAD_ROUTE,
+    resourceKey: "dashboard",
+    iconType: ICON.launchPad,
+    matchPrefixes: [ADMIN_LAUNCH_PAD_ROUTE],
+  },
   {
     label: "Dashboard",
     href: ADMIN_RECRUITER_HOME_ROUTE,

@@ -2,6 +2,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { timeSpan } from "@/lib/perf/server-timing";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { ADMIN_LAUNCH_PAD_ROUTE, isSmbTenantCategory } from "@/lib/signup/smb-post-signup";
 
 export type OwnerOnboardingStatus = {
   signupCompleted: boolean;
@@ -96,6 +97,27 @@ export function resolvePostAuthRedirect(
     return "/your-trial?account-ready=true";
   }
   return safeNext ?? ADMIN_RECRUITER_HOME_ROUTE;
+}
+
+/** Prefer Launch Pad for SMB owners once onboarding is complete. */
+export function resolvePostAuthRedirectForUser(
+  status: OwnerOnboardingStatus,
+  user: User | null | undefined,
+  next?: string | null
+): string {
+  const base = resolvePostAuthRedirect(status, next);
+  if (status.godAdmin || status.waitlistPending || !status.tenantOnboardingCompleted) {
+    return base;
+  }
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const smb =
+    isSmbTenantCategory(meta.tenant_category) ||
+    meta.is_staffing_company === false ||
+    meta.is_staffing_company === "false";
+  if (!smb) return base;
+  const safeNext = sanitizeAuthNextPath(next);
+  if (safeNext?.startsWith("/admin_recruiter")) return safeNext;
+  return ADMIN_LAUNCH_PAD_ROUTE;
 }
 
 export function shouldBlockTenantOnboardingAccess(status: OwnerOnboardingStatus): boolean {
