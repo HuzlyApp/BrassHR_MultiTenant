@@ -30,6 +30,7 @@ export async function getTenantCategory(
 
 /**
  * Writes this tenant's category. Omitted category stays Staffing.
+ * Sets `edition_set_at` so edition feature resolution treats the row as classified.
  * The upsert is scoped to the given tenant id.
  */
 export async function assignTenantCategory(
@@ -37,13 +38,15 @@ export async function assignTenantCategory(
   tenantId: string,
   category: TenantCategory = DEFAULT_TENANT_CATEGORY
 ): Promise<TenantCategory> {
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("tenant_categories")
     .upsert(
       {
         tenant_id: tenantId,
         category,
-        updated_at: new Date().toISOString(),
+        edition_set_at: now,
+        updated_at: now,
       },
       { onConflict: "tenant_id" }
     )

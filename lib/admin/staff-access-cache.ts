@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { StoredGrant } from "@/lib/auth/permission-catalog";
+import type { Edition } from "@/lib/tenant/edition-features";
 
 export type StaffAccessGrant = { key: string } & StoredGrant;
 
@@ -9,6 +10,8 @@ export type StaffAccessRecord = {
   godAdmin: boolean;
   grants: StaffAccessGrant[];
   viewKeys: string[];
+  /** Product edition from `tenant_categories.category` (drives SMB vs Staffing nav). */
+  edition: Edition | null;
 };
 
 export const STAFF_ACCESS_QUERY_ROOT = "staff-access";
@@ -21,13 +24,23 @@ export function staffAccessRevision(access: StaffAccessRecord): string {
   const grants = access.grants
     .map((grant) => `${grant.key}:${grant.canView ? 1 : 0}${grant.canEdit ? 1 : 0}${grant.canDelete ? 1 : 0}`)
     .join(",");
-  return `${access.tenantId}:${access.godAdmin ? 1 : 0}:${access.viewKeys.join(",")}:${grants}`;
+  return `${access.tenantId}:${access.godAdmin ? 1 : 0}:${access.edition ?? ""}:${access.viewKeys.join(",")}:${grants}`;
 }
 
 export function isStaffAccessRecord(value: unknown): value is StaffAccessRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as Partial<StaffAccessRecord>;
-  return typeof record.tenantId === "string" && record.tenantId.length > 0 && Array.isArray(record.viewKeys);
+  const editionOk =
+    record.edition === undefined ||
+    record.edition === null ||
+    record.edition === "smb" ||
+    record.edition === "staffing";
+  return (
+    typeof record.tenantId === "string" &&
+    record.tenantId.length > 0 &&
+    Array.isArray(record.viewKeys) &&
+    editionOk
+  );
 }
 
 export function writeStaffAccessCache(queryClient: QueryClient, access: StaffAccessRecord): void {

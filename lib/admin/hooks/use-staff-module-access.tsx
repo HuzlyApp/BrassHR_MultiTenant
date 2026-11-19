@@ -41,6 +41,8 @@ async function fetchStaffModuleAccess(): Promise<StaffAccessRecord> {
     godAdmin: payload.godAdmin === true,
     grants: Array.isArray(payload.grants) ? payload.grants : [],
     viewKeys: Array.isArray(payload.viewKeys) ? payload.viewKeys : [],
+    edition:
+      payload.edition === "smb" || payload.edition === "staffing" ? payload.edition : null,
   };
 }
 
@@ -132,6 +134,7 @@ export function useStaffModuleAccess() {
 
   return {
     godAdmin,
+    edition: query.data?.edition ?? seeded?.edition ?? null,
     grants: query.data?.grants ?? [],
     viewKeys: query.data?.viewKeys ?? [],
     viewKeySet,

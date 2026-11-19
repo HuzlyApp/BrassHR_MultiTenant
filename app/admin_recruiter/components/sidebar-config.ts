@@ -629,6 +629,24 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   HELP_SUPPORT_SECTION,
 ];
 
+/** Staffing-only sidebar rows (hidden for SMB edition). */
+const STAFFING_ONLY_SIDEBAR_LABELS = new Set(["Clients", "Mail", "Chat"]);
+
+/**
+ * SMB owner rail (Figma): Launch Pad, Dashboard, Hiring, People, Schedule, Time,
+ * Reports, Settings, Help — without Clients / Mail / Chat.
+ */
+export const SMB_CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = CLIENT_SIDEBAR_SECTIONS.filter(
+  (section) => !STAFFING_ONLY_SIDEBAR_LABELS.has(section.label)
+);
+
+/** Pick the tenant owner sidebar for the classified product edition. */
+export function clientSidebarSectionsForEdition(
+  edition: "smb" | "staffing" | null | undefined
+): SidebarSection[] {
+  return edition === "smb" ? SMB_CLIENT_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
+}
+
 /** Brass HR platform god admin viewing admin recruiter. */
 export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
   ...FIGMA_PRIMARY_SECTIONS,

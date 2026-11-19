@@ -13,7 +13,7 @@ import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
   ADMIN_RECRUITER_HOME_ROUTE,
-  CLIENT_SIDEBAR_SECTIONS,
+  clientSidebarSectionsForEdition,
   GOD_ADMIN_SIDEBAR_SECTIONS,
   SIDEBAR_ICON_TYPES,
   type SidebarLink,
@@ -143,16 +143,17 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const { viewer } = useEffectiveBranding();
   const isGodAdmin = viewer?.godAdmin === true;
-  const { viewKeySet, godAdmin: accessGodAdmin } = useStaffModuleAccess();
+  const { viewKeySet, godAdmin: accessGodAdmin, edition } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
   const sidebarSections = useMemo(() => {
+    const clientSections = clientSidebarSectionsForEdition(edition);
     if (isGodAdmin || accessGodAdmin || viewKeySet.has("*")) {
-      return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
+      return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : clientSections;
     }
-    return visibleSidebarSections(CLIENT_SIDEBAR_SECTIONS, viewKeySet, false);
-  }, [accessGodAdmin, isGodAdmin, viewKeySet]);
+    return visibleSidebarSections(clientSections, viewKeySet, false);
+  }, [accessGodAdmin, edition, isGodAdmin, viewKeySet]);
 
   const settingsLandingHref = useMemo(
     () =>

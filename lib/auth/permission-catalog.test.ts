@@ -50,6 +50,17 @@ describe("permission catalog", () => {
     expect(seededGrantForRole(true, "dashboard")).toBeNull();
   });
 
+  it("maps Launch Pad under the always-granted dashboard module", () => {
+    expect(classifyProtectedPath("/admin_recruiter/launch-pad")).toMatchObject({
+      kind: "resource",
+      resourceKey: "dashboard",
+    });
+    expect(classifyProtectedPath("/admin_recruiter/launch-pad?step=logo")).toMatchObject({
+      kind: "resource",
+      resourceKey: "dashboard",
+    });
+  });
+
   it("maps legacy admin access to view, edit, and delete, and withholds settings from limited staff", () => {
     expect(seededGrantForRole(true, "settings_company")).toEqual({
       canView: true,

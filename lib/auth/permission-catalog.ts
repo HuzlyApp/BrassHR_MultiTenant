@@ -69,7 +69,11 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
     description: "View dashboard and summary.",
     kind: "module",
     parentKey: null,
-    pagePrefixes: ["/admin_recruiter/home", "/admin_recruiter/dashboard"],
+    pagePrefixes: [
+      "/admin_recruiter/home",
+      "/admin_recruiter/dashboard",
+      "/admin_recruiter/launch-pad",
+    ],
     apiPrefixes: ["/api/admin/dashboard-overview", "/api/admin/dashboard-analytics"],
     sortOrder: 10,
     alwaysGranted: true,

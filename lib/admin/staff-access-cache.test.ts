@@ -1,7 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
-import { CLIENT_SIDEBAR_SECTIONS } from "@/app/admin_recruiter/components/sidebar-config";
+import {
+  CLIENT_SIDEBAR_SECTIONS,
+  SMB_CLIENT_SIDEBAR_SECTIONS,
+  clientSidebarSectionsForEdition,
+} from "@/app/admin_recruiter/components/sidebar-config";
 import { sidebarLinkIsActive } from "@/lib/admin/sidebar-nav-state";
 import {
   clearStaffAccessCache,
@@ -13,6 +17,7 @@ import {
 const recruiter: StaffAccessRecord = {
   tenantId: "tenant-a",
   godAdmin: false,
+  edition: "staffing",
   grants: [
     { key: "dashboard", canView: true, canEdit: true, canDelete: true },
     { key: "hiring", canView: true, canEdit: false, canDelete: false },
@@ -58,6 +63,16 @@ describe("staff access cache", () => {
     const hiring = visible.find((section) => section.label === "Hiring");
     expect(hiring?.children?.map((child) => child.label)).not.toContain("Jobs");
     expect(visible.map((section) => section.label)).not.toContain("Mail");
+  });
+
+  it("hides Clients, Mail, and Chat for SMB edition", () => {
+    const labels = clientSidebarSectionsForEdition("smb").map((section) => section.label);
+    expect(labels).toEqual(SMB_CLIENT_SIDEBAR_SECTIONS.map((section) => section.label));
+    expect(labels).toContain("Launch Pad");
+    expect(labels).not.toContain("Clients");
+    expect(labels).not.toContain("Mail");
+    expect(labels).not.toContain("Chat");
+    expect(clientSidebarSectionsForEdition("staffing").map((s) => s.label)).toContain("Clients");
   });
 });
 

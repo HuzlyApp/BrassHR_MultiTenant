@@ -9,6 +9,7 @@ import { StaffAccessSeed, useStaffModuleAccess } from "@/lib/admin/hooks/use-sta
 const seed: StaffAccessRecord = {
   tenantId: "tenant-a",
   godAdmin: false,
+  edition: "staffing",
   grants: [{ key: "dashboard", canView: true, canEdit: true, canDelete: true }],
   viewKeys: ["dashboard", "mail"],
 };

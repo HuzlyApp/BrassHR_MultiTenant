@@ -6,8 +6,24 @@ import { NextResponse } from "next/server";
 import type { StaffAccessRecord } from "@/lib/admin/staff-access-cache";
 import { getCachedStaffApiSession, getCachedStaffTenantScope } from "@/lib/auth/cached-staff-auth";
 import { loadSessionGrants } from "@/lib/auth/module-access.server";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { parseEdition, type Edition } from "@/lib/tenant/edition-features";
+import { getTenantCategory } from "@/lib/tenant/tenant-category";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
+
+async function resolveViewerEdition(tenantId: string | null): Promise<Edition | null> {
+  if (!tenantId) return null;
+  const supabase = createServiceRoleClient();
+  if (!supabase) return null;
+  try {
+    const category = await getTenantCategory(supabase, tenantId);
+    return parseEdition(category.toLowerCase());
+  } catch (error) {
+    console.warn("[staff-access] edition lookup failed", error);
+    return null;
+  }
+}
 
 async function loadViewerStaffAccess(): Promise<StaffAccessRecord | null> {
   const auth = await getCachedStaffApiSession();
@@ -21,11 +37,14 @@ async function loadViewerStaffAccess(): Promise<StaffAccessRecord | null> {
   if (!result.ok) return null;
 
   const scope = await getCachedStaffTenantScope(auth.authUser);
+  const tenantId = scope.mode === "scoped" ? scope.tenantId : "all";
+  const edition = scope.mode === "scoped" ? await resolveViewerEdition(scope.tenantId) : null;
   return {
-    tenantId: scope.mode === "scoped" ? scope.tenantId : "all",
+    tenantId,
     godAdmin: result.godAdmin,
     grants: result.grants,
     viewKeys: result.grants.filter((grant) => grant.canView).map((grant) => grant.key),
+    edition,
   };
 }
 

@@ -48,7 +48,12 @@ describe("tenant category reads and writes", () => {
       from: (table: string) => {
         expect(table).toBe("tenant_categories");
         return {
-          upsert: (row: { tenant_id: string; category: string }) => {
+          upsert: (row: {
+            tenant_id: string;
+            category: string;
+            edition_set_at?: string;
+          }) => {
+            expect(row.edition_set_at).toEqual(expect.any(String));
             rows.set(row.tenant_id, row.category);
             return {
               select: () => ({
