@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Step1FormFields } from "@/lib/onboardingStep1Validation"
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress"
 import { adoptSessionApplications } from "@/lib/onboarding/adopt-session-applications"
+import { deleteReleasedPlaceholderShell } from "@/lib/onboarding/delete-released-placeholder-shell"
 import {
   invalidateResourceCache,
   invalidateTableCache,
@@ -481,6 +482,23 @@ export async function persistWorkerRow(
       }
     } catch (adoptErr) {
       console.error("[persist-worker-row] session application move failed", adoptErr)
+    }
+
+    // Released ensure-worker shells used to linger on Candidates as "Applicant User".
+    try {
+      const cleanup = await deleteReleasedPlaceholderShell(supabase, {
+        tenantId,
+        shellWorkerId: sessionWorkerBefore.id,
+        resolvedWorkerId: workerId,
+      })
+      if (cleanup.deleted) {
+        console.info("[persist-worker-row] deleted released placeholder shell", {
+          shellWorkerId: sessionWorkerBefore.id,
+          resolvedWorkerId: workerId,
+        })
+      }
+    } catch (cleanupErr) {
+      console.error("[persist-worker-row] placeholder shell cleanup failed", cleanupErr)
     }
   }
 
