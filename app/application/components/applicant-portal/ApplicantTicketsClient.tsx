@@ -9,6 +9,7 @@ import { WorkerTicketsSubNav } from "@/app/application/components/applicant-port
 import { useApplicantPortalAuthHeaders } from "@/app/application/components/applicant-portal/useApplicantPortalSession";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
+import { formatSupportTicketNumber } from "@/lib/support-tickets/ticket-number";
 import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
@@ -42,9 +43,6 @@ function formatCategory(value: string | null | undefined): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function shortTicketId(id: string): string {
-  return `#${id.slice(0, 2).toUpperCase()}-${id.slice(2, 7).toUpperCase()}`;
-}
 
 function statusTone(status: SupportTicketStatus | string): string {
   const normalized = status.toLowerCase();
@@ -282,7 +280,8 @@ function ApplicantTicketsClientContent() {
                               <div className="flex items-start gap-2">
                                 <span className="min-w-0">
                                   <span className="block truncate text-sm font-medium text-[#0F172A]">
-                                    {shortTicketId(ticket.id)} {ticket.subject ?? "Support request"}
+                                    {formatSupportTicketNumber(ticket.ticket_number, ticket.id)}{" "}
+                                    {ticket.subject ?? "Support request"}
                                   </span>
                                   <span className="mt-0.5 block truncate text-xs text-[#64748B]">
                                     {descriptionPreview(ticket.description ?? ticket.lastMessagePreview, 60)}

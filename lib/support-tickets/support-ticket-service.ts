@@ -10,12 +10,18 @@ import {
   firstTicketSubjectMessageError,
   validateTicketSubjectAndMessage,
 } from "@/lib/support-tickets/ticket-field-validation";
+import { buildSupportTicketNumber } from "@/lib/support-tickets/ticket-number";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
   SupportTicketRow,
   SupportTicketSenderRole,
 } from "@/lib/support-tickets/types";
+
+const SUPPORT_TICKET_COLUMNS =
+  "id, tenant_id, user_id, applicant_id, recruiter_id, ticket_number, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by";
+
+const SUPPORT_TICKET_COLUMNS_WITH_WORKER = `${SUPPORT_TICKET_COLUMNS}, worker:applicant_id(first_name, last_name, email)`;
 
 export function summarizeTicketSubject(description: string, subject?: string): string {
   const trimmedSubject = subject?.trim();
@@ -68,13 +74,18 @@ export async function insertSupportTicket(
     console.error("[support-tickets:resolve-category]", resolveError);
   }
 
+  const ticketId = crypto.randomUUID();
+  const ticketNumber = buildSupportTicketNumber(ticketId);
+
   const { data, error } = await supabase
     .from("support_tickets")
     .insert({
+      id: ticketId,
       user_id: params.userId,
       tenant_id: params.tenantId,
       applicant_id: params.applicantId,
       recruiter_id: createdByStaffUserId,
+      ticket_number: ticketNumber,
       subject,
       description,
       category,
@@ -82,9 +93,7 @@ export async function insertSupportTicket(
       status: "Open",
       priority: params.input.priority ?? "normal",
     })
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .single();
 
   if (error || !data) {
@@ -144,9 +153,7 @@ export async function listApplicantSupportTickets(
 ): Promise<SupportTicketListItem[]> {
   const { data, error } = await supabase
     .from("support_tickets")
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .eq("applicant_id", applicantId)
     .order("created_at", { ascending: false });
 
@@ -165,9 +172,7 @@ export async function listStaffSupportTickets(
 ): Promise<SupportTicketListItem[]> {
   let query = supabase
     .from("support_tickets")
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by, worker:applicant_id(first_name, last_name, email)"
-    )
+    .select(SUPPORT_TICKET_COLUMNS_WITH_WORKER)
     .order("created_at", { ascending: false });
 
   if (tenantId) {
@@ -205,9 +210,7 @@ export async function getSupportTicketById(
 ): Promise<SupportTicketListItem | null> {
   const { data, error } = await supabase
     .from("support_tickets")
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by, worker:applicant_id(first_name, last_name, email)"
-    )
+    .select(SUPPORT_TICKET_COLUMNS_WITH_WORKER)
     .eq("id", ticketId)
     .maybeSingle();
 
@@ -246,9 +249,7 @@ export async function closeSupportTicket(
       resolved_at: now,
     })
     .eq("id", params.ticketId)
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .maybeSingle();
 
   if (error || !data) {
@@ -274,9 +275,7 @@ export async function archiveSupportTicket(
       closed_by: null,
     })
     .eq("id", params.ticketId)
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .maybeSingle();
 
   if (error || !data) {
@@ -300,9 +299,7 @@ export async function reopenSupportTicket(
       closed_by: null,
     })
     .eq("id", params.ticketId)
-    .select(
-      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
-    )
+    .select(SUPPORT_TICKET_COLUMNS)
     .maybeSingle();
 
   if (error || !data) {

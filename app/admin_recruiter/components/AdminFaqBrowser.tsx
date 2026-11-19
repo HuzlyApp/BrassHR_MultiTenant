@@ -124,13 +124,17 @@ function FaqCardItem({
   const canManage = Boolean(onEdit || onDelete) && Boolean(faq.tenant_id);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+    <div
+      className={`relative rounded-lg border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${
+        menuOpen ? "z-30" : "z-0"
+      }`}
+    >
       <div className="flex items-stretch gap-1 px-2 py-1 sm:px-3 sm:py-1.5">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-4 px-3 py-3 text-left transition hover:bg-[#FAFBFC] sm:px-2"
+          className="flex min-w-0 flex-1 items-center gap-4 rounded-lg px-3 py-3 text-left transition hover:bg-[#FAFBFC] sm:px-2"
         >
           <span className="min-w-0 flex-1">
             <span
@@ -165,7 +169,9 @@ function FaqCardItem({
                 onMenuToggle?.();
               }}
               disabled={deleting}
-              className="rounded-md p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A] disabled:opacity-50"
+              className={`rounded-md p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A] disabled:opacity-50 ${
+                menuOpen ? "bg-[#F1F5F9] text-[#0F172A]" : ""
+              }`}
               title="FAQ actions"
               aria-label={`Actions for ${faq.question}`}
               aria-expanded={menuOpen}
@@ -176,7 +182,7 @@ function FaqCardItem({
             {menuOpen ? (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-20 mt-1 w-40 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg"
+                className="absolute right-0 bottom-full z-50 mb-1 w-44 overflow-visible rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg"
                 onClick={(event) => event.stopPropagation()}
               >
                 {onEdit ? (
@@ -185,7 +191,7 @@ function FaqCardItem({
                     role="menuitem"
                     onClick={() => onEdit(faq)}
                     disabled={deleting}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-50"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-50"
                   >
                     <Pencil className="h-3.5 w-3.5 text-[#64748B]" aria-hidden />
                     Edit
@@ -197,7 +203,7 @@ function FaqCardItem({
                     role="menuitem"
                     onClick={() => onDelete(faq)}
                     disabled={deleting}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
                     {deleting ? "Deleting..." : "Delete"}
