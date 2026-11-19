@@ -31,7 +31,7 @@ export function TicketsSubNav({ action }: { action?: React.ReactNode }) {
   const activeTab = getActiveTab(pathname);
 
   return (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-8 pt-1">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-8 pt-1">
       <nav aria-label="Tickets sections" className="flex flex-wrap items-center gap-6">
         {TAB_LINKS.map((tab) => (
           <Link key={tab.id} href={tab.href} className={tabClass(activeTab === tab.id)}>

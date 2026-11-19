@@ -7,6 +7,7 @@ import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDet
 import { TicketFileUploadFields } from "@/app/components/support/TicketFileUploadFields";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { SUPPORT_DEPARTMENT_CATEGORY_OPTIONS } from "@/lib/support-tickets/support-departments";
+import { validateTicketSubjectAndMessage } from "@/lib/support-tickets/ticket-field-validation";
 import type { DepartmentRecord } from "@/lib/departments/types";
 import type { SupportTicketListItem, SupportTicketPriority } from "@/lib/support-tickets/types";
 
@@ -200,18 +201,17 @@ export function StaffCreateSupportTicketModal({
     event.preventDefault();
     if (submitting) return;
 
+    const fieldErrors = validateTicketSubjectAndMessage({ subject, description });
     const nextErrors: {
       subject?: string;
       description?: string;
       applicantId?: string;
       category?: string;
-    } = {};
+    } = { ...fieldErrors };
     if (requireWorker && !applicantId) {
       nextErrors.applicantId = "Select a worker for this ticket.";
     }
     if (!category) nextErrors.category = "Select a department.";
-    if (!subject.trim()) nextErrors.subject = "Subject is required.";
-    if (!description.trim()) nextErrors.description = "Please describe the request.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 

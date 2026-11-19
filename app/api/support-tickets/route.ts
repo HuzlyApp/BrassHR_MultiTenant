@@ -11,6 +11,10 @@ import {
 } from "@/lib/support-tickets/support-ticket-service";
 import { enrichTicketsWithMessagePreviews } from "@/lib/support-tickets/support-ticket-messages";
 import { parseSupportTicketCreateBody } from "@/lib/support-tickets/parse-create-request";
+import {
+  firstTicketSubjectMessageError,
+  validateTicketSubjectAndMessage,
+} from "@/lib/support-tickets/ticket-field-validation";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
@@ -75,11 +79,11 @@ export async function POST(req: NextRequest) {
   const parsed = await parseSupportTicketCreateBody(req);
   const { subject, description, category, priority, source, files, applicantId } = parsed;
 
-  if (!subject) {
-    return NextResponse.json({ error: "Subject is required." }, { status: 400 });
-  }
-  if (!description) {
-    return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
+  const subjectMessageError = firstTicketSubjectMessageError(
+    validateTicketSubjectAndMessage({ subject, description })
+  );
+  if (subjectMessageError) {
+    return NextResponse.json({ error: subjectMessageError }, { status: 400 });
   }
   if (priority && !PRIORITIES.has(priority)) {
     return NextResponse.json({ error: "Invalid priority." }, { status: 400 });

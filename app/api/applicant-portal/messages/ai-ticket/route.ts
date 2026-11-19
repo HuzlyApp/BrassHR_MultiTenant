@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createApplicantSupportTicketFromChat } from "@/lib/applicant-portal/message-ai-assistant";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import { parseSupportTicketCreateBody } from "@/lib/support-tickets/parse-create-request";
+import {
+  firstTicketSubjectMessageError,
+  validateTicketSubjectAndMessage,
+} from "@/lib/support-tickets/ticket-field-validation";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
@@ -22,11 +26,14 @@ export async function POST(req: NextRequest) {
 
     const body = await parseSupportTicketCreateBody(req);
 
-    if (!body.subject) {
-      return NextResponse.json({ error: "Subject is required." }, { status: 400 });
-    }
-    if (!body.description) {
-      return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
+    const subjectMessageError = firstTicketSubjectMessageError(
+      validateTicketSubjectAndMessage({
+        subject: body.subject,
+        description: body.description,
+      })
+    );
+    if (subjectMessageError) {
+      return NextResponse.json({ error: subjectMessageError }, { status: 400 });
     }
 
     const result = await createApplicantSupportTicketFromChat(auth.supabase, {
