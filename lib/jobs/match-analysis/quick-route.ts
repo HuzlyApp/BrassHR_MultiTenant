@@ -1,3 +1,4 @@
+import { isScreeningRequirement } from "./score";
 import type {
   QuickMatchResponse,
   QuickRoute,
@@ -37,6 +38,32 @@ function averageWeights(rows: Array<{ status: RequirementStatus }>): {
   };
 }
 
+/** Preferred phrasing that should not hard-force LOW_MATCH via not_found >= 2. */
+export function isPreferredWordedRequirement(text: string): boolean {
+  return /\b(preferred|nice\s*to\s*have|a\s+plus|valued)\b/i.test(text);
+}
+
+/** Physical ability lines are rarely on résumés; do not hard-force LOW_MATCH. */
+export function isPhysicalAbilityRequirement(text: string): boolean {
+  return /\b(lift|lifting|stand for|standing for|physical (?:ability|demands|requirements)|bend(?:ing)?|kneel(?:ing)?|carry|carrying)\b/i.test(
+    text
+  );
+}
+
+/**
+ * Soft / screening rows still affect averages, but do not count toward the
+ * hard `not_found >= 2` knockout.
+ */
+export function isSoftNotFoundKnockoutExempt(text: string): boolean {
+  const requirement = text.trim();
+  if (!requirement) return true;
+  return (
+    isPreferredWordedRequirement(requirement) ||
+    isPhysicalAbilityRequirement(requirement) ||
+    isScreeningRequirement(requirement)
+  );
+}
+
 /**
  * The model may downgrade to LOW_MATCH (e.g. core seat PARTIAL / NOT_FOUND, which the
  * app cannot see from row statuses). It can never upgrade to STRONG.
@@ -60,13 +87,18 @@ export function recomputeQuickMatchMetrics(
   let confirmed = 0;
   let partial = 0;
   let notFound = 0;
+  let hardNotFound = 0;
   let conflicting = 0;
   for (const row of mandatory) {
     if (row.status === "NOT_APPLICABLE") continue;
     if (row.status === "CONFIRMED") confirmed += 1;
     else if (row.status === "PARTIAL") partial += 1;
-    else if (row.status === "NOT_FOUND") notFound += 1;
-    else if (row.status === "CONFLICTING") conflicting += 1;
+    else if (row.status === "NOT_FOUND") {
+      notFound += 1;
+      if (!isSoftNotFoundKnockoutExempt(row.requirement ?? "")) {
+        hardNotFound += 1;
+      }
+    } else if (row.status === "CONFLICTING") conflicting += 1;
   }
 
   let preferredConfirmed = 0;
@@ -90,7 +122,7 @@ export function recomputeQuickMatchMetrics(
     blockers.length > 0 ||
     weighted <= 0.5 ||
     confirmed === 0 ||
-    notFound >= 2
+    hardNotFound >= 2
   ) {
     quickRoute = "LOW_MATCH";
   } else if (weighted >= 0.7 && mandMet >= 0.6 && confirmedShare >= 0.5) {
