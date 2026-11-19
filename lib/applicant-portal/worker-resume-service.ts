@@ -27,6 +27,7 @@ import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import { scheduleUploadedResumeProcessing } from "@/lib/resume/schedule-uploaded-resume-processing";
 import { hashResumeBytes } from "@/lib/resume/resume-file-hash";
+import { sanitizeResumeStorageFileName } from "@/lib/resume/resume-object-path";
 
 export type WorkerAppliedJobOption = {
   applicationId: string;
@@ -78,10 +79,6 @@ type WorkerResumeRow = {
     job_requisitions?: JobRequisitionJoin | JobRequisitionJoin[] | null;
   } | null;
 };
-
-function sanitizeFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
-}
 
 function formatFileSize(bytes: number | null | undefined): string {
   if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return "—";
@@ -183,7 +180,7 @@ async function uploadResumeBuffer(
   buffer: Buffer,
   storedFileName: string
 ): Promise<string> {
-  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(storedFileName)}`;
+  const objectPath = `${folder}/${randomUUID()}-${sanitizeResumeStorageFileName(storedFileName)}`;
   const { error } = await supabase.storage.from(WORKER_RESUMES_BUCKET).upload(objectPath, buffer, {
     contentType: file.type || "application/octet-stream",
     upsert: false,

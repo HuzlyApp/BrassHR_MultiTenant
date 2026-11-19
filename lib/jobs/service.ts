@@ -1685,7 +1685,9 @@ export async function startOrResumeJobApplication(
   }
 
   if (!profileId) {
-    if (!normalizedEmail) {
+    // Resume-first public apply creates the auth/worker shell before profile-review
+    // collects email. DB allows null email when auth_user_id is set.
+    if (!normalizedEmail && !input.applicantAuthUserId) {
       throw new JobValidationError(
         "Email is required.",
         { email: "Email is required." },
@@ -1698,7 +1700,7 @@ export async function startOrResumeJobApplication(
         tenant_id: input.tenantId,
         auth_user_id: input.applicantAuthUserId,
         worker_id: input.workerId ?? null,
-        email: input.email!.trim(),
+        email: input.email?.trim() || null,
         normalized_email: normalizedEmail,
       })
       .select("id")

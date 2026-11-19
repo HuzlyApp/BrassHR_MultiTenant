@@ -7,7 +7,10 @@ import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record";
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
 import { hashResumeBytes } from "@/lib/resume/resume-file-hash";
-import { assertResumeObjectPath } from "@/lib/resume/resume-object-path";
+import {
+  assertResumeObjectPath,
+  sanitizeResumeStorageFileName,
+} from "@/lib/resume/resume-object-path";
 import { resumeUploadFolder } from "@/lib/resume/resume-reupload-path";
 import { runUploadedResumeProcessing } from "@/lib/resume/schedule-uploaded-resume-processing";
 import { createResumeSignedUpload, readResumeObjectSize } from "@/lib/resume/signed-resume-upload";
@@ -101,7 +104,7 @@ async function prepare(
     });
     folder = resumeUploadFolder(workerId, Boolean(replacedResumeId));
   }
-  const objectPath = `${folder}/${randomUUID()}-${safeName.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 180)}`;
+  const objectPath = `${folder}/${randomUUID()}-${sanitizeResumeStorageFileName(safeName, 180)}`;
   const signed = await createResumeSignedUpload(supabase, objectPath);
   return NextResponse.json({
     direct: true,
