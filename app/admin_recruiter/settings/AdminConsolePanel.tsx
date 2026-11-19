@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Mail, MoreHorizontal, UserCheck, UserMinus, UserPlus, UserRound, UserX } from "lucide-react";
+import { Mail, MoreHorizontal, UserCheck, UserMinus, UserPlus, UserRound, UserX } from "lucide-react";
 import toast from "react-hot-toast";
 import SuccessModal from "@/app/components/SuccessModal";
 import {
@@ -258,7 +258,6 @@ export default function AdminConsolePanel({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("recruiter");
-  const [requirePasswordChange, setRequirePasswordChange] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [inviteConflict, setInviteConflict] = useState<StaffDirectoryRow | null>(null);
@@ -305,7 +304,6 @@ export default function AdminConsolePanel({
     setLastName("");
     setEmail("");
     setRole("recruiter");
-    setRequirePasswordChange(true);
     setFormError(null);
     setInviteConflict(null);
   }, []);
@@ -345,7 +343,7 @@ export default function AdminConsolePanel({
           lastName,
           email,
           role,
-          requirePasswordChange,
+          requirePasswordChange: true,
           origin: window.location.origin,
         }),
       });
@@ -827,22 +825,9 @@ export default function AdminConsolePanel({
                 ))}
               </select>
             </label>
-            <label className="mt-3 flex items-start gap-3 text-sm text-[#334155]">
-              <span className="relative mt-0.5 inline-flex h-5 w-5 shrink-0">
-                <input
-                  type="checkbox"
-                  className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-checkbox,var(--brand-primary))] checked:bg-[color:var(--brand-checkbox,var(--brand-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-checkbox,var(--brand-primary))_30%,transparent)]"
-                  checked={requirePasswordChange}
-                  onChange={(event) => setRequirePasswordChange(event.target.checked)}
-                />
-                <Check
-                  className="pointer-events-none absolute inset-0 m-auto hidden h-3 w-3 text-white peer-checked:block"
-                  strokeWidth={3}
-                  aria-hidden
-                />
-              </span>
-              <span>Require password setup before first login (recommended). They activate with a one-time email link.</span>
-            </label>
+            <p className="mt-3 text-sm text-[#334155]">
+              Require password setup before first login
+            </p>
             {formError ? <p className="mt-3 text-sm text-[#B91C1C]">{formError}</p> : null}
             {inviteConflict ? (
               <button
