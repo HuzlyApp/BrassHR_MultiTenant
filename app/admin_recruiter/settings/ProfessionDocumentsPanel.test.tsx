@@ -109,8 +109,8 @@ describe("ProfessionDocumentsPanel", () => {
             industryKey: "healthcare",
             industryLabel: "Healthcare",
             industries: [
-              { key: "healthcare", label: "Healthcare", isPrimary: true },
-              { key: "technology", label: "Technology / IT Services", isPrimary: false },
+              { key: "healthcare", label: "Healthcare" },
+              { key: "technology", label: "Technology / IT Services" },
             ],
             availableProfessions,
             professions,

@@ -82,7 +82,6 @@ type CatalogProfessionOption = {
 type IndustryOption = {
   key: string;
   label: string;
-  isPrimary?: boolean;
 };
 
 type CatalogPayload = {
@@ -518,7 +517,6 @@ export default function ProfessionDocumentsPanel({
               {
                 key: payload.industryKey,
                 label: payload.industryLabel ?? payload.industryKey,
-                isPrimary: true,
               },
             ]
           : [];
@@ -1550,15 +1548,8 @@ export default function ProfessionDocumentsPanel({
                         </span>
                       )}
                       <span className="min-w-0 flex-1">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm font-semibold text-[#0F172A]">
-                            {industry.label}
-                          </span>
-                          {industry.isPrimary ? (
-                            <span className="shrink-0 rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#012352]">
-                              Primary
-                            </span>
-                          ) : null}
+                        <span className="block truncate text-sm font-semibold text-[#0F172A]">
+                          {industry.label}
                         </span>
                         <span className="block text-xs text-[#64748B]">
                           {totalCount} {totalCount === 1 ? "position" : "positions"} available
