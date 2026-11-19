@@ -573,16 +573,16 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     matchPrefixes: [CLOCK_INS_ROUTE, TIMESHEETS_ROUTE],
     children: TIME_CHILDREN,
   },
-  {
-    label: "Pay",
-    href: "#",
-    iconType: ICON.pay,
-    matchPrefixes: [],
-    children: [
-      { label: "Payroll Export", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Bill / Pay Rates", href: "#", matchPrefixes: [], disabled: true },
-    ],
-  },
+  // {
+  //   label: "Pay",
+  //   href: "#",
+  //   iconType: ICON.pay,
+  //   matchPrefixes: [],
+  //   children: [
+  //     { label: "Payroll Export", href: "#", matchPrefixes: [], disabled: true },
+  //     { label: "Bill / Pay Rates", href: "#", matchPrefixes: [], disabled: true },
+  //   ],
+  // }, // Hidden for now — keep for future use.
   {
     label: "Reports",
     href: "#",
@@ -612,7 +612,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.chat,
     matchPrefixes: ["/admin_recruiter/messages"],
   },
-  // Reports is on the main rail below Pay; Help & Support sits below Settings.
+  // Help & Support sits below Settings.
   ADMIN_SETTINGS_SECTION,
   HELP_SUPPORT_SECTION,
 ];
