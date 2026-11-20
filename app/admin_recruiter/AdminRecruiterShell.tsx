@@ -85,11 +85,15 @@ export default function AdminRecruiterShell({
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  /** Settings icons occupy the first collapsed rail (replacing main icons). */
+  const [settingsRailActive, setSettingsRailActive] = useState(false);
   const pathname = usePathname() ?? "";
   const inSettingsArea = isSettingsMiniSidebarPath(pathname);
   const wasInSettingsAreaRef = useRef<boolean | null>(null);
   const settingsCollapseReadyRef = useRef(false);
   const closeMobileNav = useCallback(() => setMobileSidebarOpen(false), []);
+  const enterSettingsRail = useCallback(() => setSettingsRailActive(true), []);
+  const exitSettingsRail = useCallback(() => setSettingsRailActive(false), []);
 
   useEffect(() => {
     try {
@@ -103,7 +107,10 @@ export default function AdminRecruiterShell({
     }
   }, []);
 
-  /** Enter Settings → collapse main rail + show mini-sidebar. Leave Settings → expand main rail. */
+  /**
+   * Enter Settings → collapse main rail + put Settings icons in the first rail.
+   * Leave Settings → restore main sidebar icons in the first rail.
+   */
   useEffect(() => {
     if (!settingsCollapseReadyRef.current) return;
     const wasInSettings = wasInSettingsAreaRef.current;
@@ -112,17 +119,18 @@ export default function AdminRecruiterShell({
       if (inSettingsArea) {
         setSidebarCollapsed(true);
         persistSidebarCollapsed(true);
+        setSettingsRailActive(true);
       }
       return;
     }
     if (inSettingsArea && !wasInSettings) {
       setSidebarCollapsed(true);
       persistSidebarCollapsed(true);
+      setSettingsRailActive(true);
       return;
     }
     if (!inSettingsArea && wasInSettings) {
-      setSidebarCollapsed(false);
-      persistSidebarCollapsed(false);
+      setSettingsRailActive(false);
     }
   }, [inSettingsArea]);
 
@@ -135,6 +143,7 @@ export default function AdminRecruiterShell({
   };
 
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const showSettingsSecondColumn = inSettingsArea && !settingsRailActive;
 
   return (
     <AdminTenantBrandingProvider>
@@ -159,6 +168,9 @@ export default function AdminRecruiterShell({
                 isMobileOpen={mobileSidebarOpen}
                 onMobileClose={closeMobileNav}
                 onToggleCollapsed={toggleSidebarCollapsed}
+                settingsRailActive={settingsRailActive && inSettingsArea}
+                onEnterSettingsRail={enterSettingsRail}
+                onExitSettingsRail={exitSettingsRail}
               />
               <div
                 className={`admin-recruiter-content admin-recruiter-main-wrap ${
@@ -178,7 +190,12 @@ export default function AdminRecruiterShell({
                   <AdminRecruiterDashboardSubNav />
                   {inSettingsArea ? (
                     <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-hidden">
-                      <SettingsSidebar />
+                      {/* Second column only on wide screens after exiting the first-rail Settings icons */}
+                      {showSettingsSecondColumn ? (
+                        <div className="hidden h-full min-[800px]:block">
+                          <SettingsSidebar />
+                        </div>
+                      ) : null}
                       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pb-8 pt-5 sm:px-6 lg:px-8">
                         <CandidateDetailFrame>{children}</CandidateDetailFrame>
                       </div>

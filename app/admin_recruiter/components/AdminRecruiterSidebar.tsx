@@ -6,7 +6,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { PanelLeftClose, X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
@@ -19,9 +19,13 @@ import {
   type SidebarLink,
   type SidebarSection,
 } from "@/app/admin_recruiter/components/sidebar-config";
+import { SIDEBAR_ICON_SIZE_CLASS } from "@/app/admin_recruiter/components/sidebar-icons";
 import {
+  SETTINGS_NAV_GROUPS,
   isSettingsMiniSidebarPath,
+  isSettingsNavItemActive,
   resolveSettingsLandingHref,
+  visibleSettingsNavGroups,
 } from "@/app/admin_recruiter/settings/settings-nav";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
@@ -67,6 +71,12 @@ type AdminRecruiterSidebarProps = {
   onMobileClose?: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** When true, collapsed/mobile rail shows Settings icons in the first rail slot. */
+  settingsRailActive?: boolean;
+  /** Restore main sidebar icons in the first rail (collapse/back from Settings). */
+  onExitSettingsRail?: () => void;
+  /** Show Settings icons in the first rail (open Settings). */
+  onEnterSettingsRail?: () => void;
 };
 
 /** First enabled child link for collapsed-rail navigation. */
@@ -129,6 +139,9 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   onMobileClose,
   collapsed = false,
   onToggleCollapsed,
+  settingsRailActive = false,
+  onExitSettingsRail,
+  onEnterSettingsRail,
 }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const { user, profile, organization } = useAccountData();
@@ -146,22 +159,27 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const { viewKeySet, godAdmin: accessGodAdmin, edition } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+  const unrestrictedAccess = isGodAdmin || accessGodAdmin || viewKeySet.has("*");
 
   const sidebarSections = useMemo(() => {
     const clientSections = clientSidebarSectionsForEdition(edition);
-    if (isGodAdmin || accessGodAdmin || viewKeySet.has("*")) {
+    if (unrestrictedAccess) {
       return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : clientSections;
     }
     return visibleSidebarSections(clientSections, viewKeySet, false);
-  }, [accessGodAdmin, edition, isGodAdmin, viewKeySet]);
+  }, [accessGodAdmin, edition, isGodAdmin, unrestrictedAccess, viewKeySet]);
+
+  const settingsNavItems = useMemo(
+    () =>
+      visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, unrestrictedAccess).flatMap(
+        (group) => group.items
+      ),
+    [unrestrictedAccess, viewKeySet]
+  );
 
   const settingsLandingHref = useMemo(
-    () =>
-      resolveSettingsLandingHref(
-        viewKeySet,
-        isGodAdmin || accessGodAdmin || viewKeySet.has("*")
-      ),
-    [accessGodAdmin, isGodAdmin, viewKeySet]
+    () => resolveSettingsLandingHref(viewKeySet, unrestrictedAccess),
+    [unrestrictedAccess, viewKeySet]
   );
 
   const handleNavClick = useCallback(
@@ -418,7 +436,63 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
               : "pt-2 pb-7 pl-5 pr-0"
         }`}
       >
-        {renderedSections.map((section) => {
+        {settingsRailActive && (isCollapsed || isMobileRail) ? (
+          <>
+            <div className="mb-1 w-full">
+              <button
+                type="button"
+                onClick={() => onExitSettingsRail?.()}
+                title="Back to main menu"
+                aria-label="Back to main sidebar"
+                className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white ${collapsedRowClass(
+                  isCollapsed,
+                  isMobileRail
+                )} ${ADMIN_SIDEBAR_INACTIVE_TEXT_CLASS}`}
+              >
+                <PanelLeftClose
+                  className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
+                  strokeWidth={1.5}
+                  aria-hidden
+                />
+              </button>
+            </div>
+            {settingsNavItems.map((item) => {
+              const Icon = item.icon;
+              const active =
+                pendingHref !== null
+                  ? item.href === pendingHref
+                  : isSettingsNavItemActive(item, pathname);
+              return (
+                <div key={item.id} className="mb-1 w-full">
+                  <Link
+                    href={item.href}
+                    onClick={() => handleNavClick(item.href)}
+                    aria-current={active ? "page" : undefined}
+                    title={item.label}
+                    className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
+                      isCollapsed,
+                      isMobileRail
+                    )} ${navTextClass(active)}`}
+                  >
+                    <Icon
+                      className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
+                      strokeWidth={1.5}
+                      aria-hidden
+                      style={{ color: "var(--brand-primary)" }}
+                    />
+                    {active ? (
+                      <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
+                    ) : null}
+                    <NavPendingCue />
+                  </Link>
+                </div>
+              );
+            })}
+          </>
+        ) : null}
+        {settingsRailActive && (isCollapsed || isMobileRail)
+          ? null
+          : renderedSections.map((section) => {
           const collapsedNavHref =
             (isCollapsed || isMobileRail) && section.children?.length
               ? getFirstNavigableChildHref(section.children)
@@ -438,37 +512,30 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
           return (
           <div key={section.label} className={isMobileRail || isCollapsed ? "mb-1 w-full" : ""}>
             {section.children?.length ? (
-              section.label === "Settings" && inSettingsArea ? (
-                <button
-                  type="button"
+              section.label === "Settings" && (isCollapsed || isMobileRail) ? (
+                <Link
+                  href={settingsLandingHref}
                   onClick={() => {
-                    onToggleCollapsed?.();
+                    handleNavClick(settingsLandingHref);
+                    onEnterSettingsRail?.();
                   }}
-                  title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white ${collapsedRowClass(
+                  aria-current={inSettingsArea ? "page" : undefined}
+                  title="Settings"
+                  className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                     isCollapsed,
                     isMobileRail
-                  )} ${navTextClass(section.childActive || section.active)}`}
+                  )} ${navTextClass(inSettingsArea || section.childActive || section.active)}`}
                 >
-                  <div
-                    className={`flex min-w-0 flex-1 items-center gap-3 ${isCollapsed || isMobileRail ? "justify-center" : ""}`}
-                  >
-                    <SidebarNavIcon
-                      iconType={section.iconType}
-                      active={section.childActive || section.active}
-                      colorHex={iconTintHex}
-                    />
-                    {!isCollapsed && !isMobileRail ? (
-                      <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
-                        {section.label}
-                      </span>
-                    ) : null}
-                  </div>
-                  {section.childActive || section.active ? (
+                  <SidebarNavIcon
+                    iconType={section.iconType}
+                    active={inSettingsArea || section.childActive || section.active}
+                    colorHex={iconTintHex}
+                  />
+                  {inSettingsArea || section.childActive || section.active ? (
                     <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                   ) : null}
-                </button>
+                  <NavPendingCue />
+                </Link>
               ) : collapsedNavHref ? (
                 <Link
                   href={collapsedNavHref}
@@ -500,12 +567,9 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                     // Settings submenus live in the mini-sidebar: open Settings landing + collapse main rail.
                     if (section.label === "Settings") {
                       event.preventDefault();
-                      if (inSettingsArea) {
-                        onToggleCollapsed?.();
-                        return;
-                      }
                       router.push(settingsLandingHref);
                       handleNavClick(settingsLandingHref);
+                      onEnterSettingsRail?.();
                       return;
                     }
                     handleSectionToggleClick(section.label, event);
@@ -756,7 +820,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
       </aside>
 
       <aside
-        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#ECF1F9] admin-recruiter-chrome-border-r bg-white max-[799px]:hidden min-[1000px]:hidden ${sidebarHoverClass} ${
+        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#ECF1F9] admin-recruiter-chrome-border-r bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
           isMobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"
