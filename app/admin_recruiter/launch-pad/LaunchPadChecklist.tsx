@@ -78,7 +78,7 @@ export function LaunchPadChecklist({
             Launch Pad
           </h1>
           <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
-            Complete all six tasks to activate your dedicated company address. Tasks skipped for now remain unfinished.
+            Your workspace is ready. Complete all six tasks to finish setup and activate any custom company address you choose. Tasks skipped for now remain unfinished.
           </p>
         </div>
 

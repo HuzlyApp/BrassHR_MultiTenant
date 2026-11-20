@@ -81,11 +81,17 @@ export async function registerTenantDomain(slug: string, options?: { origin?: st
     code === "domain_already_in_use" ||
     /already/i.test(message)
   ) {
-    return {
-      ok: true,
-      skipped: false,
-      domain: { name: host, verified: true },
-    };
+    // A conflict may mean the domain belongs to another project. Only accept
+    // retries after confirming it exists on this exact project and team.
+    const lookup = new URL(`https://api.vercel.com/v9/projects/${encodeURIComponent(cfg.projectId)}/domains/${encodeURIComponent(host)}`);
+    lookup.searchParams.set("teamId", cfg.teamId);
+    const existing = await fetch(lookup.toString(), {
+      headers: { Authorization: `Bearer ${cfg.token}` }, cache: "no-store",
+    });
+    if (existing.ok) {
+      const domain = await existing.json() as VercelProjectDomain;
+      if (domain.name === host) return { ok: true, skipped: false, domain: { ...domain, verified: domain.verified === true } };
+    }
   }
 
   throw new Error(`Vercel domain registration failed (${res.status}): ${message}`);
