@@ -756,7 +756,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
       </aside>
 
       <aside
-        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#ECF1F9] admin-recruiter-chrome-border-r bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
+        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#ECF1F9] admin-recruiter-chrome-border-r bg-white max-[799px]:hidden min-[1000px]:hidden ${sidebarHoverClass} ${
           isMobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"

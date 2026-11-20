@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { AdminTenantBrandingProvider } from "@/app/components/tenant/AdminTenantBrandingProvider";
 import { AccountDataProvider } from "@/app/admin_recruiter/account/AccountDataProvider";
-import SettingsMobileNav from "@/app/admin_recruiter/settings/SettingsMobileNav";
 import SettingsSidebar from "@/app/admin_recruiter/settings/SettingsSidebar";
 import { isSettingsMiniSidebarPath } from "@/app/admin_recruiter/settings/settings-nav";
 import { StaffAccessSeed } from "@/lib/admin/hooks/use-staff-module-access";
@@ -178,10 +177,9 @@ export default function AdminRecruiterShell({
                 <WorkflowDashboardHeaderProvider>
                   <AdminRecruiterDashboardSubNav />
                   {inSettingsArea ? (
-                    <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-hidden">
+                    <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-hidden">
                       <SettingsSidebar />
-                      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-                        <SettingsMobileNav />
+                      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pb-8 pt-5 sm:px-6 lg:px-8">
                         <CandidateDetailFrame>{children}</CandidateDetailFrame>
                       </div>
                     </div>

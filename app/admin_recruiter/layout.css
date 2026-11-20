@@ -85,8 +85,8 @@
   min-width: var(--admin-sidebar-collapsed-width, 80px);
 }
 
-/* Below 1000px: fixed collapsed icon rail (full menu opens via header toggle) */
-@media (max-width: 999px) {
+/* 800px–999px: fixed collapsed icon rail (full menu opens via header toggle) */
+@media (min-width: 800px) and (max-width: 999px) {
   .admin-recruiter-sidebar-mobile-rail {
     z-index: 50;
   }
@@ -102,31 +102,33 @@
   }
 }
 
-/* Below 500px: narrower mobile mini rail */
+/* Below 800px: hide fixed mini rail; open full features via header expand */
+@media (max-width: 799px) {
+  .admin-recruiter-sidebar-mobile-rail {
+    display: none !important;
+  }
+
+  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]),
+  .admin-recruiter-main-wrap[data-mobile-nav-open="true"] {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Legacy narrow-rail sizes kept for any drawer/rail reuse; margin offset only applies 800–999px */
 @media (max-width: 499px) {
   .admin-recruiter-sidebar-mobile-rail {
     width: var(--admin-sidebar-collapsed-width-narrow, 64px);
     max-width: var(--admin-sidebar-collapsed-width-narrow, 64px);
     min-width: var(--admin-sidebar-collapsed-width-narrow, 64px);
   }
-
-  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) {
-    margin-left: var(--admin-sidebar-collapsed-width-narrow, 64px);
-    width: calc(100% - var(--admin-sidebar-collapsed-width-narrow, 64px));
-  }
 }
 
-/* Below 430px: slimmer icon rail (+25% narrower than narrow rail) */
 @media (max-width: 429px) {
   .admin-recruiter-sidebar-mobile-rail {
     width: var(--admin-sidebar-collapsed-width-mobile, 48px);
     max-width: var(--admin-sidebar-collapsed-width-mobile, 48px);
     min-width: var(--admin-sidebar-collapsed-width-mobile, 48px);
-  }
-
-  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) {
-    margin-left: var(--admin-sidebar-collapsed-width-mobile, 48px);
-    width: calc(100% - var(--admin-sidebar-collapsed-width-mobile, 48px));
   }
 
   .admin-recruiter-sidebar-mobile-rail .admin-recruiter-sidebar-logo-frame {
