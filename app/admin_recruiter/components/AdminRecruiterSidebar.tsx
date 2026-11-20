@@ -77,6 +77,8 @@ type AdminRecruiterSidebarProps = {
   onExitSettingsRail?: () => void;
   /** Show Settings icons in the first rail (open Settings). */
   onEnterSettingsRail?: () => void;
+  /** Open main sidebar so the user can navigate to any other page. */
+  onOpenMainSidebar?: () => void;
 };
 
 /** First enabled child link for collapsed-rail navigation. */
@@ -142,6 +144,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   settingsRailActive = false,
   onExitSettingsRail,
   onEnterSettingsRail,
+  onOpenMainSidebar,
 }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const { user, profile, organization } = useAccountData();
@@ -158,8 +161,22 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const isGodAdmin = viewer?.godAdmin === true;
   const { viewKeySet, godAdmin: accessGodAdmin, edition } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [settingsMiniOpen, setSettingsMiniOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const unrestrictedAccess = isGodAdmin || accessGodAdmin || viewKeySet.has("*");
+
+  useEffect(() => {
+    if (!settingsRailActive) setSettingsMiniOpen(false);
+  }, [settingsRailActive]);
+
+  useEffect(() => {
+    if (!settingsMiniOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsMiniOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [settingsMiniOpen]);
 
   const sidebarSections = useMemo(() => {
     const clientSections = clientSidebarSectionsForEdition(edition);
@@ -169,12 +186,14 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
     return visibleSidebarSections(clientSections, viewKeySet, false);
   }, [accessGodAdmin, edition, isGodAdmin, unrestrictedAccess, viewKeySet]);
 
-  const settingsNavItems = useMemo(
-    () =>
-      visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, unrestrictedAccess).flatMap(
-        (group) => group.items
-      ),
+  const settingsNavGroups = useMemo(
+    () => visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, unrestrictedAccess),
     [unrestrictedAccess, viewKeySet]
+  );
+
+  const settingsNavItems = useMemo(
+    () => settingsNavGroups.flatMap((group) => group.items),
+    [settingsNavGroups]
   );
 
   const settingsLandingHref = useMemo(
@@ -441,13 +460,14 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
             <div className="mb-1 w-full">
               <button
                 type="button"
-                onClick={() => onExitSettingsRail?.()}
-                title="Back to main menu"
-                aria-label="Back to main sidebar"
+                onClick={() => setSettingsMiniOpen(true)}
+                title="Open settings mini sidebar"
+                aria-label="Open settings mini sidebar"
+                aria-expanded={settingsMiniOpen}
                 className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white ${collapsedRowClass(
                   isCollapsed,
                   isMobileRail
-                )} ${ADMIN_SIDEBAR_INACTIVE_TEXT_CLASS}`}
+                )} text-[#94A3B8] hover:text-[#64748B]`}
               >
                 <PanelLeftClose
                   className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
@@ -852,6 +872,99 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
           {...sidebarHoverProps}
         >
           {renderSidebarContent(false, { showMobileClose: true })}
+        </aside>
+      </div>
+
+      {/* Settings mini-sidebar overlay (labels) — opened from the gray rail toggle */}
+      <div
+        className={`fixed inset-0 z-[60] transition-opacity ${
+          settingsMiniOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden={!settingsMiniOpen}
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/30"
+          aria-label="Close settings mini sidebar"
+          onClick={() => setSettingsMiniOpen(false)}
+        />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings mini sidebar"
+          className={`absolute inset-y-0 left-0 flex h-full w-[min(195px,85vw)] flex-col overflow-hidden border-r border-[#E5E7EB] bg-white px-3.5 py-4 shadow-xl transition-transform duration-200 ease-in-out motion-reduce:transition-none ${
+            settingsMiniOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-[#012352]">Settings</p>
+            <button
+              type="button"
+              onClick={() => setSettingsMiniOpen(false)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
+              aria-label="Close settings mini sidebar"
+              title="Close"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSettingsMiniOpen(false);
+              onOpenMainSidebar?.();
+            }}
+            className="mb-3 w-full text-left text-xs font-medium text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+          >
+            Open main sidebar
+          </button>
+          <nav className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
+            {settingsNavGroups.map((group, groupIndex) => (
+              <div key={group.id} className="flex flex-col gap-3">
+                {groupIndex > 0 ? <div className="h-px w-full bg-[#E5E7EB]" role="separator" /> : null}
+                {group.label ? (
+                  <p className="text-xs font-semibold uppercase leading-[18px] text-[#4B5563]">
+                    {group.label}
+                  </p>
+                ) : null}
+                <div className="flex flex-col gap-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active =
+                      pendingHref !== null
+                        ? item.href === pendingHref
+                        : isSettingsNavItemActive(item, pathname);
+                    return (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        onClick={() => {
+                          handleNavClick(item.href);
+                          setSettingsMiniOpen(false);
+                        }}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex w-full items-center gap-1.5 overflow-hidden rounded px-2 py-1.5 text-xs leading-4 transition-colors ${
+                          active
+                            ? "border border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)]"
+                            : "border border-transparent text-[#012352] hover:bg-[#F8FAFC]"
+                        }`}
+                      >
+                        <Icon
+                          className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
+                          strokeWidth={1.5}
+                          aria-hidden
+                          style={{ color: "var(--brand-primary)" }}
+                        />
+                        <span className="truncate font-normal">{item.label}</span>
+                        <NavPendingCue />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
         </aside>
       </div>
     </>

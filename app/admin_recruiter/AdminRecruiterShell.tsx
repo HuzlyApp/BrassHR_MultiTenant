@@ -94,6 +94,15 @@ export default function AdminRecruiterShell({
   const closeMobileNav = useCallback(() => setMobileSidebarOpen(false), []);
   const enterSettingsRail = useCallback(() => setSettingsRailActive(true), []);
   const exitSettingsRail = useCallback(() => setSettingsRailActive(false), []);
+  const openMainSidebar = useCallback(() => {
+    setSettingsRailActive(false);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 999px)").matches) {
+      setMobileSidebarOpen(true);
+      return;
+    }
+    setSidebarCollapsed(false);
+    persistSidebarCollapsed(false);
+  }, []);
 
   useEffect(() => {
     try {
@@ -171,6 +180,7 @@ export default function AdminRecruiterShell({
                 settingsRailActive={settingsRailActive && inSettingsArea}
                 onEnterSettingsRail={enterSettingsRail}
                 onExitSettingsRail={exitSettingsRail}
+                onOpenMainSidebar={openMainSidebar}
               />
               <div
                 className={`admin-recruiter-content admin-recruiter-main-wrap ${
