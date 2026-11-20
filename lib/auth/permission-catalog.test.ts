@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -59,6 +59,12 @@ describe("permission catalog", () => {
       kind: "resource",
       resourceKey: "dashboard",
     });
+  });
+
+  it("protects Launch Pad settings APIs with company settings grants", () => {
+    for (const path of ["/api/admin/launch-pad/domain", "/api/admin/launch-pad/organization"]) {
+      expect(classifyProtectedPath(path)).toMatchObject({ kind: "resource", resourceKey: "settings_company" });
+    }
   });
 
   it("maps legacy admin access to view, edit, and delete, and withholds settings from limited staff", () => {
@@ -189,7 +195,7 @@ describe("permission catalog", () => {
   });
 
   it("seeds the same resource keys the migration inserts", () => {
-    const sql = require("node:fs").readFileSync(
+    const sql = readFileSync(
       path.join(ROOT, "supabase/migrations/20261028010000_role_module_permissions.sql"),
       "utf8"
     );

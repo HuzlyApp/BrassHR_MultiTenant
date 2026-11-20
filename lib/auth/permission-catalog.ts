@@ -203,6 +203,7 @@ export const PERMISSION_RESOURCES: PermissionResourceDef[] = [
       "/api/admin/roles",
       "/api/admin/branding",
       "/api/admin/business-info",
+      "/api/admin/launch-pad",
       "/api/admin/assessment-settings",
       "/api/admin/hire-journey-theme",
       "/api/admin/profession-documents",

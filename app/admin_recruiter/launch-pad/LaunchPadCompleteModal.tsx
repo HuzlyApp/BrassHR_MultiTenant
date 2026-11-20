@@ -6,8 +6,10 @@ import { CheckCircle2, X } from "lucide-react";
 
 type Workspace = { workspaceUrl: string | null; error?: string };
 
-export function LaunchPadCompleteModal({ open, onOpenChange }: {
+export function LaunchPadCompleteModal({ open, onOpenChange, workspaceUrl, setupComplete = true }: {
   open: boolean;
+  workspaceUrl?: string;
+  setupComplete?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -16,6 +18,11 @@ export function LaunchPadCompleteModal({ open, onOpenChange }: {
 
   useEffect(() => {
     if (!open) return;
+    if (workspaceUrl) {
+      setWorkspace({ workspaceUrl });
+      setError(null);
+      return;
+    }
     const controller = new AbortController();
     setWorkspace(null);
     setError(null);
@@ -30,7 +37,7 @@ export function LaunchPadCompleteModal({ open, onOpenChange }: {
       }
     })();
     return () => controller.abort();
-  }, [open, attempt]);
+  }, [open, attempt, workspaceUrl]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -38,9 +45,9 @@ export function LaunchPadCompleteModal({ open, onOpenChange }: {
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/40" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-8 text-[#012352] shadow-xl">
           <CheckCircle2 className="mb-4 size-12 text-green-600" aria-hidden="true" />
-          <Dialog.Title className="text-2xl font-semibold">Your workspace is ready</Dialog.Title>
+          <Dialog.Title className="text-2xl font-semibold">{setupComplete ? "Your workspace is ready" : "Your domain is ready"}</Dialog.Title>
           <Dialog.Description className="mt-3 text-sm leading-6 text-slate-600">
-            Your company setup is complete. Open your workspace below and sign in as admin with the email and password you used at signup.
+            {setupComplete ? "Your company setup is complete." : "Your company domain has been saved. You can finish the remaining Launch Pad steps in your workspace."} Open your workspace below and sign in as admin with the email and password you used at signup.
           </Dialog.Description>
           {workspace?.workspaceUrl ? (
             <>

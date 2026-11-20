@@ -30,6 +30,7 @@ function LaunchPadContent() {
   const { organization } = useAccountData();
   const tenantId = organization?.id;
   const [showComplete, setShowComplete] = useState(false);
+  const [workspaceUrl, setWorkspaceUrl] = useState<string | undefined>();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
   const activeStep = isLaunchPadStepId(stepParam) ? stepParam : null;
@@ -39,6 +40,7 @@ function LaunchPadContent() {
   useEffect(() => {
     const saved = tenantId ? readLaunchPadProgress(tenantId) : emptyLaunchPadProgress();
     setProgress(saved);
+    setWorkspaceUrl(undefined);
     setShowComplete(countCompletedSteps(saved) === Object.keys(saved).length);
   }, [tenantId]);
 
@@ -68,7 +70,7 @@ function LaunchPadContent() {
     return (
       <div className="flex min-h-full w-full flex-col bg-[#F4F4F4]">
         <LaunchPadChecklist progress={progress} onOpenStep={openStep} />
-        <LaunchPadCompleteModal open={showComplete} onOpenChange={setShowComplete} />
+        <LaunchPadCompleteModal open={showComplete} onOpenChange={setShowComplete} workspaceUrl={workspaceUrl} setupComplete={countCompletedSteps(progress) === Object.keys(progress).length} />
       </div>
     );
   }
@@ -96,7 +98,11 @@ function LaunchPadContent() {
           <DomainStepPanel
             onBack={backToMain}
             onSkip={skipStep}
-            onComplete={() => completeStep("domain")}
+            onComplete={(url) => {
+              completeStep("domain");
+              setWorkspaceUrl(url);
+              setShowComplete(true);
+            }}
           />
         ) : null}
         {activeStep === "preview" ? (
