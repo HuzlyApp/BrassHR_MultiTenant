@@ -1,5 +1,5 @@
 import "server-only";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -31,43 +31,35 @@ function createOnboardingAuthClient(): SupabaseClient | null {
 }
 
 /**
- * Prefer duck-typing over `instanceof NextRequest`.
- * On Vercel, duplicated `next/server` copies make `instanceof` false and
- * `new NextRequest(existingNextRequest)` throws:
- * "Cannot read private member #state..."
+ * Read a cookie from the Cookie header.
+ * Avoid NextRequest.cookies — duplicated next/server copies on Vercel make
+ * private #state access throw TypeError.
  */
-function asNextRequest(request: Request): NextRequest {
-  if (
-    request &&
-    typeof request === "object" &&
-    "nextUrl" in request &&
-    "cookies" in request &&
-    typeof (request as NextRequest).cookies?.get === "function"
-  ) {
-    return request as NextRequest;
+function readCookie(request: Request, name: string): string {
+  const header = request.headers.get("cookie");
+  if (!header) return "";
+  for (const part of header.split(";")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    if (trimmed.slice(0, eq) !== name) continue;
+    return trimmed.slice(eq + 1);
   }
-  return new NextRequest(request.url, {
-    method: request.method,
-    headers: request.headers,
-    body: request.body,
-    redirect: request.redirect,
-    integrity: request.integrity,
-    keepalive: request.keepalive,
-    // Next RequestInit rejects AbortSignal | null; omit null.
-    ...(request.signal ? { signal: request.signal } : {}),
-    // Node/undici requires duplex when forwarding a stream body.
-    ...(request.body ? { duplex: "half" as const } : {}),
-  });
+  return "";
 }
 
-async function readRequestValues(req: NextRequest): Promise<Record<string, unknown>> {
-  const values: Record<string, unknown> = Object.fromEntries(new URL(req.url).searchParams);
-  if (["GET", "HEAD"].includes(req.method)) return values;
+/**
+ * Peek at identity fields without consuming the route handler body.
+ * Prefer instance clone(); never Request.prototype.clone.call(nextReq) —
+ * that cross-realm call is what throws "#state" on Vercel.
+ */
+async function readRequestValues(request: Request): Promise<Record<string, unknown>> {
+  const values: Record<string, unknown> = Object.fromEntries(new URL(request.url).searchParams);
+  if (["GET", "HEAD"].includes(request.method)) return values;
 
-  // Use the base Request clone so we don't trip NextRequest private fields,
-  // and so the route handler can still call req.json() afterward.
-  const raw = Request.prototype.clone.call(req) as Request;
-  const contentType = req.headers.get("content-type") || "";
+  const raw = request.clone();
+  const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("multipart/form-data")) {
     for (const [key, value] of await raw.formData()) {
       if (typeof value !== "string") continue;
@@ -94,17 +86,16 @@ async function readRequestValues(req: NextRequest): Promise<Record<string, unkno
 /** Verify identity before any legacy handler can use service-role identifiers. */
 export async function authorizeOnboardingRequest(request: Request): Promise<NextResponse | null> {
   try {
-    const req = asNextRequest(request);
-    const url = new URL(req.url);
-    const origin = req.headers.get("origin");
-    if (!["GET", "HEAD"].includes(req.method) && origin && origin !== url.origin) {
+    const url = new URL(request.url);
+    const origin = request.headers.get("origin");
+    if (!["GET", "HEAD"].includes(request.method) && origin && origin !== url.origin) {
       return denied("origin_mismatch");
     }
     const svc = createOnboardingAuthClient();
     if (!svc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     let values: Record<string, unknown>;
     try {
-      values = await readRequestValues(req);
+      values = await readRequestValues(request);
     } catch (error) {
       if (error instanceof Error && (error as { code?: string }).code === "identity_conflict") {
         return denied("identity_conflict");
@@ -119,7 +110,12 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
     let workerId = str("workerId") || str("worker_id");
     const applicationId = str("applicationId") || str("application_id");
     const signingId = str("signingRequestId") || str("signing_request_id");
-    const tenantSlug = str("tenantSlug") || str("tenant") || str("slug") || req.cookies.get("onboarding_tenant_slug")?.value || "";
+    const tenantSlug =
+      str("tenantSlug") ||
+      str("tenant") ||
+      str("slug") ||
+      readCookie(request, "onboarding_tenant_slug") ||
+      "";
     let tenantId = str("tenantId") || str("tenant_id");
     if (tenantSlug) {
       if (!/^[a-z0-9-]{2,63}$/i.test(tenantSlug)) return denied();
@@ -147,7 +143,7 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
       }
     }
     let userId = "";
-    const continuation = req.cookies.get(APPLICANT_CONTINUATION_SESSION_COOKIE)?.value;
+    const continuation = readCookie(request, APPLICANT_CONTINUATION_SESSION_COOKIE);
     if (continuation) {
       const { data: link, error } = await svc.from("applicant_continuation_links")
         .select("worker_id,tenant_id,applicant_user_id,expires_at,revoked_at,completed_at")
@@ -160,8 +156,8 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
       userId = worker?.user_id || "";
       if (!userId || (link.applicant_user_id && link.applicant_user_id !== userId)) return denied();
     } else {
-      const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
-      const token = bearer || req.cookies.get(APPLICANT_ACCESS_COOKIE)?.value;
+      const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
+      const token = bearer || readCookie(request, APPLICANT_ACCESS_COOKIE);
       if (token && !isDraftPreviewApplicantId(applicantId)) {
         try {
           const { data, error } = await svc.auth.getUser(token);
@@ -191,7 +187,7 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
         if (!staffUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         try {
           if (!(await hasVerifiedStaffSession(staffUser))) return denied();
-          const decision = await authorizeStaffHttpAccess({ user: staffUser, pathname: isDraftPreviewApplicantId(applicantId) ? "/api/admin/onboarding" : "/api/admin/candidates", method: req.method, tenantSlug });
+          const decision = await authorizeStaffHttpAccess({ user: staffUser, pathname: isDraftPreviewApplicantId(applicantId) ? "/api/admin/onboarding" : "/api/admin/candidates", method: request.method, tenantSlug });
           if (!decision.ok) return denied();
           const { data: profile } = await svc.from("users").select("god_admin").eq("id", staffUser.id).maybeSingle();
           const staffTenant = await resolveEffectiveAdminTenantId(svc, { userId: staffUser.id, authUser: staffUser, godAdmin: isGodAdminUser(staffUser) || profile?.god_admin === true });
