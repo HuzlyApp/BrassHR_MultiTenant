@@ -1,6 +1,20 @@
 ﻿"use client";
 
-import { Children, isValidElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  Suspense,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Briefcase,
@@ -12,6 +26,7 @@ import {
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -454,6 +469,10 @@ export default function ProfessionDocumentsPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndustryKey, setSelectedIndustryKey] = useState<string | null>(null);
   const [industryFilterKey, setIndustryFilterKey] = useState<string>("all");
+  const [professionFilterId, setProfessionFilterId] = useState<string>("all");
+  const [filterMenuTab, setFilterMenuTab] = useState<"industry" | "profession">("industry");
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
   const [addIndustryOpen, setAddIndustryOpen] = useState(false);
   const [editIndustryKey, setEditIndustryKey] = useState<string | null>(null);
   const [creatingIndustry, setCreatingIndustry] = useState(false);
@@ -489,9 +508,15 @@ export default function ProfessionDocumentsPanel({
   const [editName, setEditName] = useState("");
   const [savingProfessionName, setSavingProfessionName] = useState(false);
   const [rowMenuId, setRowMenuId] = useState<string | null>(null);
+  const [rowMenuStyle, setRowMenuStyle] = useState<CSSProperties>({ visibility: "hidden" });
   const [industryMenuKey, setIndustryMenuKey] = useState<string | null>(null);
+  const [industryMenuStyle, setIndustryMenuStyle] = useState<CSSProperties>({
+    visibility: "hidden",
+  });
   const rowMenuRef = useRef<HTMLDivElement>(null);
+  const rowMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const industryMenuRef = useRef<HTMLDivElement>(null);
+  const industryMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const documentsPanelRef = useRef<HTMLDivElement>(null);
   const previousSelectedIdRef = useRef<string | null>(null);
 
@@ -619,19 +644,114 @@ export default function ProfessionDocumentsPanel({
     };
   }, []);
 
+  useLayoutEffect(() => {
+    if (!rowMenuId || !rowMenuTriggerRef.current) {
+      setRowMenuStyle({ visibility: "hidden" });
+      return;
+    }
+    const update = () => {
+      const trigger = rowMenuTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 148;
+      const menuHeight = 96;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const openUp = spaceBelow < menuHeight && rect.top > spaceBelow;
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+      setRowMenuStyle({
+        position: "fixed",
+        left,
+        width: menuWidth,
+        zIndex: 300,
+        visibility: "visible",
+        ...(openUp
+          ? { bottom: window.innerHeight - rect.top + 4, top: "auto" }
+          : { top: rect.bottom + 4, bottom: "auto" }),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [rowMenuId]);
+
+  useLayoutEffect(() => {
+    if (!industryMenuKey || !industryMenuTriggerRef.current) {
+      setIndustryMenuStyle({ visibility: "hidden" });
+      return;
+    }
+    const update = () => {
+      const trigger = industryMenuTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 168;
+      const menuHeight = 96;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const openUp = spaceBelow < menuHeight && rect.top > spaceBelow;
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+      setIndustryMenuStyle({
+        position: "fixed",
+        left,
+        width: menuWidth,
+        zIndex: 300,
+        visibility: "visible",
+        ...(openUp
+          ? { bottom: window.innerHeight - rect.top + 4, top: "auto" }
+          : { top: rect.bottom + 4, bottom: "auto" }),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [industryMenuKey]);
+
   useEffect(() => {
     if (!rowMenuId && !industryMenuKey) return;
     const onPointerDown = (event: MouseEvent) => {
-      if (rowMenuRef.current && !rowMenuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        rowMenuId &&
+        !rowMenuRef.current?.contains(target) &&
+        !rowMenuTriggerRef.current?.contains(target)
+      ) {
         setRowMenuId(null);
       }
-      if (industryMenuRef.current && !industryMenuRef.current.contains(event.target as Node)) {
+      if (
+        industryMenuKey &&
+        !industryMenuRef.current?.contains(target) &&
+        !industryMenuTriggerRef.current?.contains(target)
+      ) {
         setIndustryMenuKey(null);
       }
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [rowMenuId, industryMenuKey]);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setFilterMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFilterMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filterMenuOpen]);
 
   const selectedId =
     requestedProfessionId && professions.some((profession) => profession.id === requestedProfessionId)
@@ -687,10 +807,11 @@ export default function ProfessionDocumentsPanel({
 
   const filteredProfessionsByIndustry = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return professionsByIndustry;
     const groups: Record<string, ProfessionRow[]> = {};
     for (const [key, rows] of Object.entries(professionsByIndustry)) {
       groups[key] = rows.filter((profession) => {
+        if (professionFilterId !== "all" && profession.id !== professionFilterId) return false;
+        if (!query) return true;
         const index = professions.findIndex((row) => row.id === profession.id);
         const industry = industries.find((row) => row.key === key);
         const code = professionCode(profession, index, industry?.label ?? null).toLowerCase();
@@ -702,19 +823,43 @@ export default function ProfessionDocumentsPanel({
       });
     }
     return groups;
-  }, [professionsByIndustry, searchQuery, professions, industries]);
+  }, [
+    professionsByIndustry,
+    searchQuery,
+    professions,
+    industries,
+    professionFilterId,
+  ]);
 
   const visibleIndustries = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return industries.filter((industry) => {
       if (industryFilterKey !== "all" && industry.key !== industryFilterKey) return false;
+      if (professionFilterId !== "all") {
+        const match = professions.find((row) => row.id === professionFilterId);
+        if (!match || (match.industryKey || "other") !== industry.key) return false;
+      }
       if (!query) return true;
       if (industry.label.toLowerCase().includes(query) || industry.key.toLowerCase().includes(query)) {
         return true;
       }
       return (filteredProfessionsByIndustry[industry.key] ?? []).length > 0;
     });
-  }, [industries, industryFilterKey, searchQuery, filteredProfessionsByIndustry]);
+  }, [
+    industries,
+    industryFilterKey,
+    professionFilterId,
+    professions,
+    searchQuery,
+    filteredProfessionsByIndustry,
+  ]);
+
+  const professionFilterOptions = useMemo(() => {
+    return [...professions].sort((a, b) => a.name.localeCompare(b.name));
+  }, [professions]);
+
+  const filtersActive =
+    industryFilterKey !== "all" || professionFilterId !== "all" || Boolean(searchQuery.trim());
 
   const addableIndustries = useMemo(() => {
     const selected = new Set(industries.map((row) => row.key));
@@ -1140,11 +1285,54 @@ export default function ProfessionDocumentsPanel({
     }
   }
 
+  function applyIndustryFilter(nextKey: string) {
+    setIndustryFilterKey(nextKey || "all");
+    setProfessionFilterId("all");
+    setFilterMenuOpen(false);
+  }
+
+  function applyProfessionFilter(professionId: string) {
+    if (professionId === "all") {
+      setProfessionFilterId("all");
+      setFilterMenuOpen(false);
+      return;
+    }
+    const match = professions.find((row) => row.id === professionId);
+    if (!match) return;
+    const industryKeyForProfession = match.industryKey || "other";
+    setProfessionFilterId(professionId);
+    setIndustryFilterKey(industryKeyForProfession);
+    selectIndustry(industryKeyForProfession, { expand: true });
+    setFilterMenuOpen(false);
+  }
+
+  function clearAllFilters() {
+    setIndustryFilterKey("all");
+    setProfessionFilterId("all");
+    setSearchQuery("");
+    setFilterMenuOpen(false);
+  }
+
   useEffect(() => {
     if (industryFilterKey === "all") return;
     setSelectedIndustryKey(industryFilterKey);
     setExpandedByIndustry((current) => ({ ...current, [industryFilterKey]: true }));
   }, [industryFilterKey]);
+
+  useEffect(() => {
+    if (professionFilterId === "all") return;
+    const match = professions.find((row) => row.id === professionFilterId);
+    if (!match) {
+      setProfessionFilterId("all");
+      return;
+    }
+    const industryKeyForProfession = match.industryKey || "other";
+    if (industryFilterKey !== industryKeyForProfession) {
+      setIndustryFilterKey(industryKeyForProfession);
+    }
+    setSelectedIndustryKey(industryKeyForProfession);
+    setExpandedByIndustry((current) => ({ ...current, [industryKeyForProfession]: true }));
+  }, [professionFilterId, professions, industryFilterKey]);
 
   async function save() {
     if (!selectedId || !canManage || saving) return;
@@ -1493,20 +1681,182 @@ export default function ProfessionDocumentsPanel({
                 className="h-10 w-full rounded-xl border border-[#E2E8F0] bg-white py-0 pl-9 pr-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus-visible:border-[#012352] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)]"
               />
             </div>
-            <SettingsSelect
-              aria-label="Filter industries"
-              value={industryFilterKey}
-              onChange={(next) => setIndustryFilterKey(next || "all")}
-              className="w-full sm:w-[240px]"
-              triggerClassName="rounded-xl border-[#E2E8F0]"
-              options={[
-                { value: "all", label: "All Industry" },
-                ...industries.map((industry) => ({
-                  value: industry.key,
-                  label: industry.label,
-                })),
-              ]}
-            />
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <SettingsSelect
+                aria-label="Filter industries"
+                value={industryFilterKey}
+                onChange={(next) => applyIndustryFilter(next || "all")}
+                className="min-w-0 flex-1 sm:w-[240px]"
+                triggerClassName="rounded-xl border-[#E2E8F0]"
+                options={[
+                  { value: "all", label: "All Industry" },
+                  ...industries.map((industry) => ({
+                    value: industry.key,
+                    label: industry.label,
+                  })),
+                ]}
+              />
+              <div className="relative shrink-0" ref={filterMenuRef}>
+                <button
+                  type="button"
+                  aria-label="Open filters"
+                  aria-expanded={filterMenuOpen}
+                  aria-haspopup="menu"
+                  title={filtersActive ? "Filters active — open to change or clear" : "Filter by industry or profession"}
+                  onClick={() => setFilterMenuOpen((current) => !current)}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                    filtersActive
+                      ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+                      : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                  }`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                </button>
+                {filterMenuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label="Profession filters"
+                    className="absolute right-0 top-[calc(100%+4px)] z-50 w-[260px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg"
+                  >
+                    <div className="flex border-b border-[#F1F5F9] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setFilterMenuTab("industry")}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition ${
+                          filterMenuTab === "industry"
+                            ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]"
+                            : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        Industry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterMenuTab("profession")}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition ${
+                          filterMenuTab === "profession"
+                            ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]"
+                            : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        Profession
+                      </button>
+                    </div>
+
+                    {filterMenuTab === "industry" ? (
+                      <div className="py-1">
+                        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                          Filter by industry
+                        </p>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => applyIndustryFilter("all")}
+                          className={`flex w-full px-3 py-2 text-left text-sm transition hover:bg-[#F8FAFC] ${
+                            industryFilterKey === "all" && professionFilterId === "all"
+                              ? "font-medium text-[color:var(--brand-primary)]"
+                              : "text-[#0F172A]"
+                          }`}
+                        >
+                          All Industry
+                        </button>
+                        <div className="max-h-56 overflow-y-auto">
+                          {industries.map((industry) => {
+                            const active =
+                              industryFilterKey === industry.key && professionFilterId === "all";
+                            return (
+                              <button
+                                key={industry.key}
+                                type="button"
+                                role="menuitem"
+                                onClick={() => applyIndustryFilter(industry.key)}
+                                className={`flex w-full px-3 py-2 text-left text-sm transition hover:bg-[#F8FAFC] ${
+                                  active
+                                    ? "font-medium text-[color:var(--brand-primary)]"
+                                    : "text-[#0F172A]"
+                                }`}
+                              >
+                                {industry.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-1">
+                        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                          Filter by profession
+                        </p>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => applyProfessionFilter("all")}
+                          className={`flex w-full px-3 py-2 text-left text-sm transition hover:bg-[#F8FAFC] ${
+                            professionFilterId === "all"
+                              ? "font-medium text-[color:var(--brand-primary)]"
+                              : "text-[#0F172A]"
+                          }`}
+                        >
+                          All Professions
+                        </button>
+                        <div className="max-h-56 overflow-y-auto">
+                          {professionFilterOptions.length === 0 ? (
+                            <p className="px-3 py-2 text-sm text-[#94A3B8]">No professions yet</p>
+                          ) : (
+                            professionFilterOptions.map((profession) => {
+                              const active = professionFilterId === profession.id;
+                              const industryLabel =
+                                industries.find(
+                                  (row) => row.key === (profession.industryKey || "other")
+                                )?.label ?? "Industry";
+                              return (
+                                <button
+                                  key={profession.id}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => applyProfessionFilter(profession.id)}
+                                  className={`flex w-full flex-col px-3 py-2 text-left transition hover:bg-[#F8FAFC] ${
+                                    active
+                                      ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                                      : ""
+                                  }`}
+                                >
+                                  <span
+                                    className={`truncate text-sm ${
+                                      active
+                                        ? "font-medium text-[color:var(--brand-primary)]"
+                                        : "text-[#0F172A]"
+                                    }`}
+                                  >
+                                    {profession.name}
+                                  </span>
+                                  <span className="truncate text-[11px] text-[#94A3B8]">
+                                    {industryLabel}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {filtersActive ? (
+                      <div className="border-t border-[#F1F5F9] py-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={clearAllFilters}
+                          className="flex w-full px-3 py-2 text-left text-sm font-medium text-[#012352] hover:bg-[#F8FAFC]"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           {visibleIndustries.length === 0 ? (
@@ -1599,15 +1949,16 @@ export default function ProfessionDocumentsPanel({
                         )}
                       </button>
 
-                      <div
-                        className="relative"
-                        ref={industryMenuKey === industry.key ? industryMenuRef : undefined}
-                      >
+                      <div className="relative">
                         <button
                           type="button"
                           aria-label={`Industry actions for ${industry.label}`}
-                          onClick={() => {
+                          aria-expanded={industryMenuKey === industry.key}
+                          aria-haspopup="menu"
+                          onClick={(event) => {
+                            industryMenuTriggerRef.current = event.currentTarget;
                             selectIndustry(industry.key);
+                            setRowMenuId(null);
                             setIndustryMenuKey((current) =>
                               current === industry.key ? null : industry.key
                             );
@@ -1616,33 +1967,6 @@ export default function ProfessionDocumentsPanel({
                         >
                           <MoreHorizontal className="h-4 w-4" aria-hidden />
                         </button>
-                        {industryMenuKey === industry.key ? (
-                          <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIndustryMenuKey(null);
-                                selectIndustry(industry.key, { expand: true });
-                                openCustomProfessionModal(industry.key);
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                            >
-                              <Plus className="h-3.5 w-3.5" aria-hidden />
-                              Add position
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIndustryMenuKey(null);
-                                openEditIndustry(industry.key);
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                            >
-                              <Pencil className="h-3.5 w-3.5" aria-hidden />
-                              Edit industry
-                            </button>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -1723,48 +2047,24 @@ export default function ProfessionDocumentsPanel({
                                       </Link>
                                     </td>
                                     <td className="px-4 py-3">
-                                      <div
-                                        className="relative"
-                                        ref={rowMenuId === profession.id ? rowMenuRef : undefined}
-                                      >
+                                      <div className="relative">
                                         {canManage ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              aria-label={`More actions for ${profession.name}`}
-                                              onClick={() =>
-                                                setRowMenuId((current) =>
-                                                  current === profession.id ? null : profession.id
-                                                )
-                                              }
-                                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
-                                            >
-                                              <MoreHorizontal className="h-4 w-4" aria-hidden />
-                                            </button>
-                                            {rowMenuId === profession.id ? (
-                                            <div className="absolute right-0 top-9 z-50 min-w-[140px] rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                                              <button
-                                                type="button"
-                                                onClick={() => openEditProfession(profession)}
-                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                                              >
-                                                <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                                Edit
-                                              </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setRowMenuId(null);
-                                                    setPendingDeleteProfession(profession);
-                                                  }}
-                                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
-                                                >
-                                                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                                                  Delete
-                                                </button>
-                                              </div>
-                                            ) : null}
-                                          </>
+                                          <button
+                                            type="button"
+                                            aria-label={`More actions for ${profession.name}`}
+                                            aria-expanded={rowMenuId === profession.id}
+                                            aria-haspopup="menu"
+                                            onClick={(event) => {
+                                              rowMenuTriggerRef.current = event.currentTarget;
+                                              setIndustryMenuKey(null);
+                                              setRowMenuId((current) =>
+                                                current === profession.id ? null : profession.id
+                                              );
+                                            }}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                                          >
+                                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                                          </button>
                                         ) : (
                                           <span className="text-xs text-[#94A3B8]">—</span>
                                         )}
@@ -2022,6 +2322,94 @@ export default function ProfessionDocumentsPanel({
           onSave={() => void saveProfessionName()}
         />
       ) : null}
+
+      {rowMenuId && typeof document !== "undefined"
+        ? createPortal(
+            (() => {
+              const menuProfession = professions.find((row) => row.id === rowMenuId);
+              if (!menuProfession) return null;
+              return (
+                <div
+                  ref={rowMenuRef}
+                  role="menu"
+                  aria-label={`Actions for ${menuProfession.name}`}
+                  style={rowMenuStyle}
+                  className="rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => openEditProfession(menuProfession)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setRowMenuId(null);
+                      setPendingDeleteProfession(menuProfession);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    Delete
+                  </button>
+                </div>
+              );
+            })(),
+            document.body
+          )
+        : null}
+
+      {industryMenuKey && typeof document !== "undefined"
+        ? createPortal(
+            (() => {
+              const menuIndustry =
+                industries.find((row) => row.key === industryMenuKey) ??
+                addableIndustries.find((row) => row.key === industryMenuKey);
+              if (!menuIndustry) return null;
+              return (
+                <div
+                  ref={industryMenuRef}
+                  role="menu"
+                  aria-label={`Actions for ${menuIndustry.label}`}
+                  style={industryMenuStyle}
+                  className="rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIndustryMenuKey(null);
+                      selectIndustry(menuIndustry.key, { expand: true });
+                      openCustomProfessionModal(menuIndustry.key);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Add position
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIndustryMenuKey(null);
+                      openEditIndustry(menuIndustry.key);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    Edit industry
+                  </button>
+                </div>
+              );
+            })(),
+            document.body
+          )
+        : null}
     </section>
   );
 }

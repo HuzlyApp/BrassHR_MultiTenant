@@ -2,6 +2,8 @@ export type EmployeeScheduleEmployee = {
   id: string;
   name: string;
   jobRole: string;
+  /** Linked job requisition when known (for job details navigation). */
+  jobId: string | null;
 };
 
 export type EmployeeScheduleShift = {

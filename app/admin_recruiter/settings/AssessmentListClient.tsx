@@ -75,10 +75,10 @@ function professionCode(
 }
 
 const fieldClassName =
-  "h-9 w-full cursor-pointer appearance-none rounded-lg border border-[#E5E7EB] bg-white pl-3 pr-8 text-sm text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]";
+  "h-[30px] w-full cursor-pointer appearance-none rounded-[8px] border border-[#CBD5E1] bg-white pl-2.5 pr-8 text-[10px] leading-[15px] text-[#0F172A] outline-none transition-colors hover:border-[#94A3B8] focus-visible:border-[#012352] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]";
 
 const inputClassName =
-  "h-9 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)]";
+  "h-[30px] w-full rounded-[8px] border-0 bg-white px-2.5 text-[10px] leading-[15px] text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)]";
 
 function readSelectOptions(children: ReactNode): Array<{ value: string; label: string }> {
   return Children.toArray(children).flatMap((child) => {
@@ -146,7 +146,7 @@ function SelectField({
         <span className="truncate">{display}</span>
       </button>
       <ChevronDown
-        className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+        className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
         aria-hidden
       />
       {open ? (
@@ -154,7 +154,7 @@ function SelectField({
           id={listId}
           role="listbox"
           aria-label={label}
-          className="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+          className="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-[8px] border border-[#CBD5E1] bg-white py-1 shadow-lg"
         >
           {options.map((option) => {
             const selected = option.value === currentValue;
@@ -168,7 +168,7 @@ function SelectField({
                     onChange?.({ target: { value: option.value } });
                     setOpen(false);
                   }}
-                  className={`flex w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-[#EFF6FF] ${
+                  className={`flex w-full cursor-pointer px-2.5 py-2 text-left text-[10px] leading-[15px] hover:bg-[#EFF6FF] ${
                     selected ? "bg-[#DBEAFE] font-medium text-[#0F172A]" : "text-[#0F172A]"
                   }`}
                 >
@@ -375,9 +375,12 @@ export default function AssessmentListClient() {
   return (
     <section className="space-y-5">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Assessment</h1>
-        <p className="mt-1 text-sm text-[#64748B]">
-          Evaluate candidates&apos; skills with profession-linked assessments.
+        <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">
+          Assessment
+        </h1>
+        <p className="mt-1 max-w-3xl text-xs leading-4 text-[#6B7280]">
+          Evaluate candidates&apos; skills, knowledge, qualifications, and job readiness through
+          structured tests and performance-based evaluations.
         </p>
       </div>
 
@@ -388,58 +391,70 @@ export default function AssessmentListClient() {
       ) : null}
 
       <form
-        className="flex flex-col gap-2 sm:flex-row sm:items-center"
+        className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-[30px]"
         onSubmit={applySearch}
       >
-        <div className="relative min-w-0 flex-1">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
-            aria-hidden
-          />
-          <input
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search Industry"
-            aria-label="Search Industry"
-            className={`${inputClassName} h-11 rounded-xl pl-9`}
-          />
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94A3B8]"
+              aria-hidden
+            />
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search Industry..."
+              aria-label="Search Industry"
+              className={`${inputClassName} pl-8`}
+            />
+          </div>
+          <button
+            type="submit"
+            className="inline-flex h-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary)] px-2.5 text-[10px] font-semibold leading-[15px] text-white hover:brightness-95"
+          >
+            Search
+          </button>
         </div>
-        <button
-          type="submit"
-          className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[color:var(--brand-primary,#012352)] px-5 text-sm font-medium text-white hover:brightness-95"
-        >
-          Search
-        </button>
-      </form>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <SelectField
-          label="Filter by industry"
-          value={industryFilterKey}
-          onChange={(event) => setIndustryFilterKey(event.target.value || "all")}
-          className="w-full sm:w-[220px]"
-        >
-          <option value="all">All Industry</option>
-          {industries.map((industry) => (
-            <option key={industry.key} value={industry.key}>
-              {industry.label}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
-          label="Filter by profession"
-          value={professionFilterId}
-          onChange={(event) => setProfessionFilterId(event.target.value || "all")}
-          className="w-full sm:w-[220px]"
-        >
-          <option value="all">All Professions</option>
-          {professionOptionsForFilter.map((profession) => (
-            <option key={profession.id} value={profession.id}>
-              {profession.name}
-            </option>
-          ))}
-        </SelectField>
-      </div>
+        <div className="flex w-full shrink-0 items-center gap-2.5 lg:w-[398px]">
+          <SelectField
+            label="Filter by industry"
+            value={industryFilterKey}
+            onChange={(event) => setIndustryFilterKey(event.target.value || "all")}
+            className="min-w-0 flex-1"
+          >
+            <option value="all">All Industry</option>
+            {industries.map((industry) => (
+              <option key={industry.key} value={industry.key}>
+                {industry.label}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Filter by profession"
+            value={professionFilterId}
+            onChange={(event) => {
+              const next = event.target.value || "all";
+              setProfessionFilterId(next);
+              if (next !== "all") {
+                const match = professions.find((row) => row.id === next);
+                if (match?.industryKey) {
+                  setIndustryFilterKey(match.industryKey);
+                  setSelectedIndustryKey(match.industryKey);
+                }
+              }
+            }}
+            className="min-w-0 flex-1"
+          >
+            <option value="all">All Professions</option>
+            {professionOptionsForFilter.map((profession) => (
+              <option key={profession.id} value={profession.id}>
+                {profession.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </form>
 
       {selectedIndustry ? (
         <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm shadow-slate-900/[0.03] sm:p-5">
