@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
-import AwaitingRecruiterReviewModal from "@/app/components/onboarding/AwaitingRecruiterReviewModal";
+import AwaitingRecruiterReviewScreen from "@/app/components/onboarding/AwaitingRecruiterReviewScreen";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
-import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { resolveApplicantOnboardingRoute } from "@/lib/onboarding/resolve-applicant-onboarding-route";
 import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navigation";
@@ -21,9 +20,9 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
   const onboarding = useOnboardingConfigOptional();
   const { sessionReady, sessionLoading } = useApplicantSession();
   const lastRedirectRef = useRef<string | null>(null);
-  const [awaitingReviewOpen, setAwaitingReviewOpen] = useState(false);
-  const closeAwaitingReview = useCallback(() => setAwaitingReviewOpen(false), []);
   const waitingOnInternal = onboarding?.waitingOnInternal === true;
+  const inPostHire =
+    onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
 
   const tenantSlug = useMemo(() => {
     const fromQuery = searchParams.get("tenant")?.trim().toLowerCase();
@@ -90,21 +89,15 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
       lastRedirectRef.current = null;
       return;
     }
+    // While waiting on a recruiter step, keep the applicant on the current URL and
+    // show the in-place submitted panel instead of bouncing + modal.
+    if (waitingOnInternal && !inPostHire && !isApplicantDashboard) {
+      return;
+    }
     if (lastRedirectRef.current === decision.href) return;
     lastRedirectRef.current = decision.href;
-    // The application-status page explains the wait itself; only bounces back to a step need the modal.
-    // Post-hire candidate steps continue without the pre-hire recruiter-review modal.
-    const inPostHire =
-      onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
-    if (
-      waitingOnInternal &&
-      !inPostHire &&
-      !decision.href.startsWith(APPLICATION_ROUTES.applicationStatus)
-    ) {
-      setAwaitingReviewOpen(true);
-    }
     replace(decision.href);
-  }, [decision, replace, waitingOnInternal, onboarding?.workflowPhase]);
+  }, [decision, replace, waitingOnInternal, inPostHire, isApplicantDashboard]);
 
   const showLoading =
     decision.status === "loading" &&
@@ -122,12 +115,11 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     );
   }
 
-  return (
-    <>
-      {children}
-      <AwaitingRecruiterReviewModal open={awaitingReviewOpen} onClose={closeAwaitingReview} />
-    </>
-  );
+  if (waitingOnInternal && !inPostHire && !isApplicantDashboard && !isDraftPreview) {
+    return <AwaitingRecruiterReviewScreen />;
+  }
+
+  return <>{children}</>;
 }
 
 /** Waits for session, tenant, config, and progress before redirecting applicants. */

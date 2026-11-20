@@ -13,7 +13,10 @@ import {
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { hashResumeBytes } from "@/lib/resume/resume-file-hash";
-import { assertResumeObjectPath } from "@/lib/resume/resume-object-path";
+import {
+  assertResumeObjectPath,
+  sanitizeResumeStorageFileName,
+} from "@/lib/resume/resume-object-path";
 import { runUploadedResumeProcessing } from "@/lib/resume/schedule-uploaded-resume-processing";
 import { createResumeSignedUpload, readResumeObjectSize } from "@/lib/resume/signed-resume-upload";
 import { createTimer, logResumeTiming } from "@/lib/resume/timing";
@@ -148,7 +151,7 @@ async function prepareApplicantResumeUpload(body: JsonRecord): Promise<NextRespo
     lastName: workerNames?.last_name as string | null | undefined,
     originalFileName: fileName,
   });
-  const objectPath = `${applicantId}/${randomUUID()}-${storedFileName.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)}`;
+  const objectPath = `${applicantId}/${randomUUID()}-${sanitizeResumeStorageFileName(storedFileName)}`;
   const signed = await createResumeSignedUpload(supabase, objectPath);
   return NextResponse.json({
     direct: true,

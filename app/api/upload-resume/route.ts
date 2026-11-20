@@ -25,6 +25,7 @@ import { repairExtractedResumeText } from "@/lib/resume/normalize-resume-text"
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name"
 import { hashResumeBytes } from "@/lib/resume/resume-file-hash"
 import { handleApplicantResumeJsonPost } from "@/lib/resume/applicant-resume-phases"
+import { sanitizeResumeStorageFileName } from "@/lib/resume/resume-object-path"
 
 function finalizeExtractedResumeText(text: string): string {
   return repairExtractedResumeText(normalizeResumeWhitespace(text))
@@ -42,10 +43,6 @@ const ALLOWED_RESUME_MIME = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/msword",
 ])
-
-function sanitizeFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
-}
 
 function resolveFileType(file: Pick<File, "name" | "type">): string {
   const lower = file.name.toLowerCase()
@@ -407,7 +404,7 @@ export async function POST(req: Request) {
     lastName: workerNames?.last_name as string | null | undefined,
     originalFileName: file.name,
   })
-  const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(storedFileName)}`
+  const objectPath = `${folder}/${randomUUID()}-${sanitizeResumeStorageFileName(storedFileName)}`
 
   const storageTimer = createTimer()
   let uploadError: { message?: string } | null = null
