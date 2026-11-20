@@ -176,6 +176,8 @@ export default function TenantOnboardingPage() {
   useEffect(() => {
     let alive = true;
     void (async () => {
+      // Prefer a fresh session so signup user_metadata (industries) is present.
+      await supabaseBrowser.auth.getSession().catch(() => null);
       const { data: userData } = await supabaseBrowser.auth.getUser();
       const email = userData.user?.email?.trim() ?? "";
       const meta = (userData.user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -191,6 +193,102 @@ export default function TenantOnboardingPage() {
       }
       if (alive && fromMeta) {
         setSignupCategory(fromMeta);
+      }
+
+      // Prefill industries chosen during /signup Company Info.
+      const metaKeys = Array.isArray(meta.industry_keys)
+        ? meta.industry_keys.map((value) => String(value ?? "").trim()).filter(Boolean)
+        : [];
+      const metaLabels = Array.isArray(meta.industries)
+        ? meta.industries.map((value) => String(value ?? "").trim()).filter(Boolean)
+        : [];
+      const metaPrimary = String(meta.industry ?? "").trim();
+      let draftLabels: string[] = [];
+      let draftCompany = "";
+      try {
+        const handoffRaw = sessionStorage.getItem("braasSignupIndustries");
+        if (handoffRaw) {
+          const parsed = JSON.parse(handoffRaw) as unknown;
+          if (Array.isArray(parsed)) {
+            draftLabels = parsed.map((value) => String(value ?? "").trim()).filter(Boolean);
+          }
+        }
+        draftCompany = sessionStorage.getItem("braasSignupCompanyName")?.trim() || "";
+      } catch {
+        /* ignore */
+      }
+      try {
+        const raw = localStorage.getItem("braasOwnerSignupDraft");
+        if (raw) {
+          const parsed = JSON.parse(raw) as {
+            companyName?: string;
+            industry?: string;
+            industries?: unknown;
+          };
+          if (!draftCompany) draftCompany = String(parsed.companyName ?? "").trim();
+          if (draftLabels.length === 0) {
+            draftLabels = Array.isArray(parsed.industries)
+              ? parsed.industries.map((value) => String(value ?? "").trim()).filter(Boolean)
+              : String(parsed.industry ?? "").trim()
+                ? [String(parsed.industry).trim()]
+                : [];
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      // Also restore from in-progress signup draft if owner draft was cleared.
+      try {
+        const sessionRaw =
+          typeof sessionStorage !== "undefined"
+            ? sessionStorage.getItem("braasTenantSignupInProgress")
+            : null;
+        if (sessionRaw && draftLabels.length === 0) {
+          const parsed = JSON.parse(sessionRaw) as {
+            form?: { companyName?: string; industry?: string; industries?: unknown };
+          };
+          const form = parsed.form ?? {};
+          if (!draftCompany) draftCompany = String(form.companyName ?? "").trim();
+          draftLabels = Array.isArray(form.industries)
+            ? form.industries.map((value) => String(value ?? "").trim()).filter(Boolean)
+            : String(form.industry ?? "").trim()
+              ? [String(form.industry).trim()]
+              : [];
+        }
+      } catch {
+        /* ignore */
+      }
+
+      const { industryKeyFromLegacyLabel, industryLabelForKey } = await import(
+        "@/lib/ai-catalog/industry-catalog"
+      );
+      const allLabels = [
+        ...metaLabels,
+        ...draftLabels,
+        ...(metaPrimary ? [metaPrimary] : []),
+      ];
+      const keysFromLabels = allLabels
+        .map((label) => industryKeyFromLegacyLabel(label))
+        .filter((key): key is NonNullable<typeof key> => Boolean(key));
+      const hireForKeys = [...new Set([...metaKeys, ...keysFromLabels])];
+      const primaryLabel =
+        (hireForKeys[0] ? industryLabelForKey(hireForKeys[0]) : null) ||
+        allLabels[0] ||
+        "";
+
+      if (alive && (hireForKeys.length > 0 || draftCompany || primaryLabel)) {
+        setBusinessInfo((prev) => {
+          const existingKeys = prev.hireForIndustryKeys ?? [];
+          if (existingKeys.length > 0 && prev.industry.trim()) return prev;
+          return {
+            ...prev,
+            industry: prev.industry.trim() || primaryLabel,
+            hireForIndustryKeys: existingKeys.length > 0 ? existingKeys : hireForKeys,
+          };
+        });
+        if (draftCompany) {
+          setOrgName((current) => current.trim() || draftCompany);
+        }
       }
     })();
     return () => {
