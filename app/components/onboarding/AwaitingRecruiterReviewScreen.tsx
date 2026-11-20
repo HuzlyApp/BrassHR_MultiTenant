@@ -56,7 +56,7 @@ export default function AwaitingRecruiterReviewScreen() {
             className="mt-7 inline-flex h-11 w-full items-center justify-center rounded-lg px-6 text-sm font-semibold text-white transition hover:brightness-[0.97] sm:w-auto"
             style={{ background: buttonBackground }}
           >
-            View Website
+            Search more jobs
           </a>
         </div>
       </div>

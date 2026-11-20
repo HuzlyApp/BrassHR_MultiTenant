@@ -51,7 +51,10 @@ type SignupForm = {
   phone: string;
   companyName: string;
   companyWebsite: string;
+  /** Primary industry (first selected). Kept for draft/API compatibility. */
   industry: string;
+  /** All selected industries for multi-select signup. */
+  industries: string[];
   isStaffingCompany: boolean | null;
   city: string;
   state: string;
@@ -79,6 +82,7 @@ const initialForm: SignupForm = {
   companyName: "",
   companyWebsite: "",
   industry: "",
+  industries: [],
   isStaffingCompany: null,
   city: "",
   state: "",
@@ -483,9 +487,17 @@ export default function SignupPage() {
     passwordIsStrongEnough &&
     passwordsMatch;
 
+  const selectedIndustries =
+    form.industries.length > 0
+      ? form.industries
+      : form.industry.trim()
+        ? [form.industry.trim()]
+        : [];
+  const primaryIndustry = selectedIndustries[0] ?? "";
+
   const canCreateAccount =
     form.companyName.trim().length > 0 &&
-    form.industry.trim().length > 0 &&
+    selectedIndustries.length > 0 &&
     form.isStaffingCompany !== null &&
     form.state.trim().length > 0 &&
     form.city.trim().length > 0;
@@ -553,7 +565,8 @@ export default function SignupPage() {
             phone: form.phone,
             companyName: form.companyName,
             companyWebsite: form.companyWebsite,
-            industry: form.industry,
+            industry: primaryIndustry,
+            industries: selectedIndustries,
             isStaffingCompany: form.isStaffingCompany,
             jobTitle: form.jobTitle.trim() || "Owner",
             city: form.city,
@@ -608,11 +621,18 @@ export default function SignupPage() {
               passwordSet: true,
               companyName: form.companyName,
               companyWebsite: form.companyWebsite,
-              industry: form.industry,
+              industry: primaryIndustry,
+              industries: selectedIndustries,
               isStaffingCompany: form.isStaffingCompany,
               phone: form.phone,
             })
           );
+          // Explicit handoff for tenant-onboarding industry tags (survives draft clears).
+          sessionStorage.setItem(
+            "braasSignupIndustries",
+            JSON.stringify(selectedIndustries)
+          );
+          sessionStorage.setItem("braasSignupCompanyName", form.companyName.trim());
         } catch {
           /* ignore storage errors */
         }
@@ -634,7 +654,8 @@ export default function SignupPage() {
             body: JSON.stringify({
               companyName: form.companyName,
               companyWebsite: form.companyWebsite,
-              industry: form.industry,
+              industry: primaryIndustry,
+              industries: selectedIndustries,
               city: form.city,
               state: form.state,
               phone: form.phone,
@@ -912,12 +933,22 @@ export default function SignupPage() {
                 label="Industry"
                 dense
                 required
-                value={form.industry}
-                onChange={(value) => update("industry", value)}
+                multiple
+                values={selectedIndustries}
+                onValuesChange={(next) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    industries: next,
+                    industry: next[0] ?? "",
+                  }));
+                }}
                 options={[...INDUSTRY_OPTIONS]}
                 placeholder="Select industry"
+                searchPlaceholder="Search industry"
                 error={
-                  companySubmitAttempted && !form.industry.trim() ? "Industry is required." : null
+                  companySubmitAttempted && selectedIndustries.length === 0
+                    ? "Select at least one industry."
+                    : null
                 }
               />
 

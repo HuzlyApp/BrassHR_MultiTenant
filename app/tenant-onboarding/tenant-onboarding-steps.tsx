@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, Link2, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Link2, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type CSSProperties, type DragEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
@@ -16,7 +16,7 @@ import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityTog
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
   COMPANY_SIZE_OPTIONS,
-  // INDUSTRY_OPTIONS, // Industry select commented out — primary industry syncs from hire-for list.
+  INDUSTRY_OPTIONS,
   TENANT_GOAL_OPTIONS,
   brandingFontStack,
   TENANT_BRANDING_FONT_OPTIONS,
@@ -25,7 +25,11 @@ import {
   type TenantBrandingThemeMode,
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
-import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
+import {
+  activeUserFacingIndustries,
+  industryKeyFromLegacyLabel,
+  industryLabelForKey,
+} from "@/lib/ai-catalog/industry-catalog";
 import {
   addressVerificationMessage,
   normalizeBusinessZipInput,
@@ -541,6 +545,14 @@ export function BusinessStep({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [editingIndustries, setEditingIndustries] = useState(false);
+
+  const selectedIndustryLabels = useMemo(() => {
+    const keys = businessInfo.hireForIndustryKeys ?? [];
+    return keys
+      .map((key) => industryLabelForKey(key))
+      .filter((label): label is string => Boolean(label));
+  }, [businessInfo.hireForIndustryKeys]);
 
   const effectiveCityOptions = useMemo(() => {
     const city = businessInfo.city.trim();
@@ -697,6 +709,25 @@ export function BusinessStep({
 
   const hireForRequiredMessage = "Select at least one industry.";
 
+  const applyIndustryLabels = (labels: string[]) => {
+    const nextKeys: string[] = [];
+    for (const label of labels) {
+      const key = industryKeyFromLegacyLabel(label);
+      if (key && !nextKeys.includes(key)) nextKeys.push(key);
+    }
+    const primary =
+      activeUserFacingIndustries().find((entry) => entry.key === nextKeys[0])?.label ??
+      labels[0] ??
+      "";
+    handleBusinessFieldChange({
+      hireForIndustryKeys: nextKeys,
+      industry: primary,
+    });
+    if (submitAttempted) {
+      setHireForError(nextKeys.length === 0 ? hireForRequiredMessage : null);
+    }
+  };
+
   const handleContinue = async () => {
     setSubmitAttempted(true);
     setSubmitError(null);
@@ -821,45 +852,61 @@ export function BusinessStep({
         />
 
         <div>
-          <FieldLabel required>Industries you hire for</FieldLabel>
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel required>Industries you hire for</FieldLabel>
+            <button
+              type="button"
+              onClick={() => setEditingIndustries((open) => !open)}
+              className="shrink-0 text-sm font-semibold text-[#012352] underline-offset-2 hover:underline"
+            >
+              {editingIndustries ? "Done" : "Edit"}
+            </button>
+          </div>
           <p className="-mt-1 text-sm text-[#64748B]">
             Select every industry this company supports. New jobs default to your primary industry and
             can be overridden per job.
           </p>
-          <div className="mt-3 grid grid-cols-1 gap-2 min-[600px]:grid-cols-2">
-            {activeUserFacingIndustries().map((item) => {
-              const checked = (businessInfo.hireForIndustryKeys ?? []).includes(item.key);
-              return (
-                <label key={item.key} className="flex items-center gap-2 text-sm text-[#334155] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(event) => {
-                      const current = businessInfo.hireForIndustryKeys ?? [];
-                      const next = event.target.checked
-                        ? current.includes(item.key)
-                          ? current
-                          : [...current, item.key]
-                        : current.filter((key) => key !== item.key);
-                      const primary =
-                        activeUserFacingIndustries().find((entry) => entry.key === next[0])?.label ??
-                        "";
-                      handleBusinessFieldChange({
-                        hireForIndustryKeys: next,
-                        industry: primary,
-                      });
-                      if (submitAttempted) {
-                        setHireForError(next.length === 0 ? hireForRequiredMessage : null);
-                      }
-                    }}
-                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[#012352]"
-                    style={{ accentColor: '#012352' }}
-                  />
-                  {item.label}
-                </label>
-              );
-            })}
-          </div>
+
+          {selectedIndustryLabels.length > 0 && !editingIndustries ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedIndustryLabels.map((label) => (
+                <span
+                  key={label}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-medium leading-4 text-[#0F172A]"
+                >
+                  <span className="min-w-0 truncate">{label}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${label}`}
+                    onClick={() =>
+                      applyIndustryLabels(selectedIndustryLabels.filter((item) => item !== label))
+                    }
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#0F172A]"
+                  >
+                    <X className="h-3 w-3" strokeWidth={2.5} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {editingIndustries || selectedIndustryLabels.length === 0 ? (
+            <div className="mt-3">
+              <SearchableSelectField
+                label="Industry"
+                hideLabel
+                required
+                multiple
+                values={selectedIndustryLabels}
+                onValuesChange={applyIndustryLabels}
+                options={[...INDUSTRY_OPTIONS]}
+                placeholder="Select industry"
+                searchPlaceholder="Search industry"
+                error={null}
+                emptyMessage="No industries found. Try another search."
+              />
+            </div>
+          ) : null}
           <FieldError message={submitAttempted ? hireForError : null} />
         </div>
 

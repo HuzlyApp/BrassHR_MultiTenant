@@ -81,6 +81,23 @@ describe("validateOwnerSignupDetails", () => {
     );
   });
 
+  it("accepts multiple industries and rejects invalid labels", () => {
+    expect(
+      validateOwnerSignupDetails({
+        ...validBase,
+        industry: "Healthcare",
+        industries: ["Healthcare", "Home Care / Home Health"],
+      })
+    ).toBeNull();
+    expect(
+      validateOwnerSignupDetails({
+        ...validBase,
+        industry: "",
+        industries: ["Not A Real Industry"],
+      })
+    ).toMatch(/valid industry/i);
+  });
+
   it("validates street address format when address 1 is provided", () => {
     const error = validateOwnerSignupDetails({
       ...validBase,

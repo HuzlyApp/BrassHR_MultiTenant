@@ -67,6 +67,8 @@ export type OwnerSignupPayload = {
   companyName?: string;
   companyWebsite?: string;
   industry?: string;
+  /** Additional / all selected industry labels (primary is industries[0] or industry). */
+  industries?: string[];
   /** true = Staffing edition, false = SMB */
   isStaffingCompany?: boolean | null;
   hqState?: string;
@@ -91,6 +93,16 @@ function normalizeOptionalWebsite(value: unknown): string {
   return `https://${trimmed}`;
 }
 
+function normalizeIndustryLabels(body: Record<string, unknown>): string[] {
+  const fromArray = Array.isArray(body.industries)
+    ? body.industries.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+  const primary = String(body.industry ?? "").trim();
+  const merged = [...fromArray];
+  if (primary && !merged.includes(primary)) merged.unshift(primary);
+  return [...new Set(merged)];
+}
+
 export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial<OwnerSignupPayload> {
   const staffingRaw = body.isStaffingCompany;
   const isStaffingCompany =
@@ -99,6 +111,7 @@ export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial
       : staffingRaw === false || staffingRaw === "false"
         ? false
         : null;
+  const industries = normalizeIndustryLabels(body);
 
   return {
     firstName: String(body.firstName ?? "").trim(),
@@ -110,7 +123,8 @@ export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial
     phone: normalizePhoneInput(String(body.phone ?? "")),
     companyName: String(body.companyName ?? "").trim(),
     companyWebsite: normalizeOptionalWebsite(body.companyWebsite),
-    industry: String(body.industry ?? "").trim(),
+    industry: industries[0] ?? "",
+    industries,
     isStaffingCompany,
     city: String(body.city ?? "").trim(),
     state: String(body.state ?? "").trim(),
@@ -142,8 +156,15 @@ export function validateOwnerSignupDetails(
   if (isPersonNameTooLong(payload.lastName)) return personNameTooLongMessage("Last name");
   if (!payload.workEmail?.includes("@")) return "A valid work email is required.";
   if (!payload.companyName?.trim()) return "Company name is required.";
-  if (!payload.industry?.trim()) return "Industry is required.";
-  if (!industryKeyFromLegacyLabel(payload.industry)) return "Select a valid industry.";
+  const industries =
+    payload.industries && payload.industries.length > 0
+      ? payload.industries
+      : payload.industry?.trim()
+        ? [payload.industry.trim()]
+        : [];
+  if (industries.length === 0) return "Select at least one industry.";
+  const invalid = industries.find((label) => !industryKeyFromLegacyLabel(label));
+  if (invalid) return "Select a valid industry.";
   if (payload.isStaffingCompany !== true && payload.isStaffingCompany !== false) {
     return "Select whether you are a staffing company.";
   }
@@ -172,7 +193,17 @@ export function validateOwnerSignupDetails(
 
 /** Auth user_metadata written at owner signup for tenant-onboarding prefill. */
 export function buildOwnerSignupUserMetadata(payload: OwnerSignupPayload) {
-  const industryKey = industryKeyFromLegacyLabel(payload.industry ?? "") ?? null;
+  const industries =
+    payload.industries && payload.industries.length > 0
+      ? payload.industries
+      : payload.industry?.trim()
+        ? [payload.industry.trim()]
+        : [];
+  const primaryLabel = industries[0] ?? payload.industry ?? "";
+  const industryKey = industryKeyFromLegacyLabel(primaryLabel) ?? null;
+  const industryKeys = industries
+    .map((label) => industryKeyFromLegacyLabel(label))
+    .filter((key): key is NonNullable<typeof key> => Boolean(key));
   return {
     first_name: payload.firstName,
     last_name: payload.lastName,
@@ -183,8 +214,10 @@ export function buildOwnerSignupUserMetadata(payload: OwnerSignupPayload) {
     zip_code: payload.zipCode || null,
     company_name: payload.companyName || null,
     company_website: payload.companyWebsite || null,
-    industry: payload.industry || null,
+    industry: primaryLabel || null,
+    industries,
     industry_key: industryKey,
+    industry_keys: industryKeys,
     is_staffing_company: payload.isStaffingCompany === true,
     tenant_category: tenantCategoryFromStaffingFlag(payload.isStaffingCompany),
   };
