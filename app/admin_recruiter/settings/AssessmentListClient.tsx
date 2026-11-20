@@ -517,7 +517,7 @@ export default function AssessmentListClient() {
                       <td className="px-4 py-3">
                         <Link
                           href={assessmentDetailHref(profession.id)}
-                          className="text-sm font-medium text-[#C2410C] hover:underline"
+                          className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
                         >
                           {profession.name}
                         </Link>
@@ -527,7 +527,7 @@ export default function AssessmentListClient() {
                           <div className="min-w-0">
                             <Link
                               href={assessmentDetailHref(profession.id)}
-                              className="text-sm font-medium text-[#C2410C] hover:underline"
+                              className="text-sm font-medium text-[#012352] hover:underline"
                               title={assessmentLabel}
                             >
                               View Assessment
@@ -542,7 +542,7 @@ export default function AssessmentListClient() {
                         ) : (
                           <Link
                             href={assessmentDetailHref(profession.id)}
-                            className="text-sm font-medium text-[#C2410C] hover:underline"
+                            className="text-sm font-medium text-[#012352] hover:underline"
                           >
                             Configure
                           </Link>
@@ -551,7 +551,7 @@ export default function AssessmentListClient() {
                       <td className="px-4 py-3">
                         <Link
                           href={professionDetailHref(profession.id)}
-                          className="text-sm font-medium text-[#C2410C] hover:underline"
+                          className="text-sm font-medium text-[#012352] hover:underline"
                         >
                           View Docs
                         </Link>
