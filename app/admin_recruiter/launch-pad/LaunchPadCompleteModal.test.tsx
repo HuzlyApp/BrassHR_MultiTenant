@@ -10,6 +10,12 @@ beforeEach(() => {
 });
 
 describe("Launch Pad completion", () => {
+  it("displays the tenant query and opens the development workspace", async () => {
+    const workspaceUrl = "https://brasshr-devmode.vercel.app/admin_recruiter/home?tenant=zippycorp";
+    render(<LaunchPadCompleteModal open onOpenChange={vi.fn()} workspaceUrl={workspaceUrl} />);
+    expect(await screen.findByRole("link", { name: "Open my workspace" })).toHaveAttribute("href", workspaceUrl);
+    expect(screen.getByText("brasshr-devmode.vercel.app?tenant=zippycorp")).toBeInTheDocument();
+  });
   it("shows the server-resolved subdomain and opens its admin workspace", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ workspaceUrl: "https://chosen.brasshr.test/admin_recruiter/home" })));
     render(<LaunchPadCompleteModal open onOpenChange={vi.fn()} />);

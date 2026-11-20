@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTenantVanityUrl,
+  buildTenantWorkspaceUrl,
   isAppRouterFlightRequest,
   pickTenantVanityLabel,
   resolveRecruiterDashboardUrl,
 } from "@/lib/tenant/tenant-vanity-url";
+
+describe("buildTenantWorkspaceUrl", () => {
+  it.each(["https://brasshr-devmode.vercel.app", "https://branch-preview.vercel.app", "http://localhost:3000"])("keeps %s and the stable tenant slug", (origin) => {
+    expect(buildTenantWorkspaceUrl({ slug: "zippycorp", subdomain: "example" }, "/admin_recruiter/home", { origin, rootDomain: "brasshr.com" }))
+      .toBe(`${origin}/admin_recruiter/home?tenant=zippycorp`);
+  });
+
+  it("uses the chosen production subdomain", () => {
+    expect(buildTenantWorkspaceUrl({ slug: "zippycorp", subdomain: "example" }, "/admin_recruiter/home", { origin: "https://brasshr.com", rootDomain: "brasshr.com" }))
+      .toBe("https://example.brasshr.com/admin_recruiter/home");
+  });
+});
 
 describe("pickTenantVanityLabel", () => {
   it("prefers subdomain over slug", () => {

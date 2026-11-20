@@ -57,6 +57,24 @@ function isUnsupportedVanityHost(hostname: string | null | undefined): boolean {
   );
 }
 
+/** Local and Vercel deployment hosts resolve tenants by query, without custom DNS. */
+export function usesTenantQueryUrls(hostname: string): boolean {
+  return isLocalDevHostname(hostname) || isUnsupportedVanityHost(hostname);
+}
+
+export function buildTenantWorkspaceUrl(tenant: { slug: string; subdomain: string }, path: string, options: {
+  origin?: string;
+  rootDomain?: string;
+} = {}): string {
+  if (options.origin && usesTenantQueryUrls(new URL(options.origin).hostname)) {
+    const url = new URL(path, options.origin);
+    // Slugs stay stable even when the production subdomain is edited.
+    url.searchParams.set("tenant", tenant.slug);
+    return url.href;
+  }
+  return buildTenantVanityUrl(tenant.subdomain, path, { rootDomain: options.rootDomain });
+}
+
 /** Recruiter dashboard routes should open on the tenant vanity host when available. */
 export function shouldUseTenantVanityHost(path: string): boolean {
   const pathname = path.split("?")[0]?.trim() || "";

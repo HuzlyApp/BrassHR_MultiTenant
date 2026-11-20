@@ -475,7 +475,7 @@ export async function POST(req: Request) {
   let vercelDomainRegistered = false;
   let vercelDomainSkipped = false;
   try {
-    const vercel = await registerTenantDomain(subdomainFinal);
+    const vercel = await registerTenantDomain(subdomainFinal, { origin: new URL(req.url).origin });
     vercelDomainSkipped = vercel.skipped;
     vercelDomainRegistered = !vercel.skipped;
   } catch (err) {

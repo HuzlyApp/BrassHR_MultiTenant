@@ -51,7 +51,7 @@ export function LaunchPadCompleteModal({ open, onOpenChange, workspaceUrl, setup
           </Dialog.Description>
           {workspace?.workspaceUrl ? (
             <>
-              <p className="my-5 break-all rounded-lg bg-slate-50 p-3 text-sm">{new URL(workspace.workspaceUrl).hostname}</p>
+              <p className="my-5 break-all rounded-lg bg-slate-50 p-3 text-sm">{new URL(workspace.workspaceUrl).hostname}{new URL(workspace.workspaceUrl).search}</p>
               <a href={workspace.workspaceUrl} className="inline-flex w-full justify-center rounded-lg bg-[#012352] px-4 py-3 text-sm font-semibold text-white">
                 Open my workspace
               </a>
