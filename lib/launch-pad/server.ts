@@ -20,7 +20,7 @@ export async function requireLaunchPadContext(request?: Request, options?: { all
   if (error || !tenant) {
     return NextResponse.json({ error: "Could not load your organization." }, { status: 500 });
   }
-  return { sb, tenantId, tenant };
+  return { sb, tenantId, tenant, auth };
 }
 
 type LaunchPadContext = Exclude<Awaited<ReturnType<typeof requireLaunchPadContext>>, NextResponse>;
