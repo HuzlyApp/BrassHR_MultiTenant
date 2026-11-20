@@ -18,7 +18,8 @@ import {
   logAuthDebug,
 } from "@/lib/auth/platform-shared";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { ONBOARDING_TENANT_SLUG_COOKIE, OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
+import { ADMIN_LAUNCH_PAD_ROUTE, OWNER_WORKSPACE_PREPARATION_ROUTE } from "@/lib/signup/smb-post-signup";
+import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { hasOwnerTrialPreparationCookie } from "@/lib/auth/owner-trial-preparation-middleware";
 import { lookupTenantSlugBySubdomain } from "@/lib/tenant/lookup-tenant-subdomain";
 import {
@@ -88,7 +89,7 @@ async function redirectAuthenticatedUser(
         : NextResponse.redirect(typeof url === "string" ? new URL(url, request.url) : url)
     );
 
-  if (!svc) {
+  if (!svc || destination.split("?")[0] === ADMIN_LAUNCH_PAD_ROUTE) {
     return send(destination);
   }
 
@@ -555,7 +556,12 @@ async function proxyInner(request: NextRequest) {
       }
     }
 
-    if (isTenantOnboardingPath && shouldBlockTenantOnboardingAccess(onboardingStatus)) {
+    if (
+      isTenantOnboardingPath &&
+      !isTenantOnboardingContinuePath &&
+      !isTenantOnboardingLinkErrorPath &&
+      shouldBlockTenantOnboardingAccess(onboardingStatus)
+    ) {
       const destination = resolvePostAuthRedirectForUser(
         onboardingStatus,
         user,
@@ -564,15 +570,16 @@ async function proxyInner(request: NextRequest) {
       return redirectAuthenticatedUser(request, response, user, destination);
     }
 
-    if (
-      isYourTrialPath &&
-      (onboardingStatus.waitlistPending ||
-        (!onboardingStatus.signupCompleted && !onboardingStatus.tenantOnboardingCompleted))
-    ) {
-      if (onboardingStatus.waitlistPending) {
-        return NextResponse.redirect(new URL("/signup/waitlist", request.url));
+    if (isYourTrialPath) {
+      if (!onboardingStatus.signupCompleted && !onboardingStatus.tenantOnboardingCompleted && !onboardingStatus.waitlistPending) {
+        return NextResponse.redirect(new URL("/signup", request.url));
       }
-      return NextResponse.redirect(new URL("/signup", request.url));
+      const destination = resolvePostAuthRedirectForUser(
+        onboardingStatus,
+        user,
+        "/admin_recruiter/launch-pad"
+      );
+      return redirectAuthenticatedUser(request, response, user, destination);
     }
 
     if (isAdminRecruiterPath && shouldBlockAdminDashboardAccess(onboardingStatus)) {
@@ -603,15 +610,8 @@ async function proxyInner(request: NextRequest) {
     return NextResponse.redirect(new URL("/signup", request.url));
   }
 
-  if (tenantOnboardingSetupPath) {
-    const continuationCookie = request.cookies.get(
-      OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE
-    )?.value;
-    if (!continuationCookie?.trim()) {
-      if (user && !isAnonymousUser) {
-        return NextResponse.redirect(new URL("/your-trial?account-ready=true", request.url));
-      }
-    }
+  if (tenantOnboardingSetupPath && user && !isAnonymousUser) {
+    return withSessionCookies(response, NextResponse.redirect(new URL(OWNER_WORKSPACE_PREPARATION_ROUTE, request.url)));
   }
 
   if (
@@ -702,7 +702,7 @@ async function proxyInner(request: NextRequest) {
     const pageDenied = await modulePageDenial(request, user);
     if (pageDenied) return withSessionCookies(response, pageDenied);
 
-    if (!isGodAdminUser(user) && !isAppRouterFlightRequest(request.headers, request.nextUrl.searchParams)) {
+    if (pathname !== ADMIN_LAUNCH_PAD_ROUTE && !isGodAdminUser(user) && !isAppRouterFlightRequest(request.headers, request.nextUrl.searchParams)) {
       const host = forwardedHostFromHeaders(request.headers);
       const root = getEffectiveRootDomain();
       if (host && isRootDomainHost(host, root)) {

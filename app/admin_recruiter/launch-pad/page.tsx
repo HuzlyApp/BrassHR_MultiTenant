@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import { LaunchPadCompleteModal } from "./LaunchPadCompleteModal";
 import { ADMIN_LAUNCH_PAD_ROUTE } from "@/lib/signup/smb-post-signup";
 import {
   isLaunchPadStepId,
@@ -10,6 +12,7 @@ import {
 import { LaunchPadChecklist } from "./LaunchPadChecklist";
 import { LaunchPadStepHeader } from "./LaunchPadStepHeader";
 import {
+  countCompletedSteps,
   emptyLaunchPadProgress,
   markLaunchPadStepComplete,
   readLaunchPadProgress,
@@ -24,6 +27,9 @@ import { PreviewStepPanel } from "./steps/PreviewStepPanel";
 
 function LaunchPadContent() {
   const router = useRouter();
+  const { organization } = useAccountData();
+  const tenantId = organization?.id;
+  const [showComplete, setShowComplete] = useState(false);
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
   const activeStep = isLaunchPadStepId(stepParam) ? stepParam : null;
@@ -31,8 +37,10 @@ function LaunchPadContent() {
   const [progress, setProgress] = useState<LaunchPadProgress>(emptyLaunchPadProgress);
 
   useEffect(() => {
-    setProgress(readLaunchPadProgress());
-  }, []);
+    const saved = tenantId ? readLaunchPadProgress(tenantId) : emptyLaunchPadProgress();
+    setProgress(saved);
+    setShowComplete(countCompletedSteps(saved) === Object.keys(saved).length);
+  }, [tenantId]);
 
   const openStep = (id: LaunchPadStepId) => {
     router.push(`${ADMIN_LAUNCH_PAD_ROUTE}?step=${id}`);
@@ -43,18 +51,24 @@ function LaunchPadContent() {
   };
 
   const completeStep = (id: LaunchPadStepId) => {
-    setProgress(markLaunchPadStepComplete(id, true));
+    if (!tenantId) return;
+    const next = markLaunchPadStepComplete(tenantId, id, true);
+    setProgress(next);
+    if (countCompletedSteps(next) === Object.keys(next).length) setShowComplete(true);
     backToMain();
   };
 
   const skipStep = () => {
-    backToMain();
+    // Optional steps can be reviewed later; the workspace address must be confirmed.
+    if (activeStep && activeStep !== "domain") completeStep(activeStep);
+    else backToMain();
   };
 
   if (!activeStep) {
     return (
       <div className="flex min-h-full w-full flex-col bg-[#F4F4F4]">
         <LaunchPadChecklist progress={progress} onOpenStep={openStep} />
+        <LaunchPadCompleteModal open={showComplete} onOpenChange={setShowComplete} />
       </div>
     );
   }

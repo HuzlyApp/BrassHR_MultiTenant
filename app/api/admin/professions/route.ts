@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { formatApiError } from "@/lib/api/format-api-error";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
       : await addTenantProfession(supabase, tenantId, name, industryKey || null);
     return NextResponse.json({ profession });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not add profession";
+    const message = formatApiError(err) || "Could not add profession";
     const status = /already|duplicate|unique/i.test(message) ? 409 : 400;
     return NextResponse.json({ error: message }, { status });
   }

@@ -20,13 +20,12 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE } from "@/lib/tenant/tenant-email-uniqueness";
-import { markAccountReadyModalPending } from "@/lib/auth/account-ready-modal";
 import {
   clearTenantSignupDraft,
   readTenantSignupDraft,
   writeTenantSignupDraft,
 } from "@/lib/signup/tenant-signup-draft";
-import { ADMIN_LAUNCH_PAD_ROUTE, isSmbOwnerSignup } from "@/lib/signup/smb-post-signup";
+import { ADMIN_LAUNCH_PAD_ROUTE } from "@/lib/signup/smb-post-signup";
 import { formatPhoneNumber } from "@/lib/phone";
 import { phoneValidationMessage } from "@/lib/tenant/business-info-validation";
 
@@ -626,48 +625,37 @@ export default function SignupPage() {
           return;
         }
 
-        // SMB skips /your-trial + full-page tenant-onboarding and lands on Launch Pad.
-        if (isSmbOwnerSignup(form)) {
-          const provisionRes = await fetch("/api/auth/signup/provision-smb", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              companyName: form.companyName,
-              companyWebsite: form.companyWebsite,
-              industry: form.industry,
-              city: form.city,
-              state: form.state,
-              phone: form.phone,
-              isStaffingCompany: false,
-            }),
-          });
-          const provisionPayload = (await provisionRes.json().catch(() => ({}))) as {
-            error?: string;
-            redirectTo?: string;
-          };
-          if (!provisionRes.ok) {
-            setSubmitError(
-              provisionPayload.error ?? "Account created, but workspace setup failed. Try Sign In."
-            );
-            setSubmitting(false);
-            return;
-          }
-          setRedirecting(true);
-          clearTenantSignupDraft();
-          window.setTimeout(() => {
-            window.location.assign(provisionPayload.redirectTo ?? ADMIN_LAUNCH_PAD_ROUTE);
-          }, 80);
+        // Both editions provision their workspace before opening Launch Pad.
+        const provisionRes = await fetch("/api/auth/signup/provision-smb", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyName: form.companyName,
+            companyWebsite: form.companyWebsite,
+            industry: form.industry,
+            city: form.city,
+            state: form.state,
+            phone: form.phone,
+            isStaffingCompany: form.isStaffingCompany,
+          }),
+        });
+        const provisionPayload = (await provisionRes.json().catch(() => ({}))) as {
+          error?: string;
+          redirectTo?: string;
+        };
+        if (!provisionRes.ok) {
+          setSubmitError(
+            provisionPayload.error ?? "Account created, but workspace setup failed. Try Sign In."
+          );
+          setSubmitting(false);
           return;
         }
-
-        await fetch("/api/auth/signup/begin-trial-session", { method: "POST" }).catch(() => null);
-
         setRedirecting(true);
         clearTenantSignupDraft();
         window.setTimeout(() => {
-          markAccountReadyModalPending(sessionStorage);
-          window.location.assign("/your-trial");
+          window.location.assign(provisionPayload.redirectTo ?? ADMIN_LAUNCH_PAD_ROUTE);
         }, 80);
+        return;
       } catch {
         setSubmitError("Something went wrong. Please try again.");
         setSubmitting(false);

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
+import { ADMIN_LAUNCH_PAD_ROUTE } from "@/lib/signup/smb-post-signup";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveRecruiterRedirectUrl } from "@/lib/auth/recruiter-dashboard-redirect";
 import { resolveRecruiterOnboardingStatus } from "@/lib/auth/recruiter-onboarding-status.server";
@@ -28,12 +30,20 @@ export async function GET(req: Request) {
       );
     }
 
-    const redirectUrl = resolveRecruiterRedirectUrl({
-      path: status.redirectTarget,
-      tenantSubdomain: status.tenantSubdomain,
-      currentHostname: host,
-      protocol,
-    });
+    // Preserve the signup destination through staff sign-in verification.
+    const requestedDestination = url.searchParams.get("next");
+    if (!status.godAdmin && status.tenantOnboardingCompleted && (requestedDestination === ADMIN_LAUNCH_PAD_ROUTE || requestedDestination === ADMIN_RECRUITER_HOME_ROUTE)) {
+      status.redirectTarget = requestedDestination;
+    }
+
+    const redirectUrl = status.redirectTarget === ADMIN_LAUNCH_PAD_ROUTE
+      ? ADMIN_LAUNCH_PAD_ROUTE
+      : resolveRecruiterRedirectUrl({
+          path: status.redirectTarget,
+          tenantSubdomain: status.tenantSubdomain,
+          currentHostname: host,
+          protocol,
+        });
 
     console.info("[recruiter-onboarding-status]", {
       userId: status.userId,

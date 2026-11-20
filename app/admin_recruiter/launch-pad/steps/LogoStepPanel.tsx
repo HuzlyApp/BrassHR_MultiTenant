@@ -79,21 +79,24 @@ export function LogoStepPanel({
 
   const handleContinue = async () => {
     setSaving(true);
+    setError(null);
     try {
       if (logoFile) {
         const form = new FormData();
         form.append("field", "logo");
         form.append("file", logoFile);
-        await fetch("/api/admin/branding/logo", { method: "POST", body: form });
+        const response = await fetch("/api/admin/branding/logo", { method: "POST", body: form });
+        if (!response.ok) throw new Error("Could not upload your logo.");
       }
       if (faviconFile) {
         const form = new FormData();
         form.append("field", "favicon");
         form.append("file", faviconFile);
-        await fetch("/api/admin/branding/logo", { method: "POST", body: form });
+        const response = await fetch("/api/admin/branding/logo", { method: "POST", body: form });
+        if (!response.ok) throw new Error("Could not upload your favicon.");
       }
       if (logoName.trim() || tagline.trim()) {
-        await fetch("/api/admin/branding", {
+        const response = await fetch("/api/admin/branding", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -101,8 +104,11 @@ export function LogoStepPanel({
             welcomeSubtitle: tagline.trim() || undefined,
           }),
         });
+        if (!response.ok) throw new Error("Could not save your company branding.");
       }
       onComplete();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save your company branding.");
     } finally {
       setSaving(false);
     }

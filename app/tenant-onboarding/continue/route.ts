@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import { findOwnerContinuationLinkByToken } from "@/lib/onboarding/owner-onboarding-continuation-link";
 import { OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
 import { getSupabaseUrl } from "@/lib/supabase-env";
+import { hasVerifiedStaffSession } from "@/lib/auth/staff-session-verification";
+import { createClient as createSessionClient } from "@/lib/supabase/server";
+import { ADMIN_LAUNCH_PAD_ROUTE } from "@/lib/signup/smb-post-signup";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 
 export const runtime = "nodejs";
@@ -93,8 +96,15 @@ export async function GET(req: NextRequest) {
     request: req,
   });
 
-  const destination = new URL(linkRow.target_path, req.url);
-  destination.searchParams.delete("token");
+  const session = await createSessionClient();
+  const { data: { user } } = await session.auth.getUser();
+  // A continuation link selects the account and destination; sign-in still verifies identity.
+  const sameOwner = user?.id === linkRow.user_id && !user?.is_anonymous && await hasVerifiedStaffSession(user);
+  const destination = new URL(sameOwner ? ADMIN_LAUNCH_PAD_ROUTE : "/admin", req.url);
+  if (!sameOwner) {
+    destination.searchParams.set("next", ADMIN_LAUNCH_PAD_ROUTE);
+    destination.searchParams.set("email", linkRow.email);
+  }
 
   const res = NextResponse.redirect(destination);
   res.cookies.set(OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE, linkRow.id, {
