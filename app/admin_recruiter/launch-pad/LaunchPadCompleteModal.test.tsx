@@ -12,7 +12,8 @@ beforeEach(() => {
 describe("Launch Pad completion", () => {
   it("displays the tenant query and opens the development workspace", async () => {
     const workspaceUrl = "https://brasshr-devmode.vercel.app/admin_recruiter/home?tenant=zippycorp";
-    render(<LaunchPadCompleteModal open onOpenChange={vi.fn()} workspaceUrl={workspaceUrl} />);
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ workspaceUrl })));
+    render(<LaunchPadCompleteModal open onOpenChange={vi.fn()} />);
     expect(await screen.findByRole("link", { name: "Open my workspace" })).toHaveAttribute("href", workspaceUrl);
     expect(screen.getByText("brasshr-devmode.vercel.app?tenant=zippycorp")).toBeInTheDocument();
   });
@@ -22,6 +23,7 @@ describe("Launch Pad completion", () => {
     expect(await screen.findByRole("link", { name: "Open my workspace" })).toHaveAttribute("href", "https://chosen.brasshr.test/admin_recruiter/home");
     expect(screen.getByText("chosen.brasshr.test")).toBeInTheDocument();
     expect(screen.getByText(/email and password you used at signup/)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/admin/launch-pad/domain", expect.objectContaining({ method: "POST" }));
   });
 
   it("provides a retry instead of a broken link when the workspace cannot load", async () => {

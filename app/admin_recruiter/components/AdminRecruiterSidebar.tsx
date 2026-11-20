@@ -30,6 +30,7 @@ import {
 import {
   isLaunchPadFullyComplete,
   LAUNCH_PAD_PROGRESS_EVENT,
+  syncLaunchPadProgress,
 } from "@/app/admin_recruiter/launch-pad/progress";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
@@ -184,13 +185,23 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   }, [settingsMiniOpen]);
 
   useEffect(() => {
+    let active = true;
     const syncLaunchPadVisibility = () => {
       setLaunchPadComplete(isLaunchPadFullyComplete(organization?.id));
     };
-    syncLaunchPadVisibility();
+    setLaunchPadComplete(false);
+    if (organization?.id) {
+      void syncLaunchPadProgress(organization.id).then(() => {
+        if (active) syncLaunchPadVisibility();
+      }).catch(() => {
+        // Keep the setup entry available when server progress cannot be verified.
+        if (active) setLaunchPadComplete(false);
+      });
+    }
     window.addEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
     window.addEventListener("storage", syncLaunchPadVisibility);
     return () => {
+      active = false;
       window.removeEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
       window.removeEventListener("storage", syncLaunchPadVisibility);
     };

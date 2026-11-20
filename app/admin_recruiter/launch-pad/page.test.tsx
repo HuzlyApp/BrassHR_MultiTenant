@@ -1,14 +1,15 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { LAUNCH_PAD_STORAGE_KEY } from "./constants";
 
 const nav = vi.hoisted(() => ({ search: "step=domain", push: vi.fn() }));
+const server = vi.hoisted(() => ({ progress: { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: nav.push }), useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("@/app/admin_recruiter/hooks/useAccountData", () => ({ useAccountData: () => ({ organization: { id: "tenant-a" } }) }));
-vi.mock("./steps/DomainStepPanel", () => ({ DomainStepPanel: ({ onComplete }: { onComplete: (url: string) => void }) => <button onClick={() => onComplete("https://chosen.brasshr.test/admin_recruiter/home")}>Confirm domain</button> }));
-vi.mock("./steps/BrandingStepPanel", () => ({ BrandingStepPanel: () => null }));
+vi.mock("./steps/DomainStepPanel", () => ({ DomainStepPanel: ({ onComplete, onSkip }: { onComplete: () => void; onSkip: () => void }) => <><button onClick={() => { server.progress.domain = true; onComplete(); }}>Confirm domain</button><button onClick={onSkip}>Skip for now</button></> }));
+vi.mock("./steps/BrandingStepPanel", () => ({ BrandingStepPanel: ({ onComplete }: { onComplete: () => void }) => <button onClick={onComplete}>Confirm branding</button> }));
 vi.mock("./steps/InviteStepPanel", () => ({ InviteStepPanel: () => null }));
 vi.mock("./steps/LogoStepPanel", () => ({ LogoStepPanel: () => null }));
 vi.mock("./steps/OrgDetailsStepPanel", () => ({ OrgDetailsStepPanel: () => null }));
@@ -20,26 +21,66 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   nav.search = "step=domain";
+  server.progress = { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false };
+  nav.push.mockReset();
   nav.push.mockImplementation(() => { nav.search = ""; });
-  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ workspaceUrl: "https://chosen.brasshr.test/admin_recruiter/home" })));
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith("/progress")) {
+      if (init?.method === "POST") {
+        const { stepId } = JSON.parse(String(init.body)) as { stepId: keyof typeof server.progress };
+        server.progress[stepId] = true;
+      }
+      return Response.json({ tenantId: "tenant-a", progress: server.progress });
+    }
+    return Response.json({ workspaceUrl: "https://chosen.brasshr.test/admin_recruiter/home" });
+  }));
 });
 
 describe("Launch Pad finish handoff", () => {
   it("opens the subdomain modal after the last step is confirmed", async () => {
-    localStorage.setItem(`${LAUNCH_PAD_STORAGE_KEY}:tenant-a`, JSON.stringify({ logo: true, branding: true, domain: false, preview: true, invite: true, organization: true }));
+    server.progress = { logo: true, branding: true, domain: false, preview: true, invite: true, organization: true };
     render(<LaunchPadPage />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm domain" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm domain" }));
     expect(await screen.findByRole("link", { name: "Open my workspace" })).toHaveAttribute("href", "https://chosen.brasshr.test/admin_recruiter/home");
   });
-  it("opens the domain handoff immediately while other steps remain unfinished", async () => {
+  it("saves step 3 without opening the modal or activating the domain", async () => {
     render(<LaunchPadPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Confirm domain" }));
-    expect(await screen.findByRole("link", { name: "Open my workspace" })).toHaveAttribute("href", "https://chosen.brasshr.test/admin_recruiter/home");
-    expect(screen.getByText("Your domain is ready")).toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm domain" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith("/api/admin/launch-pad/domain", expect.anything());
     const progress = JSON.parse(localStorage.getItem(`${LAUNCH_PAD_STORAGE_KEY}:tenant-a`)!);
     expect(progress.domain).toBe(true);
     expect(progress.branding).toBe(false);
+  });
+
+  it("shows the final modal when a task other than domain is completed last", async () => {
+    nav.search = "step=branding";
+    server.progress = { logo: true, branding: false, domain: true, preview: true, invite: true, organization: true };
+    render(<LaunchPadPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm branding" }));
+    expect(await screen.findByRole("link", { name: "Open my workspace" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/admin/launch-pad/domain", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("does not treat skipped tasks or old browser-only completion as complete", async () => {
+    localStorage.setItem(`${LAUNCH_PAD_STORAGE_KEY}:tenant-a`, JSON.stringify({ logo: true, branding: true, domain: true, preview: true, invite: true, organization: true }));
+    render(<LaunchPadPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Skip for now" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(server.progress.domain).toBe(false);
+    expect(JSON.parse(localStorage.getItem(`${LAUNCH_PAD_STORAGE_KEY}:tenant-a`)!)).toEqual(server.progress);
+  });
+
+  it("keeps the task open and reports progress save failures", async () => {
+    nav.search = "step=branding";
+    render(<LaunchPadPage />);
+    await screen.findByRole("button", { name: "Confirm branding" });
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ error: "Please retry" }, { status: 503 }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm branding" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please retry");
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

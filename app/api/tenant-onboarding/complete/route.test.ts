@@ -197,6 +197,11 @@ describe("tenant-onboarding complete route", () => {
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
+    expect(insertPayload.current).toMatchObject({ domain: null });
+    expect(body.vercelDomainRegistered).toBe(false);
+    expect(body.vercelDomainSkipped).toBe(true);
+    const { registerTenantDomain } = await import("@/lib/vercel");
+    expect(registerTenantDomain).not.toHaveBeenCalled();
     expect(provisionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: "tenant-new-1",
