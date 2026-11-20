@@ -10,19 +10,23 @@ import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  const jobToken = req.nextUrl.searchParams.get("job_token")?.trim() || "";
+  let applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
   const accessDenied = await authorizeOnboardingRequest(req as NextRequest);
-  if (accessDenied) return accessDenied;
+  if (accessDenied) {
+    // Public job apply can still render before a worker row exists; match /config soft-fail.
+    if (!jobToken) return accessDenied;
+    applicantId = "";
+  }
 
   try {
-    const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
     const tenantSlug =
       req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
       readOnboardingTenantSlugFromRequest(req);
     const applicationId =
       req.nextUrl.searchParams.get("applicationId")?.trim() || "";
-    const jobToken = req.nextUrl.searchParams.get("job_token")?.trim() || "";
     if (!applicantId) {
-      return NextResponse.json({ error: "Missing applicantId" }, { status: 400 });
+      return NextResponse.json({ progress: null });
     }
 
     const url = getSupabaseUrl();

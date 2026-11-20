@@ -1,8 +1,8 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import type { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { createClient as createServerSupabase } from "@/lib/supabase/server";
+import { getSupabaseUrl } from "@/lib/supabase-env";
 import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
 import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
@@ -13,7 +13,22 @@ import { rethrowDynamicServerUsage } from "@/lib/auth/dynamic-server-usage";
 import { hasVerifiedStaffSession } from "@/lib/auth/staff-session-verification";
 
 export const APPLICANT_ACCESS_COOKIE = "brass_applicant_access";
-const denied = () => NextResponse.json({ error: "Forbidden" }, { status: 403 });
+const denied = (reason?: string) =>
+  NextResponse.json({ error: "Forbidden", ...(reason ? { reason } : {}) }, { status: 403 });
+
+/**
+ * Plain service-role client (no resilient-fetch wrapper).
+ * Matches working onboarding routes like /api/onboarding/config — the resilient
+ * wrapper has caused opaque 403s on Vercel for REST lookups during authorize.
+ */
+function createOnboardingAuthClient(): SupabaseClient | null {
+  const url = getSupabaseUrl();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key) return null;
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 /** Verify identity before any legacy handler can use service-role identifiers. */
 export async function authorizeOnboardingRequest(request: Request): Promise<NextResponse | null> {
@@ -21,8 +36,10 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
     const req = request instanceof NextRequest ? request : new NextRequest(request);
     const url = new URL(req.url);
     const origin = req.headers.get("origin");
-    if (!["GET", "HEAD"].includes(req.method) && origin && origin !== url.origin) return denied();
-    const svc = createServiceRoleClient();
+    if (!["GET", "HEAD"].includes(req.method) && origin && origin !== url.origin) {
+      return denied("origin_mismatch");
+    }
+    const svc = createOnboardingAuthClient();
     if (!svc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     const values: Record<string, unknown> = Object.fromEntries(url.searchParams);
     if (!["GET", "HEAD"].includes(req.method)) {
@@ -57,15 +74,25 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
       if (!/^[a-z0-9-]{2,63}$/i.test(tenantSlug)) return denied();
       try {
         const { data, error } = await svc.from("tenants").select("id").or(`slug.eq.${tenantSlug},subdomain.eq.${tenantSlug}`).eq("is_active", true).maybeSingle();
-        if (error || !data || (tenantId && tenantId !== data.id)) return denied();
+        if (error || !data || (tenantId && tenantId !== data.id)) {
+          return NextResponse.json(
+            {
+              error: "Forbidden",
+              reason: "tenant_lookup",
+              detail: error?.message ?? (!data ? "tenant_not_found" : "tenant_mismatch"),
+            },
+            { status: 403 }
+          );
+        }
         tenantId = data.id;
       } catch (error) {
         rethrowDynamicServerUsage(error);
-        console.error(
-          "[onboarding] tenant lookup failed",
-          error instanceof Error ? error.message : "unknown"
+        const detail = error instanceof Error ? error.message : "unknown";
+        console.error("[onboarding] tenant lookup failed", detail);
+        return NextResponse.json(
+          { error: "Unable to verify access", reason: "tenant_lookup_throw", detail },
+          { status: 403 }
         );
-        return NextResponse.json({ error: "Unable to verify access" }, { status: 403 });
       }
     }
     let userId = "";
@@ -101,7 +128,7 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
         // Staff preview and staff document views retain the normal permission boundary.
         let staffUser: User | null = null;
         try {
-          const { data, error } = await (await createClient()).auth.getUser();
+          const { data, error } = await (await createServerSupabase()).auth.getUser();
           if (!error && data.user && !data.user.is_anonymous) staffUser = data.user;
         } catch (error) {
           rethrowDynamicServerUsage(error);
@@ -173,10 +200,16 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
     return null;
   } catch (error) {
     rethrowDynamicServerUsage(error);
-    console.error(
-      "[onboarding] access verification failed",
-      error instanceof Error ? error.message : "unknown"
+    const detail = error instanceof Error ? error.message : "unknown";
+    console.error("[onboarding] access verification failed", detail);
+    return NextResponse.json(
+      {
+        error: "Unable to verify access",
+        // Temporary diagnostic for staging 403s — remove once root cause is confirmed.
+        detail,
+        name: error instanceof Error ? error.name : typeof error,
+      },
+      { status: 403 }
     );
-    return NextResponse.json({ error: "Unable to verify access" }, { status: 403 });
   }
 }
