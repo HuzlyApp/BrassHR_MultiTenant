@@ -17,6 +17,12 @@ const renderPanel = () => {
 };
 
 describe("domain settings and handoff", () => {
+  it("explains the development tenant link before saving", async () => {
+    mocks.fetch.mockResolvedValueOnce(Response.json({ rootDomain: "brasshr.com", usesTenantQuery: true, workspaceUrl: "https://brasshr-devmode.vercel.app/admin_recruiter/home?tenant=zippycorp" }));
+    renderPanel();
+    expect(await screen.findByText(/This deployment uses tenant links:/)).toHaveTextContent("?tenant=zippycorp");
+    expect(screen.getByText(/no custom domain is connected here/)).toBeInTheDocument();
+  });
   it("shows the server failure and allows loading settings again", async () => {
     mocks.fetch.mockResolvedValueOnce(Response.json({ error: "Forbidden", detail: "Insufficient permission" }, { status: 403 }));
     mocks.fetch.mockResolvedValueOnce(Response.json({ rootDomain: "brasshr.test" }));

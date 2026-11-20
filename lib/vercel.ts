@@ -1,3 +1,5 @@
+import { usesTenantQueryUrls } from "@/lib/tenant/tenant-vanity-url";
+
 export type VercelProjectDomain = {
   name: string;
   verified: boolean;
@@ -23,10 +25,13 @@ export function isVercelDomainRegistrationConfigured(): boolean {
  * Registers `{slug}.{ROOT_DOMAIN}` on the Vercel project so Let's Encrypt can issue
  * per-subdomain SSL while DNS stays on Cloudflare (wildcard CNAME → Vercel).
  */
-export async function registerTenantDomain(slug: string): Promise<
+export async function registerTenantDomain(slug: string, options?: { origin?: string }): Promise<
   | { ok: true; skipped: false; domain: VercelProjectDomain }
   | { ok: true; skipped: true; reason: string }
 > {
+  if (options?.origin && usesTenantQueryUrls(new URL(options.origin).hostname)) {
+    return { ok: true, skipped: true, reason: "Deployment uses tenant query URLs" };
+  }
   const cfg = vercelConfig();
   if (!cfg) {
     return { ok: true, skipped: true, reason: "Vercel env not configured" };

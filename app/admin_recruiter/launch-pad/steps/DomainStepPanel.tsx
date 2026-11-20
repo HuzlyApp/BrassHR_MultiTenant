@@ -19,6 +19,7 @@ export function DomainStepPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [rootDomain, setRootDomain] = useState("");
+  const [developmentWorkspaceUrl, setDevelopmentWorkspaceUrl] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -33,9 +34,10 @@ export function DomainStepPanel({
     void (async () => {
       try {
         const response = await fetch("/api/admin/launch-pad/domain", { cache: "no-store", signal: controller.signal });
-        const data = await response.json() as { rootDomain?: string; error?: string; detail?: string };
+        const data = await response.json() as { rootDomain?: string; usesTenantQuery?: boolean; workspaceUrl?: string; error?: string; detail?: string };
         if (!response.ok || !data.rootDomain) throw new Error(data.detail ?? data.error ?? "Could not load your domain settings.");
         setRootDomain(data.rootDomain);
+        setDevelopmentWorkspaceUrl(data.usesTenantQuery ? data.workspaceUrl ?? null : null);
       } catch (cause) {
         if (!controller.signal.aborted) setStatus(cause instanceof Error ? cause.message : "Could not load your domain settings.");
       } finally {
@@ -80,6 +82,11 @@ export function DomainStepPanel({
           </div>
 
           <div className="rounded-xl border border-[#E5E7EB] p-[30px]">
+            {developmentWorkspaceUrl ? (
+              <p className="mb-4 break-all text-[12px] text-[#6B7280]">
+                This deployment uses tenant links: {developmentWorkspaceUrl}. The subdomain below is saved for your production address; no custom domain is connected here.
+              </p>
+            ) : null}
             <div className="flex items-center gap-0">
               <input
                 aria-label="Company subdomain"
