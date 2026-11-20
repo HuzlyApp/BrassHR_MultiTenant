@@ -12,25 +12,38 @@ export function DomainStepPanel({
 }: {
   onBack: () => void;
   onSkip: () => void;
-  onComplete: () => void;
+  onComplete: (workspaceUrl: string) => void;
 }) {
   const { organization, refresh } = useAccountData();
   const [subdomain, setSubdomain] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [rootDomain, setRootDomain] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (organization?.subdomain) setSubdomain(organization.subdomain);
   }, [organization?.subdomain]);
 
   useEffect(() => {
-    void fetch("/api/admin/launch-pad/domain").then(async (response) => {
-      if (!response.ok) throw new Error("Could not load domain settings.");
-      const data = await response.json() as { rootDomain: string };
-      setRootDomain(data.rootDomain);
-    }).catch(() => setStatus("Could not load your domain settings."));
-  }, []);
+    const controller = new AbortController();
+    setLoading(true);
+    setStatus(null);
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/launch-pad/domain", { cache: "no-store", signal: controller.signal });
+        const data = await response.json() as { rootDomain?: string; error?: string; detail?: string };
+        if (!response.ok || !data.rootDomain) throw new Error(data.detail ?? data.error ?? "Could not load your domain settings.");
+        setRootDomain(data.rootDomain);
+      } catch (cause) {
+        if (!controller.signal.aborted) setStatus(cause instanceof Error ? cause.message : "Could not load your domain settings.");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [loadAttempt]);
 
   const handleContinue = async () => {
     setSaving(true);
@@ -41,10 +54,11 @@ export function DomainStepPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subdomain }),
       });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Could not save your domain.");
+      const data = await response.json() as { error?: string; detail?: string; workspaceUrl?: string };
+      if (!response.ok) throw new Error(data.detail ?? data.error ?? "Could not save your domain.");
+      if (!data.workspaceUrl) throw new Error("Your domain was saved, but its workspace address is unavailable. Please try again.");
       await refresh();
-      onComplete();
+      onComplete(data.workspaceUrl);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save your domain.");
     } finally {
@@ -81,16 +95,20 @@ export function DomainStepPanel({
                 className="inline-flex h-9 items-center rounded-r-lg border border-l-0 border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[12px] text-[#6B7280]"
                 style={interStyle}
               >
-                {rootDomain ? `.${rootDomain}` : "Loading domain…"}
+                {rootDomain ? `.${rootDomain}` : loading ? "Loading domain…" : "Domain unavailable"}
               </span>
             </div>
             {status ? (
               <p
+                role="alert"
                 className={`mt-2 text-[12px] ${status === "Available" ? "text-[#16A34A]" : "text-[#DC2626]"}`}
                 style={interStyle}
               >
                 {status}
               </p>
+            ) : null}
+            {!rootDomain && !loading ? (
+              <button type="button" className="mt-3 text-sm font-semibold text-[#012352] underline" onClick={() => setLoadAttempt((value) => value + 1)}>Retry domain settings</button>
             ) : null}
           </div>
         </div>

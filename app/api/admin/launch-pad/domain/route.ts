@@ -12,8 +12,8 @@ import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sid
 import { registerTenantDomain } from "@/lib/vercel";
 import { buildCacheKey, deleteCache } from "@/lib/cache";
 
-async function context() {
-  const auth = await requireStaffApiSession();
+async function context(request?: Request) {
+  const auth = await requireStaffApiSession(request);
   if (auth instanceof NextResponse) return auth;
   if (!auth.godAdmin && auth.role !== "admin") {
     return NextResponse.json({ error: "Tenant admin access is required." }, { status: 403 });
@@ -39,8 +39,8 @@ function payload(subdomain: string | null) {
   };
 }
 
-export async function GET() {
-  const ctx = await context();
+export async function GET(request?: Request) {
+  const ctx = await context(request);
   if (ctx instanceof NextResponse) return ctx;
   return NextResponse.json(payload(ctx.tenant.subdomain), { headers: { "Cache-Control": "no-store" } });
 }
@@ -48,7 +48,7 @@ export async function GET() {
 const input = z.object({ subdomain: z.string().trim().min(1).max(63) });
 
 export async function PATCH(req: Request) {
-  const ctx = await context();
+  const ctx = await context(req);
   if (ctx instanceof NextResponse) return ctx;
   const parsed = input.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Enter a valid subdomain." }, { status: 400 });
