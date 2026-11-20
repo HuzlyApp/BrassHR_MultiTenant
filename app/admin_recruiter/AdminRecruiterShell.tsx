@@ -94,8 +94,8 @@ export default function AdminRecruiterShell({
   const closeMobileNav = useCallback(() => setMobileSidebarOpen(false), []);
   const enterSettingsRail = useCallback(() => setSettingsRailActive(true), []);
   const exitSettingsRail = useCallback(() => setSettingsRailActive(false), []);
+  /** Open main sidebar for navigation — keep Settings icons in the collapsed rail while still on a Settings page. */
   const openMainSidebar = useCallback(() => {
-    setSettingsRailActive(false);
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 999px)").matches) {
       setMobileSidebarOpen(true);
       return;
