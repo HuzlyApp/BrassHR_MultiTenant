@@ -46,7 +46,18 @@ function asNextRequest(request: Request): NextRequest {
   ) {
     return request as NextRequest;
   }
-  return new NextRequest(request.url, request as RequestInit);
+  return new NextRequest(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    redirect: request.redirect,
+    integrity: request.integrity,
+    keepalive: request.keepalive,
+    // Next RequestInit rejects AbortSignal | null; omit null.
+    ...(request.signal ? { signal: request.signal } : {}),
+    // Node/undici requires duplex when forwarding a stream body.
+    ...(request.body ? { duplex: "half" as const } : {}),
+  });
 }
 
 async function readRequestValues(req: NextRequest): Promise<Record<string, unknown>> {
