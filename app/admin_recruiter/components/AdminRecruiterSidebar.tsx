@@ -27,6 +27,10 @@ import {
   resolveSettingsLandingHref,
   visibleSettingsNavGroups,
 } from "@/app/admin_recruiter/settings/settings-nav";
+import {
+  isLaunchPadFullyComplete,
+  LAUNCH_PAD_PROGRESS_EVENT,
+} from "@/app/admin_recruiter/launch-pad/progress";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
@@ -162,6 +166,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const { viewKeySet, godAdmin: accessGodAdmin, edition } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [settingsMiniOpen, setSettingsMiniOpen] = useState(false);
+  const [launchPadComplete, setLaunchPadComplete] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const unrestrictedAccess = isGodAdmin || accessGodAdmin || viewKeySet.has("*");
 
@@ -178,13 +183,30 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [settingsMiniOpen]);
 
+  useEffect(() => {
+    const syncLaunchPadVisibility = () => {
+      setLaunchPadComplete(isLaunchPadFullyComplete());
+    };
+    syncLaunchPadVisibility();
+    window.addEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
+    window.addEventListener("storage", syncLaunchPadVisibility);
+    return () => {
+      window.removeEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
+      window.removeEventListener("storage", syncLaunchPadVisibility);
+    };
+  }, []);
+
   const sidebarSections = useMemo(() => {
     const clientSections = clientSidebarSectionsForEdition(edition);
-    if (unrestrictedAccess) {
-      return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : clientSections;
-    }
-    return visibleSidebarSections(clientSections, viewKeySet, false);
-  }, [accessGodAdmin, edition, isGodAdmin, unrestrictedAccess, viewKeySet]);
+    const base = unrestrictedAccess
+      ? isGodAdmin || accessGodAdmin
+        ? GOD_ADMIN_SIDEBAR_SECTIONS
+        : clientSections
+      : visibleSidebarSections(clientSections, viewKeySet, false);
+    // Hide Launch Pad after all onboarding steps are complete.
+    if (!launchPadComplete) return base;
+    return base.filter((section) => section.label !== "Launch Pad");
+  }, [accessGodAdmin, edition, isGodAdmin, launchPadComplete, unrestrictedAccess, viewKeySet]);
 
   const settingsNavGroups = useMemo(
     () => visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, unrestrictedAccess),
@@ -741,11 +763,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                 className={`group relative flex items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                   isCollapsed,
                   isMobileRail
-                )} ${navTextClass(section.active)}${
-                  section.label === "Launch Pad" && section.active && !isCollapsed && !isMobileRail
-                    ? " border border-[#BC8B41]"
-                    : ""
-                }`}
+                )} ${navTextClass(section.active)}`}
               >
                 <SidebarNavIcon
                   iconType={section.iconType}

@@ -12,7 +12,6 @@ import {
   Pencil,
   Plus,
   Search,
-  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -27,6 +26,7 @@ import AddCustomProfessionModal, {
   type AddCustomProfessionFormValue,
   type AssessmentOption,
 } from "@/app/admin_recruiter/settings/AddCustomProfessionModal";
+import SettingsSelect from "@/app/admin_recruiter/settings/SettingsSelect";
 import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
 import { normalizeSkillAssessmentCatalog } from "@/lib/skill-assessment/catalog";
 import type { SkillAssessmentCatalog } from "@/lib/skill-assessment/types";
@@ -1140,6 +1140,12 @@ export default function ProfessionDocumentsPanel({
     }
   }
 
+  useEffect(() => {
+    if (industryFilterKey === "all") return;
+    setSelectedIndustryKey(industryFilterKey);
+    setExpandedByIndustry((current) => ({ ...current, [industryFilterKey]: true }));
+  }, [industryFilterKey]);
+
   async function save() {
     if (!selectedId || !canManage || saving) return;
     setSaving(true);
@@ -1473,17 +1479,33 @@ export default function ProfessionDocumentsPanel({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-4 overflow-visible">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
-              aria-hidden
-            />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search job categories and positions..."
-              aria-label="Search job categories and positions"
-              className={`${inputClassName} h-11 rounded-xl pl-9`}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
+                aria-hidden
+              />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search job categories and positions..."
+                aria-label="Search job categories and positions"
+                className="h-10 w-full rounded-xl border border-[#E2E8F0] bg-white py-0 pl-9 pr-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus-visible:border-[#012352] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)]"
+              />
+            </div>
+            <SettingsSelect
+              aria-label="Filter industries"
+              value={industryFilterKey}
+              onChange={(next) => setIndustryFilterKey(next || "all")}
+              className="w-full sm:w-[240px]"
+              triggerClassName="rounded-xl border-[#E2E8F0]"
+              options={[
+                { value: "all", label: "All Industry" },
+                ...industries.map((industry) => ({
+                  value: industry.key,
+                  label: industry.label,
+                })),
+              ]}
             />
           </div>
 
@@ -1819,30 +1841,6 @@ export default function ProfessionDocumentsPanel({
         </div>
 
         <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
-          <div className="flex items-center gap-2">
-            <SelectField
-              label="Filter industries"
-              value={industryFilterKey}
-              onChange={(event) => setIndustryFilterKey(event.target.value || "all")}
-              className="min-w-0 flex-1"
-            >
-              <option value="all">All Industry</option>
-              {industries.map((industry) => (
-                <option key={industry.key} value={industry.key}>
-                  {industry.label}
-                </option>
-              ))}
-            </SelectField>
-            <button
-              type="button"
-              aria-label="Industry filters"
-              onClick={() => setIndustryFilterKey("all")}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
-            >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-
           {selectedIndustry ? (
             <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm shadow-slate-900/[0.03] sm:p-5">
               <div className="flex items-start gap-3">
