@@ -5,7 +5,7 @@ import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { fetchTenantVanityLabel } from "@/lib/auth/recruiter-dashboard-redirect";
 import { sameTenantId } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { ADMIN_LAUNCH_PAD_ROUTE, isSmbTenantCategory } from "@/lib/signup/smb-post-signup";
+import { ADMIN_LAUNCH_PAD_ROUTE, OWNER_WORKSPACE_PREPARATION_ROUTE, isSmbTenantCategory } from "@/lib/signup/smb-post-signup";
 import { getTenantCategory } from "@/lib/tenant/tenant-category";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 import { resolveTenantIdBySlugUncached } from "@/lib/tenant/resolve-tenant-id-by-slug";
@@ -41,7 +41,7 @@ export type RecruiterOnboardingStatus = {
     | "/godadmin/tenants"
     | typeof ADMIN_RECRUITER_HOME_ROUTE
     | typeof ADMIN_LAUNCH_PAD_ROUTE
-    | "/tenant-onboarding";
+    | typeof OWNER_WORKSPACE_PREPARATION_ROUTE;
 };
 
 function metadataFlag(user: User, key: string): boolean {
@@ -243,7 +243,7 @@ export async function resolveRecruiterOnboardingStatus(
       ? smbOwner
         ? ADMIN_LAUNCH_PAD_ROUTE
         : ADMIN_RECRUITER_HOME_ROUTE
-      : "/tenant-onboarding";
+      : OWNER_WORKSPACE_PREPARATION_ROUTE;
 
   let tenantSubdomain: string | null = null;
   if (!godAdmin && activeTenantId) {

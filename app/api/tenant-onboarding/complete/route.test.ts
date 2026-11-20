@@ -8,6 +8,8 @@ const authState = vi.hoisted(() => ({
 const insertPayload = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 const categoryWrites = vi.hoisted(() => ({ current: [] as Record<string, unknown>[] }));
 
+const ownerWrites = vi.hoisted(() => ({ user: vi.fn(), role: vi.fn(), auth: vi.fn() }));
+
 const provisionMock = vi.hoisted(() =>
   vi.fn(async () => ({
     status: "created" as const,
@@ -93,7 +95,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
               }),
             }),
           }),
-          upsert: async () => ({ error: null }),
+          upsert: async (row: unknown) => { ownerWrites.user(row); return { error: null }; },
           update: () => ({
             eq: async () => ({ error: null }),
           }),
@@ -120,7 +122,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
         return { upsert: async () => ({ error: null }) };
       }
       if (table === "user_roles") {
-        return { upsert: async () => ({ error: null }) };
+        return { upsert: async (row: unknown) => { ownerWrites.role(row); return { error: null }; } };
       }
       throw new Error(`Unexpected table ${table}`);
     },
@@ -131,7 +133,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
           data: { users: [{ id: authState.userId, email: authState.email }] },
           error: null,
         }),
-        updateUserById: async () => ({ error: null }),
+        updateUserById: async (id: string, values: unknown) => { ownerWrites.auth(id, values); return { error: null }; },
         createUser: async () => ({
           data: { user: { id: authState.userId } },
           error: null,
@@ -213,6 +215,15 @@ describe("tenant-onboarding complete route", () => {
     ]);
     expect(JSON.stringify(body)).not.toMatch(/api_key/);
     expect(JSON.stringify(body)).not.toMatch(/firma_test_key/);
+  });
+
+  it("assigns the signup identity as tenant admin without changing its password", async () => {
+    const response = await completeTenant({ adminPassword: "must-not-replace-the-signup-password" });
+    expect(response.status).toBe(200);
+    expect(ownerWrites.user).toHaveBeenCalledWith(expect.objectContaining({ id: "user-new", email: "admin@newco.example", tenant_id: "tenant-new-1", role: "admin" }));
+    expect(ownerWrites.role).toHaveBeenCalledWith({ user_id: "user-new", tenant_id: "tenant-new-1", role: "admin" });
+    expect(ownerWrites.auth).toHaveBeenCalledWith("user-new", { app_metadata: expect.objectContaining({ tenant_id: "tenant-new-1", role: "admin" }) });
+    expect(ownerWrites.auth.mock.calls[0][1]).not.toHaveProperty("password");
   });
 
   it("still succeeds when Firma provisioning fails", async () => {

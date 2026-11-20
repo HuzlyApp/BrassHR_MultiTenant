@@ -2,8 +2,9 @@ import type { OwnerSignupPayload } from "@/lib/signup/owner-signup";
 import { tenantCategoryFromStaffingFlag } from "@/lib/signup/owner-signup";
 import { validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
 
-/** SMB post-signup landing (Launch Pad goals inside the admin shell). */
+/** Post-signup landing for both editions (inside the admin shell). */
 export const ADMIN_LAUNCH_PAD_ROUTE = "/admin_recruiter/launch-pad";
+export const OWNER_WORKSPACE_PREPARATION_ROUTE = "/signup/prepare-workspace";
 
 /** True when the owner chose “No” for staffing (SMB edition). */
 export function isSmbOwnerSignup(

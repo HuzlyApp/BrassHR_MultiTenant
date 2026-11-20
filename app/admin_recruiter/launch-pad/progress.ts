@@ -19,11 +19,11 @@ export function emptyLaunchPadProgress(): LaunchPadProgress {
   };
 }
 
-export function readLaunchPadProgress(): LaunchPadProgress {
+export function readLaunchPadProgress(tenantId: string): LaunchPadProgress {
   const base = emptyLaunchPadProgress();
   if (typeof window === "undefined") return base;
   try {
-    const raw = sessionStorage.getItem(LAUNCH_PAD_STORAGE_KEY);
+    const raw = localStorage.getItem(`${LAUNCH_PAD_STORAGE_KEY}:${tenantId}`);
     if (!raw) return base;
     const parsed = JSON.parse(raw) as Partial<Record<LaunchPadStepId, boolean>>;
     for (const id of LAUNCH_PAD_STEP_IDS) {
@@ -35,21 +35,22 @@ export function readLaunchPadProgress(): LaunchPadProgress {
   return base;
 }
 
-export function writeLaunchPadProgress(progress: LaunchPadProgress): void {
+export function writeLaunchPadProgress(tenantId: string, progress: LaunchPadProgress): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(LAUNCH_PAD_STORAGE_KEY, JSON.stringify(progress));
+    localStorage.setItem(`${LAUNCH_PAD_STORAGE_KEY}:${tenantId}`, JSON.stringify(progress));
   } catch {
     /* ignore */
   }
 }
 
 export function markLaunchPadStepComplete(
+  tenantId: string,
   stepId: LaunchPadStepId,
   completed = true
 ): LaunchPadProgress {
-  const next = { ...readLaunchPadProgress(), [stepId]: completed };
-  writeLaunchPadProgress(next);
+  const next = { ...readLaunchPadProgress(tenantId), [stepId]: completed };
+  writeLaunchPadProgress(tenantId, next);
   return next;
 }
 

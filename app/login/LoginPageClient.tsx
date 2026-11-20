@@ -99,7 +99,7 @@ type RecruiterOnboardingStatusResponse = {
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
   tenantSubdomain: string | null;
-  redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
+  redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/admin_recruiter/launch-pad" | "/signup/prepare-workspace";
   redirectUrl?: string;
 };
 
@@ -317,6 +317,10 @@ function LoginPageContent() {
         /* ignore storage errors */
       }
     }
+    const signupEmail = searchParams.get("email")?.trim().toLowerCase();
+    if (signupEmail && signupEmail.includes("@")) {
+      setForm((previous) => ({ ...previous, email: signupEmail, password: "" }));
+    }
     setDraftHydrated(true);
   }, [useBraasUi, searchParams, brand?.slug]);
 
@@ -513,6 +517,10 @@ function LoginPageContent() {
       data: { session },
     } = await supabaseBrowser.auth.getSession();
     const statusParams = new URLSearchParams();
+    const requestedDestination = searchParams.get("next");
+    if (requestedDestination === "/admin_recruiter/launch-pad" || requestedDestination === ADMIN_RECRUITER_HOME_ROUTE) {
+      statusParams.set("next", requestedDestination);
+    }
     if (tenantSlug && tenantSlug.length >= 2) {
       statusParams.set("tenant", tenantSlug);
     }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { COMPANY_SIZE_OPTIONS } from "@/app/tenant-onboarding/constants";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
@@ -14,11 +15,18 @@ export function OrgDetailsStepPanel({
   onSkip: () => void;
   onComplete: () => void;
 }) {
+  const { organization, refresh } = useAccountData();
   const [address, setAddress] = useState("");
   const [ein, setEin] = useState("");
   const [companySize, setCompanySize] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setAddress(organization?.address_line_1 ?? "");
+    setEin(organization?.ein ?? "");
+    setCompanySize(organization?.company_size ?? "");
+  }, [organization?.id, organization?.address_line_1, organization?.ein, organization?.company_size]);
 
   const handleContinue = async () => {
     setSaving(true);
@@ -29,7 +37,7 @@ export function OrgDetailsStepPanel({
         onComplete();
         return;
       }
-      const res = await fetch("/api/admin/business-info", {
+      const res = await fetch("/api/admin/launch-pad/organization", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -46,7 +54,10 @@ export function OrgDetailsStepPanel({
         );
         return;
       }
+      await refresh();
       onComplete();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save organization details.");
     } finally {
       setSaving(false);
     }
