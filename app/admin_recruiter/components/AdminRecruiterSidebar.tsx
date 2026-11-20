@@ -185,7 +185,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
 
   useEffect(() => {
     const syncLaunchPadVisibility = () => {
-      setLaunchPadComplete(isLaunchPadFullyComplete());
+      setLaunchPadComplete(isLaunchPadFullyComplete(organization?.id));
     };
     syncLaunchPadVisibility();
     window.addEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
@@ -194,7 +194,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
       window.removeEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
       window.removeEventListener("storage", syncLaunchPadVisibility);
     };
-  }, []);
+  }, [organization?.id]);
 
   const sidebarSections = useMemo(() => {
     const clientSections = clientSidebarSectionsForEdition(edition);

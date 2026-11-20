@@ -18,6 +18,7 @@ export function BrandingStepPanel({
   const [primary, setPrimary] = useState<string>(BRAND_COLOR_PRESETS[0].primary);
   const [secondary, setSecondary] = useState<string>(BRAND_COLOR_PRESETS[0].secondary);
   const [accent, setAccent] = useState<string>(BRAND_COLOR_PRESETS[0].accent);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const applyPreset = (index: number) => {
@@ -30,8 +31,9 @@ export function BrandingStepPanel({
 
   const handleContinue = async () => {
     setSaving(true);
+    setError(null);
     try {
-      await fetch("/api/admin/branding", {
+      const response = await fetch("/api/admin/branding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -40,7 +42,11 @@ export function BrandingStepPanel({
           accentColor: accent,
         }),
       });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Could not save your branding.");
       onComplete();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save your branding.");
     } finally {
       setSaving(false);
     }
@@ -134,6 +140,7 @@ export function BrandingStepPanel({
           </div>
         </div>
 
+        {error ? <p role="alert" className="px-5 pb-4 text-sm text-red-600">{error}</p> : null}
         <div className="border-t border-[#E5E7EB]">
           <LaunchPadStepActions
             onSkip={onSkip}

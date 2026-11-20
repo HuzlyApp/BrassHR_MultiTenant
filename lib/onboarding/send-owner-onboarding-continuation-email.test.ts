@@ -103,7 +103,7 @@ describe("sendOwnerOnboardingContinuationEmail", () => {
 });
 
 describe("resolvePostAuthRedirect owner signup", () => {
-  it("routes incomplete tenant onboarding to your-trial instead of setup", async () => {
+  it("prepares incomplete workspaces before opening Launch Pad", async () => {
     const { resolvePostAuthRedirect } = await import("@/lib/auth/owner-onboarding-status");
     expect(
       resolvePostAuthRedirect({
@@ -111,7 +111,7 @@ describe("resolvePostAuthRedirect owner signup", () => {
         tenantOnboardingCompleted: false,
         godAdmin: false,
       })
-    ).toBe("/your-trial?account-ready=true");
+    ).toBe("/signup/prepare-workspace");
   });
 
   it("routes waitlisted owners to the waitlist, not a live trial", async () => {
@@ -126,7 +126,7 @@ describe("resolvePostAuthRedirect owner signup", () => {
     ).toBe("/signup/waitlist");
   });
 
-  it("still honors explicit tenant-onboarding next path", async () => {
+  it("replaces explicit legacy setup next paths", async () => {
     const { resolvePostAuthRedirect } = await import("@/lib/auth/owner-onboarding-status");
     expect(
       resolvePostAuthRedirect(
@@ -137,8 +137,20 @@ describe("resolvePostAuthRedirect owner signup", () => {
         },
         "/tenant-onboarding"
       )
-    ).toBe("/tenant-onboarding");
+    ).toBe("/signup/prepare-workspace");
   });
+});
+
+describe("retired owner setup redirects", () => {
+  it.each(["/tenant-onboarding", "/tenant-onboarding?step=branding", "/your-trial"])(
+    "sends completed owners from %s to Launch Pad",
+    async (next) => {
+      const { resolvePostAuthRedirect } = await import("@/lib/auth/owner-onboarding-status");
+      expect(resolvePostAuthRedirect({
+        signupCompleted: true, tenantOnboardingCompleted: true, godAdmin: false,
+      }, next)).toBe("/admin_recruiter/launch-pad");
+    }
+  );
 });
 
 describe("owner continuation token validation", () => {

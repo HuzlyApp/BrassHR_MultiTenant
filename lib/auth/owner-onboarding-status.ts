@@ -2,7 +2,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { timeSpan } from "@/lib/perf/server-timing";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
-import { ADMIN_LAUNCH_PAD_ROUTE, isSmbTenantCategory } from "@/lib/signup/smb-post-signup";
+import { ADMIN_LAUNCH_PAD_ROUTE, OWNER_WORKSPACE_PREPARATION_ROUTE, isSmbTenantCategory } from "@/lib/signup/smb-post-signup";
 
 export type OwnerOnboardingStatus = {
   signupCompleted: boolean;
@@ -93,8 +93,10 @@ export function resolvePostAuthRedirect(
     return "/signup/waitlist";
   }
   if (!status.tenantOnboardingCompleted) {
-    if (safeNext?.startsWith("/tenant-onboarding")) return safeNext;
-    return "/your-trial?account-ready=true";
+    return OWNER_WORKSPACE_PREPARATION_ROUTE;
+  }
+  if (safeNext?.startsWith("/tenant-onboarding") || safeNext?.startsWith("/your-trial")) {
+    return ADMIN_LAUNCH_PAD_ROUTE;
   }
   return safeNext ?? ADMIN_RECRUITER_HOME_ROUTE;
 }

@@ -28,10 +28,10 @@ export async function POST(req: NextRequest) {
     ? await fetchOwnerOnboardingStatus(authClient, ctx.user)
     : await fetchOwnerOnboardingStatusFromUserId(svc, ctx.userId);
 
-  if (status.tenantOnboardingCompleted) {
+  if (status.waitlistPending) {
     return NextResponse.json(
-      { error: "Tenant onboarding is already complete." },
-      { status: 400 }
+      { error: "Your account is on the waitlist." },
+      { status: 403 }
     );
   }
 
@@ -98,7 +98,7 @@ async function fetchOwnerOnboardingStatusFromUserId(
   const { parseOwnerOnboardingRow } = await import("@/lib/auth/owner-onboarding-status");
   const { data, error } = await supabase!
     .from("users")
-    .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin")
+    .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin, signup_waitlist_pending")
     .eq("id", userId)
     .maybeSingle();
 

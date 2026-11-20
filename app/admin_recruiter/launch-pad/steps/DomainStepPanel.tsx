@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
 
@@ -15,51 +14,39 @@ export function DomainStepPanel({
   onSkip: () => void;
   onComplete: () => void;
 }) {
-  const { organization } = useAccountData();
+  const { organization, refresh } = useAccountData();
   const [subdomain, setSubdomain] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [rootDomain, setRootDomain] = useState("");
 
   useEffect(() => {
     if (organization?.subdomain) setSubdomain(organization.subdomain);
   }, [organization?.subdomain]);
 
-  const checkAvailability = async () => {
-    setStatus(null);
-    const res = await fetch("/api/tenant-onboarding/check-subdomain", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subdomain }),
-    });
-    const data = (await res.json()) as { available?: boolean; error?: string };
-    if (!res.ok) {
-      setStatus(data.error ?? "Could not check availability");
-      return false;
-    }
-    // Same subdomain already owned by this tenant is fine.
-    if (!data.available && subdomain !== organization?.subdomain) {
-      setStatus("That subdomain is not available");
-      return false;
-    }
-    setStatus("Available");
-    return true;
-  };
+  useEffect(() => {
+    void fetch("/api/admin/launch-pad/domain").then(async (response) => {
+      if (!response.ok) throw new Error("Could not load domain settings.");
+      const data = await response.json() as { rootDomain: string };
+      setRootDomain(data.rootDomain);
+    }).catch(() => setStatus("Could not load your domain settings."));
+  }, []);
 
   const handleContinue = async () => {
     setSaving(true);
+    setStatus(null);
     try {
-      const ok = await checkAvailability();
-      if (!ok) return;
-      if (organization?.id) {
-        await supabaseBrowser
-          .from("tenants")
-          .update({
-            subdomain: subdomain.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", organization.id);
-      }
+      const response = await fetch("/api/admin/launch-pad/domain", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subdomain }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Could not save your domain.");
+      await refresh();
       onComplete();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save your domain.");
     } finally {
       setSaving(false);
     }
@@ -74,13 +61,14 @@ export function DomainStepPanel({
               Setup Custom Domain
             </h2>
             <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
-              yourname.brasshr.com for the applicant portal.
+              Choose the address for your company workspace and applicant portal.
             </p>
           </div>
 
           <div className="rounded-xl border border-[#E5E7EB] p-[30px]">
             <div className="flex items-center gap-0">
               <input
+                aria-label="Company subdomain"
                 value={subdomain}
                 onChange={(e) =>
                   setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
@@ -93,7 +81,7 @@ export function DomainStepPanel({
                 className="inline-flex h-9 items-center rounded-r-lg border border-l-0 border-[#E5E7EB] bg-[#F9FAFB] px-3 text-[12px] text-[#6B7280]"
                 style={interStyle}
               >
-                .brasshr.com
+                {rootDomain ? `.${rootDomain}` : "Loading domain…"}
               </span>
             </div>
             {status ? (
@@ -113,7 +101,7 @@ export function DomainStepPanel({
             onBack={onBack}
             onContinue={() => void handleContinue()}
             saving={saving}
-            continueDisabled={!subdomain.trim()}
+            continueDisabled={!subdomain.trim() || !rootDomain}
           />
         </div>
       </div>

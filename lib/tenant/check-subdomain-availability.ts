@@ -12,7 +12,8 @@ const SUBDOMAIN_TAKEN_MESSAGE = "This domain is already taken. Please choose ano
  */
 export async function checkSubdomainAvailabilityForOnboarding(
   svc: SupabaseClient,
-  rawSubdomain: string
+  rawSubdomain: string,
+  ownedTenantId?: string
 ): Promise<{ ok: true; subdomain: string } | { error: string }> {
   const parsed = validateTenantSubdomainInput(rawSubdomain);
   if ("failure" in parsed) {
@@ -36,6 +37,13 @@ export async function checkSubdomainAvailabilityForOnboarding(
 
   if (bsErr || bslugErr) {
     return { error: (bsErr || bslugErr)?.message ?? "Could not verify domain." };
+  }
+
+  if (ownedTenantId) {
+    if ([bySlug, bySubdomain].some((tenant) => tenant && tenant.id !== ownedTenantId)) {
+      return { error: SUBDOMAIN_TAKEN_MESSAGE };
+    }
+    return { ok: true, subdomain: subdomainFinal };
   }
 
   if (bySlug && bySubdomain && bySlug.id !== bySubdomain.id) {
