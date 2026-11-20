@@ -10,6 +10,10 @@ import {
   type LaunchPadStepId,
 } from "./constants";
 import { LaunchPadChecklist } from "./LaunchPadChecklist";
+import { LaunchPadInterests } from "./LaunchPadInterests";
+import type { SignupInterests } from "@/lib/signup/signup-interests";
+import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
+import { withTenant } from "@/lib/tenant/with-tenant";
 import { LaunchPadStepHeader } from "./LaunchPadStepHeader";
 import {
   countCompletedSteps,
@@ -33,6 +37,7 @@ function LaunchPadContent() {
   const [loadingProgress, setLoadingProgress] = useState(true);
   const [savingProgress, setSavingProgress] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [interests, setInterests] = useState<SignupInterests | null>(null);
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
   const activeStep = isLaunchPadStepId(stepParam) ? stepParam : null;
@@ -45,10 +50,18 @@ function LaunchPadContent() {
     setShowComplete(false);
     setLoadingProgress(true);
     setProgressError(null);
+    setInterests(null);
     if (!tenantId) return () => { cancelled = true; };
-    void syncLaunchPadProgress(tenantId).then((saved) => {
+    const loadInterests = async () => {
+      const response = await fetch("/api/admin/launch-pad/interests", { cache: "no-store" });
+      const data = await response.json() as { tenantId?: string; interests?: SignupInterests; error?: string };
+      if (!response.ok || data.tenantId !== tenantId || !data.interests) throw new Error(data.error ?? "Could not load your signup interests.");
+      return data.interests;
+    };
+    void Promise.all([syncLaunchPadProgress(tenantId), loadInterests()]).then(([saved, savedInterests]) => {
       if (cancelled) return;
       setProgress(saved);
+      setInterests(savedInterests);
       setShowComplete(countCompletedSteps(saved) === Object.keys(saved).length);
     }).catch((error: unknown) => {
       if (!cancelled) setProgressError(error instanceof Error ? error.message : "Could not load Launch Pad progress.");
@@ -59,11 +72,11 @@ function LaunchPadContent() {
   }, [tenantId, loadAttempt]);
 
   const openStep = (id: LaunchPadStepId) => {
-    router.push(`${ADMIN_LAUNCH_PAD_ROUTE}?step=${id}`);
+    router.push(withTenant(`${ADMIN_LAUNCH_PAD_ROUTE}?step=${id}`, searchParams.get("tenant")));
   };
 
   const backToMain = () => {
-    router.push(ADMIN_LAUNCH_PAD_ROUTE);
+    router.push(withTenant(ADMIN_LAUNCH_PAD_ROUTE, searchParams.get("tenant")));
   };
 
   const completeStep = async (id: LaunchPadStepId) => {
@@ -87,11 +100,21 @@ function LaunchPadContent() {
   const skipStep = backToMain;
 
   if (loadingProgress) return <p role="status" className="p-8 text-sm">Loading Launch Pad progress…</p>;
-  if (progressError && !activeStep) return (
+  if (progressError && (!activeStep || !interests)) return (
     <div className="p-8">
       <p role="alert">{progressError}</p>
       <button type="button" className="mt-3 underline" onClick={() => setLoadAttempt((value) => value + 1)}>Try again</button>
     </div>
+  );
+
+  if (!interests?.answeredAt && tenantId) return (
+    <LaunchPadInterests
+      key={tenantId}
+      tenantId={tenantId}
+      initialKeys={interests?.keys}
+      onBack={() => router.push(withTenant(ADMIN_RECRUITER_HOME_ROUTE, searchParams.get("tenant")))}
+      onComplete={(savedInterests) => { setInterests(savedInterests); backToMain(); }}
+    />
   );
 
   if (!activeStep) {

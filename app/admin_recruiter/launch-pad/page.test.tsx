@@ -4,7 +4,7 @@ import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/re
 import { LAUNCH_PAD_STORAGE_KEY } from "./constants";
 
 const nav = vi.hoisted(() => ({ search: "step=domain", push: vi.fn() }));
-const server = vi.hoisted(() => ({ progress: { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false } }));
+const server = vi.hoisted(() => ({ progress: { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false }, interests: { keys: [] as string[], skipped: true, answeredAt: "2026-11-20T20:00:00Z" as string | null } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: nav.push }), useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("@/app/admin_recruiter/hooks/useAccountData", () => ({ useAccountData: () => ({ organization: { id: "tenant-a" } }) }));
@@ -22,9 +22,14 @@ beforeEach(() => {
   sessionStorage.clear();
   nav.search = "step=domain";
   server.progress = { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false };
+  server.interests = { keys: [], skipped: true, answeredAt: "2026-11-20T20:00:00Z" };
   nav.push.mockReset();
   nav.push.mockImplementation(() => { nav.search = ""; });
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith("/interests")) {
+      if (init?.method === "PUT") server.interests = { ...JSON.parse(String(init.body)), answeredAt: "2026-11-20T20:00:00Z" };
+      return Response.json({ tenantId: "tenant-a", interests: server.interests });
+    }
     if (url.endsWith("/progress")) {
       if (init?.method === "POST") {
         const { stepId } = JSON.parse(String(init.body)) as { stepId: keyof typeof server.progress };
@@ -37,6 +42,17 @@ beforeEach(() => {
 });
 
 describe("Launch Pad finish handoff", () => {
+  it("shows signup interests before the checklist, including direct step links", async () => {
+    server.interests = { keys: [], skipped: false, answeredAt: null };
+    render(<LaunchPadPage />);
+    expect(await screen.findByRole("heading", { name: "What brings you to brassHR" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm domain" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Time & Attendance" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect(await screen.findByRole("heading", { name: "Launch Pad" })).toBeInTheDocument();
+    expect(server.interests.keys).toEqual(["time_attendance"]);
+    expect(server.progress).toEqual({ logo: false, branding: false, domain: false, preview: false, invite: false, organization: false });
+  });
   it("opens the subdomain modal after the last step is confirmed", async () => {
     server.progress = { logo: true, branding: true, domain: false, preview: true, invite: true, organization: true };
     render(<LaunchPadPage />);
