@@ -34,9 +34,12 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
         }
       } else {
         const body = await copy.json().catch(() => ({}));
-        for (const [key, value] of Object.entries(body)) {
-          if (key in values && values[key] !== value) return denied();
-          values[key] = value;
+        // json() can resolve to null; Object.entries(null) throws and becomes a 403.
+        if (body && typeof body === "object" && !Array.isArray(body)) {
+          for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+            if (key in values && values[key] !== value) return denied();
+            values[key] = value;
+          }
         }
       }
     }
@@ -52,9 +55,18 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
     let tenantId = str("tenantId") || str("tenant_id");
     if (tenantSlug) {
       if (!/^[a-z0-9-]{2,63}$/i.test(tenantSlug)) return denied();
-      const { data, error } = await svc.from("tenants").select("id").or(`slug.eq.${tenantSlug},subdomain.eq.${tenantSlug}`).eq("is_active", true).maybeSingle();
-      if (error || !data || (tenantId && tenantId !== data.id)) return denied();
-      tenantId = data.id;
+      try {
+        const { data, error } = await svc.from("tenants").select("id").or(`slug.eq.${tenantSlug},subdomain.eq.${tenantSlug}`).eq("is_active", true).maybeSingle();
+        if (error || !data || (tenantId && tenantId !== data.id)) return denied();
+        tenantId = data.id;
+      } catch (error) {
+        rethrowDynamicServerUsage(error);
+        console.error(
+          "[onboarding] tenant lookup failed",
+          error instanceof Error ? error.message : "unknown"
+        );
+        return NextResponse.json({ error: "Unable to verify access" }, { status: 403 });
+      }
     }
     let userId = "";
     const continuation = req.cookies.get(APPLICANT_CONTINUATION_SESSION_COOKIE)?.value;
@@ -99,13 +111,22 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
           );
         }
         if (!staffUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        if (!(await hasVerifiedStaffSession(staffUser))) return denied();
-        const decision = await authorizeStaffHttpAccess({ user: staffUser, pathname: isDraftPreviewApplicantId(applicantId) ? "/api/admin/onboarding" : "/api/admin/candidates", method: req.method, tenantSlug });
-        if (!decision.ok) return denied();
-        const { data: profile } = await svc.from("users").select("god_admin").eq("id", staffUser.id).maybeSingle();
-        const staffTenant = await resolveEffectiveAdminTenantId(svc, { userId: staffUser.id, authUser: staffUser, godAdmin: isGodAdminUser(staffUser) || profile?.god_admin === true });
-        if (!staffTenant || (tenantId && tenantId !== staffTenant)) return denied();
-        tenantId = staffTenant;
+        try {
+          if (!(await hasVerifiedStaffSession(staffUser))) return denied();
+          const decision = await authorizeStaffHttpAccess({ user: staffUser, pathname: isDraftPreviewApplicantId(applicantId) ? "/api/admin/onboarding" : "/api/admin/candidates", method: req.method, tenantSlug });
+          if (!decision.ok) return denied();
+          const { data: profile } = await svc.from("users").select("god_admin").eq("id", staffUser.id).maybeSingle();
+          const staffTenant = await resolveEffectiveAdminTenantId(svc, { userId: staffUser.id, authUser: staffUser, godAdmin: isGodAdminUser(staffUser) || profile?.god_admin === true });
+          if (!staffTenant || (tenantId && tenantId !== staffTenant)) return denied();
+          tenantId = staffTenant;
+        } catch (error) {
+          rethrowDynamicServerUsage(error);
+          console.error(
+            "[onboarding] staff access check failed",
+            error instanceof Error ? error.message : "unknown"
+          );
+          return denied();
+        }
         if (isDraftPreviewApplicantId(applicantId)) return null;
         if (applicantId) {
           const { data: worker } = await svc.from("worker").select("id,user_id").eq("user_id", applicantId).eq("tenant_id", tenantId).maybeSingle();

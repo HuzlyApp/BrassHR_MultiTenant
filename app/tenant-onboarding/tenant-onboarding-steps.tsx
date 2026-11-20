@@ -808,14 +808,16 @@ export function BusinessStep({
           />
         </div>
         */}
-        <SelectField
+        <SearchableSelectField
           label="Number of Employees"
           required
           value={businessInfo.companySize}
           onChange={(value) => handleBusinessFieldChange({ companySize: value })}
           placeholder="Select size"
+          searchPlaceholder="Search size..."
           options={COMPANY_SIZE_OPTIONS}
           error={showFieldError("companySize")}
+          emptyMessage="No sizes found."
         />
 
         <div>

@@ -1,5 +1,6 @@
 "use client"
 
+import { applicantAuthHeaders } from "@/lib/onboarding/applicant-auth-headers"
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
@@ -16,7 +17,9 @@ export async function ensureApplicantWorker(
     return { ok: false, error: "Not available during server render." }
   }
 
-  const applicantId = applicantIdOverride?.trim() || getScopedApplicantId() || ""
+  const auth = await applicantAuthHeaders({ "Content-Type": "application/json" })
+  const applicantId =
+    applicantIdOverride?.trim() || auth.applicantId || getScopedApplicantId() || ""
   if (!applicantId) {
     return { ok: false, error: "Applicant session not found. Refresh and try again." }
   }
@@ -44,7 +47,7 @@ export async function ensureApplicantWorker(
 
   const res = await fetch("/api/onboarding/ensure-worker", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: auth.headers,
     body: JSON.stringify({ applicantId, tenantSlug, resume }),
   })
 
