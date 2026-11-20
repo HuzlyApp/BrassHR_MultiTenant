@@ -160,11 +160,12 @@ export default function AddCustomProfessionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-custom-profession-title"
+        aria-describedby="add-position-industry"
         className="flex w-full max-w-[520px] flex-col overflow-visible rounded-2xl border border-[#E5E7EB] bg-white shadow-xl"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 pb-2">
           <h3 id="add-custom-profession-title" className="text-lg font-semibold text-[#0F172A]">
-            Add Custom Profession
+            Add Position
           </h3>
           <button
             type="button"
@@ -178,13 +179,13 @@ export default function AddCustomProfessionModal({
         </div>
 
         <div className="relative z-10 space-y-4 overflow-visible px-5 py-3">
-          <p className="text-xs text-[#94A3B8]">
-            Adding to <span className="font-medium text-[#64748B]">{industryLabel}</span>
+          <p id="add-position-industry" className="text-xs text-[#94A3B8]">
+            Add a position under <span className="font-medium text-[#64748B]">{industryLabel}.</span>
           </p>
 
           <label className="block space-y-1.5">
             <span className={labelClassName}>
-              Add Custom Profession to Industry
+              Position Name
               <RequiredMark />
             </span>
             <input
@@ -206,7 +207,7 @@ export default function AddCustomProfessionModal({
               disabled={creating}
               onChange={(event) => setDescription(event.target.value.slice(0, DESCRIPTION_MAX))}
               rows={4}
-              placeholder="Describe this profession…"
+              placeholder="Describe this position…"
               className="w-full resize-none rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm leading-6 text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:bg-[#F8FAFC]"
             />
             <div className="flex justify-end">
@@ -251,7 +252,7 @@ export default function AddCustomProfessionModal({
             }
             className="inline-flex h-10 items-center justify-center rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
           >
-            {creating ? "Creating…" : "Create Profession"}
+            {creating ? "Creating…" : "Create Position"}
           </button>
         </div>
       </div>

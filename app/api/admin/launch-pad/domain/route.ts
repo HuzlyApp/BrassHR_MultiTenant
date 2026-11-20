@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { requireLaunchPadContext as context, loadLaunchPadProgress, saveLaunchPadStep } from "@/lib/launch-pad/server";
+import { LAUNCH_PAD_STEP_IDS } from "@/app/admin_recruiter/launch-pad/constants";
 import { checkSubdomainAvailabilityForOnboarding } from "@/lib/tenant/check-subdomain-availability";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { getEffectiveRootDomain } from "@/lib/tenant/tenant-host-resolution";
@@ -11,24 +10,6 @@ import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-br
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { registerTenantDomain } from "@/lib/vercel";
 import { buildCacheKey, deleteCache } from "@/lib/cache";
-
-async function context(request?: Request) {
-  const auth = await requireStaffApiSession(request);
-  if (auth instanceof NextResponse) return auth;
-  if (!auth.godAdmin && auth.role !== "admin") {
-    return NextResponse.json({ error: "Tenant admin access is required." }, { status: 403 });
-  }
-  const sb = createServiceRoleClient();
-  if (!sb) return NextResponse.json({ error: "Server not configured." }, { status: 503 });
-  const tenantId = await resolveEffectiveAdminTenantId(sb, auth);
-  if (!tenantId) return NextResponse.json({ error: "No organization selected." }, { status: 403 });
-  const { data: tenant, error } = await sb.from("tenants")
-    .select("id, slug, subdomain, domain").eq("id", tenantId).maybeSingle();
-  if (error || !tenant) {
-    return NextResponse.json({ error: "Could not load your organization." }, { status: 500 });
-  }
-  return { sb, tenantId, tenant };
-}
 
 function requestOrigin(request?: Request): string | undefined {
   return request ? new URL(request.url).origin : undefined;
@@ -67,15 +48,10 @@ export async function PATCH(req: Request) {
     const availability = await checkSubdomainAvailabilityForOnboarding(ctx.sb, subdomain, ctx.tenantId);
     if ("error" in availability) return NextResponse.json({ error: availability.error }, { status: 409 });
   }
-  try {
-    await registerTenantDomain(subdomain, { origin: requestOrigin(req) });
-  } catch (error) {
-    console.error("[launch-pad/domain] registration failed", error);
-    return NextResponse.json({ error: "Could not connect your domain. Please try again." }, { status: 502 });
-  }
   const { data: updated, error } = await ctx.sb.from("tenants").update({
     subdomain,
-    domain: `${subdomain}.${getEffectiveRootDomain()}`,
+    // Reserve the name now; activation is a separate, completion-gated action.
+    domain: subdomain === ctx.tenant.subdomain ? ctx.tenant.domain : null,
     updated_at: new Date().toISOString(),
   }).eq("id", ctx.tenantId).select("id").maybeSingle();
   if (error || !updated) {
@@ -90,5 +66,38 @@ export async function PATCH(req: Request) {
       deleteCache(buildCacheKey("tenants", ["public", "slug", label], { active: true })),
     ]),
   ]);
+  try {
+    await saveLaunchPadStep(ctx, "domain");
+  } catch {
+    return NextResponse.json({ error: "Your domain name was saved, but progress could not be saved. Please try again." }, { status: 503 });
+  }
   return NextResponse.json({ ok: true, ...payload({ ...ctx.tenant, subdomain }, req) });
+}
+
+/** Activate only after all six tasks have been recorded for the authenticated tenant. */
+export async function POST(req: Request) {
+  const ctx = await context(req);
+  if (ctx instanceof NextResponse) return ctx;
+  try {
+    const progress = await loadLaunchPadProgress(ctx);
+    if (!LAUNCH_PAD_STEP_IDS.every((id) => progress[id])) {
+      return NextResponse.json({ error: "Finish all Launch Pad tasks before activating your workspace." }, { status: 409 });
+    }
+    if (!ctx.tenant.subdomain) return NextResponse.json({ error: "Choose your domain name first." }, { status: 409 });
+    const origin = requestOrigin(req);
+    const registration = await registerTenantDomain(ctx.tenant.subdomain, { origin });
+    const queryMode = origin ? usesTenantQueryUrls(new URL(origin).hostname) : false;
+    if (!queryMode && (registration.skipped || !registration.domain.verified)) {
+      return NextResponse.json({ error: "Your domain is not connected yet. Please try again or contact support." }, { status: 503 });
+    }
+    const domain = queryMode ? null : `${ctx.tenant.subdomain}.${getEffectiveRootDomain()}`;
+    const { data, error } = await ctx.sb.from("tenants").update({ domain, updated_at: new Date().toISOString() })
+      .eq("id", ctx.tenantId).select("id").maybeSingle();
+    if (error || !data) return NextResponse.json({ error: "Could not activate your workspace. Please try again." }, { status: 503 });
+    await invalidateTenantBrandingCache({ tenantId: ctx.tenantId, slug: ctx.tenant.slug, subdomain: ctx.tenant.subdomain });
+    return NextResponse.json({ ok: true, ...payload(ctx.tenant, req) });
+  } catch (error) {
+    console.error("[launch-pad/domain] activation failed", error);
+    return NextResponse.json({ error: "Could not activate your workspace. Please try again." }, { status: 502 });
+  }
 }

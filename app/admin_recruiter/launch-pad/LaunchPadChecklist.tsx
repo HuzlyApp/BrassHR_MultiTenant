@@ -78,7 +78,7 @@ export function LaunchPadChecklist({
             Launch Pad
           </h1>
           <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
-            Finish setup when you have a minute. You can skip any step and come back from Settings.
+            Complete all six tasks to activate your dedicated company address. Tasks skipped for now remain unfinished.
           </p>
         </div>
 

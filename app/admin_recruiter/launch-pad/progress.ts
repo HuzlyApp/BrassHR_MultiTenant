@@ -8,6 +8,9 @@ import {
 
 export type LaunchPadProgress = Record<LaunchPadStepId, boolean>;
 
+/** Fired after Launch Pad progress is written so the sidebar can hide when complete. */
+export const LAUNCH_PAD_PROGRESS_EVENT = "braas-launch-pad-progress";
+
 export function emptyLaunchPadProgress(): LaunchPadProgress {
   return {
     logo: false,
@@ -19,26 +22,47 @@ export function emptyLaunchPadProgress(): LaunchPadProgress {
   };
 }
 
-export function readLaunchPadProgress(tenantId: string): LaunchPadProgress {
-  const base = emptyLaunchPadProgress();
-  if (typeof window === "undefined") return base;
+function progressStorageKey(tenantId: string): string {
+  return `${LAUNCH_PAD_STORAGE_KEY}:${tenantId}`;
+}
+
+function readProgressFromStore(
+  store: Storage | null | undefined,
+  tenantId: string
+): LaunchPadProgress | null {
+  if (!store) return null;
   try {
-    const raw = localStorage.getItem(`${LAUNCH_PAD_STORAGE_KEY}:${tenantId}`);
-    if (!raw) return base;
+    const raw = store.getItem(progressStorageKey(tenantId));
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Record<LaunchPadStepId, boolean>>;
+    const base = emptyLaunchPadProgress();
     for (const id of LAUNCH_PAD_STEP_IDS) {
       if (typeof parsed[id] === "boolean") base[id] = parsed[id];
     }
+    return base;
   } catch {
-    /* ignore */
+    return null;
   }
-  return base;
+}
+
+export function readLaunchPadProgress(tenantId: string): LaunchPadProgress {
+  const base = emptyLaunchPadProgress();
+  if (typeof window === "undefined" || !tenantId) return base;
+  return (
+    readProgressFromStore(window.localStorage, tenantId) ??
+    readProgressFromStore(window.sessionStorage, tenantId) ??
+    base
+  );
 }
 
 export function writeLaunchPadProgress(tenantId: string, progress: LaunchPadProgress): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !tenantId) return;
   try {
-    localStorage.setItem(`${LAUNCH_PAD_STORAGE_KEY}:${tenantId}`, JSON.stringify(progress));
+    const payload = JSON.stringify(progress);
+    const key = progressStorageKey(tenantId);
+    window.localStorage.setItem(key, payload);
+    window.sessionStorage.setItem(key, payload);
+    window.dispatchEvent(new CustomEvent(LAUNCH_PAD_PROGRESS_EVENT, { detail: progress }));
   } catch {
     /* ignore */
   }
@@ -56,4 +80,27 @@ export function markLaunchPadStepComplete(
 
 export function countCompletedSteps(progress: LaunchPadProgress): number {
   return LAUNCH_PAD_STEP_IDS.filter((id) => progress[id]).length;
+}
+
+export function isLaunchPadFullyComplete(tenantId?: string): boolean {
+  if (!tenantId) return false;
+  const value = readLaunchPadProgress(tenantId);
+  return LAUNCH_PAD_STEP_IDS.every((id) => value[id]);
+}
+
+/** Reconcile the browser cache with the authenticated tenant's server-owned progress. */
+export async function syncLaunchPadProgress(tenantId: string, stepId?: LaunchPadStepId): Promise<LaunchPadProgress> {
+  const response = await fetch("/api/admin/launch-pad/progress", stepId ? {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stepId }),
+  } : { cache: "no-store" });
+  const data = await response.json() as { tenantId?: string; progress?: LaunchPadProgress; error?: string };
+  if (!response.ok || data.tenantId !== tenantId || !data.progress) {
+    throw new Error(data.error ?? "Could not load Launch Pad progress. Please try again.");
+  }
+  const progress = emptyLaunchPadProgress();
+  for (const id of LAUNCH_PAD_STEP_IDS) progress[id] = data.progress[id] === true;
+  writeLaunchPadProgress(tenantId, progress);
+  return progress;
 }

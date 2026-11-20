@@ -12,7 +12,7 @@ export function DomainStepPanel({
 }: {
   onBack: () => void;
   onSkip: () => void;
-  onComplete: (workspaceUrl: string) => void;
+  onComplete: () => void;
 }) {
   const { organization, refresh } = useAccountData();
   const [subdomain, setSubdomain] = useState("");
@@ -58,9 +58,8 @@ export function DomainStepPanel({
       });
       const data = await response.json() as { error?: string; detail?: string; workspaceUrl?: string };
       if (!response.ok) throw new Error(data.detail ?? data.error ?? "Could not save your domain.");
-      if (!data.workspaceUrl) throw new Error("Your domain was saved, but its workspace address is unavailable. Please try again.");
       await refresh();
-      onComplete(data.workspaceUrl);
+      onComplete();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save your domain.");
     } finally {
@@ -77,7 +76,7 @@ export function DomainStepPanel({
               Setup Custom Domain
             </h2>
             <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
-              Choose the address for your company workspace and applicant portal.
+              Choose your company address. It will be activated after all Launch Pad tasks are complete.
             </p>
           </div>
 

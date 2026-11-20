@@ -11,7 +11,6 @@ import {
   validateBusinessInfoForm,
 } from "@/lib/tenant/business-info-validation";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
-import { registerTenantDomain } from "@/lib/vercel";
 import { resolveBusinessInfoValidationContext } from "@/lib/tenant/resolve-business-info-context";
 import {
   findStaffTenantEmailConflict,
@@ -228,7 +227,7 @@ export async function POST(req: Request) {
     name: tenantDisplayName,
     slug: slugFinal,
     subdomain: subdomainFinal,
-    domain: domainFinal,
+    domain: null,
     logo_url: body.logoUrl?.trim() || null,
     primary_color: body.primaryColor?.trim() || "#0d9488",
     secondary_color: body.secondaryColor?.trim() || "#0f766e",
@@ -467,18 +466,9 @@ export async function POST(req: Request) {
     }
   }
 
-  let vercelDomainRegistered = false;
-  let vercelDomainSkipped = false;
-  try {
-    const vercel = await registerTenantDomain(subdomainFinal, { origin: new URL(req.url).origin });
-    vercelDomainSkipped = vercel.skipped;
-    vercelDomainRegistered = !vercel.skipped;
-  } catch (err) {
-    console.error(
-      "[tenant-onboarding] Vercel domain",
-      err instanceof Error ? err.message : err
-    );
-  }
+  // Launch Pad activates the reserved subdomain after every setup task is complete.
+  const vercelDomainRegistered = false;
+  const vercelDomainSkipped = true;
 
   let firmaProvisioning: {
     status: FirmaWorkspaceProvisioningStatus;
@@ -532,7 +522,8 @@ export async function POST(req: Request) {
     category: tenantCategory,
     subdomain: subdomainFinal,
     slug: slugFinal,
-    domain: domainFinal,
+    domain: null,
+    reservedDomain: domainFinal,
     vercelDomainRegistered,
     vercelDomainSkipped,
     firmaProvisioning,

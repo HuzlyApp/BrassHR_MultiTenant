@@ -12,12 +12,13 @@ export async function fetchTenantVanityLabel(
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from("tenants")
-    .select("subdomain, slug")
+    .select("subdomain, slug, domain")
     .eq("id", tenantId)
     .maybeSingle();
 
   if (error) throw error;
-  return data ? pickTenantVanityLabel(data) : null;
+  // A saved subdomain is only a reservation until Launch Pad activates its domain.
+  return data?.domain ? pickTenantVanityLabel(data) : null;
 }
 
 export async function fetchUserTenantVanityLabel(
