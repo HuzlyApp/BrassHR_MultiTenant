@@ -116,7 +116,7 @@
   }
 }
 
-/* Below 430px: slimmer icon rail (+25% narrower than narrow rail) */
+/* Below 430px: slimmer icon rail */
 @media (max-width: 429px) {
   .admin-recruiter-sidebar-mobile-rail {
     width: var(--admin-sidebar-collapsed-width-mobile, 48px);

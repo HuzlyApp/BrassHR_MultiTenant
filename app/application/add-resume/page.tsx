@@ -473,6 +473,9 @@ export default function Step1Upload() {
           ...(storedLocation ? { workLocation: storedLocation } : {}),
         }
 
+        const { applicantAuthHeaders } = await import("@/lib/onboarding/applicant-auth-headers")
+        const uploadAuth = await applicantAuthHeaders({ "Content-Type": "application/json" })
+
         let uploadJson: {
           fileName?: string
           storagePath?: string | null
@@ -485,6 +488,7 @@ export default function Step1Upload() {
             prepareUrl: "/api/upload-resume",
             prepareBody: directBody,
             file,
+            headers: uploadAuth.headers,
             onProgress: (percent) => setUploadPhase(`Uploading resume… ${percent}%`),
           })
         } catch (directError) {
@@ -505,9 +509,10 @@ export default function Step1Upload() {
             fd.append("jobToken", activeJobToken)
             if (storedLocation) fd.append("workLocation", JSON.stringify(storedLocation))
           }
+          const multipartAuth = await applicantAuthHeaders()
           const uploadRes = await fetchWithTimeout(
             "/api/upload-resume",
-            { method: "POST", body: fd },
+            { method: "POST", headers: multipartAuth.headers, body: fd },
             RESUME_UPLOAD_TIMEOUT_MS,
             "Upload timed out. Please check your connection and try again.",
           )
@@ -524,7 +529,7 @@ export default function Step1Upload() {
             "/api/onboarding/worker-requirements",
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: uploadAuth.headers,
               body: JSON.stringify({
                 applicantId: session.applicantId,
                 resume_path: uploadJson.storagePath,

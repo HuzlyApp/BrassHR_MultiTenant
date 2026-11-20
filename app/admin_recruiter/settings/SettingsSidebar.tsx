@@ -38,7 +38,7 @@ function NavItemLink({
         aria-hidden
         style={{ color: "var(--brand-primary)" }}
       />
-      <span className="font-normal">{item.label}</span>
+      <span className="truncate font-normal">{item.label}</span>
     </Link>
   );
 }
@@ -61,6 +61,7 @@ function visibleSettingsNavGroups(
     .filter((group) => group.items.length > 0);
 }
 
+/** Desktop/web Settings mini-sidebar — fixed labeled panel beside the collapsed main rail. */
 export default function SettingsSidebar() {
   const pathname = usePathname() ?? "";
   const { viewKeySet, godAdmin, loading } = useStaffModuleAccess();
@@ -78,9 +79,9 @@ export default function SettingsSidebar() {
   return (
     <aside
       aria-label="Settings sections"
-      className="z-10 hidden h-full min-h-0 w-[195px] shrink-0 overflow-y-auto overscroll-y-contain border-x border-[#E5E7EB] bg-white px-3.5 py-5 md:block"
+      className="z-10 flex h-full min-h-0 w-[195px] shrink-0 flex-col overflow-hidden border-x border-[#E5E7EB] bg-white px-3.5 py-5"
     >
-      <nav className="flex flex-col gap-3">
+      <nav className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
         {loading && groups.length === 0 ? (
           <p className="px-2 text-xs text-[#6B7280]">Loading…</p>
         ) : null}

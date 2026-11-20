@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import { AdminTenantBrandingProvider } from "@/app/components/tenant/AdminTenantBrandingProvider";
 import { AccountDataProvider } from "@/app/admin_recruiter/account/AccountDataProvider";
-import SettingsMobileNav from "@/app/admin_recruiter/settings/SettingsMobileNav";
 import SettingsSidebar from "@/app/admin_recruiter/settings/SettingsSidebar";
 import { isSettingsMiniSidebarPath } from "@/app/admin_recruiter/settings/settings-nav";
 import { StaffAccessSeed } from "@/lib/admin/hooks/use-staff-module-access";
@@ -29,6 +28,8 @@ import AnalyticsSessionTracker from "@/app/components/AnalyticsSessionTracker";
 import "./layout.css";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
+/** Mobile rail / settings-swap breakpoint — matches admin layout (< 1000px). */
+const MOBILE_MAX_PX = 999;
 
 function persistSidebarCollapsed(next: boolean) {
   try {
@@ -86,11 +87,28 @@ export default function AdminRecruiterShell({
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  /** Mobile only: Settings icons occupy the first collapsed rail. */
+  const [settingsRailActive, setSettingsRailActive] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const pathname = usePathname() ?? "";
   const inSettingsArea = isSettingsMiniSidebarPath(pathname);
   const wasInSettingsAreaRef = useRef<boolean | null>(null);
   const settingsCollapseReadyRef = useRef(false);
   const closeMobileNav = useCallback(() => setMobileSidebarOpen(false), []);
+  const enterSettingsRail = useCallback(() => setSettingsRailActive(true), []);
+  const exitSettingsRail = useCallback(() => setSettingsRailActive(false), []);
+  const openMainSidebar = useCallback(() => {
+    setMobileSidebarOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia(`(max-width: ${MOBILE_MAX_PX}px)`);
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     try {
@@ -104,7 +122,11 @@ export default function AdminRecruiterShell({
     }
   }, []);
 
-  /** Enter Settings → collapse main rail + show mini-sidebar. Leave Settings → expand main rail. */
+  /**
+   * Enter Settings → collapse main rail.
+   * Mobile: also swap Settings icons into the first rail.
+   * Web: keep main icons + show fixed Settings mini-sidebar column.
+   */
   useEffect(() => {
     if (!settingsCollapseReadyRef.current) return;
     const wasInSettings = wasInSettingsAreaRef.current;
@@ -113,19 +135,29 @@ export default function AdminRecruiterShell({
       if (inSettingsArea) {
         setSidebarCollapsed(true);
         persistSidebarCollapsed(true);
+        if (isMobileViewport) setSettingsRailActive(true);
+        else setSettingsRailActive(false);
       }
       return;
     }
     if (inSettingsArea && !wasInSettings) {
       setSidebarCollapsed(true);
       persistSidebarCollapsed(true);
+      if (isMobileViewport) setSettingsRailActive(true);
+      else setSettingsRailActive(false);
       return;
     }
     if (!inSettingsArea && wasInSettings) {
-      setSidebarCollapsed(false);
-      persistSidebarCollapsed(false);
+      setSettingsRailActive(false);
     }
-  }, [inSettingsArea]);
+  }, [inSettingsArea, isMobileViewport]);
+
+  /** Leaving mobile viewport while in Settings → restore web dual-column (no rail swap). */
+  useEffect(() => {
+    if (!inSettingsArea) return;
+    if (!isMobileViewport) setSettingsRailActive(false);
+    else setSettingsRailActive(true);
+  }, [isMobileViewport, inSettingsArea]);
 
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed((prev) => {
@@ -136,6 +168,9 @@ export default function AdminRecruiterShell({
   };
 
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const useMobileSettingsRail = isMobileViewport && settingsRailActive && inSettingsArea;
+  /** Web: always show fixed Settings mini-sidebar when in Settings. */
+  const showSettingsSecondColumn = inSettingsArea && !isMobileViewport;
 
   return (
     <AdminTenantBrandingProvider>
@@ -160,6 +195,10 @@ export default function AdminRecruiterShell({
                 isMobileOpen={mobileSidebarOpen}
                 onMobileClose={closeMobileNav}
                 onToggleCollapsed={toggleSidebarCollapsed}
+                settingsRailActive={useMobileSettingsRail}
+                onEnterSettingsRail={enterSettingsRail}
+                onExitSettingsRail={exitSettingsRail}
+                onOpenMainSidebar={openMainSidebar}
               />
               <div
                 className={`admin-recruiter-content admin-recruiter-main-wrap ${
@@ -178,10 +217,9 @@ export default function AdminRecruiterShell({
                 <WorkflowDashboardHeaderProvider>
                   <AdminRecruiterDashboardSubNav />
                   {inSettingsArea ? (
-                    <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-hidden">
-                      <SettingsSidebar />
-                      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-                        <SettingsMobileNav />
+                    <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-hidden">
+                      {showSettingsSecondColumn ? <SettingsSidebar /> : null}
+                      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pb-8 pt-5 sm:px-6 lg:px-8">
                         <CandidateDetailFrame>{children}</CandidateDetailFrame>
                       </div>
                     </div>

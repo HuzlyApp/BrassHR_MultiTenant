@@ -4,6 +4,7 @@ import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import {
   createEmployeeScheduleShift,
   loadEmployeeScheduleWeek,
+  updateEmployeeScheduleShift,
 } from "@/lib/scheduling/employee-schedule-service";
 import type { CreateEmployeeScheduleShiftInput } from "@/lib/scheduling/employee-schedule";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -103,5 +104,39 @@ export async function POST(req: NextRequest) {
     const message = errorMessage(err, "Failed to create shift.");
     const status = /required|must be|select an employee|does not belong|invalid/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: status === 400 ? message : "Failed to create shift." }, { status });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = await requireStaffApiSession();
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await resolveStaffTenantScope(auth.authUser);
+    if (scope.mode !== "scoped") {
+      return NextResponse.json({ error: "Select a tenant before updating a shift." }, { status: 400 });
+    }
+
+    const supabase = createServiceRoleClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
+    }
+
+    const body = (await req.json()) as CreateEmployeeScheduleShiftInput & { id?: string };
+    const shiftId = body.id?.trim() ?? "";
+    if (!shiftId) {
+      return NextResponse.json({ error: "Shift id is required." }, { status: 400 });
+    }
+
+    const shift = await updateEmployeeScheduleShift(supabase, scope.tenantId, shiftId, body);
+    return NextResponse.json({ shift });
+  } catch (err) {
+    console.error("[admin/scheduling/week PATCH]", err);
+    const message = errorMessage(err, "Failed to update shift.");
+    if (/not found/i.test(message)) {
+      return NextResponse.json({ error: "Shift not found." }, { status: 404 });
+    }
+    const status = /required|must be|select an employee|does not belong|invalid/i.test(message) ? 400 : 500;
+    return NextResponse.json({ error: status === 400 ? message : "Failed to update shift." }, { status });
   }
 }

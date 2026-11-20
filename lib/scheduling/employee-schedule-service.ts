@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getApplicationAppliedJobsByWorker } from "@/lib/workers/worker-application-job-titles";
 import {
   parseEmployeeScheduleShiftInput,
   type CreateEmployeeScheduleShiftInput,
@@ -12,7 +13,23 @@ type WorkerRow = {
   first_name: string | null;
   last_name: string | null;
   job_role: string | null;
+  source_job_application_id?: string | null;
+  application_snapshot?: Record<string, unknown> | null;
 };
+
+function jobIdFromSnapshot(snapshot: Record<string, unknown> | null | undefined): string | null {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const candidates = [
+    snapshot.jobRequisitionId,
+    snapshot.job_requisition_id,
+    snapshot.job_id,
+    snapshot.jobId,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
 
 type ShiftRow = {
   id: string;
@@ -80,12 +97,15 @@ export async function loadEmployeeScheduleWeek(
 ): Promise<EmployeeScheduleWeekResponse> {
   const { data: workerData, error: workerError } = await supabase
     .from("workers")
-    .select("id, first_name, last_name, job_role")
+    .select("id, first_name, last_name, job_role, source_job_application_id, application_snapshot")
     .eq("tenant_id", tenantId)
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true });
 
   if (workerError) throw workerError;
+
+  const workerRows = (workerData ?? []) as WorkerRow[];
+  const workerIds = workerRows.map((row) => row.id).filter(Boolean);
 
   let shiftQuery = tenantEmployeeShiftQuery(supabase, tenantId, startDate, endDate)
     .order("work_date", { ascending: true })
@@ -102,19 +122,42 @@ export async function loadEmployeeScheduleWeek(
   const shifts = (shiftData ?? []) as ShiftRow[];
   const facilityIds = [...new Set(shifts.map((row) => row.facility_id).filter(Boolean))] as string[];
   const departmentIds = [...new Set(shifts.map((row) => row.department_id).filter(Boolean))] as string[];
+  const sourceApplicationIds = [
+    ...new Set(
+      workerRows
+        .map((row) => row.source_job_application_id?.trim())
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
 
-  const [{ data: facilityData, error: facilityError }, { data: departmentData, error: departmentError }] =
-    await Promise.all([
-      facilityIds.length
-        ? supabase.from("facility").select("id, name").eq("tenant_id", tenantId).in("id", facilityIds)
-        : Promise.resolve({ data: [] as NamedRow[], error: null }),
-      departmentIds.length
-        ? supabase.from("departments").select("id, name").eq("tenant_id", tenantId).in("id", departmentIds)
-        : Promise.resolve({ data: [] as NamedRow[], error: null }),
-    ]);
+  const [
+    { data: facilityData, error: facilityError },
+    { data: departmentData, error: departmentError },
+    appliedJobsByWorker,
+    { data: sourceAppData, error: sourceAppError },
+  ] = await Promise.all([
+    facilityIds.length
+      ? supabase.from("facility").select("id, name").eq("tenant_id", tenantId).in("id", facilityIds)
+      : Promise.resolve({ data: [] as NamedRow[], error: null }),
+    departmentIds.length
+      ? supabase.from("departments").select("id, name").eq("tenant_id", tenantId).in("id", departmentIds)
+      : Promise.resolve({ data: [] as NamedRow[], error: null }),
+    getApplicationAppliedJobsByWorker(supabase, { tenantId, workerIds }),
+    sourceApplicationIds.length
+      ? supabase
+          .from("job_applications")
+          .select("id, job_requisition_id")
+          .eq("tenant_id", tenantId)
+          .in("id", sourceApplicationIds)
+      : Promise.resolve({
+          data: [] as Array<{ id: string; job_requisition_id: string | null }>,
+          error: null,
+        }),
+  ]);
 
   if (facilityError) throw facilityError;
   if (departmentError) throw departmentError;
+  if (sourceAppError) throw sourceAppError;
 
   const facilityById = new Map<string, string>();
   for (const facility of (facilityData ?? []) as NamedRow[]) {
@@ -126,12 +169,34 @@ export async function loadEmployeeScheduleWeek(
     if (department.name?.trim()) departmentById.set(department.id, department.name.trim());
   }
 
-  const employees: EmployeeScheduleEmployee[] = ((workerData ?? []) as WorkerRow[])
-    .map((row) => ({
-      id: row.id,
-      name: employeeName(row),
-      jobRole: row.job_role?.trim() || "Employee",
-    }))
+  const jobIdBySourceApplication = new Map<string, string>();
+  for (const row of (sourceAppData ?? []) as Array<{ id: string; job_requisition_id: string | null }>) {
+    const jobId = row.job_requisition_id?.trim();
+    if (row.id && jobId) jobIdBySourceApplication.set(row.id, jobId);
+  }
+
+  const employees: EmployeeScheduleEmployee[] = workerRows
+    .map((row) => {
+      const jobRole = row.job_role?.trim() || "Employee";
+      const appliedJobs = appliedJobsByWorker.get(row.id) ?? [];
+      const matchedApplied =
+        appliedJobs.find(
+          (job) => job.title.trim().toLowerCase() === jobRole.toLowerCase()
+        ) ?? appliedJobs[0];
+      const sourceAppId = row.source_job_application_id?.trim() || "";
+      const jobId =
+        jobIdFromSnapshot(row.application_snapshot) ||
+        (sourceAppId ? jobIdBySourceApplication.get(sourceAppId) ?? null : null) ||
+        matchedApplied?.jobId ||
+        null;
+
+      return {
+        id: row.id,
+        name: employeeName(row),
+        jobRole,
+        jobId,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const mappedShifts = shifts.map((row) =>
@@ -187,4 +252,71 @@ export async function createEmployeeScheduleShift(
   if (error) throw error;
 
   return mapShift(data as ShiftRow, "Facility", null);
+}
+
+export async function updateEmployeeScheduleShift(
+  supabase: SupabaseClient,
+  tenantId: string,
+  shiftId: string,
+  input: CreateEmployeeScheduleShiftInput
+) {
+  const id = shiftId.trim();
+  if (!id) {
+    throw new Error("Shift id is required.");
+  }
+
+  const parsed = parseEmployeeScheduleShiftInput(input);
+  if (!parsed.ok) {
+    throw new Error(parsed.error);
+  }
+
+  const value = parsed.value;
+  const { data, error } = await supabase
+    .from("employee_schedule_shifts")
+    .update({
+      worker_id: value.workerId,
+      facility_id: value.facilityId,
+      department_id: value.departmentId,
+      work_date: value.workDate,
+      start_time: value.startTime,
+      end_time: value.endTime,
+      title: value.title,
+      rate_per_hour: value.ratePerHour,
+      notes: value.notes,
+    })
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .select(
+      "id, worker_id, facility_id, department_id, work_date, start_time, end_time, title, rate_per_hour, notes"
+    )
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    throw new Error("Shift not found.");
+  }
+
+  let facilityName = "No facility";
+  if (data.facility_id) {
+    const { data: facility } = await supabase
+      .from("facilities")
+      .select("name")
+      .eq("tenant_id", tenantId)
+      .eq("id", data.facility_id)
+      .maybeSingle();
+    facilityName = facility?.name?.trim() || "Facility";
+  }
+
+  let departmentName: string | null = null;
+  if (data.department_id) {
+    const { data: department } = await supabase
+      .from("departments")
+      .select("name")
+      .eq("tenant_id", tenantId)
+      .eq("id", data.department_id)
+      .maybeSingle();
+    departmentName = department?.name?.trim() || null;
+  }
+
+  return mapShift(data as ShiftRow, facilityName, departmentName);
 }

@@ -113,7 +113,7 @@ function AssessmentSelect({
                   <span
                     className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${
                       isSelected
-                        ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white"
+                        ? "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)] text-white"
                         : "border-[#CBD5E1] bg-white"
                     }`}
                     aria-hidden

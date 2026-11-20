@@ -6,7 +6,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { PanelLeftClose, X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
@@ -19,10 +19,18 @@ import {
   type SidebarLink,
   type SidebarSection,
 } from "@/app/admin_recruiter/components/sidebar-config";
+import { SIDEBAR_ICON_SIZE_CLASS } from "@/app/admin_recruiter/components/sidebar-icons";
 import {
+  SETTINGS_NAV_GROUPS,
   isSettingsMiniSidebarPath,
+  isSettingsNavItemActive,
   resolveSettingsLandingHref,
+  visibleSettingsNavGroups,
 } from "@/app/admin_recruiter/settings/settings-nav";
+import {
+  isLaunchPadFullyComplete,
+  LAUNCH_PAD_PROGRESS_EVENT,
+} from "@/app/admin_recruiter/launch-pad/progress";
 import { visibleSidebarSections } from "@/lib/auth/sidebar-access";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
@@ -67,6 +75,14 @@ type AdminRecruiterSidebarProps = {
   onMobileClose?: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** When true, collapsed/mobile rail shows Settings icons in the first rail slot. */
+  settingsRailActive?: boolean;
+  /** Restore main sidebar icons in the first rail (collapse/back from Settings). */
+  onExitSettingsRail?: () => void;
+  /** Show Settings icons in the first rail (open Settings). */
+  onEnterSettingsRail?: () => void;
+  /** Open main sidebar so the user can navigate to any other page. */
+  onOpenMainSidebar?: () => void;
 };
 
 /** First enabled child link for collapsed-rail navigation. */
@@ -129,6 +145,10 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   onMobileClose,
   collapsed = false,
   onToggleCollapsed,
+  settingsRailActive = false,
+  onExitSettingsRail,
+  onEnterSettingsRail,
+  onOpenMainSidebar,
 }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const { user, profile, organization } = useAccountData();
@@ -145,23 +165,62 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const isGodAdmin = viewer?.godAdmin === true;
   const { viewKeySet, godAdmin: accessGodAdmin, edition } = useStaffModuleAccess();
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [settingsMiniOpen, setSettingsMiniOpen] = useState(false);
+  const [launchPadComplete, setLaunchPadComplete] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+  const unrestrictedAccess = isGodAdmin || accessGodAdmin || viewKeySet.has("*");
+
+  useEffect(() => {
+    if (!settingsRailActive) setSettingsMiniOpen(false);
+  }, [settingsRailActive]);
+
+  useEffect(() => {
+    if (!settingsMiniOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsMiniOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [settingsMiniOpen]);
+
+  useEffect(() => {
+    const syncLaunchPadVisibility = () => {
+      setLaunchPadComplete(isLaunchPadFullyComplete());
+    };
+    syncLaunchPadVisibility();
+    window.addEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
+    window.addEventListener("storage", syncLaunchPadVisibility);
+    return () => {
+      window.removeEventListener(LAUNCH_PAD_PROGRESS_EVENT, syncLaunchPadVisibility);
+      window.removeEventListener("storage", syncLaunchPadVisibility);
+    };
+  }, []);
 
   const sidebarSections = useMemo(() => {
     const clientSections = clientSidebarSectionsForEdition(edition);
-    if (isGodAdmin || accessGodAdmin || viewKeySet.has("*")) {
-      return isGodAdmin || accessGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : clientSections;
-    }
-    return visibleSidebarSections(clientSections, viewKeySet, false);
-  }, [accessGodAdmin, edition, isGodAdmin, viewKeySet]);
+    const base = unrestrictedAccess
+      ? isGodAdmin || accessGodAdmin
+        ? GOD_ADMIN_SIDEBAR_SECTIONS
+        : clientSections
+      : visibleSidebarSections(clientSections, viewKeySet, false);
+    // Hide Launch Pad after all onboarding steps are complete.
+    if (!launchPadComplete) return base;
+    return base.filter((section) => section.label !== "Launch Pad");
+  }, [accessGodAdmin, edition, isGodAdmin, launchPadComplete, unrestrictedAccess, viewKeySet]);
+
+  const settingsNavGroups = useMemo(
+    () => visibleSettingsNavGroups(SETTINGS_NAV_GROUPS, viewKeySet, unrestrictedAccess),
+    [unrestrictedAccess, viewKeySet]
+  );
+
+  const settingsNavItems = useMemo(
+    () => settingsNavGroups.flatMap((group) => group.items),
+    [settingsNavGroups]
+  );
 
   const settingsLandingHref = useMemo(
-    () =>
-      resolveSettingsLandingHref(
-        viewKeySet,
-        isGodAdmin || accessGodAdmin || viewKeySet.has("*")
-      ),
-    [accessGodAdmin, isGodAdmin, viewKeySet]
+    () => resolveSettingsLandingHref(viewKeySet, unrestrictedAccess),
+    [unrestrictedAccess, viewKeySet]
   );
 
   const handleNavClick = useCallback(
@@ -418,7 +477,64 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
               : "pt-2 pb-7 pl-5 pr-0"
         }`}
       >
-        {renderedSections.map((section) => {
+        {settingsRailActive && (isCollapsed || isMobileRail) ? (
+          <>
+            <div className="mb-1 w-full">
+              <button
+                type="button"
+                onClick={() => setSettingsMiniOpen(true)}
+                title="Open settings mini sidebar"
+                aria-label="Open settings mini sidebar"
+                aria-expanded={settingsMiniOpen}
+                className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white ${collapsedRowClass(
+                  isCollapsed,
+                  isMobileRail
+                )} text-[#94A3B8] hover:text-[#64748B]`}
+              >
+                <PanelLeftClose
+                  className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
+                  strokeWidth={1.5}
+                  aria-hidden
+                />
+              </button>
+            </div>
+            {settingsNavItems.map((item) => {
+              const Icon = item.icon;
+              const active =
+                pendingHref !== null
+                  ? item.href === pendingHref
+                  : isSettingsNavItemActive(item, pathname);
+              return (
+                <div key={item.id} className="mb-1 w-full">
+                  <Link
+                    href={item.href}
+                    onClick={() => handleNavClick(item.href)}
+                    aria-current={active ? "page" : undefined}
+                    title={item.label}
+                    className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
+                      isCollapsed,
+                      isMobileRail
+                    )} ${navTextClass(active)}`}
+                  >
+                    <Icon
+                      className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
+                      strokeWidth={1.5}
+                      aria-hidden
+                      style={{ color: "var(--brand-primary)" }}
+                    />
+                    {active ? (
+                      <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
+                    ) : null}
+                    <NavPendingCue />
+                  </Link>
+                </div>
+              );
+            })}
+          </>
+        ) : null}
+        {settingsRailActive && (isCollapsed || isMobileRail)
+          ? null
+          : renderedSections.map((section) => {
           const collapsedNavHref =
             (isCollapsed || isMobileRail) && section.children?.length
               ? getFirstNavigableChildHref(section.children)
@@ -438,37 +554,30 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
           return (
           <div key={section.label} className={isMobileRail || isCollapsed ? "mb-1 w-full" : ""}>
             {section.children?.length ? (
-              section.label === "Settings" && inSettingsArea ? (
-                <button
-                  type="button"
+              section.label === "Settings" && (isCollapsed || isMobileRail) ? (
+                <Link
+                  href={settingsLandingHref}
                   onClick={() => {
-                    onToggleCollapsed?.();
+                    handleNavClick(settingsLandingHref);
+                    onEnterSettingsRail?.();
                   }}
-                  title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white ${collapsedRowClass(
+                  aria-current={inSettingsArea ? "page" : undefined}
+                  title="Settings"
+                  className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                     isCollapsed,
                     isMobileRail
-                  )} ${navTextClass(section.childActive || section.active)}`}
+                  )} ${navTextClass(inSettingsArea || section.childActive || section.active)}`}
                 >
-                  <div
-                    className={`flex min-w-0 flex-1 items-center gap-3 ${isCollapsed || isMobileRail ? "justify-center" : ""}`}
-                  >
-                    <SidebarNavIcon
-                      iconType={section.iconType}
-                      active={section.childActive || section.active}
-                      colorHex={iconTintHex}
-                    />
-                    {!isCollapsed && !isMobileRail ? (
-                      <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
-                        {section.label}
-                      </span>
-                    ) : null}
-                  </div>
-                  {section.childActive || section.active ? (
+                  <SidebarNavIcon
+                    iconType={section.iconType}
+                    active={inSettingsArea || section.childActive || section.active}
+                    colorHex={iconTintHex}
+                  />
+                  {inSettingsArea || section.childActive || section.active ? (
                     <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
                   ) : null}
-                </button>
+                  <NavPendingCue />
+                </Link>
               ) : collapsedNavHref ? (
                 <Link
                   href={collapsedNavHref}
@@ -500,12 +609,9 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                     // Settings submenus live in the mini-sidebar: open Settings landing + collapse main rail.
                     if (section.label === "Settings") {
                       event.preventDefault();
-                      if (inSettingsArea) {
-                        onToggleCollapsed?.();
-                        return;
-                      }
                       router.push(settingsLandingHref);
                       handleNavClick(settingsLandingHref);
+                      onEnterSettingsRail?.();
                       return;
                     }
                     handleSectionToggleClick(section.label, event);
@@ -657,11 +763,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
                 className={`group relative flex items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                   isCollapsed,
                   isMobileRail
-                )} ${navTextClass(section.active)}${
-                  section.label === "Launch Pad" && section.active && !isCollapsed && !isMobileRail
-                    ? " border border-[#BC8B41]"
-                    : ""
-                }`}
+                )} ${navTextClass(section.active)}`}
               >
                 <SidebarNavIcon
                   iconType={section.iconType}
@@ -788,6 +890,99 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
           {...sidebarHoverProps}
         >
           {renderSidebarContent(false, { showMobileClose: true })}
+        </aside>
+      </div>
+
+      {/* Settings mini-sidebar overlay (labels) — opened from the gray rail toggle */}
+      <div
+        className={`fixed inset-0 z-[60] transition-opacity ${
+          settingsMiniOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden={!settingsMiniOpen}
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/30"
+          aria-label="Close settings mini sidebar"
+          onClick={() => setSettingsMiniOpen(false)}
+        />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings mini sidebar"
+          className={`absolute inset-y-0 left-0 flex h-full w-[min(195px,85vw)] flex-col overflow-hidden border-r border-[#E5E7EB] bg-white px-3.5 py-4 shadow-xl transition-transform duration-200 ease-in-out motion-reduce:transition-none ${
+            settingsMiniOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-[#012352]">Settings</p>
+            <button
+              type="button"
+              onClick={() => setSettingsMiniOpen(false)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
+              aria-label="Close settings mini sidebar"
+              title="Close"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSettingsMiniOpen(false);
+              onOpenMainSidebar?.();
+            }}
+            className="mb-3 w-full text-left text-xs font-medium text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+          >
+            Open main sidebar
+          </button>
+          <nav className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
+            {settingsNavGroups.map((group, groupIndex) => (
+              <div key={group.id} className="flex flex-col gap-3">
+                {groupIndex > 0 ? <div className="h-px w-full bg-[#E5E7EB]" role="separator" /> : null}
+                {group.label ? (
+                  <p className="text-xs font-semibold uppercase leading-[18px] text-[#4B5563]">
+                    {group.label}
+                  </p>
+                ) : null}
+                <div className="flex flex-col gap-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active =
+                      pendingHref !== null
+                        ? item.href === pendingHref
+                        : isSettingsNavItemActive(item, pathname);
+                    return (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        onClick={() => {
+                          handleNavClick(item.href);
+                          setSettingsMiniOpen(false);
+                        }}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex w-full items-center gap-1.5 overflow-hidden rounded px-2 py-1.5 text-xs leading-4 transition-colors ${
+                          active
+                            ? "border border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)]"
+                            : "border border-transparent text-[#012352] hover:bg-[#F8FAFC]"
+                        }`}
+                      >
+                        <Icon
+                          className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`}
+                          strokeWidth={1.5}
+                          aria-hidden
+                          style={{ color: "var(--brand-primary)" }}
+                        />
+                        <span className="truncate font-normal">{item.label}</span>
+                        <NavPendingCue />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
         </aside>
       </div>
     </>

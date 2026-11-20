@@ -24,7 +24,6 @@ import {
   AddressField,
   EMPLOYEE_COUNT_OPTIONS,
   INDUSTRY_OPTIONS,
-  SelectField,
   TextField,
 } from "./account-form-fields";
 import AccountCheckbox from "./AccountCheckbox";
@@ -145,6 +144,14 @@ export default function BusinessInfoTab() {
     if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
     return "";
   }, [state, stateRows]);
+
+  const industryOptions = useMemo(() => {
+    const options = [...INDUSTRY_OPTIONS];
+    if (industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry)) {
+      options.unshift(industry);
+    }
+    return options;
+  }, [industry]);
 
   useEffect(() => {
     if (!selectedStateCode || selectedStateCode.length !== 2) {
@@ -451,8 +458,9 @@ export default function BusinessInfoTab() {
               </div>
 
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <SelectField
+                <SearchableSelectField
                   label="Industry"
+                  required
                   value={industry}
                   onChange={(value) => {
                     const previous = industry;
@@ -468,33 +476,23 @@ export default function BusinessInfoTab() {
                       setHireForKeys((keys) => [...keys, mapped]);
                     }
                   }}
-                  required
+                  placeholder="Select industry"
+                  searchPlaceholder="Search industry..."
+                  options={industryOptions}
                   error={submitAttempted ? fieldErrors.industry : null}
-                >
-                  <option value="">Select industry</option>
-                  {industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry) ? (
-                    <option value={industry}>{industry}</option>
-                  ) : null}
-                  {INDUSTRY_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </SelectField>
-                <SelectField
+                  emptyMessage="No industries found. Try another search."
+                />
+                <SearchableSelectField
                   label="Number of Employees"
+                  required
                   value={companySize}
                   onChange={(value) => updateField("companySize", value, setCompanySize)}
-                  required
+                  placeholder="Select size"
+                  searchPlaceholder="Search size..."
+                  options={EMPLOYEE_COUNT_OPTIONS}
                   error={submitAttempted ? fieldErrors.companySize : null}
-                >
-                  <option value="">Select size</option>
-                  {EMPLOYEE_COUNT_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </SelectField>
+                  emptyMessage="No sizes found."
+                />
               </div>
 
               <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4">
