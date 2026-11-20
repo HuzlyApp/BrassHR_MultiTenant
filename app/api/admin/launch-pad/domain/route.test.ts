@@ -25,6 +25,16 @@ beforeEach(() => {
 const request = (subdomain = "chosen-company") => new Request("https://brasshr.test/api/admin/launch-pad/domain", { method: "PATCH", body: JSON.stringify({ subdomain, tenantId: "untrusted-tenant" }) });
 
 describe("tenant admin Launch Pad domain", () => {
+  it("returns development links with the saved slug even after changing the subdomain", async () => {
+    const res = await PATCH(new Request("https://brasshr-devmode.vercel.app/api/admin/launch-pad/domain", {
+      method: "PATCH", body: JSON.stringify({ subdomain: "chosen-company" }),
+    }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ usesTenantQuery: true, workspaceUrl: "https://brasshr-devmode.vercel.app/admin_recruiter/home?tenant=original-company" });
+    expect(mocks.register).toHaveBeenCalledWith("chosen-company", { origin: "https://brasshr-devmode.vercel.app" });
+    expect(await (await GET(new Request("https://brasshr-devmode.vercel.app/api/admin/launch-pad/domain"))).json())
+      .toMatchObject({ workspaceUrl: "https://brasshr-devmode.vercel.app/admin_recruiter/home?tenant=original-company" });
+  });
   it("saves only the resolved tenant and returns its workspace URL", async () => {
     const res = await PATCH(request());
     expect(res.status).toBe(200);

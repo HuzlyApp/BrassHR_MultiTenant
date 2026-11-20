@@ -6,7 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { checkSubdomainAvailabilityForOnboarding } from "@/lib/tenant/check-subdomain-availability";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { getEffectiveRootDomain } from "@/lib/tenant/tenant-host-resolution";
-import { buildTenantVanityUrl } from "@/lib/tenant/tenant-vanity-url";
+import { buildTenantWorkspaceUrl, usesTenantQueryUrls } from "@/lib/tenant/tenant-vanity-url";
 import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { registerTenantDomain } from "@/lib/vercel";
@@ -30,19 +30,25 @@ async function context(request?: Request) {
   return { sb, tenantId, tenant };
 }
 
-function payload(subdomain: string | null) {
+function requestOrigin(request?: Request): string | undefined {
+  return request ? new URL(request.url).origin : undefined;
+}
+
+function payload(tenant: { slug: string; subdomain: string | null }, request?: Request) {
   const rootDomain = getEffectiveRootDomain();
+  const origin = requestOrigin(request);
   return {
-    subdomain,
+    subdomain: tenant.subdomain,
     rootDomain,
-    workspaceUrl: subdomain ? buildTenantVanityUrl(subdomain, ADMIN_RECRUITER_HOME_ROUTE, { rootDomain }) : null,
+    usesTenantQuery: origin ? usesTenantQueryUrls(new URL(origin).hostname) : false,
+    workspaceUrl: tenant.subdomain ? buildTenantWorkspaceUrl({ slug: tenant.slug, subdomain: tenant.subdomain }, ADMIN_RECRUITER_HOME_ROUTE, { rootDomain, origin }) : null,
   };
 }
 
 export async function GET(request?: Request) {
   const ctx = await context(request);
   if (ctx instanceof NextResponse) return ctx;
-  return NextResponse.json(payload(ctx.tenant.subdomain), { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(payload(ctx.tenant, request), { headers: { "Cache-Control": "no-store" } });
 }
 
 const input = z.object({ subdomain: z.string().trim().min(1).max(63) });
@@ -62,7 +68,7 @@ export async function PATCH(req: Request) {
     if ("error" in availability) return NextResponse.json({ error: availability.error }, { status: 409 });
   }
   try {
-    await registerTenantDomain(subdomain);
+    await registerTenantDomain(subdomain, { origin: requestOrigin(req) });
   } catch (error) {
     console.error("[launch-pad/domain] registration failed", error);
     return NextResponse.json({ error: "Could not connect your domain. Please try again." }, { status: 502 });
@@ -84,5 +90,5 @@ export async function PATCH(req: Request) {
       deleteCache(buildCacheKey("tenants", ["public", "slug", label], { active: true })),
     ]),
   ]);
-  return NextResponse.json({ ok: true, ...payload(subdomain) });
+  return NextResponse.json({ ok: true, ...payload({ ...ctx.tenant, subdomain }, req) });
 }
