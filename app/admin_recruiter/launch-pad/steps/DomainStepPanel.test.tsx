@@ -35,13 +35,13 @@ describe("domain settings and handoff", () => {
     expect(screen.getByRole("button", { name: "Save & Continue" })).toBeEnabled();
   });
 
-  it("passes the saved tenant URL to the modal after a successful save", async () => {
+  it("completes the domain task without requiring an activated workspace URL", async () => {
     mocks.fetch.mockResolvedValueOnce(Response.json({ rootDomain: "brasshr.test" }));
-    mocks.fetch.mockResolvedValueOnce(Response.json({ workspaceUrl: "https://test-5.brasshr.test/admin_recruiter/home" }));
+    mocks.fetch.mockResolvedValueOnce(Response.json({ ok: true }));
     const onComplete = renderPanel();
     await screen.findByText(".brasshr.test");
     fireEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith("https://test-5.brasshr.test/admin_recruiter/home"));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith());
     expect(JSON.parse(mocks.fetch.mock.calls[1][1].body)).toEqual({ subdomain: "test-5" });
   });
 

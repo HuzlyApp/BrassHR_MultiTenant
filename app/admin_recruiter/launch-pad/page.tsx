@@ -14,8 +14,7 @@ import { LaunchPadStepHeader } from "./LaunchPadStepHeader";
 import {
   countCompletedSteps,
   emptyLaunchPadProgress,
-  markLaunchPadStepComplete,
-  readLaunchPadProgress,
+  syncLaunchPadProgress,
   type LaunchPadProgress,
 } from "./progress";
 import { BrandingStepPanel } from "./steps/BrandingStepPanel";
@@ -30,7 +29,10 @@ function LaunchPadContent() {
   const { organization } = useAccountData();
   const tenantId = organization?.id;
   const [showComplete, setShowComplete] = useState(false);
-  const [workspaceUrl, setWorkspaceUrl] = useState<string | undefined>();
+  const [progressError, setProgressError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [savingProgress, setSavingProgress] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
   const activeStep = isLaunchPadStepId(stepParam) ? stepParam : null;
@@ -38,11 +40,23 @@ function LaunchPadContent() {
   const [progress, setProgress] = useState<LaunchPadProgress>(emptyLaunchPadProgress);
 
   useEffect(() => {
-    const saved = tenantId ? readLaunchPadProgress(tenantId) : emptyLaunchPadProgress();
-    setProgress(saved);
-    setWorkspaceUrl(undefined);
-    setShowComplete(countCompletedSteps(saved) === Object.keys(saved).length);
-  }, [tenantId]);
+    let cancelled = false;
+    setProgress(emptyLaunchPadProgress());
+    setShowComplete(false);
+    setLoadingProgress(true);
+    setProgressError(null);
+    if (!tenantId) return () => { cancelled = true; };
+    void syncLaunchPadProgress(tenantId).then((saved) => {
+      if (cancelled) return;
+      setProgress(saved);
+      setShowComplete(countCompletedSteps(saved) === Object.keys(saved).length);
+    }).catch((error: unknown) => {
+      if (!cancelled) setProgressError(error instanceof Error ? error.message : "Could not load Launch Pad progress.");
+    }).finally(() => {
+      if (!cancelled) setLoadingProgress(false);
+    });
+    return () => { cancelled = true; };
+  }, [tenantId, loadAttempt]);
 
   const openStep = (id: LaunchPadStepId) => {
     router.push(`${ADMIN_LAUNCH_PAD_ROUTE}?step=${id}`);
@@ -52,25 +66,39 @@ function LaunchPadContent() {
     router.push(ADMIN_LAUNCH_PAD_ROUTE);
   };
 
-  const completeStep = (id: LaunchPadStepId) => {
-    if (!tenantId) return;
-    const next = markLaunchPadStepComplete(tenantId, id, true);
-    setProgress(next);
-    if (countCompletedSteps(next) === Object.keys(next).length) setShowComplete(true);
-    backToMain();
+  const completeStep = async (id: LaunchPadStepId) => {
+    if (!tenantId || savingProgress) return;
+    setSavingProgress(true);
+    setProgressError(null);
+    try {
+      // Saving the domain already records that task on the server.
+      const next = await syncLaunchPadProgress(tenantId, id === "domain" ? undefined : id);
+      setProgress(next);
+      if (countCompletedSteps(next) === Object.keys(next).length) setShowComplete(true);
+      backToMain();
+    } catch (error) {
+      setProgressError(error instanceof Error ? error.message : "Could not save Launch Pad progress.");
+    } finally {
+      setSavingProgress(false);
+    }
   };
 
-  const skipStep = () => {
-    // Optional steps can be reviewed later; the workspace address must be confirmed.
-    if (activeStep && activeStep !== "domain") completeStep(activeStep);
-    else backToMain();
-  };
+  // Deferring a task never satisfies the domain-activation requirement.
+  const skipStep = backToMain;
+
+  if (loadingProgress) return <p role="status" className="p-8 text-sm">Loading Launch Pad progress…</p>;
+  if (progressError && !activeStep) return (
+    <div className="p-8">
+      <p role="alert">{progressError}</p>
+      <button type="button" className="mt-3 underline" onClick={() => setLoadAttempt((value) => value + 1)}>Try again</button>
+    </div>
+  );
 
   if (!activeStep) {
     return (
       <div className="flex min-h-full w-full flex-col bg-[#F4F4F4]">
         <LaunchPadChecklist progress={progress} onOpenStep={openStep} />
-        <LaunchPadCompleteModal open={showComplete} onOpenChange={setShowComplete} workspaceUrl={workspaceUrl} setupComplete={countCompletedSteps(progress) === Object.keys(progress).length} />
+        <LaunchPadCompleteModal open={showComplete} onOpenChange={setShowComplete} />
       </div>
     );
   }
@@ -79,6 +107,8 @@ function LaunchPadContent() {
     <div className="flex min-h-full w-full flex-col bg-[#F4F4F4]">
       <div className="flex w-full flex-col gap-6 p-[30px]">
         <LaunchPadStepHeader stepId={activeStep} progress={progress} onBack={backToMain} />
+        {progressError ? <p role="alert" className="text-sm text-red-600">{progressError}</p> : null}
+        <fieldset disabled={savingProgress} className="min-w-0">
 
         {activeStep === "logo" ? (
           <LogoStepPanel
@@ -98,11 +128,7 @@ function LaunchPadContent() {
           <DomainStepPanel
             onBack={backToMain}
             onSkip={skipStep}
-            onComplete={(url) => {
-              completeStep("domain");
-              setWorkspaceUrl(url);
-              setShowComplete(true);
-            }}
+            onComplete={() => { void completeStep("domain"); }}
           />
         ) : null}
         {activeStep === "preview" ? (
@@ -126,6 +152,7 @@ function LaunchPadContent() {
             onComplete={() => completeStep("organization")}
           />
         ) : null}
+        </fieldset>
       </div>
     </div>
   );

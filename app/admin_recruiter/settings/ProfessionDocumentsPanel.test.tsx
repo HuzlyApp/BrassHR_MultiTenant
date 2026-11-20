@@ -234,10 +234,10 @@ describe("ProfessionDocumentsPanel", () => {
     expect(await screen.findAllByRole("link", { name: "Nursing" })).not.toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Add Position" }));
-    expect(await screen.findByRole("dialog", { name: "Add Custom Profession" })).toBeTruthy();
-    await user.type(screen.getByPlaceholderText("Front-End Developer"), "Solar Technician");
+    expect(await screen.findByRole("dialog", { name: "Add Position" })).toHaveAccessibleDescription("Add a position under Healthcare.");
+    await user.type(screen.getByRole("textbox", { name: "Position Name" }), "Solar Technician");
     // Assessment defaults to the first available template.
-    await user.click(screen.getByRole("button", { name: "Create Profession" }));
+    await user.click(screen.getByRole("button", { name: "Create Position" }));
 
     await waitFor(() => {
       expect(lastCreateBody).toEqual({ name: "Solar Technician", industryKey: "healthcare" });

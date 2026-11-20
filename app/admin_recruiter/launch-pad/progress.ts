@@ -87,3 +87,20 @@ export function isLaunchPadFullyComplete(tenantId?: string): boolean {
   const value = readLaunchPadProgress(tenantId);
   return LAUNCH_PAD_STEP_IDS.every((id) => value[id]);
 }
+
+/** Reconcile the browser cache with the authenticated tenant's server-owned progress. */
+export async function syncLaunchPadProgress(tenantId: string, stepId?: LaunchPadStepId): Promise<LaunchPadProgress> {
+  const response = await fetch("/api/admin/launch-pad/progress", stepId ? {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stepId }),
+  } : { cache: "no-store" });
+  const data = await response.json() as { tenantId?: string; progress?: LaunchPadProgress; error?: string };
+  if (!response.ok || data.tenantId !== tenantId || !data.progress) {
+    throw new Error(data.error ?? "Could not load Launch Pad progress. Please try again.");
+  }
+  const progress = emptyLaunchPadProgress();
+  for (const id of LAUNCH_PAD_STEP_IDS) progress[id] = data.progress[id] === true;
+  writeLaunchPadProgress(tenantId, progress);
+  return progress;
+}
