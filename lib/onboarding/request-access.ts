@@ -30,10 +30,60 @@ function createOnboardingAuthClient(): SupabaseClient | null {
   });
 }
 
+/**
+ * Prefer duck-typing over `instanceof NextRequest`.
+ * On Vercel, duplicated `next/server` copies make `instanceof` false and
+ * `new NextRequest(existingNextRequest)` throws:
+ * "Cannot read private member #state..."
+ */
+function asNextRequest(request: Request): NextRequest {
+  if (
+    request &&
+    typeof request === "object" &&
+    "nextUrl" in request &&
+    "cookies" in request &&
+    typeof (request as NextRequest).cookies?.get === "function"
+  ) {
+    return request as NextRequest;
+  }
+  return new NextRequest(request.url, request as RequestInit);
+}
+
+async function readRequestValues(req: NextRequest): Promise<Record<string, unknown>> {
+  const values: Record<string, unknown> = Object.fromEntries(new URL(req.url).searchParams);
+  if (["GET", "HEAD"].includes(req.method)) return values;
+
+  // Use the base Request clone so we don't trip NextRequest private fields,
+  // and so the route handler can still call req.json() afterward.
+  const raw = Request.prototype.clone.call(req) as Request;
+  const contentType = req.headers.get("content-type") || "";
+  if (contentType.includes("multipart/form-data")) {
+    for (const [key, value] of await raw.formData()) {
+      if (typeof value !== "string") continue;
+      if (key in values && values[key] !== value) {
+        throw Object.assign(new Error("identity_conflict"), { code: "identity_conflict" });
+      }
+      values[key] = value;
+    }
+    return values;
+  }
+
+  const body = await raw.json().catch(() => ({}));
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      if (key in values && values[key] !== value) {
+        throw Object.assign(new Error("identity_conflict"), { code: "identity_conflict" });
+      }
+      values[key] = value;
+    }
+  }
+  return values;
+}
+
 /** Verify identity before any legacy handler can use service-role identifiers. */
 export async function authorizeOnboardingRequest(request: Request): Promise<NextResponse | null> {
   try {
-    const req = request instanceof NextRequest ? request : new NextRequest(request);
+    const req = asNextRequest(request);
     const url = new URL(req.url);
     const origin = req.headers.get("origin");
     if (!["GET", "HEAD"].includes(req.method) && origin && origin !== url.origin) {
@@ -41,24 +91,14 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
     }
     const svc = createOnboardingAuthClient();
     if (!svc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    const values: Record<string, unknown> = Object.fromEntries(url.searchParams);
-    if (!["GET", "HEAD"].includes(req.method)) {
-      const copy = req.clone();
-      if (req.headers.get("content-type")?.includes("multipart/form-data")) {
-        for (const [key, value] of await copy.formData()) if (typeof value === "string") {
-          if (key in values && values[key] !== value) return denied();
-          values[key] = value;
-        }
-      } else {
-        const body = await copy.json().catch(() => ({}));
-        // json() can resolve to null; Object.entries(null) throws and becomes a 403.
-        if (body && typeof body === "object" && !Array.isArray(body)) {
-          for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
-            if (key in values && values[key] !== value) return denied();
-            values[key] = value;
-          }
-        }
+    let values: Record<string, unknown>;
+    try {
+      values = await readRequestValues(req);
+    } catch (error) {
+      if (error instanceof Error && (error as { code?: string }).code === "identity_conflict") {
+        return denied("identity_conflict");
       }
+      throw error;
     }
     const str = (key: string) => typeof values[key] === "string" ? String(values[key]).trim() : "";
     for (const aliases of [["applicantId", "applicant_id"], ["workerId", "worker_id"], ["applicationId", "application_id"], ["signingRequestId", "signing_request_id"], ["tenantId", "tenant_id"], ["tenantSlug", "tenant", "slug"]]) {
