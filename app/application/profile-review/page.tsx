@@ -40,7 +40,6 @@ import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboard
 import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
-import AwaitingRecruiterReviewModal from "@/app/components/onboarding/AwaitingRecruiterReviewModal"
 import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import {
   findResumeUploadStep,
@@ -323,7 +322,6 @@ function Step1ReviewContent() {
 
   const [loading, setLoading] = useState(false)
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
-  const [showReviewModal, setShowReviewModal] = useState(false)
   /** Avoid hammering save-worker when a hard email conflict is already known. */
   const autosaveEmailBlockedRef = useRef(false)
   /** Duplicate contact conflict: banner + field highlight (matches design mock). */
@@ -979,7 +977,8 @@ function Step1ReviewContent() {
           : false
 
       if (willWaitOnInternal) {
-        setShowReviewModal(true)
+        // Route guard replaces the editable form with the in-place submitted panel.
+        await onboarding?.refresh?.()
         return
       }
 
@@ -1045,11 +1044,6 @@ function Step1ReviewContent() {
     ) : null
 
   return (
-    <>
-    <AwaitingRecruiterReviewModal
-      open={showReviewModal}
-      onClose={() => setShowReviewModal(false)}
-    />
     <div
       className="relative flex min-h-screen items-stretch justify-center p-3 py-6 sm:items-center sm:p-4 sm:py-8"
       style={shellStyle}
@@ -1392,7 +1386,6 @@ function Step1ReviewContent() {
       </div>
 
     </div>
-    </>
   )
 }
 
