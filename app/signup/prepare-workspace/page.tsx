@@ -24,13 +24,13 @@ export default function PrepareWorkspacePage() {
           );
           return;
         }
-        const payload = await res.json() as { error?: string; code?: string };
+        const payload = await res.json() as { error?: string; code?: string; redirectTo?: string };
         if (res.status === 403 && payload.code === "WAITLIST_PENDING") {
           window.location.replace("/signup/waitlist");
           return;
         }
         if (!res.ok) throw new Error(payload.error ?? "Could not prepare your workspace.");
-        window.location.replace(ADMIN_LAUNCH_PAD_ROUTE);
+        window.location.replace(payload.redirectTo ?? ADMIN_LAUNCH_PAD_ROUTE);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Could not prepare your workspace.");
       }
