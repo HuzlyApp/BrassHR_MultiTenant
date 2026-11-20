@@ -2,7 +2,8 @@
 # Docs: https://supabase.com/docs/guides/cli/config
 #
 # Environment mapping (remote projects):
-#   Development: mgucromvpnxntwyssltd (BrassHR_South) — localhost + Preview
+#   Staging:     qowirmiicsrglehiaoil — staging / development deployment
+#   Separate:    mgucromvpnxntwyssltd (BrassHR_South) — not staging
 #   Production:  avhdoifnsnoeavqxnwwm (BrassHR) — Vercel Production only
 #
 # Never store database passwords, service-role keys, or access tokens in this file.
