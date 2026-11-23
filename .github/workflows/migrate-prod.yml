@@ -1,0 +1,188 @@
+# Apply pending Supabase migrations to PRODUCTION only after human approval.
+#
+# Flow:
+#   1) plan job prints migration summary (no DB write)
+#   2) apply job waits for GitHub Environment "production" approval
+#   3) applies migrations, then emails org recipients
+#
+# Manual run: Actions → Migrate Production Supabase → Run workflow
+# Prefer running from main after the migration PR is merged.
+#
+# Required secrets:
+#   SUPABASE_DB_URL_PROD
+# Optional but recommended:
+#   SUPABASE_DB_URL_STAGING   (to verify staging already has migrations)
+#   RESEND_API_KEY
+#   MIGRATION_NOTIFY_TO
+#   MIGRATION_NOTIFY_FROM
+#
+# Required GitHub setup (one-time):
+#   Settings → Environments → production → Required reviewers
+
+name: Migrate Production Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: 'Type "migrate-production" to confirm'
+        required: true
+        type: string
+      require_staging_parity:
+        description: "Fail if staging is missing any local migrations"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-prod-supabase
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan production migration
+    runs-on: ubuntu-latest
+    outputs:
+      summary: ${{ steps.summary.outputs.text }}
+    steps:
+      - name: Confirm production intent
+        run: |
+          if [ "${{ inputs.confirm_production }}" != "migrate-production" ]; then
+            echo "Confirmation text mismatch. Type exactly: migrate-production"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Summarize migrations
+        id: summary
+        run: |
+          node scripts/summarize-migrations.mjs | tee migration-summary.txt
+          {
+            echo "text<<EOF"
+            cat migration-summary.txt
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload summary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-summary
+          path: migration-summary.txt
+
+  apply:
+    name: Approve + apply production migrations
+    needs: plan
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.67.1
+
+      - name: Download summary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: migration-summary
+
+      - name: Show planned summary
+        run: |
+          echo "Approver context — migrations about to apply:"
+          cat migration-summary.txt
+
+      - name: Verify staging already has local migrations
+        if: ${{ inputs.require_staging_parity }}
+        env:
+          SUPABASE_DB_URL_STAGING: ${{ secrets.SUPABASE_DB_URL_STAGING }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL_STAGING" ]; then
+            echo "SUPABASE_DB_URL_STAGING secret is required when require_staging_parity=true"
+            exit 1
+          fi
+          echo "Dry-run against staging (must be up to date before prod)..."
+          set +e
+          DRY_OUTPUT="$(supabase db push --db-url "$SUPABASE_DB_URL_STAGING" --dry-run 2>&1)"
+          DRY_STATUS=$?
+          set -e
+          echo "$DRY_OUTPUT"
+          if [ "$DRY_STATUS" -ne 0 ]; then
+            echo "Staging dry-run failed. Fix staging connectivity/migrations first."
+            exit 1
+          fi
+          if echo "$DRY_OUTPUT" | grep -qiE "up to date|no new migrations|Remote database is up to date"; then
+            echo "Staging parity OK."
+            exit 0
+          fi
+          if echo "$DRY_OUTPUT" | grep -qiE "Do you want to push|push these migrations|Following migrations"; then
+            echo "Staging is behind local migrations. Run Migrate Staging Supabase first."
+            exit 1
+          fi
+          echo "Could not confidently parse staging dry-run output; failing closed."
+          exit 1
+
+      - name: Apply migrations to production
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL_PROD }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Missing secret SUPABASE_DB_URL_PROD"
+            exit 1
+          fi
+          supabase db push --db-url "$SUPABASE_DB_URL" --yes
+
+      - name: Email success notification
+        if: success()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MIGRATION_NOTIFY_TO: ${{ secrets.MIGRATION_NOTIFY_TO }}
+          MIGRATION_NOTIFY_FROM: ${{ secrets.MIGRATION_NOTIFY_FROM }}
+          MIGRATION_ENV: production
+          MIGRATION_STATUS: success
+          MIGRATION_ACTOR: ${{ github.actor }}
+          MIGRATION_SHA: ${{ github.sha }}
+          MIGRATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$RESEND_API_KEY" ] || [ -z "$MIGRATION_NOTIFY_TO" ]; then
+            echo "Notify skipped (RESEND_API_KEY / MIGRATION_NOTIFY_TO not set)"
+            exit 0
+          fi
+          export MIGRATION_SUMMARY="$(cat migration-summary.txt)"
+          node scripts/migration-notify.mjs
+
+      - name: Email failure notification
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MIGRATION_NOTIFY_TO: ${{ secrets.MIGRATION_NOTIFY_TO }}
+          MIGRATION_NOTIFY_FROM: ${{ secrets.MIGRATION_NOTIFY_FROM }}
+          MIGRATION_ENV: production
+          MIGRATION_STATUS: failed
+          MIGRATION_ACTOR: ${{ github.actor }}
+          MIGRATION_SHA: ${{ github.sha }}
+          MIGRATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$RESEND_API_KEY" ] || [ -z "$MIGRATION_NOTIFY_TO" ]; then
+            echo "Notify skipped (RESEND_API_KEY / MIGRATION_NOTIFY_TO not set)"
+            exit 0
+          fi
+          export MIGRATION_SUMMARY="$(cat migration-summary.txt 2>/dev/null || echo 'Production migration failed.')"
+          node scripts/migration-notify.mjs
