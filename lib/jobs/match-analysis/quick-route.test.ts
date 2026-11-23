@@ -63,7 +63,7 @@ describe("recomputeQuickMatchMetrics", () => {
     expect(result.quick_route).toBe("LOW_MATCH");
   });
 
-  it("forces LOW_MATCH when two or more mandatory rows are NOT_FOUND", () => {
+  it("forces LOW_MATCH when two or more hard mandatory rows are NOT_FOUND", () => {
     const result = recomputeQuickMatchMetrics({
       mandatory_requirements: [
         { requirement: "Java", status: "CONFIRMED", evidence: "Acme 2022" },
@@ -77,7 +77,29 @@ describe("recomputeQuickMatchMetrics", () => {
       blocking_requirements: [],
     });
     expect(result.weighted).toBeGreaterThan(0.5);
+    expect(result.counts.not_found).toBe(2);
     expect(result.quick_route).toBe("LOW_MATCH");
+  });
+
+  it("keeps STRONG when only soft preferred/physical rows are NOT_FOUND", () => {
+    const result = recomputeQuickMatchMetrics({
+      mandatory_requirements: [
+        { requirement: "5+ years as a barista", status: "CONFIRMED", evidence: "Starbucks 2015" },
+        { requirement: "2+ years supervisory", status: "CONFIRMED", evidence: "People's Coffee 2020" },
+        { requirement: "Espresso skills", status: "CONFIRMED", evidence: "Gnome Cafe 2018" },
+        { requirement: "Hiring and training", status: "CONFIRMED", evidence: "People's Coffee 2020" },
+        { requirement: "Scheduling and inventory", status: "CONFIRMED", evidence: "People's Coffee 2020" },
+        { requirement: "Customer service", status: "CONFIRMED", evidence: "Ninth Street 2023" },
+        { requirement: "Flexible weekends", status: "CONFIRMED", evidence: "Gnome Cafe 2018" },
+        { requirement: "Food Handler preferred; ServSafe a plus", status: "NOT_FOUND", evidence: "" },
+        { requirement: "Ability to lift 40 lbs and stand for long periods", status: "NOT_FOUND", evidence: "" },
+      ],
+      preferred_requirements: [],
+      blocking_requirements: [],
+    });
+    expect(result.counts.not_found).toBe(2);
+    expect(result.weighted).toBeGreaterThanOrEqual(0.7);
+    expect(result.quick_route).toBe("STRONG");
   });
 
   it("keeps a model LOW_MATCH (e.g. core seat not confirmed) even when the math says STRONG", () => {
