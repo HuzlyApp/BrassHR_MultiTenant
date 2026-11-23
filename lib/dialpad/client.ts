@@ -1,4 +1,13 @@
 const DIALPAD_API = "https://dialpad.com/api/v2";
+/** Keep Dialpad outbound calls from hanging the Call settings tab forever. */
+const DIALPAD_FETCH_TIMEOUT_MS = 12_000;
+
+function dialpadFetchInit(init: RequestInit = {}): RequestInit {
+  return {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(DIALPAD_FETCH_TIMEOUT_MS),
+  };
+}
 
 export class DialpadError extends Error {
   status: number;
@@ -98,13 +107,16 @@ export async function listDialpadUsers(apiKey: string): Promise<DialpadCaller[]>
   for (let page = 0; page < 20; page += 1) {
     const url = new URL(`${DIALPAD_API}/users`);
     if (cursor) url.searchParams.set("cursor", cursor);
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      cache: "no-store",
-    });
+    const response = await fetch(
+      url,
+      dialpadFetchInit({
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        cache: "no-store",
+      })
+    );
     if (!response.ok) throw await dialpadError(response);
     const body = (await response.json()) as { items?: unknown; cursor?: unknown };
     const items = Array.isArray(body.items) ? body.items : [];
@@ -182,13 +194,16 @@ export async function listDialpadCalls(apiKey: string, startedAfterMs: number): 
     const url = new URL(`${DIALPAD_API}/call`);
     url.searchParams.set("started_after", String(Math.trunc(startedAfterMs)));
     if (cursor) url.searchParams.set("cursor", cursor);
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      cache: "no-store",
-    });
+    const response = await fetch(
+      url,
+      dialpadFetchInit({
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        cache: "no-store",
+      })
+    );
     if (!response.ok) {
       if (response.status === 403) {
         await response.text().catch(() => "");
@@ -220,16 +235,19 @@ export async function initiateDialpadCall(
   if (!/^\d{1,20}$/.test(input.userId)) {
     throw new DialpadError("Choose a Dialpad user to place the call.", 400);
   }
-  const response = await fetch(`${DIALPAD_API}/call`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: `{"phone_number":${JSON.stringify(input.phoneNumber)},"user_id":${input.userId}}`,
-    cache: "no-store",
-  });
+  const response = await fetch(
+    `${DIALPAD_API}/call`,
+    dialpadFetchInit({
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: `{"phone_number":${JSON.stringify(input.phoneNumber)},"user_id":${input.userId}}`,
+      cache: "no-store",
+    })
+  );
   if (!response.ok) throw await dialpadError(response);
   const body = (await response.json()) as { call_id?: unknown };
   return { callId: idString(body.call_id) };
