@@ -520,7 +520,8 @@ export async function listOnboardingFlows(
     return { flows: [], publishedCount: 0, unpublishedCount: 0, library: null };
   }
 
-  await ensureDefaultTenantOnboardingFlows(supabase, tenantId, library.id);
+  // Listing a folder must not provision or recreate workflows. Default creation
+  // belongs to the explicit onboarding setup/assignment paths.
 
   const baseQuery = supabase
     .from("onboarding_flows")
@@ -608,7 +609,7 @@ export async function createOnboardingFlow(
   }
 
   let builderDraft: SerializableWorkflowState = { nodes: [], edges: [] };
-  let templateId: string | null = input.templateId ?? null;
+  const templateId: string | null = input.templateId ?? null;
   const createAsBlank = input.createAsBlank === true || !templateId;
 
   if (!createAsBlank && templateId) {

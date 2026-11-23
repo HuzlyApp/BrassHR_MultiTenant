@@ -65,6 +65,7 @@ export default function ClientsPage() {
   // Add Client Modal
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [newContactPerson, setNewContactPerson] = useState("");
   const [newStreetAddress, setNewStreetAddress] = useState("");
@@ -285,10 +286,11 @@ export default function ClientsPage() {
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompanyName.trim()) {
-      toast.error("Company name is required.");
+    if (!newCompanyName.trim() || newCompanyName.trim().length > 120) {
+      setCreateError(!newCompanyName.trim() ? "Company name is required." : "Company name must be 120 characters or fewer.");
       return;
     }
+    setCreateError(null);
 
     setSaving(true);
     try {
@@ -315,7 +317,7 @@ export default function ClientsPage() {
       resetAddClientForm();
       await loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error creating client.");
+      setCreateError(err instanceof Error ? err.message : "Error creating client.");
     } finally {
       setSaving(false);
     }
@@ -332,7 +334,7 @@ export default function ClientsPage() {
 
         <button
           type="button"
-          onClick={() => setAddModalOpen(true)}
+          onClick={() => { setCreateError(null); setAddModalOpen(true); }}
           className="flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 active:scale-[0.98]"
           style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
         >
@@ -572,10 +574,10 @@ export default function ClientsPage() {
       {/* Add Client Modal */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl transition-all">
+          <div role="dialog" aria-modal="true" aria-labelledby="add-client-title" className="w-full max-w-lg rounded-2xl bg-white shadow-xl transition-all">
             <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
               <div>
-                <h3 className="text-lg font-bold text-[#0F172A]">Add Client Organization</h3>
+                <h3 id="add-client-title" className="text-lg font-bold text-[#0F172A]">Add Client Organization</h3>
                 <p className="text-xs text-[#64748B]">Register a new client company</p>
               </div>
               <button
@@ -590,7 +592,8 @@ export default function ClientsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateClient} className="space-y-4 px-6 py-5">
+            <form noValidate onSubmit={handleCreateClient} className="space-y-4 px-6 py-5">
+              {createError ? <p role="alert" className="text-sm text-red-600">{createError}</p> : null}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Company Name <span className="text-rose-500">*</span>
@@ -599,10 +602,13 @@ export default function ClientsPage() {
                   type="text"
                   required
                   placeholder="e.g. SummitBridge Staffing"
+                  maxLength={120}
+                  aria-label="Company Name"
                   value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  onChange={(e) => { setNewCompanyName(e.target.value); setCreateError(null); }}
                   className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
                 />
+                <p className="mt-1 text-xs text-[#64748B]">{newCompanyName.length}/120 characters</p>
               </div>
 
               <div>

@@ -88,10 +88,12 @@ function normalizeLanguage(value: string | null | undefined): string {
 type AccountPreferencesPanelProps = {
   /** `preferences` = login/prefs only; `mfa-deactivate` = 2FA + deactivate only; `full` = both. */
   variant?: "full" | "preferences" | "mfa-deactivate";
+  showMfa?: boolean;
 };
 
 export default function AccountPreferencesPanel({
   variant = "full",
+  showMfa = true,
 }: AccountPreferencesPanelProps) {
   const showPreferences = variant === "full" || variant === "preferences";
   const showMfaDeactivate = variant === "full" || variant === "mfa-deactivate";
@@ -116,6 +118,7 @@ export default function AccountPreferencesPanel({
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [nextEmail, setNextEmail] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [emailOtpOpen, setEmailOtpOpen] = useState(false);
   const [emailOtpSubmitting, setEmailOtpSubmitting] = useState(false);
   const [emailOtpVerified, setEmailOtpVerified] = useState(false);
@@ -159,6 +162,7 @@ export default function AccountPreferencesPanel({
   }, [settings]);
 
   useEffect(() => {
+    if (!showMfa || !showMfaDeactivate) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -174,7 +178,7 @@ export default function AccountPreferencesPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showMfa, showMfaDeactivate]);
 
   useEffect(() => {
     return () => {
@@ -272,10 +276,11 @@ export default function AccountPreferencesPanel({
     const trimmed = normalizeAccountEmail(nextEmail);
     const validationError = validateEmailChange(trimmed, email);
     if (validationError) {
-      toast.error(validationError);
+      setEmailError(validationError);
       return;
     }
 
+    setEmailError(null);
     setEmailBusy(true);
     setEmailOtpError(null);
     setEmailOtpVerified(false);
@@ -501,7 +506,8 @@ export default function AccountPreferencesPanel({
               className={BTN_SECONDARY_OUTLINE}
               style={BRAND_SECONDARY_STYLE}
               onClick={() => {
-                setNextEmail(email);
+                setNextEmail("");
+                setEmailError(null);
                 setEmailModalOpen(true);
               }}
             >
@@ -643,6 +649,7 @@ export default function AccountPreferencesPanel({
 
       {showMfaDeactivate ? (
         <>
+      {showMfa ? (
       <section className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -652,7 +659,7 @@ export default function AccountPreferencesPanel({
             <div>
               <p className="text-sm font-semibold text-[#0F172A]">Two-Factor Authentication (2FA)</p>
               <p className="mt-0.5 text-sm text-[#64748B]">
-                Add extra layer of security to your account.
+                Add an extra layer of security to your account.
               </p>
               {mfaError ? <p className="mt-1 text-xs text-red-600">{mfaError}</p> : null}
             </div>
@@ -666,7 +673,7 @@ export default function AccountPreferencesPanel({
               <span
                 className={`h-2 w-2 rounded-full ${verified ? "bg-emerald-500" : "bg-[#94A3B8]"}`}
               />
-              {mfaLoading ? "Checking..." : verified ? "Enabled" : "Not enable"}
+              {mfaLoading ? "Checking..." : verified ? "Enabled" : "Not enabled"}
             </span>
             {verified ? (
               <button
@@ -740,6 +747,7 @@ export default function AccountPreferencesPanel({
           </form>
         ) : null}
       </section>
+      ) : null}
 
       <section className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -770,6 +778,7 @@ export default function AccountPreferencesPanel({
       {showPreferences && emailModalOpen ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
           <form
+            noValidate
             onSubmit={(event) => void handleChangeEmail(event)}
             className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
           >
@@ -785,9 +794,15 @@ export default function AccountPreferencesPanel({
                 type="email"
                 className={FIELD}
                 value={nextEmail}
-                onChange={(event) => setNextEmail(event.target.value)}
+                aria-invalid={Boolean(emailError)}
+                aria-describedby={emailError ? "next-email-error" : undefined}
+                onChange={(event) => {
+                  setNextEmail(event.target.value);
+                  setEmailError(null);
+                }}
                 autoComplete="email"
               />
+              {emailError ? <p id="next-email-error" role="alert" className="mt-1 text-sm text-red-600">{emailError}</p> : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button

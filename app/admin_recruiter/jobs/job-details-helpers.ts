@@ -1,3 +1,4 @@
+import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { jobDescriptionPlainText } from "@/lib/jobs/job-description-html";
 import type { JobStatus } from "@/lib/jobs/types";
 import { formatCityState } from "@/lib/location/city-state";
@@ -121,31 +122,15 @@ export function formatJobDetailsDate(iso: string | null | undefined): string {
 }
 
 export function formatJobDetailsPay(job: JobDetailsRow): string {
-  const periodRaw = String(job.pay_rate_period || job.rate_unit || "").trim();
-  const period = periodRaw
-    ? periodRaw.toLowerCase().startsWith("per ")
-      ? periodRaw.toLowerCase()
-      : `per ${periodRaw.toLowerCase().replace(/^per\s+/i, "")}`
-    : "";
+  return formatPublicJobPayRate({
+    ...job,
+    pay_rate: job.suggested_pay_rate ?? job.pay_rate,
+  }) ?? "—";
+}
 
-  const min = job.pay_rate_min;
-  const max = job.pay_rate_max;
-  const single =
-    job.suggested_pay_rate != null
-      ? Number(job.suggested_pay_rate)
-      : job.pay_rate != null
-        ? Number(job.pay_rate)
-        : null;
-
-  if (min != null && max != null) {
-    return period ? `$${min} - $${max} ${period}` : `$${min} - $${max}`;
-  }
-  if (min != null) return period ? `$${min} ${period}` : `$${min}`;
-  if (max != null) return period ? `$${max} ${period}` : `$${max}`;
-  if (single != null && !Number.isNaN(single)) {
-    return period ? `$${single} ${period}` : `$${single}`;
-  }
-  return "—";
+export function formatJobDetailsPostedDate(job: JobDetailsRow): string {
+  if (String(job.status).trim().toLowerCase() === "draft" || !job.published_at) return "Not posted";
+  return formatJobDetailsDate(job.published_at);
 }
 
 export function formatJobDetailsLocation(job: JobDetailsRow): string {

@@ -51,6 +51,7 @@ import {
   type WorkflowState,
 } from "./types";
 import { withLeafDropZones } from "./workflow-canvas-utils";
+import { rejectWorkflowStepTextDrop } from "./workflow-step-drag";
 
 const FOOTER_BTN =
   "flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50 max-[999px]:h-5 max-[999px]:gap-1 max-[999px]:rounded-md max-[999px]:px-1.5 max-[999px]:text-[10px] max-[999px]:leading-none";
@@ -420,6 +421,7 @@ function WorkflowBuilderInner({
 
   return (
     <div
+      onDropCapture={rejectWorkflowStepTextDrop}
       className={`flex w-full flex-col overflow-hidden ${
         fillParent
           ? "h-full min-h-0"
@@ -756,7 +758,7 @@ function WorkflowBuilderInner({
                 className="absolute bottom-4 right-4 z-10 text-xs"
                 style={{ color: TEXT_MUTED }}
               >
-                Draft <span style={{ color: "#d0d5dd" }}>•</span> Last updated{" "}
+                {publishStatusLabel ?? "Draft"} <span style={{ color: "#d0d5dd" }}>•</span> Last updated{" "}
                 {lastUpdated.minutesAgo}m ago by {lastUpdated.author}
               </p>
             ) : null}

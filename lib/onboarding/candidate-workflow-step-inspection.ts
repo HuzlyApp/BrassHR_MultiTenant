@@ -379,7 +379,7 @@ export function candidateWaitingMessage(
 ): string {
   const where = screenTitle
     ? `completes it on the ${screenTitle} screen`
-    : CANDIDATE_SCREEN_BY_KIND[kind] ?? "completes it in the application portal";
+    : CANDIDATE_SCREEN_BY_KIND[kind] ?? "completes this step";
   const progress =
     status === "in_progress"
       ? "The candidate has opened this step but hasn't finished it yet."
@@ -1354,7 +1354,7 @@ export async function loadCandidateWorkflowStepInspection(
       progressData.firma_signed === true ||
       progressData.authorization_agreed === true ||
       Boolean(asText(progressData.signed_document_url) || asText(progressData.download_url));
-    let isSigned = requiresStoredSignature
+    const isSigned = requiresStoredSignature
       ? storedSignature
       : storedSignature ||
         mapped.displayStatus === "completed" ||

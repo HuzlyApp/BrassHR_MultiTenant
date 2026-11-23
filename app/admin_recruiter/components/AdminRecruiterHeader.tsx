@@ -537,7 +537,7 @@ export function AdminRecruiterHeader({
               aria-expanded={showProfileMenu}
             >
             <span className="flex min-w-0 items-center gap-2">
-              <span className="relative shrink-0">
+              {profileNameLoading ? <span role="status" aria-label="Loading profile" className="size-8 shrink-0 animate-pulse rounded-full bg-slate-200" /> : <span className="relative shrink-0">
                 <StaffProfileAvatar
                   name={displayName ?? "Account"}
                   photoUrl={profilePhoto}
@@ -545,13 +545,13 @@ export function AdminRecruiterHeader({
                   className="text-[14px]!"
                 />
                 <span className="absolute right-0 bottom-0 size-1.5 rounded-full bg-[#6CE778]" aria-hidden />
-              </span>
+              </span>}
               <span className="hidden min-w-0 flex-col text-left sm:flex">
                 <span className="-mb-[3px] max-w-[88px] truncate text-[14px] leading-5 font-semibold text-black md:max-w-[140px]">
-                  {profileNameLoading ? "Loading..." : displayName ?? "Account"}
+                  {profileNameLoading ? <span className="my-1 block h-3 w-20 animate-pulse rounded bg-slate-200" /> : displayName ?? "Account"}
                 </span>
                 <span className="max-w-[88px] truncate text-[10px] leading-[15px] font-light text-[#6B7280] md:max-w-[140px]">
-                  {displayRole}
+                  {accountLoading ? <span className="mt-1 block h-2 w-12 animate-pulse rounded bg-slate-200" /> : displayRole}
                 </span>
               </span>
             </span>

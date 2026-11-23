@@ -897,6 +897,7 @@ export default function JobApplicationsPage() {
     review: "30_days",
     hired: "30_days",
   });
+  const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsTimeframesData, setMetricsTimeframesData] = useState<Record<
     string,
     { total: number; shortlisted: number; review: number; hired: number }
@@ -1258,6 +1259,7 @@ export default function JobApplicationsPage() {
   useEffect(() => {
     let cancelled = false;
     async function loadMetrics() {
+      setMetricsLoading(true);
       try {
         const url = jobId
           ? `/api/admin/job-applications/metrics?jobId=${encodeURIComponent(jobId)}`
@@ -1277,6 +1279,8 @@ export default function JobApplicationsPage() {
         setMetricsTimeframesData(payload.timeframes ?? null);
       } catch {
         if (!cancelled) setMetricsTimeframesData(null);
+      } finally {
+        if (!cancelled) setMetricsLoading(false);
       }
     }
     void loadMetrics();
@@ -3339,7 +3343,7 @@ export default function JobApplicationsPage() {
             Applicants
           </h1>
           <p className="text-xs leading-4 text-[#374151]">
-            Manage teams in one place
+            Review applicants and manage their hiring progress
           </p>
         </div>
 
@@ -3394,6 +3398,8 @@ export default function JobApplicationsPage() {
 
       {/* 4 Metric Stat Cards matching Figma */}
       <ApplicantsMetricsCards
+        loading={metricsLoading}
+        error={!metricsLoading && !metricsTimeframesData}
         counts={dynamicMetricsCounts}
         timeframes={metricTimeframes}
         timeframeOptions={metricTimeframeOptions}

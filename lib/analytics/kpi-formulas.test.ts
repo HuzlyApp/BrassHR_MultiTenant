@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  averageEngagedHours,
   engagementRatio,
   formatMetricDisplay,
   jobCoverage,
@@ -13,6 +14,12 @@ import {
 } from "@/lib/analytics/kpi-formulas";
 
 describe("kpi-formulas", () => {
+  it("averages engagement over all staff, even when only one was active", () => {
+    expect(averageEngagedHours(14 * 3600, 14)).toBe(1);
+    expect(averageEngagedHours(0, 14)).toBe(0);
+    expect(averageEngagedHours(3600, 0)).toBeNull();
+    expect(averageEngagedHours(null, 14)).toBeNull();
+  });
   it("returns N/A for zero denominators", () => {
     const ratio = safeRatio(5, 0);
     expect(ratio.value).toBeNull();

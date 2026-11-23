@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  candidateWaitingMessage,
   esignInspectionHasSignatureFields,
   inspectionKindForStep,
   recruiterCanCompleteOpenCandidateStep,
@@ -12,6 +13,13 @@ import {
   LEGACY_UNMATCHED_STEP_MESSAGE,
   STEP_COMPLETED_WITHOUT_DOCUMENT_MESSAGE,
 } from "@/lib/onboarding/assigned-workflow-steps";
+
+describe("candidate step waiting copy", () => {
+  it("mentions the portal once for generic steps", () => {
+    const message = candidateWaitingMessage("generic", "pending");
+    expect(message.match(/application portal/g)).toHaveLength(1);
+  });
+});
 
 describe("esign inspection signature fields", () => {
   it("hides the signature panel when Authorization e-sign has no signature template", () => {

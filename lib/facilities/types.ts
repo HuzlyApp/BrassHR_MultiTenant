@@ -1,4 +1,5 @@
 export type FacilityFormInput = {
+  clientId?: string;
   name: string;
   streetAddress: string;
   city: string;
@@ -60,6 +61,7 @@ export type DuplicateFacilityResult = {
 };
 
 export type FacilityManagementItem = {
+  clientId?: string;
   id: string;
   name: string;
   address: string | null;
@@ -94,6 +96,7 @@ export type FacilityAssignableCandidate = {
 };
 
 export type FacilitiesListResponse = {
+  clients?: Array<{ id: string; name: string }>;
   facilities: FacilityManagementItem[];
   meta: { tenantId: string; total: number };
 };

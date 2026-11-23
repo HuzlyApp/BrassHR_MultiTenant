@@ -430,7 +430,7 @@ export default function SecurityTab() {
         </div>
       </div>
 
-      <AccountPreferencesPanel variant="mfa-deactivate" />
+      <AccountPreferencesPanel variant="mfa-deactivate" showMfa={false} />
 
       <AccountOtpModal
         open={otpOpen}

@@ -1,3 +1,5 @@
+import { FacilityValidationError } from "@/lib/facilities/errors";
+import { parseRequiredUuid } from "@/lib/validation/uuid";
 import { NextRequest, NextResponse } from "next/server";
 import { loadFacilitiesForTenant } from "@/lib/facilities/facility-management-service";
 import { createFacility, validateFacilityFormInput } from "@/lib/facilities/facility-service";
@@ -11,6 +13,7 @@ export const runtime = "nodejs";
 
 function parseFacilityInput(body: Record<string, unknown>): FacilityFormInput {
   return {
+    clientId: String(body.clientId ?? ""),
     name: String(body.name ?? ""),
     streetAddress: String(body.streetAddress ?? ""),
     city: String(body.city ?? ""),
@@ -29,12 +32,14 @@ async function resolveTenantContext(tenantIdFromBody?: string) {
   return resolveStaffFacilityTenantContext(tenantIdFromBody);
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const resolved = await resolveStaffFacilityTenantContext();
     if ("error" in resolved && resolved.error) return resolved.error;
 
-    const data = await loadFacilitiesForTenant(resolved.supabase, resolved.tenantId);
+    const clientId = req.nextUrl.searchParams.get("client")?.trim();
+    if (clientId && !parseRequiredUuid(clientId, "client").ok) return NextResponse.json({ error: "Invalid client" }, { status: 400 });
+    const data = await loadFacilitiesForTenant(resolved.supabase, resolved.tenantId, clientId);
     return NextResponse.json(data);
   } catch (err) {
     console.error("[admin/facilities GET]", err);
@@ -115,6 +120,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/facilities POST]", err);
+    if (err instanceof FacilityValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof ServiceAreaDeniedError) {
       return serviceAreaDeniedResponse(err);
     }

@@ -5,6 +5,12 @@
 
 export type MetricAvailability = "available" | "insufficient_sample" | "missing" | "zero_denominator";
 
+/** Include every staff account in scope, including accounts without activity. */
+export function averageEngagedHours(totalSeconds: number | null, staffCount: number): number | null {
+  if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0 || !Number.isFinite(staffCount) || staffCount <= 0) return null;
+  return Math.round((totalSeconds / 3600 / staffCount) * 100) / 100;
+}
+
 export type MetricValue = {
   value: number | null;
   availability: MetricAvailability;

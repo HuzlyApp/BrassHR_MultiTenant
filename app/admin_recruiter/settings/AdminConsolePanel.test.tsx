@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AdminConsolePanel from "@/app/admin_recruiter/settings/AdminConsolePanel";
 import type { StaffDirectoryRow } from "@/lib/admin/staff-directory-types";
@@ -124,6 +124,31 @@ describe("AdminConsolePanel resend invitation", () => {
 
     await user.click(screen.getByRole("button", { name: "Actions for Ada Lovelace" }));
     expect(screen.getByRole("menuitem", { name: "Resend invitation" })).toBeInTheDocument();
+  });
+
+  it("disables the action trigger when a row has no available actions", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({
+      users: [{ ...pendingAdmin, canResend: false, canRemove: false }],
+      roles: [{ key: "admin", label: "Admin", isAdmin: true }],
+    }) })));
+    render(<AdminConsolePanel />);
+    const action = await screen.findByRole("button", { name: "Actions for Grace Hopper" });
+    expect(action).toBeDisabled();
+    expect(action).toHaveAttribute("title", "No available actions for this user.");
+    fireEvent.click(action);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it.each(["", "not-an-email", "a@b"])("shows inline validation for invalid invite email %s", async (email) => {
+    render(<AdminConsolePanel />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Invite User" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Invite User" }));
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } });
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: email } });
+    fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid email address.");
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
   });
 
   it("posts the invitation id when resend is clicked", async () => {

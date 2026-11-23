@@ -1,3 +1,5 @@
+import { FacilityValidationError } from "./errors";
+import { parseRequiredUuid } from "@/lib/validation/uuid";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildFacilityAbout,
@@ -67,99 +69,15 @@ function toListItem(
   };
 }
 
-async function resolveClientId(supabase: SupabaseClient, tenantId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
+export async function assertApprovedFacilityWorker(supabase: SupabaseClient, tenantId: string, workerAuthId: string): Promise<void> {
+  const { data: candidate, error } = await supabase.from("worker").select("id")
+    .eq("tenant_id", tenantId).eq("user_id", workerAuthId).maybeSingle();
   if (error) throw error;
-  return data?.id ? String(data.id) : null;
-}
-
-async function getTenantName(supabase: SupabaseClient, tenantId: string): Promise<string | null> {
-  const { data, error } = await supabase.from("tenants").select("name").eq("id", tenantId).maybeSingle();
-  if (error) throw error;
-  return data?.name ? String(data.name) : null;
-}
-
-async function resolveClientUserId(
-  supabase: SupabaseClient,
-  tenantId: string,
-  staffUserId?: string | null
-): Promise<string | null> {
-  const { data: existingClients, error: existingClientsError } = await supabase
-    .from("clients")
-    .select("user_id");
-  if (existingClientsError) throw existingClientsError;
-
-  const usedUserIds = new Set(
-    ((existingClients ?? []) as { user_id?: string | null }[])
-      .map((row) => String(row.user_id ?? "").trim())
-      .filter(Boolean)
-  );
-
-  const { data: tenantUsers, error: tenantUsersError } = await supabase
-    .from("users")
-    .select("id, role")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: true });
-  if (tenantUsersError) throw tenantUsersError;
-
-  const candidates = ((tenantUsers ?? []) as { id: string; role?: string | null }[]).filter(
-    (user) => !usedUserIds.has(String(user.id))
-  );
-
-  if (staffUserId) {
-    const staffCandidate = candidates.find((user) => user.id === staffUserId);
-    if (staffCandidate) return staffCandidate.id;
-  }
-
-  const adminCandidate = candidates.find((user) => {
-    const role = String(user.role ?? "").toLowerCase();
-    return role === "admin" || role === "recruiter" || role === "manager";
-  });
-  if (adminCandidate) return adminCandidate.id;
-
-  return candidates[0]?.id ?? null;
-}
-
-async function resolveOrCreateClientId(
-  supabase: SupabaseClient,
-  tenantId: string,
-  options?: { staffUserId?: string | null; facilityInput?: FacilityFormInput }
-): Promise<string> {
-  const existingClientId = await resolveClientId(supabase, tenantId);
-  if (existingClientId) return existingClientId;
-
-  const clientUserId = await resolveClientUserId(supabase, tenantId, options?.staffUserId);
-  if (!clientUserId) {
-    throw new Error(
-      "Unable to provision a client record for this tenant. Add a tenant admin user before creating facilities."
-    );
-  }
-
-  const tenantName = await getTenantName(supabase, tenantId);
-  const companyName =
-    options?.facilityInput?.name?.trim() || tenantName?.trim() || "Recruiter Managed Client";
-  const address = options?.facilityInput ? formatFacilityAddress(options.facilityInput) : null;
-
-  const { data, error } = await supabase
-    .from("clients")
-    .insert({
-      tenant_id: tenantId,
-      user_id: clientUserId,
-      company_name: companyName,
-      address,
-    })
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return String(data.id);
+  if (!candidate?.id) throw new FacilityValidationError("Worker not found.", 404);
+  const { data: worker, error: workerError } = await supabase.from("workers").select("id")
+    .eq("tenant_id", tenantId).eq("candidate_id", candidate.id).eq("conversion_status", "converted").maybeSingle();
+  if (workerError) throw workerError;
+  if (!worker?.id) throw new FacilityValidationError("Approve as Worker before assigning this person to a facility.", 409);
 }
 
 export async function findDuplicateFacility(
@@ -202,6 +120,7 @@ async function resolveAssignedFacilityIdsForWorker(
   const { data: assignmentRows, error: assignmentError } = await supabase
     .from("worker_shift_assignments")
     .select("id, shift_id, worker_id, assigned_at, status")
+    .neq("status", "cancelled")
     .eq("tenant_id", tenantId)
     .in("worker_id", workerIds);
   if (assignmentError) throw assignmentError;
@@ -349,6 +268,7 @@ export async function assignFacilityToWorker(
   workerAuthId: string,
   facilityId: string
 ): Promise<{ assignmentId: string; alreadyAssigned: boolean }> {
+  await assertApprovedFacilityWorker(supabase, tenantId, workerAuthId);
   const { data: facility, error: facilityError } = await supabase
     .from("facility")
     .select("id, tenant_id, client_id, name, address")
@@ -390,6 +310,7 @@ export async function assignFacilityToWorker(
   const { data: existingAssignments, error: assignmentLookupError } = await supabase
     .from("worker_shift_assignments")
     .select("id, shift_id, worker_id")
+    .neq("status", "cancelled")
     .eq("tenant_id", tenantId)
     .eq("worker_id", workerAuthId);
 
@@ -444,6 +365,9 @@ export async function createFacility(
   input: FacilityFormInput,
   options?: { assignToWorkerAuthId?: string; staffUserId?: string | null }
 ): Promise<CreateFacilityResult | DuplicateFacilityResult> {
+  const validationError = validateFacilityFormInput(input);
+  if (validationError) throw new FacilityValidationError(validationError);
+  if (options?.assignToWorkerAuthId) await assertApprovedFacilityWorker(supabase, tenantId, options.assignToWorkerAuthId);
   const { assertTenantCanOperate, evaluateServiceAreaWithDb } = await import("@/lib/service-area/db");
   await assertTenantCanOperate(supabase, tenantId);
   const { serviceAreaMessage } = await import("@/lib/service-area/copy");
@@ -474,10 +398,11 @@ export async function createFacility(
     return { duplicate: true, facility: duplicate };
   }
 
-  const clientId = await resolveOrCreateClientId(supabase, tenantId, {
-    staffUserId: options?.staffUserId,
-    facilityInput: input,
-  });
+  const clientId = input.clientId!.trim();
+  const { data: client, error: clientError } = await supabase.from("clients").select("id")
+    .eq("tenant_id", tenantId).eq("id", clientId).maybeSingle();
+  if (clientError) throw clientError;
+  if (!client?.id) throw new FacilityValidationError("Choose a client organization from this tenant.");
 
   const address = formatFacilityAddress(input);
   const about = buildFacilityAbout(input);
@@ -527,10 +452,30 @@ export async function createFacility(
 }
 
 export function validateFacilityFormInput(input: FacilityFormInput): string | null {
+  if (!parseRequiredUuid(input.clientId, "client organization").ok) return "Choose a client organization.";
   if (!input.name?.trim()) return "Facility name is required.";
   if (!input.streetAddress?.trim()) return "Street address is required.";
   if (!input.city?.trim()) return "City is required.";
   if (!input.state?.trim()) return "State is required.";
   if (!input.zipCode?.trim()) return "ZIP code is required.";
+  if (!/^\d{5}(?:-\d{4})?$/.test(input.zipCode.trim())) return "Enter a valid 5-digit ZIP code or ZIP+4.";
   return null;
+}
+
+/** Cancel facility assignments while retaining their audit history and the shifts themselves. */
+export async function unassignWorkerFromFacility(supabase: SupabaseClient, tenantId: string, facilityId: string, assignmentId: string): Promise<number> {
+  const { data: assignment, error } = await supabase.from("worker_shift_assignments")
+    .select("id, worker_id, shift_id").eq("tenant_id", tenantId).eq("id", assignmentId).maybeSingle();
+  if (error) throw error;
+  if (!assignment) throw new FacilityValidationError("Assignment not found.", 404);
+  const { data: shifts, error: shiftError } = await supabase.from("shifts").select("id")
+    .eq("tenant_id", tenantId).eq("facility_id", facilityId);
+  if (shiftError) throw shiftError;
+  const shiftIds = (shifts ?? []).map((shift) => String(shift.id));
+  if (!shiftIds.includes(String(assignment.shift_id))) throw new FacilityValidationError("Assignment not found for this facility.", 404);
+  const { data: cancelled, error: updateError } = await supabase.from("worker_shift_assignments")
+    .update({ status: "cancelled" }).eq("tenant_id", tenantId).eq("worker_id", assignment.worker_id)
+    .in("shift_id", shiftIds).neq("status", "cancelled").select("id");
+  if (updateError) throw updateError;
+  return cancelled?.length ?? 0;
 }

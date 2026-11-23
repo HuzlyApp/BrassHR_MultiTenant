@@ -1,8 +1,11 @@
+import { parseRequiredUuid } from "@/lib/validation/uuid";
+import { easternDateString } from "@/lib/datetime/eastern";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import {
   createEmployeeScheduleShift,
+  deleteEmployeeScheduleShift,
   loadEmployeeScheduleWeek,
   updateEmployeeScheduleShift,
 } from "@/lib/scheduling/employee-schedule-service";
@@ -99,7 +102,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
     }
 
-    const body = (await req.json()) as CreateEmployeeScheduleShiftInput;
+    const body = (await req.json()) as CreateEmployeeScheduleShiftInput & { confirmPastDate?: boolean };
+    if (body.workDate && body.workDate < easternDateString(new Date()) && body.confirmPastDate !== true) {
+      return NextResponse.json({ error: "Shift date is in the past. Confirm to continue.", code: "PAST_SHIFT_DATE" }, { status: 409 });
+    }
     const shift = await createEmployeeScheduleShift(supabase, scope.tenantId, body);
     return NextResponse.json({ shift }, { status: 201 });
   } catch (err) {
@@ -147,5 +153,25 @@ export async function PATCH(req: NextRequest) {
     }
     const status = /required|must be|select an employee|does not belong|invalid/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: status === 400 ? message : "Failed to update shift." }, { status });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireStaffApiSession();
+    if (auth instanceof NextResponse) return auth;
+    const scope = await resolveStaffTenantScope(auth.authUser);
+    if (scope.mode !== "scoped") return NextResponse.json({ error: "Select a tenant before deleting a shift." }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    const id = parseRequiredUuid(typeof body?.id === "string" ? body.id : "", "shift id");
+    if (!id.ok) return NextResponse.json({ error: id.error }, { status: 400 });
+    const supabase = createServiceRoleClient();
+    if (!supabase) return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
+    const deleted = await deleteEmployeeScheduleShift(supabase, scope.tenantId, id.value);
+    if (!deleted) return NextResponse.json({ error: "Shift not found." }, { status: 404 });
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    console.error("[admin/scheduling/week DELETE]", error);
+    return NextResponse.json({ error: "Failed to delete shift." }, { status: 500 });
   }
 }

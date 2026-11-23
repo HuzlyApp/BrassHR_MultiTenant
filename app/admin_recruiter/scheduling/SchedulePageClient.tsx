@@ -42,6 +42,7 @@ import {
   formatEmployeeShiftOverlapMessage,
   formatShiftRange,
   shiftsOverlap,
+  parseEmployeeScheduleShiftInput,
   type EmployeeScheduleEmployee,
   type EmployeeScheduleShift,
   type EmployeeScheduleWeekResponse,
@@ -221,6 +222,8 @@ export default function SchedulePageClient() {
   const [selectedFacility, setSelectedFacility] = useState<string>("all");
   const [addShiftOpen, setAddShiftOpen] = useState(false);
   const [savingShift, setSavingShift] = useState(false);
+  const [createShiftError, setCreateShiftError] = useState<string | null>(null);
+  const [deletingShift, setDeletingShift] = useState(false);
   const [selectedShift, setSelectedShift] = useState<EmployeeScheduleShift | null>(null);
   const [shiftModalMode, setShiftModalMode] = useState<"view" | "edit">("view");
   const [savingEditShift, setSavingEditShift] = useState(false);
@@ -631,18 +634,17 @@ export default function SchedulePageClient() {
 
   const handleCreateShift = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShiftTitle.trim()) {
-      toast.error("Please enter a shift title / job role.");
-      return;
-    }
-    if (!newShiftWorkerId) {
-      toast.error("Select an employee for this shift.");
-      return;
-    }
-    if (!newShiftDate) {
-      toast.error("Please select a date for the shift.");
-      return;
-    }
+    const input = {
+      title: newShiftTitle.trim(), facilityId: newShiftFacilityId || null,
+      departmentId: newShiftDepartmentId || null, workerId: newShiftWorkerId,
+      workDate: newShiftDate, startTime: newShiftStartTime, endTime: newShiftEndTime,
+      ratePerHour: newShiftRate ? Number(newShiftRate) : null, notes: newShiftNotes.trim() || null,
+    };
+    const validation = parseEmployeeScheduleShiftInput(input);
+    if (!validation.ok) { setCreateShiftError(validation.error); return; }
+    setCreateShiftError(null);
+    const isPastDate = newShiftDate < easternDateString(new Date());
+    if (isPastDate && !window.confirm("This shift date is in the past. Create it anyway?")) return;
 
     const localConflict = findLoadedOverlap(
       newShiftWorkerId,
@@ -667,17 +669,7 @@ export default function SchedulePageClient() {
       const res = await fetch("/api/admin/scheduling/week", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newShiftTitle.trim(),
-          facilityId: newShiftFacilityId || null,
-          departmentId: newShiftDepartmentId || null,
-          workerId: newShiftWorkerId,
-          workDate: newShiftDate,
-          startTime: newShiftStartTime,
-          endTime: newShiftEndTime,
-          ratePerHour: newShiftRate ? parseFloat(newShiftRate) : null,
-          notes: newShiftNotes.trim() || null,
-        }),
+        body: JSON.stringify({ ...input, confirmPastDate: isPastDate }),
       });
 
       if (!res.ok) {
@@ -692,7 +684,7 @@ export default function SchedulePageClient() {
       setNewShiftRate("");
       await loadSchedule();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error creating shift.");
+      setCreateShiftError(err instanceof Error ? err.message : "Error creating shift.");
     } finally {
       setSavingShift(false);
     }
@@ -716,6 +708,22 @@ export default function SchedulePageClient() {
     setSelectedShift(null);
     setShiftModalMode("view");
     setSavingEditShift(false);
+  };
+
+  const handleDeleteShift = async () => {
+    if (!selectedShift || deletingShift || !window.confirm(`Delete shift "${selectedShift.title}"? This cannot be undone.`)) return;
+    setDeletingShift(true);
+    try {
+      const response = await fetch("/api/admin/scheduling/week", {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedShift.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Failed to delete shift.");
+      closeShiftModal();
+      await loadSchedule();
+      toast.success("Shift deleted.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete shift."); }
+    finally { setDeletingShift(false); }
   };
 
   const selectedShiftEmployee = useMemo(() => {
@@ -799,6 +807,7 @@ export default function SchedulePageClient() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 md:px-8">
+      <p role="status" className="mb-2 text-xs text-[#64748B]">{shifts.length} shifts in this range · {employees.length} employees</p>
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">
@@ -814,6 +823,7 @@ export default function SchedulePageClient() {
             type="button"
             onClick={() => {
               setNewShiftDate(startDateStr);
+              setCreateShiftError(null);
               setAddShiftOpen(true);
             }}
             className="inline-flex h-9 items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary,#012352)] px-3 text-xs font-semibold text-white transition hover:brightness-95"
@@ -1067,9 +1077,6 @@ export default function SchedulePageClient() {
                 <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-[#F1F5F9] pt-4 text-[10px] text-[#64748B]">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-[#1D4ED8]" aria-hidden />
-                    Work Shift
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-[#6D28D9]" aria-hidden />
                     Work Shift
                   </span>
@@ -1316,6 +1323,10 @@ export default function SchedulePageClient() {
                   >
                     Close
                   </button>
+                  <button type="button" disabled={deletingShift} onClick={() => void handleDeleteShift()}
+                    className="mr-auto h-10 rounded-lg border border-red-200 px-4 text-sm font-semibold text-red-700 disabled:opacity-50">
+                    {deletingShift ? "Deleting…" : "Delete Shift"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShiftModalMode("edit")}
@@ -1503,7 +1514,8 @@ export default function SchedulePageClient() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateShift} className="space-y-4 px-6 py-5">
+            <form noValidate onSubmit={handleCreateShift} className="space-y-4 px-6 py-5">
+              {createShiftError ? <p role="alert" className="text-sm text-red-600">{createShiftError}</p> : null}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Shift Title / Role <span className="text-rose-500">*</span>
@@ -1613,6 +1625,7 @@ export default function SchedulePageClient() {
                 </div>
               </div>
 
+              {newShiftEndTime < newShiftStartTime ? <p role="status" className="text-xs text-[#475569]">Overnight shift: ends the following day.</p> : null}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Rate per Hour ($)

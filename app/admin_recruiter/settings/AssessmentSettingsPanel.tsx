@@ -366,6 +366,10 @@ export default function AssessmentSettingsPanel({
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [passingScoreInput, setPassingScoreInput] = useState<string | null>(null);
+  const [scoreNotice, setScoreNotice] = useState<string | null>(null);
+  const scoreInvalid = passingScoreInput !== null &&
+    (!/^\d+$/.test(passingScoreInput) || Number(passingScoreInput) > 100);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -398,6 +402,8 @@ export default function AssessmentSettingsPanel({
       if (!assessmentRes.ok) throw new Error(payload.error || "Failed to load assessment settings");
       const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
       setCatalog(draft);
+      setPassingScoreInput(null);
+      setScoreNotice(null);
       setSavedCatalog(cloneSkillAssessmentCatalog(draft));
       setPublishedCatalog(payload.settings?.published ? normalizeSkillAssessmentCatalog(payload.settings.published) : null);
       setCanManage(Boolean(payload.canManage));
@@ -445,7 +451,7 @@ export default function AssessmentSettingsPanel({
   }
 
   async function saveDraft() {
-    if (!catalog) return;
+    if (!catalog || scoreInvalid) return;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/assessment-settings", {
@@ -457,6 +463,8 @@ export default function AssessmentSettingsPanel({
       if (!response.ok) throw new Error(payload.error || "Failed to save draft");
       const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
       setCatalog(draft);
+      setPassingScoreInput(null);
+      setScoreNotice(null);
       setSavedCatalog(cloneSkillAssessmentCatalog(draft));
       setPublishedCatalog(payload.settings?.published ? normalizeSkillAssessmentCatalog(payload.settings.published) : null);
       toast.success("Draft saved");
@@ -468,7 +476,7 @@ export default function AssessmentSettingsPanel({
   }
 
   async function publish() {
-    if (!catalog) return;
+    if (!catalog || scoreInvalid) return;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/assessment-settings", {
@@ -480,6 +488,8 @@ export default function AssessmentSettingsPanel({
       if (!response.ok) throw new Error(payload.error || "Failed to publish");
       const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
       setCatalog(draft);
+      setPassingScoreInput(null);
+      setScoreNotice(null);
       setSavedCatalog(cloneSkillAssessmentCatalog(draft));
       setPublishedCatalog(cloneSkillAssessmentCatalog(draft));
       toast.success("Assessment published for new applicants");
@@ -494,6 +504,8 @@ export default function AssessmentSettingsPanel({
     if (!savedCatalog) return;
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
     setCatalog(cloneSkillAssessmentCatalog(savedCatalog));
+    setPassingScoreInput(null);
+    setScoreNotice(null);
     setEditingQuestionId(null);
   }
 
@@ -700,19 +712,39 @@ export default function AssessmentSettingsPanel({
               <label className="block space-y-1">
                 <span className="text-xs font-semibold text-[#64748B]">Passing score (%)</span>
                 <input
-                  type="number"
-                  min={0}
-                  max={100}
+                  type="text"
+                  inputMode="numeric"
                   disabled={!canManage}
-                  value={catalog.scoring.passingScore}
-                  onChange={(e) =>
+                  value={passingScoreInput ?? String(catalog.scoring.passingScore)}
+                  aria-invalid={scoreInvalid}
+                  aria-describedby="passing-score-help"
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    setPassingScoreInput(raw);
+                    setScoreNotice(null);
+                    if (/^\d+$/.test(raw) && Number(raw) <= 100) {
+                      updateCatalog((current) => ({
+                        ...current, scoring: { ...current.scoring, passingScore: Number(raw) },
+                      }));
+                    }
+                  }}
+                  onBlur={() => {
+                    const raw = passingScoreInput ?? String(catalog.scoring.passingScore);
+                    const parsed = Number(raw);
+                    const score = raw.trim() && Number.isFinite(parsed)
+                      ? Math.min(100, Math.max(0, Math.round(parsed))) : catalog.scoring.passingScore;
+                    setPassingScoreInput(String(score));
+                    setScoreNotice(String(score) !== raw ? `Passing score adjusted to ${score}%.` : null);
                     updateCatalog((current) => ({
-                      ...current,
-                      scoring: { ...current.scoring, passingScore: Number(e.target.value) || 0 },
-                    }))
-                  }
+                      ...current, scoring: { ...current.scoring, passingScore: score },
+                    }));
+                  }}
                   className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
                 />
+                <span id="passing-score-help" className={`block text-xs ${scoreInvalid ? "text-red-600" : "text-[#64748B]"}`}>
+                  Enter a whole number from 0 to 100.
+                </span>
+                {scoreNotice ? <span role="status" className="block text-xs text-[#64748B]">{scoreNotice}</span> : null}
               </label>
               <label className="flex items-center gap-2 pt-6 text-sm text-[#0F172A]">
                 <input
@@ -1139,7 +1171,7 @@ export default function AssessmentSettingsPanel({
             </button>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || scoreInvalid}
               onClick={() => void saveDraft()}
               className="h-10 rounded-lg border border-[#012352] bg-white px-4 text-sm font-medium text-[#012352] disabled:opacity-50"
             >
@@ -1147,7 +1179,7 @@ export default function AssessmentSettingsPanel({
             </button>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || scoreInvalid}
               onClick={() => void publish()}
               className="h-10 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white disabled:opacity-50"
             >

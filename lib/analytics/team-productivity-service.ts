@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { labelForRole, loadStaffRoles, staffStorageKeys } from "@/lib/admin/staff-roles";
 import { listDepartments } from "@/lib/departments/service";
 import {
+  averageEngagedHours,
   engagementRatio,
   formatMetricDisplay,
   jobCoverage,
@@ -718,12 +719,7 @@ export async function buildTeamProductivityPayload(
     /hire/i.test("event_type" in a ? a.event_type : ""),
   ).length;
 
-  const avgEngaged =
-    hasSessionData && employeesWithActivity > 0
-      ? hoursFromSeconds(totalEngagedSeconds / employeesWithActivity)
-      : hasSessionData
-        ? hoursFromSeconds(totalEngagedSeconds / Math.max(totalEmployees, 1))
-        : null;
+  const avgEngaged = averageEngagedHours(hasSessionData ? totalEngagedSeconds : null, totalEmployees);
 
   const engagement = engagementRatio(
     hasSessionData ? totalEngagedSeconds / 60 : null,
@@ -733,10 +729,10 @@ export async function buildTeamProductivityPayload(
   const overviewCards: MetricCard[] = [
     cardFromChange(
       "total_employees",
-      "Total employees",
+      "Total staff accounts",
       totalEmployees,
       null,
-      "Staff members in scope for the selected filters",
+      "Tenant staff accounts in scope for the selected filters, including admins and recruiters. This is separate from the Workers directory.",
     ),
     cardFromChange(
       "employees_with_activity",
@@ -794,7 +790,7 @@ export async function buildTeamProductivityPayload(
       "Avg engaged hours / employee",
       avgEngaged,
       null,
-      "Total engaged hours divided by employees with activity when available",
+      "Total engaged hours divided by all staff accounts in scope, including accounts without activity",
       "hours",
     ),
     cardFromChange(
