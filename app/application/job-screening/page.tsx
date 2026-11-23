@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
-import AwaitingRecruiterReviewModal from "@/app/components/onboarding/AwaitingRecruiterReviewModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
@@ -71,7 +70,6 @@ export default function JobScreeningPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
-  const [showWaitingModal, setShowWaitingModal] = useState(false);
 
   const currentStep = useMemo(() => {
     if (!onboarding?.config?.steps) return null;
@@ -196,8 +194,8 @@ export default function JobScreeningPage() {
           : null;
 
         if (nextStep && isApplicantWaitingGateStep(nextStep)) {
-          // Show modal for recruiter-owned steps, do not navigate away
-          setShowWaitingModal(true);
+          // Route guard swaps the form for the in-place submitted panel.
+          await onboarding?.refresh?.();
           return;
         } else {
           // Navigate immediately for candidate steps
@@ -313,8 +311,8 @@ export default function JobScreeningPage() {
           : null;
 
         if (nextStep && isApplicantWaitingGateStep(nextStep)) {
-          // Show modal for recruiter-owned steps, do not navigate away
-          setShowWaitingModal(true);
+          // Route guard swaps the form for the in-place submitted panel.
+          await onboarding?.refresh?.();
           return;
         } else {
           // Navigate immediately for candidate steps
@@ -595,11 +593,6 @@ export default function JobScreeningPage() {
           </div>
         </div>
       </OnboardingLayout>
-
-      <AwaitingRecruiterReviewModal 
-        open={showWaitingModal} 
-        onClose={() => setShowWaitingModal(false)} 
-      />
     </>
   );
 }

@@ -17,7 +17,7 @@ export const POST_HIRE_LOCKED_MESSAGE =
   "Post-Hire steps become available after the candidate is Selected and required Pre-Hire steps are nearly complete.";
 
 export const WAITING_ON_INTERNAL_MESSAGE =
-  "Your documents have been submitted. No action is required from you right now. We will email you when the next step is ready.";
+  "You don't need to do anything else right now. If we decide to move forward, we'll be in touch.";
 
 export const POST_HIRE_LOCKED_TAB_MESSAGE =
   "Available after Selected by Client when required Pre-Hire steps are nearly complete.";

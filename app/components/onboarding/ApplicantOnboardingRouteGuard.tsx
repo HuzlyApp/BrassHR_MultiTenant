@@ -1,17 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
-import AwaitingRecruiterReviewModal from "@/app/components/onboarding/AwaitingRecruiterReviewModal";
+import AwaitingRecruiterReviewScreen from "@/app/components/onboarding/AwaitingRecruiterReviewScreen";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
-import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { resolveApplicantOnboardingRoute } from "@/lib/onboarding/resolve-applicant-onboarding-route";
 import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { useAutoSkipNonNavigableApplicantSteps } from "@/lib/onboarding/use-auto-skip-non-navigable-steps";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
+
+/**
+ * Resume upload marks the resume step complete before profile-review runs.
+ * Until that review is saved, keep the intake screens editable even if the
+ * frontier already reports waitingOnInternal (next engine step is recruiter-owned).
+ */
+function isResumeIntakePending(pathname: string): boolean {
+  const onIntake =
+    pathname.startsWith("/application/add-resume") ||
+    pathname.startsWith("/application/profile-review");
+  if (!onIntake) return false;
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem("step1ReviewCompleted") !== "true";
+}
 
 function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
@@ -21,9 +34,17 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
   const onboarding = useOnboardingConfigOptional();
   const { sessionReady, sessionLoading } = useApplicantSession();
   const lastRedirectRef = useRef<string | null>(null);
-  const [awaitingReviewOpen, setAwaitingReviewOpen] = useState(false);
-  const closeAwaitingReview = useCallback(() => setAwaitingReviewOpen(false), []);
   const waitingOnInternal = onboarding?.waitingOnInternal === true;
+  const inPostHire =
+    onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
+  // Re-read after profile-review sets step1ReviewCompleted and refreshes.
+  const [resumeIntakePending, setResumeIntakePending] = useState(() =>
+    isResumeIntakePending(pathname)
+  );
+
+  useEffect(() => {
+    setResumeIntakePending(isResumeIntakePending(pathname));
+  }, [pathname, onboarding?.progress, onboarding?.waitingOnInternal]);
 
   const tenantSlug = useMemo(() => {
     const fromQuery = searchParams.get("tenant")?.trim().toLowerCase();
@@ -39,7 +60,15 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     searchParams.get("mode")?.trim().toLowerCase() === "test";
   const isApplicantDashboard =
     pathname.startsWith("/application/applicant-dashboard") ||
-    pathname.startsWith("/application/home");
+    pathname.startsWith("/application/home") ||
+    pathname.startsWith("/application/candidate");
+
+  const showSubmittedPanel =
+    waitingOnInternal &&
+    !resumeIntakePending &&
+    !inPostHire &&
+    !isApplicantDashboard &&
+    !isDraftPreview;
 
   const enabledSteps = useMemo(
     () => resolveApplicantEnabledSteps(onboarding?.config ?? null, onboarding?.loadingConfig ?? true),
@@ -89,21 +118,15 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
       lastRedirectRef.current = null;
       return;
     }
+    // While showing the submitted panel, stay on the current URL instead of bouncing.
+    // Resume intake (add-resume → profile-review) must still be allowed to navigate.
+    if (showSubmittedPanel) {
+      return;
+    }
     if (lastRedirectRef.current === decision.href) return;
     lastRedirectRef.current = decision.href;
-    // The application-status page explains the wait itself; only bounces back to a step need the modal.
-    // Post-hire candidate steps continue without the pre-hire recruiter-review modal.
-    const inPostHire =
-      onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
-    if (
-      waitingOnInternal &&
-      !inPostHire &&
-      !decision.href.startsWith(APPLICATION_ROUTES.applicationStatus)
-    ) {
-      setAwaitingReviewOpen(true);
-    }
     replace(decision.href);
-  }, [decision, replace, waitingOnInternal, onboarding?.workflowPhase]);
+  }, [decision, replace, showSubmittedPanel]);
 
   const showLoading =
     decision.status === "loading" &&
@@ -121,12 +144,11 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     );
   }
 
-  return (
-    <>
-      {children}
-      <AwaitingRecruiterReviewModal open={awaitingReviewOpen} onClose={closeAwaitingReview} />
-    </>
-  );
+  if (showSubmittedPanel) {
+    return <AwaitingRecruiterReviewScreen />;
+  }
+
+  return <>{children}</>;
 }
 
 /** Waits for session, tenant, config, and progress before redirecting applicants. */
