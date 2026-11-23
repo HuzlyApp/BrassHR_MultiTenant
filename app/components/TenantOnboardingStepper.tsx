@@ -3,7 +3,7 @@
 import { AlertCircle, Check } from "lucide-react";
 import type { TenantStepIndicatorState } from "@/lib/tenant/tenant-onboarding-stepper-status";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 export const TENANT_ONBOARDING_STEPPER_ITEMS = [
   "Select Goals",

@@ -4,7 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 type Hsv = { h: number; s: number; v: number };
 

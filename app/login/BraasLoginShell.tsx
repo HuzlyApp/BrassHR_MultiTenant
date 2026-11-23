@@ -12,7 +12,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 
-export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+export { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 export const loginInputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";

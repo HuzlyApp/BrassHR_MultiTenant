@@ -20,3 +20,11 @@ export const BRAND_HEADING_COLOR_STYLE: CSSProperties = {
 export const BRAND_MUTED_COLOR_STYLE: CSSProperties = {
   color: "var(--brand-muted)",
 };
+
+/**
+ * Drop-in replacement for legacy `interStyle` objects.
+ * Uses the active tenant body font so auth/onboarding/admin screens stay branded.
+ */
+export const brandUiFontStyle = {
+  fontFamily: "var(--brand-font-body), Inter, Arial, sans-serif",
+} as const satisfies CSSProperties;

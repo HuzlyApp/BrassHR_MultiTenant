@@ -1,6 +1,15 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDownIcon, RefreshCw } from "lucide-react";
@@ -17,6 +26,7 @@ import {
   patchEffectiveBrandingCache,
 } from "@/lib/admin/hooks/use-effective-branding";
 import { notifyBrandingUpdated } from "@/lib/tenant/branding-events";
+import { writeCachedTenantBranding } from "@/lib/tenant/client-branding-cache";
 import {
   brandingFontFamily,
   TENANT_BRANDING_FONT_SIZE_OPTIONS,
@@ -88,6 +98,112 @@ function FieldBlock({
   );
 }
 
+function BrandingDropdownOptionButton({
+  selected,
+  label,
+  style,
+  onSelect,
+}: {
+  selected: boolean;
+  label: string;
+  style?: CSSProperties;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={selected}
+      onClick={onSelect}
+      className={`flex w-full items-center px-3 py-2.5 text-left text-sm transition ${
+        selected
+          ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] font-semibold text-[color:var(--brand-primary)]"
+          : "text-[#0F172A] hover:bg-[#F8FAFC]"
+      }`}
+      style={style}
+    >
+      {label}
+    </button>
+  );
+}
+
+function BrandingDropdown<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  valueStyle,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ id: T; label: string; style?: CSSProperties }>;
+  onChange: (id: T) => void;
+  valueStyle?: CSSProperties;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.id === value) ?? options[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="block space-y-2" ref={rootRef}>
+      <span className="block text-sm font-semibold text-[#0F172A]">{label}</span>
+      <div className="relative">
+        <button
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((open) => !open)}
+          className="flex h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#CBD5E1] bg-white py-2 pl-3 pr-3 text-left text-sm text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
+          style={valueStyle}
+        >
+          <span className="min-w-0 flex-1 truncate">{selected?.label ?? value}</span>
+          <ChevronDownIcon
+            className={`size-4 shrink-0 text-[#64748B] transition-transform duration-200 ${
+              isOpen ? "rotate-180" : ""
+            }`}
+            aria-hidden
+          />
+        </button>
+        {isOpen ? (
+          <div
+            role="listbox"
+            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+          >
+            {options.map((option) => (
+              <BrandingDropdownOptionButton
+                key={option.id}
+                selected={option.id === value}
+                label={option.label}
+                style={option.style}
+                onSelect={() => {
+                  onChange(option.id);
+                  setIsOpen(false);
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function FontSelect({
   label,
   value,
@@ -97,36 +213,40 @@ function FontSelect({
   value: TenantBrandingFontId;
   onChange: (id: TenantBrandingFontId) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
-    <FieldBlock label={label}>
-      <div className="relative">
-        <select
-          value={value}
-          onMouseDown={() => setIsOpen(true)}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => setIsOpen(false)}
-          onChange={(event) => {
-            onChange(event.target.value as TenantBrandingFontId);
-            setIsOpen(false);
-          }}
-          className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
-          style={{ fontFamily: brandingFontFamily(value) }}
-        >
-          {TENANT_BRANDING_FONT_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id} style={{ fontFamily: option.fontFamily }}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
-          <ChevronDownIcon
-            className={`size-4 text-[#64748B] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-          />
-        </span>
-      </div>
-    </FieldBlock>
+    <BrandingDropdown
+      label={label}
+      value={value}
+      onChange={onChange}
+      valueStyle={{ fontFamily: brandingFontFamily(value) }}
+      options={TENANT_BRANDING_FONT_OPTIONS.map((option) => ({
+        id: option.id,
+        label: option.label,
+        style: { fontFamily: option.fontFamily },
+      }))}
+    />
+  );
+}
+
+function FontSizeSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: TenantBrandingFontSizeId;
+  onChange: (id: TenantBrandingFontSizeId) => void;
+}) {
+  return (
+    <BrandingDropdown
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={TENANT_BRANDING_FONT_SIZE_OPTIONS.map((option) => ({
+        id: option.id,
+        label: option.label,
+      }))}
+    />
   );
 }
 
@@ -629,6 +749,7 @@ export default function BrandingSettingsPanel({
       if (payload.branding) {
         applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
+        writeCachedTenantBranding(payload.branding);
       }
 
       void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
@@ -1007,7 +1128,8 @@ export default function BrandingSettingsPanel({
               <div>
                 <h3 className="text-sm font-semibold leading-5 text-black">Typography</h3>
                 <p className="text-[10px] leading-[15px] text-[#6B7280]">
-                  Fonts and text colors for auth pages
+                  Fonts, sizes, and text colors for this tenant across admin, staff, candidate, and
+                  worker screens
                 </p>
               </div>
               <div className="grid w-full grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
@@ -1029,22 +1151,11 @@ export default function BrandingSettingsPanel({
                   <div className="flex flex-col gap-[14px]">
                     <p className="text-sm font-semibold leading-5 text-black">Font Size</p>
                     <div className="rounded-xl border border-[#E5E7EB] bg-white p-3.5 sm:max-w-sm">
-                      <label className="block space-y-2">
-                        <span className="block text-sm font-semibold text-[#0F172A]">Base font size</span>
-                        <select
-                          value={baseFontSizeId}
-                          onChange={(event) =>
-                            setBaseFontSizeId(event.target.value as TenantBrandingFontSizeId)
-                          }
-                          className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)]"
-                        >
-                          {TENANT_BRANDING_FONT_SIZE_OPTIONS.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <FontSizeSelect
+                        label="Base font size"
+                        value={baseFontSizeId}
+                        onChange={setBaseFontSizeId}
+                      />
                     </div>
                   </div>
                   <div className="flex flex-col gap-[14px]">

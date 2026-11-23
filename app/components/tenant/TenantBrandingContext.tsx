@@ -5,12 +5,37 @@ import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingToCssVars, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 import { applyBrandingHead } from "@/lib/tenant/apply-branding-head";
 import {
+  applyBrandingTypography,
+  clearBrandingTypography,
+} from "@/lib/tenant/apply-branding-typography";
+import {
   getActiveBranding,
   pushActiveBranding,
   subscribeActiveBranding,
 } from "@/lib/tenant/branding-head-registry";
 
 const TenantBrandingContext = createContext<TenantBranding>(defaultTenantBranding());
+
+function brandingTypographyKey(branding: TenantBranding): string {
+  return [
+    branding.slug,
+    branding.primaryFontId,
+    branding.headingFontId,
+    branding.bodyFontId,
+    branding.baseFontSizeId,
+    branding.fontColor,
+    branding.headingColor,
+    branding.mutedTextColor,
+    branding.primaryHex,
+    branding.secondaryHex,
+    branding.accentHex,
+    branding.logoUrl,
+    branding.faviconUrl,
+    branding.companyName,
+    branding.headline,
+    branding.subtitle,
+  ].join("|");
+}
 
 export function TenantBrandingProvider({
   branding,
@@ -25,36 +50,32 @@ export function TenantBrandingProvider({
   useLayoutEffect(() => {
     const pop = pushActiveBranding(safe);
 
-    const syncHead = () => {
-      if (getActiveBranding() === safe) {
-        applyBrandingHead(safe);
-      }
+    const syncDocument = () => {
+      const active = getActiveBranding();
+      if (active !== safe) return;
+      applyBrandingHead(safe);
+      applyBrandingTypography(safe);
     };
 
-    syncHead();
-    const unsubscribe = subscribeActiveBranding(syncHead);
+    syncDocument();
+    const unsubscribe = subscribeActiveBranding(syncDocument);
 
     return () => {
       unsubscribe();
       pop();
+      if (!getActiveBranding()) {
+        clearBrandingTypography();
+      } else {
+        const next = getActiveBranding();
+        if (next) {
+          applyBrandingHead(next);
+          applyBrandingTypography(next);
+        }
+      }
     };
-  }, [
-    safe.slug,
-    safe.logoUrl,
-    safe.companyName,
-    safe.primaryHex,
-    safe.secondaryHex,
-    safe.accentHex,
-    safe.primaryFontId,
-    safe.headingFontId,
-    safe.bodyFontId,
-    safe.fontColor,
-    safe.headingColor,
-    safe.mutedTextColor,
-    safe.faviconUrl,
-    safe.headline,
-    safe.subtitle,
-  ]);
+    // Intentional: key captures all typography + chrome fields that must re-apply.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandingTypographyKey(safe)]);
 
   return (
     <TenantBrandingContext.Provider value={safe}>

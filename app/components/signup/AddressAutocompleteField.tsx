@@ -2,6 +2,7 @@
 
 import { useId, useRef } from "react"
 import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types"
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles"
 
 export type AddressAutocompleteFieldVariant = "signup" | "onboarding" | "facility"
 
@@ -35,9 +36,8 @@ const onboardingInputClass =
 const facilityInputClass =
   "h-11 w-full rounded-md border bg-white px-3 text-sm text-[#111827] outline-none transition placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]"
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" }
 const signupInputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
+  ...interStyle,
   fontWeight: 400,
   letterSpacing: "0",
 } as const

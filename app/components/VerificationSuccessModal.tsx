@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 const SUCCESS_ICON = "/icons/braas-HR/account-ready-icon.svg";
 
 type VerificationSuccessModalProps = {
