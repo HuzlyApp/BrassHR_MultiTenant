@@ -42,7 +42,7 @@ import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
 } from "@/lib/admin/worker-profile-field-client";
-import { isHealthcareIndustryKey } from "@/lib/ai-catalog/industry-catalog";
+import { isHealthcareProfessionIndustry } from "@/lib/ai-catalog/industry-catalog";
 import {
   fetchStaffDetailJson,
   workerProfileApiUrl,
@@ -95,6 +95,8 @@ type ProfilePayload = {
     years_experience: number | null;
     hourly_rate: string | null;
     pay_rate_period?: string | null;
+    allied_health_role?: string | null;
+    specialty?: string | null;
     ssn_last_four: string | null;
     profile_photo_url?: string | null;
   };
@@ -608,13 +610,14 @@ export default function NewApplicantProfilePage() {
 
   const id = applicantId ?? "";
 
-  // Explicitly saved role only — do not fall back to experience/skills/job title guesses.
-  const alliedHealthRoleValue = (w?.job_role ?? "").trim();
+  // Dedicated healthcare fields — do not fall back to job title / experience.
+  const alliedHealthRoleValue = (w?.allied_health_role ?? "").trim();
+  const specialtyValue = (w?.specialty ?? "").trim();
 
-  // Show only when this candidate's job/profession is healthcare-family (not tenant-wide).
-  const showAlliedHealthRole =
-    isHealthcareIndustryKey(data?.job_industry_key) ||
-    isHealthcareIndustryKey(data?.profession_industry_key);
+  // Show only when this candidate's job/profession is healthcare-family.
+  const showHealthcareProfessionFields =
+    isHealthcareProfessionIndustry(data?.job_industry_key) ||
+    isHealthcareProfessionIndustry(data?.profession_industry_key);
 
   // License type / expiry helpers — UI rows commented out (profession documents cover this).
   // const licenseTypeKey = useMemo(() => {
@@ -1060,23 +1063,35 @@ export default function NewApplicantProfilePage() {
                         </div>
                       </div>
                       */}
-                      {showAlliedHealthRole ? (
-                        <CandidateDetailEditableField
-                          label={
-                            <>
-                              Primary Allied Health Role{" "}
-                              <span className="text-[#9CA3AF]">(for Healthcare only)</span>
-                            </>
-                          }
-                          accessibilityLabel="Primary Allied Health Role (for Healthcare only)"
-                          displayValue={alliedHealthRoleValue || "—"}
-                          editValue={alliedHealthRoleValue}
-                          fieldKind="short_text"
-                          isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
-                          placeholder="Enter role"
-                          saving={fieldSaving}
-                          onSave={(value) => saveWorkerField("job_role", value)}
-                        />
+                      {showHealthcareProfessionFields ? (
+                        <>
+                          <CandidateDetailEditableField
+                            label={
+                              <>
+                                Primary Allied Health Role{" "}
+                                <span className="text-[#9CA3AF]">(for Healthcare only)</span>
+                              </>
+                            }
+                            accessibilityLabel="Primary Allied Health Role (for Healthcare only)"
+                            displayValue={alliedHealthRoleValue || "—"}
+                            editValue={alliedHealthRoleValue}
+                            fieldKind="short_text"
+                            isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
+                            placeholder="Enter role"
+                            saving={fieldSaving}
+                            onSave={(value) => saveWorkerField("allied_health_role", value)}
+                          />
+                          <CandidateDetailEditableField
+                            label="Specialty"
+                            displayValue={specialtyValue || "—"}
+                            editValue={specialtyValue}
+                            fieldKind="short_text"
+                            isMissing={isMissingCandidateValue(specialtyValue)}
+                            placeholder="Enter specialty"
+                            saving={fieldSaving}
+                            onSave={(value) => saveWorkerField("specialty", value)}
+                          />
+                        </>
                       ) : null}
                       {/* License type / expiry — handled via profession documents & Attachments, not needed here.
                       <CandidateDetailSelectField
@@ -1428,6 +1443,7 @@ export default function NewApplicantProfilePage() {
                       layout="sidebar"
                     />
 
+                    {/* Skill assessments / Remarks / Status History — not shown on Profile sidebar.
                     <div className={PROFILE_CARD_CLASS}>
                       <div className={PROFILE_CARD_HEADER_CLASS}>
                         <h2 className={PROFILE_CARD_TITLE_CLASS}>Skill assessments</h2>
@@ -1472,6 +1488,7 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                   <CandidateStatusHistoryPanel workerId={id} layout="sidebar" />
+                    */}
                 </section>
               </div>
             </div>
