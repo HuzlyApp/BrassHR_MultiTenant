@@ -73,6 +73,73 @@ export function formatShiftRange(startTime: string, endTime: string): string {
   return `${formatClockLabel(startTime)} - ${formatClockLabel(endTime)}`;
 }
 
+export type ShiftTimeWindow = {
+  workDate: string;
+  startTime: string;
+  endTime: string;
+};
+
+export class EmployeeScheduleConflictError extends Error {
+  readonly status = 409;
+  readonly code = "SHIFT_OVERLAP";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "EmployeeScheduleConflictError";
+  }
+}
+
+function normalizeClock(value: string): { hour: number; minute: number } | null {
+  const match = TIME_RE.exec(value.trim());
+  if (!match) return null;
+  return { hour: Number(match[1]), minute: Number(match[2]) };
+}
+
+/** Absolute minutes from UTC epoch so overnight ranges compare correctly. */
+export function shiftIntervalMinutes(window: ShiftTimeWindow): { start: number; end: number } | null {
+  if (!DATE_RE.test(window.workDate.trim())) return null;
+  const startClock = normalizeClock(window.startTime);
+  const endClock = normalizeClock(window.endTime);
+  if (!startClock || !endClock) return null;
+
+  const [year, month, day] = window.workDate.split("-").map(Number);
+  const start = Date.UTC(year, month - 1, day, startClock.hour, startClock.minute) / 60_000;
+  let end = Date.UTC(year, month - 1, day, endClock.hour, endClock.minute) / 60_000;
+  // Overnight shifts store end_time earlier than start_time on the same work_date.
+  if (end <= start) end += 24 * 60;
+  return { start, end };
+}
+
+export function shiftsOverlap(a: ShiftTimeWindow, b: ShiftTimeWindow): boolean {
+  const left = shiftIntervalMinutes(a);
+  const right = shiftIntervalMinutes(b);
+  if (!left || !right) return false;
+  return left.start < right.end && right.start < left.end;
+}
+
+export function addDaysToIsoDate(isoDate: string, deltaDays: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + deltaDays));
+  const y = next.getUTCFullYear();
+  const m = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(next.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function formatEmployeeShiftOverlapMessage(conflict: {
+  title: string;
+  workDate: string;
+  startTime: string;
+  endTime: string;
+}): string {
+  const title = conflict.title.trim() || "another shift";
+  return (
+    `This worker is already booked for "${title}" ` +
+    `(${formatShiftRange(conflict.startTime, conflict.endTime)}) on ${conflict.workDate}. ` +
+    `Choose a different time or worker.`
+  );
+}
+
 export function parseEmployeeScheduleShiftInput(
   input: CreateEmployeeScheduleShiftInput
 ): { ok: true; value: ParsedEmployeeScheduleShift } | { ok: false; error: string } {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatShiftRange, parseEmployeeScheduleShiftInput } from "./employee-schedule";
+import {
+  addDaysToIsoDate,
+  formatEmployeeShiftOverlapMessage,
+  formatShiftRange,
+  parseEmployeeScheduleShiftInput,
+  shiftsOverlap,
+} from "./employee-schedule";
 
 describe("parseEmployeeScheduleShiftInput", () => {
   const valid = {
@@ -53,5 +59,50 @@ describe("formatShiftRange", () => {
   it("renders the clock labels used on the week grid", () => {
     expect(formatShiftRange("08:00:00", "17:00:00")).toBe("8:00 AM - 5:00 PM");
     expect(formatShiftRange("22:00:00", "06:00:00")).toBe("10:00 PM - 6:00 AM");
+  });
+});
+
+describe("shiftsOverlap", () => {
+  it("detects partial same-day overlap (BUG-124)", () => {
+    expect(
+      shiftsOverlap(
+        { workDate: "2026-11-17", startTime: "09:00:00", endTime: "13:00:00" },
+        { workDate: "2026-11-17", startTime: "11:00:00", endTime: "15:00:00" }
+      )
+    ).toBe(true);
+  });
+
+  it("allows back-to-back shifts that only touch at the boundary", () => {
+    expect(
+      shiftsOverlap(
+        { workDate: "2026-11-17", startTime: "09:00:00", endTime: "13:00:00" },
+        { workDate: "2026-11-17", startTime: "13:00:00", endTime: "17:00:00" }
+      )
+    ).toBe(false);
+  });
+
+  it("detects overnight overlap into the next morning", () => {
+    expect(
+      shiftsOverlap(
+        { workDate: "2026-11-17", startTime: "22:00:00", endTime: "06:00:00" },
+        { workDate: "2026-11-18", startTime: "05:00:00", endTime: "09:00:00" }
+      )
+    ).toBe(true);
+  });
+
+  it("formats a clear conflict message", () => {
+    expect(
+      formatEmployeeShiftOverlapMessage({
+        title: "QA-TEST-Overlap-A",
+        workDate: "2026-11-17",
+        startTime: "09:00:00",
+        endTime: "13:00:00",
+      })
+    ).toContain('already booked for "QA-TEST-Overlap-A"');
+  });
+
+  it("adds calendar days in UTC", () => {
+    expect(addDaysToIsoDate("2026-11-17", -1)).toBe("2026-11-16");
+    expect(addDaysToIsoDate("2026-11-17", 1)).toBe("2026-11-18");
   });
 });
