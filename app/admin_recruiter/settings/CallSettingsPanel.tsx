@@ -63,12 +63,14 @@ type ActiveCall = {
   elapsedSeconds: number;
 };
 
+const DIALPAD_PANEL_FETCH_TIMEOUT_MS = 15_000;
+
 export default function CallSettingsPanel() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [loading, setLoading] = useState(true);
   const [callers, setCallers] = useState<Caller[]>([]);
   const [callLogs, setCallLogs] = useState<DialpadCallLog[]>([]);
   const [callLogsError, setCallLogsError] = useState<string | null>(null);
+  const [logsLoading, setLogsLoading] = useState(true);
   const [refreshingLogs, setRefreshingLogs] = useState(false);
   const [dialpadUserId, setDialpadUserId] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
@@ -91,28 +93,44 @@ export default function CallSettingsPanel() {
     setCallLogsError(payload.callsError ?? null);
   }
 
+  async function loadDialpadPanel(options?: { signal?: AbortSignal }) {
+    const response = await fetch("/api/admin/dialpad", {
+      cache: "no-store",
+      signal: options?.signal ?? AbortSignal.timeout(DIALPAD_PANEL_FETCH_TIMEOUT_MS),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      callers?: Caller[];
+      calls?: DialpadCallLog[];
+      callsError?: string | null;
+      error?: string;
+    };
+    if (!response.ok) {
+      throw new Error(payload.error ?? "Could not load Dialpad call logs.");
+    }
+    applyDialpadPayload(payload);
+  }
+
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/admin/dialpad", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = (await response.json().catch(() => ({}))) as {
-          callers?: Caller[];
-          calls?: DialpadCallLog[];
-          callsError?: string | null;
-          error?: string;
-        };
+    setLogsLoading(true);
+    void loadDialpadPanel()
+      .catch((error: unknown) => {
         if (cancelled) return;
-        if (!response.ok) {
-          setCallLogsError(payload.error ?? "Could not load Dialpad call logs.");
-          return;
-        }
-        applyDialpadPayload(payload);
-      })
-      .catch(() => {
-        if (!cancelled) setCallLogsError("Could not load Dialpad call logs.");
+        const timedOut =
+          error instanceof DOMException
+            ? error.name === "TimeoutError" || error.name === "AbortError"
+            : error instanceof Error &&
+              (error.name === "TimeoutError" || error.name === "AbortError");
+        setCallLogsError(
+          timedOut
+            ? "Dialpad timed out. Try refreshing call logs."
+            : error instanceof Error
+              ? error.message
+              : "Could not load Dialpad call logs."
+        );
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLogsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -121,21 +139,12 @@ export default function CallSettingsPanel() {
 
   function refreshCallLogs() {
     setRefreshingLogs(true);
-    void fetch("/api/admin/dialpad", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = (await response.json().catch(() => ({}))) as {
-          callers?: Caller[];
-          calls?: DialpadCallLog[];
-          callsError?: string | null;
-          error?: string;
-        };
-        if (!response.ok) {
-          setCallLogsError(payload.error ?? "Could not load Dialpad call logs.");
-          return;
-        }
-        applyDialpadPayload(payload);
+    void loadDialpadPanel()
+      .catch((error: unknown) => {
+        setCallLogsError(
+          error instanceof Error ? error.message : "Could not load Dialpad call logs."
+        );
       })
-      .catch(() => setCallLogsError("Could not load Dialpad call logs."))
       .finally(() => setRefreshingLogs(false));
   }
 
@@ -280,10 +289,6 @@ export default function CallSettingsPanel() {
 
   const signedInName = callers.find((caller) => caller.id === dialpadUserId)?.name ?? null;
 
-  if (loading) {
-    return <div className="h-40 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse" aria-busy="true" />;
-  }
-
   return (
     <>
       <form onSubmit={placeCall} className="max-w-xl space-y-4 rounded-xl border border-[#E5E7EB] bg-white p-5">
@@ -337,10 +342,10 @@ export default function CallSettingsPanel() {
           <button
             type="button"
             onClick={refreshCallLogs}
-            disabled={refreshingLogs}
+            disabled={refreshingLogs || logsLoading}
             className="inline-flex h-8 items-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium text-[#111827] disabled:opacity-60"
           >
-            {refreshingLogs ? "Refreshing" : "Refresh"}
+            {refreshingLogs || logsLoading ? "Refreshing" : "Refresh"}
           </button>
         </div>
 
@@ -350,11 +355,21 @@ export default function CallSettingsPanel() {
           </p>
         ) : null}
 
-        {callLogs.length === 0 && !callLogsError ? (
+        {logsLoading && !callLogsError ? (
+          <div
+            className="h-28 rounded-xl bg-[#E5E7EB] motion-safe:animate-pulse"
+            aria-busy="true"
+            aria-label="Loading call logs"
+          />
+        ) : null}
+
+        {!logsLoading && callLogs.length === 0 && !callLogsError ? (
           <p className="rounded-xl border border-dashed border-[#E5E7EB] bg-white px-4 py-6 text-sm text-[#6B7280]">
             No recent calls.
           </p>
-        ) : (
+        ) : null}
+
+        {!logsLoading && callLogs.length > 0 ? (
           <ul className="divide-y divide-[#E5E7EB] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
             {callLogs.map((entry) => {
               const number = entry.externalNumber ? formatPhoneDisplay(entry.externalNumber) : "Unknown number";
@@ -381,7 +396,7 @@ export default function CallSettingsPanel() {
               );
             })}
           </ul>
-        )}
+        ) : null}
       </section>
 
       <iframe

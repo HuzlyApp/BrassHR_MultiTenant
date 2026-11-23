@@ -134,11 +134,13 @@ function RowActionMenu({
   name,
   open,
   onToggle,
+  disabled = false,
   children,
 }: {
   name: string;
   open: boolean;
   onToggle: (next: boolean) => void;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -199,13 +201,15 @@ function RowActionMenu({
         ref={buttonRef}
         type="button"
         aria-label={`Actions for ${name}`}
-        aria-expanded={open}
+        aria-expanded={open && !disabled}
+        disabled={disabled}
+        title={disabled ? "No available actions for this user." : undefined}
         onClick={() => onToggle(!open)}
         className="rounded-lg p-1.5 text-[#64748B] hover:bg-[#F8FAFC]"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
-      {open && menuStyle
+      {open && !disabled && menuStyle
         ? createPortal(
             <div
               ref={menuRef}
@@ -333,6 +337,14 @@ export default function AdminConsolePanel({
     if (submitting) return;
     setFormError(null);
     setInviteConflict(null);
+    if (!firstName.trim() || !lastName.trim()) {
+      setFormError("First name and last name are required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.trim().length > 254) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await fetch("/api/admin/users", {
@@ -553,6 +565,8 @@ export default function AdminConsolePanel({
                       <td className="px-4 py-3.5 text-right">
                         <RowActionMenu
                           name={row.name}
+                          disabled={!(canResendInvitation(row) || row.canSuspend || row.canReactivate || row.canRemove ||
+                            (row.canChangeRole && roleOptions.some((option) => option.key !== row.role)))}
                           open={menuId === row.id}
                           onToggle={(next) => setMenuId(next ? row.id : null)}
                         >
@@ -769,6 +783,7 @@ export default function AdminConsolePanel({
       {inviteOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <form
+            noValidate
             onSubmit={submitInvite}
             className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl"
           >
@@ -828,7 +843,7 @@ export default function AdminConsolePanel({
             <p className="mt-3 text-sm text-[#334155]">
               Require password setup before first login
             </p>
-            {formError ? <p className="mt-3 text-sm text-[#B91C1C]">{formError}</p> : null}
+            {formError ? <p role="alert" className="mt-3 text-sm text-[#B91C1C]">{formError}</p> : null}
             {inviteConflict ? (
               <button
                 type="button"

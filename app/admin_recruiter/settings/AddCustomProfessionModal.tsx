@@ -1,7 +1,12 @@
 "use client";
 
-import { Check, ChevronDown, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
+import { Check, ExternalLink, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { ASSESSMENT_LIST_HREF } from "@/app/admin_recruiter/settings/assessment-routes";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 export type AssessmentOption = {
   id: string;
@@ -11,13 +16,15 @@ export type AssessmentOption = {
 export type AddCustomProfessionFormValue = {
   name: string;
   description: string;
-  assessmentId: string;
+  assessmentIds: string[];
 };
 
 type Props = {
   open: boolean;
   industryLabel: string;
   assessments: AssessmentOption[];
+  /** Assessment ids already linked / pre-selected for this position. */
+  initiallySelectedAssessmentIds?: string[];
   creating?: boolean;
   onClose: () => void;
   onCreate: (value: AddCustomProfessionFormValue) => void;
@@ -38,95 +45,83 @@ function RequiredMark() {
   );
 }
 
-function AssessmentSelect({
+function AssessmentMultiSelect({
   options,
-  value,
+  values,
   onChange,
   disabled,
 }: {
   options: AssessmentOption[];
-  value: string;
-  onChange: (value: string) => void;
+  values: string[];
+  onChange: (values: string[]) => void;
   disabled?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const selected = options.find((option) => option.id === value);
+  const selectedSet = new Set(values);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  function toggle(id: string) {
+    if (disabled) return;
+    if (selectedSet.has(id)) {
+      onChange(values.filter((value) => value !== id));
+      return;
+    }
+    onChange([...values, id]);
+  }
+
+  if (options.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-5 text-sm text-[#64748B]">
+        No assessment categories yet. Add categories in Assessment settings, then return here.
+      </div>
+    );
+  }
 
   return (
-    <div ref={rootRef} className="relative z-20">
-      <button
-        type="button"
-        aria-label="Select Assessment"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        disabled={disabled || options.length === 0}
-        onClick={() => setOpen((current) => !current)}
-        className={`${fieldClassName} flex items-center justify-between text-left`}
+    <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+      <ul
+        id={listId}
+        role="group"
+        aria-label="Select assessments"
+        className="max-h-56 overflow-auto py-1"
       >
-        <span className={selected ? "text-[#0F172A]" : "text-[#94A3B8]"}>
-          {selected?.name ?? (options.length === 0 ? "No assessments available" : "Select assessment")}
-        </span>
-        <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden />
-      </button>
-      {open ? (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label="Select Assessment"
-          className="absolute bottom-[calc(100%+4px)] z-50 max-h-56 w-full overflow-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg"
-        >
-          {options.map((option) => {
-            const isSelected = option.id === value;
-            return (
-              <li key={option.id} role="presentation">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  onClick={() => {
-                    onChange(option.id);
-                    setOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-[#EFF6FF] ${
-                    isSelected ? "bg-[#DBEAFE] font-medium text-[#0F172A]" : "text-[#0F172A]"
+        {options.map((option) => {
+          const isSelected = selectedSet.has(option.id);
+          return (
+            <li key={option.id} role="presentation">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={isSelected}
+                aria-label={option.name}
+                disabled={disabled}
+                onClick={() => toggle(option.id)}
+                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition hover:bg-[#F8FAFC] disabled:opacity-50 ${
+                  isSelected
+                    ? "bg-[color:color-mix(in_srgb,var(--brand-secondary)_10%,white)] font-medium text-[#0F172A]"
+                    : "text-[#0F172A]"
+                }`}
+              >
+                <span
+                  className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                    isSelected
+                      ? "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)] text-white"
+                      : "border-[#CBD5E1] bg-white"
                   }`}
+                  aria-hidden
                 >
-                  <span
-                    className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${
-                      isSelected
-                        ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white"
-                        : "border-[#CBD5E1] bg-white"
-                    }`}
-                    aria-hidden
-                  >
-                    {isSelected ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-                  </span>
-                  {option.name}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+                  {isSelected ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                </span>
+                {option.name}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="border-t border-[#E5E7EB] px-3 py-2 text-xs text-[#64748B]">
+        {values.length === 0
+          ? "Select one or more assessments"
+          : `${values.length} assessment${values.length === 1 ? "" : "s"} selected`}
+      </div>
     </div>
   );
 }
@@ -135,33 +130,67 @@ export default function AddCustomProfessionModal({
   open,
   industryLabel,
   assessments,
+  initiallySelectedAssessmentIds = [],
   creating = false,
   onClose,
   onCreate,
 }: Props) {
+  const branding = useTenantBranding();
+  const brandStyle = brandingToCssVars(branding) as CSSProperties;
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [assessmentId, setAssessmentId] = useState("");
+  const [assessmentIds, setAssessmentIds] = useState<string[]>([]);
 
+  const wasOpenRef = useRef(false);
+
+  // Reset fields only when the dialog opens (not when assessment options refresh mid-edit).
   useEffect(() => {
-    if (!open) return;
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!justOpened) return;
     setName("");
     setDescription("");
-    setAssessmentId(assessments[0]?.id ?? "");
-  }, [open, assessments, industryLabel]);
+    const available = new Set(assessments.map((option) => option.id));
+    setAssessmentIds(initiallySelectedAssessmentIds.filter((id) => available.has(id)));
+  }, [open, industryLabel, assessments, initiallySelectedAssessmentIds]);
+
+  // Keep selection valid when the dynamic options list updates while the dialog is open.
+  useEffect(() => {
+    if (!open || !wasOpenRef.current) return;
+    const available = new Set(assessments.map((option) => option.id));
+    setAssessmentIds((current) => {
+      const kept = current.filter((id) => available.has(id));
+      const next =
+        kept.length > 0
+          ? kept
+          : initiallySelectedAssessmentIds.filter((id) => available.has(id));
+      if (next.length === current.length && next.every((id, index) => id === current[index])) {
+        return current;
+      }
+      return next;
+    });
+  }, [open, assessments, initiallySelectedAssessmentIds]);
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
-  const canSubmit = name.trim().length > 0 && assessmentId.length > 0 && !creating;
+  const assessmentsRequired = assessments.length > 0;
+  const canSubmit =
+    name.trim().length > 0 &&
+    !creating &&
+    (!assessmentsRequired || assessmentIds.length > 0);
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]"
+      style={brandStyle}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-custom-profession-title"
         aria-describedby="add-position-industry"
-        className="flex w-full max-w-[520px] flex-col overflow-visible rounded-2xl border border-[#E5E7EB] bg-white shadow-xl"
+        className="flex max-h-[min(92dvh,720px)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 pb-2">
           <h3 id="add-custom-profession-title" className="text-lg font-semibold text-[#0F172A]">
@@ -178,7 +207,7 @@ export default function AddCustomProfessionModal({
           </button>
         </div>
 
-        <div className="relative z-10 space-y-4 overflow-visible px-5 py-3">
+        <div className="relative z-10 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-3">
           <p id="add-position-industry" className="text-xs text-[#94A3B8]">
             Add a position under <span className="font-medium text-[#64748B]">{industryLabel}.</span>
           </p>
@@ -192,12 +221,15 @@ export default function AddCustomProfessionModal({
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={80}
+              aria-describedby="custom-position-name-limit"
               disabled={creating}
               placeholder="Front-End Developer"
               aria-required
               className={fieldClassName}
             />
           </label>
+
+          <p id="custom-position-name-limit" className="text-xs text-[#94A3B8]">{name.length}/80 characters</p>
 
           <label className="block space-y-1.5">
             <span className={labelClassName}>Description (Optional)</span>
@@ -206,7 +238,7 @@ export default function AddCustomProfessionModal({
               maxLength={DESCRIPTION_MAX}
               disabled={creating}
               onChange={(event) => setDescription(event.target.value.slice(0, DESCRIPTION_MAX))}
-              rows={4}
+              rows={3}
               placeholder="Describe this position…"
               className="w-full resize-none rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm leading-6 text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:bg-[#F8FAFC]"
             />
@@ -217,15 +249,27 @@ export default function AddCustomProfessionModal({
             </div>
           </label>
 
-          <div className="relative z-30 block space-y-1.5">
-            <span className={labelClassName}>
-              Select Assessment
-              <RequiredMark />
-            </span>
-            <AssessmentSelect
+          <div className="block space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className={labelClassName}>
+                Select Assessments
+                {assessmentsRequired ? <RequiredMark /> : null}
+              </span>
+              <Link
+                href={ASSESSMENT_LIST_HREF}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--brand-secondary)] hover:underline"
+              >
+                Add categories
+                <ExternalLink className="h-3 w-3" aria-hidden />
+              </Link>
+            </div>
+            <p className="text-xs text-[#94A3B8]">
+              Categories come from Assessment settings. Already linked ones stay selected.
+            </p>
+            <AssessmentMultiSelect
               options={assessments}
-              value={assessmentId}
-              onChange={setAssessmentId}
+              values={assessmentIds}
+              onChange={setAssessmentIds}
               disabled={creating}
             />
           </div>
@@ -247,15 +291,16 @@ export default function AddCustomProfessionModal({
               onCreate({
                 name: name.trim(),
                 description: description.trim(),
-                assessmentId,
+                assessmentIds,
               })
             }
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-[color:var(--brand-secondary)] px-4 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
           >
             {creating ? "Creating…" : "Create Position"}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

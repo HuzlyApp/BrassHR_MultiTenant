@@ -66,6 +66,7 @@ import {
 } from "@/lib/jobs/job-requisition-form-draft";
 import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
+import { validateJobCompensationFields } from "@/lib/jobs/validation";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
@@ -558,6 +559,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
 
+    const compensationErrors = validateJobCompensationFields(payloadJob);
+    if (Object.keys(compensationErrors).length > 0) {
+      setFieldErrors(compensationErrors);
+      setMessage(Object.values(compensationErrors)[0] ?? "Fix pay and hours before saving.");
+      setSaving(false);
+      if (step === "review" || step === "description") setStep("compensation");
+      return;
+    }
+
     if (action === "publish" && serviceAreaBlocked) {
       const blockedMessage = serviceAreaBlockMessage || SERVICE_AREA_COPY.location_not_enabled;
       setFieldErrors({ location: blockedMessage });
@@ -814,6 +824,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
     if (step === "compensation") {
+      const compensationErrors = validateJobCompensationFields(buildPayloadJob());
+      if (Object.keys(compensationErrors).length > 0) {
+        setFieldErrors((current) => ({ ...current, ...compensationErrors }));
+        setMessage(Object.values(compensationErrors)[0] ?? "Fix pay and hours before continuing.");
+        return;
+      }
       setStep("description");
       return;
     }

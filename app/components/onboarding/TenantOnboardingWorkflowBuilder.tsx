@@ -38,7 +38,11 @@ import {
 } from "@/lib/onboarding/workflow-template-pending-paste";
 import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { buildWorkflowTestUrl } from "@/lib/onboarding/workflow-test-session";
-import { PUBLISH_SUCCESS_MESSAGE } from "@/lib/onboarding/prepare-published-step-drafts";
+import {
+  builderDraftHasPublishableSteps,
+  EMPTY_WORKFLOW_PUBLISH_ERROR,
+  PUBLISH_SUCCESS_MESSAGE,
+} from "@/lib/onboarding/prepare-published-step-drafts";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import { staffAuthHeaders, staffFetchInit } from "@/lib/staff-auth-headers";
 import {
@@ -736,6 +740,9 @@ export default function TenantOnboardingWorkflowBuilder({
         }
 
         const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+        if (options.publish === true && !builderDraftHasPublishableSteps(builderDraft)) {
+          throw new Error(EMPTY_WORKFLOW_PUBLISH_ERROR);
+        }
 
         const activeFlowId =
           persistTarget.action === "update-flow" ? persistTarget.flowId : null;

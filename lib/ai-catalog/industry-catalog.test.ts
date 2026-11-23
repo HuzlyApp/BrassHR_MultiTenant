@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   INDUSTRY_TO_AI_PACK,
   InvalidIndustryKeyError,
+  isHealthcareIndustryKey,
+  isHealthcareProfessionIndustry,
   mapIndustryKeyToAiPack,
   parseIndustryKey,
   industryKeyFromLegacyLabel,
+  tenantHasHealthcareIndustry,
 } from "./industry-catalog";
 import { planPromptResolution, applyTenantBinding } from "./resolve-core";
 import { renderPromptTemplate } from "./render-prompt";
@@ -49,6 +52,18 @@ describe("industry to AI pack mapping", () => {
     expect(industryKeyFromLegacyLabel("Allied Health")).toBe("allied_health");
     expect(industryKeyFromLegacyLabel("Staffing & Recruiting")).toBeNull();
     expect(industryKeyFromLegacyLabel("Epic")).toBeNull();
+  });
+
+  it("detects healthcare-family industries for allied-health profile fields", () => {
+    expect(isHealthcareIndustryKey("healthcare")).toBe(true);
+    expect(isHealthcareIndustryKey("allied_health")).toBe(true);
+    expect(isHealthcareIndustryKey("senior_care")).toBe(true);
+    expect(isHealthcareIndustryKey("home_care")).toBe(false);
+    expect(isHealthcareIndustryKey("technology")).toBe(false);
+    expect(isHealthcareProfessionIndustry("home_care")).toBe(true);
+    expect(isHealthcareProfessionIndustry("technology")).toBe(false);
+    expect(tenantHasHealthcareIndustry(["technology", "allied_health"])).toBe(true);
+    expect(tenantHasHealthcareIndustry(["technology", "hospitality"])).toBe(false);
   });
 });
 

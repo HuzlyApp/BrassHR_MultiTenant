@@ -45,6 +45,8 @@ type Body = {
   adminEmail?: string;
   adminPassword?: string;
   industry?: string;
+  /** Extra industry labels selected during signup / business info. */
+  industries?: string[];
   companySize?: string;
   city?: string;
   state?: string;
@@ -389,6 +391,9 @@ export async function POST(req: Request) {
     await syncTenantIndustryFromLabels(svc, {
       tenantId,
       primaryLabel: businessInputForValidation.industry,
+      additionalLabels: Array.isArray(body.industries)
+        ? body.industries.map((value) => String(value))
+        : [],
       additionalKeys: Array.isArray(body.industryKeys) ? body.industryKeys.map((value) => String(value)) : [],
     });
   } catch (bindError) {

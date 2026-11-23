@@ -13,8 +13,6 @@ import {
   stepIndexFromPathname,
 } from "@/lib/onboarding/tenant-step-navigation";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
-import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
-import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
 /** Tenant-ordered onboarding navigation for applicant pages. */
@@ -77,15 +75,10 @@ export function useOnboardingStepNav() {
     prevRoute,
     firstRoute,
     goNext: (savedStatus: "completed" | "skipped" = "completed") => {
-      const completion =
-        currentStep && readStepLifecyclePhase(currentStep) === "post_hire"
-          ? "post_hire"
-          : "pre_hire";
       const inPostHire = onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
       if (savedStatus !== "skipped" && onboarding?.waitingOnInternal && !inPostHire) {
-        const query = new URLSearchParams({ completion });
-        if (slug) query.set("tenant", slug);
-        push(`${APPLICATION_ROUTES.applicationStatus}?${query.toString()}`);
+        // Stay on the current applicant screen; the route guard swaps the left
+        // panel for the in-place "application submitted" message (no modal).
         return;
       }
       const href = resolvePostStepContinueRoute(onboarding?.config, currentStep, slug, {

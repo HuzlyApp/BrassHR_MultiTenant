@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Building2, Plus, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -322,6 +323,7 @@ function AssignedCandidateCard({ worker }: { worker: FacilityAssignedWorker }) {
 }
 
 export default function FacilitiesPage() {
+  const clientId = useSearchParams().get("client")?.trim() || "";
   const { canEdit: canEditOrganization } = useModulePermission("organization");
   const [facilities, setFacilities] = useState<FacilityManagementItem[]>([]);
   const [loadingFacilities, setLoadingFacilities] = useState(true);
@@ -329,6 +331,8 @@ export default function FacilitiesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
   const [assignedWorkers, setAssignedWorkers] = useState<FacilityAssignedWorker[]>([]);
+  const [assignmentToRemove, setAssignmentToRemove] = useState("");
+  const [unassigning, setUnassigning] = useState(false);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -339,7 +343,7 @@ export default function FacilitiesPage() {
     setLoadingFacilities(true);
     setFacilitiesError(null);
     try {
-      const res = await fetch("/api/admin/facilities", { cache: "no-store" });
+      const res = await fetch(clientId ? `/api/admin/facilities?client=${encodeURIComponent(clientId)}` : "/api/admin/facilities", { cache: "no-store" });
       const json = (await res.json()) as {
         facilities?: FacilityManagementItem[];
         error?: string;
@@ -354,7 +358,7 @@ export default function FacilitiesPage() {
     } finally {
       setLoadingFacilities(false);
     }
-  }, []);
+  }, [clientId]);
 
   const loadAssignments = useCallback(async (facilityId: string) => {
     setLoadingAssignments(true);
@@ -381,6 +385,7 @@ export default function FacilitiesPage() {
   }, [loadFacilities]);
 
   useEffect(() => {
+    setAssignmentToRemove("");
     if (!selectedFacilityId) {
       setAssignedWorkers([]);
       setAssignmentsError(null);
@@ -393,6 +398,24 @@ export default function FacilitiesPage() {
     () => filterFacilitiesBySearch(facilities, searchQuery),
     [facilities, searchQuery]
   );
+
+  async function unassignWorker() {
+    if (!selectedFacilityId || !assignmentToRemove || unassigning) return;
+    const worker = assignedWorkers.find((item) => item.assignmentId === assignmentToRemove);
+    if (!worker || !window.confirm(`Unassign ${workerName(worker)} from this facility?`)) return;
+    setUnassigning(true);
+    try {
+      const response = await fetch(`/api/admin/facilities/${encodeURIComponent(selectedFacilityId)}/assignments`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assignmentId: assignmentToRemove }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not unassign worker.");
+      setAssignmentToRemove("");
+      await Promise.all([loadFacilities(), loadAssignments(selectedFacilityId)]);
+      toast.success("Worker unassigned from facility.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not unassign worker."); }
+    finally { setUnassigning(false); }
+  }
 
   const selectedFacility = useMemo(
     () => facilities.find((facility) => facility.id === selectedFacilityId) ?? null,
@@ -569,6 +592,22 @@ export default function FacilitiesPage() {
                 </div>
               </div>
 
+              {canEditOrganization && assignedWorkers.length > 0 ? (
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <label className="min-w-0 flex-1 text-xs text-[#64748B]">
+                    Manage assignment
+                    <select className="mt-1 h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm" value={assignmentToRemove} onChange={(event) => setAssignmentToRemove(event.target.value)}>
+                      <option value="">Select a worker to unassign</option>
+                      {assignedWorkers.map((worker) => <option key={worker.assignmentId} value={worker.assignmentId}>{workerName(worker)}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" disabled={!assignmentToRemove || unassigning} onClick={() => void unassignWorker()}
+                    className="mt-4 h-9 rounded-lg border border-red-200 px-3 text-sm text-red-700 disabled:opacity-50">
+                    {unassigning ? "Unassigning…" : "Unassign"}
+                  </button>
+                </div>
+              ) : null}
+
               {assignmentsError ? (
                 <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                   {assignmentsError}
@@ -606,6 +645,7 @@ export default function FacilitiesPage() {
       {showCreateModal ? (
         <CreateFacilityModal
           open={showCreateModal}
+          initialClientId={clientId}
           onClose={() => setShowCreateModal(false)}
           onSuccess={({ facilityId }) => {
             void loadFacilities().then(() => {

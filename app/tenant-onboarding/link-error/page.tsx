@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 
 const ERROR_COPY: Record<string, { title: string; message: string }> = {

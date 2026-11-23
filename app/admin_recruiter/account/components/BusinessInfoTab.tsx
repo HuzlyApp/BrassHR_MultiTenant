@@ -24,7 +24,6 @@ import {
   AddressField,
   EMPLOYEE_COUNT_OPTIONS,
   INDUSTRY_OPTIONS,
-  SelectField,
   TextField,
 } from "./account-form-fields";
 import AccountCheckbox from "./AccountCheckbox";
@@ -145,6 +144,14 @@ export default function BusinessInfoTab() {
     if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
     return "";
   }, [state, stateRows]);
+
+  const industryOptions = useMemo(() => {
+    const options = [...INDUSTRY_OPTIONS];
+    if (industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry)) {
+      options.unshift(industry);
+    }
+    return options;
+  }, [industry]);
 
   useEffect(() => {
     if (!selectedStateCode || selectedStateCode.length !== 2) {
@@ -304,15 +311,14 @@ export default function BusinessInfoTab() {
     setSaveSuccess(null);
 
     const errors = validateBusinessInfoForm(formInput, validationContext);
-    let nextWebsiteError: string | null = null;
-    if (!website.trim()) {
-      nextWebsiteError = "Website is required.";
-    } else if (
-      !/^https?:\/\/.+/i.test(website.trim()) &&
-      !/^[a-z0-9.-]+\.[a-z]{2,}/i.test(website.trim())
-    ) {
-      nextWebsiteError = "Enter a valid website URL.";
-    }
+    // Website is optional for legacy company records; only validate format when provided.
+    const trimmedWebsite = website.trim();
+    const nextWebsiteError =
+      trimmedWebsite &&
+      !/^https?:\/\/.+/i.test(trimmedWebsite) &&
+      !/^[a-z0-9.-]+\.[a-z]{2,}/i.test(trimmedWebsite)
+        ? "Enter a valid website URL."
+        : null;
     setFieldErrors(errors);
     setWebsiteError(nextWebsiteError);
     if (!isBusinessInfoValid(formInput, validationContext) || nextWebsiteError) {
@@ -349,17 +355,15 @@ export default function BusinessInfoTab() {
         throw new Error(payload.error ?? "Failed to save business information");
       }
 
-      if (legalName.trim() || subdomain.trim() || website.trim()) {
-        await supabaseBrowser
-          .from("tenants")
-          .update({
-            legal_name: legalName.trim() || null,
-            subdomain: subdomain.trim() || null,
-            website: website.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", organization.id);
-      }
+      await supabaseBrowser
+        .from("tenants")
+        .update({
+          legal_name: legalName.trim() || null,
+          subdomain: subdomain.trim() || null,
+          website: trimmedWebsite || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", organization.id);
 
       await refresh();
       await syncAccountChecklist(supabaseBrowser, {
@@ -451,8 +455,9 @@ export default function BusinessInfoTab() {
               </div>
 
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <SelectField
+                <SearchableSelectField
                   label="Industry"
+                  required
                   value={industry}
                   onChange={(value) => {
                     const previous = industry;
@@ -468,33 +473,23 @@ export default function BusinessInfoTab() {
                       setHireForKeys((keys) => [...keys, mapped]);
                     }
                   }}
-                  required
+                  placeholder="Select industry"
+                  searchPlaceholder="Search industry..."
+                  options={industryOptions}
                   error={submitAttempted ? fieldErrors.industry : null}
-                >
-                  <option value="">Select industry</option>
-                  {industry && !(INDUSTRY_OPTIONS as readonly string[]).includes(industry) ? (
-                    <option value={industry}>{industry}</option>
-                  ) : null}
-                  {INDUSTRY_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </SelectField>
-                <SelectField
+                  emptyMessage="No industries found. Try another search."
+                />
+                <SearchableSelectField
                   label="Number of Employees"
+                  required
                   value={companySize}
                   onChange={(value) => updateField("companySize", value, setCompanySize)}
-                  required
+                  placeholder="Select size"
+                  searchPlaceholder="Search size..."
+                  options={EMPLOYEE_COUNT_OPTIONS}
                   error={submitAttempted ? fieldErrors.companySize : null}
-                >
-                  <option value="">Select size</option>
-                  {EMPLOYEE_COUNT_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </SelectField>
+                  emptyMessage="No sizes found."
+                />
               </div>
 
               <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4">
@@ -539,7 +534,16 @@ export default function BusinessInfoTab() {
                 }}
                 type="url"
                 required
-                error={submitAttempted ? websiteError : null}
+                onBlur={() => {
+                  const value = website.trim();
+                  let valid = false;
+                  try {
+                    const url = new URL(value);
+                    valid = ["http:", "https:"].includes(url.protocol) && Boolean(url.hostname);
+                  } catch { /* Invalid URL is shown inline below. */ }
+                  setWebsiteError(value && !valid ? "Enter a valid website URL." : null);
+                }}
+                error={websiteError}
               />
             </div>
           </SectionCard>

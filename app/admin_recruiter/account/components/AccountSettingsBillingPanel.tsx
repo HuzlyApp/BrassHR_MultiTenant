@@ -63,11 +63,10 @@ export default function AccountSettingsBillingPanel() {
             Your free trial ends on {trialEndLabel} (28 days)
           </p>
           <p className="mt-1.5 text-sm leading-relaxed" style={{ color: COLORS.textLabels }}>
-            Reach out to our product specialist or give us a call at{" "}
-            <span className="font-medium" style={{ color: COLORS.textLabels }}>
-              +1-811-722-2235
-            </span>{" "}
-            to signup. Upgrade Anytime
+            <a href="/admin_recruiter/help-support" className="font-medium underline">
+              Contact our product specialist
+            </a>{" "}
+            to sign up. Upgrade anytime.
           </p>
         </div>
       </div>

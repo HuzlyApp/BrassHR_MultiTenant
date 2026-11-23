@@ -37,6 +37,7 @@ export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 /** APIs the signed-in shell needs. They are not a module grant. */
 export const SHELL_API_PREFIXES = [
   "/api/admin/header-data",
+  "/api/admin/header-search",
   "/api/admin/effective-branding",
   "/api/admin/access",
 ] as const;

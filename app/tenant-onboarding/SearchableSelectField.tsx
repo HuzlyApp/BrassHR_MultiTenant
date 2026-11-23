@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, Search } from "lucide-react"
+import { Check, ChevronDown, Search, X } from "lucide-react"
 import {
   useEffect,
   useLayoutEffect,
@@ -14,8 +14,8 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 const inputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
+  fontFamily: "var(--brand-font-body), Inter, Arial, sans-serif",
+  fontSize: "var(--brand-font-size, 16px)",
   lineHeight: "24px",
   fontWeight: 400,
   letterSpacing: "0",
@@ -38,8 +38,12 @@ const MENU_GAP = 8
 
 type SearchableSelectFieldProps = {
   label: string
-  value: string
-  onChange: (value: string) => void
+  value?: string
+  onChange?: (value: string) => void
+  /** Multi-select mode: selected option labels. */
+  multiple?: boolean
+  values?: string[]
+  onValuesChange?: (values: string[]) => void
   onBlur?: () => void
   placeholder?: string
   searchPlaceholder?: string
@@ -63,8 +67,11 @@ type SearchableSelectFieldProps = {
 
 export default function SearchableSelectField({
   label,
-  value,
+  value = "",
   onChange,
+  multiple = false,
+  values = [],
+  onValuesChange,
   onBlur,
   placeholder = "Select",
   searchPlaceholder,
@@ -108,11 +115,31 @@ export default function SearchableSelectField({
     Boolean(customValue) &&
     !options.some((opt) => opt.toLowerCase() === customValue.toLowerCase())
 
+  const selectedValues = useMemo(
+    () => (multiple ? values : value ? [value] : []),
+    [multiple, values, value]
+  )
+  const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues])
+
   function commitValue(next: string) {
-    onChange(next)
+    if (multiple) {
+      const exists = selectedSet.has(next)
+      const nextValues = exists
+        ? selectedValues.filter((item) => item !== next)
+        : [...selectedValues, next]
+      onValuesChange?.(nextValues)
+      setQuery("")
+      return
+    }
+    onChange?.(next)
     setOpen(false)
     setQuery("")
     onBlur?.()
+  }
+
+  function removeValue(next: string) {
+    if (!multiple) return
+    onValuesChange?.(selectedValues.filter((item) => item !== next))
   }
 
   useEffect(() => {
@@ -260,18 +287,24 @@ export default function SearchableSelectField({
                 </button>
               ) : null}
               {filteredOptions.length > 0 ? (
-                filteredOptions.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => commitValue(opt)}
-                    className={`w-full cursor-pointer px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9] ${
-                      opt === value ? "bg-[#eff6ff] font-medium" : ""
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))
+                filteredOptions.map((opt) => {
+                  const selected = selectedSet.has(opt)
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => commitValue(opt)}
+                      className={`flex w-full cursor-pointer items-center justify-between gap-2 px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9] ${
+                        selected ? "bg-[#eff6ff] font-medium" : ""
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{opt}</span>
+                      {multiple && selected ? (
+                        <Check className="h-4 w-4 shrink-0 text-[color:var(--brand-primary)]" />
+                      ) : null}
+                    </button>
+                  )
+                })
               ) : showCustomOption ? null : (
                 <p className="px-[14px] py-3 text-[14px] text-[#64748b]">{emptyMessage}</p>
               )}
@@ -280,6 +313,13 @@ export default function SearchableSelectField({
           document.body
         )
       : null
+
+  const triggerText = multiple
+    ? selectedValues.length > 0
+      ? `${selectedValues.length} selected`
+      : displayPlaceholder
+    : value || displayPlaceholder
+  const hasSelection = multiple ? selectedValues.length > 0 : Boolean(value)
 
   return (
     <div ref={wrapperRef}>
@@ -314,11 +354,11 @@ export default function SearchableSelectField({
             error
               ? inputErrorClass
               : open
-                ? `${activeBorderClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
-                : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
+                ? `${activeBorderClass} ${hasSelection ? "text-[#0f172a]" : "text-[#94a3b8]"}`
+                : `border-[#cbd5e1] ${inputFocusClass} ${hasSelection ? "text-[#0f172a]" : "text-[#94a3b8]"}`
           } ${dense || compact ? "" : inputTextClass}`}
         >
-          <span className="truncate">{value || displayPlaceholder}</span>
+          <span className="truncate">{triggerText}</span>
           <ChevronDown
             className={`pointer-events-none absolute right-3 top-1/2 ${
               dense ? "h-4 w-4" : "h-5 w-5"
@@ -326,6 +366,27 @@ export default function SearchableSelectField({
           />
         </button>
       </div>
+      {multiple && selectedValues.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selectedValues.map((item) => (
+            <span
+              key={item}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-medium leading-4 text-[#0F172A]"
+            >
+              <span className="min-w-0 truncate">{item}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${item}`}
+                disabled={isDisabled}
+                onClick={() => removeValue(item)}
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#0F172A] disabled:opacity-50"
+              >
+                <X className="h-3 w-3" strokeWidth={2.5} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
       {error ? (
         <p className="to-field-error mt-[6px] text-[12px] font-normal leading-[16px] text-[#DC2626]">
           {error}

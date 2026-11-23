@@ -85,6 +85,7 @@ export default function RecruiterTemplateBuilderForm({
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(initialPreview);
   const [uploading, setUploading] = useState(false);
@@ -171,6 +172,11 @@ export default function RecruiterTemplateBuilderForm({
   const saveDraft = async (options?: {
     redirectToListing?: boolean;
   }): Promise<RecruiterTemplateDetail | null> => {
+    if (!name.trim()) {
+      setSaveError("Template name is required.");
+      return null;
+    }
+    setSaveError(null);
     setSaving(true);
     try {
       const payload = buildPayload(
@@ -210,6 +216,7 @@ export default function RecruiterTemplateBuilderForm({
       }
       return body.template;
     } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
       toast.error(err instanceof Error ? err.message : "Save failed");
       return null;
     } finally {
@@ -344,7 +351,7 @@ export default function RecruiterTemplateBuilderForm({
           <button
             type="button"
             disabled={saving}
-            onClick={() => void saveDraft({ redirectToListing: true })}
+            onClick={() => void saveDraft()}
             className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#D0D5DD] px-4 text-sm font-medium text-[#344054] disabled:opacity-50 min-[480px]:flex-none"
           >
             <Save className="h-4 w-4" />
@@ -354,6 +361,7 @@ export default function RecruiterTemplateBuilderForm({
       </div>
 
       <section className="rounded-xl border border-[#EAECF0] bg-white p-4 sm:p-5">
+        {saveError ? <p role="alert" className="mb-3 text-sm text-red-700">{saveError}</p> : null}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] lg:items-start">
           <div className="grid gap-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -361,7 +369,8 @@ export default function RecruiterTemplateBuilderForm({
                 <span className="text-sm font-medium text-[#344054]">Template Name</span>
                 <input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); setSaveError(null); }}
+                  aria-invalid={Boolean(saveError && !name.trim())}
                   className={fieldClassName}
                   placeholder="Offer letter - full time"
                 />

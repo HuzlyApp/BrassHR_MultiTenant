@@ -113,6 +113,21 @@ export default function DepartmentsPanel() {
     }
   }, []);
 
+  async function searchTargets(kind: AssignmentKind, query: string): Promise<DepartmentTarget[]> {
+    try {
+      const params = new URLSearchParams({ kind, q: query.trim() });
+      const response = await fetch(`/api/admin/departments/search?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Search failed");
+      return (payload.results ?? []) as DepartmentTarget[];
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Search failed");
+      return [];
+    }
+  }
+
   useEffect(() => {
     void loadDepartments();
   }, [loadDepartments]);
@@ -205,20 +220,6 @@ export default function DepartmentsPanel() {
     return () => window.clearTimeout(handle);
   }, [candidateQuery, selectedId, panelMode]);
 
-  async function searchTargets(kind: AssignmentKind, query: string): Promise<DepartmentTarget[]> {
-    try {
-      const params = new URLSearchParams({ kind, q: query.trim() });
-      const response = await fetch(`/api/admin/departments/search?${params.toString()}`, {
-        cache: "no-store",
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Search failed");
-      return (payload.results ?? []) as DepartmentTarget[];
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Search failed");
-      return [];
-    }
-  }
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -395,6 +396,7 @@ export default function DepartmentsPanel() {
       toast.error("Remove this department from its jobs and candidates before deleting it.");
       return;
     }
+    if (!window.confirm(`Delete department "${department.name}"? This cannot be undone.`)) return;
     try {
       const response = await fetch(`/api/admin/departments/${department.id}`, { method: "DELETE" });
       const payload = await response.json().catch(() => ({}));

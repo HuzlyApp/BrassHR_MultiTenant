@@ -35,6 +35,12 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 const KEY_ICON = "/icons/braas-HR/key.svg";
 const RESET_SUCCESS_REDIRECT_MESSAGE = `${PASSWORD_UPDATE_SUCCESS_MESSAGE} Redirecting to sign in…`;
+const RESET_LINK_INVALID_MESSAGE =
+  "This reset link is invalid or has expired. Request a new one from the sign-in page.";
+
+/** Survives React Strict Mode remounts so a one-time token is not verified twice. */
+const consumedRecoveryTokenHashes = new Set<string>();
+const consumedRecoveryCodes = new Set<string>();
 
 const titleClassName =
   "whitespace-nowrap text-left text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19] max-[399px]:whitespace-normal max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[26px] min-[400px]:max-[549px]:leading-[31px] min-[550px]:max-[1079px]:text-[27px] min-[550px]:max-[1079px]:leading-[32px]";
@@ -164,15 +170,37 @@ function ResetPasswordContent() {
 
   useEffect(() => {
     let alive = true;
+
+    const markRecoveryReady = (email: string | null) => {
+      if (!alive) return;
+      consumedLinkRef.current = true;
+      setFormError(null);
+      setRecoveryAccountEmail(email);
+      setRecoveryReady(true);
+    };
+
+    const markInvalidLink = () => {
+      // Never overwrite a session that already unlocked the form (e.g. URL cleaned
+      // after verify, Strict Mode remount, or AuthSessionSync router.refresh).
+      if (!alive || consumedLinkRef.current || recoveryReady) return;
+      setFormError(RESET_LINK_INVALID_MESSAGE);
+    };
+
     void (async () => {
       try {
+        // Already verified on this page — ignore follow-up effect runs when the
+        // one-time token is stripped from the URL after a successful exchange.
+        if (recoveryReady || consumedLinkRef.current) {
+          if (alive) {
+            setFormError(null);
+            setRecoveryReady(true);
+          }
+          return;
+        }
+
         // Supabase may bounce failed verify here with hash errors (old action_link flow).
         if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
-          if (alive) {
-            setFormError(
-              "This reset link is invalid or has expired. Request a new one from the sign-in page."
-            );
-          }
+          markInvalidLink();
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
           return;
         }
@@ -188,24 +216,36 @@ function ResetPasswordContent() {
         });
 
         if (plan === "reuse-recovery-session") {
-          if (alive) {
-            setRecoveryAccountEmail(existing?.user.email ?? null);
-            setRecoveryReady(true);
-          }
+          markRecoveryReady(existing?.user.email ?? null);
           return;
+        }
+
+        const tokenHash = link.tokenHash;
+        const type = link.type || "recovery";
+        const code = link.code;
+
+        // Token already exchanged (Strict Mode double-mount). Reuse the session.
+        if (tokenHash && consumedRecoveryTokenHashes.has(tokenHash)) {
+          const {
+            data: { session },
+          } = await supabaseBrowser.auth.getSession();
+          if (session) {
+            markRecoveryReady(session.user.email ?? null);
+            return;
+          }
+        }
+        if (code && consumedRecoveryCodes.has(code)) {
+          const {
+            data: { session },
+          } = await supabaseBrowser.auth.getSession();
+          if (session) {
+            markRecoveryReady(session.user.email ?? null);
+            return;
+          }
         }
 
         if (plan === "reject") {
-          if (alive) {
-            setFormError(
-              "This reset link is invalid or has expired. Request a new one from the sign-in page."
-            );
-          }
-          return;
-        }
-
-        if (consumedLinkRef.current) {
-          if (alive) setRecoveryReady(true);
+          markInvalidLink();
           return;
         }
 
@@ -213,30 +253,31 @@ function ResetPasswordContent() {
           await supabaseBrowser.auth.signOut();
         }
 
-        const tokenHash = link.tokenHash;
-        const type = link.type || "recovery";
-        const code = link.code;
-
         if (tokenHash && type === "recovery") {
           const { error } = await supabaseBrowser.auth.verifyOtp({
             type: "recovery",
             token_hash: tokenHash,
           });
           if (error) {
-            if (alive) {
-              setFormError(
-                "This reset link is invalid or has expired. Request a new one from the sign-in page."
-              );
+            // Race: a parallel effect may have already verified this one-time token.
+            if (consumedRecoveryTokenHashes.has(tokenHash)) {
+              const {
+                data: { session },
+              } = await supabaseBrowser.auth.getSession();
+              if (session) {
+                markRecoveryReady(session.user.email ?? null);
+                return;
+              }
             }
+            markInvalidLink();
             return;
           }
-          consumedLinkRef.current = true;
+          consumedRecoveryTokenHashes.add(tokenHash);
           const {
             data: { user },
           } = await supabaseBrowser.auth.getUser();
           if (alive) {
-            setRecoveryAccountEmail(user?.email ?? null);
-            setRecoveryReady(true);
+            markRecoveryReady(user?.email ?? null);
             const next = new URL(window.location.href);
             next.searchParams.delete("token_hash");
             next.searchParams.delete("type");
@@ -248,35 +289,29 @@ function ResetPasswordContent() {
         if (code) {
           const { error } = await supabaseBrowser.auth.exchangeCodeForSession(code);
           if (error) {
-            if (alive) {
-              setFormError(
-                "This reset link is invalid or has expired. Request a new one from the sign-in page."
-              );
+            if (consumedRecoveryCodes.has(code)) {
+              const {
+                data: { session },
+              } = await supabaseBrowser.auth.getSession();
+              if (session) {
+                markRecoveryReady(session.user.email ?? null);
+                return;
+              }
             }
+            markInvalidLink();
             return;
           }
-          consumedLinkRef.current = true;
+          consumedRecoveryCodes.add(code);
           const {
             data: { user },
           } = await supabaseBrowser.auth.getUser();
-          if (alive) {
-            setRecoveryAccountEmail(user?.email ?? null);
-            setRecoveryReady(true);
-          }
+          markRecoveryReady(user?.email ?? null);
           return;
         }
 
-        if (alive) {
-          setFormError(
-            "This reset link is invalid or has expired. Request a new one from the sign-in page."
-          );
-        }
+        markInvalidLink();
       } catch {
-        if (alive) {
-          setFormError(
-            "This reset link is invalid or has expired. Request a new one from the sign-in page."
-          );
-        }
+        markInvalidLink();
       } finally {
         if (alive) setSessionReady(true);
       }
@@ -284,7 +319,7 @@ function ResetPasswordContent() {
     return () => {
       alive = false;
     };
-  }, [searchParams]);
+  }, [searchParams, recoveryReady]);
 
   const errors = useMemo(
     () => (attempted ? fieldErrors(newPassword, confirmPassword) : { newPassword: null, confirmPassword: null }),
@@ -308,7 +343,7 @@ function ResetPasswordContent() {
         data: { session },
       } = await supabaseBrowser.auth.getSession();
       if (!session) {
-        setFormError("This reset link is invalid or has expired. Request a new one from the sign-in page.");
+        setFormError(RESET_LINK_INVALID_MESSAGE);
         return;
       }
 

@@ -1,10 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
 import { jsPDF } from "jspdf";
 import {
   Briefcase,
@@ -31,16 +29,11 @@ import {
   convertedWorkerSummaryMessage,
   formatConversionDate,
   resolveConvertedWorkerTypeLabel,
-  type ConvertWorkerType,
 } from "@/lib/admin/convert-candidate-to-worker";
-import ConvertWorkerSuccessModal, {
-  type ConvertWorkerSuccessData,
-} from "@/app/admin_recruiter/components/ConvertWorkerSuccessModal";
 
 type Props = {
   workerId: string;
   data: OnboardedApplicantViewModel;
-  onConversionComplete?: () => void | Promise<void>;
 };
 
 const FIGMA_CARD =
@@ -140,91 +133,6 @@ function SectionHeader({
   );
 }
 
-type WorkerType = ConvertWorkerType;
-
-function ConvertWorkerCard({
-  type,
-  title,
-  description,
-  features,
-  buttonLabel,
-  isActive,
-  onMouseEnter,
-  onMouseLeave,
-  onConvert,
-  converting,
-  disabled,
-}: {
-  type: WorkerType;
-  title: string;
-  description: string;
-  features: string[];
-  buttonLabel: string;
-  isActive: boolean;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
-  onConvert: (type: WorkerType) => void;
-  converting: boolean;
-  disabled?: boolean;
-}) {
-  const Icon = type === "w2" ? Shield : ClipboardList;
-
-  return (
-    <div
-      className={`flex min-h-[320px] w-full min-w-0 flex-1 basis-0 flex-col rounded-xl border bg-white p-5 transition-colors ${
-        isActive
-          ? "border-[color:var(--brand-primary)] shadow-[0_0_0_1px_var(--brand-primary)]"
-          : "border-[#E5E7EB]"
-      }`}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-            isActive
-              ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)]"
-              : "bg-[#F8FAFC]"
-          }`}
-        >
-          <Icon
-            className={`h-5 w-5 ${isActive ? "text-[color:var(--brand-primary)]" : "text-[#6B7280]"}`}
-            strokeWidth={2}
-          />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-base font-bold text-[#111827]">{title}</h3>
-          <p className="mt-1 text-sm leading-6 text-[#374151]">{description}</p>
-        </div>
-      </div>
-
-      <ul className="mt-5 space-y-2.5">
-        {features.map((feature) => (
-          <li key={feature} className="flex items-start gap-2 text-sm text-[#374151]">
-            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]">
-              <Check className="h-3 w-3" strokeWidth={3} />
-            </span>
-            <span>{feature}</span>
-          </li>
-        ))}
-      </ul>
-
-      <button
-        type="button"
-        disabled={disabled || converting}
-        onClick={() => onConvert(type)}
-        className={`mt-auto inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-          isActive
-            ? "bg-[color:var(--brand-primary)] text-white"
-            : "border border-[#111827] bg-white text-[#111827]"
-        }`}
-      >
-        {converting ? "Converting…" : buttonLabel}
-      </button>
-    </div>
-  );
-}
-
 function ConvertedWorkerStatusCard({
   convertedWorkerType,
   convertedAt,
@@ -286,52 +194,8 @@ function ConvertedWorkerStatusCard({
   );
 }
 
-export default function OnboardedApplicantPanel({ workerId, data, onConversionComplete }: Props) {
-  const router = useRouter();
-  const [hoveredWorkerType, setHoveredWorkerType] = useState<WorkerType | null>(null);
-  const [convertingType, setConvertingType] = useState<WorkerType | null>(null);
-  const [conversionSuccess, setConversionSuccess] = useState<ConvertWorkerSuccessData | null>(null);
-  const activeWorkerType: WorkerType = hoveredWorkerType ?? data.convertedWorkerType ?? "w2";
-
+export default function OnboardedApplicantPanel({ workerId, data }: Props) {
   const firstName = data.candidateName.split(/\s+/)[0] || data.candidateName;
-
-  async function handleConvert(type: WorkerType) {
-    if (data.isConverted || convertingType) return;
-
-    setConvertingType(type);
-    try {
-      const res = await fetch(`/api/admin/candidates/${encodeURIComponent(workerId)}/convert-worker`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workerType: type }),
-      });
-      const payload = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        profilePath?: string;
-        workerRecordId?: string;
-        workerType?: ConvertWorkerType;
-      };
-
-      if (!res.ok || !payload.ok) {
-        throw new Error(payload.error || `Conversion failed (${res.status})`);
-      }
-
-      setConversionSuccess({
-        workerType: payload.workerType ?? type,
-        workerRecordId: payload.workerRecordId ?? workerId,
-        profilePath: payload.profilePath ?? `/admin_recruiter/workers/${workerId}/profile`,
-        candidateName: data.candidateName,
-        employeeId: data.employeeId,
-      });
-      await onConversionComplete?.();
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to convert candidate.");
-    } finally {
-      setConvertingType(null);
-    }
-  }
 
   function handleDownloadReport() {
     const doc = new jsPDF();
@@ -667,7 +531,7 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
       </div>
 
       <section className="w-full rounded-md border border-[#E5E7EB] bg-[#F8FAFC] p-5">
-        <h2 className="text-base font-bold text-[#012352]">Convert to worker</h2>
+        <h2 className="text-base font-bold text-[#012352]">Worker status</h2>
         {data.isConverted ? (
           <>
             <p className="mt-1 text-sm font-medium text-[#111827]">
@@ -680,55 +544,12 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
             />
           </>
         ) : (
-          <>
-            <p className="mt-1 text-sm text-[#6B7280]">
-              Choose the worker type and complete the conversion process.
-            </p>
-            <div className="mt-5 flex w-full flex-col gap-4 sm:flex-row">
-              <ConvertWorkerCard
-                type="w2"
-                title="W-2 Employee"
-                description="Convert as a W-2 employee. Taxes will be withheld and reported to BrassHR."
-                features={[
-                  "Full-time or part-time employee",
-                  "Taxes withheld by BrassHR",
-                  "Appears on payroll",
-                ]}
-                buttonLabel="Convert to W-2 Employee"
-                isActive={activeWorkerType === "w2"}
-                onMouseEnter={() => setHoveredWorkerType("w2")}
-                onMouseLeave={() => setHoveredWorkerType(null)}
-                onConvert={handleConvert}
-                converting={convertingType === "w2"}
-                disabled={convertingType != null}
-              />
-              <ConvertWorkerCard
-                type="1099"
-                title="1099 Contractor"
-                description="Convert as a 1099 contractor. Payments will be reported on a 1099 form."
-                features={[
-                  "Independent contractor",
-                  "No taxes withheld by BrassHR",
-                  "Paid via contractor payments",
-                ]}
-                buttonLabel="Convert to 1099 Contractor"
-                isActive={activeWorkerType === "1099"}
-                onMouseEnter={() => setHoveredWorkerType("1099")}
-                onMouseLeave={() => setHoveredWorkerType(null)}
-                onConvert={handleConvert}
-                converting={convertingType === "1099"}
-                disabled={convertingType != null}
-              />
-            </div>
-          </>
+          <p className="mt-1 text-sm leading-6 text-[#4B5563]">
+            This candidate becomes a worker automatically when Pre-Hire Agreement e-sign is
+            completed. Manual convert is no longer available on this screen.
+          </p>
         )}
       </section>
-
-      <ConvertWorkerSuccessModal
-        open={conversionSuccess != null}
-        data={conversionSuccess}
-        onClose={() => setConversionSuccess(null)}
-      />
     </div>
   );
 }

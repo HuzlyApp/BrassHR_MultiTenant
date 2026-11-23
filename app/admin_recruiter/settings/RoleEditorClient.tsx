@@ -101,6 +101,7 @@ export default function RoleEditorClient({
   const [resources, setResources] = useState<ResourceRow[]>([]);
   const [editing, setEditing] = useState<RoleRow | null>(null);
   const [label, setLabel] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [grants, setGrants] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,10 +203,11 @@ export default function RoleEditorClient({
     event.preventDefault();
     if (!canEdit) return;
     const trimmed = label.trim();
-    if (!trimmed) {
-      toast.error("Role name is required");
+    if (!trimmed || trimmed.length > 80) {
+      setNameError(!trimmed ? "Role name is required." : "Role name must be 80 characters or fewer.");
       return;
     }
+    setNameError(null);
     setSaving(true);
     try {
       const editableKeys = new Set(resources.map((resource) => resource.key));
@@ -280,7 +282,7 @@ export default function RoleEditorClient({
   }
 
   return (
-    <form onSubmit={save} className="mx-auto flex w-full max-w-[1100px] flex-col gap-5 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
+    <form noValidate onSubmit={save} className="mx-auto flex w-full max-w-[1100px] flex-col gap-5 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
       <div>
         <Link
           href={ROLES_LIST_HREF}
@@ -305,12 +307,17 @@ export default function RoleEditorClient({
           <input
             required
             value={label}
-            onChange={(event) => setLabel(event.target.value)}
+            maxLength={80}
+            aria-invalid={Boolean(nameError)}
+            aria-describedby={nameError ? "role-name-error role-name-limit" : "role-name-limit"}
+            onChange={(event) => { setLabel(event.target.value); setNameError(null); }}
             placeholder="Marketing Manager"
             disabled={!canEdit || loading}
             className="mt-2 h-11 w-full rounded-lg border border-[#E5E7EB] px-3 text-sm text-[#0F172A] outline-none focus:border-[#012352] focus:ring-1 focus:ring-[#012352]/20 disabled:bg-[#F8FAFC]"
           />
         </label>
+        <p id="role-name-limit" className="mt-1 text-xs text-[#64748B]">{label.length}/80 characters</p>
+        {nameError ? <p id="role-name-error" role="alert" className="mt-1 text-sm text-[#B91C1C]">{nameError}</p> : null}
         <label className="mt-4 block text-sm font-medium text-[#374151]">
           Description
           <textarea

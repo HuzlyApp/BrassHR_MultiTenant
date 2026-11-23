@@ -1,18 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { STAFF_PROFILE_PHOTOS_BUCKET } from "@/lib/supabase-storage-buckets";
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const PROFILE_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/jpg", "image/webp"]);
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const PROFILE_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/jpg"]);
 const SIGNED_URL_TTL_SECONDS = 86_400;
 
 export function sanitizeStaffProfileFileName(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200) || "photo";
 }
 
 export function validateStaffProfilePhoto(file: File): string | null {
-  if (file.size > MAX_UPLOAD_BYTES) return "Photo is too large (max 5 MB).";
+  if (file.size > MAX_UPLOAD_BYTES) return "Photo is too large (max 2 MB).";
   const mime = (file.type || "").toLowerCase();
-  if (mime && !PROFILE_PHOTO_MIME.has(mime)) {
+  if (!PROFILE_PHOTO_MIME.has(mime)) {
     return "Please upload a JPG or PNG photo.";
   }
   return null;

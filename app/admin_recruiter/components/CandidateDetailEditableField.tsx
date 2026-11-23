@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
 import {
@@ -12,12 +12,24 @@ import {
 import { PROFILE_FIELD_OPEN_EDIT_EVENT } from "@/lib/admin/candidate-profile-sections";
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 
+const SSN_HIDDEN_PREFIX = "********"; // first 8 digits always masked
+
+function ssnLastFourDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(-4);
+}
+
+/** Eye off: last 4 hidden too. Eye on: 8 * + last 4. */
+function formatSsnLastFourDisplay(value: string, revealed: boolean): string {
+  const digits = ssnLastFourDigits(value);
+  if (!digits) return value.trim() === "—" ? "—" : `${SSN_HIDDEN_PREFIX}****`;
+  return revealed ? `${SSN_HIDDEN_PREFIX}${digits}` : `${SSN_HIDDEN_PREFIX}****`;
+}
+
 function maskSensitiveDisplay(fieldKind: CandidateFieldKind, value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed === "—") return trimmed || "—";
   if (fieldKind === "ssn_last_four") {
-    const digits = trimmed.replace(/\D/g, "").slice(-4);
-    return digits ? `***-**-${digits}` : "***-**-****";
+    return formatSsnLastFourDisplay(trimmed, false);
   }
   if (fieldKind === "date_of_birth") {
     return "********";
@@ -25,8 +37,19 @@ function maskSensitiveDisplay(fieldKind: CandidateFieldKind, value: string): str
   return trimmed;
 }
 
+function formatSensitiveDisplay(fieldKind: CandidateFieldKind, value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "—") return trimmed || "—";
+  if (fieldKind === "ssn_last_four") {
+    return formatSsnLastFourDisplay(trimmed, true);
+  }
+  return trimmed;
+}
+
 type CandidateDetailEditableFieldProps = {
-  label: string;
+  label: ReactNode;
+  /** Used for aria-labels when `label` is not a plain string. */
+  accessibilityLabel?: string;
   displayValue: string;
   editValue: string;
   isMissing: boolean;
@@ -43,6 +66,7 @@ type CandidateDetailEditableFieldProps = {
 
 export default function CandidateDetailEditableField({
   label,
+  accessibilityLabel,
   displayValue,
   editValue,
   isMissing,
@@ -55,6 +79,8 @@ export default function CandidateDetailEditableField({
   anchorId,
   onSave,
 }: CandidateDetailEditableFieldProps) {
+  const fieldLabel =
+    accessibilityLabel?.trim() || (typeof label === "string" ? label : "Field");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(editValue);
   const [localSaving, setLocalSaving] = useState(false);
@@ -166,7 +192,9 @@ export default function CandidateDetailEditableField({
                           ? 10
                           : fieldKind === "person_name"
                             ? PERSON_NAME_MAX_LENGTH
-                            : undefined
+                            : fieldKind === "short_text"
+                              ? 120
+                              : undefined
                 }
                 className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
                   saveError ? "border-red-400" : "border-[#D1D5DB]"
@@ -198,8 +226,10 @@ export default function CandidateDetailEditableField({
         ) : (
           <div className="group flex items-start justify-between gap-2">
             <span className={highlightValue ? "text-[var(--brand-primary)]" : ""}>
-              {isSensitive && !revealed
-                ? maskSensitiveDisplay(fieldKind, displayValue)
+              {isSensitive
+                ? revealed
+                  ? formatSensitiveDisplay(fieldKind, displayValue)
+                  : maskSensitiveDisplay(fieldKind, displayValue)
                 : displayValue}
             </span>
             <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
@@ -207,7 +237,7 @@ export default function CandidateDetailEditableField({
                 <button
                   type="button"
                   onClick={() => setRevealed((v) => !v)}
-                  aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
+                  aria-label={revealed ? `Hide ${fieldLabel}` : `Show ${fieldLabel}`}
                   className="inline-flex cursor-pointer text-[#6B7280] transition-colors hover:text-[color:var(--brand-primary)]"
                 >
                   {revealed ? (
@@ -220,7 +250,7 @@ export default function CandidateDetailEditableField({
               <button
                 type="button"
                 onClick={openEditor}
-                aria-label={`Edit ${label}`}
+                aria-label={`Edit ${fieldLabel}`}
                 className="cursor-pointer opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
               >
                 <BrandedEditIcon className="h-4 w-4" />

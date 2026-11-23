@@ -44,7 +44,13 @@ export async function GET(req: NextRequest) {
 
   const apiKey = dialpadApiKey();
   if (!apiKey) {
-    return NextResponse.json({ configured: false, callers: [], defaultUserId: null });
+    return NextResponse.json({
+      configured: false,
+      callers: [],
+      defaultUserId: null,
+      calls: [],
+      callsError: null,
+    });
   }
 
   try {
@@ -56,7 +62,11 @@ export async function GET(req: NextRequest) {
         (error: unknown) => ({
           calls: [] as DialpadCallLog[],
           callsError:
-            error instanceof DialpadError ? error.message : "Could not load Dialpad call logs.",
+            error instanceof DialpadError
+              ? error.message
+              : error instanceof Error && error.name === "TimeoutError"
+                ? "Dialpad timed out while loading call logs."
+                : "Could not load Dialpad call logs.",
         })
       ),
     ]);
@@ -71,6 +81,12 @@ export async function GET(req: NextRequest) {
     console.error("[admin/dialpad GET]", error instanceof Error ? error.message : "unknown");
     if (error instanceof DialpadError) {
       return NextResponse.json({ error: error.message }, { status: dialpadHttpStatus(error) });
+    }
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return NextResponse.json(
+        { error: "Dialpad timed out. Try again in a moment." },
+        { status: 504 }
+      );
     }
     return NextResponse.json({ error: "Could not load Dialpad users." }, { status: 502 });
   }

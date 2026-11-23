@@ -107,6 +107,27 @@ export default function PersonalTab() {
   const [citiesLoading, setCitiesLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
+  const [birthdateError, setBirthdateError] = useState<string | null>(null);
+  const [jobTitleError, setJobTitleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const onNavigate = (event: MouseEvent) => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement) || link.target === "_blank" || link.hasAttribute("download")) return;
+      const next = new URL(link.href, window.location.href);
+      if (next.pathname === window.location.pathname && next.search === window.location.search) return;
+      if (!window.confirm("Discard unsaved profile changes?")) { event.preventDefault(); event.stopPropagation(); }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", onNavigate, true);
+    return () => { window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", onNavigate, true); };
+  }, [dirty]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -139,8 +160,6 @@ export default function PersonalTab() {
   const [phoneSuccessOpen, setPhoneSuccessOpen] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
-  const [birthdateError, setBirthdateError] = useState<string | null>(null);
-  const [jobTitleError, setJobTitleError] = useState<string | null>(null);
 
   const resolvedFields = useMemo(
     () => resolvePersonalProfileFields(profile, organization),
@@ -353,6 +372,11 @@ export default function PersonalTab() {
   }
 
   function resetFromResolved() {
+    setDirty(false);
+    setFirstNameError(null);
+    setLastNameError(null);
+    setBirthdateError(null);
+    setJobTitleError(null);
     setFirstName(resolvedFields.firstName);
     setLastName(resolvedFields.lastName);
     setPreferredName(resolvedFields.preferredName);
@@ -383,8 +407,6 @@ export default function PersonalTab() {
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
-    setBirthdateError(null);
-    setJobTitleError(null);
   }
 
   const accountEmail = (user?.email ?? profile?.email ?? "").trim();
@@ -663,11 +685,12 @@ export default function PersonalTab() {
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
-    setBirthdateError(null);
-    setJobTitleError(null);
 
-    if (!firstName.trim() || !lastName.trim()) {
-      setSaveError("First name and last name are required.");
+    setFirstNameError(!firstName.trim() ? "First name is required." : null);
+    setLastNameError(!lastName.trim() ? "Last name is required." : null);
+    setBirthdateError(!birthdate.trim() ? "Birthdate is required." : null);
+    setJobTitleError(canEditProfessionalFields && !jobTitle.trim() ? "Job title is required." : null);
+    if (!firstName.trim() || !lastName.trim() || !birthdate.trim() || (canEditProfessionalFields && !jobTitle.trim())) {
       setSaving(false);
       return;
     }
@@ -682,18 +705,6 @@ export default function PersonalTab() {
               : "Preferred name"
         )
       );
-      setSaving(false);
-      return;
-    }
-
-    if (!birthdate.trim()) {
-      setBirthdateError("Birthdate is required.");
-      setSaving(false);
-      return;
-    }
-
-    if (canEditProfessionalFields && !jobTitle.trim()) {
-      setJobTitleError("Job title is required.");
       setSaving(false);
       return;
     }
@@ -814,6 +825,7 @@ export default function PersonalTab() {
       if (refreshed) await refresh();
 
       setSaveSuccess("Profile saved successfully.");
+      setDirty(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save profile");
     } finally {
@@ -831,7 +843,7 @@ export default function PersonalTab() {
 
   return (
     <>
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form noValidate onSubmit={handleSubmit} onChange={() => setDirty(true)} className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Profile</h1>
         <p className="mt-1 text-sm text-[#64748B]">
@@ -881,11 +893,13 @@ export default function PersonalTab() {
             <input
               type="text"
               value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
+              onChange={(e) => { setFirstName(e.target.value); setFirstNameError(null); }}
               maxLength={PERSON_NAME_MAX_LENGTH}
-              className={FIELD}
+              className={`${FIELD}${firstNameError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
               required
+              aria-invalid={Boolean(firstNameError)}
             />
+            {firstNameError ? <p role="alert" className="mt-1 text-xs text-[#B91C1C]">{firstNameError}</p> : null}
           </label>
           <label className="block">
             <FieldLabel>
@@ -895,11 +909,13 @@ export default function PersonalTab() {
             <input
               type="text"
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => { setLastName(e.target.value); setLastNameError(null); }}
               maxLength={PERSON_NAME_MAX_LENGTH}
-              className={FIELD}
+              className={`${FIELD}${lastNameError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
               required
+              aria-invalid={Boolean(lastNameError)}
             />
+            {lastNameError ? <p role="alert" className="mt-1 text-xs text-[#B91C1C]">{lastNameError}</p> : null}
           </label>
           <label className="block">
             <FieldLabel>Preferred Name</FieldLabel>
@@ -988,12 +1004,10 @@ export default function PersonalTab() {
             {phoneError ? <p className="mt-1 text-xs text-[#B91C1C]">{phoneError}</p> : null}
           </div>
           <label className="block">
-            <FieldLabel>
-              Birthdate
-              <RequiredMark />
-            </FieldLabel>
+            <FieldLabel>Birthdate</FieldLabel>
             <input
               type="date"
+              aria-invalid={Boolean(birthdateError)}
               value={birthdate}
               onChange={(e) => {
                 setBirthdate(e.target.value);
@@ -1009,7 +1023,7 @@ export default function PersonalTab() {
               }}
               className={`${FIELD} cursor-pointer${birthdateError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
             />
-            {birthdateError ? <p className="mt-1 text-xs text-[#B91C1C]">{birthdateError}</p> : null}
+            {birthdateError ? <p role="alert" className="mt-1 text-xs text-[#B91C1C]">{birthdateError}</p> : null}
           </label>
         </div>
       </SectionCard>
@@ -1023,21 +1037,19 @@ export default function PersonalTab() {
             </p>
           ) : null}
           <label className="block">
-            <FieldLabel>
-              Job Title
-              {canEditProfessionalFields ? <RequiredMark /> : null}
-            </FieldLabel>
+            <FieldLabel>Job Title</FieldLabel>
             <input
               type="text"
               value={jobTitle}
               disabled={!canEditProfessionalFields}
+              aria-invalid={Boolean(jobTitleError)}
               onChange={(e) => {
                 setJobTitle(e.target.value);
                 if (jobTitleError) setJobTitleError(null);
               }}
               className={`${FIELD}${jobTitleError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""} disabled:cursor-not-allowed disabled:bg-[#F8FAFC]`}
             />
-            {jobTitleError ? <p className="mt-1 text-xs text-[#B91C1C]">{jobTitleError}</p> : null}
+            {jobTitleError ? <p role="alert" className="mt-1 text-xs text-[#B91C1C]">{jobTitleError}</p> : null}
           </label>
           <SelectField
             label="Department"

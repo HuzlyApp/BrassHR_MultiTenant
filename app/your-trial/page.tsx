@@ -14,7 +14,7 @@ import {
 } from "@/lib/auth/account-ready-modal";
 import { leaveOwnerTrialPreparation } from "@/lib/auth/leave-owner-trial-preparation";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 const RIGHT_CHECK_ICON = "/icons/braas-HR/right-icon.svg";
 

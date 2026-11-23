@@ -18,6 +18,7 @@ import { parseJobRequisitionPatch, normalizeJobTags } from "@/lib/jobs/job-requi
 import { patchJobRequisition } from "@/lib/jobs/service";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
+import { formatApiError } from "@/lib/api/format-api-error";
 
 export const runtime = "nodejs";
 
@@ -75,10 +76,6 @@ type JobRequisitionRow = {
   created_by?: string | null;
 };
 
-function formatApiError(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
-}
 
 export async function GET(
   req: Request,

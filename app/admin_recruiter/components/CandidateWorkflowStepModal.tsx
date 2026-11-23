@@ -432,6 +432,7 @@ export default function CandidateWorkflowStepModal({
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "warning"; message: string } | null>(null);
   const [resyncing, setResyncing] = useState(false);
@@ -706,6 +707,7 @@ export default function CandidateWorkflowStepModal({
   async function sendCandidateEmail() {
     if (!workerId || !stepId) return;
     setSubmitting(true);
+    setSendingEmail(true);
     setNotice(null);
     try {
       const res = await fetch(
@@ -731,6 +733,7 @@ export default function CandidateWorkflowStepModal({
       setNotice({ tone: "warning", message: "Failed to send the email." });
     } finally {
       setSubmitting(false);
+      setSendingEmail(false);
     }
   }
 
@@ -1465,7 +1468,7 @@ export default function CandidateWorkflowStepModal({
                     }}
                   >
                     <Mail className="h-4 w-4" aria-hidden />
-                    {submitting
+                    {sendingEmail
                       ? "Sending…"
                       : authorizationAwaitingSignature || authorizationConfirmation
                         ? "Send email to candidate"
@@ -1503,7 +1506,7 @@ export default function CandidateWorkflowStepModal({
                     style={{ background: "var(--step-modal-cta)", color: "var(--step-modal-on-primary)" }}
                   >
                     <CheckCircle2 className="h-4 w-4" aria-hidden />
-                    Mark as complete
+                    {submitting && !sendingEmail ? "Saving…" : "Mark as complete"}
                   </button>
                 ) : agreementPendingReview ? (
                   <button
@@ -1529,7 +1532,7 @@ export default function CandidateWorkflowStepModal({
                     style={{ background: "var(--step-modal-cta)", color: "var(--step-modal-on-primary)" }}
                   >
                     <CheckCircle2 className="h-4 w-4" aria-hidden />
-                    Mark as complete
+                    {submitting && !sendingEmail ? "Saving…" : "Mark as complete"}
                   </button>
                 ) : null}
                 {(canAct ? staffAction?.actions ?? [] : [])
@@ -1565,7 +1568,7 @@ export default function CandidateWorkflowStepModal({
                             : "border border-slate-300 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    {staffActionLabel(action, variant)}
+                    {submitting && !sendingEmail ? "Saving…" : staffActionLabel(action, variant)}
                   </button>
                 ))}
               </div>

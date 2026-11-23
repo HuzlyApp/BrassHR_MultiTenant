@@ -13,6 +13,13 @@ export async function POST(req: NextRequest) {
   const { data, error } = await svc.auth.getUser(token);
   if (error || !data.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(APPLICANT_ACCESS_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 3600 });
+  const secure = new URL(req.url).protocol === "https:" || process.env.NODE_ENV === "production";
+  res.cookies.set(APPLICANT_ACCESS_COOKIE, token, {
+    httpOnly: true,
+    secure,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 3600,
+  });
   return res;
 }

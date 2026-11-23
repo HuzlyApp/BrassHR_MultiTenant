@@ -14,7 +14,7 @@ import {
 } from "@/lib/auth/login-otp-constants";
 import { LOGIN_OTP_LENGTH } from "@/lib/auth/supabase-magic-link-otp-template";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 const OTP_LENGTH = LOGIN_OTP_LENGTH;
 
 const inputFocusClass =

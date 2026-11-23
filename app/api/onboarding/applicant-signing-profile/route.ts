@@ -2,6 +2,10 @@ import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
+import {
+  DRAFT_PREVIEW_APPLICANT_EMAIL,
+  isDraftPreviewApplicantId,
+} from "@/lib/onboarding/is-draft-preview";
 import { resolveApplicantSigningProfile } from "@/lib/onboarding/resolve-applicant-signing-profile";
 import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
 
@@ -17,6 +21,17 @@ export async function GET(req: NextRequest) {
 
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 });
+    }
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({
+        draftPreview: true,
+        profile: {
+          email: DRAFT_PREVIEW_APPLICANT_EMAIL,
+          firstName: "Draft",
+          lastName: "Preview",
+        },
+      });
     }
 
     const url = getSupabaseUrl();

@@ -207,6 +207,10 @@ export default function NotificationsSettingsPanel() {
   };
 
   const handleSave = async () => {
+    if (draft.quietHoursEnabled && draft.quietHoursFrom === draft.quietHoursTo) {
+      toast.error("Quiet hours must have different start and end times.");
+      return;
+    }
     setSaving(true);
     try {
       window.localStorage.setItem(NOTIFICATION_SETTINGS_STORAGE_KEY, JSON.stringify(draft));

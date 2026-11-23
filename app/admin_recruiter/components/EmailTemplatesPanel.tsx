@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { interpolateTemplate } from "@/lib/email-templates/interpolation";
+import { sanitizeEmailHtml } from "@/lib/email-templates/sanitize-html";
 import { Mail } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { EMAIL_TEMPLATE_TYPE_LABELS } from "@/lib/email-templates/template-keys";
@@ -47,11 +49,29 @@ export default function EmailTemplatesPanel() {
   const [replyToEmail, setReplyToEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const htmlRef = useRef<HTMLTextAreaElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const activeField = useRef<"subject" | "html" | "text">("html");
 
   const selected = useMemo(
     () => templates.find((t) => t.template_key === selectedKey) ?? null,
     [templates, selectedKey]
   );
+
+  const previewVariables = Object.fromEntries((selected?.variables ?? []).map(variable => [variable.key, variable.sample || `[${variable.key}]`]));
+  function insertVariable(key: string) {
+    const field = activeField.current;
+    const input = field === "subject" ? subjectRef.current : field === "text" ? textRef.current : htmlRef.current;
+    const value = field === "subject" ? subject : field === "text" ? bodyText : bodyHtml;
+    const start = input?.selectionStart ?? value.length;
+    const end = input?.selectionEnd ?? start;
+    const token = `{{${key}}}`;
+    const next = value.slice(0, start) + token + value.slice(end);
+    if (field === "subject") setSubject(next); else if (field === "text") setBodyText(next); else setBodyHtml(next);
+    requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + token.length, start + token.length); });
+  }
 
   const applySelection = useCallback((item: AdminEmailTemplateItem) => {
     setSubject(item.subject);
@@ -229,9 +249,10 @@ export default function EmailTemplatesPanel() {
 
         <div className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-sm">
           {selected?.variables.length ? (
-            <p className="mb-4 text-xs text-[#64748B]">
-              Use placeholders: {selected.variables.map((v) => `{{${v.key}}}`).join(", ")}
-            </p>
+            <div className="mb-4 flex flex-wrap gap-2 text-xs text-[#64748B]">
+              <p className="w-full">Insert a placeholder into the last focused subject or body field:</p>
+              {selected.variables.map(variable => <button key={variable.key} type="button" onClick={() => insertVariable(variable.key)} title={variable.description} className="rounded border border-slate-300 px-2 py-1 text-slate-700">{`{{${variable.key}}}`}</button>)}
+            </div>
           ) : null}
 
           <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -274,6 +295,8 @@ export default function EmailTemplatesPanel() {
             <input
               type="text"
               value={subject}
+              ref={subjectRef}
+              onFocus={() => { activeField.current = "subject"; }}
               onChange={(e) => setSubject(e.target.value)}
               className="w-full rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
             />
@@ -285,6 +308,8 @@ export default function EmailTemplatesPanel() {
             </span>
             <textarea
               value={bodyHtml}
+              ref={htmlRef}
+              onFocus={() => { activeField.current = "html"; }}
               onChange={(e) => setBodyHtml(e.target.value)}
               rows={12}
               className="w-full resize-y rounded-lg border border-[#e2e8f0] px-3 py-2 font-mono text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
@@ -298,6 +323,8 @@ export default function EmailTemplatesPanel() {
             </span>
             <textarea
               value={bodyText}
+              ref={textRef}
+              onFocus={() => { activeField.current = "text"; }}
               onChange={(e) => setBodyText(e.target.value)}
               rows={5}
               className="w-full resize-y rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
@@ -306,6 +333,7 @@ export default function EmailTemplatesPanel() {
           </label>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => setPreviewOpen(value => !value)} className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold">{previewOpen ? "Hide preview" : "Preview email"}</button>
             <button
               type="button"
               disabled={saving}
@@ -317,6 +345,11 @@ export default function EmailTemplatesPanel() {
             {message ? <span className="text-sm text-green-700">{message}</span> : null}
             {error ? <span className="text-sm text-red-700">{error}</span> : null}
           </div>
+          {previewOpen ? <section aria-label="Email preview" className="mt-5 space-y-3 rounded-lg border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold">{interpolateTemplate(subject, previewVariables, { escapeForHtml: false })}</h3>
+            <p className="text-xs text-slate-500">Preview uses sample placeholder values.</p>
+            <iframe title="Email body preview" sandbox="" className="h-80 w-full rounded border border-slate-200" srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; style-src 'unsafe-inline'">${sanitizeEmailHtml(interpolateTemplate(bodyHtml, previewVariables))}`} />
+          </section> : null}
         </div>
       </div>
     </div>

@@ -133,7 +133,6 @@ export default function OnboardApplicantPage() {
           <OnboardedApplicantPanel
             workerId={applicantId ?? ""}
             data={onboardedData}
-            onConversionComplete={() => loadData(true)}
           />
         )}
       </div>

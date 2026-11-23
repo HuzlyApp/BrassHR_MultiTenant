@@ -104,6 +104,7 @@ export function TextField({
   defaultValue,
   value,
   onChange,
+  onBlur,
   required,
   type = "text",
   placeholder,
@@ -113,6 +114,7 @@ export function TextField({
   defaultValue?: string;
   value?: string;
   onChange?: (value: string) => void;
+  onBlur?: () => void;
   required?: boolean;
   type?: string;
   placeholder?: string;
@@ -126,6 +128,8 @@ export function TextField({
         value={value}
         defaultValue={value === undefined ? defaultValue : undefined}
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        onBlur={onBlur}
+        aria-invalid={Boolean(error)}
         placeholder={placeholder}
         className={`${FIELD} ${error ? FIELD_ERROR : ""}`}
       />

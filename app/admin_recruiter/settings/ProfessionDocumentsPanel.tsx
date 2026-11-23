@@ -1,6 +1,20 @@
 ﻿"use client";
 
-import { Children, isValidElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  Suspense,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Briefcase,
@@ -27,7 +41,9 @@ import AddCustomProfessionModal, {
   type AddCustomProfessionFormValue,
   type AssessmentOption,
 } from "@/app/admin_recruiter/settings/AddCustomProfessionModal";
+import SettingsSelect from "@/app/admin_recruiter/settings/SettingsSelect";
 import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
+import { assessmentOptionsFromCatalog } from "@/app/admin_recruiter/settings/assessment-options-from-catalog";
 import { normalizeSkillAssessmentCatalog } from "@/lib/skill-assessment/catalog";
 import type { SkillAssessmentCatalog } from "@/lib/skill-assessment/types";
 import {
@@ -366,6 +382,7 @@ function EditProfessionDialog({
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             maxLength={80}
+            aria-describedby="profession-name-limit"
             autoFocus
             aria-label="Profession name"
             className={inputClassName}
@@ -377,6 +394,7 @@ function EditProfessionDialog({
             }}
           />
         </label>
+        <p id="profession-name-limit" className="mt-1 text-xs text-[#94A3B8]">{name.length}/80 characters</p>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -454,6 +472,10 @@ export default function ProfessionDocumentsPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndustryKey, setSelectedIndustryKey] = useState<string | null>(null);
   const [industryFilterKey, setIndustryFilterKey] = useState<string>("all");
+  const [professionFilterId, setProfessionFilterId] = useState<string>("all");
+  const [filterMenuTab, setFilterMenuTab] = useState<"industry" | "profession">("industry");
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
   const [addIndustryOpen, setAddIndustryOpen] = useState(false);
   const [editIndustryKey, setEditIndustryKey] = useState<string | null>(null);
   const [creatingIndustry, setCreatingIndustry] = useState(false);
@@ -472,7 +494,7 @@ export default function ProfessionDocumentsPanel({
     string[]
   >([]);
   const [pendingCustomAssessmentByName, setPendingCustomAssessmentByName] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
   const [pendingDeleteProfession, setPendingDeleteProfession] = useState<ProfessionRow | null>(null);
 
@@ -489,9 +511,15 @@ export default function ProfessionDocumentsPanel({
   const [editName, setEditName] = useState("");
   const [savingProfessionName, setSavingProfessionName] = useState(false);
   const [rowMenuId, setRowMenuId] = useState<string | null>(null);
+  const [rowMenuStyle, setRowMenuStyle] = useState<CSSProperties>({ visibility: "hidden" });
   const [industryMenuKey, setIndustryMenuKey] = useState<string | null>(null);
+  const [industryMenuStyle, setIndustryMenuStyle] = useState<CSSProperties>({
+    visibility: "hidden",
+  });
   const rowMenuRef = useRef<HTMLDivElement>(null);
+  const rowMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const industryMenuRef = useRef<HTMLDivElement>(null);
+  const industryMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const documentsPanelRef = useRef<HTMLDivElement>(null);
   const previousSelectedIdRef = useRef<string | null>(null);
 
@@ -572,66 +600,135 @@ export default function ProfessionDocumentsPanel({
     void load();
   }, [load]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch("/api/admin/assessment-settings", { cache: "no-store" });
-        const payload = (await response.json().catch(() => ({}))) as {
-          settings?: { draft?: unknown };
-        };
-        if (!response.ok || cancelled) return;
-        const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
-        const labels: Record<string, string> = {};
-        const options: AssessmentOption[] = [];
-        const seenNames = new Set<string>();
-        for (const category of draft.categories) {
-          const professionId = category.professionId?.trim();
-          const name = category.name?.trim();
-          if (!name) continue;
-          if (professionId && !labels[professionId]) labels[professionId] = name;
-          // Offer shared (null profession) templates plus unique category names for the picker.
-          if (!professionId && !seenNames.has(name.toLowerCase())) {
-            seenNames.add(name.toLowerCase());
-            options.push({ id: category.id, name });
-          }
-        }
-        // Fallback: if no shared templates, still show category names once each.
-        if (options.length === 0) {
-          for (const category of draft.categories) {
-            const name = category.name?.trim();
-            if (!name || seenNames.has(name.toLowerCase())) continue;
-            seenNames.add(name.toLowerCase());
-            options.push({ id: category.id, name });
-          }
-        }
-        if (!cancelled) {
-          setAssessmentDraft(draft);
-          setAssessmentLabelByProfession(labels);
-          setAssessmentOptions(options);
-        }
-      } catch {
-        /* linked assessment column stays empty when unavailable */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadAssessmentOptions = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/assessment-settings", { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as {
+        settings?: { draft?: unknown };
+      };
+      if (!response.ok) return;
+      const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
+      const { options, labelsByProfession } = assessmentOptionsFromCatalog(draft);
+      setAssessmentDraft(draft);
+      setAssessmentLabelByProfession(labelsByProfession);
+      setAssessmentOptions(options);
+    } catch {
+      /* linked assessment column stays empty when unavailable */
+    }
   }, []);
+
+  useEffect(() => {
+    void loadAssessmentOptions();
+  }, [loadAssessmentOptions]);
+
+  useLayoutEffect(() => {
+    if (!rowMenuId || !rowMenuTriggerRef.current) {
+      setRowMenuStyle({ visibility: "hidden" });
+      return;
+    }
+    const update = () => {
+      const trigger = rowMenuTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 148;
+      const menuHeight = 96;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const openUp = spaceBelow < menuHeight && rect.top > spaceBelow;
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+      setRowMenuStyle({
+        position: "fixed",
+        left,
+        width: menuWidth,
+        zIndex: 300,
+        visibility: "visible",
+        ...(openUp
+          ? { bottom: window.innerHeight - rect.top + 4, top: "auto" }
+          : { top: rect.bottom + 4, bottom: "auto" }),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [rowMenuId]);
+
+  useLayoutEffect(() => {
+    if (!industryMenuKey || !industryMenuTriggerRef.current) {
+      setIndustryMenuStyle({ visibility: "hidden" });
+      return;
+    }
+    const update = () => {
+      const trigger = industryMenuTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 168;
+      const menuHeight = 96;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const openUp = spaceBelow < menuHeight && rect.top > spaceBelow;
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+      setIndustryMenuStyle({
+        position: "fixed",
+        left,
+        width: menuWidth,
+        zIndex: 300,
+        visibility: "visible",
+        ...(openUp
+          ? { bottom: window.innerHeight - rect.top + 4, top: "auto" }
+          : { top: rect.bottom + 4, bottom: "auto" }),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [industryMenuKey]);
 
   useEffect(() => {
     if (!rowMenuId && !industryMenuKey) return;
     const onPointerDown = (event: MouseEvent) => {
-      if (rowMenuRef.current && !rowMenuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        rowMenuId &&
+        !rowMenuRef.current?.contains(target) &&
+        !rowMenuTriggerRef.current?.contains(target)
+      ) {
         setRowMenuId(null);
       }
-      if (industryMenuRef.current && !industryMenuRef.current.contains(event.target as Node)) {
+      if (
+        industryMenuKey &&
+        !industryMenuRef.current?.contains(target) &&
+        !industryMenuTriggerRef.current?.contains(target)
+      ) {
         setIndustryMenuKey(null);
       }
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [rowMenuId, industryMenuKey]);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setFilterMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFilterMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filterMenuOpen]);
 
   const selectedId =
     requestedProfessionId && professions.some((profession) => profession.id === requestedProfessionId)
@@ -687,10 +784,11 @@ export default function ProfessionDocumentsPanel({
 
   const filteredProfessionsByIndustry = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return professionsByIndustry;
     const groups: Record<string, ProfessionRow[]> = {};
     for (const [key, rows] of Object.entries(professionsByIndustry)) {
       groups[key] = rows.filter((profession) => {
+        if (professionFilterId !== "all" && profession.id !== professionFilterId) return false;
+        if (!query) return true;
         const index = professions.findIndex((row) => row.id === profession.id);
         const industry = industries.find((row) => row.key === key);
         const code = professionCode(profession, index, industry?.label ?? null).toLowerCase();
@@ -702,19 +800,43 @@ export default function ProfessionDocumentsPanel({
       });
     }
     return groups;
-  }, [professionsByIndustry, searchQuery, professions, industries]);
+  }, [
+    professionsByIndustry,
+    searchQuery,
+    professions,
+    industries,
+    professionFilterId,
+  ]);
 
   const visibleIndustries = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return industries.filter((industry) => {
       if (industryFilterKey !== "all" && industry.key !== industryFilterKey) return false;
+      if (professionFilterId !== "all") {
+        const match = professions.find((row) => row.id === professionFilterId);
+        if (!match || (match.industryKey || "other") !== industry.key) return false;
+      }
       if (!query) return true;
       if (industry.label.toLowerCase().includes(query) || industry.key.toLowerCase().includes(query)) {
         return true;
       }
       return (filteredProfessionsByIndustry[industry.key] ?? []).length > 0;
     });
-  }, [industries, industryFilterKey, searchQuery, filteredProfessionsByIndustry]);
+  }, [
+    industries,
+    industryFilterKey,
+    professionFilterId,
+    professions,
+    searchQuery,
+    filteredProfessionsByIndustry,
+  ]);
+
+  const professionFilterOptions = useMemo(() => {
+    return [...professions].sort((a, b) => a.name.localeCompare(b.name));
+  }, [professions]);
+
+  const filtersActive =
+    industryFilterKey !== "all" || professionFilterId !== "all" || Boolean(searchQuery.trim());
 
   const addableIndustries = useMemo(() => {
     const selected = new Set(industries.map((row) => row.key));
@@ -809,9 +931,11 @@ export default function ProfessionDocumentsPanel({
         const payload = (await response.json()) as { error?: string; profession?: { id?: string } };
         if (!response.ok) throw new Error(payload.error || "Could not add profession");
         const createdId = payload.profession?.id?.trim() || null;
-        const assessmentId = pendingCustomAssessmentByName[name];
-        if (createdId && assessmentId) {
-          await linkAssessmentToProfession(createdId, assessmentId);
+        const assessmentIds = pendingCustomAssessmentByName[name] ?? [];
+        if (createdId && assessmentIds.length) {
+          for (const assessmentId of assessmentIds) {
+            await linkAssessmentToProfession(createdId, assessmentId);
+          }
         }
       }
 
@@ -987,19 +1111,31 @@ export default function ProfessionDocumentsPanel({
     await createProfession({ catalogKey, industryKey: forIndustryKey });
   }
 
-  async function linkAssessmentToProfession(professionId: string, assessmentId: string) {
-    if (!assessmentDraft) return;
-    const source = assessmentDraft.categories.find((category) => category.id === assessmentId);
-    if (!source) return;
+  async function linkAssessmentToProfession(
+    professionId: string,
+    assessmentId: string,
+    catalogOverride?: SkillAssessmentCatalog
+  ): Promise<SkillAssessmentCatalog | null> {
+    const catalog = catalogOverride ?? assessmentDraft;
+    if (!catalog) return null;
+    const source = catalog.categories.find((category) => category.id === assessmentId);
+    if (!source) return catalog;
+    const alreadyLinked = catalog.categories.some(
+      (category) =>
+        category.professionId === professionId &&
+        category.name.trim().toLowerCase() === source.name.trim().toLowerCase()
+    );
+    if (alreadyLinked) return catalog;
+
     const nextCatalog: SkillAssessmentCatalog = {
-      ...assessmentDraft,
+      ...catalog,
       categories: [
-        ...assessmentDraft.categories,
+        ...catalog.categories,
         {
           ...source,
           id: crypto.randomUUID(),
           professionId,
-          sortOrder: assessmentDraft.categories.length + 1,
+          sortOrder: catalog.categories.length + 1,
           questions: source.questions.map((question) => ({
             ...question,
             id: crypto.randomUUID(),
@@ -1024,6 +1160,14 @@ export default function ProfessionDocumentsPanel({
       ...current,
       [professionId]: source.name,
     }));
+    return draft;
+  }
+
+  async function linkAssessmentsToProfession(professionId: string, assessmentIds: string[]) {
+    let catalog = assessmentDraft;
+    for (const assessmentId of assessmentIds) {
+      catalog = (await linkAssessmentToProfession(professionId, assessmentId, catalog ?? undefined)) ?? catalog;
+    }
   }
 
   async function createCustomProfessionFromModal(value: AddCustomProfessionFormValue) {
@@ -1037,7 +1181,7 @@ export default function ProfessionDocumentsPanel({
       );
       setPendingCustomAssessmentByName((current) => ({
         ...current,
-        [value.name]: value.assessmentId,
+        [value.name]: value.assessmentIds,
       }));
       setCustomProfessionIndustryKey(null);
       setCustomProfessionPendingForIndustryCreate(false);
@@ -1059,8 +1203,8 @@ export default function ProfessionDocumentsPanel({
       const payload = (await response.json()) as { error?: string; profession?: { id?: string } };
       if (!response.ok) throw new Error(payload.error || "Could not add profession");
       const createdId = payload.profession?.id?.trim() || null;
-      if (createdId && value.assessmentId) {
-        await linkAssessmentToProfession(createdId, value.assessmentId);
+      if (createdId && value.assessmentIds.length) {
+        await linkAssessmentsToProfession(createdId, value.assessmentIds);
       }
       setCustomProfessionIndustryKey(null);
       toast.success("Profession added");
@@ -1082,6 +1226,7 @@ export default function ProfessionDocumentsPanel({
   function openCustomProfessionModal(industryKeyToUse: string, options?: { pending?: boolean }) {
     setCustomProfessionPendingForIndustryCreate(Boolean(options?.pending));
     setCustomProfessionIndustryKey(industryKeyToUse);
+    void loadAssessmentOptions();
   }
 
   async function saveProfessionName() {
@@ -1139,6 +1284,55 @@ export default function ProfessionDocumentsPanel({
       setExpandedByIndustry((current) => ({ ...current, [key]: true }));
     }
   }
+
+  function applyIndustryFilter(nextKey: string) {
+    setIndustryFilterKey(nextKey || "all");
+    setProfessionFilterId("all");
+    setFilterMenuOpen(false);
+  }
+
+  function applyProfessionFilter(professionId: string) {
+    if (professionId === "all") {
+      setProfessionFilterId("all");
+      setFilterMenuOpen(false);
+      return;
+    }
+    const match = professions.find((row) => row.id === professionId);
+    if (!match) return;
+    const industryKeyForProfession = match.industryKey || "other";
+    setProfessionFilterId(professionId);
+    setIndustryFilterKey(industryKeyForProfession);
+    selectIndustry(industryKeyForProfession, { expand: true });
+    setFilterMenuOpen(false);
+  }
+
+  function clearAllFilters() {
+    setIndustryFilterKey("all");
+    setProfessionFilterId("all");
+    setSearchQuery("");
+    setFilterMenuOpen(false);
+  }
+
+  useEffect(() => {
+    if (industryFilterKey === "all") return;
+    setSelectedIndustryKey(industryFilterKey);
+    setExpandedByIndustry((current) => ({ ...current, [industryFilterKey]: true }));
+  }, [industryFilterKey]);
+
+  useEffect(() => {
+    if (professionFilterId === "all") return;
+    const match = professions.find((row) => row.id === professionFilterId);
+    if (!match) {
+      setProfessionFilterId("all");
+      return;
+    }
+    const industryKeyForProfession = match.industryKey || "other";
+    if (industryFilterKey !== industryKeyForProfession) {
+      setIndustryFilterKey(industryKeyForProfession);
+    }
+    setSelectedIndustryKey(industryKeyForProfession);
+    setExpandedByIndustry((current) => ({ ...current, [industryKeyForProfession]: true }));
+  }, [professionFilterId, professions, industryFilterKey]);
 
   async function save() {
     if (!selectedId || !canManage || saving) return;
@@ -1473,18 +1667,196 @@ export default function ProfessionDocumentsPanel({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-4 overflow-visible">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
-              aria-hidden
-            />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search job categories and positions..."
-              aria-label="Search job categories and positions"
-              className={`${inputClassName} h-11 rounded-xl pl-9`}
-            />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
+                aria-hidden
+              />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search job categories and positions..."
+                aria-label="Search job categories and positions"
+                className="h-10 w-full rounded-xl border border-[#E2E8F0] bg-white py-0 pl-9 pr-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus-visible:border-[#012352] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)]"
+              />
+            </div>
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <SettingsSelect
+                aria-label="Filter industries"
+                value={industryFilterKey}
+                onChange={(next) => applyIndustryFilter(next || "all")}
+                className="min-w-0 flex-1 sm:w-[240px]"
+                triggerClassName="rounded-xl border-[#E2E8F0]"
+                options={[
+                  { value: "all", label: "All Industry" },
+                  ...industries.map((industry) => ({
+                    value: industry.key,
+                    label: industry.label,
+                  })),
+                ]}
+              />
+              <div className="relative shrink-0" ref={filterMenuRef}>
+                <button
+                  type="button"
+                  aria-label="Open filters"
+                  aria-expanded={filterMenuOpen}
+                  aria-haspopup="menu"
+                  title={filtersActive ? "Filters active — open to change or clear" : "Filter by industry or profession"}
+                  onClick={() => setFilterMenuOpen((current) => !current)}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                    filtersActive
+                      ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+                      : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                  }`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                </button>
+                {filterMenuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label="Profession filters"
+                    className="absolute right-0 top-[calc(100%+4px)] z-50 w-[260px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg"
+                  >
+                    <div className="flex border-b border-[#F1F5F9] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setFilterMenuTab("industry")}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition ${
+                          filterMenuTab === "industry"
+                            ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]"
+                            : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        Industry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterMenuTab("profession")}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition ${
+                          filterMenuTab === "profession"
+                            ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]"
+                            : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        Profession
+                      </button>
+                    </div>
+
+                    {filterMenuTab === "industry" ? (
+                      <div className="py-1">
+                        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                          Filter by industry
+                        </p>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => applyIndustryFilter("all")}
+                          className={`flex w-full px-3 py-2 text-left text-sm transition hover:bg-[#F8FAFC] ${
+                            industryFilterKey === "all" && professionFilterId === "all"
+                              ? "font-medium text-[color:var(--brand-primary)]"
+                              : "text-[#0F172A]"
+                          }`}
+                        >
+                          All Industry
+                        </button>
+                        <div className="max-h-56 overflow-y-auto">
+                          {industries.map((industry) => {
+                            const active =
+                              industryFilterKey === industry.key && professionFilterId === "all";
+                            return (
+                              <button
+                                key={industry.key}
+                                type="button"
+                                role="menuitem"
+                                onClick={() => applyIndustryFilter(industry.key)}
+                                className={`flex w-full px-3 py-2 text-left text-sm transition hover:bg-[#F8FAFC] ${
+                                  active
+                                    ? "font-medium text-[color:var(--brand-primary)]"
+                                    : "text-[#0F172A]"
+                                }`}
+                              >
+                                {industry.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-1">
+                        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                          Filter by profession
+                        </p>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => applyProfessionFilter("all")}
+                          className={`flex w-full px-3 py-2 text-left text-sm transition hover:bg-[#F8FAFC] ${
+                            professionFilterId === "all"
+                              ? "font-medium text-[color:var(--brand-primary)]"
+                              : "text-[#0F172A]"
+                          }`}
+                        >
+                          All Professions
+                        </button>
+                        <div className="max-h-56 overflow-y-auto">
+                          {professionFilterOptions.length === 0 ? (
+                            <p className="px-3 py-2 text-sm text-[#94A3B8]">No professions yet</p>
+                          ) : (
+                            professionFilterOptions.map((profession) => {
+                              const active = professionFilterId === profession.id;
+                              const industryLabel =
+                                industries.find(
+                                  (row) => row.key === (profession.industryKey || "other")
+                                )?.label ?? "Industry";
+                              return (
+                                <button
+                                  key={profession.id}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => applyProfessionFilter(profession.id)}
+                                  className={`flex w-full flex-col px-3 py-2 text-left transition hover:bg-[#F8FAFC] ${
+                                    active
+                                      ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                                      : ""
+                                  }`}
+                                >
+                                  <span
+                                    className={`truncate text-sm ${
+                                      active
+                                        ? "font-medium text-[color:var(--brand-primary)]"
+                                        : "text-[#0F172A]"
+                                    }`}
+                                  >
+                                    {profession.name}
+                                  </span>
+                                  <span className="truncate text-[11px] text-[#94A3B8]">
+                                    {industryLabel}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {filtersActive ? (
+                      <div className="border-t border-[#F1F5F9] py-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={clearAllFilters}
+                          className="flex w-full px-3 py-2 text-left text-sm font-medium text-[#012352] hover:bg-[#F8FAFC]"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           {visibleIndustries.length === 0 ? (
@@ -1577,15 +1949,16 @@ export default function ProfessionDocumentsPanel({
                         )}
                       </button>
 
-                      <div
-                        className="relative"
-                        ref={industryMenuKey === industry.key ? industryMenuRef : undefined}
-                      >
+                      <div className="relative">
                         <button
                           type="button"
                           aria-label={`Industry actions for ${industry.label}`}
-                          onClick={() => {
+                          aria-expanded={industryMenuKey === industry.key}
+                          aria-haspopup="menu"
+                          onClick={(event) => {
+                            industryMenuTriggerRef.current = event.currentTarget;
                             selectIndustry(industry.key);
+                            setRowMenuId(null);
                             setIndustryMenuKey((current) =>
                               current === industry.key ? null : industry.key
                             );
@@ -1594,33 +1967,6 @@ export default function ProfessionDocumentsPanel({
                         >
                           <MoreHorizontal className="h-4 w-4" aria-hidden />
                         </button>
-                        {industryMenuKey === industry.key ? (
-                          <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIndustryMenuKey(null);
-                                selectIndustry(industry.key, { expand: true });
-                                openCustomProfessionModal(industry.key);
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                            >
-                              <Plus className="h-3.5 w-3.5" aria-hidden />
-                              Add position
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIndustryMenuKey(null);
-                                openEditIndustry(industry.key);
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                            >
-                              <Pencil className="h-3.5 w-3.5" aria-hidden />
-                              Edit industry
-                            </button>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -1669,7 +2015,7 @@ export default function ProfessionDocumentsPanel({
                                     <td className="px-4 py-3">
                                       <Link
                                         href={professionDetailHref(profession.id)}
-                                        className="text-sm font-medium text-[#C2410C] hover:underline"
+                                        className="text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
                                       >
                                         {profession.name}
                                       </Link>
@@ -1679,7 +2025,7 @@ export default function ProfessionDocumentsPanel({
                                         <div className="min-w-0">
                                           <Link
                                             href={`${professionDetailHref(profession.id)}#assessment`}
-                                            className="text-sm font-medium text-[#C2410C] hover:underline"
+                                            className="text-sm font-medium text-[#012352] hover:underline"
                                             title={assessmentLabel}
                                           >
                                             View Assessment
@@ -1695,54 +2041,30 @@ export default function ProfessionDocumentsPanel({
                                     <td className="px-4 py-3">
                                       <Link
                                         href={professionDetailHref(profession.id)}
-                                        className="text-sm font-medium text-[#C2410C] hover:underline"
+                                        className="text-sm font-medium text-[#012352] hover:underline"
                                       >
                                         View Docs
                                       </Link>
                                     </td>
                                     <td className="px-4 py-3">
-                                      <div
-                                        className="relative"
-                                        ref={rowMenuId === profession.id ? rowMenuRef : undefined}
-                                      >
+                                      <div className="relative">
                                         {canManage ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              aria-label={`More actions for ${profession.name}`}
-                                              onClick={() =>
-                                                setRowMenuId((current) =>
-                                                  current === profession.id ? null : profession.id
-                                                )
-                                              }
-                                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
-                                            >
-                                              <MoreHorizontal className="h-4 w-4" aria-hidden />
-                                            </button>
-                                            {rowMenuId === profession.id ? (
-                                            <div className="absolute right-0 top-9 z-50 min-w-[140px] rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                                              <button
-                                                type="button"
-                                                onClick={() => openEditProfession(profession)}
-                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                                              >
-                                                <Pencil className="h-3.5 w-3.5" aria-hidden />
-                                                Edit
-                                              </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setRowMenuId(null);
-                                                    setPendingDeleteProfession(profession);
-                                                  }}
-                                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
-                                                >
-                                                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                                                  Delete
-                                                </button>
-                                              </div>
-                                            ) : null}
-                                          </>
+                                          <button
+                                            type="button"
+                                            aria-label={`More actions for ${profession.name}`}
+                                            aria-expanded={rowMenuId === profession.id}
+                                            aria-haspopup="menu"
+                                            onClick={(event) => {
+                                              rowMenuTriggerRef.current = event.currentTarget;
+                                              setIndustryMenuKey(null);
+                                              setRowMenuId((current) =>
+                                                current === profession.id ? null : profession.id
+                                              );
+                                            }}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                                          >
+                                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                                          </button>
                                         ) : (
                                           <span className="text-xs text-[#94A3B8]">—</span>
                                         )}
@@ -1819,30 +2141,6 @@ export default function ProfessionDocumentsPanel({
         </div>
 
         <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
-          <div className="flex items-center gap-2">
-            <SelectField
-              label="Filter industries"
-              value={industryFilterKey}
-              onChange={(event) => setIndustryFilterKey(event.target.value || "all")}
-              className="min-w-0 flex-1"
-            >
-              <option value="all">All Industry</option>
-              {industries.map((industry) => (
-                <option key={industry.key} value={industry.key}>
-                  {industry.label}
-                </option>
-              ))}
-            </SelectField>
-            <button
-              type="button"
-              aria-label="Industry filters"
-              onClick={() => setIndustryFilterKey("all")}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
-            >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-
           {selectedIndustry ? (
             <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm shadow-slate-900/[0.03] sm:p-5">
               <div className="flex items-start gap-3">
@@ -1938,6 +2236,7 @@ export default function ProfessionDocumentsPanel({
 
       <AddIndustryModal
         open={addIndustryOpen}
+        suppressed={Boolean(customProfessionIndustryKey)}
         mode="create"
         industries={addableIndustries}
         availableProfessions={availableProfessions}
@@ -2024,6 +2323,94 @@ export default function ProfessionDocumentsPanel({
           onSave={() => void saveProfessionName()}
         />
       ) : null}
+
+      {rowMenuId && typeof document !== "undefined"
+        ? createPortal(
+            (() => {
+              const menuProfession = professions.find((row) => row.id === rowMenuId);
+              if (!menuProfession) return null;
+              return (
+                <div
+                  ref={rowMenuRef}
+                  role="menu"
+                  aria-label={`Actions for ${menuProfession.name}`}
+                  style={rowMenuStyle}
+                  className="rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => openEditProfession(menuProfession)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setRowMenuId(null);
+                      setPendingDeleteProfession(menuProfession);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#B91C1C] hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    Delete
+                  </button>
+                </div>
+              );
+            })(),
+            document.body
+          )
+        : null}
+
+      {industryMenuKey && typeof document !== "undefined"
+        ? createPortal(
+            (() => {
+              const menuIndustry =
+                industries.find((row) => row.key === industryMenuKey) ??
+                addableIndustries.find((row) => row.key === industryMenuKey);
+              if (!menuIndustry) return null;
+              return (
+                <div
+                  ref={industryMenuRef}
+                  role="menu"
+                  aria-label={`Actions for ${menuIndustry.label}`}
+                  style={industryMenuStyle}
+                  className="rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIndustryMenuKey(null);
+                      selectIndustry(menuIndustry.key, { expand: true });
+                      openCustomProfessionModal(menuIndustry.key);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Add position
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIndustryMenuKey(null);
+                      openEditIndustry(menuIndustry.key);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                    Edit industry
+                  </button>
+                </div>
+              );
+            })(),
+            document.body
+          )
+        : null}
     </section>
   );
 }

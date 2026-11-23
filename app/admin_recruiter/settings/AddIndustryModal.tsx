@@ -53,6 +53,11 @@ export type IndustryIconId = (typeof INDUSTRY_ICON_OPTIONS)[number]["id"];
 
 type Props = {
   open: boolean;
+  /**
+   * Keep the modal mounted/open state, but hide the overlay while a nested dialog
+   * (e.g. Add Position) is on top — prevents overlapping stacked modals.
+   */
+  suppressed?: boolean;
   mode?: "create" | "edit";
   industries: AddIndustryOption[];
   availableProfessions: AddIndustryProfessionOption[];
@@ -271,7 +276,7 @@ function ProfessionMultiSelect({
                       <span
                         className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${
                           checked
-                            ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white"
+                            ? "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)] text-white"
                             : "border-[#CBD5E1] bg-white"
                         }`}
                         aria-hidden
@@ -303,6 +308,7 @@ function OrDivider() {
 
 export default function AddIndustryModal({
   open,
+  suppressed = false,
   mode = "create",
   industries,
   availableProfessions,
@@ -374,6 +380,8 @@ export default function AddIndustryModal({
   const visibleIcons = showAllIcons ? INDUSTRY_ICON_OPTIONS : INDUSTRY_ICON_OPTIONS.slice(0, 7);
 
   if (!open) return null;
+  // Stay mounted so form draft survives nested Add Position; only hide the UI.
+  if (suppressed) return null;
 
   const allCustomNames = Array.from(
     new Set([...customNames, ...extraCustomNames].map((name) => name.trim()).filter(Boolean))

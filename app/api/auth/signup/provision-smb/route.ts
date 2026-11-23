@@ -4,6 +4,7 @@ import { sendOwnerOnboardingContinuationEmail } from "@/lib/onboarding/send-owne
 import { resolvePlatformAppOrigin } from "@/lib/resolve-app-origin";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
 import {
   smbCategoryLabel,
 } from "@/lib/signup/smb-post-signup";
@@ -19,6 +20,7 @@ type Body = {
   companyName?: string;
   companyWebsite?: string;
   industry?: string;
+  industries?: string[];
   city?: string;
   state?: string;
   phone?: string;
@@ -70,7 +72,31 @@ export async function POST(req: Request) {
   const companyName =
     String(body.companyName ?? meta.company_name ?? "").trim() ||
     String(meta.first_name ?? "Company").trim();
-  const industry = String(body.industry ?? meta.industry ?? "").trim();
+  const industriesFromBody = Array.isArray(body.industries)
+    ? body.industries.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+  const industriesFromMeta = Array.isArray(meta.industries)
+    ? meta.industries.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+  const industries =
+    industriesFromBody.length > 0
+      ? industriesFromBody
+      : industriesFromMeta.length > 0
+        ? industriesFromMeta
+        : (() => {
+            const primary = String(body.industry ?? meta.industry ?? "").trim();
+            return primary ? [primary] : [];
+          })();
+  const industry = industries[0] ?? "";
+  const industryKeysFromMeta = Array.isArray(meta.industry_keys)
+    ? meta.industry_keys.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+  const industryKeys =
+    industryKeysFromMeta.length > 0
+      ? industryKeysFromMeta
+      : industries
+          .map((label) => industryKeyFromLegacyLabel(label))
+          .filter((key): key is NonNullable<typeof key> => Boolean(key));
   const city = String(body.city ?? meta.city ?? "").trim();
   const state = String(body.state ?? meta.state ?? "").trim();
   const phone = String(body.phone ?? meta.phone ?? "").trim();
@@ -198,6 +224,8 @@ export async function POST(req: Request) {
         subdomain,
         adminEmail,
         industry,
+        industries,
+        industryKeys,
         city,
         state,
         phone,

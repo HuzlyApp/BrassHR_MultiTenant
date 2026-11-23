@@ -1,5 +1,6 @@
 "use client";
 
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Circle, Plus, Search, X } from "lucide-react";
@@ -98,7 +99,7 @@ export default function AssignCandidateToFacilityModal({
           alreadyAssigned?: boolean;
         };
         if (!res.ok) {
-          throw new Error(json.error || "Failed to assign worker to facility.");
+          throw new Error(readServiceAreaApiMessage(json, "Failed to assign worker to facility."));
         }
         toast.success(
           json.alreadyAssigned

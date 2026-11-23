@@ -11,6 +11,9 @@ export type CandidateFieldKind =
   | "zip"
   | "ssn_last_four"
   | "hourly_rate"
+  | "short_text"
+
+const SHORT_TEXT_MAX_LENGTH = 120
 
 export function filterCandidateFieldInput(kind: CandidateFieldKind, raw: string): string {
   switch (kind) {
@@ -34,6 +37,8 @@ export function filterCandidateFieldInput(kind: CandidateFieldKind, raw: string)
       return raw.replace(/\D/g, "").slice(0, 4)
     case "hourly_rate":
       return formatHourlyRateInput(raw)
+    case "short_text":
+      return raw.replace(/\s+/g, " ").slice(0, SHORT_TEXT_MAX_LENGTH)
     default:
       return raw
   }
@@ -157,6 +162,13 @@ export function validateCandidateFieldInput(
         return { ok: false, error: "Enter a valid hourly rate." }
       }
       return { ok: true, value: n.toFixed(2) }
+    }
+    case "short_text": {
+      if (!value) return { ok: false, error: "This field cannot be empty." }
+      if (value.length > SHORT_TEXT_MAX_LENGTH) {
+        return { ok: false, error: `Keep under ${SHORT_TEXT_MAX_LENGTH} characters.` }
+      }
+      return { ok: true, value }
     }
     default:
       return { ok: true, value }

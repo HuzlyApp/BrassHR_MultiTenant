@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
 import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
@@ -15,9 +19,11 @@ import AddWorkerSkillModal from "../../../components/AddWorkerSkillModal";
 import { CandidateStatusHistoryPanel } from "../../../components/CandidateApplicationStatusControl";
 import CandidateNotesPanel from "../../../components/CandidateNotesPanel";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
+import CandidateDetailPayRateField from "../../../components/CandidateDetailPayRateField";
 import CandidateDetailSelectField, {
   type SelectOption,
 } from "../../../components/CandidateDetailSelectField";
+import type { WorkerPayRatePeriod } from "@/lib/admin/worker-pay-rate";
 import CandidateDetailCityField from "../../../components/CandidateDetailCityField";
 import CandidateDetailResumeField from "../../../components/CandidateDetailResumeField";
 import CandidateDetailReferenceField, {
@@ -40,6 +46,7 @@ import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
 } from "@/lib/admin/worker-profile-field-client";
+import { isHealthcareProfessionIndustry } from "@/lib/ai-catalog/industry-catalog";
 import {
   fetchStaffDetailJson,
   workerProfileApiUrl,
@@ -69,6 +76,10 @@ type OnboardingStep = {
 
 type ProfilePayload = {
   job_id?: string | null;
+  job_requisition_id?: string | null;
+  job_source_type?: string | null;
+  job_industry_key?: string | null;
+  profession_industry_key?: string | null;
   worker: {
     id: string;
     first_name: string | null;
@@ -89,6 +100,9 @@ type ProfilePayload = {
     date_of_birth: string | null;
     years_experience: number | null;
     hourly_rate: string | null;
+    pay_rate_period?: string | null;
+    allied_health_role?: string | null;
+    specialty?: string | null;
     ssn_last_four: string | null;
     profile_photo_url?: string | null;
   };
@@ -235,13 +249,6 @@ function referenceToFormValue(
   };
 }
 
-function formatHourlyRate(value: string | null | undefined) {
-  if (!value?.trim()) return "—";
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  if (!cleaned) return "—";
-  return `$ ${cleaned} / hr`;
-}
-
 function formatYearsExperience(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return "—";
   return `${value} yrs`;
@@ -382,6 +389,30 @@ export default function NewApplicantProfilePage() {
     }
   }
 
+  async function savePayRate(value: { amount: string; period: WorkerPayRatePeriod }) {
+    if (!applicantId) return;
+    setFieldSaving(true);
+    try {
+      const res = await fetch("/api/admin/worker-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId, field: "pay_rate", value }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Could not save");
+      }
+      await reloadProfile();
+      toast.success("Saved");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not save";
+      toast.error(message);
+      throw e;
+    } finally {
+      setFieldSaving(false);
+    }
+  }
+
   async function saveReference(referenceIndex: number, value: ReferenceFormValue) {
     if (!applicantId) return;
     setFieldSaving(true);
@@ -443,6 +474,19 @@ export default function NewApplicantProfilePage() {
     void run();
     return () => {
       cancelled = true;
+    };
+  }, [applicantId]);
+
+  useEffect(() => {
+    if (!applicantId) return;
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId !== applicantId) return;
+      void reloadProfile().catch(() => undefined);
+    }
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
     };
   }, [applicantId]);
 
@@ -585,34 +629,35 @@ export default function NewApplicantProfilePage() {
 
   const id = applicantId ?? "";
 
-  const alliedHealthRoleValue = useMemo(() => {
-    return (
-      data?.experience?.role_assignments?.[0]?.role ??
-      data?.skills?.positions?.[0] ??
-      w?.job_role ??
-      ""
-    );
-  }, [data?.experience?.role_assignments, data?.skills?.positions, w?.job_role]);
+  // Dedicated healthcare fields — do not fall back to job title / experience.
+  const alliedHealthRoleValue = (w?.allied_health_role ?? "").trim();
+  const specialtyValue = (w?.specialty ?? "").trim();
 
-  const licenseTypeKey = useMemo(() => {
-    return (
-      data?.profile_license?.license_type ??
-      data?.nursing_licenses?.[0]?.license_type_key ??
-      ""
-    );
-  }, [data?.profile_license?.license_type, data?.nursing_licenses]);
+  // Show only when this candidate's job/profession is healthcare-family.
+  const showHealthcareProfessionFields =
+    isHealthcareProfessionIndustry(data?.job_industry_key) ||
+    isHealthcareProfessionIndustry(data?.profession_industry_key);
 
-  const licenseTypeDisplay = useMemo(() => {
-    return (
-      data?.profile_license?.license_type_label ??
-      data?.nursing_licenses?.[0]?.license_type ??
-      ""
-    );
-  }, [data?.profile_license?.license_type_label, data?.nursing_licenses]);
-
-  const licenseExpiresAt = useMemo(() => {
-    return data?.profile_license?.expires_at ?? data?.nursing_licenses?.[0]?.expires_at ?? null;
-  }, [data?.profile_license?.expires_at, data?.nursing_licenses]);
+  // License type / expiry helpers — UI rows commented out (profession documents cover this).
+  // const licenseTypeKey = useMemo(() => {
+  //   return (
+  //     data?.profile_license?.license_type ??
+  //     data?.nursing_licenses?.[0]?.license_type_key ??
+  //     ""
+  //   );
+  // }, [data?.profile_license?.license_type, data?.nursing_licenses]);
+  //
+  // const licenseTypeDisplay = useMemo(() => {
+  //   return (
+  //     data?.profile_license?.license_type_label ??
+  //     data?.nursing_licenses?.[0]?.license_type ??
+  //     ""
+  //   );
+  // }, [data?.profile_license?.license_type_label, data?.nursing_licenses]);
+  //
+  // const licenseExpiresAt = useMemo(() => {
+  //   return data?.profile_license?.expires_at ?? data?.nursing_licenses?.[0]?.expires_at ?? null;
+  // }, [data?.profile_license?.expires_at, data?.nursing_licenses]);
 
   const applyingStateCode = useMemo(() => {
     const raw = (w?.state ?? "").trim();
@@ -634,25 +679,6 @@ export default function NewApplicantProfilePage() {
   }, [applyingStateCode, fieldOptions, w?.state]);
 
   const resumeAttached = Boolean(data?.requirements?.resume_url || data?.requirements?.resume_path);
-  const nursingLicenseRows = useMemo(() => {
-    const fromApi = (data?.nursing_licenses ?? []).map((license, idx) => ({
-      tag: `L${idx + 1}`,
-      registration: license.license_type ?? "—",
-      state: license.state ?? "—",
-      expiry: formatDate(license.expires_at),
-    }));
-    if (fromApi.length > 0) return fromApi;
-    return [
-      {
-        tag: "L1",
-        registration: "—",
-        state: w?.state ?? "—",
-        expiry: "—",
-      },
-    ];
-  }, [data?.nursing_licenses, w?.state]);
-
-  const nursingLicenseRedirectHref = `${base}/attachments/${id}`;
 
   const onboardingCompleted = useMemo(
     () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
@@ -860,17 +886,29 @@ export default function NewApplicantProfilePage() {
               location={candidateLocation}
               statusLabel={w?.status_label ?? null}
               applicationDate={formatDate(w?.created_at)}
-              jobId={w?.job_id ?? data?.job_id ?? null}
+              jobId={
+                (data?.job_source_type ?? "").toLowerCase() === "msp"
+                  ? w?.job_id?.trim() || data?.job_id?.trim() || null
+                  : null
+              }
               source={data?.activity?.source ?? null}
-              progressPercent={data?.onboardingCompletion?.percent ?? null}
+              progressPercent={
+                preHireOnboardingSteps.length > 0
+                  ? Math.round(
+                      (preHireOnboardingSteps.filter((step) => step.state === "complete").length /
+                        preHireOnboardingSteps.length) *
+                        100
+                    )
+                  : (data?.onboardingCompletion?.percent ?? null)
+              }
               progressInProgress={
                 data?.onboardingSteps
-                  ? data.onboardingSteps.filter((step) => step.state === "in_progress").length
+                  ? preHireOnboardingSteps.filter((step) => step.state === "in_progress").length
                   : null
               }
               progressUpcoming={
                 data?.onboardingSteps
-                  ? data.onboardingSteps.filter((step) => step.state === "pending").length
+                  ? preHireOnboardingSteps.filter((step) => step.state === "pending").length
                   : null
               }
               progressDate={formatDate(w?.updated_at ?? w?.created_at)}
@@ -1039,16 +1077,14 @@ export default function NewApplicantProfilePage() {
                           {w?.status_label ?? "—"}
                         </div>
                       </div>
-                      <CandidateDetailEditableField
-                        label="Hourly Rate"
-                        displayValue={formatHourlyRate(w?.hourly_rate)}
-                        editValue={w?.hourly_rate ?? ""}
-                        fieldKind="hourly_rate"
+                      <CandidateDetailPayRateField
+                        amount={w?.hourly_rate}
+                        period={w?.pay_rate_period}
                         isMissing={isMissingCandidateValue(w?.hourly_rate)}
-                        placeholder="25.00"
                         saving={fieldSaving}
-                        onSave={(value) => saveWorkerField("hourly_rate", value)}
+                        onSave={savePayRate}
                       />
+                      {/* Primary Practice Setting — not needed on candidate details; facilities are shown in Facilities Assigned.
                       <div className="contents">
                         <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
                           Primary Practice Setting
@@ -1057,18 +1093,38 @@ export default function NewApplicantProfilePage() {
                           {data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation}
                         </div>
                       </div>
-                      <CandidateDetailSelectField
-                        label="Primary Allied Health Role"
-                        displayValue={alliedHealthRoleValue || "—"}
-                        editValue={alliedHealthRoleValue}
-                        isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
-                        options={fieldOptions?.alliedHealthRoles ?? []}
-                        optionsLoading={!fieldOptions}
-                        placeholder="Pick role"
-                        emptyMessage="No roles found for this company."
-                        saving={fieldSaving}
-                        onSave={(value) => saveWorkerField("job_role", value)}
-                      />
+                      */}
+                      {showHealthcareProfessionFields ? (
+                        <>
+                          <CandidateDetailEditableField
+                            label={
+                              <>
+                                Primary Allied Health Role{" "}
+                                <span className="text-[#9CA3AF]">(for Healthcare only)</span>
+                              </>
+                            }
+                            accessibilityLabel="Primary Allied Health Role (for Healthcare only)"
+                            displayValue={alliedHealthRoleValue || "—"}
+                            editValue={alliedHealthRoleValue}
+                            fieldKind="short_text"
+                            isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
+                            placeholder="Enter role"
+                            saving={fieldSaving}
+                            onSave={(value) => saveWorkerField("allied_health_role", value)}
+                          />
+                          <CandidateDetailEditableField
+                            label="Specialty"
+                            displayValue={specialtyValue || "—"}
+                            editValue={specialtyValue}
+                            fieldKind="short_text"
+                            isMissing={isMissingCandidateValue(specialtyValue)}
+                            placeholder="Enter specialty"
+                            saving={fieldSaving}
+                            onSave={(value) => saveWorkerField("specialty", value)}
+                          />
+                        </>
+                      ) : null}
+                      {/* License type / expiry — handled via profession documents & Attachments, not needed here.
                       <CandidateDetailSelectField
                         label="Professional License / Certification Type"
                         displayValue={licenseTypeDisplay || "—"}
@@ -1090,6 +1146,7 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("license_expires_at", value)}
                       />
+                      */}
                       <CandidateDetailSelectField
                         label="Which State are you applying for?"
                         displayValue={applyingStateDisplay || "—"}
@@ -1141,96 +1198,6 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveReference(2, value)}
                       />
-                    </div>
-                  </div>
-
-                  <div className={PROFILE_CARD_CLASS}>
-                    <div className={PROFILE_CARD_HEADER_CLASS}>
-                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Nursing Licenses</h2>
-                    </div>
-                    <div className="flex flex-col px-3 py-3 sm:px-4">
-                      <div className="overflow-x-auto overflow-y-hidden rounded-md border border-[#E5E7EB]">
-                        {nursingLicenseRows.map((row, rowIdx) => (
-                          <div
-                            key={row.tag}
-                            className={`grid min-w-[280px] grid-cols-[40px_minmax(0,1fr)] sm:min-w-0 sm:grid-cols-[55px_minmax(0,1fr)] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
-                          >
-                            <div className="flex min-h-[134px] items-center justify-center border-r border-[#E5E7EB] px-2 text-[12px] font-normal leading-4 text-[#6B7280] sm:px-5 md:h-[134px]">
-                              {row.tag}
-                            </div>
-                            <div className="min-h-[134px] md:h-[134px]">
-                              {(
-                                [
-                                  ["State Nursing License Registration #", row.registration],
-                                  ["State Nursing License", row.state],
-                                  ["License Expiry Date", row.expiry],
-                                ] as const
-                              ).map(([label, value], idx) => (
-                                <div
-                                  key={`${row.tag}-${label}`}
-                                  className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
-                                >
-                                  <div className="min-h-11 border-b border-[#E5E7EB] px-3 py-2 text-[13px] font-normal leading-5 text-[#374151] sm:border-b-0 sm:border-r sm:py-3 sm:text-[14px] md:h-11">
-                                    {label}
-                                  </div>
-                                  <div className="min-h-11 px-3 py-2 text-[13px] font-normal leading-5 text-[#111827] sm:py-3 sm:text-[14px] md:h-11">
-                                    {label === "State Nursing License" && value !== "—" ? (
-                                      <span className="text-[#111827]">
-                                        <span className="mr-1 text-[#0D9488]">⌄</span>
-                                        {value}
-                                      </span>
-                                    ) : (
-                                      value
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-center border-t border-[#E5E7EB] py-4">
-                        <button
-                          type="button"
-                          onClick={() => router.push(nursingLicenseRedirectHref)}
-                          className="inline-flex h-9 w-full max-w-[280px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[color:var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[color:var(--brand-primary)] sm:w-auto sm:min-w-[175px]"
-                        >
-                          <span className="text-base leading-none">+</span>
-                          Add Nursing License
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={PROFILE_CARD_CLASS}>
-                    <div className={PROFILE_CARD_HEADER_CLASS}>
-                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Activity Logs</h2>
-                    </div>
-                    <div className="p-3 sm:p-5">
-                    <div className="overflow-hidden rounded-md border border-[#E5E7EB] text-xs">
-                      {(
-                        [
-                          ["Source", data?.activity.source ?? "—"],
-                          ["Created date", formatDateTimeLabel(data?.activity.created_at)],
-                          ["Date resume added", formatDateTimeLabel(data?.requirements?.resume_path ? data?.activity.created_at : null)],
-                          ["Created by", data?.activity_logs?.[0]?.details?.user_agent ? "API Session" : "N/A"],
-                          ["Last updated", formatRelative(data?.activity.updated_at)],
-                        ] as const
-                      ).map(([k, v], idx) => (
-                        <div
-                          key={k}
-                          className={`grid grid-cols-1 sm:grid-cols-2 ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
-                        >
-                          <div className="border-b border-[#E5E7EB] px-3 py-2 text-[13px] leading-5 text-[#374151] sm:border-b-0 sm:border-r sm:px-4 sm:py-3 sm:text-[14px]">
-                            {k}
-                          </div>
-                          <div className="break-words px-3 py-2 text-[13px] leading-5 text-[#111827] sm:px-4 sm:py-3 sm:text-[14px]">
-                            {v}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                     </div>
                   </div>
 
@@ -1416,11 +1383,20 @@ export default function NewApplicantProfilePage() {
                       <div className={PROFILE_CARD_HEADER_CLASS}>
                         <h2 className={`${PROFILE_CARD_TITLE_CLASS} min-w-0 truncate`}>
                           Onboarding Progress
-                          {data?.onboardingCompletion?.totalSteps ? (
+                          {visibleOnboardingSteps.length > 0 ? (
                             <span className="ml-2 inline-block text-xs font-normal text-[#6B7280]">
-                              {data.onboardingCompletion.completedSteps}/
-                              {data.onboardingCompletion.totalSteps} (
-                              {data.onboardingCompletion.percent}%)
+                              {
+                                visibleOnboardingSteps.filter((step) => step.state === "complete")
+                                  .length
+                              }
+                              /{visibleOnboardingSteps.length} (
+                              {Math.round(
+                                (visibleOnboardingSteps.filter((step) => step.state === "complete")
+                                  .length /
+                                  visibleOnboardingSteps.length) *
+                                  100
+                              )}
+                              %)
                             </span>
                           ) : null}
                         </h2>
@@ -1507,6 +1483,7 @@ export default function NewApplicantProfilePage() {
                       layout="sidebar"
                     />
 
+                    {/* Skill assessments / Remarks / Status History — not shown on Profile sidebar.
                     <div className={PROFILE_CARD_CLASS}>
                       <div className={PROFILE_CARD_HEADER_CLASS}>
                         <h2 className={PROFILE_CARD_TITLE_CLASS}>Skill assessments</h2>
@@ -1551,6 +1528,7 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                   <CandidateStatusHistoryPanel workerId={id} layout="sidebar" />
+                    */}
                 </section>
               </div>
             </div>

@@ -46,9 +46,10 @@ function getApplicantId(): string | null {
 }
 
 function resolveApplicantId(search: string): string | null {
+  // Preview must ignore leftover live applicant ids from prior sessions (BUG-131).
+  if (isOnboardingDraftPreview(search)) return DRAFT_PREVIEW_APPLICANT_ID;
   const stored = getApplicantId();
   if (stored) return stored;
-  if (isOnboardingDraftPreview(search)) return DRAFT_PREVIEW_APPLICANT_ID;
   return null;
 }
 

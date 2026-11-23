@@ -145,4 +145,10 @@ describe("preparePublishedStepDrafts", () => {
     expect(enabled[0].step_type).toBe("resume_upload");
     expect(enabled[0].is_required).toBe(true);
   });
+
+  it("rejects a completely empty canvas before resume auto-inject", () => {
+    expect(() =>
+      preparePublishedStepDrafts({ nodes: [], edges: [] }, null)
+    ).toThrow(/empty workflow/i);
+  });
 });

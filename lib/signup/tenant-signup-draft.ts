@@ -10,6 +10,7 @@ export type TenantSignupDraftForm = {
   companyName: string;
   companyWebsite: string;
   industry: string;
+  industries: string[];
   isStaffingCompany: boolean | null;
   city: string;
   state: string;
@@ -51,6 +52,14 @@ export function readTenantSignupDraft(): TenantSignupDraft | null {
     const parsed = JSON.parse(raw) as Partial<TenantSignupDraft>;
     if (!parsed || typeof parsed !== "object" || !parsed.form) return null;
     const staffing = parsed.form.isStaffingCompany;
+    const industry = String(parsed.form.industry ?? "");
+    const industriesRaw = Array.isArray((parsed.form as { industries?: unknown }).industries)
+      ? ((parsed.form as { industries: unknown[] }).industries)
+          .map((value) => String(value ?? "").trim())
+          .filter(Boolean)
+      : [];
+    const industries =
+      industriesRaw.length > 0 ? industriesRaw : industry.trim() ? [industry.trim()] : [];
     return {
       form: {
         firstName: String(parsed.form.firstName ?? ""),
@@ -59,7 +68,8 @@ export function readTenantSignupDraft(): TenantSignupDraft | null {
         phone: String(parsed.form.phone ?? ""),
         companyName: String(parsed.form.companyName ?? ""),
         companyWebsite: String(parsed.form.companyWebsite ?? ""),
-        industry: String(parsed.form.industry ?? ""),
+        industry: industries[0] ?? industry,
+        industries,
         isStaffingCompany: staffing === true ? true : staffing === false ? false : null,
         city: String(parsed.form.city ?? ""),
         state: String(parsed.form.state ?? ""),

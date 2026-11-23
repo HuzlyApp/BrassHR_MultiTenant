@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, Calendar, ChevronDown, ArrowUpDown } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
@@ -129,81 +129,79 @@ export default function WhoIsOffPage() {
     });
   }, [records, sortField, sortAsc]);
 
+  const filterControlClassName =
+    "h-[30px] cursor-pointer appearance-none rounded-[8px] border border-[#CBD5E1] bg-white pl-2.5 pr-7 text-[10px] leading-[15px] text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-primary,#012352)]";
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 md:px-8">
-      {/* Sub navigation between Week View and Who is off */}
-      <SchedulingSubNav />
-
-      {/* Page Header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">Who is off</h1>
-          <p className="mt-1 text-sm text-[#64748B]">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">
+            Who is off
+          </h1>
+          <p className="mt-1 text-xs leading-4 text-[#6B7280]">
             View employees who are off during the selected date range.
           </p>
         </div>
 
-        {/* Date Range Selector */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-[#E2E8F0] bg-white p-0.5 shadow-sm">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#1E293B]">
-              <Calendar className="h-4 w-4 text-[#94A3B8]" />
-              <span>{dateRangeText}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-[#94A3B8]" />
-            </div>
-
-            <button
-              type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F1F5F9]"
-              aria-label="Previous range"
-              onClick={() => {
-                setPage(1);
-                setAnchorDate((current) => addEasternDays(current, -7));
-              }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-[#F1F5F9]"
-              aria-label="Next range"
-              onClick={() => {
-                setPage(1);
-                setAnchorDate((current) => addEasternDays(current, 7));
-              }}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+          <button
+            type="button"
+            className="inline-flex h-[30px] w-8 items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+            aria-label="Previous range"
+            onClick={() => {
+              setPage(1);
+              setAnchorDate((current) => addEasternDays(current, -7));
+            }}
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </button>
+          <div className="inline-flex h-[30px] min-w-[160px] items-center gap-2 rounded-[8px] border border-[#CBD5E1] bg-white px-2.5 text-[10px] leading-[15px] text-[#0F172A]">
+            <Calendar className="h-3 w-3 shrink-0 text-[#94A3B8]" aria-hidden />
+            <span className="truncate">{dateRangeText}</span>
+            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
           </div>
+          <button
+            type="button"
+            className="inline-flex h-[30px] w-8 items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+            aria-label="Next range"
+            onClick={() => {
+              setPage(1);
+              setAnchorDate((current) => addEasternDays(current, 7));
+            }}
+          >
+            <ChevronRight className="h-3 w-3" />
+          </button>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {/* Search input + gold button */}
-        <form onSubmit={handleSearchSubmit} className="flex max-w-md flex-1 items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+      <div className="mb-4">
+        <Suspense fallback={null}>
+          <SchedulingSubNav />
+        </Suspense>
+      </div>
+
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-[30px]">
+        <form onSubmit={handleSearchSubmit} className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"
-              placeholder="Search worker"
+              placeholder="Search worker..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white pl-9 pr-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
+              className="h-[30px] w-full rounded-[8px] border-0 bg-white pl-8 pr-2.5 text-[10px] leading-[15px] text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary,#012352)_16%,transparent)]"
             />
           </div>
           <button
             type="submit"
-            className="flex h-10 items-center justify-center rounded-lg px-6 text-sm font-medium text-white shadow-sm transition hover:brightness-95 active:scale-[0.98]"
-            style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
+            className="inline-flex h-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary)] px-2.5 text-[10px] font-semibold leading-[15px] text-white transition hover:brightness-95"
           >
             Search
           </button>
         </form>
 
-        {/* Dropdowns */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Facilities dropdown */}
+        <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative">
             <select
               value={selectedFacility}
@@ -211,18 +209,22 @@ export default function WhoIsOffPage() {
                 setSelectedFacility(e.target.value);
                 setPage(1);
               }}
-              className="h-10 cursor-pointer appearance-none rounded-lg border border-[#E2E8F0] bg-white pl-3.5 pr-8 text-xs font-medium text-[#334155] shadow-sm outline-none transition hover:border-[#CBD5E1] focus:border-[color:var(--brand-primary,#BC8B41)]"
+              aria-label="Filter by facility"
+              className={filterControlClassName}
             >
-              <option value="all">Facilities • All</option>
+              <option value="all">All Facilities</option>
               {facilities.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
               ))}
             </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+              aria-hidden
+            />
           </div>
 
-          {/* Of Types dropdown */}
           <div className="relative">
             <select
               value={selectedOffType}
@@ -230,21 +232,25 @@ export default function WhoIsOffPage() {
                 setSelectedOffType(e.target.value);
                 setPage(1);
               }}
-              className="h-10 cursor-pointer appearance-none rounded-lg border border-[#E2E8F0] bg-white pl-3.5 pr-8 text-xs font-medium text-[#334155] shadow-sm outline-none transition hover:border-[#CBD5E1] focus:border-[color:var(--brand-primary,#BC8B41)]"
+              aria-label="Filter by off type"
+              className={filterControlClassName}
             >
-              <option value="all">Of Types • All</option>
+              <option value="all">All Off types</option>
               {offTypes.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
             </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+              aria-hidden
+            />
           </div>
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+      <div className="w-full overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] border-collapse text-left">
             <thead>
@@ -391,30 +397,28 @@ export default function WhoIsOffPage() {
               <button
                 type="button"
                 onClick={() => setPage(1)}
-                className="h-7 w-7 rounded-md text-xs font-semibold text-white transition shadow-xs"
-                style={{
-                  backgroundColor: page === 1 ? "var(--brand-secondary, #012352)" : "#FFFFFF",
-                  color: page === 1 ? "#FFFFFF" : "#475569",
-                  border: page === 1 ? "none" : "1px solid #E2E8F0",
-                }}
+                className={`h-7 w-7 rounded-[8px] text-xs font-semibold transition ${
+                  page === 1
+                    ? "bg-[color:var(--brand-primary,#012352)] text-white"
+                    : "border border-[#E2E8F0] bg-white text-[#475569]"
+                }`}
               >
                 1
               </button>
 
-              {totalPages > 1 && (
+              {totalPages > 1 ? (
                 <button
                   type="button"
                   onClick={() => setPage(2)}
-                  className="h-7 w-7 rounded-md text-xs font-semibold transition"
-                  style={{
-                    backgroundColor: page === 2 ? "var(--brand-secondary, #012352)" : "#FFFFFF",
-                    color: page === 2 ? "#FFFFFF" : "#475569",
-                    border: page === 2 ? "none" : "1px solid #E2E8F0",
-                  }}
+                  className={`h-7 w-7 rounded-[8px] text-xs font-semibold transition ${
+                    page === 2
+                      ? "bg-[color:var(--brand-primary,#012352)] text-white"
+                      : "border border-[#E2E8F0] bg-white text-[#475569]"
+                  }`}
                 >
                   2
                 </button>
-              )}
+              ) : null}
 
               <button
                 type="button"

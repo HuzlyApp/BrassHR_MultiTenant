@@ -255,7 +255,6 @@ export default function AddCandidateModal({
     () => validatePersonName(lastName, { label: "Last name" }),
     [lastName]
   );
-  const namesValid = firstNameCheck.ok && lastNameCheck.ok;
   const nameNeedsReview = Boolean(nameReview?.needsReview && nameReview.rawExtract);
   const firstNameError =
     !firstNameCheck.ok && (firstName.trim() || nameNeedsReview) ? firstNameCheck.error : null;
@@ -643,12 +642,20 @@ export default function AddCandidateModal({
     setDragActive(false);
   }
 
+  function selectResumeFiles(files: FileList | null) {
+    if (files && files.length > 1) {
+      validateAndSetFile(null);
+      setFileError("Upload one resume at a time. Please select a single PDF or DOCX file.");
+      return;
+    }
+    validateAndSetFile(files?.[0] ?? null);
+  }
+
   function handleDrop(event: DragEvent) {
     event.preventDefault();
     event.stopPropagation();
     setDragActive(false);
-    const file = event.dataTransfer.files?.[0] ?? null;
-    validateAndSetFile(file);
+    selectResumeFiles(event.dataTransfer.files);
   }
 
   async function handleUpload() {
@@ -792,16 +799,18 @@ export default function AddCandidateModal({
     jobId: effectiveJobId || null,
     enabled: Boolean(effectiveJobId && workLocation),
   });
-  const canUpload =
-    !uploading &&
-    parseState !== "parsing" &&
-    hasResumeSource &&
-    hasIdentity &&
-    namesValid &&
-    Boolean(effectiveJobId) &&
-    Boolean(workLocation) &&
-    !workLocationPreview.loading &&
-    workLocationPreview.allowed;
+  const uploadBlockedReason = uploading ? "Uploading candidate…"
+    : parseState === "parsing" ? "Please wait for the resume to finish parsing."
+    : !hasResumeSource ? "Upload a resume or paste the full resume text."
+    : !firstNameCheck.ok ? firstNameCheck.error
+    : !lastNameCheck.ok ? lastNameCheck.error
+    : validateAddCandidateField("email", { email })
+      || (!effectiveJobId ? "Select a job for this candidate."
+        : !workLocation ? "Where will they work this assignment?"
+        : workLocationPreview.loading ? "Checking the assignment location…"
+        : !workLocationPreview.allowed ? workLocationPreview.message || SERVICE_AREA_COPY.location_not_enabled
+        : null);
+  const canUpload = !uploadBlockedReason;
 
   useEffect(() => {
     if (!open || !showIdentityFields || workLocationPreview.loading) return;
@@ -910,7 +919,7 @@ export default function AddCandidateModal({
                 </p>
               ) : null}
               <p className="mb-4 text-sm text-[#64748B]">
-                Upload multiple résumés or import existing candidates from your talent database.
+                Upload one résumé at a time or import existing candidates from your talent database.
               </p>
 
               <button
@@ -1000,10 +1009,10 @@ export default function AddCandidateModal({
                           className="inline-flex h-8 w-fit items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium leading-5 transition hover:bg-[#F8FAFC]"
                           style={{ borderColor: primaryColor, color: primaryColor }}
                         >
-                          Browse files
+                          Browse file
                         </span>
                         <p className="mt-4 text-xs leading-4 text-[#6B7280]">
-                          Max 10 MB files are allowed
+                          One PDF or DOCX resume, up to 10 MB
                         </p>
                       </label>
                     )}
@@ -1015,7 +1024,7 @@ export default function AddCandidateModal({
                       className="sr-only"
                       disabled={uploading}
                       onChange={(event) => {
-                        validateAndSetFile(event.target.files?.[0] ?? null);
+                        selectResumeFiles(event.target.files);
                       }}
                     />
                   </div>
@@ -1286,7 +1295,8 @@ export default function AddCandidateModal({
               ) : null}
             </div>
 
-            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
+              {hasResumeSource && uploadBlockedReason && !uploading ? <p id="candidate-upload-blocked" role="status" className="w-full text-sm text-[#B91C1C]">{uploadBlockedReason}</p> : null}
               <button
                 type="button"
                 onClick={handleClose}
@@ -1299,17 +1309,8 @@ export default function AddCandidateModal({
                 type="button"
                 onClick={() => void handleUpload()}
                 disabled={!canUpload}
-                title={
-                  canUpload
-                    ? undefined
-                    : parseState === "parsing"
-                      ? "Please wait for the resume to finish parsing"
-                      : workLocationPreview.message
-                        ? SERVICE_AREA_COPY.location_not_enabled
-                        : !workCity.trim() || !resolvedWorkStateCode
-                          ? "Where will they work this assignment?"
-                          : "Upload a resume and fill in name and email"
-                }
+                title={uploadBlockedReason || undefined}
+                aria-describedby={hasResumeSource && uploadBlockedReason && !uploading ? "candidate-upload-blocked" : undefined}
                 className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
               >

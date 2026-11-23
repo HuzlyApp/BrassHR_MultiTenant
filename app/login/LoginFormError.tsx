@@ -4,7 +4,7 @@ import { AlertCircle } from "lucide-react";
 import type { LoginAuthErrorCode } from "@/lib/auth/login-api-errors";
 import { titleForLoginError } from "@/lib/auth/login-api-errors";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 type LoginFormErrorProps = {
   message: string;

@@ -200,7 +200,7 @@ export function WorkerProfileFilesPanel({ workerId }: { workerId: string }) {
           )}
         </ul>
         <p className="border-t border-[#F3F4F6] px-4 py-2.5 text-[11px] text-[#9CA3AF]">
-          No view-pings. Events are the audit log.
+          No file viewing activity yet. File activity will appear here.
         </p>
       </section>
 

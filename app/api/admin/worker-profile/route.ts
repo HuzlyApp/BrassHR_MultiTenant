@@ -45,6 +45,10 @@ import {
   shouldPromoteToForApproval,
 } from "@/lib/admin/promote-for-approval"
 import { isEligibleForFinalApprovalView } from "@/lib/admin/final-approval"
+import {
+  normalizeWorkerPayRateAmount,
+  normalizeWorkerPayRatePeriod,
+} from "@/lib/admin/worker-pay-rate"
 
 export const runtime = "nodejs"
 
@@ -805,9 +809,121 @@ export async function GET(req: NextRequest) {
       asTrimmedString(w.source) ||
       asTrimmedString(w.lead_source) ||
       null
-    const resolvedJobId = asTrimmedString(appSummary?.sourceJobId) || null
     const resolvedJobTitle = asTrimmedString(appSummary?.jobTitle) || null
-    const resolvedJobRequisitionId = asTrimmedString(appSummary?.jobRequisitionId) || null
+    const resolvedJobRequisitionId =
+      asTrimmedString(appSummary?.jobRequisitionId) ||
+      asTrimmedString(w.job_requisition_id) ||
+      null
+    // Job ID is MSP-only (source job / external requisition). Hidden for Internal jobs.
+    let jobSourceType =
+      asTrimmedString(appSummary?.sourceType)?.toLowerCase() || null
+    let resolvedJobId: string | null = null
+
+    let jobIndustryKey: string | null = null
+    let professionIndustryKey: string | null = null
+    let jobSpecialtyName: string | null = null
+    if (resolvedJobRequisitionId) {
+      try {
+        // professions has no industry_key — resolve via tenant_professions / catalog.
+        const { data: jobIndustryRow, error: jobIndustryErr } = await supabase
+          .from("job_requisitions")
+          .select(
+            "industry_key, source_type, profession_id, specialty_id, specialty, internal_requisition_number, external_requisition_id, professions(name)"
+          )
+          .eq("id", resolvedJobRequisitionId)
+          .maybeSingle()
+        if (jobIndustryErr) {
+          console.warn("[admin/worker-profile] job industry lookup", jobIndustryErr)
+        } else if (jobIndustryRow) {
+          const row = jobIndustryRow as {
+            industry_key?: string | null
+            source_type?: string | null
+            profession_id?: string | null
+            specialty_id?: string | null
+            specialty?: string | null
+            internal_requisition_number?: string | null
+            external_requisition_id?: string | null
+            professions?: { name?: string | null } | { name?: string | null }[] | null
+          }
+          jobIndustryKey = asTrimmedString(row.industry_key)
+          jobSpecialtyName = asTrimmedString(row.specialty)
+          jobSourceType =
+            asTrimmedString(row.source_type)?.toLowerCase() || jobSourceType
+          if (jobSourceType === "msp") {
+            resolvedJobId =
+              asTrimmedString(row.external_requisition_id) ||
+              asTrimmedString(appSummary?.sourceJobId) ||
+              asTrimmedString(row.internal_requisition_number) ||
+              resolvedJobRequisitionId.slice(0, 8).toUpperCase()
+          }
+
+          const professionJoin = row.professions
+          const professionRow = Array.isArray(professionJoin)
+            ? professionJoin[0]
+            : professionJoin
+          const professionName = asTrimmedString(professionRow?.name)
+          const professionId = asTrimmedString(row.profession_id)
+
+          if (tenantIdForWorker && (professionId || professionName)) {
+            if (professionId) {
+              const { data: byId } = await supabase
+                .from("tenant_professions")
+                .select("industry_key")
+                .eq("tenant_id", tenantIdForWorker)
+                .eq("id", professionId)
+                .maybeSingle()
+              professionIndustryKey = asTrimmedString(
+                (byId as { industry_key?: string | null } | null)?.industry_key
+              )
+            }
+            if (!professionIndustryKey && professionName) {
+              const { data: byName } = await supabase
+                .from("tenant_professions")
+                .select("industry_key")
+                .eq("tenant_id", tenantIdForWorker)
+                .ilike("name", professionName)
+                .limit(1)
+                .maybeSingle()
+              professionIndustryKey = asTrimmedString(
+                (byName as { industry_key?: string | null } | null)?.industry_key
+              )
+            }
+            if (!professionIndustryKey && professionName) {
+              const { data: catalog } = await supabase
+                .from("profession_catalog")
+                .select("industry_key")
+                .ilike("name", professionName)
+                .limit(1)
+                .maybeSingle()
+              professionIndustryKey = asTrimmedString(
+                (catalog as { industry_key?: string | null } | null)?.industry_key
+              )
+            }
+          }
+
+          if (!jobSpecialtyName && row.specialty_id) {
+            const { data: specialtyRow } = await supabase
+              .from("specialties")
+              .select("name")
+              .eq("id", row.specialty_id)
+              .maybeSingle()
+            jobSpecialtyName = asTrimmedString(
+              (specialtyRow as { name?: string | null } | null)?.name
+            )
+          }
+        }
+      } catch (jobIndustryLookupErr) {
+        console.warn("[admin/worker-profile] job industry lookup", jobIndustryLookupErr)
+      }
+    }
+
+    if (!resolvedJobId && jobSourceType === "msp") {
+      resolvedJobId =
+        asTrimmedString(appSummary?.sourceJobId) ||
+        (resolvedJobRequisitionId
+          ? resolvedJobRequisitionId.slice(0, 8).toUpperCase()
+          : null)
+    }
 
     const rawWorkerStatus = asTrimmedString(w.status) ?? asTrimmedString(w.worker_status)
     const statusLabel =
@@ -926,6 +1042,10 @@ export async function GET(req: NextRequest) {
         years_experience:
           experienceYears,
         hourly_rate: w.hourly_rate != null ? String(w.hourly_rate) : null,
+        pay_rate_period:
+          w.pay_rate_period != null ? normalizeWorkerPayRatePeriod(String(w.pay_rate_period)) : "Hourly",
+        allied_health_role: asTrimmedString(w.allied_health_role),
+        specialty: asTrimmedString(w.specialty) ?? jobSpecialtyName,
         ssn_last_four: w.ssn_last_four != null ? String(w.ssn_last_four) : null,
         positions,
         profile_photo_url: profilePhotoUrl,
@@ -1032,6 +1152,9 @@ export async function GET(req: NextRequest) {
       job_id: resolvedJobId,
       job_title: resolvedJobTitle,
       job_requisition_id: resolvedJobRequisitionId,
+      job_source_type: jobSourceType,
+      job_industry_key: jobIndustryKey,
+      profession_industry_key: professionIndustryKey,
       activity: {
         source: resolvedSource,
         created_at: createdAt,
@@ -1046,10 +1169,18 @@ export async function GET(req: NextRequest) {
 }
 
 function isMissingColumnErr(e: unknown) {
-  const err = e as { code?: string; message?: string } | null
+  const err = e as { code?: string; message?: string; details?: string } | null
   if (!err) return false
+  // Postgres undefined_column
   if (err.code === "42703") return true
-  return typeof err.message === "string" && err.message.includes(" does not exist")
+  // PostgREST schema cache miss for unknown column
+  if (err.code === "PGRST204") return true
+  const message = `${err.message ?? ""} ${err.details ?? ""}`
+  return (
+    /does not exist/i.test(message) ||
+    /Could not find the '[^']+' column/i.test(message) ||
+    /schema cache/i.test(message)
+  )
 }
 
 async function upsertWorkerReference(
@@ -1214,6 +1345,86 @@ export async function PATCH(req: NextRequest) {
       })
 
       return NextResponse.json({ ok: true, reference: saved })
+    }
+
+    if (field === "pay_rate") {
+      const payload =
+        body.value && typeof body.value === "object"
+          ? (body.value as { amount?: unknown; period?: unknown })
+          : null
+      const amountParsed = normalizeWorkerPayRateAmount(payload?.amount)
+      if (!amountParsed.ok) {
+        return NextResponse.json({ error: amountParsed.error }, { status: 400 })
+      }
+      const period = normalizeWorkerPayRatePeriod(
+        payload?.period == null ? "Hourly" : String(payload.period)
+      )
+
+      let updated: { id?: string } | null = null
+      let updateErr: unknown = null
+      ;({ data: updated, error: updateErr } = await supabase
+        .from("worker")
+        .update({
+          hourly_rate: amountParsed.value,
+          pay_rate_period: period,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", workerId)
+        .select("id")
+        .maybeSingle())
+
+      // Older DBs may not have pay_rate_period yet — still save the amount.
+      if (updateErr && isMissingColumnErr(updateErr)) {
+        ;({ data: updated, error: updateErr } = await supabase
+          .from("worker")
+          .update({
+            hourly_rate: amountParsed.value,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", workerId)
+          .select("id")
+          .maybeSingle())
+      }
+
+      if (updateErr) {
+        console.error("[admin/worker-profile] pay_rate update", updateErr)
+        const message =
+          updateErr instanceof Error
+            ? updateErr.message
+            : typeof updateErr === "object" &&
+                updateErr &&
+                "message" in updateErr &&
+                typeof (updateErr as { message?: unknown }).message === "string"
+              ? (updateErr as { message: string }).message
+              : "Could not save pay rate"
+        return NextResponse.json({ error: message }, { status: 500 })
+      }
+      if (!updated?.id) {
+        return NextResponse.json({ error: "Update failed" }, { status: 500 })
+      }
+
+      await Promise.all([
+        invalidateResourceCache("worker", workerId),
+        invalidateTenantCache("worker_search", tenantId),
+        invalidateTenantCache("worker", tenantId),
+        invalidateTableCache("worker_search"),
+      ])
+
+      void writeActivityLog({
+        actorUserId: auth.devBypass ? null : auth.userId,
+        tenantId,
+        action: "worker.profile.pay_rate_update",
+        entityType: "worker",
+        entityId: workerId,
+        metadata: {
+          route: "PATCH /api/admin/worker-profile",
+          field: "pay_rate",
+          period,
+        },
+        request: req,
+      })
+
+      return NextResponse.json({ ok: true, field: "pay_rate", workerId })
     }
 
     if (field === "license_type") {

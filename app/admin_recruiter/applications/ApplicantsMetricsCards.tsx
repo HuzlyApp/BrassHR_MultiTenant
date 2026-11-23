@@ -81,6 +81,8 @@ export function buildTimeframeOptionsFromApi(timeframeKeys: string[]): Timeframe
 }
 
 export type ApplicantsMetricsCardsProps = {
+  loading?: boolean;
+  error?: boolean;
   counts?: {
     total?: number;
     shortlisted?: number;
@@ -137,6 +139,8 @@ const CARDS: Array<{
 ];
 
 export function ApplicantsMetricsCards({
+  loading = false,
+  error = false,
   counts,
   timeframes,
   timeframeOptions,
@@ -201,21 +205,22 @@ export function ApplicantsMetricsCards({
 
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold leading-4 text-[#374151]">{card.label}</p>
-              <p className="text-2xl font-semibold leading-8 text-black">{val.toLocaleString()}</p>
+              {loading ? <span aria-label={`Loading ${card.label}`} className="my-1 block h-6 w-16 animate-pulse rounded bg-slate-200" /> :
+                <p className="text-2xl font-semibold leading-8 text-black">{error ? "—" : val.toLocaleString()}</p>}
 
               {/* Timeframe dropdown — options come from metrics API keys only */}
               <div className="relative mt-1 flex justify-end">
                 <button
                   type="button"
-                  disabled={options.length === 0}
+                  disabled={loading || options.length === 0}
                   onClick={() => {
                     if (options.length === 0) return;
                     setOpenCardId(isOpen ? null : card.id);
                   }}
                   className="inline-flex cursor-pointer items-center gap-1 text-[10px] leading-[15px] text-[#6B7280] transition hover:text-[#111827] focus:outline-none disabled:cursor-default disabled:opacity-60"
-                  title={options.length === 0 ? "Loading timeframes…" : "Change timeframe"}
+                  title={loading ? "Loading timeframes…" : options.length === 0 ? "No timeframe options available" : "Change timeframe"}
                 >
-                  <span>{options.length === 0 ? "Loading…" : currentDisplay}</span>
+                  <span>{loading ? "Loading…" : error ? "Could not load metrics" : currentDisplay}</span>
                   <ChevronDown
                     className={`size-3 text-[#94A3B8] transition-transform duration-150 ${
                       isOpen ? "rotate-180" : ""

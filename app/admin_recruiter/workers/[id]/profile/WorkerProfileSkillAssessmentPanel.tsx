@@ -39,11 +39,11 @@ function asText(value: unknown): string | null {
   return null;
 }
 
-function scoreLabel(assessment: Assessment): string {
+export function scoreLabel(assessment: Assessment): string {
   const score = assessment.total_score;
   const answered = assessment.answered_count;
-  if (score != null && answered != null) return `${score} of ${answered}`;
-  if (score != null) return `Score: ${score} of 10`;
+  if (score != null && answered != null) return `Score: ${score} · ${answered} answered`;
+  if (score != null) return `Score: ${score}`;
   return assessment.result_status || "Pending";
 }
 

@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isCompleteDisplayStatus,
+  type MappedAssignedStep,
+  type WorkflowStepDisplayStatus,
+} from "@/lib/onboarding/assigned-workflow-steps";
+import { loadCandidateWorkflowPhaseView } from "@/lib/onboarding/candidate-workflow-phase-view";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
@@ -22,14 +28,94 @@ export type DynamicProgressResult = {
   completionPercent: number;
 };
 
+function emptyProgress(configVersion = 0): DynamicProgressResult {
+  return {
+    steps: [],
+    configVersion,
+    completedSteps: 0,
+    totalSteps: 0,
+    completionPercent: 0,
+  };
+}
+
+/**
+ * Match hire-stage board counting: complete first, then in-progress, else pending.
+ * (submitted / approved / skipped count as complete — same as isCompleteDisplayStatus.)
+ */
+export function stateFromWorkflowDisplayStatus(
+  status: WorkflowStepDisplayStatus | string
+): StepState {
+  if (isCompleteDisplayStatus(status as WorkflowStepDisplayStatus)) return "complete";
+  if (
+    status === "in_progress" ||
+    status === "under_review" ||
+    status === "needs_revision"
+  ) {
+    return "in_progress";
+  }
+  return "pending";
+}
+
+/** Pure mapper shared by header/profile and aligned with hireStageProgressMeta step rules. */
+export function mapAssignedStepsToDynamicProgress(
+  steps: Array<
+    Pick<MappedAssignedStep, "id" | "stepKey" | "title" | "phase" | "displayStatus" | "detail">
+  >,
+  configVersion = 0
+): DynamicProgressResult {
+  const mapped: DynamicProgressStep[] = steps.map((step) => ({
+    id: step.id,
+    stepKey: step.stepKey,
+    label: step.title,
+    state: stateFromWorkflowDisplayStatus(step.displayStatus),
+    detail: step.detail,
+    phase: step.phase === "post_hire" ? "post_hire" : "pre_hire",
+  }));
+
+  const totalSteps = mapped.length;
+  const completedSteps = mapped.filter((s) => s.state === "complete").length;
+  const completionPercent =
+    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+
+  return {
+    steps: mapped,
+    configVersion,
+    completedSteps,
+    totalSteps,
+    completionPercent,
+  };
+}
+
 export async function mapDynamicAdminOnboardingProgress(
   supabase: SupabaseClient,
   workerId: string,
   tenantId: string
 ): Promise<DynamicProgressResult> {
+  // Prefer the candidate's assigned job/workflow steps so header, profile, and
+  // hire-journey sidebar share the same completion source of truth.
+  try {
+    const phaseView = await loadCandidateWorkflowPhaseView(supabase, { workerId, tenantId });
+    const hasAssignment =
+      phaseView.preHire.assigned || Boolean(phaseView.postHire?.assigned);
+    if (hasAssignment) {
+      const assignedSteps = [
+        ...phaseView.preHire.steps,
+        ...(phaseView.postHireVisible && phaseView.postHire
+          ? phaseView.postHire.steps
+          : []),
+      ];
+      return mapAssignedStepsToDynamicProgress(assignedSteps);
+    }
+  } catch (error) {
+    console.warn(
+      "[map-dynamic-admin-progress] assigned workflow unavailable; falling back to tenant config",
+      error
+    );
+  }
+
   const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   if (!config) {
-    return { steps: [], configVersion: 0, completedSteps: 0, totalSteps: 0, completionPercent: 0 };
+    return emptyProgress();
   }
 
   const progress = await ensureWorkerOnboardingProgress(supabase, workerId, tenantId);

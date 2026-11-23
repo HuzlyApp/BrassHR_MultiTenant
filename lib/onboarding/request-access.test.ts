@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const state = vi.hoisted(() => ({ user: null as null | { id: string }, rows: {} as Record<string, unknown>, queries: [] as Array<[string, string, unknown]> }));
-vi.mock("@/lib/supabase/service-role", () => ({ createServiceRoleClient: () => ({
+const authClient = vi.hoisted(() => ({
   auth: { getUser: vi.fn(async () => ({ data: { user: state.user }, error: null })) },
   from: (table: string) => {
     const q = { select: () => q, eq: (key: string, value: unknown) => { state.queries.push([table, key, value]); return q; }, or: () => q,
       maybeSingle: async () => ({ data: state.rows[table] ?? null, error: null }) };
     return q;
   },
-}) }));
+}));
+vi.mock("@/lib/supabase-env", () => ({ getSupabaseUrl: () => "https://example.supabase.co" }));
+vi.mock("@supabase/supabase-js", () => ({ createClient: () => authClient }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: null }, error: null }) } }) }));
 vi.mock("@/lib/onboarding/applicant-continuation-link", () => ({ hashContinuationToken: (v: string) => `hashed:${v}` }));
 vi.mock("@/lib/auth/module-access.server", () => ({ authorizeStaffHttpAccess: vi.fn() }));
@@ -17,7 +19,12 @@ import { authorizeOnboardingRequest } from "./request-access";
 const request = (body: object, cookie = "brass_applicant_access=token") => new NextRequest("https://example.test/api/onboarding/direct-deposit", { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) });
 
 describe("applicant request ownership", () => {
-  beforeEach(() => { state.user = { id: "owner" }; state.rows = {}; state.queries = []; });
+  beforeEach(() => {
+    state.user = { id: "owner" };
+    state.rows = {};
+    state.queries = [];
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+  });
   it("rejects requests without any verified identity", async () => {
     expect((await authorizeOnboardingRequest(request({ applicantId: "victim" }, "")))?.status).toBe(401);
   });

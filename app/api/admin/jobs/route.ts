@@ -21,22 +21,11 @@ import { countUniqueActiveCandidateProfiles } from "@/lib/workers/count-unique-a
 import { TenantWaitlistedError } from "@/lib/service-area/errors";
 import { isServiceAreaValidationCode } from "@/lib/service-area/http";
 import { serviceAreaMessage } from "@/lib/service-area/copy";
+import { formatApiError } from "@/lib/api/format-api-error";
 
 export const runtime = "nodejs";
 /** Background Quick Match after a job-description edit runs in `after()` on this route. */
 export const maxDuration = 300;
-
-function formatApiError(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const record = error as { message?: unknown; details?: unknown; hint?: unknown };
-    const parts = [record.message, record.details, record.hint]
-      .map((part) => (typeof part === "string" ? part.trim() : ""))
-      .filter(Boolean);
-    if (parts.length) return parts.join(" — ");
-  }
-  return fallback;
-}
 
 const STATUS_FILTER_VALUES = new Set([
   "draft",

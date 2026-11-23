@@ -13,6 +13,11 @@ import SettingsReportsSubpathRedirectPage from "./reports/[...slug]/page";
 import SettingsSectionPage from "./[section]/page";
 
 describe("Settings Reports Redirection", () => {
+  it("redirects the plural professions alias", async () => {
+    mockRedirect.mockClear();
+    await SettingsSectionPage({ params: Promise.resolve({ section: "professions" }) });
+    expect(mockRedirect).toHaveBeenCalledWith("/admin_recruiter/settings/profession");
+  });
   it("redirects /admin_recruiter/settings/reports to /admin_recruiter/reports", () => {
     mockRedirect.mockClear();
     SettingsReportsRedirectPage();
