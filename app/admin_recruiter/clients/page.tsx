@@ -13,7 +13,18 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
-import type { ClientTableRow } from "@/app/api/admin/clients/route";
+import type { ClientTableRow, ClientsMetrics } from "@/app/api/admin/clients/route";
+
+const EMPTY_METRICS: ClientsMetrics = {
+  activeClients: 0,
+  facilitiesCount: 0,
+  programsCount: 0,
+  directHireCount: 0,
+  openOrders: 0,
+  unfilledThisWeek: 0,
+  onAssignment: 0,
+  directHireOpens: 0,
+};
 
 function statusBadgeClass(status: string) {
   switch (status.toLowerCase()) {
@@ -28,27 +39,20 @@ function statusBadgeClass(status: string) {
   }
 }
 
+function pageNumbers(current: number, total: number): number[] {
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+  const start = Math.max(1, Math.min(current - 2, total - 4));
+  return Array.from({ length: 5 }, (_, i) => start + i);
+}
+
 export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<ClientTableRow[]>([]);
-  const [totalResults, setTotalResults] = useState(100);
+  const [totalResults, setTotalResults] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
-
-  // Metrics
-  const [metrics, setMetrics] = useState({
-    activeClients: 122,
-    facilitiesCount: 6,
-    programsCount: 3,
-    directHireCount: 2,
-    openOrders: 36,
-    unfilledThisWeek: 4,
-    onAssignment: 22,
-    directHireOpens: 122,
-  });
-
-  // Sorting
+  const [metrics, setMetrics] = useState<ClientsMetrics>(EMPTY_METRICS);
   const [sortField, setSortField] = useState<keyof ClientTableRow>("company_name");
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -70,19 +74,35 @@ export default function ClientsPage() {
         limit: String(pageSize),
       });
 
-      const res = await fetch(`/api/admin/clients?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.clients && data.clients.length > 0) {
-          setClients(data.clients);
-          setTotalResults(data.total ?? data.clients.length);
-          setTotalPages(data.totalPages ?? 1);
-          if (data.metrics) setMetrics(data.metrics);
-          return;
-        }
+      const res = await fetch(`/api/admin/clients?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        clients?: ClientTableRow[];
+        total?: number;
+        totalPages?: number;
+        page?: number;
+        metrics?: ClientsMetrics;
+        error?: string;
+      };
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load clients.");
       }
-    } catch {
-      // Use fallback data
+
+      setClients(Array.isArray(data.clients) ? data.clients : []);
+      setTotalResults(typeof data.total === "number" ? data.total : 0);
+      setTotalPages(Math.max(1, typeof data.totalPages === "number" ? data.totalPages : 1));
+      if (typeof data.page === "number" && data.page !== page) {
+        setPage(data.page);
+      }
+      setMetrics(data.metrics ?? EMPTY_METRICS);
+    } catch (err) {
+      setClients([]);
+      setTotalResults(0);
+      setTotalPages(1);
+      setMetrics(EMPTY_METRICS);
+      toast.error(err instanceof Error ? err.message : "Failed to load clients.");
     } finally {
       setLoading(false);
     }
@@ -192,7 +212,8 @@ export default function ClientsPage() {
               {metrics.activeClients}
             </div>
             <div className="mt-0.5 text-[11px] text-[#94A3B8]">
-              {metrics.facilitiesCount} facilities • {metrics.programsCount} programs • {metrics.directHireCount} direct hire
+              {metrics.facilitiesCount} facilities
+              {metrics.directHireCount > 0 ? ` • ${metrics.directHireCount} direct hire` : ""}
             </div>
           </div>
         </div>
@@ -368,44 +389,34 @@ export default function ClientsPage() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                disabled={page <= 1}
+                disabled={page <= 1 || loading}
                 onClick={() => setPage(page - 1)}
                 className="rounded-md border border-[#E2E8F0] px-2.5 py-1 text-xs font-medium text-[#475569] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPage(1)}
-                className="h-7 w-7 rounded-md text-xs font-semibold text-white transition shadow-xs"
-                style={{
-                  backgroundColor: page === 1 ? "var(--brand-secondary, #012352)" : "#FFFFFF",
-                  color: page === 1 ? "#FFFFFF" : "#475569",
-                  border: page === 1 ? "none" : "1px solid #E2E8F0",
-                }}
-              >
-                1
-              </button>
-
-              {totalPages > 1 && (
+              {pageNumbers(page, totalPages).map((pageNumber) => (
                 <button
+                  key={pageNumber}
                   type="button"
-                  onClick={() => setPage(2)}
+                  onClick={() => setPage(pageNumber)}
+                  disabled={loading}
                   className="h-7 w-7 rounded-md text-xs font-semibold transition"
                   style={{
-                    backgroundColor: page === 2 ? "var(--brand-secondary, #012352)" : "#FFFFFF",
-                    color: page === 2 ? "#FFFFFF" : "#475569",
-                    border: page === 2 ? "none" : "1px solid #E2E8F0",
+                    backgroundColor:
+                      page === pageNumber ? "var(--brand-secondary, #012352)" : "#FFFFFF",
+                    color: page === pageNumber ? "#FFFFFF" : "#475569",
+                    border: page === pageNumber ? "none" : "1px solid #E2E8F0",
                   }}
                 >
-                  2
+                  {pageNumber}
                 </button>
-              )}
+              ))}
 
               <button
                 type="button"
-                disabled={page >= totalPages}
+                disabled={page >= totalPages || loading}
                 onClick={() => setPage(page + 1)}
                 className="rounded-md border border-[#E2E8F0] px-2.5 py-1 text-xs font-medium text-[#475569] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
               >
