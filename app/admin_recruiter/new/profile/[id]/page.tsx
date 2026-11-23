@@ -634,25 +634,6 @@ export default function NewApplicantProfilePage() {
   }, [applyingStateCode, fieldOptions, w?.state]);
 
   const resumeAttached = Boolean(data?.requirements?.resume_url || data?.requirements?.resume_path);
-  const nursingLicenseRows = useMemo(() => {
-    const fromApi = (data?.nursing_licenses ?? []).map((license, idx) => ({
-      tag: `L${idx + 1}`,
-      registration: license.license_type ?? "—",
-      state: license.state ?? "—",
-      expiry: formatDate(license.expires_at),
-    }));
-    if (fromApi.length > 0) return fromApi;
-    return [
-      {
-        tag: "L1",
-        registration: "—",
-        state: w?.state ?? "—",
-        expiry: "—",
-      },
-    ];
-  }, [data?.nursing_licenses, w?.state]);
-
-  const nursingLicenseRedirectHref = `${base}/attachments/${id}`;
 
   const onboardingCompleted = useMemo(
     () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
@@ -1141,65 +1122,6 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveReference(2, value)}
                       />
-                    </div>
-                  </div>
-
-                  <div className={PROFILE_CARD_CLASS}>
-                    <div className={PROFILE_CARD_HEADER_CLASS}>
-                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Nursing Licenses</h2>
-                    </div>
-                    <div className="flex flex-col px-3 py-3 sm:px-4">
-                      <div className="overflow-x-auto overflow-y-hidden rounded-md border border-[#E5E7EB]">
-                        {nursingLicenseRows.map((row, rowIdx) => (
-                          <div
-                            key={row.tag}
-                            className={`grid min-w-[280px] grid-cols-[40px_minmax(0,1fr)] sm:min-w-0 sm:grid-cols-[55px_minmax(0,1fr)] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
-                          >
-                            <div className="flex min-h-[134px] items-center justify-center border-r border-[#E5E7EB] px-2 text-[12px] font-normal leading-4 text-[#6B7280] sm:px-5 md:h-[134px]">
-                              {row.tag}
-                            </div>
-                            <div className="min-h-[134px] md:h-[134px]">
-                              {(
-                                [
-                                  ["State Nursing License Registration #", row.registration],
-                                  ["State Nursing License", row.state],
-                                  ["License Expiry Date", row.expiry],
-                                ] as const
-                              ).map(([label, value], idx) => (
-                                <div
-                                  key={`${row.tag}-${label}`}
-                                  className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
-                                >
-                                  <div className="min-h-11 border-b border-[#E5E7EB] px-3 py-2 text-[13px] font-normal leading-5 text-[#374151] sm:border-b-0 sm:border-r sm:py-3 sm:text-[14px] md:h-11">
-                                    {label}
-                                  </div>
-                                  <div className="min-h-11 px-3 py-2 text-[13px] font-normal leading-5 text-[#111827] sm:py-3 sm:text-[14px] md:h-11">
-                                    {label === "State Nursing License" && value !== "—" ? (
-                                      <span className="text-[#111827]">
-                                        <span className="mr-1 text-[#0D9488]">⌄</span>
-                                        {value}
-                                      </span>
-                                    ) : (
-                                      value
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-center border-t border-[#E5E7EB] py-4">
-                        <button
-                          type="button"
-                          onClick={() => router.push(nursingLicenseRedirectHref)}
-                          className="inline-flex h-9 w-full max-w-[280px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[color:var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[color:var(--brand-primary)] sm:w-auto sm:min-w-[175px]"
-                        >
-                          <span className="text-base leading-none">+</span>
-                          Add Nursing License
-                        </button>
-                      </div>
                     </div>
                   </div>
 
