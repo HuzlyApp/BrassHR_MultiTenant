@@ -69,6 +69,14 @@ describe("authSessionIsPasswordRecovery", () => {
     expect(authSessionIsPasswordRecovery(session)).toBe(true);
   });
 
+  it("detects invite AMR as a password-setup session", () => {
+    const session = {
+      access_token: jwtWithAmr([{ method: "invite" }]),
+      user: { id: "invitee-1" },
+    } as unknown as Session;
+    expect(authSessionIsPasswordRecovery(session)).toBe(true);
+  });
+
   it("does not treat a password login as recovery", () => {
     const session = {
       access_token: jwtWithAmr([{ method: "password" }]),
