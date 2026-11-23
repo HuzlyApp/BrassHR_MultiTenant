@@ -12,8 +12,14 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import type { ClientTableRow, ClientsMetrics } from "@/app/api/admin/clients/route";
+import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
+import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
 
 const EMPTY_METRICS: ClientsMetrics = {
   activeClients: 0,
@@ -63,8 +69,149 @@ export default function ClientsPage() {
   const [newContactPerson, setNewContactPerson] = useState("");
   const [newStreetAddress, setNewStreetAddress] = useState("");
   const [newCity, setNewCity] = useState("");
-  const [newStateCode, setNewStateCode] = useState("");
+  const [newState, setNewState] = useState("");
   const [newZipCode, setNewZipCode] = useState("");
+  const [stateRows, setStateRows] = useState<Array<{ code: string; name: string }>>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+
+  const addressAutocomplete = useAddressAutocomplete(newStreetAddress, {
+    city: newCity,
+    state: newState,
+    zipCode: newZipCode,
+  });
+
+  const selectedStateCode = useMemo(() => {
+    const fromRows = stateRows.find((row) => row.name === newState)?.code;
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(newState);
+    if (fromName) return fromName;
+    const trimmed = newState.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
+    return "";
+  }, [newState, stateRows]);
+
+  useEffect(() => {
+    if (!addModalOpen) return;
+
+    let active = true;
+    setLocationLoading(true);
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_states")
+          .select("code, name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (!active || error || !data?.length) return;
+
+        const states = data.map((row) => ({
+          code: String(row.code),
+          name: String(row.name),
+        }));
+        setStateRows(states);
+        setStateOptions(states.map((row) => row.name));
+      } finally {
+        if (active) setLocationLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [addModalOpen]);
+
+  useEffect(() => {
+    if (!addModalOpen || !selectedStateCode || selectedStateCode.length !== 2) {
+      setCityOptions([]);
+      setCitiesLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCitiesLoading(true);
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true });
+
+        if (!active) return;
+        if (error) {
+          setCityOptions([]);
+          return;
+        }
+
+        setCityOptions((data ?? []).map((row) => String(row.city_name)));
+      } catch {
+        if (active) setCityOptions([]);
+      } finally {
+        if (active) setCitiesLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [addModalOpen, selectedStateCode]);
+
+  const effectiveCityOptions = useMemo(() => {
+    const current = newCity.trim();
+    if (!current || cityOptions.includes(current)) return cityOptions;
+    return [...cityOptions, current].sort((a, b) => a.localeCompare(b));
+  }, [newCity, cityOptions]);
+
+  const effectiveStateOptions = useMemo(() => {
+    const current = newState.trim();
+    if (!current) return stateOptions;
+    if (stateOptions.includes(current)) return stateOptions;
+    const fromCode = getStateNameFromCode(current);
+    if (fromCode && stateOptions.includes(fromCode)) return stateOptions;
+    return [...stateOptions, fromCode || current].sort((a, b) => a.localeCompare(b));
+  }, [newState, stateOptions]);
+
+  const displayStateValue = useMemo(() => {
+    const raw = newState.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw) || effectiveStateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && (stateOptions.includes(fromCode) || effectiveStateOptions.includes(fromCode))) {
+      return fromCode;
+    }
+    return raw;
+  }, [effectiveStateOptions, newState, stateOptions]);
+
+  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
+  const cityOptionsUnavailable =
+    Boolean(displayStateValue) && !citiesLoading && effectiveCityOptions.length === 0;
+
+  function resetAddClientForm() {
+    setNewCompanyName("");
+    setNewContactPerson("");
+    setNewStreetAddress("");
+    setNewCity("");
+    setNewState("");
+    setNewZipCode("");
+    setCityOptions([]);
+  }
+
+  function handleSelectAddressSuggestion(suggestion: AddressSuggestion) {
+    const components = addressAutocomplete.selectSuggestion(suggestion);
+    const stateName = components.state
+      ? getStateNameFromCode(components.state) ?? components.state
+      : "";
+
+    setNewStreetAddress(components.address1 || newStreetAddress);
+    if (components.city) setNewCity(components.city);
+    if (stateName) setNewState(stateName);
+    if (components.zipCode) setNewZipCode(components.zipCode);
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -152,7 +299,7 @@ export default function ClientsPage() {
           companyName: newCompanyName.trim(),
           address: newStreetAddress.trim() || null,
           city: newCity.trim() || null,
-          state: newStateCode.trim() || null,
+          state: selectedStateCode || newState.trim() || null,
           zipCode: newZipCode.trim() || null,
           w2Capable: true,
         }),
@@ -165,12 +312,7 @@ export default function ClientsPage() {
 
       toast.success("Client registered successfully!");
       setAddModalOpen(false);
-      setNewCompanyName("");
-      setNewContactPerson("");
-      setNewStreetAddress("");
-      setNewCity("");
-      setNewStateCode("");
-      setNewZipCode("");
+      resetAddClientForm();
       await loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error creating client.");
@@ -438,7 +580,10 @@ export default function ClientsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setAddModalOpen(false)}
+                onClick={() => {
+                  setAddModalOpen(false);
+                  resetAddClientForm();
+                }}
                 className="rounded-lg p-1 text-[#94A3B8] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
               >
                 <X className="h-5 w-5" />
@@ -471,38 +616,63 @@ export default function ClientsPage() {
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-[#334155]">Street Address</label>
-                <input
-                  type="text"
-                  placeholder="123 Corporate Way"
-                  value={newStreetAddress}
-                  onChange={(e) => setNewStreetAddress(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
-                />
-              </div>
+              <AddressAutocompleteField
+                variant="facility"
+                label="Street Address"
+                value={newStreetAddress}
+                onChange={setNewStreetAddress}
+                onSelectSuggestion={handleSelectAddressSuggestion}
+                suggestions={addressAutocomplete.suggestions}
+                isLoading={addressAutocomplete.isLoading}
+                isOpen={addressAutocomplete.isOpen}
+                onFocus={addressAutocomplete.openSuggestions}
+                onCloseSuggestions={addressAutocomplete.closeSuggestions}
+                isVerified={addressAutocomplete.isAddressVerified}
+                searchError={addressAutocomplete.searchError}
+                placeholder="Start typing street address"
+                helperText="Start typing to search with Mapbox"
+              />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#334155]">City</label>
-                  <input
-                    type="text"
-                    placeholder="New York"
-                    value={newCity}
-                    onChange={(e) => setNewCity(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-[#334155]">State</label>
-                  <input
-                    type="text"
-                    placeholder="NY"
-                    value={newStateCode}
-                    onChange={(e) => setNewStateCode(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary,#BC8B41)]"
-                  />
-                </div>
+                <SearchableSelectField
+                  label="State"
+                  loading={locationLoading}
+                  disabled={locationLoading || stateOptionsUnavailable}
+                  value={displayStateValue}
+                  onChange={(value) => {
+                    setNewState(value);
+                    setNewCity("");
+                  }}
+                  placeholder={
+                    locationLoading
+                      ? "Loading…"
+                      : stateOptionsUnavailable
+                        ? "No states found"
+                        : "Search state"
+                  }
+                  searchPlaceholder="Type to search states"
+                  options={effectiveStateOptions}
+                  emptyMessage="No states found. Try another search."
+                />
+                <SearchableSelectField
+                  label="City"
+                  disabled={!displayStateValue || stateOptionsUnavailable || cityOptionsUnavailable}
+                  loading={citiesLoading}
+                  value={newCity}
+                  onChange={setNewCity}
+                  placeholder={
+                    stateOptionsUnavailable || cityOptionsUnavailable
+                      ? "No cities found"
+                      : !displayStateValue
+                        ? "Select state first"
+                        : citiesLoading
+                          ? "Loading…"
+                          : "Search city"
+                  }
+                  searchPlaceholder="Type to search cities"
+                  options={effectiveCityOptions}
+                  emptyMessage="No cities found. Try another search."
+                />
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-[#334155]">Zip Code</label>
                   <input
@@ -518,7 +688,10 @@ export default function ClientsPage() {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E2E8F0]">
                 <button
                   type="button"
-                  onClick={() => setAddModalOpen(false)}
+                  onClick={() => {
+                    setAddModalOpen(false);
+                    resetAddClientForm();
+                  }}
                   className="h-10 rounded-lg border border-[#CBD5E1] px-4 text-sm font-semibold text-[#475569] hover:bg-[#F1F5F9]"
                 >
                   Cancel
