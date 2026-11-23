@@ -7,10 +7,8 @@ import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navig
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { applicantPortalCopy } from "@/lib/onboarding/workflow-phase"
-import {
-  WAITING_ON_INTERNAL_MESSAGE,
-  type EmploymentLifecyclePhase,
-} from "@/lib/onboarding/workflow-phase-groups"
+import { type EmploymentLifecyclePhase } from "@/lib/onboarding/workflow-phase-groups"
+// import { WAITING_ON_INTERNAL_MESSAGE } from "@/lib/onboarding/workflow-phase-groups"
 import ApplicantPhaseWelcome from "@/app/components/onboarding/ApplicantPhaseWelcome"
 
 interface Props {
@@ -59,6 +57,8 @@ export default function OnboardingStepper({
           phase={onboarding?.workflowPhase ?? "pre_hire"}
           applicationId={onboarding?.applicationId}
         />
+        {/* Waiting banner removed from profile-review / step header UI.
+            The in-place AwaitingRecruiterReviewScreen shows this message instead.
         {onboarding?.waitingOnInternal &&
         onboarding.workflowPhase !== "post_hire" &&
         onboarding.workflowPhase !== "completed" ? (
@@ -66,6 +66,7 @@ export default function OnboardingStepper({
             {WAITING_ON_INTERNAL_MESSAGE}
           </div>
         ) : null}
+        */}
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             {phaseCopy.progressLabel}

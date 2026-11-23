@@ -4,12 +4,11 @@ import { useMemo } from "react";
 import { Check } from "lucide-react";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { withTenant } from "@/lib/tenant/with-tenant";
-import { currentOnboardingTenantSlug } from "@/lib/tenant/with-tenant";
 
 const TITLE = "Thanks — your application has been submitted.";
 const MESSAGE =
   "You don't need to do anything else right now. If we decide to move forward, we'll be in touch.";
+const SEARCH_MORE_JOBS_HREF = "https://zipstaff.com/search-apply/";
 
 /**
  * In-place replacement for the applicant left panel when the next step is recruiter-owned.
@@ -17,8 +16,6 @@ const MESSAGE =
  */
 export default function AwaitingRecruiterReviewScreen() {
   const branding = useTenantBranding();
-  const tenantSlug = branding.slug?.trim() || currentOnboardingTenantSlug();
-  const jobsHref = useMemo(() => withTenant("/jobs", tenantSlug), [tenantSlug]);
   const buttonBackground = useMemo(
     () =>
       `linear-gradient(90deg, ${branding.primaryHex} 0%, color-mix(in srgb, ${branding.primaryHex} 70%, white) 100%)`,
@@ -50,7 +47,7 @@ export default function AwaitingRecruiterReviewScreen() {
           <p className="mt-3 text-base leading-6 text-[#4B5563]">{MESSAGE}</p>
 
           <a
-            href={jobsHref}
+            href={SEARCH_MORE_JOBS_HREF}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-7 inline-flex h-11 w-full items-center justify-center rounded-lg px-6 text-sm font-semibold text-white transition hover:brightness-[0.97] sm:w-auto"
