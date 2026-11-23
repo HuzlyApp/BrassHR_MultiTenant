@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
 import {
@@ -26,7 +26,9 @@ function maskSensitiveDisplay(fieldKind: CandidateFieldKind, value: string): str
 }
 
 type CandidateDetailEditableFieldProps = {
-  label: string;
+  label: ReactNode;
+  /** Used for aria-labels when `label` is not a plain string. */
+  accessibilityLabel?: string;
   displayValue: string;
   editValue: string;
   isMissing: boolean;
@@ -43,6 +45,7 @@ type CandidateDetailEditableFieldProps = {
 
 export default function CandidateDetailEditableField({
   label,
+  accessibilityLabel,
   displayValue,
   editValue,
   isMissing,
@@ -55,6 +58,8 @@ export default function CandidateDetailEditableField({
   anchorId,
   onSave,
 }: CandidateDetailEditableFieldProps) {
+  const fieldLabel =
+    accessibilityLabel?.trim() || (typeof label === "string" ? label : "Field");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(editValue);
   const [localSaving, setLocalSaving] = useState(false);
@@ -166,7 +171,9 @@ export default function CandidateDetailEditableField({
                           ? 10
                           : fieldKind === "person_name"
                             ? PERSON_NAME_MAX_LENGTH
-                            : undefined
+                            : fieldKind === "short_text"
+                              ? 120
+                              : undefined
                 }
                 className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
                   saveError ? "border-red-400" : "border-[#D1D5DB]"
@@ -207,7 +214,7 @@ export default function CandidateDetailEditableField({
                 <button
                   type="button"
                   onClick={() => setRevealed((v) => !v)}
-                  aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
+                  aria-label={revealed ? `Hide ${fieldLabel}` : `Show ${fieldLabel}`}
                   className="inline-flex cursor-pointer text-[#6B7280] transition-colors hover:text-[color:var(--brand-primary)]"
                 >
                   {revealed ? (
@@ -220,7 +227,7 @@ export default function CandidateDetailEditableField({
               <button
                 type="button"
                 onClick={openEditor}
-                aria-label={`Edit ${label}`}
+                aria-label={`Edit ${fieldLabel}`}
                 className="cursor-pointer opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
               >
                 <BrandedEditIcon className="h-4 w-4" />

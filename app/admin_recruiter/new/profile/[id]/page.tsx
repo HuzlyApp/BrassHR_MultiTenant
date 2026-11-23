@@ -40,6 +40,7 @@ import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
 } from "@/lib/admin/worker-profile-field-client";
+import { tenantHasHealthcareIndustry } from "@/lib/ai-catalog/industry-catalog";
 import {
   fetchStaffDetailJson,
   workerProfileApiUrl,
@@ -327,6 +328,7 @@ export default function NewApplicantProfilePage() {
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [unassignedFacilityCount, setUnassignedFacilityCount] = useState(0);
   const [showPostHireOnboardingSteps, setShowPostHireOnboardingSteps] = useState(false);
+  const [showAlliedHealthRole, setShowAlliedHealthRole] = useState(false);
 
   async function reloadProfile() {
     if (!applicantId) return;
@@ -519,6 +521,35 @@ export default function NewApplicantProfilePage() {
     };
   }, [applicantId, data?.worker?.state, data?.worker?.job_role]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTenantIndustries() {
+      try {
+        const res = await fetch("/api/admin/tenant-industries", { cache: "no-store" });
+        const json = (await res.json()) as {
+          primaryIndustryKey?: string | null;
+          selectedIndustryKeys?: string[];
+          error?: string;
+        };
+        if (!res.ok || cancelled) return;
+        const keys = [
+          json.primaryIndustryKey,
+          ...(Array.isArray(json.selectedIndustryKeys) ? json.selectedIndustryKeys : []),
+        ];
+        setShowAlliedHealthRole(tenantHasHealthcareIndustry(keys));
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setShowAlliedHealthRole(false);
+      }
+    }
+
+    void loadTenantIndustries();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const loadCitiesForState = useCallback(
     async (stateCode: string) => {
       if (!applicantId || !stateCode) {
@@ -585,34 +616,29 @@ export default function NewApplicantProfilePage() {
 
   const id = applicantId ?? "";
 
-  const alliedHealthRoleValue = useMemo(() => {
-    return (
-      data?.experience?.role_assignments?.[0]?.role ??
-      data?.skills?.positions?.[0] ??
-      w?.job_role ??
-      ""
-    );
-  }, [data?.experience?.role_assignments, data?.skills?.positions, w?.job_role]);
+  // Explicitly saved role only — do not fall back to experience/skills/job title guesses.
+  const alliedHealthRoleValue = (w?.job_role ?? "").trim();
 
-  const licenseTypeKey = useMemo(() => {
-    return (
-      data?.profile_license?.license_type ??
-      data?.nursing_licenses?.[0]?.license_type_key ??
-      ""
-    );
-  }, [data?.profile_license?.license_type, data?.nursing_licenses]);
-
-  const licenseTypeDisplay = useMemo(() => {
-    return (
-      data?.profile_license?.license_type_label ??
-      data?.nursing_licenses?.[0]?.license_type ??
-      ""
-    );
-  }, [data?.profile_license?.license_type_label, data?.nursing_licenses]);
-
-  const licenseExpiresAt = useMemo(() => {
-    return data?.profile_license?.expires_at ?? data?.nursing_licenses?.[0]?.expires_at ?? null;
-  }, [data?.profile_license?.expires_at, data?.nursing_licenses]);
+  // License type / expiry helpers — UI rows commented out (profession documents cover this).
+  // const licenseTypeKey = useMemo(() => {
+  //   return (
+  //     data?.profile_license?.license_type ??
+  //     data?.nursing_licenses?.[0]?.license_type_key ??
+  //     ""
+  //   );
+  // }, [data?.profile_license?.license_type, data?.nursing_licenses]);
+  //
+  // const licenseTypeDisplay = useMemo(() => {
+  //   return (
+  //     data?.profile_license?.license_type_label ??
+  //     data?.nursing_licenses?.[0]?.license_type ??
+  //     ""
+  //   );
+  // }, [data?.profile_license?.license_type_label, data?.nursing_licenses]);
+  //
+  // const licenseExpiresAt = useMemo(() => {
+  //   return data?.profile_license?.expires_at ?? data?.nursing_licenses?.[0]?.expires_at ?? null;
+  // }, [data?.profile_license?.expires_at, data?.nursing_licenses]);
 
   const applyingStateCode = useMemo(() => {
     const raw = (w?.state ?? "").trim();
@@ -1030,6 +1056,7 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("hourly_rate", value)}
                       />
+                      {/* Primary Practice Setting — not needed on candidate details; facilities are shown in Facilities Assigned.
                       <div className="contents">
                         <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
                           Primary Practice Setting
@@ -1038,18 +1065,26 @@ export default function NewApplicantProfilePage() {
                           {data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation}
                         </div>
                       </div>
-                      <CandidateDetailSelectField
-                        label="Primary Allied Health Role"
-                        displayValue={alliedHealthRoleValue || "—"}
-                        editValue={alliedHealthRoleValue}
-                        isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
-                        options={fieldOptions?.alliedHealthRoles ?? []}
-                        optionsLoading={!fieldOptions}
-                        placeholder="Pick role"
-                        emptyMessage="No roles found for this company."
-                        saving={fieldSaving}
-                        onSave={(value) => saveWorkerField("job_role", value)}
-                      />
+                      */}
+                      {showAlliedHealthRole ? (
+                        <CandidateDetailEditableField
+                          label={
+                            <>
+                              Primary Allied Health Role{" "}
+                              <span className="text-[#9CA3AF]">(for Healthcare only)</span>
+                            </>
+                          }
+                          accessibilityLabel="Primary Allied Health Role (for Healthcare only)"
+                          displayValue={alliedHealthRoleValue || "—"}
+                          editValue={alliedHealthRoleValue}
+                          fieldKind="short_text"
+                          isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
+                          placeholder="Enter role"
+                          saving={fieldSaving}
+                          onSave={(value) => saveWorkerField("job_role", value)}
+                        />
+                      ) : null}
+                      {/* License type / expiry — handled via profession documents & Attachments, not needed here.
                       <CandidateDetailSelectField
                         label="Professional License / Certification Type"
                         displayValue={licenseTypeDisplay || "—"}
@@ -1071,6 +1106,7 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("license_expires_at", value)}
                       />
+                      */}
                       <CandidateDetailSelectField
                         label="Which State are you applying for?"
                         displayValue={applyingStateDisplay || "—"}
