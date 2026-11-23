@@ -19,6 +19,7 @@ import {
 } from "./worker-columns";
 import { renderWorkerListCell } from "./render-worker-list-cell";
 import { compareWorkerRates, parseWorkerRate } from "./worker-rates";
+import { employmentWorkerClientName, employmentWorkerStatusLabel } from "@/lib/admin/employment-workers";
 import { exportWorkersCsv, exportWorkersXls } from "./export-workers";
 import { type WorkerListRow } from "./figma-demo-data";
 import { WorkersMetricsCards } from "./WorkersMetricsCards";
@@ -90,15 +91,8 @@ function mapApiWorkerToRow(w: any): WorkerListRow {
     (snapshot.pay_rate ? `$${snapshot.pay_rate}/hr` : "—");
 
   // Dynamic client resolution
-  const dynamicClient =
-    w.client ||
-    (snapshot.client_name as string | null) ||
-    (snapshot.facility_name as string | null) ||
-    w.location ||
-    "—";
-
-  const rawStatus = w.status ? String(w.status).trim() : "Active";
-  const formattedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+  const dynamicClient = employmentWorkerClientName({ organization: w.client, snapshotClient: typeof snapshot.client_name === "string" ? snapshot.client_name : null });
+  const formattedStatus = employmentWorkerStatusLabel(w.status);
 
   return {
     id: String(w.id),
@@ -254,12 +248,7 @@ export default function WorkersPage() {
     const active = workers.filter((w) => (w.status || "").toLowerCase() === "active").length;
     const inactive = workers.filter((w) => (w.status || "").toLowerCase() === "inactive").length;
     const assigned = workers.filter((w) => Boolean(w.client && w.client !== "—")).length;
-    const newlyOnboarded = workers.filter((w) => {
-      if ((w.status || "").toLowerCase() === "new") return true;
-      if (!w.createdAt) return false;
-      const diffDays = (Date.now() - new Date(w.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-      return diffDays <= 30;
-    }).length;
+    const newlyOnboarded = workers.filter(w => employmentWorkerStatusLabel(w.status) === "Onboarding").length;
 
     return {
       active,
@@ -665,7 +654,7 @@ export default function WorkersPage() {
       </div>
 
       {/* 4 Metric Stat Cards */}
-      <WorkersMetricsCards counts={dynamicMetricsCounts} />
+      <WorkersMetricsCards counts={dynamicMetricsCounts} loading={loading} />
 
       {/* Search & Filter Bar */}
       <WorkersFilterBar
@@ -691,7 +680,7 @@ export default function WorkersPage() {
       {/* Workers Table Container */}
       <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1020px] border-collapse text-left text-sm xl:min-w-full">
+          <table aria-busy={loading} className="w-full min-w-[1020px] border-collapse text-left text-sm xl:min-w-full">
             <thead className="border-b border-[#E2E8F0] bg-white">
               <tr>
                 <th className="w-12 px-4 py-3.5 text-center whitespace-nowrap cursor-pointer">
@@ -754,7 +743,7 @@ export default function WorkersPage() {
             </thead>
 
             <tbody className="divide-y divide-[#F1F5F9]">
-              {paginatedWorkers.length === 0 ? (
+              {loading ? <tr><td colSpan={listColumnOrder.length + 1} className="px-4 py-8"><div role="status" aria-label="Loading workers" className="space-y-4">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-8 animate-pulse rounded bg-slate-200" />)}</div></td></tr> : paginatedWorkers.length === 0 ? (
                 <tr>
                   <td
                     colSpan={listColumnOrder.length + 1}

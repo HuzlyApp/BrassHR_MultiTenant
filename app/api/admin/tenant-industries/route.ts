@@ -9,6 +9,7 @@ import {
 import { bindTenantIndustries } from "@/lib/ai-catalog/bind-tenant";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { IndustrySettingsError, parseIndustryMetadata, removeTenantIndustry, saveIndustryMetadata } from "@/lib/professions/industry-settings";
 
 export const runtime = "nodejs";
 
@@ -84,7 +85,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { industryKey?: string };
+  const body = (await req.json().catch(() => ({}))) as { industryKey?: string; description?: unknown; iconId?: unknown };
+  try { parseIndustryMetadata(body); } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid industry metadata." }, { status: 400 });
+  }
   let industryKey: string;
   try {
     const parsed = parseIndustryKey(body.industryKey);
@@ -115,6 +119,10 @@ export async function POST(req: NextRequest) {
     .map((row) => String(row.industry_key ?? "").trim())
     .filter(Boolean);
   if (currentKeys.includes(industryKey)) {
+    if ("description" in body || "iconId" in body) {
+      try { await saveIndustryMetadata(supabase, tenantId, industryKey, body); }
+      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save industry." }, { status: error instanceof IndustrySettingsError ? error.status : 500 }); }
+    }
     return NextResponse.json({
       ok: true,
       alreadyAdded: true,
@@ -134,6 +142,7 @@ export async function POST(req: NextRequest) {
       industryKeys: [...currentKeys, industryKey],
       primaryIndustryKey: primaryKey,
     });
+    if ("description" in body || "iconId" in body) await saveIndustryMetadata(supabase, tenantId, industryKey, body);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not add industry.";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -145,4 +154,45 @@ export async function POST(req: NextRequest) {
     industryKey,
     industryLabel: industryLabelForKey(industryKey),
   });
+}
+
+export async function PATCH(req: NextRequest) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
+  const supabase = createServiceRoleClient();
+  if (!supabase) return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
+  try {
+    const tenantId = await resolveEffectiveAdminTenantId(supabase, { userId: auth.userId, authUser: auth.authUser, godAdmin: auth.godAdmin });
+    if (!tenantId) return NextResponse.json({ error: "Select a tenant first." }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    let industryKey: string | null = null;
+    try { industryKey = body ? parseIndustryKey(body.industryKey) : null; } catch { /* invalid key */ }
+    if (!industryKey) return NextResponse.json({ error: "Choose a valid industry." }, { status: 400 });
+    const industry = await saveIndustryMetadata(supabase, tenantId, industryKey, body);
+    return NextResponse.json({ ok: true, industry });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof IndustrySettingsError ? error.message : "Could not save industry." }, { status: error instanceof IndustrySettingsError ? error.status : 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
+  const supabase = createServiceRoleClient();
+  if (!supabase) return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
+  try {
+    const tenantId = await resolveEffectiveAdminTenantId(supabase, { userId: auth.userId, authUser: auth.authUser, godAdmin: auth.godAdmin });
+    if (!tenantId) return NextResponse.json({ error: "Select a tenant first." }, { status: 400 });
+    let key: string | null = null;
+    try { key = parseIndustryKey(req.nextUrl.searchParams.get("industryKey")); } catch { /* invalid key */ }
+    if (!key) return NextResponse.json({ error: "Choose a valid industry." }, { status: 400 });
+    await removeTenantIndustry(supabase, tenantId, key);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof IndustrySettingsError ? error.message : "Could not delete industry." }, { status: error instanceof IndustrySettingsError ? error.status : 500 });
+  }
 }

@@ -4,7 +4,7 @@ Tracked product bugs. Move items to **Fixed** when shipped.
 
 ## Open
 
-The shared tracker is the source of truth for remaining reports. As of 2026-11-24, 70 rows remain Open.
+The shared tracker is the source of truth for remaining reports. As of 2026-11-24, 60 rows remain Open.
 
 ## Implemented — pending deployed QA (2026-11-23)
 
@@ -110,6 +110,23 @@ Validation: 24 tests passed across 9 files. Source and test lint has 0 errors an
 | BUG-121 | Step completion says Saving, email submission alone says Sending, and generic candidate-step copy mentions the portal once. |
 
 Validation: 53 targeted tests passed across 13 files. Additional scheduling regression checks passed after retaining both imports from a checkout merge conflict. TypeScript passed after repairing a login typography re-export that lacked a local binding. Source lint has four pre-existing workflow-builder ref-access errors reproduced against HEAD; new and updated tests pass. No database writes were made. Tracker records 79 Fixed, 70 Open, and 1 Not a bug / Closed, with deployment and deployed QA pending.
+
+## Implemented — sixth batch, pending deployed QA (2026-11-24)
+
+| Bug | Change / verification |
+| --- | --- |
+| BUG-026 | Subscription tab switches to a distinct view with the stored plan, explicit unconfigured billing-cycle/seat fields, and a working support link. Only plan data exists in the tenant schema. |
+| BUG-031 | Custom workflow folders support rename and confirmed deletion. Default folders are protected; nonempty folders cannot be deleted. Mutations require admin authorization and tenant scope. |
+| BUG-036 | Industry descriptions and icons persist on create/edit and reload. New nullable metadata columns were applied to development project qowirmiicsrglehiaoil in migration 20261123194049. Existing RLS is unchanged. |
+| BUG-037 | Empty secondary industries can be deleted with confirmation. Primary industries and industries with professions are protected; AI industry bindings are refreshed through the existing service. |
+| BUG-065 | Worker Client uses organization/MSP/snapshot client names, with tenant ownership checked for linked organizations. Facility names and addresses are no longer client fallbacks. Cancelled assignments are excluded. |
+| BUG-069 | Stored new status displays as Onboarding. The Onboarding Workers card and status filter use the same definition instead of counting recently created Active workers. |
+| BUG-071 | Worker table and metric cards show loading skeletons instead of empty rows and zero counts. |
+| BUG-039 | Existing archived-template Delete action verified with a regression test; no new feature code was needed. |
+| BUG-045 | Existing assessment applicant preview opens and closes correctly in regression coverage; no new preview implementation was needed. |
+| BUG-068 | Existing Workers All Filters action opens its advanced Filters dialog in regression coverage. |
+
+Validation: 40 tests passed across 12 files; TypeScript passed. New backend and test files pass lint. Touched legacy worker files retain five pre-existing explicit-any errors and source lint reports 12 existing warnings. Supabase metadata checks confirm the new length constraints and enabled RLS; post-migration security advisors introduce no findings. Shared tracker records 89 Fixed, 60 Open, and 1 Not a bug / Closed. Spreadsheet verification uses API values and formatting metadata; deployed authenticated QA remains pending.
 
 ## Fixed
 

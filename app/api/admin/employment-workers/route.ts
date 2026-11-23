@@ -3,6 +3,7 @@ import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-prof
 import {
   employmentWorkerTabLabel,
   parseEmploymentWorkerTab,
+  employmentWorkerClientName,
   type EmploymentWorkerRecord,
 } from "@/lib/admin/employment-workers";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
@@ -22,6 +23,7 @@ const SELECT_COLUMNS_MIN =
 
 type WorkerListRow = {
   id: string;
+  tenant_id: string;
   candidate_id: string;
   first_name: string | null;
   last_name: string | null;
@@ -232,7 +234,7 @@ export async function GET(req: NextRequest) {
     const assignmentsByWorkerId = new Map<string, any>();
     if (candidateIds.length > 0) {
       try {
-        const { data: assignmentRows } = await supabase
+        let assignmentQuery = supabase
           .from("worker_shift_assignments")
           .select(`
             worker_id,
@@ -246,11 +248,15 @@ export async function GET(req: NextRequest) {
               facility (
                 id,
                 name,
-                address
+                address,
+                clients (company_name, tenant_id)
               )
             )
           `)
-          .in("worker_id", candidateIds);
+          .in("worker_id", candidateIds)
+          .neq("status", "cancelled");
+        if (tenantId) assignmentQuery = assignmentQuery.eq("tenant_id", tenantId);
+        const { data: assignmentRows } = await assignmentQuery;
         if (assignmentRows) {
           for (const a of assignmentRows) {
             if (a.worker_id && !assignmentsByWorkerId.has(a.worker_id)) {
@@ -312,15 +318,8 @@ export async function GET(req: NextRequest) {
           null;
 
         // Dynamic Client Name:
-        const client =
-          facility?.name?.trim() ||
-          jobReq?.facility_name?.trim() ||
-          jobReq?.facility?.trim() ||
-          jobReq?.msp_name?.trim() ||
-          jobReq?.msp_client?.trim() ||
-          (typeof snapshot.client_name === "string" ? snapshot.client_name.trim() : null) ||
-          (typeof snapshot.facility_name === "string" ? snapshot.facility_name.trim() : null) ||
-          (row.location?.trim() || "—");
+        const organization = Array.isArray(facility?.clients) ? facility.clients[0] : facility?.clients;
+        const client = employmentWorkerClientName({ organization: organization?.tenant_id === row.tenant_id ? organization.company_name : null, mspClient: jobReq?.msp_client, snapshotClient: typeof snapshot.client_name === "string" ? snapshot.client_name : null });
 
         // Dynamic Pay Rate:
         let payRate: string | null = null;
@@ -390,7 +389,6 @@ export async function GET(req: NextRequest) {
         if (facility?.name) facilities.push(facility.name);
         if (jobReq?.facility_name && !facilities.includes(jobReq.facility_name)) facilities.push(jobReq.facility_name);
         if (jobReq?.facility && !facilities.includes(jobReq.facility)) facilities.push(jobReq.facility);
-        if (facilities.length === 0 && client !== "—") facilities.push(`${client} Main Campus`);
 
         const billRate = jobReq?.bill_rate
           ? `$${jobReq.bill_rate}/hr`
