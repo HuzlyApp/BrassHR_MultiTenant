@@ -14,6 +14,7 @@ import { LaunchPadInterests } from "./LaunchPadInterests";
 import type { SignupInterests } from "@/lib/signup/signup-interests";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { withTenant } from "@/lib/tenant/with-tenant";
+import { clearOnboardingTenantSlugCookie, resolveClientTenantHost } from "@/lib/tenant/resolve-tenant-context";
 import { LaunchPadStepHeader } from "./LaunchPadStepHeader";
 import {
   countCompletedSteps,
@@ -34,6 +35,7 @@ function LaunchPadContent() {
   const tenantId = organization?.id;
   const [showComplete, setShowComplete] = useState(false);
   const [progressError, setProgressError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(true);
   const [savingProgress, setSavingProgress] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -50,11 +52,13 @@ function LaunchPadContent() {
     setShowComplete(false);
     setLoadingProgress(true);
     setProgressError(null);
+    setAccessDenied(false);
     setInterests(null);
     if (!tenantId) return () => { cancelled = true; };
     const loadInterests = async () => {
       const response = await fetch("/api/admin/launch-pad/interests", { cache: "no-store" });
       const data = await response.json() as { tenantId?: string; interests?: SignupInterests; error?: string };
+      if (response.status === 403 && !cancelled) setAccessDenied(true);
       if (!response.ok || data.tenantId !== tenantId || !data.interests) throw new Error(data.error ?? "Could not load your signup interests.");
       return data.interests;
     };
@@ -103,6 +107,17 @@ function LaunchPadContent() {
   if (progressError && (!activeStep || !interests)) return (
     <div className="p-8">
       <p role="alert">{progressError}</p>
+      {accessDenied ? (
+        <>
+          <p className="mt-2 text-sm">The selected workspace may differ from your account organization. Launch Pad requires administrator access in the selected workspace.</p>
+          {!searchParams.get("tenant") && !resolveClientTenantHost().subdomainLabel ? (
+            <button type="button" className="mr-4 mt-3 underline" onClick={() => {
+              clearOnboardingTenantSlugCookie();
+              window.location.assign(ADMIN_LAUNCH_PAD_ROUTE);
+            }}>Return to my organization</button>
+          ) : null}
+        </>
+      ) : null}
       <button type="button" className="mt-3 underline" onClick={() => setLoadAttempt((value) => value + 1)}>Try again</button>
     </div>
   );
