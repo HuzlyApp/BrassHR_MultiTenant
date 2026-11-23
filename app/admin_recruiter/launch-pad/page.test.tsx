@@ -4,6 +4,8 @@ import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/re
 import { LAUNCH_PAD_STORAGE_KEY } from "./constants";
 
 const nav = vi.hoisted(() => ({ search: "step=domain", push: vi.fn() }));
+const tenantRecovery = vi.hoisted(() => ({ clear: vi.fn(), host: vi.fn(() => ({ subdomainLabel: null as string | null })) }));
+vi.mock("@/lib/tenant/resolve-tenant-context", () => ({ clearOnboardingTenantSlugCookie: tenantRecovery.clear, resolveClientTenantHost: tenantRecovery.host }));
 const server = vi.hoisted(() => ({ progress: { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false }, interests: { keys: [] as string[], skipped: true, answeredAt: "2026-11-20T20:00:00Z" as string | null } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: nav.push }), useSearchParams: () => new URLSearchParams(nav.search) }));
 vi.mock("next/image", () => ({ default: () => null }));
@@ -24,6 +26,8 @@ beforeEach(() => {
   server.progress = { logo: false, branding: false, domain: false, preview: false, invite: false, organization: false };
   server.interests = { keys: [], skipped: true, answeredAt: "2026-11-20T20:00:00Z" };
   nav.push.mockReset();
+  tenantRecovery.clear.mockReset();
+  tenantRecovery.host.mockReturnValue({ subdomainLabel: null });
   nav.push.mockImplementation(() => { nav.search = ""; });
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith("/interests")) {
@@ -42,6 +46,32 @@ beforeEach(() => {
 });
 
 describe("Launch Pad finish handoff", () => {
+  it("offers home-organization recovery for a stale workspace cookie on a shared host", async () => {
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ error: "Forbidden" }, { status: 403 }));
+    const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
+    render(<LaunchPadPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Return to my organization" }));
+    expect(tenantRecovery.clear).toHaveBeenCalledOnce();
+    expect(assign).toHaveBeenCalledWith("/admin_recruiter/launch-pad");
+    assign.mockRestore();
+  });
+
+  it("does not override an explicitly requested tenant after access denial", async () => {
+    nav.search = "tenant=other-company";
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ error: "Forbidden" }, { status: 403 }));
+    render(<LaunchPadPage />);
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("button", { name: "Return to my organization" })).not.toBeInTheDocument();
+    expect(tenantRecovery.clear).not.toHaveBeenCalled();
+  });
+
+  it("does not override a branded workspace host after access denial", async () => {
+    tenantRecovery.host.mockReturnValue({ subdomainLabel: "other-company" });
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ error: "Forbidden" }, { status: 403 }));
+    render(<LaunchPadPage />);
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("button", { name: "Return to my organization" })).not.toBeInTheDocument();
+  });
   it("shows signup interests before the checklist, including direct step links", async () => {
     server.interests = { keys: [], skipped: false, answeredAt: null };
     render(<LaunchPadPage />);
