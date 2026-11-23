@@ -36,6 +36,24 @@ const optionalNumber = z
     return parsed;
   });
 
+/** Pay, hours, and similar amounts must be finite and not negative when provided. */
+const optionalNonNegativeNumber = z
+  .union([z.number(), z.string(), z.null()])
+  .optional()
+  .transform((value, ctx) => {
+    if (value == null || value === "") return null;
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(parsed)) {
+      ctx.addIssue({ code: "custom", message: "Must be a valid number" });
+      return z.NEVER;
+    }
+    if (parsed < 0) {
+      ctx.addIssue({ code: "custom", message: "Cannot be negative" });
+      return z.NEVER;
+    }
+    return parsed;
+  });
+
 export const jobRequisitionInputSchema = z.object({
   internalRequisitionNumber: optionalText,
   externalRequisitionId: optionalText,
@@ -54,16 +72,16 @@ export const jobRequisitionInputSchema = z.object({
   employerOfRecord: optionalText,
   department: optionalText,
   facility: optionalText,
-  billRate: optionalNumber,
-  payRateMin: optionalNumber,
-  payRateMax: optionalNumber,
-  commissionPercent: optionalNumber,
-  commissionFixedAmount: optionalNumber,
+  billRate: optionalNonNegativeNumber,
+  payRateMin: optionalNonNegativeNumber,
+  payRateMax: optionalNonNegativeNumber,
+  commissionPercent: optionalNonNegativeNumber,
+  commissionFixedAmount: optionalNonNegativeNumber,
   targetStartDate: optionalText,
   duration: optionalText,
   shiftType: optionalText,
   shiftDetails: optionalText,
-  hoursPerWeek: optionalNumber,
+  hoursPerWeek: optionalNonNegativeNumber,
   publicTitle: optionalText,
   publicDescription: optionalText,
   industryKey: optionalText,
@@ -85,7 +103,7 @@ export const jobRequisitionInputSchema = z.object({
   responsibilities: optionalText,
   benefits: optionalText,
   applicationDeadline: optionalText,
-  numberOfPositions: optionalNumber,
+  numberOfPositions: optionalNonNegativeNumber,
   yearsOfExperience: optionalText,
   additionalLocations: z
     .union([z.array(z.string()), z.null()])
@@ -113,7 +131,7 @@ export const jobRequisitionInputSchema = z.object({
   sourceJobTitle: optionalText,
   sourceJobUrl: optionalText,
   sourceJobDetails: optionalText,
-  suggestedPayRate: optionalNumber,
+  suggestedPayRate: optionalNonNegativeNumber,
   requiredCredentials: optionalText,
   specialRequirements: optionalText,
   internalNotes: optionalText,
@@ -242,6 +260,8 @@ export function validatePublishableJob(
     errors.placementType = "Select Recruit & Release or Recruit & EOR.";
   }
 
+  Object.assign(errors, validateJobCompensationFields(input));
+
   if (
     input.payRateMin !== null &&
     input.payRateMin !== undefined &&
@@ -252,6 +272,31 @@ export function validatePublishableJob(
     errors.payRateMax = "Maximum pay rate must be greater than or equal to minimum pay rate.";
   }
 
+  return errors;
+}
+
+/** Field errors for negative pay/hours (and related amounts). Safe for draft and publish. */
+export function validateJobCompensationFields(input: JobRequisitionInput): FieldErrors {
+  const errors: FieldErrors = {};
+  const checks: Array<[keyof JobRequisitionInput, number | null | undefined, string]> = [
+    ["payRateMin", input.payRateMin, "Pay rate cannot be negative."],
+    ["payRateMax", input.payRateMax, "Maximum pay rate cannot be negative."],
+    ["suggestedPayRate", input.suggestedPayRate, "Suggested pay rate cannot be negative."],
+    ["billRate", input.billRate, "Bill rate cannot be negative."],
+    ["hoursPerWeek", input.hoursPerWeek, "Hours per week cannot be negative."],
+    ["commissionPercent", input.commissionPercent, "Commission percentage cannot be negative."],
+    [
+      "commissionFixedAmount",
+      input.commissionFixedAmount,
+      "Fixed commission amount cannot be negative.",
+    ],
+    ["numberOfPositions", input.numberOfPositions, "Number of positions cannot be negative."],
+  ];
+  for (const [key, value, message] of checks) {
+    if (typeof value === "number" && Number.isFinite(value) && value < 0) {
+      errors[key] = message;
+    }
+  }
   return errors;
 }
 
