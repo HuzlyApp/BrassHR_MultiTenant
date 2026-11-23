@@ -138,6 +138,7 @@ describe("permission catalog", () => {
       resourceKey: "settings_automation",
     });
     expect(classifyProtectedPath("/api/admin/header-data")).toEqual({ kind: "shell" });
+    expect(classifyProtectedPath("/api/admin/header-search")).toEqual({ kind: "shell" });
     expect(classifyProtectedPath("/api/admin/view-as-tenant")).toEqual({ kind: "god_only" });
     expect(classifyProtectedPath("/api/admin/not-a-module")).toEqual({ kind: "unmapped" });
     expect(classifyProtectedPath("/api/admin/clients")).toMatchObject({

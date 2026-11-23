@@ -28,6 +28,7 @@ import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversat
 import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useQueryClient } from "@tanstack/react-query";
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
+import AdminHeaderSearch from "@/app/admin_recruiter/components/AdminHeaderSearch";
 
 type ConversationItem = StaffConversation;
 
@@ -40,7 +41,6 @@ type AdminRecruiterHeaderProps = {
 
 const DEFAULT_TENANT_LOGO = BRAAS_PLATFORM_FAVICON;
 const SIDEBAR_TOGGLE_ICON = "/icons/admin-recruiter/header/sidebar-toggle.svg";
-const HEADER_SEARCH_ICON = "/icons/admin-recruiter/header/search.svg";
 const HEADER_CHAT_ICON = "/icons/admin-recruiter/header/chat.svg";
 const HEADER_BELL_ICON = "/icons/admin-recruiter/header/bell.svg";
 const HEADER_HELP_SUPPORT_ICON = "/icons/admin-recruiter/help-support.svg";
@@ -318,16 +318,7 @@ export function AdminRecruiterHeader({
 
         <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 sm:flex">
           <GodAdminTenantSwitcher />
-          <label className="hidden h-9 min-w-0 flex-1 cursor-text items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2.5 transition focus-within:border-[color:var(--brand-primary)] md:flex">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={HEADER_SEARCH_ICON} alt="" width={14} height={14} className="size-3.5 shrink-0" aria-hidden />
-            <input
-              type="search"
-              placeholder="Search anything"
-              aria-label="Search anything"
-              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] leading-4 font-normal text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:ring-0"
-            />
-          </label>
+          <AdminHeaderSearch />
         </div>
 
         <div className="relative flex min-w-0 flex-1 justify-end">
