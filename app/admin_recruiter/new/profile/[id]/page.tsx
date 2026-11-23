@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
 import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
@@ -475,6 +479,19 @@ export default function NewApplicantProfilePage() {
 
   useEffect(() => {
     if (!applicantId) return;
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId !== applicantId) return;
+      void reloadProfile().catch(() => undefined);
+    }
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    };
+  }, [applicantId]);
+
+  useEffect(() => {
+    if (!applicantId) return;
     let cancelled = false;
 
     void (async () => {
@@ -875,15 +892,23 @@ export default function NewApplicantProfilePage() {
                   : null
               }
               source={data?.activity?.source ?? null}
-              progressPercent={data?.onboardingCompletion?.percent ?? null}
+              progressPercent={
+                preHireOnboardingSteps.length > 0
+                  ? Math.round(
+                      (preHireOnboardingSteps.filter((step) => step.state === "complete").length /
+                        preHireOnboardingSteps.length) *
+                        100
+                    )
+                  : (data?.onboardingCompletion?.percent ?? null)
+              }
               progressInProgress={
                 data?.onboardingSteps
-                  ? data.onboardingSteps.filter((step) => step.state === "in_progress").length
+                  ? preHireOnboardingSteps.filter((step) => step.state === "in_progress").length
                   : null
               }
               progressUpcoming={
                 data?.onboardingSteps
-                  ? data.onboardingSteps.filter((step) => step.state === "pending").length
+                  ? preHireOnboardingSteps.filter((step) => step.state === "pending").length
                   : null
               }
               progressDate={formatDate(w?.updated_at ?? w?.created_at)}
@@ -1358,11 +1383,20 @@ export default function NewApplicantProfilePage() {
                       <div className={PROFILE_CARD_HEADER_CLASS}>
                         <h2 className={`${PROFILE_CARD_TITLE_CLASS} min-w-0 truncate`}>
                           Onboarding Progress
-                          {data?.onboardingCompletion?.totalSteps ? (
+                          {visibleOnboardingSteps.length > 0 ? (
                             <span className="ml-2 inline-block text-xs font-normal text-[#6B7280]">
-                              {data.onboardingCompletion.completedSteps}/
-                              {data.onboardingCompletion.totalSteps} (
-                              {data.onboardingCompletion.percent}%)
+                              {
+                                visibleOnboardingSteps.filter((step) => step.state === "complete")
+                                  .length
+                              }
+                              /{visibleOnboardingSteps.length} (
+                              {Math.round(
+                                (visibleOnboardingSteps.filter((step) => step.state === "complete")
+                                  .length /
+                                  visibleOnboardingSteps.length) *
+                                  100
+                              )}
+                              %)
                             </span>
                           ) : null}
                         </h2>
