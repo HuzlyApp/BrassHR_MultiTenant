@@ -25,6 +25,7 @@ export const WORKFLOW_STEP_APPLICANT_ROUTE: Record<string, string> = {
   "welcome-packet-esign": APPLICATION_ROUTES.agreementSignature,
   "tax-forms": APPLICATION_ROUTES.authorizationsDocuments,
   "employee-agreement": APPLICATION_ROUTES.agreementSignature,
+  "authorization-esign": APPLICATION_ROUTES.agreementSignature,
   "policy-acknowledgment": APPLICATION_ROUTES.agreementSignature,
   "equipment-badge-acknowledgment": APPLICATION_ROUTES.agreementSignature,
   "ssn-identity-verification": APPLICATION_ROUTES.identityVerification,

@@ -1,5 +1,29 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { WhoIsOffQuery } from "./v1-contract";
+import { OFF_TYPES, type WhoIsOffQuery } from "./v1-contract";
+
+export function offTypeFromShiftTitle(title: string): (typeof OFF_TYPES)[number] | null {
+  const name = title.trim().toLowerCase().replace(/\s*\(pto\)$/, "").trim();
+  if (name === "pto") return "Personal Leave";
+  return OFF_TYPES.find((type) => type.toLowerCase() === name) ?? null;
+}
+
+export async function loadScheduledTimeOff(supabase: SupabaseClient, tenantId: string, start: string, end: string, facilityId?: string, offType?: string) {
+  let query = supabase.from("employee_schedule_shifts")
+    .select("id,worker_id,facility_id,work_date,title,worker:workers!worker_id(first_name,last_name,job_role,candidate_id),facility(name)")
+    .eq("tenant_id", tenantId).eq("worker.tenant_id", tenantId).eq("facility.tenant_id", tenantId)
+    .gte("work_date", start).lte("work_date", end).limit(1000);
+  if (facilityId) query = query.eq("facility_id", facilityId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).flatMap((row) => {
+    const type = offTypeFromShiftTitle(String(row.title ?? ""));
+    if (!row.worker_id || !type || (offType && type !== offType)) return [];
+    const worker = Array.isArray(row.worker) ? row.worker[0] : row.worker;
+    return [{ id: `schedule-${row.id}`, worker_id: worker?.candidate_id || row.worker_id,
+      facility_id: row.facility_id, off_type: type, start_date: row.work_date, end_date: row.work_date,
+      days: 1, worker: worker ?? null, facility: row.facility }];
+  });
+}
 
 export function tenantTimeOffQuery(supabase: SupabaseClient, tenantId: string) {
   return supabase.from("worker_time_off").select(

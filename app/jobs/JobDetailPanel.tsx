@@ -410,6 +410,12 @@ export function JobDetailPanel({
             </ul>
           </section>
         ) : null}
+        {job.hours_per_week != null ? (
+          <section className="mt-6 w-full">
+            <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Expected hours</h3>
+            <p className={`mt-2 ${JOB_POSTING_BODY_CLASS}`}>{job.hours_per_week} hours per week</p>
+          </section>
+        ) : null}
         {(job.schedule || job.employment_type || workplace) &&
         !descriptionHasSection(descriptionHtml, "Employment details") ? (
           <section className="mt-6 w-full">

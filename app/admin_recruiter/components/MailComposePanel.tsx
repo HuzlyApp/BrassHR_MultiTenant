@@ -16,6 +16,10 @@ import type { TenantMailInboxItem } from "@/lib/communication/list-tenant-mail-i
 import type { MailDraftListItem } from "@/lib/communication/mail-drafts";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
+import { fetchStaffDetailJson } from "@/lib/admin/staff-detail-fetch-cache";
+
+const EMPTY_INBOX_CANDIDATES: TenantMailInboxItem[] = [];
+
 type CandidateOption = {
   workerId: string;
   name: string;
@@ -91,7 +95,7 @@ async function authHeaders(): Promise<HeadersInit> {
 export function MailComposePanel({
   initialWorkerId = null,
   initialDraft = null,
-  inboxCandidates = [],
+  inboxCandidates = EMPTY_INBOX_CANDIDATES,
   onBack,
   onSent,
   onDraftSaved,
@@ -160,18 +164,12 @@ export function MailComposePanel({
     setLoadError(null);
     try {
       const [applicantsRes, workersRes] = await Promise.all([
-        fetch("/api/workers?includePhotoUrls=1&limit=500", { cache: "no-store" }),
-        fetch("/api/admin/employment-workers?tab=all", { cache: "no-store", headers: await authHeaders() }),
+        fetchStaffDetailJson<{ workers?: WorkerRow[]; error?: string }>("/api/workers?includePhotoUrls=1&limit=500", { ttlMs: 0, bust: true }),
+        fetchStaffDetailJson<{ workers?: EmploymentWorkerRecord[]; error?: string }>("/api/admin/employment-workers?tab=all", { ttlMs: 0, bust: true })
+          .catch(() => ({ ok: false, status: 0, payload: { workers: [] as EmploymentWorkerRecord[], error: "Could not load workers list. Please retry." } })),
       ]);
-
-      const applicantsData = (await applicantsRes.json().catch(() => ({}))) as {
-        workers?: WorkerRow[];
-        error?: string;
-      };
-      const workersData = (await workersRes.json().catch(() => ({}))) as {
-        workers?: EmploymentWorkerRecord[];
-        error?: string;
-      };
+      const applicantsData = applicantsRes.payload;
+      const workersData = workersRes.payload;
 
       if (!applicantsRes.ok) {
         throw new Error(applicantsData.error || `Could not load applicants (${applicantsRes.status})`);
@@ -565,7 +563,7 @@ export function MailComposePanel({
       </div>
 
       {loadError ? (
-        <p className="border-b border-[#E5E7EB] px-5 py-2 text-xs text-red-600">{loadError}</p>
+        <div role="alert" className="flex items-center justify-between gap-2 border-b border-[#E5E7EB] px-5 py-2 text-xs text-red-600"><span>{loadError}</span><button type="button" className="font-semibold underline" onClick={() => void loadCandidates()}>Retry candidates</button></div>
       ) : null}
       {draftNotice ? (
         <p className="border-b border-[#E5E7EB] px-5 py-2 text-xs text-(--brand-primary)">{draftNotice}</p>

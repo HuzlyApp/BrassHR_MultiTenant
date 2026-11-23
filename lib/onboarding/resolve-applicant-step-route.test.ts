@@ -42,6 +42,12 @@ describe("resolve-applicant-step-route", () => {
     ).toContain("/application/post-hire-completion");
   });
 
+  it("routes Authorization e-sign to its dedicated signing screen", () => {
+    const authorization = step({ step_key: "custom_question_7", step_type: "custom_question", title: "Authorization e-sign", metadata: { workflow_step_id: "authorization-esign", workflow_settings: { phase: "pre_hire" } } });
+    expect(routeForApplicantStep(authorization, "acme")).toContain("/application/agreement-signature");
+    expect(routeForApplicantStep(authorization, "acme")).toContain("stepKey=custom_question_7");
+    expect(dedicatedRouteForWorkflowStep(authorization)).toBe("/application/agreement-signature");
+  });
   it("maps collect-extra-files to the upload documents screen", () => {
     expect(WORKFLOW_STEP_APPLICANT_ROUTE["collect-extra-files"]).toBe(
       "/application/collect-extra-files"

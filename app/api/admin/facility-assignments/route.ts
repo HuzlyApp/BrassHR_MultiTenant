@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing workerId" }, { status: 400 });
     }
 
-    const resolved = await resolveWorkerContext(workerIdRaw);
+    const resolved = await resolveWorkerContext(workerIdRaw, { allowUnlinkedAccount: true });
     if ("error" in resolved && resolved.error) return resolved.error;
 
     const data = await loadFacilityAssignmentsForWorker(

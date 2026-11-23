@@ -46,4 +46,11 @@ describe("grokParseResume", () => {
     expect(result.normalized.email).toBe("maria@clinic.org")
     expect(mockCreate).toHaveBeenCalledOnce()
   })
+  it("extracts and preserves ATS sections through the Grok merge", async () => {
+    const completion = vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ first_name: "Jane", last_name: "Doe", email: "jane@example.com", summary: "Registered nurse.", skills: ["ICU"], experience: [{ company: "Clinic", position: "RN", start_date: null, end_date: null, location: null, description: "Patient care" }], education: [{ institution: "University", degree: "BSN", field: null, start_date: null, end_date: "2020", gpa: null }] }) } }] });
+    __setGrokClientForTests({ chat: { completions: { create: completion } } } as never);
+    const result = await grokParseResume("Jane Doe\njane@example.com\nRegistered nurse.");
+    expect(result.normalized).toMatchObject({ summary: "Registered nurse.", skills: ["ICU"], experience: [expect.objectContaining({ position: "RN" })], education: [expect.objectContaining({ degree: "BSN" })] });
+  });
+
 })

@@ -799,9 +799,11 @@ type FlowCardProps = {
   viewHref: string;
   deleting?: boolean;
   onDelete: (flow: OnboardingFlow) => void;
+  onDuplicate: (flow: OnboardingFlow) => void;
+  onUnpublish: (flow: OnboardingFlow) => void;
 };
 
-function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: FlowCardProps) {
+export function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete, onDuplicate, onUnpublish }: FlowCardProps) {
   const published = flow.status === "published";
   const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -921,6 +923,10 @@ function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete }: F
                   >
                     Edit
                   </Link>
+                  <button type="button" role="menuitem" disabled={deleting} onClick={() => { setMenuOpen(false); onDuplicate(flow); }}
+                    className="block w-full px-3 py-2 text-left text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50">Duplicate</button>
+                  {flow.status === "published" ? <button type="button" role="menuitem" disabled={deleting} onClick={() => { setMenuOpen(false); onUnpublish(flow); }}
+                    className="block w-full px-3 py-2 text-left text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50">Unpublish</button> : null}
                   <button
                     type="button"
                     role="menuitem"
@@ -1024,6 +1030,7 @@ function OnboardingFlowsPageContent({
     createFlow,
     isCreating,
     deleteFlow,
+    actOnFlow,
     refetch,
   } = useOnboardingFlows({
     libraryId: effectiveLibraryId,
@@ -1105,6 +1112,18 @@ function OnboardingFlowsPageContent({
     [deleteFlow, refetch]
   );
 
+  async function handleFlowAction(flow: OnboardingFlow, action: "duplicate" | "unpublish") {
+    if (action === "unpublish" && !window.confirm(`Unpublish "${flow.name}"? It will no longer accept new applications.`)) return;
+    setDeletingFlowId(flow.id);
+    try {
+      const updated = await actOnFlow({ flowId: flow.id, action });
+      toast.success(action === "duplicate" ? `Created ${updated.name}` : `Unpublished ${flow.name}`);
+      await refetch();
+      if (action === "duplicate") router.push(`${builderBase}?flow=${updated.id}`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : `Failed to ${action} workflow`); }
+    finally { setDeletingFlowId(null); }
+  }
+
   const sectionTitle = activeTab === "published" ? "Published Flows" : "Unpublished Flows";
   const libraryLabel = activeLibrary?.name ?? onboardingLibrary?.name ?? "Onboarding Flows";
   const isPageLoading = librariesLoading || (!effectiveLibraryId && !librariesError);
@@ -1135,6 +1154,8 @@ function OnboardingFlowsPageContent({
             viewHref={`${builderBase}?flow=${flow.id}&view=1`}
             deleting={deletingFlowId === flow.id}
             onDelete={(target) => void handleDeleteFlow(target)}
+            onDuplicate={(target) => void handleFlowAction(target, "duplicate")}
+            onUnpublish={(target) => void handleFlowAction(target, "unpublish")}
           />
         ))}
       </section>

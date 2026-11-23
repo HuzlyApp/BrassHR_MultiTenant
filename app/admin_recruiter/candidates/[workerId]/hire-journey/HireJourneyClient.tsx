@@ -128,7 +128,7 @@ export default function HireJourneyClient({
       const profilePromise = fetchStaffDetailJson<CandidateProfilePayload & { error?: string }>(
         profileUrl,
         { bust }
-      );
+      ).catch(() => null);
       const phaseResult = await fetchStaffDetailJson<CandidateWorkflowPhaseView & { error?: string }>(
         phaseUrl,
         { bust }
@@ -140,7 +140,7 @@ export default function HireJourneyClient({
       if (!silent) setLoading(false);
 
       const profileResult = await profilePromise;
-      if (profileResult.ok) {
+      if (profileResult?.ok) {
         setProfile(profileResult.payload);
       } else if (!silent) {
         setProfile(null);

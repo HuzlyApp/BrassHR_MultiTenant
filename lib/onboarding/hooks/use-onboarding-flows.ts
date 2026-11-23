@@ -127,6 +127,22 @@ export function useOnboardingFlows(opts?: {
     },
   });
 
+  const actionMutation = useMutation({
+    mutationFn: async ({ flowId, action }: { flowId: string; action: "duplicate" | "unpublish" }) => {
+      const response = await fetch(`/api/admin/onboarding-flows/${encodeURIComponent(flowId)}`, {
+        ...(await staffFetchInit({ "Content-Type": "application/json" })), method: "PATCH", cache: "no-store",
+        body: JSON.stringify(action === "duplicate" ? { duplicate: true } : { status: "unpublished" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Failed to ${action} workflow`);
+      return data.flow as OnboardingFlowListItem;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY });
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (input: CreateFlowInput) => {
       const res = await fetch("/api/admin/onboarding-flows", {
@@ -159,6 +175,7 @@ export function useOnboardingFlows(opts?: {
     createFlow: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     createError: createMutation.error,
+    actOnFlow: actionMutation.mutateAsync,
     deleteFlow: deleteMutation.mutateAsync,
     isDeleting: deleteMutation.isPending,
   };

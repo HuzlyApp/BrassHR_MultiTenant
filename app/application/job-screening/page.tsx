@@ -9,7 +9,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { applicationPath } from "@/lib/tenant/with-tenant";
-import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { currentOnboardingTenantSlug } from "@/lib/tenant/with-tenant";
 import type { JobScreeningQuestionType } from "@/lib/jobs/screening-questions";
 import {
@@ -26,6 +26,8 @@ import {
   APPLICANT_SKIP_COLUMN,
   APPLICANT_TITLE_CLASS,
 } from "@/app/application/applicant-onboarding-responsive";
+import { isOnboardingDraftPreview, DRAFT_PREVIEW_APPLICANT_ID } from "@/lib/onboarding/is-draft-preview";
+import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { ChevronDown, ChevronRight, FileQuestion } from "lucide-react";
 import { nextStepRouteAfter } from "@/lib/onboarding/professional-license-step";
 import { isApplicantWaitingGateStep } from "@/lib/onboarding/workflow-settings";
@@ -44,6 +46,12 @@ type ScreeningQuestion = {
   answer: unknown;
 };
 
+function defaultAnswer(questionType: JobScreeningQuestionType): unknown {
+  if (questionType === "multiple_select") return [];
+  if (questionType === "yes_no") return null;
+  return "";
+}
+
 export default function JobScreeningPage() {
   const branding = useTenantBranding();
   const router = useRouter();
@@ -55,9 +63,16 @@ export default function JobScreeningPage() {
     searchParams.get("tenant")?.trim().toLowerCase() ||
     branding.slug?.trim().toLowerCase() ||
     currentOnboardingTenantSlug();
-  const jobToken =
+  const isPreview = isOnboardingDraftPreview(`?${searchParams.toString()}`);
+  const [previewJobToken, setPreviewJobToken] = useState("");
+  const [previewJobs, setPreviewJobs] = useState<Array<{ public_job_token: string; public_title: string; source_job_title?: string | null; source_type?: string | null }>>([]);
+  const [previewJobsPage, setPreviewJobsPage] = useState(1);
+  const [previewJobsTotal, setPreviewJobsTotal] = useState(0);
+  const [jobTitle, setJobTitle] = useState("");
+  const [questionsLoaded, setQuestionsLoaded] = useState(false);
+  const jobToken = (isPreview ? previewJobToken || searchParams.get("job_token")?.trim() : null) ||
     searchParams.get("job_token")?.trim() ||
-    (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+    (!isPreview && typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
     "";
   
   const stepKey = readStepKeyFromSearch(
@@ -71,12 +86,9 @@ export default function JobScreeningPage() {
   const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
 
-  const currentStep = useMemo(() => {
-    if (!onboarding?.config?.steps) return null;
-    return onboarding.config.steps.find(
-      (s) => s.step_key === stepKey || s.metadata?.workflow_step_id === "parameterized-job-application"
-    ) ?? null;
-  }, [onboarding?.config?.steps, stepKey]);
+  const currentStep = onboarding?.config?.steps?.find(
+    step => step.step_key === stepKey || step.metadata?.workflow_step_id === "parameterized-job-application"
+  ) ?? null;
 
   const shellStyle = useMemo(
     () => ({
@@ -93,23 +105,42 @@ export default function JobScreeningPage() {
   });
 
   useEffect(() => {
-    const applicantId =
+    if (!isPreview || !tenantSlug) return;
+    const controller = new AbortController();
+    void fetch(`/api/public/jobs?tenant=${encodeURIComponent(tenantSlug)}&page=${previewJobsPage}&pageSize=50`, { signal: controller.signal })
+      .then(async response => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "Could not load preview jobs."); if (controller.signal.aborted) return; setPreviewJobs(payload.jobs ?? []); setPreviewJobsTotal(payload.total ?? 0); })
+      .catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Could not load preview jobs."); });
+    return () => controller.abort();
+  }, [isPreview, tenantSlug, previewJobsPage]);
+
+  useEffect(() => {
+    const applicantId = isPreview ? DRAFT_PREVIEW_APPLICANT_ID :
       typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() : "";
+    setQuestionsLoaded(false);
+    setQuestions([]);
+    setAnswers({});
+    setJobTitle("");
     if (!applicantId || !jobToken || !tenantSlug) {
       setLoading(false);
-      setError("Missing application context. Return to the job listing and apply again.");
+      setError(isPreview ? null : "Missing application context. Return to the job listing and apply again.");
       return;
     }
 
+    setLoading(true);
+    setError(null);
+    const controller = new AbortController();
     void fetch(
       `/api/onboarding/job-screening-answers?applicantId=${encodeURIComponent(applicantId)}&jobToken=${encodeURIComponent(jobToken)}&tenantSlug=${encodeURIComponent(tenantSlug)}&${storedApplyLocationSearchParams(tenantSlug, jobToken).toString()}`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: controller.signal }
     )
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
+        if (controller.signal.aborted) return;
         if (!response.ok) {
           throw new Error(payload.error || "Failed to load screening questions");
         }
+        setQuestionsLoaded(true);
+        setJobTitle(payload.jobTitle || "");
         if (!payload.hasQuestions || !(payload.questions && payload.questions.length > 0)) {
           setQuestions([]);
           return;
@@ -123,16 +154,14 @@ export default function JobScreeningPage() {
         );
       })
       .catch((loadError) => {
+        if (controller.signal.aborted) return;
         setError(loadError instanceof Error ? loadError.message : "Failed to load screening questions");
       })
-      .finally(() => setLoading(false));
-  }, [currentStep, jobToken, onboarding, router, tenantSlug]);
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [isPreview, jobToken, tenantSlug]);
 
-  function defaultAnswer(questionType: JobScreeningQuestionType): unknown {
-    if (questionType === "multiple_select") return [];
-    if (questionType === "yes_no") return null;
-    return "";
-  }
+
 
   function clearFieldError(questionId: string) {
     setFieldErrors((current) => {
@@ -143,37 +172,28 @@ export default function JobScreeningPage() {
     });
   }
 
+  async function saveAnswers(values: Array<{ questionId: string; answer: unknown }>) {
+    if (isPreview) return; // Preview never writes an application or live progress.
+    const applicantId = localStorage.getItem("applicantId")?.trim();
+    if (!applicantId || !jobToken || !tenantSlug) throw new Error("Missing application context. Return to the job listing and apply again.");
+    const response = await fetch("/api/onboarding/job-screening-answers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ applicantId, tenantSlug, jobToken, workLocation: readStoredApplyLocation(tenantSlug, jobToken), answers: values }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Failed to save screening answers.");
+  }
+
   async function handleSkip() {
+    if (submitting || loading || !questionsLoaded || questions.length > 0 || !jobToken || !tenantSlug) return;
     setSubmitting(true);
     setError(null);
     try {
-      const applicantId = localStorage.getItem("applicantId")?.trim();
       const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
-
-      // Explicitly persist completion in client onboarding state
+      await saveAnswers([]);
       if (onboarding?.updateStepStatus) {
-        await persistStepProgress(
-          onboarding.updateStepStatus,
-          stepKeyToComplete,
-          "completed",
-          completingRef,
-          { system_completed: true, reason: "no_screening_questions" }
-        );
-      }
-
-      // Persist step completion in backend DB
-      if (applicantId && jobToken && tenantSlug) {
-        await fetch("/api/onboarding/job-screening-answers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            applicantId,
-            tenantSlug,
-            jobToken,
-            workLocation: readStoredApplyLocation(tenantSlug, jobToken),
-            answers: [],
-          }),
-        }).catch(() => {});
+        await persistStepProgress(onboarding.updateStepStatus, stepKeyToComplete, "completed", completingRef,
+          { system_completed: true, reason: "no_screening_questions" });
       }
 
       // Refresh the onboarding config and progress to get updated step status
@@ -214,8 +234,7 @@ export default function JobScreeningPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const applicantId = localStorage.getItem("applicantId")?.trim();
-    if (!applicantId || !jobToken || !tenantSlug) return;
+    if (submitting || loading || !questionsLoaded || !jobToken || !tenantSlug) return;
 
     // Validate required questions
     const validationErrors: Record<string, string> = {};
@@ -260,25 +279,7 @@ export default function JobScreeningPage() {
     setError(null);
     setFieldErrors({});
     try {
-      // API handles step completion in DB
-      const response = await fetch("/api/onboarding/job-screening-answers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicantId,
-          tenantSlug,
-          jobToken,
-          workLocation: readStoredApplyLocation(tenantSlug, jobToken),
-          answers: questions.map((item) => ({
-            questionId: item.id,
-            answer: answers[item.id],
-          })),
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || "Failed to save screening answers");
-      }
+      await saveAnswers(questions.map(item => ({ questionId: item.id, answer: answers[item.id] })));
 
       // Explicitly persist completion in client onboarding state
       const stepKeyToComplete = currentStep?.step_key || "parameterized-job-application";
@@ -358,7 +359,7 @@ export default function JobScreeningPage() {
               <h2 className={APPLICANT_TITLE_CLASS}>
                 {currentStep?.title || "Screening Questions"}
               </h2>
-              {questions.length === 0 ? (
+              {questionsLoaded && !error && questions.length === 0 && currentStep?.is_required === false ? (
                 <div className={APPLICANT_SKIP_COLUMN}>
                   <button
                     type="button"
@@ -372,13 +373,27 @@ export default function JobScreeningPage() {
               ) : null}
             </div>
 
+            {isPreview ? <div className="my-4 space-y-2">
+              <p className="text-sm text-slate-600">Choose a published job to preview its application questions. Preview responses are not submitted.</p>
+              <label className="block text-sm">Preview job
+                <select className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2" value={jobToken} onChange={event => setPreviewJobToken(event.target.value)}>
+                  <option value="">Select a job</option>
+                  {previewJobs.map(job => <option key={job.public_job_token} value={job.public_job_token}>{publicJobDisplayTitle(job)}</option>)}
+                </select>
+              </label>
+              {previewJobsTotal > 50 ? <div className="flex gap-3 text-sm">
+                <button type="button" disabled={previewJobsPage === 1} onClick={() => setPreviewJobsPage(page => page - 1)}>Previous jobs</button>
+                <button type="button" disabled={previewJobsPage * 50 >= previewJobsTotal} onClick={() => setPreviewJobsPage(page => page + 1)}>Next jobs</button>
+              </div> : null}
+            </div> : null}
+            {jobTitle ? <p className="my-3 text-sm font-semibold text-slate-900">Applying for: {jobTitle}</p> : null}
             {error ? (
-              <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {error}
               </p>
             ) : null}
 
-            {questions.length === 0 ? (
+            {!questionsLoaded ? null : questions.length === 0 ? (
               <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-6 text-center sm:p-8">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
                   <FileQuestion className="h-6 w-6 text-slate-500" />
@@ -387,7 +402,7 @@ export default function JobScreeningPage() {
                   No screening questions required
                 </h3>
                 <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-                  No screening questions have been added for this job. You can skip this step and continue with your application.
+                  No screening questions have been added for this job. Continue to confirm this step of your application.
                 </p>
                 <div className="mt-6">
                   <button
@@ -396,7 +411,7 @@ export default function JobScreeningPage() {
                     disabled={submitting}
                     className="group inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-5 py-2.5 text-[12px] font-semibold leading-5 text-white shadow-sm transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {submitting ? "Continuing…" : "Skip for Now"}
+                    {submitting ? "Continuing…" : "Continue"}
                     <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </button>
                 </div>

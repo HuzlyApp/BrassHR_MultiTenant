@@ -46,6 +46,7 @@ export type WorkerAccountProfile = {
 };
 
 export type WorkerAccountOverviewPayload = {
+  scheduledShifts?: Array<{ id: string; title: string; workDate: string; startTime: string; endTime: string }>;
   profile: WorkerAccountProfile;
   aboutMe: string;
   skills: string[];

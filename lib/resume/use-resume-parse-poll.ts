@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import {
   normalizeParsedResume,
   normalizedResumeToStoredJson,
+  type StoredParsedResume,
 } from "@/lib/resumeParseQuality"
 import {
   isDraftPreviewApplicantId,
@@ -15,7 +16,7 @@ export type ResumeParsePollStatus = "idle" | "processing" | "completed" | "faile
 
 export type ResumeParsePollState = {
   status: ResumeParsePollStatus
-  parsedResume: Record<string, string> | null
+  parsedResume: StoredParsedResume | null
   parseError: string | null
   isPolling: boolean
 }
@@ -34,7 +35,7 @@ function persistParsedResume(raw: Record<string, unknown>): void {
  */
 export function useResumeParsePoll(resumeId: string | null): ResumeParsePollState {
   const [status, setStatus] = useState<ResumeParsePollStatus>("idle")
-  const [parsedResume, setParsedResume] = useState<Record<string, string> | null>(null)
+  const [parsedResume, setParsedResume] = useState<StoredParsedResume | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
   const attemptsRef = useRef(0)

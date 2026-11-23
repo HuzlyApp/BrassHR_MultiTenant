@@ -216,3 +216,14 @@ describe("buildGrokResumeSnippet", () => {
     expect(snippet).toContain("john@example.com")
   })
 })
+
+describe("resume filename identity guards", () => {
+  it("ignores a filename banner and does not turn a document title into a surname", () => {
+    expect(preExtractResumeFields("QA_TEST_Applicant_resume\nJane Doe\njane@example.com")).toMatchObject({ first_name: "Jane", last_name: "Doe" });
+    expect(preExtractResumeFields("Jane\njane@example.com", { fileName: "QA_TEST_Applicant_resume.pdf" }).last_name).toBe("");
+    expect(preExtractResumeFields("Jane\njane@example.com", { fileName: "Jane_Doe_resume.pdf" }).last_name).toBe("Doe");
+  });
+  it("repairs filename-polluted AI identity using the actual resume header", () => {
+    expect(sanitizeParsedIdentityFields(normalizeParsedResume({ first_name: "QA_TEST_Applicant", last_name: "TEST Applicant resume" }), "Jane Doe\njane@example.com")).toMatchObject({ first_name: "Jane", last_name: "Doe" });
+  });
+});

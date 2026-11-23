@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { tenantTimeOffQuery } from "@/lib/scheduling/time-off-service";
+import { tenantTimeOffQuery, loadScheduledTimeOff } from "@/lib/scheduling/time-off-service";
 
 export const runtime = "nodejs";
 
@@ -137,10 +137,13 @@ export async function GET(req: NextRequest) {
       timeOffQuery = timeOffQuery.eq("off_type", offTypeFilter);
     }
 
-    const [{ data: timeOffData, error: timeOffError }, { data: facilityData, error: facilityError }] =
+    const [{ data: timeOffData, error: timeOffError }, { data: facilityData, error: facilityError }, scheduledTimeOff] =
       await Promise.all([
         timeOffQuery,
         supabase.from("facility").select("id, name").eq("tenant_id", scope.tenantId).order("name", { ascending: true }),
+        loadScheduledTimeOff(supabase, scope.tenantId, startCheck.value, endCheck.value,
+          UUID_RE.test(facilityFilter) ? facilityFilter : undefined,
+          isOffType(offTypeFilter) ? offTypeFilter : undefined),
       ]);
 
     if (timeOffError) throw timeOffError;
@@ -151,7 +154,11 @@ export async function GET(req: NextRequest) {
       name: facility.name?.trim() || "Facility",
     }));
 
-    const records = ((timeOffData ?? []) as TimeOffRow[])
+    const approvedRows = (timeOffData ?? []) as TimeOffRow[];
+    const scheduledRows = scheduledTimeOff.filter((shift) => !approvedRows.some((leave) =>
+      leave.worker_id === shift.worker_id && leave.off_type === shift.off_type &&
+      leave.start_date <= shift.start_date && leave.end_date >= shift.end_date));
+    const records = ([...approvedRows, ...scheduledRows] as TimeOffRow[])
       .map((row) => {
         const worker = one(row.worker);
         const facility = one(row.facility);

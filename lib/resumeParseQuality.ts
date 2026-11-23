@@ -1,3 +1,5 @@
+import { ResumeSchema, type ResumeData } from "@/lib/schema"
+
 /** Quality gate for ATS / LLM resume extraction — client + server. */
 
 /** Pull a JSON object from model output (raw JSON or ```json ... ``` fences). */
@@ -21,7 +23,7 @@ export const RESUME_PARSE_FAILED_USER_MESSAGE =
 export const PARSE_FAILED_STATUS = "Parse Failed" as const
 export const PARSE_SUCCESS_STATUS = "success" as const
 
-export type NormalizedParsedResume = {
+export type NormalizedParsedResume = Partial<Pick<ResumeData, "summary" | "skills" | "experience" | "education">> & {
   first_name: string
   last_name: string
   email: string
@@ -94,6 +96,10 @@ export function normalizeParsedResume(raw: unknown): NormalizedParsedResume {
     state: s(o.state ?? o.State),
     zip: s(o.zipCode ?? o.zip ?? o.zip_code ?? o.Zip),
     job_role: s(o.job_role ?? o.jobRole ?? o.job_title ?? o.JobRole),
+    ...(typeof o.summary === "string" ? { summary: s(o.summary) } : {}),
+    ...(Array.isArray(o.skills) ? { skills: o.skills.filter((item): item is string => typeof item === "string").map(item => item.trim()).filter(Boolean) } : {}),
+    ...(Array.isArray(o.experience) ? { experience: ResumeSchema.shape.experience.safeParse(o.experience).data ?? [] } : {}),
+    ...(Array.isArray(o.education) ? { education: ResumeSchema.shape.education.safeParse(o.education).data ?? [] } : {}),
   }
 }
 
@@ -183,8 +189,11 @@ export function evaluateResumeParseQuality(raw: unknown): ResumeParseQualityResu
 }
 
 /** Payload stored for the review step (matches existing localStorage consumers). */
-export function normalizedResumeToStoredJson(n: NormalizedParsedResume): Record<string, string> {
+export type StoredParsedResume = NormalizedParsedResume & { zipCode: string };
+
+export function normalizedResumeToStoredJson(n: NormalizedParsedResume): StoredParsedResume {
   return {
+    ...n,
     first_name: n.first_name,
     last_name: n.last_name,
     email: n.email,

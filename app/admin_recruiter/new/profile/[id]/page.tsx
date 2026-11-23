@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   CANDIDATE_PIPELINE_REFRESH_EVENT,
+  dispatchCandidatePipelineRefresh,
   type CandidatePipelineRefreshDetail,
 } from "@/lib/admin/candidate-pipeline-events";
 import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
@@ -379,6 +380,7 @@ export default function NewApplicantProfilePage() {
         throw new Error(json.error || "Could not save");
       }
       await reloadProfile();
+      dispatchCandidatePipelineRefresh(applicantId);
       toast.success("Saved");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not save";

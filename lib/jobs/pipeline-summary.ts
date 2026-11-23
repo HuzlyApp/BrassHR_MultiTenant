@@ -1,4 +1,4 @@
-import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import { APPLICATION_PIPELINE_STATUSES, normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import { isVisibleOnJobCandidatesAllTab } from "@/lib/jobs/application-status-tab";
 
 /** FSD-JOB-UX-001 / Stage Pipeline Spec v4.1 pipeline-summary response. */
@@ -28,10 +28,25 @@ export type JobPipelineSummaryRow = {
   status?: string | null;
   status_id?: string | null;
   application_statuses?:
-    | { system_key?: string | null; name?: string | null }
-    | { system_key?: string | null; name?: string | null }[]
+    | PipelineStatusJoin
+    | PipelineStatusJoin[]
     | null;
 };
+
+type PipelineStatusJoin = {
+  system_key?: string | null;
+  name?: string | null;
+  application_status_groups?: { system_key?: string | null } | { system_key?: string | null }[] | null;
+};
+
+function pipelineStatus(row: JobPipelineSummaryRow) {
+  const joined = Array.isArray(row.application_statuses) ? row.application_statuses[0] : row.application_statuses;
+  const group = Array.isArray(joined?.application_status_groups) ? joined.application_status_groups[0] : joined?.application_status_groups;
+  const key = applicationSystemKey(row);
+  if (group?.system_key === "closed" || key === "closed" || ["closed application", "application closed"].includes(applicationStatusName(row))) return "archived";
+  if ((APPLICATION_PIPELINE_STATUSES as readonly string[]).includes(key)) return normalizeApplicationStatus(key);
+  return normalizeApplicationStatus(String(row.status ?? ""));
+}
 
 const CLOSED_PIPELINE_KEYS = new Set(["rejected", "undecided", "archived"]);
 const IN_PROCESS_PIPELINE_KEYS = new Set(["reviewing", "shortlisted", "interviewing"]);
@@ -73,7 +88,7 @@ export function closedApplicationRedirectTab(row: JobPipelineSummaryRow): string
     if (slug) return slug;
   }
 
-  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  const pipeline = pipelineStatus(row);
   if (CLOSED_PIPELINE_KEYS.has(pipeline)) return pipeline;
   return "rejected";
 }
@@ -89,21 +104,21 @@ export function inProcessApplicationRedirectTab(row: JobPipelineSummaryRow): str
     if (slug) return slug;
   }
 
-  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  const pipeline = pipelineStatus(row);
   if (IN_PROCESS_PIPELINE_KEYS.has(pipeline)) return pipeline;
   return "reviewing";
 }
 
 export function isClosedPipelineApplication(row: JobPipelineSummaryRow): boolean {
   if (isAtMspPipelineApplication(row) || isOnboardingPipelineApplication(row)) return false;
-  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  const pipeline = pipelineStatus(row);
   return CLOSED_PIPELINE_KEYS.has(pipeline);
 }
 
 /** Screening + interview stages that roll into the In Process card / list chip. */
 export function isInProcessPipelineApplication(row: JobPipelineSummaryRow): boolean {
   if (isAtMspPipelineApplication(row) || isOnboardingPipelineApplication(row)) return false;
-  const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+  const pipeline = pipelineStatus(row);
   return IN_PROCESS_PIPELINE_KEYS.has(pipeline);
 }
 
@@ -183,7 +198,7 @@ export function tallyJobPipelineSummary(
       continue;
     }
 
-    const pipeline = normalizeApplicationStatus(String(row.status ?? ""));
+    const pipeline = pipelineStatus(row);
     switch (pipeline) {
       case "new":
         summary.intake += 1;

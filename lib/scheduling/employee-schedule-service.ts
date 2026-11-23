@@ -15,6 +15,9 @@ import {
 
 type WorkerRow = {
   id: string;
+  candidate_id?: string | null;
+  location?: string | null;
+  status?: string | null;
   first_name: string | null;
   last_name: string | null;
   job_role: string | null;
@@ -38,7 +41,7 @@ function jobIdFromSnapshot(snapshot: Record<string, unknown> | null | undefined)
 
 type ShiftRow = {
   id: string;
-  worker_id: string;
+  worker_id: string | null;
   facility_id: string | null;
   department_id: string | null;
   work_date: string;
@@ -79,7 +82,7 @@ function mapShift(
 ): EmployeeScheduleShift {
   return {
     id: row.id,
-    workerId: row.worker_id,
+    workerId: row.worker_id ?? "",
     workDate: row.work_date,
     startTime: row.start_time,
     endTime: row.end_time,
@@ -93,6 +96,22 @@ function mapShift(
   };
 }
 
+export async function loadWorkerProfileSchedule(supabase: SupabaseClient, tenantId: string, candidateId: string) {
+  const { data: workers, error: workerError } = await supabase.from("workers").select("id")
+    .eq("tenant_id", tenantId).eq("candidate_id", candidateId);
+  if (workerError) throw workerError;
+  const ids = (workers ?? []).map((worker) => String(worker.id));
+  if (!ids.length) return { total: 0, shifts: [] as Array<{ id: string; title: string; workDate: string; startTime: string; endTime: string }> };
+  const { data, error, count } = await supabase.from("employee_schedule_shifts")
+    .select("id,title,work_date,start_time,end_time", { count: "exact" })
+    .eq("tenant_id", tenantId).in("worker_id", ids).order("work_date", { ascending: false }).limit(100);
+  if (error) throw error;
+  return { total: count ?? 0, shifts: (data ?? []).map((shift) => ({
+    id: String(shift.id), title: String(shift.title ?? "Shift"), workDate: String(shift.work_date),
+    startTime: String(shift.start_time), endTime: String(shift.end_time),
+  })) };
+}
+
 export async function loadEmployeeScheduleWeek(
   supabase: SupabaseClient,
   tenantId: string,
@@ -102,7 +121,7 @@ export async function loadEmployeeScheduleWeek(
 ): Promise<EmployeeScheduleWeekResponse> {
   const { data: workerData, error: workerError } = await supabase
     .from("workers")
-    .select("id, first_name, last_name, job_role, source_job_application_id, application_snapshot")
+    .select("id, candidate_id, first_name, last_name, job_role, location, status, source_job_application_id, application_snapshot")
     .eq("tenant_id", tenantId)
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true });
@@ -151,8 +170,9 @@ export async function loadEmployeeScheduleWeek(
     sourceApplicationIds.length
       ? supabase
           .from("job_applications")
-          .select("id, job_requisition_id")
+          .select("id, job_requisition_id, job_requisitions(msp_client)")
           .eq("tenant_id", tenantId)
+          .eq("job_requisitions.tenant_id", tenantId)
           .in("id", sourceApplicationIds)
       : Promise.resolve({
           data: [] as Array<{ id: string; job_requisition_id: string | null }>,
@@ -175,9 +195,12 @@ export async function loadEmployeeScheduleWeek(
   }
 
   const jobIdBySourceApplication = new Map<string, string>();
-  for (const row of (sourceAppData ?? []) as Array<{ id: string; job_requisition_id: string | null }>) {
+  const clientBySourceApplication = new Map<string, string>();
+  for (const row of (sourceAppData ?? []) as Array<{ id: string; job_requisition_id: string | null; job_requisitions?: { msp_client?: string | null } | { msp_client?: string | null }[] | null }>) {
     const jobId = row.job_requisition_id?.trim();
     if (row.id && jobId) jobIdBySourceApplication.set(row.id, jobId);
+    const job = Array.isArray(row.job_requisitions) ? row.job_requisitions[0] : row.job_requisitions;
+    if (job?.msp_client?.trim()) clientBySourceApplication.set(row.id, job.msp_client.trim());
   }
 
   const employees: EmployeeScheduleEmployee[] = workerRows
@@ -197,6 +220,10 @@ export async function loadEmployeeScheduleWeek(
 
       return {
         id: row.id,
+        profileId: row.candidate_id ?? null,
+        client: clientBySourceApplication.get(sourceAppId) || (typeof row.application_snapshot?.client_name === "string" ? row.application_snapshot.client_name.trim() : null),
+        location: row.location ?? null,
+        status: row.status ?? null,
         name: employeeName(row),
         jobRole,
         jobId,
@@ -230,6 +257,7 @@ async function assertNoWorkerShiftOverlap(
   value: ParsedEmployeeScheduleShift,
   excludeShiftId?: string | null
 ) {
+  if (!value.workerId) return;
   const fromDate = addDaysToIsoDate(value.workDate, -1);
   const toDate = addDaysToIsoDate(value.workDate, 1);
   const { data, error } = await supabase

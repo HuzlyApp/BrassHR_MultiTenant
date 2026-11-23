@@ -60,12 +60,14 @@ export function pipelineItemKeyForAttempt(attemptNumber: number): PipelineCheckl
 
 export async function loadWorkerCallLogs(
   supabase: SupabaseClient,
-  workerId: string
+  workerId: string,
+  tenantId: string
 ): Promise<WorkerCallLog[]> {
   const { data, error } = await supabase
     .from("worker_call_logs")
     .select("id, outcome, duration_seconds, notes, call_at, created_at")
     .eq("worker_id", workerId)
+    .eq("tenant_id", tenantId)
     .order("call_at", { ascending: false })
 
   if (error) {

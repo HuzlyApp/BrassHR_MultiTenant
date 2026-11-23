@@ -200,11 +200,12 @@ export default function PersonalTab() {
       try {
         const res = await fetch("/api/admin/departments", { cache: "no-store" });
         const payload = (await res.json().catch(() => ({}))) as {
-          departments?: Array<{ id?: string; name?: string }>;
+          departments?: Array<{ id?: string; name?: string; isActive?: boolean }>;
         };
         if (!res.ok || !alive) return;
         setDepartments(
           (payload.departments ?? [])
+            .filter((row) => row.isActive !== false)
             .map((row) => ({
               id: typeof row.id === "string" ? row.id : "",
               name: typeof row.name === "string" ? row.name.trim() : "",

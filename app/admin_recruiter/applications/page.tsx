@@ -108,6 +108,7 @@ import {
 } from "@/lib/jobs/application-status-tab";
 import { isAnalyzedJobApplication } from "@/lib/jobs/job-list-application-metrics";
 import { isClosedPipelineApplication, isInProcessPipelineApplication } from "@/lib/jobs/pipeline-summary";
+import { formatPhoneForDisplay } from "@/lib/admin/worker-profile-field-client";
 import toast from "react-hot-toast";
 import {
   BRAAS_PRIMARY,
@@ -758,7 +759,7 @@ function applicantLocation(row: ApplicationRow): string {
 }
 
 function applicantPhone(row: ApplicationRow): string {
-  return resolveApplicationApplicantPhone(row);
+  return formatPhoneForDisplay(resolveApplicationApplicantPhone(row));
 }
 
 function rowWorkType(row: ApplicationRow): string {
@@ -2274,6 +2275,8 @@ export default function JobApplicationsPage() {
         Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : []
       );
       setRows((current) => current.filter((row) => !deletedIds.has(row.id)));
+      setPage(1);
+      setApplicationsRefreshNonce((current) => current + 1);
       setSelectedIds((current) => {
         const next = new Set(current);
         for (const id of deletedIds) next.delete(id);

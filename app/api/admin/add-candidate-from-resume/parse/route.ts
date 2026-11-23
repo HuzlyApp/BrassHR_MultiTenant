@@ -22,7 +22,9 @@ function parseRateLimitedResponse(limited: NextResponse): NextResponse {
   );
 }
 
-export type AdminResumeParsePreview = {
+import type { NormalizedParsedResume } from "@/lib/resumeParseQuality";
+
+export type AdminResumeParsePreview = Pick<NormalizedParsedResume, "summary" | "skills" | "experience" | "education"> & {
   firstName: string;
   lastName: string;
   email: string;
@@ -85,6 +87,10 @@ export async function POST(req: NextRequest) {
       lastNameError: review.lastNameError,
     };
     const preview: AdminResumeParsePreview = {
+      summary: parsed.summary,
+      skills: parsed.skills,
+      experience: parsed.experience,
+      education: parsed.education,
       firstName: review.firstName,
       lastName: review.lastName,
       email: parsed.email,

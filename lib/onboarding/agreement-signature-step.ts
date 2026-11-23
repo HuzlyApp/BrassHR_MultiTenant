@@ -8,6 +8,7 @@ import type { TenantOnboardingStep } from "@/lib/onboarding/types";
  */
 export const AGREEMENT_SIGNATURE_LIBRARY_STEP_IDS = [
   "employee-agreement",
+  "authorization-esign",
   "welcome-packet-esign",
   "policy-acknowledgment",
   "equipment-badge-acknowledgment",

@@ -37,6 +37,8 @@ import {
 } from "../../worker-profile-tabs";
 import { WorkerProfileFilesPanel } from "./WorkerProfileFilesPanel";
 import { WorkerProfileSkillAssessmentPanel } from "./WorkerProfileSkillAssessmentPanel";
+import { formatShiftRange } from "@/lib/scheduling/employee-schedule";
+import type { EmploymentWorkerRecord } from "@/lib/admin/employment-workers";
 
 type WorkerProfilePayload = {
   worker: {
@@ -307,6 +309,7 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
 
   const [profile, setProfile] = useState<WorkerProfilePayload | null>(null);
   const [overview, setOverview] = useState<WorkerAccountOverviewPayload | null>(null);
+  const [employment, setEmployment] = useState<EmploymentWorkerRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
@@ -314,7 +317,7 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
   const [editAboutOpen, setEditAboutOpen] = useState(false);
 
   const load = useCallback(async (bust = false) => {
-    const [profileRes, overviewRes] = await Promise.all([
+    const [profileRes, overviewRes, employmentRow] = await Promise.all([
       fetchStaffDetailJson<WorkerProfilePayload & { error?: string }>(
         workerProfileApiUrl(workerId),
         bust ? { bust: true } : undefined
@@ -327,12 +330,19 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
         };
         return { ok: res.ok, payload };
       }),
+      fetch(`/api/admin/employment-workers?candidateId=${encodeURIComponent(workerId)}`, { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) return null;
+          const data = await response.json() as { workers?: EmploymentWorkerRecord[] };
+          return data.workers?.[0] ?? null;
+        }).catch(() => null),
     ]);
 
     if (!profileRes.ok) {
       throw new Error(profileRes.payload.error || "Could not load worker profile.");
     }
     setProfile(profileRes.payload);
+    setEmployment(employmentRow);
     if (overviewRes.ok) setOverview(overviewRes.payload);
     else setOverview(null);
   }, [workerId]);
@@ -778,7 +788,7 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
               <dl className="px-4 py-1">
                 <WorkplaceRow
                   label="Location"
-                  value={primaryFacility?.facility_name?.trim() || "—"}
+                  value={primaryFacility?.facility_name?.trim() || employment?.facilities?.[0] || employment?.location || "—"}
                 />
                 <WorkplaceRow label="Type" value={employmentType} />
                 <WorkplaceRow label="Hire Date" value={hireDate} />
@@ -789,14 +799,14 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
                 <WorkplaceRow
                   label="Assignment Start Date"
                   value={
-                    primaryFacility?.assigned_at
+                    employment?.assignment_start_date || (primaryFacility?.assigned_at
                       ? formatDateShort(primaryFacility.assigned_at)
-                      : "—"
+                      : "—")
                   }
                 />
-                <WorkplaceRow label="Assignment End Date" value="—" />
-                <WorkplaceRow label="Bill Rate" value="—" />
-                <WorkplaceRow label="Pay rate" value={formatPayRate(worker.hourly_rate)} />
+                <WorkplaceRow label="Assignment End Date" value={employment?.assignment_end_date || "—"} />
+                <WorkplaceRow label="Bill Rate" value={employment?.bill_rate || "—"} />
+                <WorkplaceRow label="Pay rate" value={employment?.pay_rate || formatPayRate(worker.hourly_rate)} />
               </dl>
             </section>
           </div>
@@ -827,6 +837,15 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
             <h2 className="text-sm font-semibold text-[#111827]">Work History</h2>
           </div>
           <div className="px-4 py-4">
+            {(overview?.scheduledShifts?.length ?? 0) > 0 ? <section className="mb-5">
+              <h3 className="mb-2 text-sm font-semibold">Scheduled shifts</h3>
+              <ul className="max-h-96 space-y-2 overflow-auto">
+                {overview?.scheduledShifts?.map((shift) => <li key={shift.id} className="rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm">
+                  <p className="font-semibold">{shift.title}</p>
+                  <p>{shift.workDate} · {formatShiftRange(shift.startTime, shift.endTime)}</p>
+                </li>)}
+              </ul>
+            </section> : null}
             <p className="mb-3 text-sm text-[#6B7280]">
               Experience:{" "}
               {profile?.experience?.years != null

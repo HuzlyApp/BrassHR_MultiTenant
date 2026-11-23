@@ -193,6 +193,7 @@ export function parseNameAndTitle(line: string): {
 } {
   const cleaned = stripContactFromPersonName(line)
   const tokens = cleaned.split(/\s+/).filter(Boolean)
+  while (tokens.length && /^(resume|cv)$/i.test(tokens[tokens.length - 1]!)) tokens.pop()
   while (tokens.length && NAME_PREFIXES.has(tokens[0]!.toLowerCase().replace(/\./g, ""))) {
     tokens.shift()
   }
@@ -243,7 +244,8 @@ function lastNameFromFileName(fileName: string, firstName: string): string {
   while (tokens.length && GENERIC_FILE_STEM_RE.test(tokens[0]!.replace(/[^A-Za-z]/g, "").toLowerCase())) {
     tokens.shift()
   }
-  if (!tokens.length) return ""
+  while (tokens.length && /^(resume|cv|curriculumvitae)$/i.test(tokens[tokens.length - 1]!)) tokens.pop()
+  if (!firstName.trim() || !tokens.length || tokens[0]!.toLowerCase() !== firstName.trim().toLowerCase()) return ""
   const parsed = parseNameAndTitle(tokens.join(" "))
   const last = parsed.last_name.trim()
   if (!last) return ""
@@ -313,7 +315,12 @@ export function sanitizeParsedIdentityFields(
   )
   let first_name = header.first_name || stripContactFromPersonName(parsed.first_name)
   let last_name = header.last_name
-  let job_role = parsed.job_role.trim() || header.job_role
+  const job_role = parsed.job_role.trim() || header.job_role
+  if (/_|\b(?:resume|curriculum vitae)\b/i.test(`${parsed.first_name} ${parsed.last_name}`)) {
+    const fromText = preExtractResumeFields(resumeText)
+    first_name = fromText.first_name ?? ""
+    last_name = fromText.last_name ?? ""
+  }
 
   if (!last_name) {
     last_name =
@@ -371,7 +378,7 @@ export function preExtractResumeFields(
     }
   }
 
-  const nameLine = allLines.find((line) => !SECTION_HEADER_RE.test(line)) ?? ""
+  const nameLine = allLines.find((line) => !SECTION_HEADER_RE.test(line) && !/_(?:resume|cv)(?:\.(?:pdf|docx?))?$/i.test(line) && !/\.(?:pdf|docx?)$/i.test(line)) ?? ""
   const fromHeader = parseNameAndTitle(nameLine)
   let job_role = fromHeader.job_role
   if (!job_role) {
@@ -416,11 +423,12 @@ export function buildGrokResumeSnippet(
   if (trimmed.length <= charBudget) return trimmed
 
   const allLines = lines(trimmed)
-  const head = trimmed.slice(0, Math.min(2000, trimmed.length))
+  const head = trimmed.slice(0, Math.floor(charBudget * 0.6))
   const relevant = pickRelevantLines(allLines, 24)
   const tail = relevant.join("\n")
+  const ending = trimmed.slice(-Math.floor(charBudget * 0.3))
 
-  const combined = `${head}\n\n--- contact / title hints ---\n${tail}`.slice(0, charBudget)
+  const combined = `${head}\n\n--- contact / title hints ---\n${tail}\n\n--- final resume sections ---\n${ending}`.slice(0, charBudget)
   return combined
 }
 

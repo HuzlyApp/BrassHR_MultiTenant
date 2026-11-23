@@ -12,7 +12,7 @@ export const PUBLIC_JOBS_PAGE_SIZE = 10;
 /** Split list+detail from laptop width up; tablet/mobile use stacked list → detail. */
 export const PUBLIC_JOBS_DESKTOP_MIN_WIDTH = 1024;
 export const JOBS_BOARD_INPUT_DEBOUNCE_MS = 300;
-export const JOB_LOCATION_TYPES = ["Remote", "Hybrid", "On-site", "Remote, Hybrid"] as const;
+export const JOB_LOCATION_TYPES = ["Remote", "Hybrid", "On-site"] as const;
 export type JobLocationType = (typeof JOB_LOCATION_TYPES)[number];
 export const JOBS_BOARD_SORTS = ["recent", "relevant"] as const;
 export type JobsBoardSort = (typeof JOBS_BOARD_SORTS)[number];
@@ -29,6 +29,7 @@ export type PublicBoardJob = {
   location: string | null;
   location_type?: string | null;
   schedule: string | null;
+  hours_per_week?: number | null;
   employment_type: string;
   pay_rate_min?: number | null;
   pay_rate_max?: number | null;
@@ -295,6 +296,11 @@ export function buildPublicJobsWorkplaceTypeOrFilter(locationType: string): stri
   const pattern = `"%${ilikeValue}%"`;
   return [
     `location_type.eq.${quoted}`,
+    ...(["remote", "hybrid"].includes(cleaned.toLowerCase()) ? [
+      `location_type.in.("Remote, Hybrid","Hybrid, Remote")`,
+      `and(location_type.is.null,schedule.in.("Remote, Hybrid","Hybrid, Remote"))`,
+      `and(location_type.eq."",schedule.in.("Remote, Hybrid","Hybrid, Remote"))`,
+    ] : []),
     `and(location_type.is.null,schedule.eq.${quoted})`,
     `and(location_type.eq."",schedule.eq.${quoted})`,
     `and(location_type.is.null,location.ilike.${pattern})`,

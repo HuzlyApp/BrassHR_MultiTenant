@@ -4,7 +4,7 @@ Tracked product bugs. Move items to **Fixed** when shipped.
 
 ## Open
 
-The shared tracker is the source of truth for remaining reports. As of 2026-11-24, 60 rows remain Open.
+The shared tracker is the source of truth for remaining reports. As of 2026-11-24, 20 rows remain Open after the seventh implementation/reconciliation batch.
 
 ## Implemented — pending deployed QA (2026-11-23)
 
@@ -133,3 +133,64 @@ Validation: 40 tests passed across 12 files; TypeScript passed. New backend and 
 ### Cannot change candidate status from AI Analysis Overview (2026-09-01)
 
 Recruiters could not change a candidate’s application status on the AI Analysis Overview screen. The header showed a non-functional “Attempted Contacted” control, so status had to be updated from the candidate profile instead. Status can now be changed on Overview for the current job application (including candidates with multiple jobs).
+
+## Implemented or verified — seventh batch, pending deployed QA (2026-11-24)
+
+Forty reports were implemented or verified against current code in this continuation. The shared tracker now has 129 Fixed, 20 Open, and one Not a bug / Closed. These changes are on `heneralpepito/remaining-bugs-20261124` and are not yet committed or deployed.
+
+| Bug | Change / evidence |
+| --- | --- |
+| BUG-059 | Distinct Payroll Employment Type label for W2/1099; existing submit-driven required feedback retained. |
+| BUG-060 | Wizard step URLs, deep links after draft hydration, and Back/Forward restoration while retaining tenant parameters. |
+| BUG-090 | Pay-range ordering enforced on compensation navigation, save, and API schema including drafts. |
+| BUG-091 | Successful status mutation immediately updates the job detail badge before background reload. |
+| BUG-092 | Public list/detail projections include stored weekly hours; both public detail surfaces display them. Existing Review expected-hours display retained. |
+| BUG-118 | Pipeline tally uses current status keys, Closed groups, and the live Closed Application/Application Closed labels instead of stale legacy values. |
+| BUG-120 | Bulk deletion resets pagination and refreshes list/count buckets and metrics. |
+| BUG-149 | Careers tenant route redirects to the existing public tenant jobs board and rejects malformed slugs. |
+| BUG-056 | Existing hyphenated-title search verified for QA, QA-TEST, and QA-TEST-Job in text/dashboard tag search. |
+| BUG-034 | Existing role pagination verified with seven roles and a six-row page size. |
+| BUG-064 | Existing selected-worker CSV/XLS export verified. Direct Add Worker intentionally remains unavailable under the onboarding-only product rule. |
+| BUG-043 | Existing database audit trigger verified by creating/renaming a tenant status inside a rolled-back transaction and asserting original v1 and renamed v2 snapshots. No test records persisted; missing historical snapshots cannot be recreated. |
+
+Validation: 79 job/public-board tests across eight files, one roles pagination test, and four worker-directory tests passed (84 tests across ten files). TypeScript passed after the job/wizard changes. Changed backend/public-detail lint has no errors; existing JobDetailsClient memoization error and legacy component warnings remain. Spreadsheet statuses and open-count formula verified via API; native browser rendering is unavailable in this session.
+
+Additional completed reports in this batch:
+
+| Bug | Change / evidence |
+| --- | --- |
+| BUG-097 | Candidate field saves dispatch the existing profile refresh event; list phone numbers use the shared formatter. |
+| BUG-100 | Permission-aware note editing/deletion, with tenant/worker/note-scoped API handlers and visible failures. |
+| BUG-101 | Existing More Action submenu and Delete callback verified. |
+| BUG-117 | Custom action status dialog preselects the matching Follow Up status rather than the first alternate. |
+| BUG-122 | Invalidated pending detail requests cannot overwrite fresh header status; request ownership checked before caching. |
+| BUG-085 | Dashboard Approve PTO opens a real paginated review screen backed by existing time-off request APIs. |
+| BUG-126 | Who Is Off merges scheduled leave with approved requests, excludes ordinary shifts, and deduplicates effective leave. |
+| BUG-127 | Schedule worker links use candidate profile IDs; worker profiles show scoped scheduled-shift history and total shifts. |
+| BUG-066 | Worker profile assignment dates, pay, billing and location reuse the filtered employment directory API. |
+| BUG-077 | Day/week/month/Today calendar navigation plus worker, client, position, location and status filters. |
+| BUG-128 | Unassigned shifts can be created, assigned and unassigned; open shifts have a grid row/filter and dashboard deep link. Migration 20261123213112 applied only to dev qowirmiicsrglehiaoil; RLS and related-record tenant guards retained. Rolled-back live create/assign/unassign and cross-tenant rejection assertions passed. Advisors unchanged. |
+| BUG-104 | Search explains all-keyword matching/removal; reset shows loading instead of stale zero counts; aborted responses cannot clear newer loading/results. |
+| BUG-105 | Canonical workplace options only; legacy combined postings still match Remote/Hybrid filters. |
+| BUG-107 | Remote jobs skip on-site confirmation across public, candidate and worker apply surfaces while retaining service-area validation. |
+| BUG-094 | Detail-menu Delete (including archived jobs) uses existing typed confirmation and tenant-scoped deletion, then refreshes caches/navigation. |
+| BUG-135 | Preview chooses a published tenant job and loads its real questions without creating an applicant. Required answers validated; missing context/failed saves cannot complete the live step. |
+| BUG-137 | Authorization e-sign routes to a signing form; typed acknowledgment requires consent and legal-name signature. Legacy checkbox-only acknowledgment evidence is incomplete. Firma template behavior retained. |
+| BUG-113 | Existing resume evidence reconciliation verified to produce 1/4 completed on reassigned workflow. Reported candidate absent from confirmed dev tenant; deployed reproduction pending. |
+| BUG-115 | Duplicate creates a uniquely named unpublished configuration copy; Unpublish uses existing scoped update. Neither copies candidate progress/mappings. |
+| BUG-136 | Existing admin workflow step inspection/completion and document Preview/Download verified; legacy checklist URL still routes to profile. |
+
+Verification includes targeted UI/API/domain regressions, TypeScript, changed-source lint and rolled-back Supabase integrity checks. Changes remain uncommitted on `heneralpepito/remaining-bugs-20261124` and app deployment/deployed authenticated QA are pending. No live applicant was created, no PTO request approved, and no schedule test records persisted. Existing lint warnings and prior database advisor findings remain outside these fixes.
+
+| Additional report | Change / evidence |
+| --- | --- |
+| BUG-004 | Archived the two reported junk departments in dev, preserving each linked job. Profile dropdown excludes inactive departments; validation rejects compensation-label names. |
+| BUG-054 | Facility GET permits scoped reads for imported applicants without a linked login; writes retain linking/approval requirements. Access decisions are awaited and worker reads scoped before retrieval. The old practice-setting field is already absent from current UI. |
+| BUG-049 | Pasted titles do not supply surnames; filename fallback matches the resume's actual first name and removes resume/CV suffixes. Filename banners/polluted AI names reconcile against text. Manual titles are retained and candidate location is shown separately from assignment worksite. |
+| BUG-096 | Shared ATS parser requests/preserves summary, skills, experience and education through normalization, storage and review UI. Empty AI identity falls back to contact text; missing required identity still disables Upload. Cache version and filename-key isolation updated. |
+| BUG-055 | Call-log reads have a deadline and Retry, with tenant/candidate scope. Existing Applications rendering and scoped service verified. No dev applications with missing worker IDs behind linked profiles were found. |
+| BUG-070 | Shared workflow/profile reads time out with retryable feedback; profile failures cannot leave an unhandled promise. Stalled-workflow regression verifies subsequent successful retry. |
+| BUG-089 | Mail picker avoids a browser-session lock wait and a default-array reload loop; bounded cookie-auth reads and Retry candidates recover failures. No email sent. |
+| BUG-035 | Three serial role writes replaced by server-only atomic RPC in migration 20261123232126, applied to dev. Live rolled-back assertions verify grants/label rollback on insert failure and restricted execute privileges. Admin protection/access refresh retained; end-to-end deployed latency remains to be measured. |
+
+Final batch validation before commit: 274 tests passed across all 47 changed regression files; TypeScript passed; git diff whitespace checks passed. Additional unchanged service/routing tests were run during implementation. Changed-source lint has no new errors; existing warnings remain. Both dev migrations retain existing RLS, and security/performance/health advisory summaries are unchanged. Tracker formatting/validation and the 20-open count are verified through native Sheet API metadata; authenticated deployed visual QA remains pending.

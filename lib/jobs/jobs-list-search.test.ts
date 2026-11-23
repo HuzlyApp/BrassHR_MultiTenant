@@ -22,6 +22,13 @@ describe("buildJobsSearchApplyPayload", () => {
 });
 
 describe("jobMatchesTextSearch", () => {
+  it("matches partial hyphenated job titles consistently", () => {
+    for (const query of ["QA", "QA-TEST", "QA-TEST-Job"]) {
+      const job = { public_title: "QA-TEST-Job" };
+      expect(jobMatchesTextSearch(job, query)).toBe(true);
+      expect(jobMatchesDashboardSearchTags(job, [query])).toBe(true);
+    }
+  });
   const job = {
     source_type: "MSP",
     public_title: "Fallback Title",

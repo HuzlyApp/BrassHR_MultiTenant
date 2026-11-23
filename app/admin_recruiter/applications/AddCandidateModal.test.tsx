@@ -20,6 +20,23 @@ beforeEach(() => {
 });
 const files = () => [new File(["resume"], "one.pdf", { type: "application/pdf" }), new File(["resume"], "two.pdf", { type: "application/pdf" })];
 describe("single-resume import", () => {
+  it("keeps Upload disabled when the parser supplies no required identity", async () => {
+    const { container } = render(<AddCandidateModal open jobId="job-a" onClose={vi.fn()} />);
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [files()[0]] } });
+    await screen.findByPlaceholderText("First name");
+    expect(screen.getByRole("button", { name: "Upload", exact: true })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("First name is required");
+  });
+  it("shows parsed resume sections and the candidate's own location for review", async () => {
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ parsed: { firstName: "Jane", lastName: "Doe", email: "jane@example.com", phone: "", location: "Austin, TX", summary: "Registered nurse.", skills: ["ICU"], experience: [{ company: "Clinic", position: "RN", start_date: "2021", end_date: null, description: "Patient care" }], education: [{ institution: "University", degree: "BSN" }] } }) });
+    const { container } = render(<AddCandidateModal open jobId="job-a" onClose={vi.fn()} />);
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [files()[0]] } });
+    expect(await screen.findByText("Candidate location from resume: Austin, TX")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Parsed resume details"));
+    expect(screen.getByText("Registered nurse.")).toBeVisible();
+    expect(screen.getByText("Patient care")).toBeVisible();
+    expect(screen.getByText(/BSN.*University/)).toBeVisible();
+  });
   it("explains the specific name error blocking upload", async () => {
     const { container } = render(<AddCandidateModal open jobId="job-a" onClose={vi.fn()} />);
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [files()[0]] } });

@@ -11,6 +11,7 @@ function stepWith(libraryId: string, settings: Record<string, unknown> = {}, isE
 describe("agreement-signature-step", () => {
   it("treats Agreement eSign and Pre-Hire acknowledgment copies as agreement signing steps", () => {
     expect(isAgreementSignatureStep(stepWith("employee-agreement"))).toBe(true);
+    expect(isAgreementSignatureStep(stepWith("authorization-esign", { phase: "pre_hire" }))).toBe(true);
     expect(isAgreementSignatureStep(stepWith("policy-acknowledgment", { phase: "pre_hire" }))).toBe(true);
   });
 
