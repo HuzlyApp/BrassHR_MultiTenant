@@ -37,6 +37,7 @@ import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPrev
 import HireJourneyThemePanel from "@/app/admin_recruiter/settings/HireJourneyThemePanel";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
 import toast from "react-hot-toast";
+import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 
 type PreviewMode = "login" | "signup";
 type LogoField = "logo" | "login" | "signup" | "favicon";
@@ -267,7 +268,9 @@ function LogoUploadBlock({
   onRemove: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const hasImage = previewSrc.trim().length > 0;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const hasImage = previewSrc.trim().length > 0 && previewSrc !== failedSrc;
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between">
@@ -276,7 +279,8 @@ function LogoUploadBlock({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={previewSrc}
-            alt=""
+            alt={`${label} preview`}
+            onError={() => setFailedSrc(previewSrc)}
             className="size-11 shrink-0 rounded-full bg-white object-contain"
           />
         ) : (
@@ -302,13 +306,18 @@ function LogoUploadBlock({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.png,.jpg,.jpeg,.webp,.svg,.ico"
+        aria-label={`Upload ${label}`}
+        accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
         onChange={(event) => {
-          onFileChange(event.target.files?.[0] ?? null);
+          const file = event.target.files?.[0] ?? null;
+          const invalid = file && (!new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]).has(file.type) || file.size > 2 * 1024 * 1024);
+          setFileError(invalid ? "Use PNG, JPG, WEBP, or SVG, up to 2 MB." : null);
+          if (!invalid) onFileChange(file);
           event.target.value = "";
         }}
         className="sr-only"
       />
+      {fileError ? <p role="alert" className="text-xs text-red-700">{fileError}</p> : null}
     </div>
   );
 }
@@ -359,32 +368,37 @@ function BackgroundUploadCard({
   );
 }
 
-function ColorRow({
-  label,
-  value,
-  onChange,
-}: {
+function ColorRow({ label, value, onChange }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
 }) {
+  const [draft, setDraft] = useState(value);
+  const [invalid, setInvalid] = useState(false);
+  useEffect(() => {
+    setDraft(value);
+    setInvalid(false);
+  }, [value]);
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-3.5">
-      <div className="flex items-center gap-3">
-        <input
-          type="color"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="size-9 cursor-pointer rounded-lg border border-[#E5E7EB] bg-white p-0.5"
-          aria-label={label}
-        />
-        <input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-9 w-[96px] rounded-lg border border-[#E5E7EB] px-2.5 text-xs font-medium uppercase text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
-        />
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-3.5">
+        <div className="flex items-center gap-3">
+          <input type="color" value={value} onChange={(event) => onChange(event.target.value)}
+            className="size-9 cursor-pointer rounded-lg border border-[#E5E7EB] bg-white p-0.5" aria-label={label} />
+          <input value={draft} aria-label={`${label} hex`} aria-invalid={invalid}
+            required pattern="#[0-9a-fA-F]{6}" title="Enter a six-digit hex color, for example #00B7B6."
+            onChange={(event) => {
+              const next = event.target.value;
+              setDraft(next);
+              const valid = isValidBrandingHex(next);
+              setInvalid(!valid);
+              if (valid) onChange(next.trim());
+            }}
+            className="h-9 w-[96px] rounded-lg border border-[#E5E7EB] px-2.5 text-xs font-medium uppercase text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]" />
+        </div>
+        <span className="text-xs font-medium text-[#6B7280]">{label}</span>
       </div>
-      <span className="text-xs font-medium text-[#6B7280]">{label}</span>
+      {invalid ? <p role="alert" className="text-xs text-red-600">Enter a six-digit hex color, for example #00B7B6.</p> : null}
     </div>
   );
 }
@@ -418,10 +432,13 @@ export default function BrandingSettingsPanel({
   const searchParams = useSearchParams();
   const currentBranding = useTenantBranding();
   const editedRef = useRef(false);
+  const savedBrandingRef = useRef(currentBranding);
+  const [resetVersion, setResetVersion] = useState(0);
   const [phase, setPhase] = useState<"refreshing" | "ready" | "error" | "empty">("refreshing");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode>("login");
   const [mainTab, setMainTab] = useState<BrandingMainTab>(initialMainTab);
   const [subTab, setSubTab] = useState<BrandingSubTab>(() => {
@@ -526,6 +543,7 @@ export default function BrandingSettingsPanel({
       };
       if (!res.ok) throw new Error(payload.error || "Could not load branding.");
       if (payload.branding) {
+        savedBrandingRef.current = payload.branding;
         if (!editedRef.current) applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
       }
@@ -661,8 +679,13 @@ export default function BrandingSettingsPanel({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!headline.trim() || headline.trim().length > 120) {
+      setError("Login headline is required and must be 120 characters or fewer.");
+      return;
+    }
     setSaving(true);
     setError(null);
+    setSaveMessage(null);
 
     try {
       const saveInit = await staffFetchInit({ "Content-Type": "application/json" });
@@ -747,6 +770,7 @@ export default function BrandingSettingsPanel({
       };
       if (!res.ok) throw new Error(payload.error || "Could not save branding.");
       if (payload.branding) {
+        savedBrandingRef.current = payload.branding;
         applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
         writeCachedTenantBranding(payload.branding);
@@ -754,8 +778,10 @@ export default function BrandingSettingsPanel({
 
       void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
       notifyBrandingUpdated();
+      editedRef.current = false;
       setClearedLogos({ logo: false, login: false, signup: false, favicon: false });
       toast.success("Saved! Your team and workers will see the new look.");
+      setSaveMessage("Branding saved successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save branding.");
     } finally {
@@ -829,6 +855,7 @@ export default function BrandingSettingsPanel({
 
   return (
     <form
+      key={resetVersion}
       onSubmit={handleSubmit}
       onChange={() => {
         editedRef.current = true;
@@ -842,10 +869,11 @@ export default function BrandingSettingsPanel({
       className="space-y-6"
     >
       {error ? <AccountErrorBanner message={error} /> : null}
+      {saveMessage ? <p role="status" className="text-sm text-teal-700">{saveMessage}</p> : null}
 
       <div>
         <h1 className="text-xl font-semibold leading-7 text-black">Branding</h1>
-        <p className="text-xs font-normal leading-4 text-[#6B7280]">Customized your branding.</p>
+        <p className="text-xs font-normal leading-4 text-[#6B7280]">Customize your branding.</p>
       </div>
 
       <div className="flex justify-center">
@@ -1007,9 +1035,11 @@ export default function BrandingSettingsPanel({
                 {previewCard}
               </div>
               <div className="grid w-full gap-4 md:grid-cols-2 xl:max-w-[calc(100%-384px)]">
-                <FieldBlock label="Login headline">
+                <FieldBlock label="Login headline" hint={`Required. ${headline.length}/120 characters.`}>
                   <input
                     value={headline}
+                    maxLength={120}
+                    required
                     onChange={(event) => setHeadline(event.target.value)}
                     placeholder={`Welcome to ${currentBranding.companyName}`}
                     className="h-11 w-full rounded-lg border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
@@ -1177,7 +1207,20 @@ export default function BrandingSettingsPanel({
               data-branding-ignore-edit=""
               onClick={() => {
                 editedRef.current = false;
-                void loadBranding();
+                applyBranding(savedBrandingRef.current);
+                setResetVersion((version) => version + 1);
+                setLogoFile(null);
+                setLoginLogoFile(null);
+                setSignupLogoFile(null);
+                setFaviconFile(null);
+                setBackgroundFile(null);
+                setLogoPreview(null);
+                setLoginLogoPreview(null);
+                setSignupLogoPreview(null);
+                setFaviconPreview(null);
+                setBackgroundPreview(null);
+                setClearedLogos({ logo: false, login: false, signup: false, favicon: false });
+                setError(null);
               }}
               disabled={saving}
               className={actionButtonClass("secondary", saving)}
@@ -1195,7 +1238,7 @@ export default function BrandingSettingsPanel({
           </div>
         </>
       ) : (
-        <HireJourneyThemePanel embedded />
+        <HireJourneyThemePanel embedded brandDefaults={{ primaryHex, secondaryHex }} />
       )}
     </form>
   );

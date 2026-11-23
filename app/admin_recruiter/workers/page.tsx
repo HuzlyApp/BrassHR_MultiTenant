@@ -18,6 +18,7 @@ import {
   type WorkerColumnId,
 } from "./worker-columns";
 import { renderWorkerListCell } from "./render-worker-list-cell";
+import { compareWorkerRates, parseWorkerRate } from "./worker-rates";
 import { exportWorkersCsv, exportWorkersXls } from "./export-workers";
 import { type WorkerListRow } from "./figma-demo-data";
 import { WorkersMetricsCards } from "./WorkersMetricsCards";
@@ -454,8 +455,8 @@ export default function WorkersPage() {
       const min = parseFloat(extendedFilters.minPayRate);
       if (!Number.isNaN(min)) {
         list = list.filter((w) => {
-          const num = parseFloat((w.payRate || "").replace(/[^0-9.]/g, ""));
-          return !Number.isNaN(num) && num >= min;
+          const num = parseWorkerRate(w.payRate);
+          return num !== null && num >= min;
         });
       }
     }
@@ -463,8 +464,8 @@ export default function WorkersPage() {
       const max = parseFloat(extendedFilters.maxPayRate);
       if (!Number.isNaN(max)) {
         list = list.filter((w) => {
-          const num = parseFloat((w.payRate || "").replace(/[^0-9.]/g, ""));
-          return !Number.isNaN(num) && num <= max;
+          const num = parseWorkerRate(w.payRate);
+          return num !== null && num <= max;
         });
       }
     }
@@ -516,9 +517,7 @@ export default function WorkersPage() {
             valB = b.jobRole;
             break;
           case "payRate":
-            valA = a.payRate || "";
-            valB = b.payRate || "";
-            break;
+            return compareWorkerRates(a.payRate, b.payRate, sortDirection);
           case "billRate":
             valA = a.billRate || "";
             valB = b.billRate || "";

@@ -223,7 +223,7 @@ export default function BrandingColorField({
       <div className="flex items-center gap-3 rounded-[10px] border border-[#e2e8f0] bg-white p-3">
         <button
           type="button"
-          aria-label={`Edit ${label} color`}
+          aria-label={`Edit ${label}${/color$/i.test(label) ? "" : " color"}`}
           aria-expanded={open}
           aria-controls={pickerId}
           onClick={() => (open ? setOpen(false) : openPicker())}
@@ -251,7 +251,7 @@ export default function BrandingColorField({
                 linear-gradient(to right, #fff, ${hueCss(hsv.h)})
               `,
             }}
-            onPointerDown={bindDrag((e) => updateSvFromPointer(e.clientX, e.clientY))}
+            onPointerDown={(event) => bindDrag((e) => updateSvFromPointer(e.clientX, e.clientY))(event)}
           >
             <span
               className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(15,23,42,0.25)]"
@@ -270,7 +270,7 @@ export default function BrandingColorField({
               background:
                 "linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
             }}
-            onPointerDown={bindDrag((e) => updateHueFromPointer(e.clientX))}
+            onPointerDown={(event) => bindDrag((e) => updateHueFromPointer(e.clientX))(event)}
           >
             <span
               className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_1px_4px_rgba(15,23,42,0.35)]"

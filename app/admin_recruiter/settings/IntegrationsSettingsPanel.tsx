@@ -638,7 +638,7 @@ export default function IntegrationsSettingsPanel() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-[#0F172A]">{item.name}</p>
                         <p className="text-[11px] text-[#64748B]">
-                          Connected on {item.connectedOn ?? "today"}
+                          {item.connectedOn ? `Connected on ${item.connectedOn}` : "Connected today"}
                         </p>
                       </div>
                       <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#047857]">

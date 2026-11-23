@@ -382,6 +382,7 @@ function EditProfessionDialog({
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             maxLength={80}
+            aria-describedby="profession-name-limit"
             autoFocus
             aria-label="Profession name"
             className={inputClassName}
@@ -393,6 +394,7 @@ function EditProfessionDialog({
             }}
           />
         </label>
+        <p id="profession-name-limit" className="mt-1 text-xs text-[#94A3B8]">{name.length}/80 characters</p>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"

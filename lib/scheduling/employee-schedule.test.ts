@@ -58,7 +58,7 @@ describe("parseEmployeeScheduleShiftInput", () => {
 describe("formatShiftRange", () => {
   it("renders the clock labels used on the week grid", () => {
     expect(formatShiftRange("08:00:00", "17:00:00")).toBe("8:00 AM - 5:00 PM");
-    expect(formatShiftRange("22:00:00", "06:00:00")).toBe("10:00 PM - 6:00 AM");
+    expect(formatShiftRange("22:00:00", "06:00:00")).toBe("10:00 PM - 6:00 AM (next day)");
   });
 });
 

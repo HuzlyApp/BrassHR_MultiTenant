@@ -16,6 +16,9 @@ export function generateStaticParams() {
 
 export default async function SettingsSectionPage({ params }: PageProps) {
   const { section } = await params;
+  if (section === "professions") {
+    redirect("/admin_recruiter/settings/profession");
+  }
   if (section === "company") {
     redirect("/admin_recruiter/settings/branding");
   }

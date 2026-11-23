@@ -221,12 +221,15 @@ export default function AddCustomProfessionModal({
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={80}
+              aria-describedby="custom-position-name-limit"
               disabled={creating}
               placeholder="Front-End Developer"
               aria-required
               className={fieldClassName}
             />
           </label>
+
+          <p id="custom-position-name-limit" className="text-xs text-[#94A3B8]">{name.length}/80 characters</p>
 
           <label className="block space-y-1.5">
             <span className={labelClassName}>Description (Optional)</span>

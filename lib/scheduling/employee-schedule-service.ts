@@ -382,3 +382,10 @@ export async function updateEmployeeScheduleShift(
 
   return mapShift(data as ShiftRow, facilityName, departmentName);
 }
+
+export async function deleteEmployeeScheduleShift(supabase: SupabaseClient, tenantId: string, shiftId: string): Promise<boolean> {
+  const { data, error } = await supabase.from("employee_schedule_shifts").delete()
+    .eq("tenant_id", tenantId).eq("id", shiftId).select("id").maybeSingle();
+  if (error) throw error;
+  return Boolean(data?.id);
+}

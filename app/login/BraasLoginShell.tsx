@@ -12,7 +12,8 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 
-export { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
+export { interStyle };
 
 export const loginInputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";

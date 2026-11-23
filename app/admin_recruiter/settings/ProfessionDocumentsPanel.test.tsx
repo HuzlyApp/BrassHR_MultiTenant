@@ -344,6 +344,7 @@ describe("ProfessionDocumentsPanel", () => {
     const nameInput = screen.getByLabelText("Profession name");
     await user.clear(nameInput);
     await user.type(nameInput, "Registered Nurse");
+    expect(screen.getByText("16/80 characters")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {

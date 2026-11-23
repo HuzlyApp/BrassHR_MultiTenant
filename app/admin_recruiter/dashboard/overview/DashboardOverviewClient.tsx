@@ -117,7 +117,7 @@ const QUICK_ACTIONS: {
     label: "Manage Clients",
     icon: `${HOME_ICON_BASE}/quick-manage-clients.svg`,
     iconClass: "h-[22px] w-[23.28px]",
-    href: "/admin_recruiter/facilities",
+    href: "/admin_recruiter/clients",
   },
   {
     label: "View Submission",

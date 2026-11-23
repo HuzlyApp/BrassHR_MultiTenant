@@ -63,6 +63,28 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
     [documents, selectedId]
   );
 
+  const dirty = mode === "create"
+    ? Boolean(title || documentKey || lastUpdatedLabel || bodyHtml || audience !== "all" || !isPublished)
+    : Boolean(selected && (title !== selected.title || documentKey !== selected.document_key ||
+        lastUpdatedLabel !== (selected.last_updated_label ?? "") || audience !== selected.audience ||
+        isPublished !== selected.is_published || bodyHtml !== legalSectionsToHtml(selected.sections ?? [])));
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const onNavigate = (event: MouseEvent) => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement) || link.target === "_blank" || link.hasAttribute("download")) return;
+      const next = new URL(link.href, window.location.href);
+      if (next.pathname === window.location.pathname && next.search === window.location.search) return;
+      if (!window.confirm("Discard unsaved policy changes?")) { event.preventDefault(); event.stopPropagation(); }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    document.addEventListener("click", onNavigate, true);
+    return () => { window.removeEventListener("beforeunload", onUnload); document.removeEventListener("click", onNavigate, true); };
+  }, [dirty]);
+
   const applyRecord = useCallback((item: LegalDocumentRecord) => {
     setTitle(item.title);
     setDocumentKey(item.document_key);
@@ -117,6 +139,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
 
   const startCreate = () => {
     if (!canEdit) return;
+    if (dirty && !window.confirm("Discard unsaved policy changes?")) return;
     setMode("create");
     setSelectedId(null);
     setTitle("");
@@ -128,6 +151,8 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
   };
 
   const selectDocument = (id: string) => {
+    if (id === selectedId && mode === "view") return;
+    if (dirty && !window.confirm("Discard unsaved policy changes?")) return;
     setMode("view");
     setSelectedId(id);
   };

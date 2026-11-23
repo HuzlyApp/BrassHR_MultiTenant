@@ -14,9 +14,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Calendar, ChevronDown, Download, Filter, Loader2, Search } from "lucide-react";
+import { Calendar, ChevronDown, Download, Filter, Search } from "lucide-react";
 import type { DateRangePreset } from "@/lib/analytics/period";
 import type { TeamProductivityPayload } from "@/lib/analytics/team-productivity-service";
+import SettingsSelect from "@/app/admin_recruiter/settings/SettingsSelect";
 
 const CHART_AXIS_TICK = { fontSize: 10, fill: "#6B7280" };
 const CHART_GRID_STROKE = "#E5E7EB";
@@ -264,18 +265,14 @@ export default function TeamProductivityClient() {
             <label className="sr-only" htmlFor="tp-preset">
               Date range
             </label>
-            <select
+            <SettingsSelect
               id="tp-preset"
+              aria-label="Date range"
               value={preset}
-              onChange={(e) => setParams({ preset: e.target.value })}
-              className="flex items-center gap-1 rounded-l-lg border border-[#E5E7EB] bg-white px-2 py-1.5 font-[Inter,sans-serif] text-[12px] text-[#374151]"
-            >
-              {PRESET_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              onChange={value => setParams({ preset: value })}
+              options={PRESET_OPTIONS.map(option => ({ value: option.id, label: option.label }))}
+              triggerClassName="rounded-r-none text-xs"
+            />
             <span className="flex items-center gap-1 rounded-r-lg border border-l-0 border-[#E5E7EB] bg-white px-2 py-1.5 font-[Inter,sans-serif] text-[12px] text-[#374151]">
               <Calendar className="h-4 w-4" aria-hidden />
               {data?.period.label ?? presetLabel}
@@ -397,9 +394,9 @@ export default function TeamProductivityClient() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-[#6B7280]">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-          <span className="font-[Inter,sans-serif] text-sm">Loading productivity analytics…</span>
+        <div role="status" aria-label="Loading productivity analytics" className="space-y-5 py-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-200" />)}</div>
+          <div className="h-64 animate-pulse rounded-xl bg-slate-200" />
         </div>
       ) : null}
 

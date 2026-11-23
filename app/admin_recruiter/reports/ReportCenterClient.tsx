@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, ChevronRight, Search } from "lucide-react";
 import {
-  getCategoryCount,
   getReportsForCategory,
   REPORT_CATEGORIES,
   type ReportCategoryId,
@@ -116,14 +115,14 @@ function CategoryNavItem({
 export default function ReportCenterClient() {
   const [activeCategory, setActiveCategory] = useState<ReportCategoryId>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [includePlanned, setIncludePlanned] = useState(false);
 
   const visibleReports = useMemo(
-    () => getReportsForCategory(activeCategory, searchQuery, activeCategory === "all"),
-    [activeCategory, searchQuery],
+    () => getReportsForCategory(activeCategory, searchQuery).filter(report => includePlanned || report.href),
+    [activeCategory, searchQuery, includePlanned],
   );
 
-  const sectionTitle =
-    activeCategory === "all" && !searchQuery.trim() ? "Suggest Reports" : "Reports";
+  const sectionTitle = includePlanned ? "Available and planned reports" : "Available reports";
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
@@ -133,7 +132,7 @@ export default function ReportCenterClient() {
             Report Center
           </h1>
           <p className="mt-0 font-[Inter,sans-serif] text-[16px] font-normal leading-[24px] text-[#374151]">
-            Build reports and share data insights and improve your Workable usage.
+            Explore reports and share insights from your BrassHR data.
           </p>
         </div>
         <div className="relative w-full shrink-0 sm:max-w-[317px]">
@@ -152,6 +151,7 @@ export default function ReportCenterClient() {
         </div>
       </div>
 
+      <label className="flex items-center gap-2 text-sm text-[#374151]"><input type="checkbox" checked={includePlanned} onChange={event => setIncludePlanned(event.target.checked)} />Include planned reports</label>
       <div className="flex min-h-[640px] flex-col gap-5 rounded-xl border border-[#E5E7EB] bg-white p-5 lg:flex-row">
         <aside className="w-full shrink-0 rounded-md border border-[#E5E7EB] p-5 lg:w-[290px]">
           <nav className="flex flex-col gap-2" aria-label="Report categories">
@@ -161,7 +161,7 @@ export default function ReportCenterClient() {
                 categoryId={category.id}
                 label={category.label}
                 icon={category.icon}
-                count={getCategoryCount(category.id)}
+                count={getReportsForCategory(category.id, "").filter(report => includePlanned || report.href).length}
                 active={activeCategory === category.id}
                 onSelect={setActiveCategory}
               />

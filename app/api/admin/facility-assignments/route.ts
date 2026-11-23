@@ -1,3 +1,4 @@
+import { FacilityValidationError } from "@/lib/facilities/errors";
 import { NextRequest, NextResponse } from "next/server";
 import {
   assignFacilityToWorker,
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/facility-assignments POST]", err);
+    if (err instanceof FacilityValidationError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof ServiceAreaDeniedError) {
       return serviceAreaDeniedResponse(err);
     }

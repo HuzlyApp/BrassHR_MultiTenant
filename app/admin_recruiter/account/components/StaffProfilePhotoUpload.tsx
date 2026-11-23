@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
+import { validateStaffProfilePhoto } from "@/lib/account/staff-profile-photo";
 import { ACCOUNT_DATA_QUERY_KEY } from "@/lib/account/hooks/use-account-data-query";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -33,6 +34,14 @@ export function StaffProfilePhotoUpload({
   async function handlePhotoSelected(file: File | undefined) {
     if (!file) return;
 
+    const validationError = validateStaffProfilePhoto(file);
+    if (validationError) {
+      setUploadError(validationError);
+      setUploadSuccess(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(false);
@@ -53,7 +62,7 @@ export function StaffProfilePhotoUpload({
         profilePhotoUrl?: string | null;
         error?: string;
       };
-      if (!res.ok) throw new Error(payload.error || "Could not upload photo.");
+      if (!res.ok) throw new Error(res.status === 413 ? "Photo is too large (max 2 MB)." : payload.error || "Could not upload photo.");
 
       const nextUrl = payload.profilePhotoUrl ?? null;
       URL.revokeObjectURL(localPreview);
@@ -96,7 +105,7 @@ export function StaffProfilePhotoUpload({
     <input
       ref={fileInputRef}
       type="file"
-      accept="image/jpeg,image/png,image/webp,image/jpg"
+      accept="image/jpeg,image/png,image/jpg"
       className="sr-only"
       disabled={uploading}
       onChange={(event) => void handlePhotoSelected(event.target.files?.[0])}
@@ -206,7 +215,7 @@ export function StaffProfilePhotoUpload({
             Choose photo
           </span>
           <span className="truncate text-sm text-[#6B7280]">
-            {uploading ? "Uploading..." : selectedFileName || "JPG or PNG"}
+            {uploading ? "Uploading..." : selectedFileName || "JPG or PNG (max 2 MB)"}
           </span>
           {fileInput}
         </label>

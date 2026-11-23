@@ -57,3 +57,16 @@ export function readWorkflowStepDragPayload(
 export function isWorkflowStepDrag(dataTransfer: DataTransfer): boolean {
   return Array.from(dataTransfer.types ?? []).includes(DRAG_DATA_TYPE);
 }
+
+/** Prevent the browser from inserting the library's text/plain fallback into editable text. */
+export function rejectWorkflowStepTextDrop(event: {
+  target: EventTarget | null;
+  dataTransfer: DataTransfer;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+}): void {
+  if (!isWorkflowStepDrag(event.dataTransfer) || !(event.target instanceof Element)) return;
+  if (!event.target.closest('input, textarea, [contenteditable="true"]')) return;
+  event.preventDefault();
+  event.stopPropagation();
+}

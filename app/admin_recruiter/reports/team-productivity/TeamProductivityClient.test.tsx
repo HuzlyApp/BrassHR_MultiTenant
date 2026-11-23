@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const replace = vi.fn();
@@ -12,6 +12,14 @@ vi.mock("next/navigation", () => ({
 import TeamProductivityClient from "./TeamProductivityClient";
 
 describe("TeamProductivityClient", () => {
+  it("shows a dashboard skeleton while loading and offers an app-styled date picker", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    render(<TeamProductivityClient />);
+    expect(screen.getByRole("status", { name: "Loading productivity analytics" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Date range" }));
+    fireEvent.click(screen.getByRole("option", { name: "Year" }));
+    expect(replace).toHaveBeenCalledWith(expect.stringContaining("preset=year"), { scroll: false });
+  });
   beforeEach(() => {
     replace.mockClear();
     vi.stubGlobal(

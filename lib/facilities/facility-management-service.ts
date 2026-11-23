@@ -10,6 +10,7 @@ import type {
 
 type FacilityRow = {
   id: string;
+  client_id: string;
   tenant_id: string;
   name: string | null;
   address: string | null;
@@ -76,6 +77,7 @@ async function loadAssignmentCountsByFacility(
   const { data: assignmentRows, error: assignmentError } = await supabase
     .from("worker_shift_assignments")
     .select("id, shift_id, worker_id")
+    .neq("status", "cancelled")
     .eq("tenant_id", tenantId)
     .in("shift_id", shiftIds);
   if (assignmentError) throw assignmentError;
@@ -100,21 +102,25 @@ async function loadAssignmentCountsByFacility(
 
 export async function loadFacilitiesForTenant(
   supabase: SupabaseClient,
-  tenantId: string
+  tenantId: string,
+  clientId?: string
 ): Promise<FacilitiesListResponse> {
-  const [{ data: facilityRows, error: facilityError }, assignmentCounts] = await Promise.all([
-    supabase
-      .from("facility")
-      .select("id, tenant_id, name, address, phone, about, created_at")
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false }),
+  let query = supabase.from("facility")
+    .select("id, tenant_id, client_id, name, address, phone, about, created_at")
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  if (clientId) query = query.eq("client_id", clientId);
+  const [{ data: facilityRows, error: facilityError }, assignmentCounts, clientResult] = await Promise.all([
+    query,
     loadAssignmentCountsByFacility(supabase, tenantId),
+    supabase.from("clients").select("id, company_name").eq("tenant_id", tenantId).order("company_name"),
   ]);
+  if (clientResult.error) throw clientResult.error;
 
   if (facilityError) throw facilityError;
 
   const facilities = ((facilityRows ?? []) as FacilityRow[]).map((row) => ({
     id: row.id,
+    clientId: row.client_id,
     name: row.name?.trim() || "Unnamed facility",
     address: row.address?.trim() || null,
     phone: row.phone?.trim() || null,
@@ -130,6 +136,7 @@ export async function loadFacilitiesForTenant(
   });
 
   return {
+    clients: (clientResult.data ?? []).map((client) => ({ id: String(client.id), name: String(client.company_name || "Client organization") })),
     facilities,
     meta: { tenantId, total: facilities.length },
   };
@@ -194,6 +201,7 @@ export async function loadAssignedWorkersForFacility(
   const { data: assignmentRows, error: assignmentError } = await supabase
     .from("worker_shift_assignments")
     .select("id, shift_id, worker_id, assigned_at, status")
+    .neq("status", "cancelled")
     .eq("tenant_id", tenantId)
     .in("shift_id", shiftIds)
     .order("assigned_at", { ascending: false });
@@ -278,6 +286,7 @@ export async function loadAssignableCandidatesForFacility(
     const { data: assignmentRows, error: assignmentError } = await supabase
       .from("worker_shift_assignments")
       .select("worker_id")
+      .neq("status", "cancelled")
       .eq("tenant_id", tenantId)
       .in("shift_id", shiftIds);
     if (assignmentError) throw assignmentError;
@@ -293,6 +302,7 @@ export async function loadAssignableCandidatesForFacility(
     .from("workers")
     .select("id, candidate_id, first_name, last_name, email, job_role, status, location")
     .eq("tenant_id", tenantId)
+    .eq("conversion_status", "converted")
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true })
     .limit(500);
@@ -312,6 +322,7 @@ export async function loadAssignableCandidatesForFacility(
     const { data: linkedWorkers, error: linkedError } = await supabase
       .from("worker")
       .select("id, user_id, first_name, last_name, email, job_role, status, city, state")
+      .eq("tenant_id", tenantId)
       .in("id", candidateIds);
     if (linkedError) throw linkedError;
     for (const row of (linkedWorkers ?? []) as WorkerRow[]) {

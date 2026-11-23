@@ -70,7 +70,8 @@ export function formatClockLabel(value: string): string {
 }
 
 export function formatShiftRange(startTime: string, endTime: string): string {
-  return `${formatClockLabel(startTime)} - ${formatClockLabel(endTime)}`;
+  const overnight = endTime.slice(0, 5) < startTime.slice(0, 5);
+  return `${formatClockLabel(startTime)} - ${formatClockLabel(endTime)}${overnight ? " (next day)" : ""}`;
 }
 
 export type ShiftTimeWindow = {

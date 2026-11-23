@@ -39,7 +39,7 @@ import { JobPublicViewLink } from "./JobPublicViewLink";
 import { JobTagsModal } from "./JobTagsModal";
 import {
   formatJobDetailsCreatedBy,
-  formatJobDetailsDate,
+  formatJobDetailsPostedDate,
   formatJobDetailsClientName,
   formatJobDetailsLocation,
   formatJobDetailsMspName,
@@ -422,7 +422,7 @@ export default function JobDetailsClient({ jobId }: Props) {
   const sourceJobId = job ? formatJobDetailsSourceJobId(job) : "";
   const createdByLabel = job ? formatJobDetailsCreatedBy(job) : "";
   const pay = job ? formatJobDetailsPay(job) : "—";
-  const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";
+  const posted = job ? formatJobDetailsPostedDate(job) : "—";
   const responsibilities = useMemo(
     () => splitJobListContent(job?.responsibilities),
     [job?.responsibilities]
@@ -859,7 +859,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                     <div className="mt-auto w-full min-w-0">
                       <h2 className={JOB_DETAILS_CARD_TITLE_CLASS}>Add Candidates</h2>
                       <p className={JOB_DETAILS_CARD_SUBTITLE_CLASS}>
-                        Upload multiple résumés or import existing candidates
+                        Upload a résumé or import existing candidates
                         <br />
                         from your talent database.
                       </p>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import toast from "react-hot-toast";
 import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
@@ -26,6 +27,7 @@ import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names
 type Props = {
   open: boolean;
   workerId?: string;
+  initialClientId?: string;
   onClose: () => void;
   onSuccess: (result: { assigned: boolean; facilityId?: string }) => void;
   onAssignExisting?: (facilityId: string) => Promise<void>;
@@ -50,11 +52,14 @@ type StateRow = { code: string; name: string };
 export default function CreateFacilityModal({
   open,
   workerId,
+  initialClientId = "",
   onClose,
   onSuccess,
   onAssignExisting,
 }: Props) {
   const [form, setForm] = useState<FacilityFormInput>(EMPTY_FORM);
+  const [clientOptions, setClientOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [clientLoadError, setClientLoadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof FacilityFormInput, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [duplicateFacility, setDuplicateFacility] = useState<FacilityListItem | null>(null);
@@ -74,11 +79,25 @@ export default function CreateFacilityModal({
 
   useEffect(() => {
     if (!open) return;
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, clientId: initialClientId });
     setErrors({});
     setDuplicateFacility(null);
     setAssigningDuplicate(false);
     setAssignToCandidate(true);
+  }, [open, initialClientId]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setClientLoadError(null);
+    void fetch("/api/admin/facilities", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Could not load client organizations.");
+        if (active) setClientOptions(payload.clients ?? []);
+      })
+      .catch((error) => { if (active) { setClientOptions([]); setClientLoadError(error instanceof Error ? error.message : "Could not load client organizations."); } });
+    return () => { active = false; };
   }, [open]);
 
   useEffect(() => {
@@ -227,11 +246,13 @@ export default function CreateFacilityModal({
 
   function validateClient(): boolean {
     const nextErrors: Partial<Record<keyof FacilityFormInput, string>> = {};
+    if (!form.clientId || !clientOptions.some((client) => client.id === form.clientId)) nextErrors.clientId = "Choose a client organization.";
     if (!form.name.trim()) nextErrors.name = "Facility name is required.";
     if (!form.streetAddress.trim()) nextErrors.streetAddress = "Street address is required.";
     if (!displayStateValue.trim()) nextErrors.state = "State is required.";
     if (!form.city.trim()) nextErrors.city = "City is required.";
     if (!form.zipCode.trim()) nextErrors.zipCode = "ZIP code is required.";
+    else if (!/^\d{5}(?:-\d{4})?$/.test(form.zipCode.trim())) nextErrors.zipCode = "Enter a valid 5-digit ZIP code or ZIP+4.";
 
     const phoneError = phoneValidationMessage(form.phone ?? "", { required: false });
     if (phoneError) nextErrors.phone = phoneError;
@@ -279,7 +300,7 @@ export default function CreateFacilityModal({
 
       if (!res.ok) {
         console.error("[CreateFacilityModal] create failed", json);
-        toast.error(json.error || json.message || "Failed to create facility.");
+        toast.error(readServiceAreaApiMessage(json, json.message || "Failed to create facility."));
         return;
       }
 
@@ -360,6 +381,18 @@ export default function CreateFacilityModal({
             </div>
           ) : null}
 
+          <label className="block">
+            <FieldLabel required>Client organization</FieldLabel>
+            <select className={FIELD} value={form.clientId ?? ""} aria-invalid={Boolean(errors.clientId)}
+              onChange={(event) => updateField("clientId", event.target.value)}>
+              <option value="">Select a client organization</option>
+              {clientOptions.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+            </select>
+            {errors.clientId ? <span role="alert" className="mt-1 block text-xs text-red-600">{errors.clientId}</span> : null}
+          </label>
+          {clientLoadError ? <p role="alert" className="text-sm text-red-600">{clientLoadError}</p> : null}
+          {!clientLoadError && clientOptions.length === 0 ? <p className="text-xs text-[#64748B]">Create a client organization before creating a facility.</p> : null}
+
           <TextField
             label="Facility Name"
             required
@@ -432,7 +465,7 @@ export default function CreateFacilityModal({
               label="ZIP Code"
               required
               value={form.zipCode}
-              onChange={(value) => updateField("zipCode", value.replace(/\D/g, "").slice(0, 5))}
+              onChange={(value) => updateField("zipCode", value.replace(/[^\d-]/g, "").slice(0, 10))}
               error={errors.zipCode}
             />
           </div>

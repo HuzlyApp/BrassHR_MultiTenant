@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import AccountPreferencesPanel from "./AccountPreferencesPanel";
 import SecurityTab from "@/app/admin_recruiter/account/components/SecurityTab";
 import { PASSWORD_UPDATE_SUCCESS_MESSAGE } from "@/lib/account/password-update";
 
@@ -143,6 +144,20 @@ describe("SecurityTab", () => {
     expect(screen.getByRole("heading", { name: "Update Password" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Authenticator app" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Set up authenticator" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enable 2FA" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Deactivate Account" })).toBeInTheDocument();
+  });
+
+  it("starts Change Email blank and shows invalid email errors inline", async () => {
+    const user = userEvent.setup();
+    render(<AccountPreferencesPanel variant="preferences" />);
+    await user.click(screen.getByRole("button", { name: "Change Email" }));
+    const input = screen.getByLabelText("New email");
+    expect(input).toHaveValue("");
+    await user.type(input, "not-an-email");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid email address.");
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("keeps submit disabled when passwords do not match", async () => {

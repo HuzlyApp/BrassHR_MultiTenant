@@ -16,6 +16,7 @@ import {
   resolveHireJourneyTheme,
   type HireJourneyThemeOverrides,
   type ResolvedHireJourneyTheme,
+  type HireJourneyBrandDefaults,
 } from "@/lib/tenant/hire-journey-theme";
 
 const COMPLETION_GREEN = "#12AA00";
@@ -78,8 +79,10 @@ const FIELDS: Array<{
 
 export default function HireJourneyThemePanel({
   embedded = false,
+  brandDefaults,
 }: {
   embedded?: boolean;
+  brandDefaults?: HireJourneyBrandDefaults;
 }) {
   const branding = useTenantBranding();
   const queryClient = useQueryClient();
@@ -91,13 +94,13 @@ export default function HireJourneyThemePanel({
 
   const defaults = useMemo(
     () => ({
-      primary: branding.primaryHex,
-      secondary: branding.secondaryHex,
+      primary: brandDefaults?.primaryHex ?? branding.primaryHex,
+      secondary: brandDefaults?.secondaryHex ?? branding.secondaryHex,
       white: "#FFFFFF",
       green: COMPLETION_GREEN,
       border: "#E8ECF0",
     }),
-    [branding.primaryHex, branding.secondaryHex]
+    [brandDefaults?.primaryHex, brandDefaults?.secondaryHex, branding.primaryHex, branding.secondaryHex]
   );
 
   useEffect(() => {
@@ -191,7 +194,7 @@ export default function HireJourneyThemePanel({
             defaultValue={defaults[field.fallback]}
             onChange={(value) => setDraft((current) => (current ? { ...current, [field.key]: value } : current))}
           />
-          <p className="mt-1 text-xs leading-5 text-[#64748B]">{field.help}</p>
+          <p className="mt-1 text-xs leading-5 text-[#64748B]">{overrides[field.key] ? "Saved custom color. Use branding colors to restore the defaults." : field.help}</p>
         </div>
       ))}
     </div>

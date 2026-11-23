@@ -533,7 +533,17 @@ export default function BusinessInfoTab() {
                   if (websiteError) setWebsiteError(null);
                 }}
                 type="url"
-                error={submitAttempted ? websiteError : null}
+                required
+                onBlur={() => {
+                  const value = website.trim();
+                  let valid = false;
+                  try {
+                    const url = new URL(value);
+                    valid = ["http:", "https:"].includes(url.protocol) && Boolean(url.hostname);
+                  } catch { /* Invalid URL is shown inline below. */ }
+                  setWebsiteError(value && !valid ? "Enter a valid website URL." : null);
+                }}
+                error={websiteError}
               />
             </div>
           </SectionCard>
