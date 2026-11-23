@@ -137,6 +137,18 @@ export function mapIndustryKeyToAiPack(industryKey: string | null | undefined): 
   return INDUSTRY_TO_AI_PACK[industryKey];
 }
 
+/** True for industries that use the Healthcare AI pack (Healthcare, Allied Health, Senior Care). */
+export function isHealthcareIndustryKey(industryKey: string | null | undefined): boolean {
+  return mapIndustryKeyToAiPack(industryKey) === "healthcare";
+}
+
+/** True when the tenant primary or any selected industry is healthcare-family. */
+export function tenantHasHealthcareIndustry(
+  keys: Array<string | null | undefined>
+): boolean {
+  return keys.some((key) => isHealthcareIndustryKey(key));
+}
+
 export class InvalidIndustryKeyError extends Error {
   readonly code = "INVALID_INDUSTRY_KEY" as const;
   constructor(value: string) {

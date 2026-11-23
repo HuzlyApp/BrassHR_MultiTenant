@@ -61,13 +61,17 @@ function amrMethodsFromJwt(accessToken: string | null | undefined): string[] {
   }
 }
 
+const PASSWORD_SETUP_AMR_METHODS = new Set(["recovery", "invite"]);
+
 /** True only when this session was created from a recovery / invite link. */
 export function authSessionIsPasswordRecovery(session: Session | null | undefined): boolean {
   if (!session?.access_token) return false;
   const fromJwt = amrMethodsFromJwt(session.access_token);
   const fromSession = amrMethodsFromUnknown((session as { amr?: unknown }).amr);
   const fromUser = amrMethodsFromUnknown((session.user as { amr?: unknown } | undefined)?.amr);
-  return [...fromJwt, ...fromSession, ...fromUser].includes("recovery");
+  return [...fromJwt, ...fromSession, ...fromUser].some((method) =>
+    PASSWORD_SETUP_AMR_METHODS.has(method)
+  );
 }
 
 /**
