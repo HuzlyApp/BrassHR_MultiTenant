@@ -5,6 +5,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveRecruiterRedirectUrl } from "@/lib/auth/recruiter-dashboard-redirect";
 import { resolveRecruiterOnboardingStatus } from "@/lib/auth/recruiter-onboarding-status.server";
 import { forwardedHostFromHeaders } from "@/lib/tenant/tenant-host-resolution";
+import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 
 export async function GET(req: Request) {
   const auth = await requireStaffApiSession(req);
@@ -57,10 +58,18 @@ export async function GET(req: Request) {
       host,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       ...status,
       redirectUrl,
     });
+    // Login can run on a shared host where the applicant cookie still names
+    // another workspace. Persist the server-validated destination before navigation.
+    if (!status.godAdmin && status.activeTenantId && status.tenantSubdomain) {
+      response.cookies.set(ONBOARDING_TENANT_SLUG_COOKIE, status.tenantSubdomain, {
+        path: "/", sameSite: "lax", secure: protocol === "https", maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+    return response;
   } catch (error) {
     console.error(
       "[recruiter-onboarding-status]",
