@@ -236,7 +236,11 @@ describe("ProfessionDocumentsPanel", () => {
     await user.click(screen.getByRole("button", { name: "Add Position" }));
     expect(await screen.findByRole("dialog", { name: "Add Position" })).toHaveAccessibleDescription("Add a position under Healthcare.");
     await user.type(screen.getByRole("textbox", { name: "Position Name" }), "Solar Technician");
-    // Assessment defaults to the first available template.
+    await user.click(await screen.findByRole("checkbox", { name: "General Skill Assessment" }));
+    expect(screen.getByRole("link", { name: /Add categories/i })).toHaveAttribute(
+      "href",
+      "/admin_recruiter/settings/assessment"
+    );
     await user.click(screen.getByRole("button", { name: "Create Position" }));
 
     await waitFor(() => {
