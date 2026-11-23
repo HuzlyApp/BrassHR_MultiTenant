@@ -8,7 +8,7 @@ export const CANDIDATE_PROFILE_NAME_CLASS =
   "m-0 text-xl font-semibold leading-7 text-[color:var(--brand-secondary)] sm:text-2xl sm:leading-8";
 
 export const CANDIDATE_PROFILE_NAME_STYLE: CSSProperties = {
-  fontFamily: "Inter, var(--brand-font-heading), sans-serif",
+  fontFamily: "var(--brand-font-heading), Inter, sans-serif",
 };
 
 export const PROFILE_TABS = [

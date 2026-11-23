@@ -43,6 +43,7 @@ import AddCustomProfessionModal, {
 } from "@/app/admin_recruiter/settings/AddCustomProfessionModal";
 import SettingsSelect from "@/app/admin_recruiter/settings/SettingsSelect";
 import { activeUserFacingIndustries } from "@/lib/ai-catalog/industry-catalog";
+import { assessmentOptionsFromCatalog } from "@/app/admin_recruiter/settings/assessment-options-from-catalog";
 import { normalizeSkillAssessmentCatalog } from "@/lib/skill-assessment/catalog";
 import type { SkillAssessmentCatalog } from "@/lib/skill-assessment/types";
 import {
@@ -491,7 +492,7 @@ export default function ProfessionDocumentsPanel({
     string[]
   >([]);
   const [pendingCustomAssessmentByName, setPendingCustomAssessmentByName] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
   const [pendingDeleteProfession, setPendingDeleteProfession] = useState<ProfessionRow | null>(null);
 
@@ -597,52 +598,26 @@ export default function ProfessionDocumentsPanel({
     void load();
   }, [load]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch("/api/admin/assessment-settings", { cache: "no-store" });
-        const payload = (await response.json().catch(() => ({}))) as {
-          settings?: { draft?: unknown };
-        };
-        if (!response.ok || cancelled) return;
-        const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
-        const labels: Record<string, string> = {};
-        const options: AssessmentOption[] = [];
-        const seenNames = new Set<string>();
-        for (const category of draft.categories) {
-          const professionId = category.professionId?.trim();
-          const name = category.name?.trim();
-          if (!name) continue;
-          if (professionId && !labels[professionId]) labels[professionId] = name;
-          // Offer shared (null profession) templates plus unique category names for the picker.
-          if (!professionId && !seenNames.has(name.toLowerCase())) {
-            seenNames.add(name.toLowerCase());
-            options.push({ id: category.id, name });
-          }
-        }
-        // Fallback: if no shared templates, still show category names once each.
-        if (options.length === 0) {
-          for (const category of draft.categories) {
-            const name = category.name?.trim();
-            if (!name || seenNames.has(name.toLowerCase())) continue;
-            seenNames.add(name.toLowerCase());
-            options.push({ id: category.id, name });
-          }
-        }
-        if (!cancelled) {
-          setAssessmentDraft(draft);
-          setAssessmentLabelByProfession(labels);
-          setAssessmentOptions(options);
-        }
-      } catch {
-        /* linked assessment column stays empty when unavailable */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadAssessmentOptions = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/assessment-settings", { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as {
+        settings?: { draft?: unknown };
+      };
+      if (!response.ok) return;
+      const draft = normalizeSkillAssessmentCatalog(payload.settings?.draft);
+      const { options, labelsByProfession } = assessmentOptionsFromCatalog(draft);
+      setAssessmentDraft(draft);
+      setAssessmentLabelByProfession(labelsByProfession);
+      setAssessmentOptions(options);
+    } catch {
+      /* linked assessment column stays empty when unavailable */
+    }
   }, []);
+
+  useEffect(() => {
+    void loadAssessmentOptions();
+  }, [loadAssessmentOptions]);
 
   useLayoutEffect(() => {
     if (!rowMenuId || !rowMenuTriggerRef.current) {
@@ -954,9 +929,11 @@ export default function ProfessionDocumentsPanel({
         const payload = (await response.json()) as { error?: string; profession?: { id?: string } };
         if (!response.ok) throw new Error(payload.error || "Could not add profession");
         const createdId = payload.profession?.id?.trim() || null;
-        const assessmentId = pendingCustomAssessmentByName[name];
-        if (createdId && assessmentId) {
-          await linkAssessmentToProfession(createdId, assessmentId);
+        const assessmentIds = pendingCustomAssessmentByName[name] ?? [];
+        if (createdId && assessmentIds.length) {
+          for (const assessmentId of assessmentIds) {
+            await linkAssessmentToProfession(createdId, assessmentId);
+          }
         }
       }
 
@@ -1132,19 +1109,31 @@ export default function ProfessionDocumentsPanel({
     await createProfession({ catalogKey, industryKey: forIndustryKey });
   }
 
-  async function linkAssessmentToProfession(professionId: string, assessmentId: string) {
-    if (!assessmentDraft) return;
-    const source = assessmentDraft.categories.find((category) => category.id === assessmentId);
-    if (!source) return;
+  async function linkAssessmentToProfession(
+    professionId: string,
+    assessmentId: string,
+    catalogOverride?: SkillAssessmentCatalog
+  ): Promise<SkillAssessmentCatalog | null> {
+    const catalog = catalogOverride ?? assessmentDraft;
+    if (!catalog) return null;
+    const source = catalog.categories.find((category) => category.id === assessmentId);
+    if (!source) return catalog;
+    const alreadyLinked = catalog.categories.some(
+      (category) =>
+        category.professionId === professionId &&
+        category.name.trim().toLowerCase() === source.name.trim().toLowerCase()
+    );
+    if (alreadyLinked) return catalog;
+
     const nextCatalog: SkillAssessmentCatalog = {
-      ...assessmentDraft,
+      ...catalog,
       categories: [
-        ...assessmentDraft.categories,
+        ...catalog.categories,
         {
           ...source,
           id: crypto.randomUUID(),
           professionId,
-          sortOrder: assessmentDraft.categories.length + 1,
+          sortOrder: catalog.categories.length + 1,
           questions: source.questions.map((question) => ({
             ...question,
             id: crypto.randomUUID(),
@@ -1169,6 +1158,14 @@ export default function ProfessionDocumentsPanel({
       ...current,
       [professionId]: source.name,
     }));
+    return draft;
+  }
+
+  async function linkAssessmentsToProfession(professionId: string, assessmentIds: string[]) {
+    let catalog = assessmentDraft;
+    for (const assessmentId of assessmentIds) {
+      catalog = (await linkAssessmentToProfession(professionId, assessmentId, catalog ?? undefined)) ?? catalog;
+    }
   }
 
   async function createCustomProfessionFromModal(value: AddCustomProfessionFormValue) {
@@ -1182,7 +1179,7 @@ export default function ProfessionDocumentsPanel({
       );
       setPendingCustomAssessmentByName((current) => ({
         ...current,
-        [value.name]: value.assessmentId,
+        [value.name]: value.assessmentIds,
       }));
       setCustomProfessionIndustryKey(null);
       setCustomProfessionPendingForIndustryCreate(false);
@@ -1204,8 +1201,8 @@ export default function ProfessionDocumentsPanel({
       const payload = (await response.json()) as { error?: string; profession?: { id?: string } };
       if (!response.ok) throw new Error(payload.error || "Could not add profession");
       const createdId = payload.profession?.id?.trim() || null;
-      if (createdId && value.assessmentId) {
-        await linkAssessmentToProfession(createdId, value.assessmentId);
+      if (createdId && value.assessmentIds.length) {
+        await linkAssessmentsToProfession(createdId, value.assessmentIds);
       }
       setCustomProfessionIndustryKey(null);
       toast.success("Profession added");
@@ -1227,6 +1224,7 @@ export default function ProfessionDocumentsPanel({
   function openCustomProfessionModal(industryKeyToUse: string, options?: { pending?: boolean }) {
     setCustomProfessionPendingForIndustryCreate(Boolean(options?.pending));
     setCustomProfessionIndustryKey(industryKeyToUse);
+    void loadAssessmentOptions();
   }
 
   async function saveProfessionName() {
@@ -2236,6 +2234,7 @@ export default function ProfessionDocumentsPanel({
 
       <AddIndustryModal
         open={addIndustryOpen}
+        suppressed={Boolean(customProfessionIndustryKey)}
         mode="create"
         industries={addableIndustries}
         availableProfessions={availableProfessions}

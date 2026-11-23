@@ -14,7 +14,18 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
 import { useLoginInitialBranding } from "@/app/login/LoginBrandingBootstrap";
-import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, loginFormOptionsStackClass, loginFormStackClass, loginInputClass, loginPageStackClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
+import {
+  LoginBrandHeader,
+  LoginPageShell,
+  loginFieldLabelClass,
+  loginFieldTypographyStyle,
+  loginFormOptionsStackClass,
+  loginFormStackClass,
+  loginInputClass,
+  loginPageStackClass,
+  loginPasswordInputClass,
+  loginPrimaryButtonClass,
+} from "@/app/login/BraasLoginShell";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import AuthenticatorChallengeCard from "@/app/components/auth/AuthenticatorChallengeCard";
@@ -78,7 +89,7 @@ function primaryButtonStyle(enabled: boolean): React.CSSProperties | undefined {
 
 function FieldLabel({ children }: { children: string }) {
   return (
-    <label className={loginFieldLabelClass} style={interStyle}>
+    <label className={loginFieldLabelClass} style={loginFieldTypographyStyle}>
       {children}
       <span className="ml-1 text-[#e11d48]">*</span>
     </label>
@@ -913,14 +924,24 @@ function LoginPageContent() {
           <form onSubmit={handleCredentialsSubmit} className={loginPageStackClass}>
             <div>
               <h1
-                className="text-[22px] font-semibold leading-[30px] tracking-normal sm:text-[30px] sm:leading-[36px]"
-                style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+                className="font-semibold tracking-normal"
+                style={{
+                  color: "var(--brand-heading)",
+                  fontFamily: "var(--brand-font-heading)",
+                  fontSize: "calc(var(--brand-font-size, 16px) * 1.875)",
+                  lineHeight: 1.2,
+                }}
               >
                 {brand.headline}
               </h1>
               <p
-                className="mt-1 text-[14px] font-normal leading-[20px] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]"
-                style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+                className="mt-1 font-normal sm:mt-[8px]"
+                style={{
+                  color: "var(--brand-muted)",
+                  fontFamily: "var(--brand-font-body)",
+                  fontSize: "var(--brand-font-size, 16px)",
+                  lineHeight: 1.5,
+                }}
               >
                 {brand.subtitle}
               </p>
@@ -942,6 +963,7 @@ function LoginPageContent() {
                   autoComplete="email"
                   aria-invalid={emailHasError}
                   className={`${loginInputClass} ${emailHasError ? loginInputErrorClass : ""}`}
+                  style={loginFieldTypographyStyle}
                   required
                 />
               </div>
@@ -962,6 +984,7 @@ function LoginPageContent() {
                     autoComplete="current-password"
                     aria-invalid={passwordHasError}
                     className={`${loginPasswordInputClass} ${passwordHasError ? loginInputErrorClass : ""}`}
+                    style={loginFieldTypographyStyle}
                     required
                   />
                   <PasswordVisibilityToggle
@@ -975,7 +998,7 @@ function LoginPageContent() {
                 <div className="flex items-center justify-between gap-3">
                   <label
                     className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
-                    style={interStyle}
+                    style={loginFieldTypographyStyle}
                   >
                     <span
                       className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
@@ -999,7 +1022,7 @@ function LoginPageContent() {
                       tenant: tenantQuery?.trim().toLowerCase() || brand.slug,
                     })}
                     className="text-[14px] font-normal leading-[20px] hover:underline"
-                    style={{ ...interStyle, color: "var(--brand-secondary)" }}
+                    style={{ ...loginFieldTypographyStyle, color: "var(--brand-secondary)" }}
                   >
                     Forgot Password?
                   </Link>
@@ -1018,7 +1041,7 @@ function LoginPageContent() {
               </button>
 
               {!recruiterSignIn && !tenantQuery ? (
-                <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
+                <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={loginFieldTypographyStyle}>
                   Don&apos;t have an Account?{" "}
                   <Link href="/signup" className="font-semibold text-black underline">
                     Sign Up
@@ -1030,7 +1053,7 @@ function LoginPageContent() {
             {/* Social login — hidden until provider integration is ready
             <div className="flex items-center gap-[14px]">
               <div className="h-px flex-1 bg-[#e7edf4]" />
-              <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={interStyle}>
+              <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={loginFieldTypographyStyle}>
                 OR
               </span>
               <div className="h-px flex-1 bg-[#e7edf4]" />

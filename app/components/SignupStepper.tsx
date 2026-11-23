@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 /** Figma Tenant Onboarding — New: Steper labels */
 export const SIGNUP_STEPPER_ITEMS = [

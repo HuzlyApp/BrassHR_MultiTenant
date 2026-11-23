@@ -11,7 +11,7 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import { getStateCodeFromName, US_STATE_NAME_TO_CODE } from "@/lib/us-state-names";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" } as const;
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 const FIELD_INPUT_CLASS =
   "h-12 w-full rounded-lg border bg-white px-3.5 text-sm font-normal leading-6 text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--waitlist-primary)_22%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:opacity-70";

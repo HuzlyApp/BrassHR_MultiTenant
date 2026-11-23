@@ -30,13 +30,14 @@ export type TenantBrandingRow = {
 
 export type TenantBrandingFontId = "inter" | "impact" | "roboto" | "poppins" | "ubuntu";
 
-export type TenantBrandingFontSizeId = "sm" | "md" | "lg";
+export type TenantBrandingFontSizeId = "xs" | "sm" | "md" | "lg";
 
 export const TENANT_BRANDING_FONT_SIZE_OPTIONS: Array<{
   id: TenantBrandingFontSizeId;
   label: string;
   px: number;
 }> = [
+  { id: "xs", label: "Extra small (12px)", px: 12 },
   { id: "sm", label: "Small (14px)", px: 14 },
   { id: "md", label: "Medium (16px)", px: 16 },
   { id: "lg", label: "Large (18px)", px: 18 },
@@ -111,7 +112,8 @@ export function brandingAuthButtonStyle(enabled: boolean): Record<string, string
       backgroundImage: "none",
       color: "#94a3b8",
       WebkitTextFillColor: "#94a3b8",
-      fontFamily: "var(--brand-font-body)",
+      fontFamily: "var(--brand-font-primary)",
+      fontSize: "var(--brand-font-size)",
     };
   }
   return {
@@ -119,7 +121,8 @@ export function brandingAuthButtonStyle(enabled: boolean): Record<string, string
     backgroundColor: "transparent",
     color: "#ffffff",
     WebkitTextFillColor: "#ffffff",
-    fontFamily: "var(--brand-font-body)",
+    fontFamily: "var(--brand-font-primary)",
+    fontSize: "var(--brand-font-size)",
   };
 }
 
@@ -208,7 +211,8 @@ export function normalizeBrandingFontSizeId(
   value: string | null | undefined
 ): TenantBrandingFontSizeId {
   const key = value?.trim().toLowerCase();
-  if (key === "sm" || key === "md" || key === "lg") return key;
+  if (key === "xs" || key === "sm" || key === "md" || key === "lg") return key;
+  if (key === "12" || key === "12px") return "xs";
   if (key === "14" || key === "14px") return "sm";
   if (key === "18" || key === "18px") return "lg";
   return DEFAULT_FONT_SIZE_ID;

@@ -29,7 +29,7 @@ import { ADMIN_LAUNCH_PAD_ROUTE } from "@/lib/signup/smb-post-signup";
 import { formatPhoneNumber } from "@/lib/phone";
 import { phoneValidationMessage } from "@/lib/tenant/business-info-validation";
 
-const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+import { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 const NAVY = "#012352";
 const LABEL = "#6B7280";
 

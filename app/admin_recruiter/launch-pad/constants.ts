@@ -59,4 +59,4 @@ export function isLaunchPadStepId(value: string | null | undefined): value is La
 
 export const LAUNCH_PAD_STORAGE_KEY = "braasLaunchPadCompletedSteps";
 
-export const interStyle = { fontFamily: "Inter, Arial, sans-serif" } as const;
+export { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";

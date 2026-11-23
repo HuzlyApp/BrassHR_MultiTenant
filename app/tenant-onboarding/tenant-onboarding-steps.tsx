@@ -54,8 +54,8 @@ import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField
 import BrandingColorField from "@/app/tenant-onboarding/BrandingColorField";
 
 const inputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
+  fontFamily: "var(--brand-font-body), Inter, Arial, sans-serif",
+  fontSize: "var(--brand-font-size, 16px)",
   lineHeight: "24px",
   fontWeight: 400,
   letterSpacing: "0",

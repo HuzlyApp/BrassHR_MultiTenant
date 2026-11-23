@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   brandingAuthButtonStyle,
+  brandingFontFamily,
+  brandingFontSizePx,
   brandingToCssVars,
   normalizeBrandingImageSrc,
   type TenantBranding,
@@ -18,12 +20,33 @@ type BrandingAuthPreviewProps = {
 
 const SIGNUP_STEP_LABELS = ["Personal Info", "Company Info", "Account Created"] as const;
 
-function PreviewField({ label }: { label: string }) {
+/** Preview text scales from tenant base font size (em inherits shell fontSize). */
+function previewTextStyle(
+  branding: TenantBranding,
+  role: "primary" | "heading" | "body",
+  fontSizeEm: number,
+  extras?: CSSProperties
+): CSSProperties {
+  const fontId =
+    role === "primary"
+      ? branding.primaryFontId
+      : role === "heading"
+        ? branding.headingFontId
+        : branding.bodyFontId;
+  return {
+    fontFamily: brandingFontFamily(fontId),
+    fontSize: `${fontSizeEm}em`,
+    lineHeight: 1.35,
+    ...extras,
+  };
+}
+
+function PreviewField({ branding, label }: { branding: TenantBranding; label: string }) {
   return (
     <div>
       <span
-        className="mb-1 block text-[10px] font-normal leading-tight"
-        style={{ color: "var(--brand-text)", fontFamily: "var(--brand-font-body)" }}
+        className="mb-1 block font-normal"
+        style={previewTextStyle(branding, "body", 0.75, { color: "var(--brand-text)" })}
       >
         {label}
       </span>
@@ -33,11 +56,13 @@ function PreviewField({ label }: { label: string }) {
 }
 
 function PreviewRightPanel({
+  branding,
   backgroundSrc,
   logoSrc,
   tagline,
   primaryHex,
 }: {
+  branding: TenantBranding;
   backgroundSrc: string;
   logoSrc: string;
   tagline: string;
@@ -61,8 +86,8 @@ function PreviewRightPanel({
             <div className="h-px flex-1 bg-slate-400/55" />
           </div>
           <p
-            className="line-clamp-3 text-[9px] leading-snug"
-            style={{ color: "var(--brand-text)", fontFamily: "var(--brand-font-body)" }}
+            className="line-clamp-3 leading-snug"
+            style={previewTextStyle(branding, "body", 0.7, { color: "var(--brand-text)" })}
           >
             {tagline}
           </p>
@@ -72,7 +97,13 @@ function PreviewRightPanel({
   );
 }
 
-function PreviewSignupStepper({ primaryHex }: { primaryHex: string }) {
+function PreviewSignupStepper({
+  branding,
+  primaryHex,
+}: {
+  branding: TenantBranding;
+  primaryHex: string;
+}) {
   return (
     <div className="mt-4 w-full">
       <div className="relative h-10 w-full">
@@ -106,11 +137,10 @@ function PreviewSignupStepper({ primaryHex }: { primaryHex: string }) {
                   {isPending ? <span className="h-1 w-1 rounded-full bg-[#e8edf4]" /> : null}
                 </span>
                 <span
-                  className="mt-1.5 line-clamp-2 text-center text-[7px] leading-tight"
-                  style={{
-                    color: isPending ? "#6B7280" : primaryHex,
-                    fontFamily: "var(--brand-font-body)",
-                  }}
+                  className="mt-1.5 line-clamp-2 text-center leading-tight"
+                  style={previewTextStyle(branding, "body", 0.55, {
+                    color: isPending ? "var(--brand-muted)" : primaryHex,
+                  })}
                 >
                   {label}
                 </span>
@@ -119,6 +149,32 @@ function PreviewSignupStepper({ primaryHex }: { primaryHex: string }) {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TypographySample({ branding }: { branding: TenantBranding }) {
+  const sizeLabel = `${brandingFontSizePx(branding.baseFontSizeId)}px`;
+  return (
+    <div className="mt-3 rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2.5">
+      <p
+        className="font-semibold"
+        style={previewTextStyle(branding, "primary", 1, { color: "var(--brand-heading)" })}
+      >
+        Primary · Aa
+      </p>
+      <p
+        className="mt-1 font-semibold"
+        style={previewTextStyle(branding, "heading", 1, { color: "var(--brand-heading)" })}
+      >
+        Heading · Aa
+      </p>
+      <p
+        className="mt-1"
+        style={previewTextStyle(branding, "body", 0.9, { color: "var(--brand-text)" })}
+      >
+        Body · Base size {sizeLabel}
+      </p>
     </div>
   );
 }
@@ -138,45 +194,66 @@ function LoginPreview({ branding }: { branding: TenantBranding }) {
       <div className="grid overflow-hidden rounded-xl bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] sm:grid-cols-[58%_42%]">
         <div className="border-b border-slate-200 p-4 sm:border-b-0 sm:border-r">
           <div className="mb-2 h-0.5 w-6 rounded-full" style={{ backgroundColor: "var(--brand-primary)" }} />
+          <p
+            className="mb-1 font-medium"
+            style={previewTextStyle(branding, "primary", 0.7, { color: "var(--brand-primary)" })}
+          >
+            Primary font
+          </p>
           <h2
-            className="text-sm font-bold leading-tight"
-            style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+            className="font-bold leading-tight"
+            style={previewTextStyle(branding, "heading", 1.15, { color: "var(--brand-heading)" })}
           >
             {branding.headline}
           </h2>
+          <p
+            className="mt-1.5"
+            style={previewTextStyle(branding, "body", 0.8, { color: "var(--brand-muted)" })}
+          >
+            {branding.subtitle || "Body font sample for supporting text."}
+          </p>
 
           <div className="mt-3 space-y-2.5">
-            <PreviewField label="Email" />
-            <PreviewField label="Password" />
+            <PreviewField branding={branding} label="Email" />
+            <PreviewField branding={branding} label="Password" />
           </div>
 
           <div className="mt-2 flex justify-end">
-            <span className="text-[8px] font-medium" style={{ color: "var(--brand-primary)" }}>
+            <span
+              className="font-medium"
+              style={previewTextStyle(branding, "body", 0.65, { color: "var(--brand-primary)" })}
+            >
               Forgot Password?
             </span>
           </div>
 
           <div className="mt-2 flex items-start gap-1.5">
             <span className="mt-0.5 h-3 w-3 shrink-0 rounded border border-gray-300 bg-white" aria-hidden />
-            <span className="text-[8px] leading-tight" style={{ color: "var(--brand-muted)" }}>
+            <span style={previewTextStyle(branding, "body", 0.65, { color: "var(--brand-muted)" })}>
               Terms &amp; Conditions
             </span>
           </div>
 
           <div className="mt-3 flex gap-2">
-            <div className="flex-1 rounded-md border border-gray-300 py-1.5 text-center text-[9px] font-medium text-gray-700">
+            <div
+              className="flex-1 rounded-md border border-gray-300 py-1.5 text-center font-medium text-gray-700"
+              style={previewTextStyle(branding, "body", 0.7)}
+            >
               Cancel
             </div>
             <div
-              className="flex-1 rounded-md py-1.5 text-center text-[9px] font-medium text-white"
-              style={buttonStyle}
+              className="flex-1 rounded-md py-1.5 text-center font-medium text-white"
+              style={{ ...buttonStyle, ...previewTextStyle(branding, "primary", 0.7, { color: "#ffffff" }) }}
             >
               {branding.buttonText}
             </div>
           </div>
+
+          <TypographySample branding={branding} />
         </div>
 
         <PreviewRightPanel
+          branding={branding}
           backgroundSrc={branding.loginBackgroundSrc}
           logoSrc={branding.loginLogoUrl || branding.logoUrl}
           tagline={branding.tagline}
@@ -203,44 +280,53 @@ function SignupPreview({ branding }: { branding: TenantBranding }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={signupLogo} alt="" className="h-6 w-auto max-w-[88px] object-contain object-left" />
 
-          <PreviewSignupStepper primaryHex={branding.primaryHex} />
+          <PreviewSignupStepper branding={branding} primaryHex={branding.primaryHex} />
 
           <div className="mt-5">
+            <p
+              className="mb-1 font-medium"
+              style={previewTextStyle(branding, "primary", 0.7, { color: "var(--brand-primary)" })}
+            >
+              Primary font
+            </p>
             <h2
-              className="text-[15px] font-semibold leading-tight"
-              style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+              className="font-semibold leading-tight"
+              style={previewTextStyle(branding, "heading", 1.1, { color: "var(--brand-heading)" })}
             >
               {branding.signupHeadline}
             </h2>
             <p
-              className="mt-1.5 text-[10px] leading-snug"
-              style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+              className="mt-1.5 leading-snug"
+              style={previewTextStyle(branding, "body", 0.75, { color: "var(--brand-muted)" })}
             >
               {branding.signupSubheadline}
             </p>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <PreviewField label="First Name" />
-            <PreviewField label="Last Name" />
+            <PreviewField branding={branding} label="First Name" />
+            <PreviewField branding={branding} label="Last Name" />
           </div>
           <div className="mt-3 space-y-2.5">
-            <PreviewField label="Work Email" />
-            <PreviewField label="Mobile Phone" />
-            <PreviewField label="Password" />
+            <PreviewField branding={branding} label="Work Email" />
+            <PreviewField branding={branding} label="Mobile Phone" />
+            <PreviewField branding={branding} label="Password" />
           </div>
 
           <div className="mt-5 flex-1" />
 
           <div
-            className="mt-4 flex h-9 w-full shrink-0 items-center justify-center rounded-[6px] text-[11px] font-semibold text-white"
-            style={buttonStyle}
+            className="mt-4 flex h-9 w-full shrink-0 items-center justify-center rounded-[6px] font-semibold text-white"
+            style={{ ...buttonStyle, ...previewTextStyle(branding, "primary", 0.75, { color: "#ffffff" }) }}
           >
             Submit and Continue
           </div>
+
+          <TypographySample branding={branding} />
         </div>
 
         <PreviewRightPanel
+          branding={branding}
           backgroundSrc={branding.loginBackgroundSrc}
           logoSrc={branding.loginLogoUrl || branding.logoUrl}
           tagline={branding.tagline}

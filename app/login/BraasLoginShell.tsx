@@ -12,7 +12,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 
-export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+export { brandUiFontStyle as interStyle } from "@/lib/tenant/branding-typography-styles";
 
 export const loginInputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
@@ -20,7 +20,7 @@ export const loginInputFocusClass =
 export const loginInputTextClass =
   "text-[15px] font-normal leading-[22px] tracking-normal placeholder:text-[15px] placeholder:leading-[22px] placeholder:font-normal sm:text-[16px] sm:leading-[24px] sm:placeholder:text-[16px] sm:placeholder:leading-[24px]";
 
-export const loginInputClass = `h-[44px] w-full rounded-[8px] border border-[#cbd5e1] px-3 sm:h-[56px] sm:px-[14px] ${loginInputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${loginInputFocusClass}`;
+export const loginInputClass = `h-[44px] w-full rounded-[8px] border border-[#cbd5e1] px-3 sm:h-[56px] sm:px-[14px] ${loginInputTextClass} text-[color:var(--brand-text,#0f172a)] outline-none transition placeholder:text-[#94a3b8] ${loginInputFocusClass}`;
 
 export const loginPasswordInputClass = `${loginInputClass} pr-11 sm:pr-12`;
 
@@ -28,7 +28,13 @@ export const loginPrimaryButtonClass =
   "flex h-[46px] w-full items-center justify-center rounded-[10px] text-[15px] font-semibold leading-[20px] tracking-normal text-white transition-[filter] disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:hover:brightness-95 sm:h-[54px] sm:rounded-[12px] sm:text-[16px] sm:leading-[22px]";
 
 export const loginFieldLabelClass =
-  "mb-1.5 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
+  "mb-1.5 block text-[13px] font-normal leading-[18px] tracking-normal text-[color:var(--brand-muted,#374151)] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
+
+/** Inline styles so login fields follow tenant font family + base size even before CSS utility remap. */
+export const loginFieldTypographyStyle = {
+  fontFamily: "var(--brand-font-body)",
+  fontSize: "var(--brand-font-size, 16px)",
+} as const;
 
 export const loginPageStackClass = "flex flex-col gap-5 pt-3 sm:gap-[40px] sm:pt-[30px]";
 export const loginFormStackClass = "flex flex-col gap-6 sm:gap-[20px]";

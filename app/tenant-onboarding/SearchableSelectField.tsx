@@ -14,8 +14,8 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 const inputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
+  fontFamily: "var(--brand-font-body), Inter, Arial, sans-serif",
+  fontSize: "var(--brand-font-size, 16px)",
   lineHeight: "24px",
   fontWeight: 400,
   letterSpacing: "0",
