@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
 import AwaitingRecruiterReviewScreen from "@/app/components/onboarding/AwaitingRecruiterReviewScreen";
@@ -11,6 +11,20 @@ import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navig
 import { useAutoSkipNonNavigableApplicantSteps } from "@/lib/onboarding/use-auto-skip-non-navigable-steps";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
+
+/**
+ * Resume upload marks the resume step complete before profile-review runs.
+ * Until that review is saved, keep the intake screens editable even if the
+ * frontier already reports waitingOnInternal (next engine step is recruiter-owned).
+ */
+function isResumeIntakePending(pathname: string): boolean {
+  const onIntake =
+    pathname.startsWith("/application/add-resume") ||
+    pathname.startsWith("/application/profile-review");
+  if (!onIntake) return false;
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem("step1ReviewCompleted") !== "true";
+}
 
 function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
@@ -23,6 +37,14 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
   const waitingOnInternal = onboarding?.waitingOnInternal === true;
   const inPostHire =
     onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
+  // Re-read after profile-review sets step1ReviewCompleted and refreshes.
+  const [resumeIntakePending, setResumeIntakePending] = useState(() =>
+    isResumeIntakePending(pathname)
+  );
+
+  useEffect(() => {
+    setResumeIntakePending(isResumeIntakePending(pathname));
+  }, [pathname, onboarding?.progress, onboarding?.waitingOnInternal]);
 
   const tenantSlug = useMemo(() => {
     const fromQuery = searchParams.get("tenant")?.trim().toLowerCase();
@@ -40,6 +62,13 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     pathname.startsWith("/application/applicant-dashboard") ||
     pathname.startsWith("/application/home") ||
     pathname.startsWith("/application/candidate");
+
+  const showSubmittedPanel =
+    waitingOnInternal &&
+    !resumeIntakePending &&
+    !inPostHire &&
+    !isApplicantDashboard &&
+    !isDraftPreview;
 
   const enabledSteps = useMemo(
     () => resolveApplicantEnabledSteps(onboarding?.config ?? null, onboarding?.loadingConfig ?? true),
@@ -89,15 +118,15 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
       lastRedirectRef.current = null;
       return;
     }
-    // While waiting on a recruiter step, keep the applicant on the current URL and
-    // show the in-place submitted panel instead of bouncing + modal.
-    if (waitingOnInternal && !inPostHire && !isApplicantDashboard) {
+    // While showing the submitted panel, stay on the current URL instead of bouncing.
+    // Resume intake (add-resume → profile-review) must still be allowed to navigate.
+    if (showSubmittedPanel) {
       return;
     }
     if (lastRedirectRef.current === decision.href) return;
     lastRedirectRef.current = decision.href;
     replace(decision.href);
-  }, [decision, replace, waitingOnInternal, inPostHire, isApplicantDashboard]);
+  }, [decision, replace, showSubmittedPanel]);
 
   const showLoading =
     decision.status === "loading" &&
@@ -115,7 +144,7 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (waitingOnInternal && !inPostHire && !isApplicantDashboard && !isDraftPreview) {
+  if (showSubmittedPanel) {
     return <AwaitingRecruiterReviewScreen />;
   }
 
