@@ -304,7 +304,7 @@ export async function GET(req: NextRequest) {
 
     const pipelineRowsByKey = await loadWorkerPipelineChecklistItems(supabase, workerId)
 
-    const callLogs = await loadWorkerCallLogs(supabase, workerId).catch(() => [])
+    const callLogs = checklistTenantId ? await loadWorkerCallLogs(supabase, workerId, checklistTenantId).catch(() => []) : []
     const callLogOutcomeById = new Map<string, CallLogOutcome>(
       callLogs.map((log) => [log.id, log.outcome])
     )

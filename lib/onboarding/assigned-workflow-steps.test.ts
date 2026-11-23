@@ -483,6 +483,11 @@ describe("assigned workflow steps", () => {
       hasResumeUpload: true,
     });
     expect(enriched[0]?.displayStatus).toBe("completed");
+    const assignment = buildPhaseAssignment({ workflowName: "Reassigned QA flow", version: null, assignedAt: null, assignmentSource: "manual", phase: "pre_hire", steps: [
+      ...enriched, ...Array.from({ length: 3 }, (_, index) => ({ title: `Pending ${index}`, status: "pending" as const })),
+    ] });
+    expect(assignment.completedCount).toBe(1);
+    expect(assignment.totalCount).toBe(4);
   });
 
   function mapIdentityStep(

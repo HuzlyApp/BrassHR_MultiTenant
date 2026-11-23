@@ -579,6 +579,32 @@ export async function getOnboardingFlowById(
   return { ...toDetail(row), builderDraft };
 }
 
+/** Copy only configuration. Candidate instances, progress and mappings remain on the source. */
+export async function duplicateOnboardingFlow(supabase: OnboardingDbClient, tenantId: string, flowId: string, createdBy: string): Promise<OnboardingFlowDetail> {
+  const source = await getOnboardingFlowById(supabase, tenantId, flowId);
+  if (!source) throw new Error("Flow not found");
+  const { data: names, error: namesError } = await supabase.from("onboarding_flows").select("name").eq("tenant_id", tenantId);
+  if (namesError) throw namesError;
+  const used = new Set((names ?? []).map((row: { name: string }) => normalizeFlowNameKey(row.name)));
+  let name = "";
+  for (let n = 1; n <= 1000; n += 1) {
+    const suffix = n === 1 ? " (copy)" : ` (copy ${n})`;
+    const candidate = `${source.name.slice(0, 120 - suffix.length).trimEnd()}${suffix}`;
+    if (!used.has(normalizeFlowNameKey(candidate))) { name = candidate; break; }
+  }
+  if (!name) throw new Error("Choose a different workflow name before duplicating.");
+  const { data, error } = await supabase.from("onboarding_flows").insert({
+    tenant_id: tenantId, library_id: source.libraryId, template_id: source.templateId,
+    name, status: "unpublished", created_as_blank: source.createdAsBlank, builder_draft: source.builderDraft,
+    profession_id: source.professionId, employment_type: source.employmentType,
+    created_by: createdBy, updated_by: createdBy,
+  }).select(FLOW_DETAIL_SELECT).single();
+  if (error) throw error;
+  const detail = toDetail(data as OnboardingFlowRowWithProfession);
+  if (source.builderDraft.nodes.length) await replaceFlowStepsFromDraft(supabase, detail.id, source.builderDraft);
+  return { ...detail, builderDraft: source.builderDraft };
+}
+
 export async function createOnboardingFlow(
   supabase: OnboardingDbClient,
   tenantId: string,

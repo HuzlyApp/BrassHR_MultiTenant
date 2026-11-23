@@ -95,6 +95,7 @@ type PublicJob = {
   source_type?: string | null;
   public_description: string | null;
   location: string | null;
+  location_type?: string | null;
   schedule: string | null;
   employment_type: string | null;
   published_at: string | null;
@@ -326,12 +327,15 @@ function JobGridCard({
   );
 }
 
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
+
 type RelocateChoice = "onsite" | "relocate" | "remote";
 
 function ApplyConfirmModal({
   open,
   jobTitle,
   jobLocation,
+  remoteJob,
   submitting,
   error,
   workCity,
@@ -351,6 +355,7 @@ function ApplyConfirmModal({
   open: boolean;
   jobTitle: string;
   jobLocation: string;
+  remoteJob: boolean;
   submitting: boolean;
   error: string | null;
   workCity: string;
@@ -486,7 +491,7 @@ function ApplyConfirmModal({
             />
           </div>
 
-          <fieldset>
+          {remoteJob ? <p className="text-sm text-[#64748B]">This is a remote position. Enter the location where you will work remotely.</p> : <fieldset>
             <legend className="text-sm font-medium text-[#0F172A]">
               Will you work on-site{jobLocation ? ` at ${jobLocation}` : ""}?
             </legend>
@@ -512,7 +517,7 @@ function ApplyConfirmModal({
                 {option.label}
               </label>
             ))}
-          </fieldset>
+          </fieldset>}
           {previewMessage ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {previewMessage}
@@ -763,7 +768,7 @@ export function WorkerJobsTab() {
     setWorkCity("");
     setWorkState("");
     setWorkPostal("");
-    setRelocate("");
+    setRelocate(isRemoteJobLocationType(row.job.location_type || row.job.schedule) ? "remote" : "");
   }
 
   async function submitApplication() {
@@ -1013,6 +1018,7 @@ export function WorkerJobsTab() {
         open={Boolean(applyJob)}
         jobTitle={applyJob?.title || ""}
         jobLocation={applyJob?.location || ""}
+        remoteJob={isRemoteJobLocationType(applyJob?.job.location_type || applyJob?.job.schedule)}
         submitting={applying}
         error={applyError}
         workCity={workCity}

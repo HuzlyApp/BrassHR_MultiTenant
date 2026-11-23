@@ -7,6 +7,7 @@ import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { isPlacementAcceptedStatus } from "@/lib/onboarding/workflow-phase";
 import { loadWorkerProfileSkills } from "@/lib/worker-profile-skills";
+import { loadWorkerProfileSchedule } from "@/lib/scheduling/employee-schedule-service";
 import type {
   WorkerAccountHiredJob,
   WorkerAccountOverviewPayload,
@@ -350,11 +351,13 @@ export async function loadWorkerAccountOverview(
     assessmentsRes,
     profileSkills,
     hiredAppsRes,
+    scheduledHistory,
   ] = await Promise.all([
-    supabase.from("worker").select("*").eq("id", workerId).maybeSingle(),
+    supabase.from("worker").select("*").eq("tenant_id", tenantId).eq("id", workerId).maybeSingle(),
     supabase
       .from("workers")
       .select("worker_type, employment_classification")
+      .eq("tenant_id", tenantId)
       .eq("candidate_id", workerId)
       .maybeSingle(),
     supabase
@@ -410,6 +413,7 @@ export async function loadWorkerAccountOverview(
       .eq("worker_id", workerId)
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: true }),
+    loadWorkerProfileSchedule(supabase, tenantId, workerId),
   ]);
 
   if (workerRes.error) throw workerRes.error;
@@ -508,7 +512,7 @@ export async function loadWorkerAccountOverview(
 
   const attendanceLogs = (attendanceRes.data ?? []) as AttendanceRow[];
   const totalHours = sumAttendanceHours(attendanceLogs);
-  const totalShifts = attendanceLogs.filter(
+  const totalShifts = scheduledHistory.total || attendanceLogs.filter(
     (log) => log.total_seconds != null || log.status === "clocked_out"
   ).length;
 
@@ -532,6 +536,7 @@ export async function loadWorkerAccountOverview(
     skills,
     certifications,
     recentDocuments,
+    scheduledShifts: scheduledHistory.shifts,
     workSummary: {
       totalShifts,
       hoursWorked: totalHours,

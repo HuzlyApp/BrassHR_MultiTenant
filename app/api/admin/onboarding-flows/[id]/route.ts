@@ -5,6 +5,7 @@ import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-eff
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import {
   deleteOnboardingFlow,
+  duplicateOnboardingFlow,
   getOnboardingFlowById,
   OnboardingFlowDeleteError,
   saveOnboardingFlowAsTemplate,
@@ -70,6 +71,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 }
 
 type PatchBody = {
+  duplicate?: boolean;
   name?: string;
   status?: OnboardingFlowStatus;
   libraryId?: string | null;
@@ -106,6 +108,11 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         { error: "No tenant selected", code: "TENANT_REQUIRED" },
         { status: 400 }
       );
+    }
+
+    if (body.duplicate === true) {
+      const flow = await duplicateOnboardingFlow(supabase as OnboardingDbClient, tenantId, id, auth.userId);
+      return NextResponse.json({ flow }, { status: 201 });
     }
 
     const builderDraft =

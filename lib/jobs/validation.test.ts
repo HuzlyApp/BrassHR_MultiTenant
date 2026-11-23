@@ -20,6 +20,11 @@ const validJob: JobRequisitionInput = {
 };
 
 describe("job requisition validation", () => {
+  it("rejects inverted pay ranges in the compensation step and draft API", () => {
+    expect(validateJobCompensationFields({ ...validJob, payRateMin: 50, payRateMax: 40 }).payRateMax).toMatch(/greater than or equal/i);
+    expect(jobMutationSchema.safeParse({ action: "save_draft", job: { ...validJob, payRateMin: 50, payRateMax: 40 } }).success).toBe(false);
+    expect(validateJobCompensationFields({ ...validJob, payRateMin: 40, payRateMax: 40 })).toEqual({});
+  });
   it("allows incomplete drafts through input parsing", () => {
     const result = jobMutationSchema.safeParse({
       action: "save_draft",

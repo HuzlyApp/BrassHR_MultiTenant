@@ -162,3 +162,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+async function mutateNote(req: NextRequest, remove: boolean) {
+  try {
+    const input = await req.json().catch(() => null) as { workerId?: unknown; noteId?: unknown; body?: unknown } | null;
+    const noteId = parseRequiredUuid(typeof input?.noteId === "string" ? input.noteId : "", "noteId");
+    if (!noteId.ok) return NextResponse.json({ error: noteId.error }, { status: 400 });
+    const noteBody = typeof input?.body === "string" ? input.body.trim() : "";
+    if (!remove && !noteBody) return NextResponse.json({ error: "Note cannot be empty" }, { status: 400 });
+    const resolved = await resolveWorkerAccess(typeof input?.workerId === "string" ? input.workerId : "");
+    if ("error" in resolved && resolved.error) return resolved.error;
+    const query = remove
+      ? resolved.supabase.from("worker_notes").delete()
+      : resolved.supabase.from("worker_notes").update({ body: noteBody, updated_at: new Date().toISOString() });
+    const { data, error } = await query.eq("tenant_id", resolved.tenantId).eq("worker_id", resolved.workerId)
+      .eq("id", noteId.value).select("id, body").maybeSingle();
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: "Note not found" }, { status: 404 });
+    return NextResponse.json({ ok: true, note: data });
+  } catch (error) {
+    console.error("[admin/worker-notes mutation]", error);
+    return NextResponse.json({ error: "Could not update note. Please try again." }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) { return mutateNote(req, false); }
+export async function DELETE(req: NextRequest) { return mutateNote(req, true); }

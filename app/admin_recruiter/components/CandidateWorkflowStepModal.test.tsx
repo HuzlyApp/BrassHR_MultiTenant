@@ -22,4 +22,11 @@ describe("workflow completion busy feedback", () => {
     expect(screen.queryByText("Sending…")).toBeNull();
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/workflow-steps/step-a"), expect.objectContaining({ method: "POST", body: expect.stringContaining('"action":"complete"') }));
   });
+  it("provides preview and download actions for an uploaded document", () => {
+    const documentInspection = { ...inspection, kind: "upload", documents: [{ id: "doc-a", documentName: "Nursing license", originalFileName: "license.pdf", documentType: "application/pdf", fileSize: 1200, uploadedAt: null, uploadedBy: null, verificationStatus: "uploaded", previewUrl: "https://example.com/preview-license", downloadUrl: "https://example.com/download-license", fileUnavailable: false, approvedOrRejectedAt: null, reviewedBy: null, reviewNotes: null }] } as WorkflowStepInspection;
+    render(<CandidateWorkflowStepModal open onOpenChange={vi.fn()} inspection={documentInspection} workerId="worker-a" />);
+    expect(screen.getByRole("link", { name: "Preview", exact: true })).toHaveAttribute("href", "https://example.com/preview-license");
+    expect(screen.getByRole("link", { name: "Download", exact: true })).toHaveAttribute("href", "https://example.com/download-license");
+  });
+
 });

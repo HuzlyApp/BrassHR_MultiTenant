@@ -5,7 +5,32 @@ import {
   formatShiftRange,
   parseEmployeeScheduleShiftInput,
   shiftsOverlap,
+  calendarViewRange,
+  matchesScheduleEmployeeFilters,
 } from "./employee-schedule";
+import { easternDateString } from "@/lib/datetime/eastern";
+
+describe("calendar range views and employee filters", () => {
+  it("builds day, Sunday-based week, and full calendar-month ranges", () => {
+    const anchor = new Date("2026-11-20T12:00:00Z");
+    const day = calendarViewRange("day", anchor);
+    expect([easternDateString(day.start), easternDateString(day.end)]).toEqual(["2026-11-20", "2026-11-20"]);
+    const week = calendarViewRange("week", anchor);
+    expect([easternDateString(week.start), easternDateString(week.end)]).toEqual(["2026-11-15", "2026-11-21"]);
+    const month = calendarViewRange("month", anchor);
+    expect([easternDateString(month.start), easternDateString(month.end)]).toEqual(["2026-11-01", "2026-11-30"]);
+    const leap = calendarViewRange("month", new Date("2028-02-15T12:00:00Z"));
+    expect(easternDateString(leap.end)).toBe("2028-02-29");
+  });
+  it("combines worker, client, position, location and status filters", () => {
+    const employee = { id: "employee-a", name: "Ana", jobId: null, jobRole: "Nurse", client: "Clinic", location: "Austin", status: "active" };
+    const filters = { worker: "all", client: "all", position: "all", location: "all", status: "all" };
+    expect(matchesScheduleEmployeeFilters(employee, filters)).toBe(true);
+    expect(matchesScheduleEmployeeFilters(employee, { worker: "employee-a", client: "Clinic", position: "Nurse", location: "Austin", status: "active" })).toBe(true);
+    expect(matchesScheduleEmployeeFilters(employee, { ...filters, client: "Other clinic" })).toBe(false);
+    expect(matchesScheduleEmployeeFilters(employee, { ...filters, status: "terminated" })).toBe(false);
+  });
+});
 
 describe("parseEmployeeScheduleShiftInput", () => {
   const valid = {
@@ -37,9 +62,9 @@ describe("parseEmployeeScheduleShiftInput", () => {
     });
   });
 
-  it("rejects a shift with no employee", () => {
+  it("allows an open shift without an employee", () => {
     const parsed = parseEmployeeScheduleShiftInput({ ...valid, workerId: " " });
-    expect(parsed).toEqual({ ok: false, error: "Select an employee for this shift." });
+    expect(parsed).toMatchObject({ ok: true, value: { workerId: null } });
   });
 
   it("allows an overnight range and rejects equal times", () => {

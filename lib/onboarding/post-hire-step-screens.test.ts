@@ -35,6 +35,7 @@ describe("postHireScreenKindForStep", () => {
 
   it("ignores steps without a post-hire screen", () => {
     expect(postHireScreenKindForStep(stepWith("employee-agreement"))).toBeNull();
+    expect(postHireScreenKindForStep(stepWith("authorization-esign"))).toBe("acknowledgment");
     expect(postHireScreenKindForStep(stepWith("upload-resume"))).toBeNull();
     expect(postHireScreenKindForStep(stepWith(null))).toBeNull();
   });
@@ -201,6 +202,11 @@ describe("post-hire submission data", () => {
     expect(w4DependentsAmount(-1, Number.NaN)).toBe(0);
   });
 
+  it("does not treat an e-sign checkbox alone as signed evidence", () => {
+    expect(effectivePostHireProgressStatus("acknowledgment", "completed", { checkbox_confirmed: true })).toBe("pending");
+    expect(hasCandidatePostHireEvidence("acknowledgment", { checkbox_confirmed: true, signature_name: "Test Signer" })).toBe(true);
+    expect(hasCandidatePostHireEvidence("acknowledgment", { firma_signed: true })).toBe(true);
+  });
   it("does not treat training steps as completed without candidate checkbox evidence", () => {
     expect(hasCandidatePostHireEvidence("training", { step_type: "custom_question" })).toBe(false);
     expect(effectivePostHireProgressStatus("training", "completed", {})).toBe("pending");

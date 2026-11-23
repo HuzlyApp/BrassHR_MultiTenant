@@ -425,7 +425,7 @@ export function JobFormStepRequisition({
         <div>
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-x-10 min-[700px]:gap-y-3">
             <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
-              Employment Type
+              Payroll Employment Type
               <JobFormRequiredMark />
             </span>
             <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>

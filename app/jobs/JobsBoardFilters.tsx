@@ -168,6 +168,9 @@ export function JobsBoardFilters({
               </button>
             ) : null}
           </div>
+      {draftTags.length > 0 ? (
+        <p className="text-xs text-slate-500">Jobs must match every keyword. Use each keyword’s remove button to broaden your search, or Reset search to start over.</p>
+      ) : null}
         </form>
 
         <button

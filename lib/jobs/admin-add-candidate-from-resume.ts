@@ -19,6 +19,7 @@ import {
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
   type NormalizedParsedResume,
+  type StoredParsedResume,
 } from "@/lib/resumeParseQuality";
 import { resumeTextToPdfBuffer } from "@/lib/resume/resume-text-to-pdf";
 import { sanitizePostgresJson, stripNullBytes } from "@/lib/resume/sanitize-postgres-text";
@@ -237,7 +238,7 @@ export type PreparedResumeCandidate = {
   resumeContentType: string;
   resumeFileType: ReturnType<typeof resolveResumeFileType>;
   parsed: NormalizedParsedResume;
-  parsedJson: Record<string, string>;
+  parsedJson: StoredParsedResume;
   qualityOk: boolean;
   qualityMessage: string | null;
 };
@@ -293,6 +294,13 @@ async function parseExtractedResumeText(
       parsed = fallback;
     }
   }
+
+  parsed = normalizeParsedResume({ ...parsed,
+    first_name: parsed.first_name.trim() || fallback.first_name,
+    last_name: parsed.last_name.trim() || fallback.last_name,
+    email: parsed.email.trim() || fallback.email,
+    phone: parsed.phone.trim() || fallback.phone,
+  });
 
   // Cached Grok results can omit city/state even when the text has them — always backfill.
   if (!parsed.city.trim() || !parsed.state.trim()) {
@@ -388,7 +396,7 @@ export async function prepareResumeCandidate(input: {
 
   const { parsed, qualityOk, qualityMessage } = await parseExtractedResumeText(
     extractedText,
-    resumeFileName,
+    input.resumeFile?.size ? resumeFileName : null,
   );
 
   return {

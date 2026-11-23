@@ -50,7 +50,6 @@ import {
   jobRequisitionInputFromApiRow,
   primaryButtonStyle,
   type JobFormOptionsPayload,
-  type JobFormStep,
   type JobFormUiState,
 } from "./job-form-shared";
 import {
@@ -67,6 +66,7 @@ import {
 import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
 import { validateJobCompensationFields } from "@/lib/jobs/validation";
+import { useJobFormStep } from "./use-job-form-step";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
@@ -92,7 +92,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const brandStyle = primaryButtonStyle(brandVars);
 
   const [persistedJobId, setPersistedJobId] = useState(jobId);
-  const [step, setStep] = useState<JobFormStep>(jobId ? "requisition" : "setup");
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const { step, setStep, restoreStep } = useJobFormStep(jobId ? "requisition" : "setup", draftHydrated);
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
   const [ui, setUi] = useState<JobFormUiState>(defaultJobFormUiState);
   const [options, setOptions] = useState<JobFormOptionsPayload | null>(null);
@@ -124,7 +125,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   } | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
-  const [draftHydrated, setDraftHydrated] = useState(false);
   const [serviceAreaBlocked, setServiceAreaBlocked] = useState(false);
   const [serviceAreaBlockMessage, setServiceAreaBlockMessage] = useState<string | null>(null);
   const skipJobLoadRef = useRef(false);
@@ -144,7 +144,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const draft = readJobRequisitionFormDraft(jobId ?? null);
     if (draft) {
       skipJobLoadRef.current = Boolean(jobId);
-      setStep(draft.step);
+      restoreStep(draft.step);
       setJob(draft.job);
       setUi(draft.ui);
       setMspSourcedByClient(draft.mspSourcedByClient);
@@ -157,7 +157,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setConfirmRoutingChange(draft.confirmRoutingChange);
     }
     setDraftHydrated(true);
-  }, [jobId]);
+  }, [jobId, restoreStep]);
 
   useLayoutEffect(() => {
     if (!draftHydrated || saving) return;
@@ -269,7 +269,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         );
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
-  }, [jobId]);
+  }, [jobId, setStep]);
 
   /** MSP R&R locks employment type to Contract; EOR W2/1099 must be chosen by the user. */
   useEffect(() => {
@@ -515,7 +515,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         errors.professionId = "Profession is required.";
       }
       if (!current.employmentType) {
-        errors.employmentType = "Employment Type is required.";
+        errors.employmentType = "Payroll Employment Type is required.";
       }
     }
 

@@ -4,7 +4,8 @@ import { WorkerRequestError, type RequestCreateInput, type RequestListInput } fr
 export const REQUEST_COLUMNS = "id,worker_id,request_type,status,start_date,end_date,reason,notes,off_type,facility_id,department_id,related_shift_id,created_by,reviewed_by,reviewed_at,review_notes,created_at,updated_at";
 
 export async function listWorkerRequests(supabase: SupabaseClient, tenantId: string, ownWorkerIds: string[] | null, input: RequestListInput) {
-  let query = supabase.from("worker_requests").select(REQUEST_COLUMNS, { count: "exact" }).eq("tenant_id", tenantId);
+  let query = supabase.from("worker_requests").select(`${REQUEST_COLUMNS}, worker:worker_id(first_name,last_name)`, { count: "exact" })
+    .eq("tenant_id", tenantId).eq("worker.tenant_id", tenantId);
   if (ownWorkerIds) query = query.in("worker_id", ownWorkerIds);
   if (input.type) query = query.eq("request_type", input.type);
   if (input.status) query = query.eq("status", input.status);

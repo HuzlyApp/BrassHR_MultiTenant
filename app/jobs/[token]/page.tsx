@@ -131,6 +131,7 @@ export default async function PublicJobDetailPage({
     relationName(job.professions),
     relationName(job.specialties),
     job.schedule,
+    job.hours_per_week != null ? `${job.hours_per_week} hours per week` : null,
   ].filter(Boolean);
 
   const separateBenefits = benefitItems(job.benefits);

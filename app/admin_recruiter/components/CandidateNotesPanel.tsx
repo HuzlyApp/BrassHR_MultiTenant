@@ -6,6 +6,7 @@ import {
   X,
 } from "lucide-react";
 import type { WorkerNoteDto } from "@/lib/worker-notes";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 
 type CandidateNotesPanelProps = {
   workerId: string;
@@ -45,6 +46,8 @@ export default function CandidateNotesPanel({
   const [saving, setSaving] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const { canEdit, canDelete } = useModulePermission("hiring");
 
   const candidateInitials = useMemo(() => initials(candidateName), [candidateName]);
   const isPage = layout === "page";
@@ -80,6 +83,7 @@ export default function CandidateNotesPanel({
   function closeModal() {
     setShowNotePopup(false);
     setNoteText("");
+    setEditingNoteId(null);
   }
 
   async function handleSaveNote() {
@@ -94,15 +98,18 @@ export default function CandidateNotesPanel({
     setActionError(null);
     try {
       const res = await fetch("/api/admin/worker-notes", {
-        method: "POST",
+        method: editingNoteId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workerId, body }),
+        body: JSON.stringify({ workerId, body, ...(editingNoteId ? { noteId: editingNoteId } : {}) }),
       });
       const json = (await res.json()) as { note?: WorkerNoteDto; error?: string };
       if (!res.ok) throw new Error(json.error || "Failed to save note");
 
       if (json.note) {
-        setNotes((current) => [json.note!, ...current]);
+        const saved = json.note;
+        setNotes((current) => editingNoteId
+          ? current.map((note) => note.id === editingNoteId ? { ...note, body: saved.body } : note)
+          : [saved, ...current]);
       } else {
         await loadNotes();
       }
@@ -115,7 +122,30 @@ export default function CandidateNotesPanel({
     }
   }
 
-  const addButton = (
+  function editNote(note: WorkerNoteDto) {
+    setEditingNoteId(note.id);
+    setNoteText(note.body);
+    setActionError(null);
+    setShowNotePopup(true);
+  }
+
+  async function deleteNote(note: WorkerNoteDto) {
+    if (saving || !window.confirm("Delete this note? This cannot be undone.")) return;
+    setSaving(true);
+    setActionError(null);
+    try {
+      const response = await fetch("/api/admin/worker-notes", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId, noteId: note.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not delete note");
+      setNotes((current) => current.filter((item) => item.id !== note.id));
+    } catch (error) { setActionError(error instanceof Error ? error.message : "Could not delete note"); }
+    finally { setSaving(false); }
+  }
+
+  const addButton = canEdit ? (
     <button
       type="button"
       onClick={() => setShowNotePopup(true)}
@@ -130,7 +160,7 @@ export default function CandidateNotesPanel({
       </span>
       <span>{isPage ? "Add Note" : "Add"}</span>
     </button>
-  );
+  ) : null;
 
   const noteModal = showNotePopup ? (
     <>
@@ -149,7 +179,7 @@ export default function CandidateNotesPanel({
           className="flex h-10 items-center justify-between rounded-t-lg px-3"
           style={{ background: "var(--brand-primary)" }}
         >
-          <div className="text-sm font-medium text-white">New Note</div>
+          <div className="text-sm font-medium text-white">{editingNoteId ? "Edit Note" : "New Note"}</div>
           <div className="flex items-center gap-2 text-white">
             <button
               type="button"
@@ -241,7 +271,7 @@ export default function CandidateNotesPanel({
               <h2 className="text-[20px] font-semibold leading-7 text-[#111827]">Notes</h2>
               {addButton}
             </div>
-            <NotesList notes={notes} />
+            <NotesList notes={notes} onEdit={canEdit ? editNote : undefined} onDelete={canDelete ? deleteNote : undefined} busy={saving} />
           </div>
         )}
 
@@ -254,13 +284,13 @@ export default function CandidateNotesPanel({
     <div className="relative w-full min-w-0 overflow-hidden rounded-lg bg-white">
       <div className="flex h-[45px] items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
         <div className="text-sm font-semibold leading-5 text-[#111827]">Notes</div>
-        <button
+        {canEdit ? <button
           type="button"
           onClick={() => setShowNotePopup(true)}
           className="inline-flex shrink-0 items-center text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition-opacity hover:opacity-80"
         >
           + Add
-        </button>
+        </button> : null}
       </div>
 
       <div className="px-5 py-4">
@@ -279,7 +309,7 @@ export default function CandidateNotesPanel({
             <div className="text-xs text-[#9CA3AF]">
               {notes.length} note{notes.length === 1 ? "" : "s"}
             </div>
-            <NotesList notes={notes} compact />
+            <NotesList notes={notes} compact onEdit={canEdit ? editNote : undefined} onDelete={canDelete ? deleteNote : undefined} busy={saving} />
           </div>
         )}
       </div>
@@ -289,7 +319,7 @@ export default function CandidateNotesPanel({
   );
 }
 
-function NotesList({ notes, compact = false }: { notes: WorkerNoteDto[]; compact?: boolean }) {
+function NotesList({ notes, compact = false, onEdit, onDelete, busy }: { notes: WorkerNoteDto[]; compact?: boolean; onEdit?: (note: WorkerNoteDto) => void; onDelete?: (note: WorkerNoteDto) => void; busy?: boolean }) {
   return (
     <div className={compact ? "max-h-[320px] space-y-2 overflow-y-auto pr-1" : "space-y-3"}>
       {notes.map((note) => (
@@ -312,6 +342,10 @@ function NotesList({ notes, compact = false }: { notes: WorkerNoteDto[]; compact
           >
             {note.body}
           </p>
+          <div className="mt-2 flex gap-3 text-xs">
+            {onEdit ? <button type="button" disabled={busy} onClick={() => onEdit(note)} className="font-semibold text-[color:var(--brand-primary)]">Edit note</button> : null}
+            {onDelete ? <button type="button" disabled={busy} onClick={() => onDelete(note)} className="font-semibold text-red-700">Delete note</button> : null}
+          </div>
         </article>
       ))}
     </div>

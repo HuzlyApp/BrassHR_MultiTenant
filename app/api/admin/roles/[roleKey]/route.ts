@@ -79,31 +79,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  const { error: updateError } = await supabase
-    .from("tenant_roles")
-    .update({ label, description })
-    .eq("tenant_id", tenantId)
-    .eq("role_key", key);
-  if (updateError) return NextResponse.json({ error: "Forbidden", detail: "Permission data unavailable" }, { status: 403 });
-
-  const { error: deleteError } = await supabase
-    .from("tenant_role_permissions")
-    .delete()
-    .eq("tenant_id", tenantId)
-    .eq("role_key", key);
-  if (deleteError) return NextResponse.json({ error: "Forbidden", detail: "Permission data unavailable" }, { status: 403 });
-
-  const { error: insertError } = await supabase.from("tenant_role_permissions").insert(
-    permissions.map((permission) => ({
-      tenant_id: tenantId,
-      role_key: key,
-      resource_key: permission.resourceKey,
-      can_view: permission.canView,
-      can_edit: permission.canEdit,
-      can_delete: permission.canDelete,
-    }))
-  );
-  if (insertError) return NextResponse.json({ error: "Forbidden", detail: "Permission data unavailable" }, { status: 403 });
+  const { error: saveError } = await supabase.rpc("update_tenant_role_permissions", {
+    p_tenant_id: tenantId,
+    p_role_key: key,
+    p_label: label,
+    p_description: description,
+    p_permissions: permissions.map((permission) => ({ resource_key: permission.resourceKey,
+      can_view: permission.canView, can_edit: permission.canEdit, can_delete: permission.canDelete })),
+  });
+  if (saveError) return NextResponse.json({ error: "Unable to save role permissions. Please try again." }, { status: 500 });
 
   const access = await loadFreshViewerStaffAccess();
   return NextResponse.json({ ok: true, ...(access ? { access } : {}) });

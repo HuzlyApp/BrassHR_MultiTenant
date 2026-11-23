@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { departmentCreateSchema, departmentPatchSchema, departmentListSchema } from "./v1-api";
-import { listDepartmentApiRecords, writeDepartmentApiRecord } from "./service";
+import { listDepartmentApiRecords, writeDepartmentApiRecord, validateDepartmentName } from "./service";
 
 function db(result: unknown = { data: [], count: 0, error: null }) {
   const calls: Array<[string, ...unknown[]]> = [];
@@ -11,6 +11,10 @@ function db(result: unknown = { data: [], count: 0, error: null }) {
 }
 
 describe("v1 department contract and tenant isolation", () => {
+  it("rejects compensation labels while allowing normal department names", () => {
+    expect(validateDepartmentName("Pay Rate: $58 - $60")).toContain("compensation");
+    expect(validateDepartmentName("Payroll")).toBeNull();
+  });
   it("rejects tenant reassignment and empty patches", () => {
     expect(departmentCreateSchema.safeParse({ name: "Nursing", tenant_id: "foreign" }).success).toBe(false);
     expect(departmentPatchSchema.safeParse({}).success).toBe(false);

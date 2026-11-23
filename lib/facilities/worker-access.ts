@@ -15,7 +15,7 @@ export type ResolvedWorkerContext = {
   staffUserId: string | null;
 };
 
-export async function resolveWorkerContext(workerIdRaw: string) {
+export async function resolveWorkerContext(workerIdRaw: string, options?: { allowUnlinkedAccount?: boolean }) {
   const idCheck = parseRequiredUuid(workerIdRaw, "workerId");
   if (!idCheck.ok) {
     return { error: NextResponse.json({ error: idCheck.error }, { status: 400 }) };
@@ -31,23 +31,21 @@ export async function resolveWorkerContext(workerIdRaw: string) {
     };
   }
 
-  const { data: worker, error } = await supabase
-    .from("worker")
-    .select("id, user_id, tenant_id")
-    .eq("id", idCheck.value)
-    .maybeSingle();
+  const scope = await resolveStaffTenantScope(auth.authUser);
+  let workerQuery = supabase.from("worker").select("id, user_id, tenant_id").eq("id", idCheck.value);
+  if (scope.mode === "scoped") workerQuery = workerQuery.eq("tenant_id", scope.tenantId);
+  const { data: worker, error } = await workerQuery.maybeSingle();
 
   if (error) throw error;
   if (!worker?.id || !worker.tenant_id) {
     return { error: NextResponse.json({ error: "Applicant not found." }, { status: 404 }) };
   }
 
-  if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+  if (!(await canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id }))) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
   const tenantId = String(worker.tenant_id);
-  const scope = await resolveStaffTenantScope(auth.authUser);
   if (scope.mode === "scoped" && scope.tenantId !== tenantId) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
@@ -74,7 +72,7 @@ export async function resolveWorkerContext(workerIdRaw: string) {
   });
 
   const workerAuthId = worker.user_id != null ? String(worker.user_id).trim() : "";
-  if (!workerAuthId) {
+  if (!workerAuthId && !options?.allowUnlinkedAccount) {
     return {
       error: NextResponse.json(
         { error: "Applicant account is not linked yet. Cannot assign facilities." },

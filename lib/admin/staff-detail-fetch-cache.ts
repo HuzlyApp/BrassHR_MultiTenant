@@ -5,6 +5,7 @@
  */
 
 export const STAFF_DETAIL_CACHE_TTL_MS = 30_000;
+export const STAFF_DETAIL_TIMEOUT_MS = 15_000;
 
 type CacheEntry<T> = {
   expiresAt: number;
@@ -16,6 +17,7 @@ type CacheEntry<T> = {
 type FetchStaffDetailOptions = {
   ttlMs?: number;
   bust?: boolean;
+  timeoutMs?: number;
 };
 
 const memory =
@@ -40,16 +42,20 @@ export function staffDetailCacheKey(url: string): string {
 export function invalidateStaffDetailCache(match?: string): void {
   if (!match) {
     memory.clear();
+    inFlight.clear();
     return;
   }
   for (const key of [...memory.keys()]) {
     if (key.includes(match)) memory.delete(key);
   }
+  for (const key of [...inFlight.keys()]) {
+    if (key.includes(match)) inFlight.delete(key);
+  }
 }
 
 export function prefetchStaffDetail(url: string, ttlMs = STAFF_DETAIL_CACHE_TTL_MS): void {
   if (!isBrowser()) return;
-  void fetchStaffDetailJson(url, { ttlMs });
+  void fetchStaffDetailJson(url, { ttlMs }).catch(() => { /* A failed hover prefetch must not surface an unhandled rejection. */ });
 }
 
 export async function fetchStaffDetailJson<T>(
@@ -74,27 +80,28 @@ export async function fetchStaffDetailJson<T>(
     inFlight.delete(key);
   }
 
-  const request = (async () => {
-    const response = await fetch(url, { cache: "no-store" });
-    const payload = (await response.json().catch(() => ({}))) as T;
-    const entry: CacheEntry<T> = {
-      expiresAt: Date.now() + ttlMs,
-      ok: response.ok,
-      status: response.status,
-      payload,
+  const request: Promise<CacheEntry<T>> = (async () => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error("This request took too long. Please try again.")); }, Math.max(1, options?.timeoutMs ?? STAFF_DETAIL_TIMEOUT_MS));
+    });
+    const load = async (): Promise<CacheEntry<T>> => {
+      const response = await fetch(url, { cache: "no-store", credentials: "include", signal: controller.signal });
+      const payload = (await response.json().catch(() => ({}))) as T;
+      return { expiresAt: Date.now() + ttlMs, ok: response.ok, status: response.status, payload };
     };
-    if (response.ok) {
-      memory.set(key, entry);
-    }
-    return entry;
+    try { return await Promise.race([load(), timeout]); }
+    finally { if (timer !== undefined) clearTimeout(timer); }
   })();
 
   inFlight.set(key, request as Promise<CacheEntry<unknown>>);
   try {
     const entry = await request;
+    if (entry.ok && inFlight.get(key) === request) memory.set(key, entry);
     return { ok: entry.ok, status: entry.status, payload: entry.payload };
   } finally {
-    inFlight.delete(key);
+    if (inFlight.get(key) === request) inFlight.delete(key);
   }
 }
 
