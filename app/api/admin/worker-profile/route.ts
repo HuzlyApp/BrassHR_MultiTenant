@@ -809,12 +809,15 @@ export async function GET(req: NextRequest) {
       asTrimmedString(w.source) ||
       asTrimmedString(w.lead_source) ||
       null
-    const resolvedJobId = asTrimmedString(appSummary?.sourceJobId) || null
     const resolvedJobTitle = asTrimmedString(appSummary?.jobTitle) || null
     const resolvedJobRequisitionId =
       asTrimmedString(appSummary?.jobRequisitionId) ||
       asTrimmedString(w.job_requisition_id) ||
       null
+    // Job ID is MSP-only (source job / external requisition). Hidden for Internal jobs.
+    let jobSourceType =
+      asTrimmedString(appSummary?.sourceType)?.toLowerCase() || null
+    let resolvedJobId: string | null = null
 
     let jobIndustryKey: string | null = null
     let professionIndustryKey: string | null = null
@@ -824,7 +827,9 @@ export async function GET(req: NextRequest) {
         // professions has no industry_key — resolve via tenant_professions / catalog.
         const { data: jobIndustryRow, error: jobIndustryErr } = await supabase
           .from("job_requisitions")
-          .select("industry_key, profession_id, specialty_id, specialty, professions(name)")
+          .select(
+            "industry_key, source_type, profession_id, specialty_id, specialty, internal_requisition_number, external_requisition_id, professions(name)"
+          )
           .eq("id", resolvedJobRequisitionId)
           .maybeSingle()
         if (jobIndustryErr) {
@@ -832,13 +837,25 @@ export async function GET(req: NextRequest) {
         } else if (jobIndustryRow) {
           const row = jobIndustryRow as {
             industry_key?: string | null
+            source_type?: string | null
             profession_id?: string | null
             specialty_id?: string | null
             specialty?: string | null
+            internal_requisition_number?: string | null
+            external_requisition_id?: string | null
             professions?: { name?: string | null } | { name?: string | null }[] | null
           }
           jobIndustryKey = asTrimmedString(row.industry_key)
           jobSpecialtyName = asTrimmedString(row.specialty)
+          jobSourceType =
+            asTrimmedString(row.source_type)?.toLowerCase() || jobSourceType
+          if (jobSourceType === "msp") {
+            resolvedJobId =
+              asTrimmedString(row.external_requisition_id) ||
+              asTrimmedString(appSummary?.sourceJobId) ||
+              asTrimmedString(row.internal_requisition_number) ||
+              resolvedJobRequisitionId.slice(0, 8).toUpperCase()
+          }
 
           const professionJoin = row.professions
           const professionRow = Array.isArray(professionJoin)
@@ -898,6 +915,14 @@ export async function GET(req: NextRequest) {
       } catch (jobIndustryLookupErr) {
         console.warn("[admin/worker-profile] job industry lookup", jobIndustryLookupErr)
       }
+    }
+
+    if (!resolvedJobId && jobSourceType === "msp") {
+      resolvedJobId =
+        asTrimmedString(appSummary?.sourceJobId) ||
+        (resolvedJobRequisitionId
+          ? resolvedJobRequisitionId.slice(0, 8).toUpperCase()
+          : null)
     }
 
     const rawWorkerStatus = asTrimmedString(w.status) ?? asTrimmedString(w.worker_status)
@@ -1127,6 +1152,7 @@ export async function GET(req: NextRequest) {
       job_id: resolvedJobId,
       job_title: resolvedJobTitle,
       job_requisition_id: resolvedJobRequisitionId,
+      job_source_type: jobSourceType,
       job_industry_key: jobIndustryKey,
       profession_industry_key: professionIndustryKey,
       activity: {

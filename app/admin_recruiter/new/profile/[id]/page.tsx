@@ -72,6 +72,8 @@ type OnboardingStep = {
 
 type ProfilePayload = {
   job_id?: string | null;
+  job_requisition_id?: string | null;
+  job_source_type?: string | null;
   job_industry_key?: string | null;
   profession_industry_key?: string | null;
   worker: {
@@ -867,7 +869,11 @@ export default function NewApplicantProfilePage() {
               location={candidateLocation}
               statusLabel={w?.status_label ?? null}
               applicationDate={formatDate(w?.created_at)}
-              jobId={w?.job_id ?? data?.job_id ?? null}
+              jobId={
+                (data?.job_source_type ?? "").toLowerCase() === "msp"
+                  ? w?.job_id?.trim() || data?.job_id?.trim() || null
+                  : null
+              }
               source={data?.activity?.source ?? null}
               progressPercent={data?.onboardingCompletion?.percent ?? null}
               progressInProgress={
