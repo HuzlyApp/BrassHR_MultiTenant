@@ -139,8 +139,6 @@ export default function PersonalTab() {
   const [phoneSuccessOpen, setPhoneSuccessOpen] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
-  const [birthdateError, setBirthdateError] = useState<string | null>(null);
-  const [jobTitleError, setJobTitleError] = useState<string | null>(null);
 
   const resolvedFields = useMemo(
     () => resolvePersonalProfileFields(profile, organization),
@@ -383,8 +381,6 @@ export default function PersonalTab() {
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
-    setBirthdateError(null);
-    setJobTitleError(null);
   }
 
   const accountEmail = (user?.email ?? profile?.email ?? "").trim();
@@ -663,8 +659,6 @@ export default function PersonalTab() {
     setPhoneError(null);
     setAddressError(null);
     setZipError(null);
-    setBirthdateError(null);
-    setJobTitleError(null);
 
     if (!firstName.trim() || !lastName.trim()) {
       setSaveError("First name and last name are required.");
@@ -682,18 +676,6 @@ export default function PersonalTab() {
               : "Preferred name"
         )
       );
-      setSaving(false);
-      return;
-    }
-
-    if (!birthdate.trim()) {
-      setBirthdateError("Birthdate is required.");
-      setSaving(false);
-      return;
-    }
-
-    if (canEditProfessionalFields && !jobTitle.trim()) {
-      setJobTitleError("Job title is required.");
       setSaving(false);
       return;
     }
@@ -988,17 +970,11 @@ export default function PersonalTab() {
             {phoneError ? <p className="mt-1 text-xs text-[#B91C1C]">{phoneError}</p> : null}
           </div>
           <label className="block">
-            <FieldLabel>
-              Birthdate
-              <RequiredMark />
-            </FieldLabel>
+            <FieldLabel>Birthdate</FieldLabel>
             <input
               type="date"
               value={birthdate}
-              onChange={(e) => {
-                setBirthdate(e.target.value);
-                if (birthdateError) setBirthdateError(null);
-              }}
+              onChange={(e) => setBirthdate(e.target.value)}
               onClick={(e) => {
                 const input = e.currentTarget;
                 try {
@@ -1007,9 +983,8 @@ export default function PersonalTab() {
                   /* unsupported / already open */
                 }
               }}
-              className={`${FIELD} cursor-pointer${birthdateError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
+              className={`${FIELD} cursor-pointer`}
             />
-            {birthdateError ? <p className="mt-1 text-xs text-[#B91C1C]">{birthdateError}</p> : null}
           </label>
         </div>
       </SectionCard>
@@ -1023,21 +998,14 @@ export default function PersonalTab() {
             </p>
           ) : null}
           <label className="block">
-            <FieldLabel>
-              Job Title
-              {canEditProfessionalFields ? <RequiredMark /> : null}
-            </FieldLabel>
+            <FieldLabel>Job Title</FieldLabel>
             <input
               type="text"
               value={jobTitle}
               disabled={!canEditProfessionalFields}
-              onChange={(e) => {
-                setJobTitle(e.target.value);
-                if (jobTitleError) setJobTitleError(null);
-              }}
-              className={`${FIELD}${jobTitleError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""} disabled:cursor-not-allowed disabled:bg-[#F8FAFC]`}
+              onChange={(e) => setJobTitle(e.target.value)}
+              className={`${FIELD} disabled:cursor-not-allowed disabled:bg-[#F8FAFC]`}
             />
-            {jobTitleError ? <p className="mt-1 text-xs text-[#B91C1C]">{jobTitleError}</p> : null}
           </label>
           <SelectField
             label="Department"
