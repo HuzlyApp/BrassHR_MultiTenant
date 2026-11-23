@@ -39,7 +39,9 @@ import {
   startOfEasternWeek,
 } from "@/lib/datetime/eastern";
 import {
+  formatEmployeeShiftOverlapMessage,
   formatShiftRange,
+  shiftsOverlap,
   type EmployeeScheduleEmployee,
   type EmployeeScheduleShift,
   type EmployeeScheduleWeekResponse,
@@ -605,6 +607,28 @@ export default function SchedulePageClient() {
     toast.success("Schedule exported.");
   };
 
+  const findLoadedOverlap = (
+    workerId: string,
+    workDate: string,
+    startTime: string,
+    endTime: string,
+    excludeShiftId?: string | null
+  ) => {
+    const excludeId = excludeShiftId?.trim() || "";
+    return shifts.find((shift) => {
+      if (shift.workerId !== workerId) return false;
+      if (excludeId && shift.id === excludeId) return false;
+      return shiftsOverlap(
+        { workDate, startTime, endTime },
+        {
+          workDate: shift.workDate.slice(0, 10),
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+        }
+      );
+    });
+  };
+
   const handleCreateShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShiftTitle.trim()) {
@@ -617,6 +641,24 @@ export default function SchedulePageClient() {
     }
     if (!newShiftDate) {
       toast.error("Please select a date for the shift.");
+      return;
+    }
+
+    const localConflict = findLoadedOverlap(
+      newShiftWorkerId,
+      newShiftDate,
+      newShiftStartTime,
+      newShiftEndTime
+    );
+    if (localConflict) {
+      toast.error(
+        formatEmployeeShiftOverlapMessage({
+          title: localConflict.title,
+          workDate: localConflict.workDate.slice(0, 10),
+          startTime: localConflict.startTime,
+          endTime: localConflict.endTime,
+        })
+      );
       return;
     }
 
@@ -694,6 +736,25 @@ export default function SchedulePageClient() {
     }
     if (!editShiftDate) {
       toast.error("Please select a date for the shift.");
+      return;
+    }
+
+    const localConflict = findLoadedOverlap(
+      editShiftWorkerId,
+      editShiftDate,
+      editShiftStartTime,
+      editShiftEndTime,
+      selectedShift.id
+    );
+    if (localConflict) {
+      toast.error(
+        formatEmployeeShiftOverlapMessage({
+          title: localConflict.title,
+          workDate: localConflict.workDate.slice(0, 10),
+          startTime: localConflict.startTime,
+          endTime: localConflict.endTime,
+        })
+      );
       return;
     }
 

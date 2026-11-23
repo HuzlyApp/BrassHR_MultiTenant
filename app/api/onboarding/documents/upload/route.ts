@@ -8,6 +8,7 @@ import {
   resolveOnboardingWorker,
 } from "@/lib/onboarding/resolve-onboarding-worker";
 import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { hireGateFromApplications } from "@/lib/onboarding/lock-post-hire";
@@ -216,6 +217,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing file, applicantId, or requiredDocumentId" }, { status: 400 });
     }
 
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({
+        ok: true,
+        draftPreview: true,
+        uploadId: `draft-preview-${randomUUID()}`,
+        fileName: file.name,
+      });
+    }
+
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) {
@@ -404,6 +414,10 @@ export async function DELETE(req: NextRequest) {
     const uploadId = body.uploadId?.trim() ?? "";
     if (!applicantId || !uploadId) {
       return NextResponse.json({ error: "applicantId and uploadId are required" }, { status: 400 });
+    }
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ ok: true, draftPreview: true });
     }
 
     const url = getSupabaseUrl();

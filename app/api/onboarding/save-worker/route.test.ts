@@ -111,4 +111,15 @@ describe("onboarding save-worker route", () => {
     expect(persistWorkerRowMock).not.toHaveBeenCalled();
     expect(afterCallbacks).toHaveLength(0);
   });
+
+  it("does not persist when preview flag is set even with a live applicant id (BUG-130)", async () => {
+    const res = await saveWorker({
+      ...validBody,
+      applicantId: "real-applicant-auth-user",
+      draftPreview: true,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, preview: true });
+    expect(persistWorkerRowMock).not.toHaveBeenCalled();
+  });
 });

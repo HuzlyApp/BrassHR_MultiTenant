@@ -809,38 +809,120 @@ export async function GET(req: NextRequest) {
       asTrimmedString(w.source) ||
       asTrimmedString(w.lead_source) ||
       null
-    const resolvedJobId = asTrimmedString(appSummary?.sourceJobId) || null
     const resolvedJobTitle = asTrimmedString(appSummary?.jobTitle) || null
-    const resolvedJobRequisitionId = asTrimmedString(appSummary?.jobRequisitionId) || null
+    const resolvedJobRequisitionId =
+      asTrimmedString(appSummary?.jobRequisitionId) ||
+      asTrimmedString(w.job_requisition_id) ||
+      null
+    // Job ID is MSP-only (source job / external requisition). Hidden for Internal jobs.
+    let jobSourceType =
+      asTrimmedString(appSummary?.sourceType)?.toLowerCase() || null
+    let resolvedJobId: string | null = null
 
     let jobIndustryKey: string | null = null
     let professionIndustryKey: string | null = null
+    let jobSpecialtyName: string | null = null
     if (resolvedJobRequisitionId) {
       try {
+        // professions has no industry_key — resolve via tenant_professions / catalog.
         const { data: jobIndustryRow, error: jobIndustryErr } = await supabase
           .from("job_requisitions")
-          .select("industry_key, profession_id, professions(industry_key)")
+          .select(
+            "industry_key, source_type, profession_id, specialty_id, specialty, internal_requisition_number, external_requisition_id, professions(name)"
+          )
           .eq("id", resolvedJobRequisitionId)
           .maybeSingle()
         if (jobIndustryErr) {
           console.warn("[admin/worker-profile] job industry lookup", jobIndustryErr)
         } else if (jobIndustryRow) {
-          jobIndustryKey = asTrimmedString(
-            (jobIndustryRow as { industry_key?: string | null }).industry_key
-          )
-          const professionJoin = (
-            jobIndustryRow as {
-              professions?: { industry_key?: string | null } | { industry_key?: string | null }[] | null
-            }
-          ).professions
+          const row = jobIndustryRow as {
+            industry_key?: string | null
+            source_type?: string | null
+            profession_id?: string | null
+            specialty_id?: string | null
+            specialty?: string | null
+            internal_requisition_number?: string | null
+            external_requisition_id?: string | null
+            professions?: { name?: string | null } | { name?: string | null }[] | null
+          }
+          jobIndustryKey = asTrimmedString(row.industry_key)
+          jobSpecialtyName = asTrimmedString(row.specialty)
+          jobSourceType =
+            asTrimmedString(row.source_type)?.toLowerCase() || jobSourceType
+          if (jobSourceType === "msp") {
+            resolvedJobId =
+              asTrimmedString(row.external_requisition_id) ||
+              asTrimmedString(appSummary?.sourceJobId) ||
+              asTrimmedString(row.internal_requisition_number) ||
+              resolvedJobRequisitionId.slice(0, 8).toUpperCase()
+          }
+
+          const professionJoin = row.professions
           const professionRow = Array.isArray(professionJoin)
             ? professionJoin[0]
             : professionJoin
-          professionIndustryKey = asTrimmedString(professionRow?.industry_key)
+          const professionName = asTrimmedString(professionRow?.name)
+          const professionId = asTrimmedString(row.profession_id)
+
+          if (tenantIdForWorker && (professionId || professionName)) {
+            if (professionId) {
+              const { data: byId } = await supabase
+                .from("tenant_professions")
+                .select("industry_key")
+                .eq("tenant_id", tenantIdForWorker)
+                .eq("id", professionId)
+                .maybeSingle()
+              professionIndustryKey = asTrimmedString(
+                (byId as { industry_key?: string | null } | null)?.industry_key
+              )
+            }
+            if (!professionIndustryKey && professionName) {
+              const { data: byName } = await supabase
+                .from("tenant_professions")
+                .select("industry_key")
+                .eq("tenant_id", tenantIdForWorker)
+                .ilike("name", professionName)
+                .limit(1)
+                .maybeSingle()
+              professionIndustryKey = asTrimmedString(
+                (byName as { industry_key?: string | null } | null)?.industry_key
+              )
+            }
+            if (!professionIndustryKey && professionName) {
+              const { data: catalog } = await supabase
+                .from("profession_catalog")
+                .select("industry_key")
+                .ilike("name", professionName)
+                .limit(1)
+                .maybeSingle()
+              professionIndustryKey = asTrimmedString(
+                (catalog as { industry_key?: string | null } | null)?.industry_key
+              )
+            }
+          }
+
+          if (!jobSpecialtyName && row.specialty_id) {
+            const { data: specialtyRow } = await supabase
+              .from("specialties")
+              .select("name")
+              .eq("id", row.specialty_id)
+              .maybeSingle()
+            jobSpecialtyName = asTrimmedString(
+              (specialtyRow as { name?: string | null } | null)?.name
+            )
+          }
         }
       } catch (jobIndustryLookupErr) {
         console.warn("[admin/worker-profile] job industry lookup", jobIndustryLookupErr)
       }
+    }
+
+    if (!resolvedJobId && jobSourceType === "msp") {
+      resolvedJobId =
+        asTrimmedString(appSummary?.sourceJobId) ||
+        (resolvedJobRequisitionId
+          ? resolvedJobRequisitionId.slice(0, 8).toUpperCase()
+          : null)
     }
 
     const rawWorkerStatus = asTrimmedString(w.status) ?? asTrimmedString(w.worker_status)
@@ -962,6 +1044,8 @@ export async function GET(req: NextRequest) {
         hourly_rate: w.hourly_rate != null ? String(w.hourly_rate) : null,
         pay_rate_period:
           w.pay_rate_period != null ? normalizeWorkerPayRatePeriod(String(w.pay_rate_period)) : "Hourly",
+        allied_health_role: asTrimmedString(w.allied_health_role),
+        specialty: asTrimmedString(w.specialty) ?? jobSpecialtyName,
         ssn_last_four: w.ssn_last_four != null ? String(w.ssn_last_four) : null,
         positions,
         profile_photo_url: profilePhotoUrl,
@@ -1068,6 +1152,7 @@ export async function GET(req: NextRequest) {
       job_id: resolvedJobId,
       job_title: resolvedJobTitle,
       job_requisition_id: resolvedJobRequisitionId,
+      job_source_type: jobSourceType,
       job_industry_key: jobIndustryKey,
       profession_industry_key: professionIndustryKey,
       activity: {

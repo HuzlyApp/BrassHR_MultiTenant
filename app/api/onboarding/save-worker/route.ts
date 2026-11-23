@@ -43,8 +43,15 @@ export async function POST(req: NextRequest) {
     /**
      * Test workflow / draft preview uses a synthetic applicant id that is not a UUID.
      * Validate the form, but never persist a production worker.
+     * Also honor an explicit preview flag so a leftover live session cannot overwrite
+     * a real candidate from Workflow Preview (BUG-130).
      */
-    if (isDraftPreviewApplicantId(applicantId)) {
+    const previewFlag =
+      body?.preview === true ||
+      body?.draftPreview === true ||
+      body?.preview === "draft" ||
+      String(body?.mode ?? "").trim().toLowerCase() === "test"
+    if (isDraftPreviewApplicantId(applicantId) || previewFlag) {
       return NextResponse.json({ ok: true, preview: true })
     }
 

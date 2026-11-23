@@ -3,6 +3,10 @@
 import { applicantAuthHeaders } from "@/lib/onboarding/applicant-auth-headers"
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { workerSignInHref } from "@/lib/auth/worker-sign-in"
+import {
+  DRAFT_PREVIEW_APPLICANT_ID,
+  isOnboardingDraftPreview,
+} from "@/lib/onboarding/is-draft-preview"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import type { HTMLAttributes, ReactNode } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -517,6 +521,11 @@ function Step1ReviewContent() {
 
   const persistResumeDraft = useCallback(async (): Promise<boolean> => {
     if (autosaveEmailBlockedRef.current) return false
+    // Preview must never autosave into a real worker row.
+    if (typeof window !== "undefined" && isOnboardingDraftPreview(window.location.search)) {
+      return true
+    }
+
     const applicantId = getScopedApplicantId() || ""
     if (!applicantId) return false
     if (
@@ -536,8 +545,15 @@ function Step1ReviewContent() {
     if (!tenantSlug) return false
 
     const auth = await applicantAuthHeaders({ "Content-Type": "application/json" })
+    const resolvedApplicantId = auth.applicantId || applicantId
+    if (
+      resolvedApplicantId === DRAFT_PREVIEW_APPLICANT_ID ||
+      isOnboardingDraftPreview(window.location.search)
+    ) {
+      return true
+    }
     const payload = {
-      applicantId: auth.applicantId || applicantId,
+      applicantId: resolvedApplicantId,
       firstName: form.firstName,
       lastName: form.lastName,
       address1: form.address1,
@@ -672,7 +688,11 @@ function Step1ReviewContent() {
 
     try {
       const verified = addressValidationPayload()
-      const auth = await applicantAuthHeaders({ "Content-Type": "application/json" })
+      const isDraftPreview =
+        typeof window !== "undefined" && isOnboardingDraftPreview(window.location.search)
+      const auth = isDraftPreview
+        ? { headers: { "Content-Type": "application/json" }, applicantId: DRAFT_PREVIEW_APPLICANT_ID }
+        : await applicantAuthHeaders({ "Content-Type": "application/json" })
       const applicantId = auth.applicantId || getScopedApplicantId() || ""
       if (!applicantId) throw new Error("Missing applicant ID")
 
@@ -684,79 +704,82 @@ function Step1ReviewContent() {
         throw new Error("Company not found. Check the link and try again.")
       }
 
-      const payload = {
-        applicantId,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        address1: form.address1,
-        address2: resolveStep1Address2(form),
-        city: form.city,
-        state: form.state,
-        zipCode: form.zipCode,
-        phone: form.phone,
-        email: form.email,
-        jobRole: form.jobRole,
-        tenantSlug,
-        ...(verified
-          ? {
-              addressOriginal: verified.originalAddress,
-              addressNormalized: verified.normalizedAddress,
-              addressLat: verified.coordinates?.lat,
-              addressLng: verified.coordinates?.lng,
-              addressValidationConfidence: verified.confidence,
-            }
-          : {}),
-      }
+      // Workflow Preview validates locally and advances, but never writes tenant data.
+      if (!isDraftPreview && applicantId !== DRAFT_PREVIEW_APPLICANT_ID) {
+        const payload = {
+          applicantId,
+          firstName: form.firstName,
+          lastName: form.lastName,
+          address1: form.address1,
+          address2: resolveStep1Address2(form),
+          city: form.city,
+          state: form.state,
+          zipCode: form.zipCode,
+          phone: form.phone,
+          email: form.email,
+          jobRole: form.jobRole,
+          tenantSlug,
+          ...(verified
+            ? {
+                addressOriginal: verified.originalAddress,
+                addressNormalized: verified.normalizedAddress,
+                addressLat: verified.coordinates?.lat,
+                addressLng: verified.coordinates?.lng,
+                addressValidationConfidence: verified.confidence,
+              }
+            : {}),
+        }
 
-      const saveRes = await fetch("/api/onboarding/save-worker", {
-        method: "POST",
-        headers: auth.headers,
-        body: JSON.stringify(payload),
-      })
+        const saveRes = await fetch("/api/onboarding/save-worker", {
+          method: "POST",
+          headers: auth.headers,
+          body: JSON.stringify(payload),
+        })
 
-      let saveJson: { error?: string; hint?: string; code?: string } = {}
-      try {
-        saveJson = (await saveRes.json()) as { error?: string; hint?: string; code?: string }
-      } catch {
-        /* non-JSON error body */
-      }
-
-      if (saveRes.status === 409 && saveJson.code === "DUPLICATE_EMAIL") {
-        autosaveEmailBlockedRef.current = true
-        setFieldConflict({ kind: "email", bannerVisible: true })
-        return
-      }
-
-      if (!saveRes.ok) {
-        throw new Error(
-          saveJson.hint || saveJson.error || `Save failed (${saveRes.status})`
-        )
-      }
-
-      const resumeStoragePath =
-        typeof window !== "undefined"
-          ? localStorage.getItem("resumeStoragePath")
-          : null
-      if (resumeStoragePath?.trim()) {
+        let saveJson: { error?: string; hint?: string; code?: string } = {}
         try {
-          const reqRes = await fetch("/api/onboarding/worker-requirements", {
-            method: "POST",
-            headers: auth.headers,
-            body: JSON.stringify({
-              applicantId,
-              resume_path: resumeStoragePath.trim(),
-              ...(tenantSlug ? { tenantSlug } : {}),
-            }),
-          })
-          if (!reqRes.ok) {
-            const j = (await reqRes.json().catch(() => ({}))) as { error?: string }
-            console.warn(
-              "[step-1-review] worker_requirements resume_path",
-              j.error || reqRes.status
-            )
+          saveJson = (await saveRes.json()) as { error?: string; hint?: string; code?: string }
+        } catch {
+          /* non-JSON error body */
+        }
+
+        if (saveRes.status === 409 && saveJson.code === "DUPLICATE_EMAIL") {
+          autosaveEmailBlockedRef.current = true
+          setFieldConflict({ kind: "email", bannerVisible: true })
+          return
+        }
+
+        if (!saveRes.ok) {
+          throw new Error(
+            saveJson.hint || saveJson.error || `Save failed (${saveRes.status})`
+          )
+        }
+
+        const resumeStoragePath =
+          typeof window !== "undefined"
+            ? localStorage.getItem("resumeStoragePath")
+            : null
+        if (resumeStoragePath?.trim()) {
+          try {
+            const reqRes = await fetch("/api/onboarding/worker-requirements", {
+              method: "POST",
+              headers: auth.headers,
+              body: JSON.stringify({
+                applicantId,
+                resume_path: resumeStoragePath.trim(),
+                ...(tenantSlug ? { tenantSlug } : {}),
+              }),
+            })
+            if (!reqRes.ok) {
+              const j = (await reqRes.json().catch(() => ({}))) as { error?: string }
+              console.warn(
+                "[step-1-review] worker_requirements resume_path",
+                j.error || reqRes.status
+              )
+            }
+          } catch (e) {
+            console.warn("[step-1-review] worker_requirements resume_path", e)
           }
-        } catch (e) {
-          console.warn("[step-1-review] worker_requirements resume_path", e)
         }
       }
 

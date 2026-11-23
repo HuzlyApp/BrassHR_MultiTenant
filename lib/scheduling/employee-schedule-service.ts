@@ -1,11 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getApplicationAppliedJobsByWorker } from "@/lib/workers/worker-application-job-titles";
 import {
+  addDaysToIsoDate,
+  EmployeeScheduleConflictError,
+  formatEmployeeShiftOverlapMessage,
   parseEmployeeScheduleShiftInput,
+  shiftsOverlap,
   type CreateEmployeeScheduleShiftInput,
   type EmployeeScheduleEmployee,
   type EmployeeScheduleShift,
   type EmployeeScheduleWeekResponse,
+  type ParsedEmployeeScheduleShift,
 } from "./employee-schedule";
 
 type WorkerRow = {
@@ -219,6 +224,59 @@ export async function loadEmployeeScheduleWeek(
   };
 }
 
+async function assertNoWorkerShiftOverlap(
+  supabase: SupabaseClient,
+  tenantId: string,
+  value: ParsedEmployeeScheduleShift,
+  excludeShiftId?: string | null
+) {
+  const fromDate = addDaysToIsoDate(value.workDate, -1);
+  const toDate = addDaysToIsoDate(value.workDate, 1);
+  const { data, error } = await supabase
+    .from("employee_schedule_shifts")
+    .select("id, title, work_date, start_time, end_time")
+    .eq("tenant_id", tenantId)
+    .eq("worker_id", value.workerId)
+    .gte("work_date", fromDate)
+    .lte("work_date", toDate);
+
+  if (error) throw error;
+
+  const excludeId = excludeShiftId?.trim() || "";
+  const conflict = ((data ?? []) as Array<{
+    id: string;
+    title: string;
+    work_date: string;
+    start_time: string;
+    end_time: string;
+  }>).find((row) => {
+    if (excludeId && row.id === excludeId) return false;
+    return shiftsOverlap(
+      {
+        workDate: value.workDate,
+        startTime: value.startTime,
+        endTime: value.endTime,
+      },
+      {
+        workDate: row.work_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+      }
+    );
+  });
+
+  if (conflict) {
+    throw new EmployeeScheduleConflictError(
+      formatEmployeeShiftOverlapMessage({
+        title: conflict.title,
+        workDate: conflict.work_date,
+        startTime: conflict.start_time,
+        endTime: conflict.end_time,
+      })
+    );
+  }
+}
+
 export async function createEmployeeScheduleShift(
   supabase: SupabaseClient,
   tenantId: string,
@@ -230,6 +288,8 @@ export async function createEmployeeScheduleShift(
   }
 
   const value = parsed.value;
+  await assertNoWorkerShiftOverlap(supabase, tenantId, value);
+
   const { data, error } = await supabase
     .from("employee_schedule_shifts")
     .insert({
@@ -271,6 +331,8 @@ export async function updateEmployeeScheduleShift(
   }
 
   const value = parsed.value;
+  await assertNoWorkerShiftOverlap(supabase, tenantId, value, id);
+
   const { data, error } = await supabase
     .from("employee_schedule_shifts")
     .update({

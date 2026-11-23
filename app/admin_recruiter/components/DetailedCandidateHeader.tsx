@@ -232,7 +232,7 @@ export default function DetailedCandidateHeader({
 
             <div className="w-full shrink-0 space-y-2.5 border-t border-[#E5E7EB] pt-4 text-sm lg:w-[280px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <MetaRow label="Application Date" value={applicationDate?.trim() || "—"} />
-              <MetaRow label="Job ID" value={jobId?.trim() || "—"} />
+              {jobId?.trim() ? <MetaRow label="Job ID" value={jobId.trim()} /> : null}
               <MetaRow label="Source" value={source?.trim() && source.trim() !== "—" ? source.trim() : "—"} />
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[#6B7280]">Current Status</span>

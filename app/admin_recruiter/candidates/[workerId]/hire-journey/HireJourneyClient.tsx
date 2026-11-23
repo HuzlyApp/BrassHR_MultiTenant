@@ -9,7 +9,12 @@ import {
   dispatchCandidatePipelineRefresh,
   type CandidatePipelineRefreshDetail,
 } from "@/lib/admin/candidate-pipeline-events";
-import { fetchStaffDetailJson, prefetchStaffDetail } from "@/lib/admin/staff-detail-fetch-cache";
+import {
+  fetchStaffDetailJson,
+  invalidateStaffDetailCache,
+  prefetchStaffDetail,
+  workerProfileApiUrl,
+} from "@/lib/admin/staff-detail-fetch-cache";
 import {
   APPLICATION_STAGE_ASSIGNMENTS_URL,
   APPLICATION_STATUS_CATALOG_URL,
@@ -198,9 +203,12 @@ export default function HireJourneyClient({
   }, [compact, embedded, router, workerId]);
 
   const refreshJourney = useCallback(async () => {
-    await load({ silent: true });
-    if (embedded) dispatchCandidatePipelineRefresh(workerId);
-  }, [embedded, load, workerId]);
+    // Bust worker-profile cache so header/profile progress rematch the board.
+    invalidateStaffDetailCache(workerProfileApiUrl(workerId));
+    invalidateStaffDetailCache(workerId);
+    await load({ silent: true, bust: true });
+    dispatchCandidatePipelineRefresh(workerId);
+  }, [load, workerId]);
 
   const sidebarProfile = useMemo(() => buildSidebarProfile(profile, view), [profile, view]);
   const phaseApplication = view?.primaryApplication ?? null;

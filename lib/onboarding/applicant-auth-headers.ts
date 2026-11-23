@@ -1,4 +1,8 @@
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser";
+import {
+  DRAFT_PREVIEW_APPLICANT_ID,
+  isOnboardingDraftPreview,
+} from "@/lib/onboarding/is-draft-preview";
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage";
 
 /** Bearer token for the isolated applicant session, plus a refreshed access cookie. */
@@ -7,6 +11,14 @@ export async function applicantAuthHeaders(extra?: Record<string, string>): Prom
   applicantId: string | null;
 }> {
   const headers: Record<string, string> = { ...extra };
+
+  // Workflow Preview / Test mode must never inherit a live applicant auth user.
+  // Otherwise Save & continue overwrites a real worker (BUG-130).
+  if (typeof window !== "undefined" && isOnboardingDraftPreview(window.location.search)) {
+    setScopedApplicantId(DRAFT_PREVIEW_APPLICANT_ID);
+    return { headers, applicantId: DRAFT_PREVIEW_APPLICANT_ID };
+  }
+
   let applicantId: string | null = null;
   try {
     const supabase = getApplicantSupabaseClient();

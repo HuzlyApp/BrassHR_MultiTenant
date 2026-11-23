@@ -311,15 +311,14 @@ export default function BusinessInfoTab() {
     setSaveSuccess(null);
 
     const errors = validateBusinessInfoForm(formInput, validationContext);
-    let nextWebsiteError: string | null = null;
-    if (!website.trim()) {
-      nextWebsiteError = "Website is required.";
-    } else if (
-      !/^https?:\/\/.+/i.test(website.trim()) &&
-      !/^[a-z0-9.-]+\.[a-z]{2,}/i.test(website.trim())
-    ) {
-      nextWebsiteError = "Enter a valid website URL.";
-    }
+    // Website is optional for legacy company records; only validate format when provided.
+    const trimmedWebsite = website.trim();
+    const nextWebsiteError =
+      trimmedWebsite &&
+      !/^https?:\/\/.+/i.test(trimmedWebsite) &&
+      !/^[a-z0-9.-]+\.[a-z]{2,}/i.test(trimmedWebsite)
+        ? "Enter a valid website URL."
+        : null;
     setFieldErrors(errors);
     setWebsiteError(nextWebsiteError);
     if (!isBusinessInfoValid(formInput, validationContext) || nextWebsiteError) {
@@ -356,17 +355,15 @@ export default function BusinessInfoTab() {
         throw new Error(payload.error ?? "Failed to save business information");
       }
 
-      if (legalName.trim() || subdomain.trim() || website.trim()) {
-        await supabaseBrowser
-          .from("tenants")
-          .update({
-            legal_name: legalName.trim() || null,
-            subdomain: subdomain.trim() || null,
-            website: website.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", organization.id);
-      }
+      await supabaseBrowser
+        .from("tenants")
+        .update({
+          legal_name: legalName.trim() || null,
+          subdomain: subdomain.trim() || null,
+          website: trimmedWebsite || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", organization.id);
 
       await refresh();
       await syncAccountChecklist(supabaseBrowser, {
@@ -536,7 +533,6 @@ export default function BusinessInfoTab() {
                   if (websiteError) setWebsiteError(null);
                 }}
                 type="url"
-                required
                 error={submitAttempted ? websiteError : null}
               />
             </div>

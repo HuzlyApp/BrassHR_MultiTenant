@@ -17,6 +17,8 @@ export type WorkerProfileFieldKey =
   | "hourly_rate"
   | "ssn_last_four"
   | "job_role"
+  | "allied_health_role"
+  | "specialty"
   | "about_me"
 
 export type ReferenceFieldValue = {
@@ -40,6 +42,8 @@ const WORKER_COLUMN_MAP: Record<WorkerProfileFieldKey, string> = {
   hourly_rate: "hourly_rate",
   ssn_last_four: "ssn_last_four",
   job_role: "job_role",
+  allied_health_role: "allied_health_role",
+  specialty: "specialty",
   about_me: "about_me",
 }
 
@@ -186,6 +190,15 @@ export function normalizeWorkerFieldValue(
 
     case "job_role": {
       if (!value) return { ok: false, error: "Role is required." }
+      return { ok: true, dbValue: value }
+    }
+
+    case "allied_health_role":
+    case "specialty": {
+      if (!value) return { ok: false, error: "This field cannot be empty." }
+      if (value.length > 120) {
+        return { ok: false, error: "Keep under 120 characters." }
+      }
       return { ok: true, dbValue: value }
     }
 

@@ -6,7 +6,10 @@ import {
   loadEmployeeScheduleWeek,
   updateEmployeeScheduleShift,
 } from "@/lib/scheduling/employee-schedule-service";
-import type { CreateEmployeeScheduleShiftInput } from "@/lib/scheduling/employee-schedule";
+import {
+  EmployeeScheduleConflictError,
+  type CreateEmployeeScheduleShiftInput,
+} from "@/lib/scheduling/employee-schedule";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
@@ -101,6 +104,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ shift }, { status: 201 });
   } catch (err) {
     console.error("[admin/scheduling/week POST]", err);
+    if (err instanceof EmployeeScheduleConflictError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
     const message = errorMessage(err, "Failed to create shift.");
     const status = /required|must be|select an employee|does not belong|invalid/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: status === 400 ? message : "Failed to create shift." }, { status });
@@ -132,6 +138,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ shift });
   } catch (err) {
     console.error("[admin/scheduling/week PATCH]", err);
+    if (err instanceof EmployeeScheduleConflictError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
     const message = errorMessage(err, "Failed to update shift.");
     if (/not found/i.test(message)) {
       return NextResponse.json({ error: "Shift not found." }, { status: 404 });

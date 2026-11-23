@@ -142,6 +142,17 @@ export function isHealthcareIndustryKey(industryKey: string | null | undefined):
   return mapIndustryKeyToAiPack(industryKey) === "healthcare";
 }
 
+/**
+ * True for healthcare-family profession/job industries shown on candidate Profile
+ * (Healthcare pack + Home Care).
+ */
+export function isHealthcareProfessionIndustry(
+  industryKey: string | null | undefined
+): boolean {
+  const pack = mapIndustryKeyToAiPack(industryKey);
+  return pack === "healthcare" || pack === "home_care";
+}
+
 /** True when the tenant primary or any selected industry is healthcare-family. */
 export function tenantHasHealthcareIndustry(
   keys: Array<string | null | undefined>

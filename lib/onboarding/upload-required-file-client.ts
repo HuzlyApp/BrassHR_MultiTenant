@@ -37,10 +37,19 @@ export async function uploadRequiredOnboardingFile(
   };
 }
 
+import {
+  DRAFT_PREVIEW_APPLICANT_ID,
+  isOnboardingDraftPreview,
+} from "@/lib/onboarding/is-draft-preview";
 import { getScopedApplicantId, setScopedApplicantId } from "@/lib/tenant/scoped-storage";
 
 export async function resolveApplicantId(): Promise<string> {
   if (typeof window === "undefined") return "";
+  if (isOnboardingDraftPreview(window.location.search)) {
+    setScopedApplicantId(DRAFT_PREVIEW_APPLICANT_ID);
+    return DRAFT_PREVIEW_APPLICANT_ID;
+  }
+
   let applicantId = getScopedApplicantId() || "";
   if (applicantId) return applicantId;
 

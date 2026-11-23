@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
 import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
@@ -42,7 +46,7 @@ import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
 } from "@/lib/admin/worker-profile-field-client";
-import { isHealthcareIndustryKey } from "@/lib/ai-catalog/industry-catalog";
+import { isHealthcareProfessionIndustry } from "@/lib/ai-catalog/industry-catalog";
 import {
   fetchStaffDetailJson,
   workerProfileApiUrl,
@@ -72,6 +76,8 @@ type OnboardingStep = {
 
 type ProfilePayload = {
   job_id?: string | null;
+  job_requisition_id?: string | null;
+  job_source_type?: string | null;
   job_industry_key?: string | null;
   profession_industry_key?: string | null;
   worker: {
@@ -95,6 +101,8 @@ type ProfilePayload = {
     years_experience: number | null;
     hourly_rate: string | null;
     pay_rate_period?: string | null;
+    allied_health_role?: string | null;
+    specialty?: string | null;
     ssn_last_four: string | null;
     profile_photo_url?: string | null;
   };
@@ -471,6 +479,19 @@ export default function NewApplicantProfilePage() {
 
   useEffect(() => {
     if (!applicantId) return;
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId !== applicantId) return;
+      void reloadProfile().catch(() => undefined);
+    }
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    };
+  }, [applicantId]);
+
+  useEffect(() => {
+    if (!applicantId) return;
     let cancelled = false;
 
     void (async () => {
@@ -608,13 +629,14 @@ export default function NewApplicantProfilePage() {
 
   const id = applicantId ?? "";
 
-  // Explicitly saved role only — do not fall back to experience/skills/job title guesses.
-  const alliedHealthRoleValue = (w?.job_role ?? "").trim();
+  // Dedicated healthcare fields — do not fall back to job title / experience.
+  const alliedHealthRoleValue = (w?.allied_health_role ?? "").trim();
+  const specialtyValue = (w?.specialty ?? "").trim();
 
-  // Show only when this candidate's job/profession is healthcare-family (not tenant-wide).
-  const showAlliedHealthRole =
-    isHealthcareIndustryKey(data?.job_industry_key) ||
-    isHealthcareIndustryKey(data?.profession_industry_key);
+  // Show only when this candidate's job/profession is healthcare-family.
+  const showHealthcareProfessionFields =
+    isHealthcareProfessionIndustry(data?.job_industry_key) ||
+    isHealthcareProfessionIndustry(data?.profession_industry_key);
 
   // License type / expiry helpers — UI rows commented out (profession documents cover this).
   // const licenseTypeKey = useMemo(() => {
@@ -864,17 +886,29 @@ export default function NewApplicantProfilePage() {
               location={candidateLocation}
               statusLabel={w?.status_label ?? null}
               applicationDate={formatDate(w?.created_at)}
-              jobId={w?.job_id ?? data?.job_id ?? null}
+              jobId={
+                (data?.job_source_type ?? "").toLowerCase() === "msp"
+                  ? w?.job_id?.trim() || data?.job_id?.trim() || null
+                  : null
+              }
               source={data?.activity?.source ?? null}
-              progressPercent={data?.onboardingCompletion?.percent ?? null}
+              progressPercent={
+                preHireOnboardingSteps.length > 0
+                  ? Math.round(
+                      (preHireOnboardingSteps.filter((step) => step.state === "complete").length /
+                        preHireOnboardingSteps.length) *
+                        100
+                    )
+                  : (data?.onboardingCompletion?.percent ?? null)
+              }
               progressInProgress={
                 data?.onboardingSteps
-                  ? data.onboardingSteps.filter((step) => step.state === "in_progress").length
+                  ? preHireOnboardingSteps.filter((step) => step.state === "in_progress").length
                   : null
               }
               progressUpcoming={
                 data?.onboardingSteps
-                  ? data.onboardingSteps.filter((step) => step.state === "pending").length
+                  ? preHireOnboardingSteps.filter((step) => step.state === "pending").length
                   : null
               }
               progressDate={formatDate(w?.updated_at ?? w?.created_at)}
@@ -1060,23 +1094,35 @@ export default function NewApplicantProfilePage() {
                         </div>
                       </div>
                       */}
-                      {showAlliedHealthRole ? (
-                        <CandidateDetailEditableField
-                          label={
-                            <>
-                              Primary Allied Health Role{" "}
-                              <span className="text-[#9CA3AF]">(for Healthcare only)</span>
-                            </>
-                          }
-                          accessibilityLabel="Primary Allied Health Role (for Healthcare only)"
-                          displayValue={alliedHealthRoleValue || "—"}
-                          editValue={alliedHealthRoleValue}
-                          fieldKind="short_text"
-                          isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
-                          placeholder="Enter role"
-                          saving={fieldSaving}
-                          onSave={(value) => saveWorkerField("job_role", value)}
-                        />
+                      {showHealthcareProfessionFields ? (
+                        <>
+                          <CandidateDetailEditableField
+                            label={
+                              <>
+                                Primary Allied Health Role{" "}
+                                <span className="text-[#9CA3AF]">(for Healthcare only)</span>
+                              </>
+                            }
+                            accessibilityLabel="Primary Allied Health Role (for Healthcare only)"
+                            displayValue={alliedHealthRoleValue || "—"}
+                            editValue={alliedHealthRoleValue}
+                            fieldKind="short_text"
+                            isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
+                            placeholder="Enter role"
+                            saving={fieldSaving}
+                            onSave={(value) => saveWorkerField("allied_health_role", value)}
+                          />
+                          <CandidateDetailEditableField
+                            label="Specialty"
+                            displayValue={specialtyValue || "—"}
+                            editValue={specialtyValue}
+                            fieldKind="short_text"
+                            isMissing={isMissingCandidateValue(specialtyValue)}
+                            placeholder="Enter specialty"
+                            saving={fieldSaving}
+                            onSave={(value) => saveWorkerField("specialty", value)}
+                          />
+                        </>
                       ) : null}
                       {/* License type / expiry — handled via profession documents & Attachments, not needed here.
                       <CandidateDetailSelectField
@@ -1337,11 +1383,20 @@ export default function NewApplicantProfilePage() {
                       <div className={PROFILE_CARD_HEADER_CLASS}>
                         <h2 className={`${PROFILE_CARD_TITLE_CLASS} min-w-0 truncate`}>
                           Onboarding Progress
-                          {data?.onboardingCompletion?.totalSteps ? (
+                          {visibleOnboardingSteps.length > 0 ? (
                             <span className="ml-2 inline-block text-xs font-normal text-[#6B7280]">
-                              {data.onboardingCompletion.completedSteps}/
-                              {data.onboardingCompletion.totalSteps} (
-                              {data.onboardingCompletion.percent}%)
+                              {
+                                visibleOnboardingSteps.filter((step) => step.state === "complete")
+                                  .length
+                              }
+                              /{visibleOnboardingSteps.length} (
+                              {Math.round(
+                                (visibleOnboardingSteps.filter((step) => step.state === "complete")
+                                  .length /
+                                  visibleOnboardingSteps.length) *
+                                  100
+                              )}
+                              %)
                             </span>
                           ) : null}
                         </h2>
@@ -1428,6 +1483,7 @@ export default function NewApplicantProfilePage() {
                       layout="sidebar"
                     />
 
+                    {/* Skill assessments / Remarks / Status History — not shown on Profile sidebar.
                     <div className={PROFILE_CARD_CLASS}>
                       <div className={PROFILE_CARD_HEADER_CLASS}>
                         <h2 className={PROFILE_CARD_TITLE_CLASS}>Skill assessments</h2>
@@ -1472,6 +1528,7 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                   <CandidateStatusHistoryPanel workerId={id} layout="sidebar" />
+                    */}
                 </section>
               </div>
             </div>

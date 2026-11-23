@@ -61,8 +61,10 @@ export async function resolveFirmaOnboardingContext(
     ? await resolveTenantIdBySlug(input.supabase, input.tenantSlug)
     : null;
 
+  // Workflow Preview (?preview=draft) must never bind to a live worker, even when a
+  // leftover real applicantId is still in localStorage (BUG-131).
   const isDraftPreview =
-    input.preferDraftConfig && isDraftPreviewApplicantId(input.applicantId);
+    Boolean(input.preferDraftConfig) || isDraftPreviewApplicantId(input.applicantId);
 
   if (isDraftPreview) {
     if (!tenantIdFromSlug) {

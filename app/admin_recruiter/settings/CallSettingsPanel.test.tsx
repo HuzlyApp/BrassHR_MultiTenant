@@ -21,6 +21,19 @@ describe("CallSettingsPanel", () => {
     vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockReturnValue(window);
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  it("shows call controls immediately even when Dialpad never responds", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => new Promise(() => {}))
+    );
+
+    render(<CallSettingsPanel />);
+
+    expect(await screen.findByLabelText("Phone number")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Call" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Call logs" })).toBeTruthy();
+  });
+
   it("opens a ringing screen and asks Dialpad to call the number", async () => {
     vi.stubGlobal(
       "fetch",

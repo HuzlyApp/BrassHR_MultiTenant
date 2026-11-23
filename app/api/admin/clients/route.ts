@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { parseContactPersonFromAbout } from "@/lib/facilities/address";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { formatApiError } from "@/lib/api/format-api-error";
 
 export const runtime = "nodejs";
 
@@ -17,172 +19,263 @@ export type ClientTableRow = {
   created_at: string;
 };
 
-// Initial data matching Figma Clients screen
-const DEMO_CLIENTS: ClientTableRow[] = [
-  {
-    id: "cl-1",
-    company_name: "SummitBridge Staffing",
-    client_contact: "Michael Anderson",
-    open_orders: 3,
-    on_assignment: 24,
-    status: "Onboarded",
-    facilitiesCount: 2,
-    created_at: "2026-08-15T10:00:00Z",
-  },
-  {
-    id: "cl-2",
-    company_name: "Greenfield Logistics",
-    client_contact: "Jessica Williams",
-    open_orders: 3,
-    on_assignment: 43,
-    status: "Onboarded",
-    facilitiesCount: 1,
-    created_at: "2026-08-18T11:00:00Z",
-  },
-  {
-    id: "cl-3",
-    company_name: "BrightPath Medical Group",
-    client_contact: "Daniel Thompson",
-    open_orders: 2,
-    on_assignment: 69,
-    status: "Active",
-    facilitiesCount: 3,
-    created_at: "2026-08-20T14:30:00Z",
-  },
-  {
-    id: "cl-4",
-    company_name: "Silverline Enterprises",
-    client_contact: "Emily Rodriguez",
-    open_orders: 4,
-    on_assignment: 12,
-    status: "Active",
-    facilitiesCount: 2,
-    created_at: "2026-08-22T09:15:00Z",
-  },
-  {
-    id: "cl-5",
-    company_name: "UrbanNest Properties",
-    client_contact: "Christopher Martinez",
-    open_orders: 1,
-    on_assignment: 8,
-    status: "Hiring for them",
-    facilitiesCount: 1,
-    created_at: "2026-08-25T16:00:00Z",
-  },
-];
+export type ClientsMetrics = {
+  activeClients: number;
+  facilitiesCount: number;
+  programsCount: number;
+  directHireCount: number;
+  openOrders: number;
+  unfilledThisWeek: number;
+  onAssignment: number;
+  directHireOpens: number;
+};
+
+type ClientRow = {
+  id: string;
+  company_name: string | null;
+  verification_status: string | null;
+  onboarding_status: string | null;
+  onboarding_completed_at: string | null;
+  w2_capable: boolean | null;
+  created_at: string | null;
+};
+
+type FacilityRow = {
+  id: string;
+  client_id: string | null;
+  name: string | null;
+  about: string | null;
+};
+
+type ShiftRow = {
+  id: string;
+  client_id: string | null;
+  start_date: string | null;
+  completed_at: string | null;
+  number_of_people_needed: number | null;
+};
+
+type AssignmentRow = {
+  id: string;
+  client_id: string | null;
+  status: string | null;
+};
+
+const ACTIVE_ASSIGNMENT_STATUSES = new Set([
+  "confirmed",
+  "active",
+  "assigned",
+  "in_progress",
+  "accepted",
+]);
+
+function startOfWeekUtc(date = new Date()): string {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function endOfWeekUtc(startIso: string): string {
+  const d = new Date(`${startIso}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 6);
+  return d.toISOString().slice(0, 10);
+}
+
+function resolveClientStatus(
+  client: ClientRow,
+  openOrders: number
+): ClientTableRow["status"] {
+  const onboarding = (client.onboarding_status ?? "").trim().toLowerCase();
+  const verification = (client.verification_status ?? "").trim().toLowerCase();
+  if (
+    client.onboarding_completed_at ||
+    onboarding === "completed" ||
+    onboarding === "onboarded" ||
+    verification === "verified"
+  ) {
+    return openOrders > 0 ? "Hiring for them" : "Onboarded";
+  }
+  if (openOrders > 0) return "Hiring for them";
+  return "Active";
+}
+
+function emptyMetrics(): ClientsMetrics {
+  return {
+    activeClients: 0,
+    facilitiesCount: 0,
+    programsCount: 0,
+    directHireCount: 0,
+    openOrders: 0,
+    unfilledThisWeek: 0,
+    onAssignment: 0,
+    directHireOpens: 0,
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const searchParams = req.nextUrl.searchParams;
-    const search = searchParams.get("q")?.trim().toLowerCase() ?? "";
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "5", 10)));
+    const auth = await requireStaffApiSession();
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await resolveStaffTenantScope(auth.authUser);
+    if (scope.mode !== "scoped") {
+      return NextResponse.json({ error: "Tenant required." }, { status: 400 });
+    }
 
     const supabase = createServiceRoleClient();
-    let tenantId: string | null = null;
-
-    try {
-      const auth = await requireStaffApiSession();
-      if (!(auth instanceof NextResponse)) {
-        const scope = await resolveStaffTenantScope(auth.authUser);
-        if (scope.mode === "scoped") {
-          tenantId = scope.tenantId;
-        }
-      }
-    } catch {
-      // Fallback
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
     }
 
-    let clientsData: Array<Record<string, unknown>> = [];
-    let facilityData: Array<Record<string, unknown>> = [];
+    const searchParams = req.nextUrl.searchParams;
+    const search = searchParams.get("q")?.trim().toLowerCase() ?? "";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "5", 10) || 5));
+    const tenantId = scope.tenantId;
 
-    if (supabase && tenantId) {
-      try {
-        const [cRes, fRes] = await Promise.all([
-          supabase
-            .from("clients")
-            .select("id, tenant_id, company_name, address, city, state, zip_code, verification_status, total_shifts, w2_capable, created_at")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("facility")
-            .select("id, client_id, name, address, phone, about")
-            .eq("tenant_id", tenantId),
-        ]);
-        if (cRes.data) clientsData = cRes.data;
-        if (fRes.data) facilityData = fRes.data;
-      } catch (err) {
-        console.error("[clients] db error", err);
-      }
-    }
+    const [clientsRes, facilitiesRes, shiftsRes, assignmentsRes] = await Promise.all([
+      supabase
+        .from("clients")
+        .select(
+          "id, company_name, verification_status, onboarding_status, onboarding_completed_at, w2_capable, created_at"
+        )
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("facility")
+        .select("id, client_id, name, about")
+        .eq("tenant_id", tenantId),
+      supabase
+        .from("shifts")
+        .select("id, client_id, start_date, completed_at, number_of_people_needed")
+        .eq("tenant_id", tenantId)
+        .is("completed_at", null),
+      supabase
+        .from("worker_shift_assignments")
+        .select("id, client_id, status")
+        .eq("tenant_id", tenantId),
+    ]);
 
-    const facilitiesByClientId = new Map<string, Array<{ id: string; name: string; contact?: string }>>();
-    for (const f of facilityData ?? []) {
-      const cId = f.client_id ? String(f.client_id) : "unassigned";
-      const list = facilitiesByClientId.get(cId) || [];
-      list.push({ id: String(f.id), name: String(f.name ?? "Facility"), contact: String(f.about ?? "") });
-      facilitiesByClientId.set(cId, list);
-    }
+    if (clientsRes.error) throw clientsRes.error;
+    if (facilitiesRes.error) throw facilitiesRes.error;
+    if (shiftsRes.error) throw shiftsRes.error;
+    if (assignmentsRes.error) throw assignmentsRes.error;
 
-    let clients: ClientTableRow[] = [];
+    const clientsData = (clientsRes.data ?? []) as ClientRow[];
+    const facilityData = (facilitiesRes.data ?? []) as FacilityRow[];
+    const shiftData = (shiftsRes.data ?? []) as ShiftRow[];
+    const assignmentData = (assignmentsRes.data ?? []) as AssignmentRow[];
 
-    if (clientsData && clientsData.length > 0) {
-      clients = clientsData.map((c, i) => {
-        const associatedFacilities = facilitiesByClientId.get(String(c.id)) || [];
-        const statusVal: "Onboarded" | "Active" | "Hiring for them" =
-          i % 3 === 0 ? "Onboarded" : i % 3 === 1 ? "Active" : "Hiring for them";
-
-        return {
-          id: String(c.id),
-          company_name: String(c.company_name || `Client Organization ${i + 1}`),
-          client_contact: "Michael Anderson",
-          open_orders: Math.max(1, (i + 1) % 5),
-          on_assignment: (i + 1) * 12 + 5,
-          status: statusVal,
-          facilitiesCount: associatedFacilities.length,
-          facilities: associatedFacilities,
-          created_at: String(c.created_at || new Date().toISOString()),
-        };
+    const facilitiesByClientId = new Map<
+      string,
+      Array<{ id: string; name: string; contact: string }>
+    >();
+    for (const facility of facilityData) {
+      if (!facility.client_id) continue;
+      const list = facilitiesByClientId.get(facility.client_id) ?? [];
+      list.push({
+        id: facility.id,
+        name: (facility.name ?? "").trim() || "Facility",
+        contact: parseContactPersonFromAbout(facility.about),
       });
-    } else {
-      // Default to demo rows matching Figma
-      clients = DEMO_CLIENTS;
+      facilitiesByClientId.set(facility.client_id, list);
     }
 
-    // Apply search
-    if (search) {
-      clients = clients.filter(
-        (c) =>
-          c.company_name.toLowerCase().includes(search) ||
-          c.client_contact.toLowerCase().includes(search) ||
-          c.status.toLowerCase().includes(search)
+    const openOrdersByClientId = new Map<string, number>();
+    const weekStart = startOfWeekUtc();
+    const weekEnd = endOfWeekUtc(weekStart);
+    let unfilledThisWeek = 0;
+    for (const shift of shiftData) {
+      if (!shift.client_id) continue;
+      const needed = Math.max(1, Number(shift.number_of_people_needed) || 1);
+      openOrdersByClientId.set(
+        shift.client_id,
+        (openOrdersByClientId.get(shift.client_id) ?? 0) + needed
+      );
+      const startDate = shift.start_date?.slice(0, 10) ?? "";
+      if (startDate && startDate >= weekStart && startDate <= weekEnd) {
+        unfilledThisWeek += needed;
+      }
+    }
+
+    const onAssignmentByClientId = new Map<string, number>();
+    for (const assignment of assignmentData) {
+      if (!assignment.client_id) continue;
+      const status = (assignment.status ?? "").trim().toLowerCase();
+      if (status && !ACTIVE_ASSIGNMENT_STATUSES.has(status)) continue;
+      onAssignmentByClientId.set(
+        assignment.client_id,
+        (onAssignmentByClientId.get(assignment.client_id) ?? 0) + 1
       );
     }
 
-    const total = clients.length === 5 && !search ? 100 : clients.length;
-    const startIndex = (page - 1) * limit;
+    let clients: ClientTableRow[] = clientsData.map((client) => {
+      const facilities = facilitiesByClientId.get(client.id) ?? [];
+      const openOrders = openOrdersByClientId.get(client.id) ?? 0;
+      const onAssignment = onAssignmentByClientId.get(client.id) ?? 0;
+      const contact =
+        facilities.map((item) => item.contact.trim()).find(Boolean) || "—";
+
+      return {
+        id: client.id,
+        company_name: (client.company_name ?? "").trim() || "Unnamed client",
+        client_contact: contact,
+        open_orders: openOrders,
+        on_assignment: onAssignment,
+        status: resolveClientStatus(client, openOrders),
+        facilitiesCount: facilities.length,
+        facilities: facilities.map(({ id, name }) => ({ id, name })),
+        created_at: client.created_at || new Date().toISOString(),
+      };
+    });
+
+    if (search) {
+      clients = clients.filter(
+        (client) =>
+          client.company_name.toLowerCase().includes(search) ||
+          client.client_contact.toLowerCase().includes(search) ||
+          client.status.toLowerCase().includes(search)
+      );
+    }
+
+    const total = clients.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+    const safePage = Math.min(page, totalPages);
+    const startIndex = (safePage - 1) * limit;
     const paginated = clients.slice(startIndex, startIndex + limit);
+
+    const openOrdersTotal = clients.reduce((sum, row) => sum + row.open_orders, 0);
+    const onAssignmentTotal = clients.reduce((sum, row) => sum + row.on_assignment, 0);
+    const directHireCount = clientsData.filter((client) => client.w2_capable === false).length;
+
+    const metrics: ClientsMetrics = {
+      activeClients: clientsData.length,
+      facilitiesCount: facilityData.length,
+      programsCount: 0,
+      directHireCount,
+      openOrders: openOrdersTotal,
+      unfilledThisWeek,
+      onAssignment: onAssignmentTotal,
+      // No job↔client link yet; keep honest until that exists.
+      directHireOpens: 0,
+    };
 
     return NextResponse.json({
       clients: paginated,
       total,
-      page,
+      page: safePage,
       limit,
-      totalPages: Math.ceil(total / limit) || 1,
-      metrics: {
-        activeClients: 122,
-        facilitiesCount: 6,
-        programsCount: 3,
-        directHireCount: 2,
-        openOrders: 36,
-        unfilledThisWeek: 4,
-        onAssignment: 22,
-        directHireOpens: 122,
-      },
+      totalPages,
+      metrics,
     });
   } catch (err) {
     console.error("[admin/clients GET]", err);
-    return NextResponse.json({ error: "Failed to load clients." }, { status: 500 });
+    return NextResponse.json(
+      { error: formatApiError(err, "Failed to load clients.") },
+      { status: 500 }
+    );
   }
 }
 
@@ -216,9 +309,14 @@ export async function POST(req: NextRequest) {
         address: body.address ? String(body.address).trim() : null,
         city: body.city ? String(body.city).trim() : null,
         state: body.state ? String(body.state).trim() : null,
-        zip_code: body.zipCode || body.zip_code ? String(body.zipCode || body.zip_code).trim() : null,
+        zip_code:
+          body.zipCode || body.zip_code
+            ? String(body.zipCode || body.zip_code).trim()
+            : null,
         w2_capable: Boolean(body.w2Capable ?? body.w2_capable ?? true),
         verification_status: "verified",
+        onboarding_status: "completed",
+        onboarding_completed_at: new Date().toISOString(),
       })
       .select("id, company_name, address, city, state, zip_code, created_at")
       .single();
@@ -231,7 +329,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ client: created }, { status: 201 });
   } catch (err) {
     console.error("[admin/clients POST]", err);
-    const message = err instanceof Error ? err.message : "Failed to create client.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: formatApiError(err, "Failed to create client.") },
+      { status: 500 }
+    );
   }
 }

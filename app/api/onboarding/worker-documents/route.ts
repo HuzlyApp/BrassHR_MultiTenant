@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateResourceCache, invalidateTenantCache, invalidateUserCache } from "@/lib/cache"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import {
   readOnboardingTenantSlugFromRequest,
   resolveOnboardingWorker,
@@ -76,6 +77,9 @@ export async function GET(req: NextRequest) {
     // During hydration/localStorage bootstrapping, applicantId can be missing briefly.
     // Return an empty status instead of throwing/4xx so the UI doesn’t trip an error overlay.
     if (!applicantId) return NextResponse.json({ documents: null })
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ documents: null, draftPreview: true })
+    }
 
     const url = getSupabaseUrl()
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -150,6 +154,10 @@ export async function POST(req: NextRequest) {
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
+    }
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ ok: true, draftPreview: true })
     }
 
     const tenantSlug =

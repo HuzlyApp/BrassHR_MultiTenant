@@ -3,6 +3,7 @@ import {
   formatJobMutationFailure,
   jobMutationSchema,
   normalizeApplicantEmail,
+  validateJobCompensationFields,
   validatePublishableJob,
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
@@ -29,6 +30,37 @@ describe("job requisition validation", () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("rejects negative pay and hours on draft parse", () => {
+    const result = jobMutationSchema.safeParse({
+      action: "save_draft",
+      job: {
+        sourceType: "Internal",
+        professionId: validJob.professionId,
+        employmentType: "W2",
+        payRateMin: -5,
+        hoursPerWeek: -10,
+      },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const failure = formatJobMutationFailure(result.error);
+    expect(failure.fieldErrors.payRateMin).toMatch(/negative/i);
+    expect(failure.fieldErrors.hoursPerWeek).toMatch(/negative/i);
+  });
+
+  it("flags negative compensation fields for the job form", () => {
+    expect(
+      validateJobCompensationFields({
+        ...validJob,
+        payRateMin: -5,
+        hoursPerWeek: -10,
+      })
+    ).toEqual({
+      payRateMin: "Pay rate cannot be negative.",
+      hoursPerWeek: "Hours per week cannot be negative.",
+    });
   });
 
   it("treats omitted optional fields as empty instead of required", () => {

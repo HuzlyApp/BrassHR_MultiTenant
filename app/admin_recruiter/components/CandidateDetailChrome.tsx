@@ -11,7 +11,12 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
+import {
   fetchStaffDetailJson,
+  invalidateStaffDetailCache,
   workerProfileApiUrl,
 } from "@/lib/admin/staff-detail-fetch-cache";
 import { formatPhoneForDisplay } from "@/lib/admin/worker-profile-field-client";
@@ -46,7 +51,10 @@ type ChromeProfilePayload = {
   /** Job requisition UUID for the applied-job header link. */
   job_requisition_id?: string | null;
   activity?: { source?: string | null };
-  onboardingSteps?: Array<{ state: "complete" | "in_progress" | "pending" }>;
+  onboardingSteps?: Array<{
+    state: "complete" | "in_progress" | "pending";
+    phase?: "pre_hire" | "post_hire";
+  }>;
   onboardingCompletion?: { percent?: number | null };
   error?: string;
 };
@@ -99,12 +107,27 @@ function CandidateDetailChromeInner({
   }, []);
 
   useEffect(() => {
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId !== applicantId) return;
+      invalidateStaffDetailCache(workerProfileApiUrl(applicantId));
+      refresh();
+    }
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    };
+  }, [applicantId, refresh]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
         const result = await fetchStaffDetailJson<ChromeProfilePayload>(
-          workerProfileApiUrl(applicantId)
+          workerProfileApiUrl(applicantId),
+          // After Mark as complete / pipeline refresh, skip the 30s TTL cache.
+          refreshToken > 0 ? { bust: true } : undefined
         );
         if (cancelled) return;
         if (!result.ok) {
@@ -136,11 +159,32 @@ function CandidateDetailChromeInner({
   const location = [worker?.city ?? "", worker?.state ?? ""].filter(Boolean).join(", ") || null;
   const workerStatus = worker?.status ?? null;
 
+  // Match hire-journey sidebar: Pre-Hire / Post-Hire tabs scope progress to that phase.
+  const progressSteps = useMemo(() => {
+    const steps = profile?.onboardingSteps ?? [];
+    if (activeTab === "Pre-Hire") {
+      return steps.filter((step) => (step.phase ?? "pre_hire") !== "post_hire");
+    }
+    if (activeTab === "Post-Hire") {
+      return steps.filter((step) => step.phase === "post_hire");
+    }
+    return steps;
+  }, [profile?.onboardingSteps, activeTab]);
+
+  const progressPercent = useMemo(() => {
+    if (!profile?.onboardingSteps) {
+      return profile?.onboardingCompletion?.percent ?? null;
+    }
+    if (progressSteps.length === 0) return 0;
+    const completed = progressSteps.filter((step) => step.state === "complete").length;
+    return Math.round((completed / progressSteps.length) * 100);
+  }, [profile?.onboardingSteps, profile?.onboardingCompletion?.percent, progressSteps]);
+
   const progressInProgress = profile?.onboardingSteps
-    ? profile.onboardingSteps.filter((step) => step.state === "in_progress").length
+    ? progressSteps.filter((step) => step.state === "in_progress").length
     : null;
   const progressUpcoming = profile?.onboardingSteps
-    ? profile.onboardingSteps.filter((step) => step.state === "pending").length
+    ? progressSteps.filter((step) => step.state === "pending").length
     : null;
 
   const contextValue = useMemo<CandidateDetailChromeContextValue>(
@@ -175,7 +219,7 @@ function CandidateDetailChromeInner({
             applicationDate={formatHeaderDate(worker?.created_at)}
             jobId={worker?.job_id ?? profile?.job_id ?? null}
             source={profile?.activity?.source ?? null}
-            progressPercent={profile?.onboardingCompletion?.percent ?? null}
+            progressPercent={progressPercent}
             progressInProgress={progressInProgress}
             progressUpcoming={progressUpcoming}
             progressDate={formatHeaderDate(worker?.updated_at ?? worker?.created_at)}
