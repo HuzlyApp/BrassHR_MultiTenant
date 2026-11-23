@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Info } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
@@ -30,7 +30,7 @@ function formatTrialEndDate(daysFromNow: number): string {
 
 export default function AccountSettingsBillingPanel() {
   const { user, profile, organization, loading } = useAccountData();
-  const billingTab: BillingTab = "billing";
+  const [billingTab, setBillingTab] = useState<BillingTab>("billing");
   const trialEndLabel = useMemo(() => formatTrialEndDate(28), []);
   const displayName = loading ? "—" : getAccountDisplayName(profile, user);
   const companyName = getOrganizationDisplayName(organization, profile, user);
@@ -83,6 +83,8 @@ export default function AccountSettingsBillingPanel() {
             <button
               key={tab.id}
               type="button"
+              onClick={() => setBillingTab(tab.id)}
+              aria-pressed={isActive}
               className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 isActive ? "text-white" : "bg-transparent hover:opacity-90"
               }`}
@@ -178,8 +180,8 @@ export default function AccountSettingsBillingPanel() {
             >
               My Subscription
             </h3>
-            <button
-              type="button"
+            <a
+              href="/admin_recruiter/help-support"
               className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border bg-white px-5 text-sm font-medium transition hover:bg-[#F8FAFC]"
               style={{
                 borderColor: COLORS.headingTitleDark,
@@ -187,7 +189,7 @@ export default function AccountSettingsBillingPanel() {
               }}
             >
               Manage Subscription
-            </button>
+            </a>
           </div>
 
           <div
@@ -196,11 +198,15 @@ export default function AccountSettingsBillingPanel() {
           >
             <div>
               <p className="text-base font-semibold leading-6" style={{ color: COLORS.headingTitleDark }}>
-                {organization?.plan ?? "Trial"}
+                {organization?.plan ?? "Plan information unavailable"}
               </p>
               <p className="mt-0.5 text-sm" style={{ color: COLORS.textLabels }}>
-                30 days trial
+                Contact support for your billing cycle and seat allocation.
               </p>
+              <dl className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                <div><dt className="text-[#6B7280]">Billing cycle</dt><dd className="mt-1 text-[#1E3A5F]">Not configured</dd></div>
+                <div><dt className="text-[#6B7280]">Seats</dt><dd className="mt-1 text-[#1E3A5F]">Not configured</dd></div>
+              </dl>
             </div>
           </div>
         </div>

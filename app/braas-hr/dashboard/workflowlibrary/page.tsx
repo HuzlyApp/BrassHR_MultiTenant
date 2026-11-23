@@ -537,7 +537,17 @@ function libraryHref(library: FlowLibrary, dashboardBasePath: string): string {
   return `${dashboardBasePath}/onboarding-flows?library=${library.id}`;
 }
 
-function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary; dashboardBasePath: string }) {
+function FlowLibraryCard({ library, dashboardBasePath, onManage }: { library: FlowLibrary; dashboardBasePath: string; onManage?: (library: FlowLibrary, name?: string) => Promise<boolean> }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(library.title);
+  const [busy, setBusy] = useState(false);
+  const canManage = Boolean(onManage && !library.isUncategorized && !["onboarding", "marketing"].includes(library.slug));
+  async function save(remove = false) {
+    if (remove && !window.confirm(`Delete folder “${library.title}”? The folder must be empty.`)) return;
+    setBusy(true);
+    try { if (await onManage?.(library, remove ? undefined : name)) setEditing(false); }
+    finally { setBusy(false); }
+  }
   const href = libraryHref(library, dashboardBasePath);
 
   const cardClassName =
@@ -580,6 +590,7 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
   );
 
   return (
+    <div className="min-w-0">
     <Link
       href={href}
       className={`${cardClassName} hover:bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
@@ -588,6 +599,17 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
     >
       {inner}
     </Link>
+    {canManage ? <div className="mt-2 flex flex-wrap gap-2 text-xs">
+      {editing ? <form className="flex w-full gap-2" onSubmit={event => { event.preventDefault(); void save(); }}>
+        <input aria-label={`Folder name for ${library.title}`} value={name} onChange={event => setName(event.target.value)} required maxLength={80} disabled={busy} className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1" />
+        <button type="submit" disabled={busy} className="rounded border px-2 py-1">Save</button>
+        <button type="button" disabled={busy} onClick={() => setEditing(false)} className="rounded border px-2 py-1">Cancel</button>
+      </form> : <>
+        <button type="button" disabled={busy} onClick={() => { setName(library.title); setEditing(true); }} className="rounded border px-2 py-1" aria-label={`Rename ${library.title}`}>Rename</button>
+        <button type="button" disabled={busy} onClick={() => void save(true)} className="rounded border px-2 py-1 text-red-700" aria-label={`Delete ${library.title}`}>Delete</button>
+      </>}
+    </div> : null}
+    </div>
   );
 }
 
@@ -636,6 +658,21 @@ export function WorkflowLibraryPage({
     slug: lib.slug,
     isUncategorized: lib.isUncategorized,
   });
+
+  async function manageLibrary(library: FlowLibrary, name?: string) {
+    try {
+      const res = await fetch(`/api/admin/onboarding-libraries/${encodeURIComponent(library.id)}`, {
+        ...(await staffFetchInit({ "Content-Type": "application/json" })),
+        method: name === undefined ? "DELETE" : "PATCH",
+        ...(name === undefined ? {} : { body: JSON.stringify({ name }) }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || "Could not update folder.");
+      await refetchLibraries();
+      toast.success(name === undefined ? "Folder deleted" : "Folder renamed");
+      return true;
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update folder."); return false; }
+  }
 
   useEffect(() => {
     if (pathname === "/braas-hr/dashboard/workflowlibrary") {
@@ -773,6 +810,7 @@ export function WorkflowLibraryPage({
                       key={lib.id}
                       library={mapLibrary(lib)}
                       dashboardBasePath={dashboardBasePath}
+                      onManage={manageLibrary}
                     />
                   ))
                 )}

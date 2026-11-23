@@ -73,3 +73,12 @@ export function buildEmploymentWorkerLocationFromCandidate(candidate: {
 }): string | null {
   return formatEmploymentWorkerLocation(null, candidate.city, candidate.state);
 }
+
+export function employmentWorkerStatusLabel(status: string | null | undefined): string {
+  const raw = status?.trim().toLowerCase() || "new";
+  return raw === "new" || raw === "onboarding" ? "Onboarding" : raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+export function employmentWorkerClientName(input: { organization?: string | null; mspClient?: string | null; snapshotClient?: string | null }): string {
+  return input.organization?.trim() || input.mspClient?.trim() || input.snapshotClient?.trim() || "—";
+}

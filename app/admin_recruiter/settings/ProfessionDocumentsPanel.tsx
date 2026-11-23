@@ -98,6 +98,8 @@ type CatalogProfessionOption = {
 type IndustryOption = {
   key: string;
   label: string;
+  description?: string | null;
+  iconId?: string | null;
 };
 
 type CatalogPayload = {
@@ -537,7 +539,7 @@ export default function ProfessionDocumentsPanel({
       nextDrafts[profession.id] = profession.documents;
       nextSaved[profession.id] = JSON.stringify(profession.documents);
     }
-    const nextIndustries =
+    const nextIndustries: IndustryOption[] =
       payload.industries && payload.industries.length > 0
         ? payload.industries
         : payload.industryKey
@@ -552,6 +554,7 @@ export default function ProfessionDocumentsPanel({
     setIndustryKey(payload.industryKey);
     setIndustryLabel(payload.industryLabel);
     setIndustries(nextIndustries);
+    setIndustryMetaByKey(Object.fromEntries(nextIndustries.map(industry => [industry.key, { description: industry.description ?? "", iconId: industry.iconId ?? null }])));
     setExpandedByIndustry((current) => {
       const next: Record<string, boolean> = {};
       for (const industry of nextIndustries) {
@@ -854,14 +857,14 @@ export default function ProfessionDocumentsPanel({
     ? professionsByIndustry[selectedIndustry.key] ?? []
     : [];
 
-  async function addIndustry(industryToAdd: string, options?: { silentToast?: boolean }) {
+  async function addIndustry(industryToAdd: string, options?: { silentToast?: boolean; metadata?: AddIndustryFormValue }) {
     if (!canManage || addingIndustryKey) return false;
     setAddingIndustryKey(industryToAdd);
     try {
       const response = await fetch("/api/admin/tenant-industries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ industryKey: industryToAdd }),
+        body: JSON.stringify({ industryKey: industryToAdd, ...(options?.metadata ? { description: options.metadata.description, iconId: options.metadata.iconId } : {}) }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
         error?: string;
@@ -905,7 +908,7 @@ export default function ProfessionDocumentsPanel({
     if (!canManage || creatingIndustry) return;
     setCreatingIndustry(true);
     try {
-      const ok = await addIndustry(value.industryKey, { silentToast: true });
+      const ok = await addIndustry(value.industryKey, { silentToast: true, metadata: value });
       if (!ok) return;
 
       setIndustryMetaByKey((current) => ({
@@ -963,6 +966,17 @@ export default function ProfessionDocumentsPanel({
     selectIndustry(industryKeyToEdit);
   }
 
+  async function deleteIndustry(key: string, label: string) {
+    if (!canManage || !window.confirm(`Delete industry “${label}”? Its professions must be removed first.`)) return;
+    try {
+      const response = await fetch(`/api/admin/tenant-industries?industryKey=${encodeURIComponent(key)}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not delete industry");
+      await load({ silent: true });
+      toast.success("Industry deleted");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete industry"); }
+  }
+
   async function saveIndustryFromModal(value: AddIndustryFormValue) {
     if (!canManage || creatingIndustry || !editIndustryKey) return;
     setCreatingIndustry(true);
@@ -973,6 +987,13 @@ export default function ProfessionDocumentsPanel({
           .filter((key): key is string => Boolean(key))
       );
       const toAdd = value.catalogKeys.filter((key) => !existingKeys.has(key));
+
+      const response = await fetch("/api/admin/tenant-industries", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ industryKey: value.industryKey, description: value.description, iconId: value.iconId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not update industry");
 
       setIndustryMetaByKey((current) => ({
         ...current,
@@ -2404,6 +2425,9 @@ export default function ProfessionDocumentsPanel({
                   >
                     <Pencil className="h-3.5 w-3.5" aria-hidden />
                     Edit industry
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setIndustryMenuKey(null); void deleteIndustry(menuIndustry.key, menuIndustry.label); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50">
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />Delete industry
                   </button>
                 </div>
               );

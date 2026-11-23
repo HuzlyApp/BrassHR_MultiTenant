@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
 
@@ -14,11 +15,18 @@ export function InviteStepPanel({
   onComplete: () => void;
 }) {
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [role, setRole] = useState("recruiter");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const handleContinue = async () => {
+    if (saving) return;
+    if (email.trim() && (!firstName.trim() || !lastName.trim())) {
+      setError(!firstName.trim() ? "First name is required." : "Last name is required.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -27,6 +35,8 @@ export function InviteStepPanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
             email: email.trim(),
             role,
             requirePasswordChange: true,
@@ -40,6 +50,8 @@ export function InviteStepPanel({
         }
       }
       onComplete();
+    } catch {
+      setError("Could not send invite. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -56,6 +68,29 @@ export function InviteStepPanel({
             <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
               Add an HR or manager. You can do this later.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[
+              { label: "First name", value: firstName, setValue: setFirstName, autoComplete: "given-name" },
+              { label: "Last name", value: lastName, setValue: setLastName, autoComplete: "family-name" },
+            ].map((field) => (
+              <label key={field.label} className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-normal leading-4 text-black" style={interStyle}>
+                  {field.label}
+                </span>
+                <input
+                  type="text"
+                  autoComplete={field.autoComplete}
+                  maxLength={PERSON_NAME_MAX_LENGTH}
+                  required={Boolean(email.trim())}
+                  value={field.value}
+                  onChange={(e) => field.setValue(e.target.value)}
+                  className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#012352]"
+                  style={interStyle}
+                />
+              </label>
+            ))}
           </div>
 
           <label className="flex flex-col gap-1.5">
@@ -89,7 +124,7 @@ export function InviteStepPanel({
           </label>
 
           {error ? (
-            <p className="text-[12px] text-[#DC2626]" style={interStyle}>
+            <p role="alert" className="text-[12px] text-[#DC2626]" style={interStyle}>
               {error}
             </p>
           ) : null}

@@ -12,6 +12,8 @@ export type TenantIndustryOption = {
   key: string;
   label: string;
   isPrimary: boolean;
+  description?: string | null;
+  iconId?: string | null;
 };
 
 async function listTenantIndustryKeys(
@@ -23,7 +25,7 @@ async function listTenantIndustryKeys(
       supabase.from("tenants").select("primary_industry_key").eq("id", tenantId).maybeSingle(),
       supabase
         .from("tenant_industry")
-        .select("industry_key, is_primary")
+        .select("industry_key, is_primary, description, icon_id")
         .eq("tenant_id", tenantId),
     ]);
   if (tenantError) throw tenantError;
@@ -35,13 +37,15 @@ async function listTenantIndustryKeys(
     null;
 
   const fromRows = (rows ?? [])
-    .map((row) => {
+    .map((row): TenantIndustryOption | null => {
       const key = String(row.industry_key ?? "").trim();
       if (!key) return null;
       return {
         key,
         label: industryLabelForKey(key) ?? key,
         isPrimary: row.is_primary === true || key === primaryKey,
+        description: row.description ?? null,
+        iconId: row.icon_id ?? null,
       } satisfies TenantIndustryOption;
     })
     .filter((row): row is TenantIndustryOption => Boolean(row));
