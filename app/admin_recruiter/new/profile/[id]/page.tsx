@@ -15,9 +15,11 @@ import AddWorkerSkillModal from "../../../components/AddWorkerSkillModal";
 import { CandidateStatusHistoryPanel } from "../../../components/CandidateApplicationStatusControl";
 import CandidateNotesPanel from "../../../components/CandidateNotesPanel";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
+import CandidateDetailPayRateField from "../../../components/CandidateDetailPayRateField";
 import CandidateDetailSelectField, {
   type SelectOption,
 } from "../../../components/CandidateDetailSelectField";
+import type { WorkerPayRatePeriod } from "@/lib/admin/worker-pay-rate";
 import CandidateDetailCityField from "../../../components/CandidateDetailCityField";
 import CandidateDetailResumeField from "../../../components/CandidateDetailResumeField";
 import CandidateDetailReferenceField, {
@@ -40,7 +42,7 @@ import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
 } from "@/lib/admin/worker-profile-field-client";
-import { tenantHasHealthcareIndustry } from "@/lib/ai-catalog/industry-catalog";
+import { isHealthcareIndustryKey } from "@/lib/ai-catalog/industry-catalog";
 import {
   fetchStaffDetailJson,
   workerProfileApiUrl,
@@ -70,6 +72,8 @@ type OnboardingStep = {
 
 type ProfilePayload = {
   job_id?: string | null;
+  job_industry_key?: string | null;
+  profession_industry_key?: string | null;
   worker: {
     id: string;
     first_name: string | null;
@@ -90,6 +94,7 @@ type ProfilePayload = {
     date_of_birth: string | null;
     years_experience: number | null;
     hourly_rate: string | null;
+    pay_rate_period?: string | null;
     ssn_last_four: string | null;
     profile_photo_url?: string | null;
   };
@@ -236,13 +241,6 @@ function referenceToFormValue(
   };
 }
 
-function formatHourlyRate(value: string | null | undefined) {
-  if (!value?.trim()) return "—";
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  if (!cleaned) return "—";
-  return `$ ${cleaned} / hr`;
-}
-
 function formatYearsExperience(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return "—";
   return `${value} yrs`;
@@ -328,7 +326,6 @@ export default function NewApplicantProfilePage() {
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [unassignedFacilityCount, setUnassignedFacilityCount] = useState(0);
   const [showPostHireOnboardingSteps, setShowPostHireOnboardingSteps] = useState(false);
-  const [showAlliedHealthRole, setShowAlliedHealthRole] = useState(false);
 
   async function reloadProfile() {
     if (!applicantId) return;
@@ -368,6 +365,30 @@ export default function NewApplicantProfilePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workerId: applicantId, field, value }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Could not save");
+      }
+      await reloadProfile();
+      toast.success("Saved");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not save";
+      toast.error(message);
+      throw e;
+    } finally {
+      setFieldSaving(false);
+    }
+  }
+
+  async function savePayRate(value: { amount: string; period: WorkerPayRatePeriod }) {
+    if (!applicantId) return;
+    setFieldSaving(true);
+    try {
+      const res = await fetch("/api/admin/worker-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId, field: "pay_rate", value }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -521,35 +542,6 @@ export default function NewApplicantProfilePage() {
     };
   }, [applicantId, data?.worker?.state, data?.worker?.job_role]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTenantIndustries() {
-      try {
-        const res = await fetch("/api/admin/tenant-industries", { cache: "no-store" });
-        const json = (await res.json()) as {
-          primaryIndustryKey?: string | null;
-          selectedIndustryKeys?: string[];
-          error?: string;
-        };
-        if (!res.ok || cancelled) return;
-        const keys = [
-          json.primaryIndustryKey,
-          ...(Array.isArray(json.selectedIndustryKeys) ? json.selectedIndustryKeys : []),
-        ];
-        setShowAlliedHealthRole(tenantHasHealthcareIndustry(keys));
-      } catch (e) {
-        console.error(e);
-        if (!cancelled) setShowAlliedHealthRole(false);
-      }
-    }
-
-    void loadTenantIndustries();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const loadCitiesForState = useCallback(
     async (stateCode: string) => {
       if (!applicantId || !stateCode) {
@@ -618,6 +610,11 @@ export default function NewApplicantProfilePage() {
 
   // Explicitly saved role only — do not fall back to experience/skills/job title guesses.
   const alliedHealthRoleValue = (w?.job_role ?? "").trim();
+
+  // Show only when this candidate's job/profession is healthcare-family (not tenant-wide).
+  const showAlliedHealthRole =
+    isHealthcareIndustryKey(data?.job_industry_key) ||
+    isHealthcareIndustryKey(data?.profession_industry_key);
 
   // License type / expiry helpers — UI rows commented out (profession documents cover this).
   // const licenseTypeKey = useMemo(() => {
@@ -1046,15 +1043,12 @@ export default function NewApplicantProfilePage() {
                           {w?.status_label ?? "—"}
                         </div>
                       </div>
-                      <CandidateDetailEditableField
-                        label="Hourly Rate"
-                        displayValue={formatHourlyRate(w?.hourly_rate)}
-                        editValue={w?.hourly_rate ?? ""}
-                        fieldKind="hourly_rate"
+                      <CandidateDetailPayRateField
+                        amount={w?.hourly_rate}
+                        period={w?.pay_rate_period}
                         isMissing={isMissingCandidateValue(w?.hourly_rate)}
-                        placeholder="25.00"
                         saving={fieldSaving}
-                        onSave={(value) => saveWorkerField("hourly_rate", value)}
+                        onSave={savePayRate}
                       />
                       {/* Primary Practice Setting — not needed on candidate details; facilities are shown in Facilities Assigned.
                       <div className="contents">
@@ -1158,37 +1152,6 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveReference(2, value)}
                       />
-                    </div>
-                  </div>
-
-                  <div className={PROFILE_CARD_CLASS}>
-                    <div className={PROFILE_CARD_HEADER_CLASS}>
-                      <h2 className={PROFILE_CARD_TITLE_CLASS}>Activity Logs</h2>
-                    </div>
-                    <div className="p-3 sm:p-5">
-                    <div className="overflow-hidden rounded-md border border-[#E5E7EB] text-xs">
-                      {(
-                        [
-                          ["Source", data?.activity.source ?? "—"],
-                          ["Created date", formatDateTimeLabel(data?.activity.created_at)],
-                          ["Date resume added", formatDateTimeLabel(data?.requirements?.resume_path ? data?.activity.created_at : null)],
-                          ["Created by", data?.activity_logs?.[0]?.details?.user_agent ? "API Session" : "N/A"],
-                          ["Last updated", formatRelative(data?.activity.updated_at)],
-                        ] as const
-                      ).map(([k, v], idx) => (
-                        <div
-                          key={k}
-                          className={`grid grid-cols-1 sm:grid-cols-2 ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
-                        >
-                          <div className="border-b border-[#E5E7EB] px-3 py-2 text-[13px] leading-5 text-[#374151] sm:border-b-0 sm:border-r sm:px-4 sm:py-3 sm:text-[14px]">
-                            {k}
-                          </div>
-                          <div className="break-words px-3 py-2 text-[13px] leading-5 text-[#111827] sm:px-4 sm:py-3 sm:text-[14px]">
-                            {v}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                     </div>
                   </div>
 

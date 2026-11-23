@@ -12,15 +12,36 @@ import {
 import { PROFILE_FIELD_OPEN_EDIT_EVENT } from "@/lib/admin/candidate-profile-sections";
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 
+const SSN_HIDDEN_PREFIX = "********"; // first 8 digits always masked
+
+function ssnLastFourDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(-4);
+}
+
+/** Eye off: last 4 hidden too. Eye on: 8 * + last 4. */
+function formatSsnLastFourDisplay(value: string, revealed: boolean): string {
+  const digits = ssnLastFourDigits(value);
+  if (!digits) return value.trim() === "—" ? "—" : `${SSN_HIDDEN_PREFIX}****`;
+  return revealed ? `${SSN_HIDDEN_PREFIX}${digits}` : `${SSN_HIDDEN_PREFIX}****`;
+}
+
 function maskSensitiveDisplay(fieldKind: CandidateFieldKind, value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed === "—") return trimmed || "—";
   if (fieldKind === "ssn_last_four") {
-    const digits = trimmed.replace(/\D/g, "").slice(-4);
-    return digits ? `***-**-${digits}` : "***-**-****";
+    return formatSsnLastFourDisplay(trimmed, false);
   }
   if (fieldKind === "date_of_birth") {
     return "********";
+  }
+  return trimmed;
+}
+
+function formatSensitiveDisplay(fieldKind: CandidateFieldKind, value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "—") return trimmed || "—";
+  if (fieldKind === "ssn_last_four") {
+    return formatSsnLastFourDisplay(trimmed, true);
   }
   return trimmed;
 }
@@ -205,8 +226,10 @@ export default function CandidateDetailEditableField({
         ) : (
           <div className="group flex items-start justify-between gap-2">
             <span className={highlightValue ? "text-[var(--brand-primary)]" : ""}>
-              {isSensitive && !revealed
-                ? maskSensitiveDisplay(fieldKind, displayValue)
+              {isSensitive
+                ? revealed
+                  ? formatSensitiveDisplay(fieldKind, displayValue)
+                  : maskSensitiveDisplay(fieldKind, displayValue)
                 : displayValue}
             </span>
             <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
