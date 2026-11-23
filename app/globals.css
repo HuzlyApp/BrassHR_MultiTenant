@@ -371,6 +371,108 @@ a[href] {
   font-family: var(--brand-font-body) !important;
 }
 
+/*
+ * Remap hardcoded Tailwind pixel text sizes to the tenant base font size.
+ * Ratios are relative to the design default of 16px, so hierarchy stays intact
+ * when Base font size is xs/sm/md/lg.
+ */
+.tenant-branded-surface .text-\[8px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.5) !important;
+}
+.tenant-branded-surface .text-\[9px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.5625) !important;
+}
+.tenant-branded-surface .text-\[10px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.625) !important;
+}
+.tenant-branded-surface .text-\[11px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.6875) !important;
+}
+.tenant-branded-surface .text-\[12px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.75) !important;
+}
+.tenant-branded-surface .text-\[13px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.8125) !important;
+}
+.tenant-branded-surface .text-\[14px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.875) !important;
+}
+.tenant-branded-surface .text-\[15px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 0.9375) !important;
+}
+.tenant-branded-surface .text-\[16px\] {
+  font-size: var(--brand-font-size, 16px) !important;
+}
+.tenant-branded-surface .text-\[17px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.0625) !important;
+}
+.tenant-branded-surface .text-\[18px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.125) !important;
+}
+.tenant-branded-surface .text-\[20px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.25) !important;
+}
+.tenant-branded-surface .text-\[22px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.375) !important;
+}
+.tenant-branded-surface .text-\[24px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.5) !important;
+}
+.tenant-branded-surface .text-\[28px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.75) !important;
+}
+.tenant-branded-surface .text-\[30px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 1.875) !important;
+}
+.tenant-branded-surface .text-\[32px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 2) !important;
+}
+.tenant-branded-surface .text-\[36px\] {
+  font-size: calc(var(--brand-font-size, 16px) * 2.25) !important;
+}
+
+/* Common responsive fixed sizes used in page titles */
+@media (min-width: 640px) {
+  .tenant-branded-surface .sm\:text-\[16px\] {
+    font-size: var(--brand-font-size, 16px) !important;
+  }
+  .tenant-branded-surface .sm\:text-\[18px\] {
+    font-size: calc(var(--brand-font-size, 16px) * 1.125) !important;
+  }
+  .tenant-branded-surface .sm\:text-\[24px\] {
+    font-size: calc(var(--brand-font-size, 16px) * 1.5) !important;
+  }
+  .tenant-branded-surface .sm\:text-\[28px\] {
+    font-size: calc(var(--brand-font-size, 16px) * 1.75) !important;
+  }
+  .tenant-branded-surface .sm\:text-\[30px\] {
+    font-size: calc(var(--brand-font-size, 16px) * 1.875) !important;
+  }
+}
+
+/* Tailwind rem scale tokens — keep relative hierarchy off the tenant base size */
+.tenant-branded-surface .text-xs {
+  font-size: calc(var(--brand-font-size, 16px) * 0.75) !important;
+}
+.tenant-branded-surface .text-sm {
+  font-size: calc(var(--brand-font-size, 16px) * 0.875) !important;
+}
+.tenant-branded-surface .text-base {
+  font-size: var(--brand-font-size, 16px) !important;
+}
+.tenant-branded-surface .text-lg {
+  font-size: calc(var(--brand-font-size, 16px) * 1.125) !important;
+}
+.tenant-branded-surface .text-xl {
+  font-size: calc(var(--brand-font-size, 16px) * 1.25) !important;
+}
+.tenant-branded-surface .text-2xl {
+  font-size: calc(var(--brand-font-size, 16px) * 1.5) !important;
+}
+.tenant-branded-surface .text-3xl {
+  font-size: calc(var(--brand-font-size, 16px) * 1.875) !important;
+}
+
 .tenant-branded-surface .text-muted,
 .tenant-branded-surface .text-slate-500,
 .tenant-branded-surface .text-gray-500 {

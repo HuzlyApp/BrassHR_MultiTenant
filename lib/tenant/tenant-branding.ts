@@ -112,7 +112,8 @@ export function brandingAuthButtonStyle(enabled: boolean): Record<string, string
       backgroundImage: "none",
       color: "#94a3b8",
       WebkitTextFillColor: "#94a3b8",
-      fontFamily: "var(--brand-font-body)",
+      fontFamily: "var(--brand-font-primary)",
+      fontSize: "var(--brand-font-size)",
     };
   }
   return {
@@ -120,7 +121,8 @@ export function brandingAuthButtonStyle(enabled: boolean): Record<string, string
     backgroundColor: "transparent",
     color: "#ffffff",
     WebkitTextFillColor: "#ffffff",
-    fontFamily: "var(--brand-font-body)",
+    fontFamily: "var(--brand-font-primary)",
+    fontSize: "var(--brand-font-size)",
   };
 }
 

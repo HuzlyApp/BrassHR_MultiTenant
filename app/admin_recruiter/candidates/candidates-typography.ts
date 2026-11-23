@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import {
-  BRAND_FONT_BODY_STYLE,
-  BRAND_FONT_HEADING_STYLE,
+  brandBodyTextStyle,
+  brandHeadingTextStyle,
 } from "@/lib/tenant/branding-typography-styles";
 
 /** Figma: Candidates page title */
@@ -9,7 +9,7 @@ export const CANDIDATES_PAGE_TITLE_CLASS =
   "m-0 text-xl font-semibold leading-7 tracking-normal text-[#1d2739] sm:text-[30px] sm:leading-9";
 
 export const CANDIDATES_PAGE_TITLE_STYLE: CSSProperties = {
-  ...BRAND_FONT_HEADING_STYLE,
+  ...brandHeadingTextStyle(1.25),
 };
 
 /** Figma: Candidates page subtitle — "Manage candidates in one place" */
@@ -17,7 +17,7 @@ export const CANDIDATES_PAGE_SUBTITLE_CLASS =
   "m-0 mt-0.5 text-sm font-normal leading-5 tracking-normal text-[#6f7683] sm:mt-1 sm:text-[16px] sm:leading-6";
 
 export const CANDIDATES_PAGE_SUBTITLE_STYLE: CSSProperties = {
-  ...BRAND_FONT_BODY_STYLE,
+  ...brandBodyTextStyle(0.875),
 };
 
 /** Figma: inline filter labels — Job Role, Location, Date Applied */

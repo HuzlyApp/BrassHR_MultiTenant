@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
+import {
+  brandBodyTextStyle,
+  brandHeadingTextStyle,
+} from "@/lib/tenant/branding-typography-styles";
 import { applicationPath } from "@/lib/tenant/with-tenant";
 
 export const CANDIDATE_BTN_NAVY =
@@ -34,8 +38,12 @@ export function CandidatePageIntro({
         {eyebrow ? (
           <p className="text-xs font-semibold leading-4 text-[color:var(--brand-primary,#BC8B41)]">{eyebrow}</p>
         ) : null}
-        <h1 className="text-2xl font-semibold leading-8 text-black">{title}</h1>
-        <p className="mt-1 text-xs leading-4 text-[#6B7280]">{subtitle}</p>
+        <h1 className="text-2xl font-semibold leading-8 text-black" style={brandHeadingTextStyle(1.5)}>
+          {title}
+        </h1>
+        <p className="mt-1 text-xs leading-4 text-[#6B7280]" style={brandBodyTextStyle(0.75)}>
+          {subtitle}
+        </p>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
