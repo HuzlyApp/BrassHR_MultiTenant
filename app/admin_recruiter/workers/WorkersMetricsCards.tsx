@@ -4,6 +4,7 @@ import React from "react";
 import { Users, UserX, Sparkles, UserCheck } from "lucide-react";
 
 export type WorkersMetricsCardsProps = {
+  loading?: boolean;
   counts?: {
     active?: number;
     inactive?: number;
@@ -12,7 +13,7 @@ export type WorkersMetricsCardsProps = {
   };
 };
 
-export function WorkersMetricsCards({ counts }: WorkersMetricsCardsProps) {
+export function WorkersMetricsCards({ counts, loading = false }: WorkersMetricsCardsProps) {
   const activeCount = counts?.active ?? 0;
   const inactiveCount = counts?.inactive ?? 0;
   const assignedCount = counts?.assigned ?? 0;
@@ -45,7 +46,7 @@ export function WorkersMetricsCards({ counts }: WorkersMetricsCardsProps) {
     },
     {
       id: "newlyOnboarded",
-      label: "Newly Onboarded",
+      label: "Onboarding Workers",
       value: newlyOnboardedCount,
       icon: UserCheck,
       iconBg: "bg-[rgba(14,97,87,0.12)]",
@@ -71,7 +72,7 @@ export function WorkersMetricsCards({ counts }: WorkersMetricsCardsProps) {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold leading-4 text-[#374151]">{card.label}</p>
               <p className="text-2xl font-semibold leading-8 text-black">
-                {card.value.toLocaleString()}
+                {loading ? <span aria-label={`Loading ${card.label}`} className="my-1 block h-6 w-12 animate-pulse rounded bg-slate-200" /> : card.value.toLocaleString()}
               </p>
             </div>
           </div>

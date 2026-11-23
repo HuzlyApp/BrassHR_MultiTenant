@@ -12,6 +12,32 @@ export type OnboardingLibraryRow = {
   updated_at: string;
 };
 
+export class LibraryManagementError extends Error {
+  constructor(message: string, public readonly status = 400) { super(message); }
+}
+
+export async function manageOnboardingLibrary(
+  supabase: OnboardingDbClient, tenantId: string, libraryId: string, input: { name: string } | { delete: true }
+): Promise<void> {
+  const library = await getOnboardingLibraryById(supabase, tenantId, libraryId);
+  if (!library) throw new LibraryManagementError("Folder not found.", 404);
+  if (library.is_uncategorized || ["onboarding", "marketing"].includes(library.slug)) {
+    throw new LibraryManagementError("Default workflow folders cannot be renamed or deleted.", 409);
+  }
+  if ("name" in input) {
+    const name = input.name.trim();
+    if (!name || name.length > 80) throw new LibraryManagementError("Folder name is required and must be 80 characters or fewer.");
+    const { error } = await supabase.from("onboarding_libraries").update({ name, updated_at: new Date().toISOString() }).eq("tenant_id", tenantId).eq("id", libraryId);
+    if (error) throw error;
+    return;
+  }
+  const { count, error: countError } = await supabase.from("onboarding_flows").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("library_id", libraryId);
+  if (countError) throw countError;
+  if (count) throw new LibraryManagementError("Move or delete workflows before deleting this folder.", 409);
+  const { error } = await supabase.from("onboarding_libraries").delete().eq("tenant_id", tenantId).eq("id", libraryId);
+  if (error) throw error;
+}
+
 export type OnboardingLibraryListItem = {
   id: string;
   name: string;
