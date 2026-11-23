@@ -31,11 +31,10 @@ async function resolveWorkerAccess(workerIdRaw: string) {
     }
   }
 
-  const { data: worker, error } = await supabase
-    .from("worker")
-    .select("id, user_id, tenant_id")
-    .eq("id", idCheck.value)
-    .maybeSingle()
+  const scope = await resolveStaffTenantScope(auth.authUser)
+  let workerQuery = supabase.from("worker").select("id, user_id, tenant_id").eq("id", idCheck.value)
+  if (scope.mode === "scoped") workerQuery = workerQuery.eq("tenant_id", scope.tenantId)
+  const { data: worker, error } = await workerQuery.maybeSingle()
 
   if (error) throw error
   if (!worker?.id || !worker.tenant_id) {
@@ -47,7 +46,6 @@ async function resolveWorkerAccess(workerIdRaw: string) {
   }
 
   const tenantId = String(worker.tenant_id)
-  const scope = await resolveStaffTenantScope(auth.authUser)
   if (scope.mode === "scoped" && scope.tenantId !== tenantId) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   }
@@ -70,7 +68,7 @@ export async function GET(req: NextRequest) {
     const resolved = await resolveWorkerAccess(workerIdRaw)
     if ("error" in resolved && resolved.error) return resolved.error
 
-    const callLogs = await loadWorkerCallLogs(resolved.supabase, resolved.workerId)
+    const callLogs = await loadWorkerCallLogs(resolved.supabase, resolved.workerId, resolved.tenantId)
     return NextResponse.json({ callLogs })
   } catch (err) {
     console.error("[admin/worker-call-logs GET]", err)
@@ -133,7 +131,7 @@ export async function POST(req: NextRequest) {
       request: req,
     })
 
-    const callLogs = await loadWorkerCallLogs(resolved.supabase, resolved.workerId)
+    const callLogs = await loadWorkerCallLogs(resolved.supabase, resolved.workerId, resolved.tenantId)
     return NextResponse.json({ callLog, callLogs })
   } catch (err) {
     console.error("[admin/worker-call-logs POST]", err)

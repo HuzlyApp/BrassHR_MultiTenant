@@ -84,6 +84,11 @@ describe("listPublicJobs", () => {
     ).toBe(true);
   });
 
+  it.each(["Remote", "Hybrid"])("includes legacy combined postings under %s", async (locationType) => {
+    const { client, orCalls } = createListClient();
+    await listPublicJobs(client as never, "tenant-zipstaff", { locationType });
+    expect(orCalls.some((filter) => filter.includes('location_type.in.("Remote, Hybrid","Hybrid, Remote")'))).toBe(true);
+  });
   it("orders by latest activity for Most recent", async () => {
     const { client, orderCalls } = createListClient();
     await listPublicJobs(client as never, "tenant-zipstaff");

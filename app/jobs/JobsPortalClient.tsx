@@ -213,6 +213,7 @@ export default function JobsPortalClient() {
     void fetch(`/api/public/jobs?${params}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json();
+        if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
         setJobs((payload.jobs ?? []) as PublicBoardJob[]);
         setTotal(payload.total ?? 0);
@@ -223,11 +224,11 @@ export default function JobsPortalClient() {
         listScrollRef.current?.scrollTo({ top: 0 });
       })
       .catch((loadError) => {
-        if (loadError instanceof DOMException && loadError.name === "AbortError") return;
+        if (controller.signal.aborted || (loadError instanceof DOMException && loadError.name === "AbortError")) return;
         setError(loadError instanceof Error ? loadError.message : "Failed to load jobs");
         setJobs([]);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [
     boardState.employmentType,
@@ -349,6 +350,7 @@ export default function JobsPortalClient() {
   };
 
   const resetSearch = () => {
+    setLoading(true);
     setQueryTags([]);
     boardStateRef.current = {
       ...boardStateRef.current,
@@ -360,6 +362,7 @@ export default function JobsPortalClient() {
   };
 
   const clearAllSearchAndFilters = () => {
+    setLoading(true);
     setQueryTags([]);
     boardStateRef.current = {
       ...boardStateRef.current,
@@ -470,7 +473,7 @@ export default function JobsPortalClient() {
           >
             <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <p className="text-sm font-medium text-slate-700" aria-live="polite">
-                {total} {total === 1 ? "Job" : "Jobs"}
+                {loading ? "Loading jobs…" : `${total} ${total === 1 ? "Job" : "Jobs"}`}
               </p>
               <JobsBoardSortMenu
                 value={boardState.sort}

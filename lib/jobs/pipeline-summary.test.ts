@@ -5,6 +5,15 @@ import {
 } from "@/lib/jobs/pipeline-summary";
 
 describe("tallyJobPipelineSummary", () => {
+  it("counts the current catalog closed status instead of stale legacy in-process values", () => {
+    const summary = tallyJobPipelineSummary([
+      { status: "reviewing", application_statuses: { system_key: "archived", name: "Closed Application" } },
+      { status: "reviewing", application_statuses: { system_key: null, name: "No response", application_status_groups: { system_key: "closed" } } },
+    ], { showSubmission: false });
+    expect(summary.closed).toBe(2);
+    expect(summary.screening).toBe(0);
+    expect(summary.interview).toBe(0);
+  });
   it("maps FSD buckets and card rollups", () => {
     const summary = tallyJobPipelineSummary(
       [

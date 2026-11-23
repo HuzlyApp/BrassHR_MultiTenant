@@ -1,13 +1,39 @@
+import { addEasternDays, easternDateString, easternWallClockToDate, startOfEasternDay, startOfEasternWeek } from "@/lib/datetime/eastern";
+
+export type CalendarRangeView = "day" | "week" | "month" | "custom";
+export function calendarViewRange(view: Exclude<CalendarRangeView, "custom">, anchor: Date) {
+  const day = startOfEasternDay(anchor);
+  if (view === "day") return { start: day, end: day };
+  if (view === "week") { const start = startOfEasternWeek(day); return { start, end: addEasternDays(start, 6) }; }
+  const [year, month] = easternDateString(day).split("-").map(Number);
+  return { start: easternWallClockToDate(year, month, 1), end: addEasternDays(easternWallClockToDate(year, month + 1, 1), -1) };
+}
+
 export type EmployeeScheduleEmployee = {
   id: string;
+  /** Candidate record used by worker profile routes; schedule mutations keep the employment ID. */
+  profileId?: string | null;
+  client?: string | null;
+  location?: string | null;
+  status?: string | null;
   name: string;
   jobRole: string;
   /** Linked job requisition when known (for job details navigation). */
   jobId: string | null;
 };
 
+export type ScheduleEmployeeFilters = { worker: string; client: string; position: string; location: string; status: string };
+export function matchesScheduleEmployeeFilters(employee: EmployeeScheduleEmployee, filters: ScheduleEmployeeFilters) {
+  return (filters.worker === "all" || employee.id === filters.worker) &&
+    (filters.client === "all" || employee.client === filters.client) &&
+    (filters.position === "all" || employee.jobRole === filters.position) &&
+    (filters.location === "all" || employee.location === filters.location) &&
+    (filters.status === "all" || employee.status === filters.status);
+}
+
 export type EmployeeScheduleShift = {
   id: string;
+  /** Empty for an open shift that has not been assigned yet. */
   workerId: string;
   workDate: string;
   startTime: string;
@@ -45,7 +71,7 @@ export type CreateEmployeeScheduleShiftInput = {
 };
 
 export type ParsedEmployeeScheduleShift = {
-  workerId: string;
+  workerId: string | null;
   facilityId: string | null;
   departmentId: string | null;
   workDate: string;
@@ -148,8 +174,7 @@ export function parseEmployeeScheduleShiftInput(
   if (!title) return { ok: false, error: "Shift title is required." };
   if (title.length > 120) return { ok: false, error: "Shift title must be 120 characters or fewer." };
 
-  const workerId = input.workerId?.trim() ?? "";
-  if (!workerId) return { ok: false, error: "Select an employee for this shift." };
+  const workerId = input.workerId?.trim() || null;
 
   const workDate = input.workDate?.trim() ?? "";
   if (!DATE_RE.test(workDate)) return { ok: false, error: "A valid shift date is required." };

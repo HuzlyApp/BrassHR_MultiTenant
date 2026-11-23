@@ -9,6 +9,7 @@ import {
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
 
@@ -93,12 +94,16 @@ export async function GET(req: NextRequest) {
     }
 
     const tab = parseEmploymentWorkerTab(req.nextUrl.searchParams.get("tab"));
+    const candidateIdRaw = req.nextUrl.searchParams.get("candidateId");
+    const candidateId = candidateIdRaw ? parseRequiredUuid(candidateIdRaw, "candidateId") : null;
+    if (candidateId && !candidateId.ok) return NextResponse.json({ error: candidateId.error }, { status: 400 });
     const tenantScope = await resolveStaffTenantScope(auth.authUser);
     const tenantId = tenantScope.mode === "scoped" ? tenantScope.tenantId : null;
 
     const buildQuery = (select: string) => {
       let query = supabase.from("workers").select(select).order("created_at", { ascending: false });
       if (tenantId) query = query.eq("tenant_id", tenantId);
+      if (candidateId?.ok) query = query.eq("candidate_id", candidateId.value);
       switch (tab) {
         case "new":
           query = query.eq("status", "new");

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
@@ -94,6 +94,8 @@ export default function NewApplicantActivitiesPage() {
   const [callLogs, setCallLogs] = useState<WorkerCallLog[]>([]);
   const [callLogsLoading, setCallLogsLoading] = useState(false);
   const [callLogsError, setCallLogsError] = useState<string | null>(null);
+  const [relativeNow, setRelativeNow] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setRelativeNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);
   const [showAddCallLogModal, setShowAddCallLogModal] = useState(false);
 
   const branding = useTenantBranding();
@@ -134,20 +136,16 @@ export default function NewApplicantActivitiesPage() {
   const candidateRole = applicant?.job_role || "N/A";
   const statusLabel = applicant?.status_label?.trim() || "New Applicant";
 
-  const reloadCallLogs = async () => {
+  const reloadCallLogs = useCallback(async () => {
     if (!applicantId) return;
     setCallLogsLoading(true);
     setCallLogsError(null);
     try {
-      const res = await fetch(
-        `/api/admin/worker-call-logs?workerId=${encodeURIComponent(applicantId)}`,
-        { cache: "no-store" }
+      const result = await fetchStaffDetailJson<{ callLogs?: WorkerCallLog[]; error?: string }>(
+        `/api/admin/worker-call-logs?workerId=${encodeURIComponent(applicantId)}`, { ttlMs: 0, bust: true }
       );
-      const json = (await res.json().catch(() => ({}))) as {
-        callLogs?: WorkerCallLog[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error || "Failed to load call logs");
+      const json = result.payload;
+      if (!result.ok) throw new Error(json.error || "Failed to load call logs");
       setCallLogs(json.callLogs ?? []);
     } catch (e) {
       setCallLogs([]);
@@ -155,11 +153,11 @@ export default function NewApplicantActivitiesPage() {
     } finally {
       setCallLogsLoading(false);
     }
-  };
+  }, [applicantId]);
 
   useEffect(() => {
     void reloadCallLogs();
-  }, [applicantId]);
+  }, [reloadCallLogs]);
 
   const activityHistory = profile?.activity_history ?? [];
   const historyCount = activityHistory.length;
@@ -175,7 +173,7 @@ export default function NewApplicantActivitiesPage() {
   function relativeTimeLabel(iso: string): string {
     const t = new Date(iso).getTime();
     if (Number.isNaN(t)) return "—";
-    const diffMs = Date.now() - t;
+    const diffMs = relativeNow - t;
     const mins = Math.floor(diffMs / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
@@ -547,6 +545,7 @@ export default function NewApplicantActivitiesPage() {
                       ) : callLogsError ? (
                         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                           {callLogsError}
+                          <button type="button" className="ml-3 font-semibold underline" onClick={() => void reloadCallLogs()}>Retry call logs</button>
                         </div>
                       ) : sortedCallLogs.length === 0 ? (
                         <div className="rounded-md border border-dashed border-[#D1D5DB] py-10 text-center text-sm text-[#6B7280]">

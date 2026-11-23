@@ -581,7 +581,11 @@ function StatusChangeDialog({
   const codes = reasonCodes ?? [];
   const [selectedReason, setSelectedReason] = useState("");
   const [note, setNote] = useState("");
-  const [selectedStatusId, setSelectedStatusId] = useState(statuses[0]?.id ?? "");
+  const actionLabel = lane === "closed" ? closedLabel : lane === "alternate" ? alternateLabel : "";
+  const [selectedStatusId, setSelectedStatusId] = useState(() =>
+    statuses.find((status) => status.name.trim().toLowerCase() === actionLabel.trim().toLowerCase())?.id
+      ?? statuses[0]?.id ?? ""
+  );
   const isAlternate = lane === "alternate";
   const isClosed = lane === "closed";
   const needsReason = isAlternate || isClosed;

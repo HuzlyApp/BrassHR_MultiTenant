@@ -14,7 +14,7 @@ import {
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 const PIPELINE_APPLICATION_SELECT =
-  "id, worker_id, status, status_id, application_statuses!status_id(system_key, name)";
+  "id, worker_id, status, status_id, application_statuses!status_id(system_key, name, application_status_groups(system_key))";
 
 type PipelineApplicationRow = JobPipelineSummaryRow & {
   id?: string | null;

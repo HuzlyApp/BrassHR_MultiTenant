@@ -20,6 +20,7 @@ export const POST_HIRE_SCREEN_KIND_BY_STEP_ID: Readonly<Record<string, PostHireS
   "i9-right-to-work-verification": "i9_attestation",
   "i9-section-1": "i9_attestation",
   "welcome-packet-esign": "acknowledgment",
+  "authorization-esign": "acknowledgment",
   "policy-acknowledgment": "acknowledgment",
   "equipment-badge-acknowledgment": "acknowledgment",
   "safety-training": "training",
@@ -319,6 +320,13 @@ export function hasCandidatePostHireEvidence(
   data: unknown
 ): boolean {
   const submission = readPostHireSubmission(data);
+  if (kind === "acknowledgment") {
+    const row = data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : {};
+    const signedName = typeof row.signature_name === "string" && Boolean(row.signature_name.trim());
+    const labeledSignature = submission?.fields.some(field => field.label.toLowerCase() === "signature" && Boolean(field.value.trim()));
+    return row.firma_signed === true || row.firma_status === "signed" || row.firma_status === "completed" ||
+      ((row.checkbox_confirmed === true || row.policy_acknowledged === true) && signedName) || Boolean(labeledSignature);
+  }
   if (submission && submission.fields.length > 0) return true;
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
   const row = data as Record<string, unknown>;

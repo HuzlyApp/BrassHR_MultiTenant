@@ -6,12 +6,39 @@ import {
 } from "./staff-detail-fetch-cache";
 
 describe("staff detail fetch cache", () => {
+  it("does not let an older profile request overwrite refreshed header data", async () => {
+    const pending: Array<(response: Response) => void> = [];
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => pending.push(resolve)));
+    vi.stubGlobal("fetch", fetchMock);
+    const url = "/api/admin/worker-profile?workerId=changed";
+    const old = fetchStaffDetailJson(url);
+    invalidateStaffDetailCache(url);
+    const fresh = fetchStaffDetailJson(url);
+    pending[1](Response.json({ status: "Closed Application", phone: "9195550199" }));
+    await fresh;
+    pending[0](Response.json({ status: "In Process", phone: "old" }));
+    await old;
+    expect((await fetchStaffDetailJson(url)).payload).toEqual({ status: "Closed Application", phone: "9195550199" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   afterEach(() => {
     invalidateStaffDetailCache();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
+  it("times out stalled response bodies, clears in-flight state and permits a retry", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: () => new Promise(() => {}) }).mockResolvedValueOnce(Response.json({ recovered: true }));
+    vi.stubGlobal("fetch", fetch);
+    const pending = fetchStaffDetailJson("/api/admin/stalled", { timeoutMs: 100 });
+    const failure = expect(pending).rejects.toThrow("took too long");
+    await vi.advanceTimersByTimeAsync(100);
+    await failure;
+    expect((await fetchStaffDetailJson("/api/admin/stalled")).payload).toEqual({ recovered: true });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
   it("dedupes in-flight requests for the same URL", async () => {
     let resolveFetch: ((value: Response) => void) | undefined;
     const fetchMock = vi.fn(

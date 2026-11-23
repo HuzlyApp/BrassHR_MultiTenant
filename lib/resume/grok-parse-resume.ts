@@ -36,6 +36,7 @@ function mergeParsedFields(
     grokVal.trim() || (preVal?.trim() ?? "")
 
   return {
+    ...fromGrok,
     first_name: pick(fromGrok.first_name, pre.first_name),
     last_name: pick(fromGrok.last_name, pre.last_name),
     email: pick(fromGrok.email, pre.email),
@@ -58,7 +59,7 @@ function buildSystemPrompt(pre: Partial<NormalizedParsedResume>): string {
   return `
 You are an ATS resume parser.
 
-Extract structured contact/profile information from the resume snippet.
+Extract contact/profile information and the professional summary, skills, work experience and education from the resume. Preserve facts from the text; do not invent missing details.
 
 Return JSON ONLY (no markdown, no commentary).
 
@@ -73,7 +74,11 @@ Schema:
   "zip": "",
   "phone": "",
   "email": "",
-  "job_role": ""
+  "job_role": "",
+  "summary": "",
+  "skills": [],
+  "experience": [{ "company": "", "position": "", "start_date": null, "end_date": null, "location": null, "description": null }],
+  "education": [{ "institution": "", "degree": "", "field": null, "start_date": null, "end_date": null, "gpa": null }]
 }
 
 Rules:
@@ -85,7 +90,7 @@ Rules:
 - job_role is the current or most recent title (any industry, not only healthcare).
 - Repair obvious OCR/PDF typos in emails (gmail.cor → gmail.com, .con → .com on well-known providers).
 - If a field is already known below, only change it when the snippet clearly contradicts it; otherwise return the known value or fill missing fields.
-- If a field is missing return an empty string.
+- Use an empty array for missing skills/experience/education and an empty string for missing scalar fields. Dates and optional experience/education attributes may be null. Never use a resume filename, heading or document title as a person's name.
 
 ${known ? `Already extracted (prefer keeping unless snippet contradicts):\n${known}` : ""}
 `.trim()
@@ -105,7 +110,7 @@ export async function grokParseResume(
   opts?: ResumeFieldExtractOptions,
 ): Promise<GrokParseResumeResult> {
   const preExtracted = preExtractResumeFields(fullText, opts)
-  const grokSnippet = buildGrokResumeSnippet(fullText)
+  const grokSnippet = buildGrokResumeSnippet(fullText, 12000)
   const grokSnippetReduced = grokSnippetIsReduced(fullText, grokSnippet)
 
   logResumeTiming("process-resume", "grok-request", {

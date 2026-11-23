@@ -43,6 +43,10 @@ import {
   formatShiftRange,
   shiftsOverlap,
   parseEmployeeScheduleShiftInput,
+  calendarViewRange,
+  matchesScheduleEmployeeFilters,
+  type CalendarRangeView,
+  type ScheduleEmployeeFilters,
   type EmployeeScheduleEmployee,
   type EmployeeScheduleShift,
   type EmployeeScheduleWeekResponse,
@@ -204,6 +208,8 @@ export default function SchedulePageClient() {
   const [rangeStart, setRangeStart] = useState<Date>(() => initialRange.start);
   const [rangeEnd, setRangeEnd] = useState<Date>(() => initialRange.end);
   const [rangePreset, setRangePreset] = useState<RangePreset>("this_week");
+  const [calendarRangeView, setCalendarRangeView] = useState<CalendarRangeView>("week");
+  const [employeeFilters, setEmployeeFilters] = useState<ScheduleEmployeeFilters>({ worker: "all", client: "all", position: "all", location: "all", status: "all" });
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(() => easternDateString(initialRange.start));
   const [draftEnd, setDraftEnd] = useState(() => easternDateString(initialRange.end));
@@ -427,37 +433,45 @@ export default function SchedulePageClient() {
     };
   }, [rangeMenuOpen]);
 
+  const filteredEmployees = useMemo(() => employees.filter((employee) => matchesScheduleEmployeeFilters(employee, employeeFilters)), [employees, employeeFilters]);
+  const openOnly = searchParams.get("open") === "1";
+  const filteredShifts = useMemo(() => {
+    const ids = new Set(filteredEmployees.map((employee) => employee.id));
+    const hasEmployeeFilters = Object.values(employeeFilters).some((value) => value !== "all");
+    return shifts.filter((shift) => shift.workerId ? !openOnly && ids.has(shift.workerId) : !hasEmployeeFilters);
+  }, [filteredEmployees, shifts, employeeFilters, openOnly]);
   const visibleEmployees = useMemo(() => {
-    const scheduledIds = new Set(shifts.map((shift) => shift.workerId));
-    return employees.filter((employee) => scheduledIds.has(employee.id));
-  }, [employees, shifts]);
+    const scheduledIds = new Set(filteredShifts.map((shift) => shift.workerId));
+    const rows = filteredEmployees.filter((employee) => scheduledIds.has(employee.id));
+    if (scheduledIds.has("")) rows.unshift({ id: "", name: "Open shifts", jobRole: "Unassigned", jobId: null });
+    return rows;
+  }, [filteredEmployees, filteredShifts]);
 
   const shiftGrid = useMemo(() => {
     const grid = new Map<string, EmployeeScheduleShift[]>();
-    for (const shift of shifts) {
+    for (const shift of filteredShifts) {
       const key = `${shift.workerId}_${shift.workDate.slice(0, 10)}`;
       const existing = grid.get(key) ?? [];
       existing.push(shift);
       grid.set(key, existing);
     }
     return grid;
-  }, [shifts]);
+  }, [filteredShifts]);
 
   const listDays = useMemo(() => {
     const employeeNameById = new Map(employees.map((employee) => [employee.id, employee.name]));
-    let shiftThemeIndex = 0;
-
-    return rangeDays.map((day) => {
+    const filteredWorkerIds = new Set(filteredEmployees.flatMap((employee) => [employee.id, employee.profileId]));
+    const hasFilters = Object.values(employeeFilters).some((value) => value !== "all");
+    return rangeDays.map((day, dayIndex) => {
       const dateKey = easternDateString(day);
       const entries: ListDayEntry[] = [];
 
-      const dayShifts = shifts
+      const dayShifts = filteredShifts
         .filter((shift) => shift.workDate.slice(0, 10) === dateKey)
         .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id));
 
-      for (const shift of dayShifts) {
-        const theme = LIST_SHIFT_THEMES[shiftThemeIndex % LIST_SHIFT_THEMES.length];
-        shiftThemeIndex += 1;
+      for (const [shiftIndex, shift] of dayShifts.entries()) {
+        const theme = LIST_SHIFT_THEMES[(dayIndex + shiftIndex) % LIST_SHIFT_THEMES.length];
         const workerName = employeeNameById.get(shift.workerId);
         entries.push({
           id: `shift-${shift.id}`,
@@ -465,14 +479,15 @@ export default function SchedulePageClient() {
           title: formatShiftRange(shift.startTime, shift.endTime),
           detail: workerName
             ? `${workerName} · ${shift.department || shift.title || "Working hours"}`
-            : shift.department || shift.title || "Working hours",
+            : `Unassigned · ${shift.department || shift.title || "Working hours"}`,
           bg: theme.bg,
           text: theme.text,
           shift,
         });
       }
 
-      for (const record of offRecords) {
+      for (const record of openOnly ? [] : offRecords) {
+        if (hasFilters && !filteredWorkerIds.has(record.workerId)) continue;
         if (dateKey < record.startDate.slice(0, 10) || dateKey > record.endDate.slice(0, 10)) {
           continue;
         }
@@ -488,7 +503,7 @@ export default function SchedulePageClient() {
 
       return { day, dateKey, label: formatListDayLabel(day), entries };
     });
-  }, [rangeDays, shifts, offRecords, employees]);
+  }, [rangeDays, filteredShifts, offRecords, employees, filteredEmployees, employeeFilters, openOnly]);
 
   const applyRange = useCallback((start: Date, end: Date, preset: RangePreset) => {
     const normalizedStart = startOfEasternDay(start);
@@ -505,11 +520,18 @@ export default function SchedulePageClient() {
     setRangeStart(normalizedStart);
     setRangeEnd(normalizedEnd);
     setRangePreset(preset);
+    setCalendarRangeView(preset === "this_week" ? "week" : "custom");
     setDraftStart(easternDateString(normalizedStart));
     setDraftEnd(easternDateString(normalizedEnd));
     setRangeMenuOpen(false);
     return true;
   }, []);
+
+  const applyCalendarView = (view: Exclude<CalendarRangeView, "custom">, anchor = rangeStart) => {
+    const range = calendarViewRange(view, anchor);
+    applyRange(range.start, range.end, view === "week" ? "this_week" : "custom");
+    setCalendarRangeView(view);
+  };
 
   const applyPreset = useCallback(
     (preset: RangePreset) => {
@@ -545,6 +567,7 @@ export default function SchedulePageClient() {
   };
 
   const handlePrevRange = () => {
+    if (calendarRangeView === "month") { applyCalendarView("month", addEasternDays(rangeStart, -1)); return; }
     const nextStart = addEasternDays(rangeStart, -rangeLength);
     const nextEnd = addEasternDays(rangeEnd, -rangeLength);
     setRangeStart(nextStart);
@@ -555,6 +578,7 @@ export default function SchedulePageClient() {
   };
 
   const handleNextRange = () => {
+    if (calendarRangeView === "month") { applyCalendarView("month", addEasternDays(rangeEnd, 1)); return; }
     const nextStart = addEasternDays(rangeStart, rangeLength);
     const nextEnd = addEasternDays(rangeEnd, rangeLength);
     setRangeStart(nextStart);
@@ -565,7 +589,7 @@ export default function SchedulePageClient() {
   };
 
   const handleExport = () => {
-    if (shifts.length === 0) {
+    if (filteredShifts.length === 0) {
       toast.error("No shifts to export for this date range.");
       return;
     }
@@ -582,7 +606,7 @@ export default function SchedulePageClient() {
       "Notes",
     ];
     const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
-    const rows = shifts.map((shift) => {
+    const rows = filteredShifts.map((shift) => {
       const employee = employeeById.get(shift.workerId);
       return [
         employee?.name ?? "",
@@ -617,6 +641,7 @@ export default function SchedulePageClient() {
     endTime: string,
     excludeShiftId?: string | null
   ) => {
+    if (!workerId) return undefined;
     const excludeId = excludeShiftId?.trim() || "";
     return shifts.find((shift) => {
       if (shift.workerId !== workerId) return false;
@@ -807,7 +832,15 @@ export default function SchedulePageClient() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 md:px-8">
-      <p role="status" className="mb-2 text-xs text-[#64748B]">{shifts.length} shifts in this range · {employees.length} employees</p>
+      <label className="mb-3 flex items-center gap-2 text-xs text-[#334155]">
+        <input type="checkbox" checked={openOnly} onChange={(event) => {
+          const params = new URLSearchParams(searchParams.toString());
+          if (event.target.checked) params.set("open", "1"); else params.delete("open");
+          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        }} />
+        Open shifts only
+      </label>
+      <p role="status" className="mb-2 text-xs text-[#64748B]">{filteredShifts.length} shifts in this range · {filteredEmployees.length} employees</p>
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">
@@ -849,6 +882,22 @@ export default function SchedulePageClient() {
           />
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <select aria-label="Calendar range view" value={calendarRangeView} onChange={(event) => {
+              if (event.target.value !== "custom") applyCalendarView(event.target.value as "day" | "week" | "month");
+            }} className="h-[30px] rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs">
+              <option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="custom" disabled>Custom range</option>
+            </select>
+            <button type="button" onClick={() => applyCalendarView(calendarRangeView === "custom" ? "week" : calendarRangeView, new Date())} className="h-[30px] rounded-lg border border-[#CBD5E1] px-3 text-xs font-semibold">Today</button>
+            {([
+              { key: "worker", label: "Worker", options: employees.map((employee) => ({ value: employee.id, label: employee.name })) },
+              { key: "client", label: "Client", options: Array.from(new Set(employees.map((employee) => employee.client).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+              { key: "position", label: "Position", options: Array.from(new Set(employees.map((employee) => employee.jobRole).filter(Boolean))).map((value) => ({ value, label: value })) },
+              { key: "location", label: "Location", options: Array.from(new Set(employees.map((employee) => employee.location).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+              { key: "status", label: "Status", options: Array.from(new Set(employees.map((employee) => employee.status).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+            ] as const).map((filter) => <select key={filter.key} aria-label={`Filter by ${filter.label.toLowerCase()}`} value={employeeFilters[filter.key]} onChange={(event) => setEmployeeFilters((current) => ({ ...current, [filter.key]: event.target.value }))} className="h-[30px] max-w-[180px] rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs">
+              <option value="all">All {filter.label === "Status" ? "statuses" : `${filter.label.toLowerCase()}s`}</option>
+              {filter.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>)}
             <SettingsSelect
               aria-label="Filter by facility"
               value={selectedFacility}
@@ -1150,20 +1199,20 @@ export default function SchedulePageClient() {
                           className="w-[180px] px-3 py-2.5 align-middle"
                           style={{ minHeight: rowMinHeight }}
                         >
-                          <Link
-                            href={adminWorkerProfileHref(emp.id)}
+                          {emp.id ? <Link
+                            href={adminWorkerProfileHref(emp.profileId || emp.id)}
                             className="block text-sm font-semibold text-[#0F172A] transition-colors hover:text-[color:var(--brand-primary)] hover:underline"
                             title={emp.name}
                           >
                             {emp.name}
-                          </Link>
-                          <Link
+                          </Link> : <span className="block text-sm font-semibold text-[#0F172A]">{emp.name}</span>}
+                          {emp.id ? <Link
                             href={employeeJobHref(emp)}
                             className="mt-0.5 block truncate text-xs text-[#64748B] hover:text-[color:var(--brand-primary,#012352)] hover:underline"
                             title={emp.jobRole}
                           >
                             {emp.jobRole}
-                          </Link>
+                          </Link> : <span className="text-xs text-[#64748B]">Unassigned</span>}
                         </td>
 
                         {rangeDays.map((day, dayIdx) => {
@@ -1271,7 +1320,7 @@ export default function SchedulePageClient() {
                       Employee
                     </dt>
                     <dd className="mt-1 text-sm font-medium text-[#0F172A]">
-                      {selectedShiftEmployee?.name || "Employee"}
+                      {selectedShiftEmployee?.name || "Unassigned"}
                     </dd>
                   </div>
                   <div>
@@ -1372,18 +1421,18 @@ export default function SchedulePageClient() {
 
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-[#334155]">
-                      Employee <span className="text-rose-500">*</span>
+                      Employee (optional)
                     </label>
                     <SettingsSelect
                       aria-label="Select employee"
                       value={editShiftWorkerId}
                       onChange={setEditShiftWorkerId}
-                      placeholder="Select Employee"
+                      placeholder="Open shift (unassigned)"
                       searchable
                       searchPlaceholder="Search employees..."
                       triggerClassName="cursor-pointer rounded-[8px] border-[#CBD5E1]"
                       options={[
-                        { value: "", label: "Select Employee" },
+                        { value: "", label: "Open shift (unassigned)" },
                         ...employees.map((employee) => ({
                           value: employee.id,
                           label: employee.name,
@@ -1503,7 +1552,7 @@ export default function SchedulePageClient() {
             <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
               <div>
                 <h3 className="text-lg font-bold text-[#0F172A]">Post a Shift</h3>
-                <p className="text-xs text-[#64748B]">Schedule a new shift for an employee</p>
+                <p className="text-xs text-[#64748B]">Create an open shift or assign an employee</p>
               </div>
               <button
                 type="button"
@@ -1551,18 +1600,18 @@ export default function SchedulePageClient() {
 
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-[#334155]">
-                    Employee <span className="text-rose-500">*</span>
+                    Employee (optional)
                   </label>
                   <SettingsSelect
                     aria-label="Select employee"
                     value={newShiftWorkerId}
                     onChange={setNewShiftWorkerId}
-                    placeholder="Select Employee"
+                    placeholder="Open shift (unassigned)"
                     searchable
                     searchPlaceholder="Search employees..."
                     triggerClassName="cursor-pointer rounded-[8px] border-[#CBD5E1]"
                     options={[
-                      { value: "", label: "Select Employee" },
+                      { value: "", label: "Open shift (unassigned)" },
                       ...employees.map((employee) => ({
                         value: employee.id,
                         label: employee.name,

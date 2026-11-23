@@ -11,6 +11,7 @@ import {
   type CSSProperties,
 } from "react";
 import toast from "react-hot-toast";
+import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import ImportCandidatesModal from "@/app/admin_recruiter/applications/ImportCandidatesModal";
 import {
@@ -213,6 +214,9 @@ export default function JobDetailsClient({ jobId }: Props) {
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<AssignableTeamMember[]>([]);
   const [teamMembersLoading, setTeamMembersLoading] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -285,6 +289,7 @@ export default function JobDetailsClient({ jobId }: Props) {
       if (!response.ok) {
         throw new Error(readServiceAreaApiMessage(payload, "Failed to update job status"));
       }
+      setJob((current) => current ? { ...current, ...payload.job, status: nextStatus } : current);
       toast.success(`Status updated to ${jobDetailsStatusLabel(nextStatus)}`);
       invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(job.id)}`);
       invalidateJobsListCache();
@@ -408,6 +413,27 @@ export default function JobDetailsClient({ jobId }: Props) {
     }
   }
 
+  async function deleteJob() {
+    if (!job || !canEditJobs || deleteBusy) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch("/api/admin/jobs", {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [job.id] }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.deletedIds) || !payload.deletedIds.includes(job.id)) {
+        throw new Error(payload.error || "The job was not deleted. Please try again.");
+      }
+      invalidateJobsListCache();
+      invalidateStaffDetailCache(jobDetailsApiUrl(job.id));
+      toast.success("Job deleted.");
+      router.push("/admin_recruiter/jobs");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete job.");
+    } finally { setDeleteBusy(false); }
+  }
+
   const title = (() => {
     if (!job) return "Untitled job";
     const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
@@ -440,7 +466,7 @@ export default function JobDetailsClient({ jobId }: Props) {
     return job.tags
       .map((tag) => String(tag ?? "").trim())
       .filter((tag) => tag.length > 0);
-  }, [job?.tags]);
+  }, [job]);
   const visibleJobTags = jobTags.slice(0, JOB_DETAILS_VISIBLE_TAG_COUNT);
   const hiddenJobTagCount = Math.max(0, jobTags.length - visibleJobTags.length);
   const benefits = useMemo(() => splitJobListContent(job?.benefits), [job?.benefits]);
@@ -684,6 +710,10 @@ export default function JobDetailsClient({ jobId }: Props) {
                   disabled={duplicateBusy}
                   onClick={() => void duplicateJob()}
                 />
+              ) : null}
+              {canEditJobs ? (
+                <ActionMenuItem iconSrc="/icons/delete-icon.svg" label="Delete job" disabled={deleteBusy}
+                  onClick={() => { setActionsOpen(false); setDeleteError(null); setDeleteOpen(true); }} />
               ) : null}
             </div>
           ) : null}
@@ -1013,6 +1043,9 @@ export default function JobDetailsClient({ jobId }: Props) {
         onOpenChange={setAssignOpen}
         onAssign={(assigneeUserId) => void assignJobRecruiter(assigneeUserId)}
       />
+      <BulkDeleteConfirmModal open={deleteOpen} entity="job" count={1} busy={deleteBusy} error={deleteError}
+        requireConfirmationText="DELETE" onCancel={() => { if (!deleteBusy) setDeleteOpen(false); }}
+        onConfirm={() => void deleteJob()} />
     </div>
   );
 }

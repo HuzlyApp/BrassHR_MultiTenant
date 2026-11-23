@@ -526,7 +526,7 @@ export default function AddCandidateModal({
           setEmail(preview.email ?? "");
           setPhone(preview.phone ?? "");
           const autoTitle = buildResumeTitle(preview.firstName ?? "", preview.lastName ?? "");
-          if (autoTitle) setResumeTitle(autoTitle);
+          if (autoTitle && !source.title?.trim() && !payload.nameReview?.needsReview) setResumeTitle(autoTitle);
           const extracted = payload.extractedText?.trim() || source.text?.trim() || "";
           if (source.file && extracted) {
             setResumeText(extracted);
@@ -1100,6 +1100,16 @@ export default function AddCandidateModal({
                       <p className="truncate text-xs text-[#64748B]">{parsePreview.jobRole}</p>
                     ) : null}
                   </div>
+                  {parsePreview?.location ? <p className="mb-3 text-xs text-[#64748B]">Candidate location from resume: {parsePreview.location}</p> : null}
+                  {parsePreview && (parsePreview.summary || parsePreview.skills?.length || parsePreview.experience?.length || parsePreview.education?.length) ? (
+                    <details className="mb-4 rounded-lg border border-[#E5E7EB] p-3 text-xs text-[#334155]">
+                      <summary className="cursor-pointer font-medium">Parsed resume details</summary>
+                      {parsePreview.summary ? <p className="mt-2 whitespace-pre-wrap">{parsePreview.summary}</p> : null}
+                      {parsePreview.skills?.length ? <p className="mt-2"><strong>Skills:</strong> {parsePreview.skills.join(", ")}</p> : null}
+                      {parsePreview.experience?.length ? <div className="mt-2"><strong>Experience</strong><ul className="mt-1 space-y-2">{parsePreview.experience.map((item, index) => <li key={index}><p>{[item.position, item.company, item.start_date, item.end_date].filter(Boolean).join(" · ")}</p>{item.description ? <p className="whitespace-pre-wrap">{item.description}</p> : null}</li>)}</ul></div> : null}
+                      {parsePreview.education?.length ? <div className="mt-2"><strong>Education</strong><ul>{parsePreview.education.map((item, index) => <li key={index}>{[item.degree, item.field, item.institution, item.end_date].filter(Boolean).join(" · ")}</li>)}</ul></div> : null}
+                    </details>
+                  ) : null}
                   {nameNeedsReview && nameReview ? (
                     <div
                       role="alert"

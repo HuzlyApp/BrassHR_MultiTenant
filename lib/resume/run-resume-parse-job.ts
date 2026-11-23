@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import {
   evaluateResumeParseQuality,
   normalizedResumeToStoredJson,
+  type StoredParsedResume,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
 import { grokParseResume } from "@/lib/resume/grok-parse-resume"
@@ -12,7 +13,7 @@ import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name"
 
 export type ResumeParseJobResult = {
   parsingStatus: "completed" | "failed"
-  parsedJson: Record<string, string> | null
+  parsedJson: StoredParsedResume | null
   parseError: string | null
   aiParseMs: number
   qualityPassed: boolean
@@ -89,7 +90,7 @@ export async function runResumeParseJob(params: {
       })
       return {
         parsingStatus: "completed",
-        parsedJson: reusable.parsedJson as Record<string, string>,
+        parsedJson: reusable.parsedJson as StoredParsedResume,
         parseError: null,
         aiParseMs: 0,
         qualityPassed: true,

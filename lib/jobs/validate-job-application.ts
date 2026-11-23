@@ -35,12 +35,13 @@ export type ValidatedJobApplicationTarget = {
   workflowName: string;
   jobTitle: string;
   jobLocation: string;
+  jobLocationType: string;
   resumeUploadPath: string;
   screeningPath: string;
 };
 
 const JOB_APPLICATION_SELECT =
-  "id, tenant_id, public_job_token, status, workflow_id, application_deadline, public_title, source_job_title, source_type, location, location_type, onboarding_flows!workflow_id!inner(id, name, status, tenant_id)";
+  "id, tenant_id, public_job_token, status, workflow_id, application_deadline, public_title, source_job_title, source_type, location, location_type, schedule, onboarding_flows!workflow_id!inner(id, name, status, tenant_id)";
 
 export async function listOpenPublishedJobSummaries(
   supabase: DbClient,
@@ -158,6 +159,7 @@ export async function validatePublishedJobForApplication(
     workflowName: String(flow.name ?? job.workflow_id),
     jobTitle: publicJobDisplayTitle(job),
     jobLocation: String(job.location ?? "").trim(),
+    jobLocationType: String(job.location_type || job.schedule || "").trim(),
     resumeUploadPath: buildAddResumePath(tenant.slug, jobToken),
     screeningPath: `/application/job-screening?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(jobToken)}`,
   };

@@ -9,6 +9,8 @@ import { writeStoredApplyLocation } from "@/lib/service-area/apply-location-clie
 import { useServiceAreaPreview } from "@/lib/service-area/use-service-area-preview";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
+
 type RelocateChoice = "onsite" | "relocate" | "remote";
 
 type Props = {
@@ -16,6 +18,7 @@ type Props = {
   jobToken: string;
   jobTitle: string;
   jobCity: string;
+  jobLocationType?: string;
   continueHref: string;
 };
 
@@ -30,6 +33,7 @@ export default function ApplyWorkLocationClient({
   jobToken,
   jobTitle,
   jobCity,
+  jobLocationType,
   continueHref,
 }: Props) {
   const router = useRouter();
@@ -37,7 +41,8 @@ export default function ApplyWorkLocationClient({
   const [city, setCity] = useState("");
   const [stateLabel, setStateLabel] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [relocate, setRelocate] = useState<RelocateChoice | "">("");
+  const remoteJob = isRemoteJobLocationType(jobLocationType);
+  const [relocate, setRelocate] = useState<RelocateChoice | "">(remoteJob ? "remote" : "");
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistSent, setWaitlistSent] = useState(false);
 
@@ -201,7 +206,7 @@ export default function ApplyWorkLocationClient({
             />
           </div>
 
-          <fieldset>
+          {remoteJob ? <p className="text-sm text-slate-600">This is a remote position. Enter the location where you will work remotely.</p> : <fieldset>
             <legend className="text-sm font-medium text-slate-800">
               Will you work on-site{jobCity ? ` at ${jobCity}` : ""}?
             </legend>
@@ -235,7 +240,7 @@ export default function ApplyWorkLocationClient({
                 );
               })}
             </div>
-          </fieldset>
+          </fieldset>}
 
           {preview.message ? (
             <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">

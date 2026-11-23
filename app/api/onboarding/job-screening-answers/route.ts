@@ -3,7 +3,9 @@ import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
+import { PUBLIC_ACCEPTING_JOB_STATUS_QUERY } from "@/lib/jobs/types";
+import { normalizeJobToken, publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { JobValidationError } from "@/lib/jobs/types";
 import { startOrResumeJobApplication } from "@/lib/jobs/service";
 import { parseServiceAreaLocation, parseServiceAreaLocationFromSearchParams } from "@/lib/service-area/parse-location";
@@ -47,9 +49,10 @@ async function publicScreeningQuestions(req: NextRequest) {
 
   const { data: job, error: jobError } = await supabase
     .from("job_requisitions")
-    .select("id")
+    .select("id,public_title,source_job_title,source_type")
     .eq("tenant_id", tenant.id)
     .eq("public_job_token", jobToken)
+    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     .maybeSingle();
   if (jobError || !job) return null;
 
@@ -57,6 +60,7 @@ async function publicScreeningQuestions(req: NextRequest) {
     activeOnly: true,
   });
   return NextResponse.json({
+    jobTitle: publicJobDisplayTitle(job),
     applicationId: null,
     jobId: job.id,
     questions: mergeApplicationScreeningViews({ questions, answers: [] }),
@@ -77,6 +81,11 @@ export async function GET(req: NextRequest) {
     const publicResponse = await publicScreeningQuestions(req).catch(() => null);
     if (publicResponse) return publicResponse;
     return accessDenied;
+  }
+
+  if (isDraftPreviewApplicantId(req.nextUrl.searchParams.get("applicantId"))) {
+    const preview = await publicScreeningQuestions(req);
+    return preview ?? NextResponse.json({ error: "Select a published job to preview its questions." }, { status: 404 });
   }
 
   try {
@@ -108,7 +117,7 @@ export async function GET(req: NextRequest) {
 
     const { data: job, error: jobError } = await supabase
       .from("job_requisitions")
-      .select("id")
+      .select("id,public_title,source_job_title,source_type")
       .eq("tenant_id", tenant.id)
       .eq("public_job_token", jobToken)
       .maybeSingle();
@@ -136,6 +145,7 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
+      jobTitle: publicJobDisplayTitle(job),
       applicationId: application.application.id,
       jobId: job.id,
       questions: context.questions,
@@ -191,7 +201,7 @@ export async function POST(req: NextRequest) {
 
     const { data: job, error: jobError } = await supabase
       .from("job_requisitions")
-      .select("id")
+      .select("id,public_title,source_job_title,source_type")
       .eq("tenant_id", tenant.id)
       .eq("public_job_token", jobToken)
       .maybeSingle();

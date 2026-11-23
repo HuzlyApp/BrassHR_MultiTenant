@@ -97,6 +97,18 @@ describe("prepareResumeCandidate", () => {
     expect(result.resumeFileType).toBe("pdf");
   });
 
+  it("backfills empty AI identity from the resume and never treats a pasted title as a filename hint", async () => {
+    grokParseResumeCachedMock.mockResolvedValue({});
+    const result = await prepareResumeCandidate({ resumeText: READABLE_RESUME, resumeTitle: "QA_TEST_Applicant_resume" });
+    expect(result.parsed).toMatchObject({ first_name: "Jordan", last_name: "Lee", email: "jordan.lee@clinic.org" });
+    expect(result.qualityOk).toBe(true);
+    expect(grokParseResumeCachedMock).toHaveBeenCalledWith(expect.any(String), { fileName: null });
+  });
+  it("keeps structured ATS sections through normalization and storage", async () => {
+    grokParseResumeCachedMock.mockResolvedValue({ ...PARTIAL_PARSE, summary: "Experienced registered nurse.", skills: ["ICU"], experience: [{ company: "Clinic", position: "RN", start_date: "2021", end_date: null, location: null, description: "Patient care" }], education: [{ institution: "University", degree: "BSN", field: null, start_date: null, end_date: "2020", gpa: null }] });
+    const result = await prepareResumeCandidate({ resumeText: READABLE_RESUME });
+    expect(result.parsedJson).toMatchObject({ summary: "Experienced registered nurse.", skills: ["ICU"], experience: [expect.objectContaining({ company: "Clinic" })], education: [expect.objectContaining({ degree: "BSN" })] });
+  });
   it("repairs common PDF email typos such as gmail.cor", async () => {
     grokParseResumeCachedMock.mockResolvedValue({
       ...PARTIAL_PARSE,
@@ -140,10 +152,10 @@ Senior SAP Consultant — Healthcare enterprise — 2020–Present
     });
 
     expect(result.parsed.first_name).toBe("Goutham");
-    expect(result.parsed.last_name).toBe("K");
+    expect(result.parsed.last_name).toBe("");
     expect(result.parsed.email).toBe("kgouthamk81@gmail.com");
     expect(result.parsed.last_name).not.toMatch(/gmail|linkedin|Consultant/i);
-    expect(result.qualityOk).toBe(true);
+    expect(result.qualityOk).toBe(false);
   });
 
   it("does not throw when extracted file text is unreadable — recruiter can fill details", async () => {

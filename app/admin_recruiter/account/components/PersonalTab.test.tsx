@@ -13,6 +13,12 @@ vi.mock("@/lib/supabase-browser", () => ({ supabaseBrowser: { from: () => {
 } } }));
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ departments: [] }) })); });
 describe("personal profile form", () => {
+  it("excludes inactive departments from personal profile choices", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ departments: [{ id: "active-a", name: "Nursing", isActive: true }, { id: "inactive-a", name: "Pay Rate: $58 - $60", isActive: false }] }) }));
+    render(<PersonalTab />);
+    expect(await screen.findByRole("option", { name: "Nursing" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Pay Rate: $58 - $60" })).not.toBeInTheDocument();
+  });
   it("uses inline feedback consistently for all missing required fields", () => {
     const { container } = render(<PersonalTab />);
     for (const name of [/First Name/, /Last Name/, /Birthdate/, /Job Title/]) fireEvent.change(screen.getByLabelText(name), { target: { value: "" } });

@@ -64,6 +64,8 @@ type WorkerJobRow = {
   applied: boolean;
 };
 
+import { isRemoteJobLocationType } from "@/lib/service-area/location-type";
+
 type RelocateChoice = "onsite" | "relocate" | "remote";
 
 const APPLY_ZIP_INPUT_CLASS =
@@ -81,6 +83,7 @@ function ApplyConfirmModal({
   open,
   jobTitle,
   jobLocation,
+  remoteJob,
   submitting,
   error,
   workCity,
@@ -100,6 +103,7 @@ function ApplyConfirmModal({
   open: boolean;
   jobTitle: string;
   jobLocation: string;
+  remoteJob: boolean;
   submitting: boolean;
   error: string | null;
   workCity: string;
@@ -235,7 +239,7 @@ function ApplyConfirmModal({
             />
           </div>
 
-          <fieldset>
+          {remoteJob ? <p className="text-sm text-[#64748B]">This is a remote position. Enter the location where you will work remotely.</p> : <fieldset>
             <legend className="text-sm font-medium text-[#0F172A]">
               Will you work on-site{jobLocation ? ` at ${jobLocation}` : ""}?
             </legend>
@@ -261,7 +265,7 @@ function ApplyConfirmModal({
                 {option.label}
               </label>
             ))}
-          </fieldset>
+          </fieldset>}
           {previewMessage ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {previewMessage}
@@ -440,7 +444,7 @@ export function CandidateJobsClient() {
     setWorkCity("");
     setWorkState("");
     setWorkPostal("");
-    setRelocate("");
+    setRelocate(isRemoteJobLocationType(row.job.location_type || row.job.schedule) ? "remote" : "");
   }
 
   async function submitApplication() {
@@ -517,6 +521,7 @@ export function CandidateJobsClient() {
         open={Boolean(applyJob)}
         jobTitle={applyJob?.title || ""}
         jobLocation={applyJob?.location || ""}
+        remoteJob={isRemoteJobLocationType(applyJob?.job.location_type || applyJob?.job.schedule)}
         submitting={applying}
         error={applyError}
         workCity={workCity}

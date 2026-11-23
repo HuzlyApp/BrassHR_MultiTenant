@@ -127,6 +127,7 @@ const QUICK_ACTIONS: {
   },
   {
     label: "Approve PTO",
+    href: "/admin_recruiter/scheduling/requests",
     icon: `${HOME_ICON_BASE}/quick-approve-pto.svg`,
     iconClass: "size-6",
   },
@@ -468,7 +469,7 @@ export default function DashboardOverviewClient() {
             Post a Shift
           </Link>
           <Link
-            href={SHIFTS_ROUTE}
+            href={`${SHIFTS_ROUTE}?open=1`}
             className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 py-2 text-[12px] font-semibold leading-4 text-white transition hover:bg-white/10"
           >
             View Open Shifts

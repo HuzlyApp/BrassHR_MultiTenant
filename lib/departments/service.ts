@@ -147,6 +147,7 @@ export function normalizeDepartmentName(value: unknown): string {
 export function validateDepartmentName(value: unknown): string | null {
   const name = normalizeDepartmentName(value);
   if (!name) return "Enter a department name.";
+  if (/^(?:pay|bill)\s*rate\s*[:$]/i.test(name)) return "Enter a department name, not a compensation amount.";
   if (name.length > NAME_MAX) return `Department name must be ${NAME_MAX} characters or fewer.`;
   return null;
 }

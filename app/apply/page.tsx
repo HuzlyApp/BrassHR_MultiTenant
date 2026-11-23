@@ -55,6 +55,7 @@ export default async function ApplyPage({
         jobToken={validated.jobToken}
         jobTitle={validated.jobTitle}
         jobCity={validated.jobLocation}
+        jobLocationType={validated.jobLocationType}
         continueHref={validated.screeningPath}
       />
     );

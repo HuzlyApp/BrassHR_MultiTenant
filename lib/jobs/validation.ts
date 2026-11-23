@@ -135,6 +135,10 @@ export const jobRequisitionInputSchema = z.object({
   requiredCredentials: optionalText,
   specialRequirements: optionalText,
   internalNotes: optionalText,
+}).superRefine((job, ctx) => {
+  if (job.payRateMin != null && job.payRateMax != null && job.payRateMin > job.payRateMax) {
+    ctx.addIssue({ code: "custom", path: ["payRateMax"], message: "Maximum pay rate must be greater than or equal to minimum pay rate." });
+  }
 });
 
 export const jobMutationSchema = z.object({
@@ -262,22 +266,15 @@ export function validatePublishableJob(
 
   Object.assign(errors, validateJobCompensationFields(input));
 
-  if (
-    input.payRateMin !== null &&
-    input.payRateMin !== undefined &&
-    input.payRateMax !== null &&
-    input.payRateMax !== undefined &&
-    input.payRateMin > input.payRateMax
-  ) {
-    errors.payRateMax = "Maximum pay rate must be greater than or equal to minimum pay rate.";
-  }
-
   return errors;
 }
 
-/** Field errors for negative pay/hours (and related amounts). Safe for draft and publish. */
+/** Compensation validation shared by wizard steps, draft saves, and publishing. */
 export function validateJobCompensationFields(input: JobRequisitionInput): FieldErrors {
   const errors: FieldErrors = {};
+  if (input.payRateMin != null && input.payRateMax != null && input.payRateMin > input.payRateMax) {
+    errors.payRateMax = "Maximum pay rate must be greater than or equal to minimum pay rate.";
+  }
   const checks: Array<[keyof JobRequisitionInput, number | null | undefined, string]> = [
     ["payRateMin", input.payRateMin, "Pay rate cannot be negative."],
     ["payRateMax", input.payRateMax, "Maximum pay rate cannot be negative."],

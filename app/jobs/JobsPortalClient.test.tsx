@@ -64,6 +64,7 @@ function makeJob(token: string, title: string, extra: Record<string, unknown> = 
     location: extra.location ?? "Dallas, TX, USA",
     location_type: extra.location_type ?? "On-site",
     schedule: extra.schedule ?? "Days",
+    hours_per_week: 36,
     employment_type: extra.employment_type ?? "W2",
     pay_rate_min: extra.pay_rate_min ?? 40,
     pay_rate_max: extra.pay_rate_max ?? 50,
@@ -184,6 +185,7 @@ describe("JobsPortalClient", () => {
     const apply = screen.getByTestId("jobs-apply-button");
     expect(apply).toHaveAttribute("href", "/apply?tenant=zipstaff&job_token=rn-2");
     expect(within(screen.getByTestId("jobs-detail-panel")).getByText(/Lead patient care for ICU Nurse/i)).toBeInTheDocument();
+    expect(within(screen.getByTestId("jobs-detail-panel")).getByText("36 hours per week")).toBeInTheDocument();
   });
 
   it("does not apply to a previously selected job after a rapid selection change", async () => {
@@ -232,6 +234,17 @@ describe("JobsPortalClient", () => {
     );
   });
 
+  it("explains removable AND keywords and hides stale zero counts while resetting", async () => {
+    const user = userEvent.setup();
+    await renderBoard("tenant=zipstaff&q=ICU,Remote");
+    await screen.findByTestId("job-card-rn-1");
+    expect(screen.getByText(/Jobs must match every keyword/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove ICU" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Remote" })).toBeInTheDocument();
+    await user.click(screen.getByTestId("jobs-reset-search"));
+    expect(screen.getByText("Loading jobs…")).toBeInTheDocument();
+    expect(screen.queryByText("0 Jobs")).not.toBeInTheDocument();
+  });
   it("shows Reset search only after a search is applied", async () => {
     const user = userEvent.setup();
     await renderBoard("tenant=zipstaff&q=ICU");
@@ -523,7 +536,7 @@ describe("JobsPortalClient", () => {
     expect(screen.getByRole("option", { name: "Remote" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Hybrid" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "On-site" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Remote, Hybrid" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Remote, Hybrid" })).not.toBeInTheDocument();
   });
 
   it("truncates long titles on result cards", async () => {
