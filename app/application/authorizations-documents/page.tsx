@@ -39,7 +39,11 @@ import { isAgreementSignatureStep } from "@/lib/onboarding/agreement-signature-s
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
 import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
 import { useApplicantSigningEmail } from "@/lib/onboarding/use-applicant-signing-email"
-import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
+import {
+  DRAFT_PREVIEW_APPLICANT_ID,
+  isOnboardingDraftPreview,
+} from "@/lib/onboarding/is-draft-preview"
+import { getScopedApplicantId, setScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
 
 type IdentityPaths = {
@@ -209,6 +213,11 @@ export default function DocumentsPage() {
   })
 
   useEffect(() => {
+    if (typeof window !== "undefined" && isOnboardingDraftPreview(window.location.search)) {
+      setScopedApplicantId(DRAFT_PREVIEW_APPLICANT_ID)
+      setApplicantId(DRAFT_PREVIEW_APPLICANT_ID)
+      return
+    }
     const id = getScopedApplicantId()
     if (id) {
       setApplicantId(id)

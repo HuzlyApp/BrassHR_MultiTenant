@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
@@ -77,6 +78,16 @@ export async function POST(req: Request) {
       applicantId,
       bucket: WORKER_REQUIRED_FILES_BUCKET,
     })
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      const path = `draft-preview/${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`
+      return NextResponse.json({
+        path,
+        publicUrl: path,
+        fileName: file.name,
+        draftPreview: true,
+      })
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer())
 

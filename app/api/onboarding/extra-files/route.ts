@@ -2,6 +2,7 @@ import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { loadProfessionDocumentChecklist } from "@/lib/onboarding/profession-document-checklist";
 import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
 import { readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
@@ -38,6 +39,19 @@ export async function GET(req: NextRequest) {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() ?? "";
     if (!applicantId) {
       return NextResponse.json({ error: "applicantId is required" }, { status: 400 });
+    }
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({
+        files: [],
+        checklist: {
+          professionId: null,
+          professionName: null,
+          items: [],
+          missingRequired: [],
+        },
+        draftPreview: true,
+      });
     }
 
     const url = getSupabaseUrl();
@@ -105,6 +119,18 @@ export async function POST(req: NextRequest) {
         { error: "applicantId, fileName, and storagePath are required" },
         { status: 400 }
       );
+    }
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({
+        success: true,
+        draftPreview: true,
+        file: {
+          id: storagePath,
+          original_file_name: fileName,
+          storage_path: storagePath,
+        },
+      });
     }
 
     const url = getSupabaseUrl();
@@ -183,6 +209,10 @@ export async function DELETE(req: NextRequest) {
         { error: "applicantId and storagePath are required" },
         { status: 400 }
       );
+    }
+
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ success: true, draftPreview: true });
     }
 
     const url = getSupabaseUrl();
