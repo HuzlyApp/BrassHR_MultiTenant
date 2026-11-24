@@ -45,25 +45,42 @@ const ROLE_VISUALS: RoleVisual[] = [
   { typeLabel: "HR", tint: "rgba(0,181,70,0.15)", color: "#00b546", icon: "person", iconWidth: 14, iconHeight: 14 },
   { typeLabel: "Support", tint: "rgba(255,187,0,0.15)", color: "#bc8b41", icon: "headset", iconWidth: 14, iconHeight: 14 },
   { typeLabel: "Finance", tint: "rgba(54,197,240,0.15)", color: "#36c5f0", icon: "building", iconWidth: 14, iconHeight: 14 },
-  { typeLabel: "Support", tint: "rgba(124,58,237,0.15)", color: "#7c3aed", icon: "gear", iconWidth: 14, iconHeight: 14 },
+  { typeLabel: "Custom", tint: "rgba(100,116,139,0.15)", color: "#64748b", icon: "gear", iconWidth: 14, iconHeight: 14 },
 ];
 
 const PAGE_SIZES = [6, 10, 20] as const;
 
-function visualForRole(role: RoleRow, index: number): RoleVisual {
+/** Exported for unit tests — User Type must not label non-admin custom roles as Admin. */
+export function visualForRole(role: RoleRow, _index = 0): RoleVisual {
   const key = role.roleKey.toLowerCase();
   const label = role.label.toLowerCase();
   if (role.isAdmin || key === "admin" || key.includes("administrator") || label.includes("administrator")) {
     return ROLE_VISUALS[0];
   }
-  if (key.includes("recruit") || label.includes("recruiter")) return ROLE_VISUALS[1];
+  if (key.includes("recruit") || label.includes("recruiter") || label.includes("hiring")) {
+    return ROLE_VISUALS[1];
+  }
   if (key === "hr" || key.includes("human") || label.includes("human resource")) return ROLE_VISUALS[2];
   if (key.includes("finance") || key.includes("billing") || label.includes("finance")) return ROLE_VISUALS[4];
   if (key.includes("customer") || label.includes("customer service")) return ROLE_VISUALS[3];
   if (key.includes("system") || label.includes("system support") || key.includes("support")) {
-    return ROLE_VISUALS[5];
+    return ROLE_VISUALS[3];
   }
-  return ROLE_VISUALS[index % ROLE_VISUALS.length];
+
+  // Infer from grants so Hiring-only custom roles show Recruitment, not Admin.
+  const enabled = (role.permissions ?? []).filter(
+    (grant) => grant.canView || grant.canEdit || grant.canDelete
+  );
+  const onlyHiring =
+    enabled.length > 0 &&
+    enabled.every((grant) => {
+      const resource = grant.resourceKey.toLowerCase();
+      return resource === "hiring" || resource.startsWith("hiring_") || resource.includes("recruit");
+    });
+  if (onlyHiring) return ROLE_VISUALS[1];
+
+  // Never cycle into Admin for non-admin roles.
+  return ROLE_VISUALS[5];
 }
 
 function pageNumbers(current: number, total: number): number[] {

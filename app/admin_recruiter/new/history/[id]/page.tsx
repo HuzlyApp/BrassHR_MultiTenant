@@ -6,6 +6,7 @@ import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
+import { humanizeActivityAction } from "@/lib/admin/humanize-activity-action";
 
 type ProfilePayload = {
   worker?: {
@@ -96,7 +97,7 @@ function buildHistoryItems(
       const { dateLine, timeLine } = formatDateTimeParts(at);
       return {
         id: entry.id ?? `activity-${index}`,
-        action: entry.action?.trim() || "Activity",
+        action: humanizeActivityAction(entry.action),
         ago: formatRelative(at),
         date: dateLine,
         time: timeLine,

@@ -97,6 +97,9 @@ export default function JobLocationAutocompleteField({
           }}
           onFocus={() => openSuggestions()}
           onBlur={() => {
+            // Close immediately so the list does not cover later fields (Placement type, etc.).
+            // Suggestion buttons use onMouseDown preventDefault so click still selects.
+            closeSuggestions();
             const { location, zipCode } = normalizeJobFormLocationForStorage(value);
             const nextLocation = location || value.trim();
             if (nextLocation !== value) onChange(nextLocation);
@@ -104,7 +107,6 @@ export default function JobLocationAutocompleteField({
               if (!nextLocation) onPostalCodeChange(null);
               else if (zipCode) onPostalCodeChange(zipCode);
             }
-            window.setTimeout(() => closeSuggestions(), 150);
           }}
         />
         {showSuggestions ? (

@@ -37,6 +37,7 @@ import {
   isPlaceholderZip,
   referenceIsMissing,
 } from "@/lib/admin/worker-profile-field-display";
+import { humanizeActivityAction } from "@/lib/admin/humanize-activity-action";
 import {
   buildProfileEducationLines,
   candidateProfileSectionHref,
@@ -755,9 +756,10 @@ export default function NewApplicantProfilePage() {
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
+      {/* Legacy Nexus sidebar overlays CandidateDetailChrome tabs — hide when chrome is active. */}
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          chromeActive ? "hidden" : sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
@@ -835,8 +837,12 @@ export default function NewApplicantProfilePage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
-        <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
+      <div className={`flex-1 flex flex-col overflow-hidden ${chromeActive ? "" : "lg:pl-72"}`}>
+        <header
+          className={`h-16 border-b bg-white flex items-center px-6 justify-between ${
+            chromeActive ? "hidden" : ""
+          }`}
+        >
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebarOpen((v) => !v)} className="lg:hidden text-gray-600">
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -916,6 +922,11 @@ export default function NewApplicantProfilePage() {
               progressDate={formatDate(w?.updated_at ?? w?.created_at)}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
+              hasApplication={Boolean(
+                data?.job_requisition_id?.trim() ||
+                  data?.job_id?.trim() ||
+                  w?.job_id?.trim()
+              )}
             />
             <DetailedTabs
               applicantId={applicantId}
@@ -1220,7 +1231,7 @@ export default function NewApplicantProfilePage() {
                             <BrandedHistoryIcon className="mt-0.5 h-6 w-6 shrink-0" />
                             <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                               <div className="text-sm font-medium leading-5 text-[#012352]">
-                                {entry.action ?? "Activity"}
+                                {humanizeActivityAction(entry.action)}
                               </div>
                               <div className="text-[10px] leading-[15px] text-[#6B7280]">
                                 {formatRelative(entry.created_at)} • {formatDateTimeLabel(entry.created_at)}

@@ -59,6 +59,16 @@ type ChromeProfilePayload = {
   error?: string;
 };
 
+function chromeHasApplication(profile: ChromeProfilePayload | null): boolean {
+  if (!profile) return false;
+  return Boolean(
+    profile.job_requisition_id?.trim() ||
+      profile.job_id?.trim() ||
+      profile.job_title?.trim() ||
+      profile.worker?.job_id?.trim()
+  );
+}
+
 type CandidateDetailChromeContextValue = {
   active: true;
   applicantId: string;
@@ -225,6 +235,7 @@ function CandidateDetailChromeInner({
             progressDate={formatHeaderDate(worker?.updated_at ?? worker?.created_at)}
             onMessageClick={() => setCommOpen(true)}
             messageDisabled={!worker?.email?.trim() && !worker?.phone?.trim()}
+            hasApplication={chromeHasApplication(profile)}
           />
           <DetailedTabs
             persistent

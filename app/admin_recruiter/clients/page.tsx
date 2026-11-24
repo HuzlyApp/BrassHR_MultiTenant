@@ -303,6 +303,7 @@ export default function ClientsPage() {
           city: newCity.trim() || null,
           state: selectedStateCode || newState.trim() || null,
           zipCode: newZipCode.trim() || null,
+          contactPerson: newContactPerson.trim() || null,
           w2Capable: true,
         }),
       });

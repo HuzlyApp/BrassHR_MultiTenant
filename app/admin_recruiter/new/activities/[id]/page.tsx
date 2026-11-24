@@ -27,6 +27,7 @@ import {
   ordinalCallAttempt,
   type WorkerCallLog,
 } from "@/lib/admin/worker-call-logs";
+import { humanizeActivityAction } from "@/lib/admin/humanize-activity-action";
 import {
   Briefcase,
   Calendar,
@@ -528,7 +529,7 @@ export default function NewApplicantActivitiesPage() {
                                 <BrandedHistoryIcon className="mt-0.5 h-5 w-5 shrink-0" />
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium text-(--brand-primary)">
-                                    {entry.action ?? "Activity"}
+                                    {humanizeActivityAction(entry.action)}
                                   </p>
                                   <p className="text-xs text-[#6B7280]">
                                     {entry.created_at

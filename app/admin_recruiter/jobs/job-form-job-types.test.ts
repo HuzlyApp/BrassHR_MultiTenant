@@ -3,8 +3,26 @@ import {
   jobFormJobTypesInclude,
   parseJobFormJobTypes,
   serializeJobFormJobTypes,
+  toDateInputValue,
   toggleJobFormJobType,
 } from "./job-form-shared";
+
+describe("toDateInputValue", () => {
+  it("keeps YYYY-MM-DD values", () => {
+    expect(toDateInputValue("2026-11-30")).toBe("2026-11-30");
+  });
+
+  it("strips time from ISO timestamps for date inputs", () => {
+    expect(toDateInputValue("2026-11-30T00:00:00.000Z")).toBe("2026-11-30");
+    expect(toDateInputValue("2026-12-01 15:30:00+00")).toBe("2026-12-01");
+  });
+
+  it("returns null for empty/invalid values", () => {
+    expect(toDateInputValue(null)).toBeNull();
+    expect(toDateInputValue("")).toBeNull();
+    expect(toDateInputValue("not-a-date")).toBeNull();
+  });
+});
 
 describe("job form employment type chips", () => {
   it("parses a single legacy value", () => {

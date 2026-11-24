@@ -19,6 +19,8 @@ import { patchJobRequisition } from "@/lib/jobs/service";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { formatApiError } from "@/lib/api/format-api-error";
+import { embeddedRelationName } from "@/lib/jobs/profession-text";
+import { resolveTenantProfessionForForm } from "@/lib/jobs/resolve-profession";
 
 export const runtime = "nodejs";
 
@@ -94,7 +96,7 @@ export async function GET(
     const detailsView = new URL(req.url).searchParams.get("view") === "details";
     const jobSelect = detailsView
       ? JOB_DETAILS_SELECT
-      : "*, onboarding_flows!workflow_id(id, name)";
+      : "*, professions(name), specialties(name), onboarding_flows!workflow_id(id, name)";
 
     const [
       { data: job, error: jobError },
@@ -123,6 +125,21 @@ export async function GET(
     if (tenantError) throw tenantError;
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
     const jobRow = job as unknown as JobRequisitionRow & Record<string, unknown>;
+
+    // Edit / duplicate form lists tenant_professions; remap stored professions.id.
+    let formProfessionId =
+      typeof jobRow.profession_id === "string" ? jobRow.profession_id.trim() : "";
+    let formProfessionName = embeddedRelationName(jobRow.professions);
+    if (!detailsView && (formProfessionId || formProfessionName)) {
+      const mapped = await resolveTenantProfessionForForm(supabase, tenantId, {
+        professionId: formProfessionId || null,
+        professionName: formProfessionName || null,
+      });
+      if (mapped) {
+        formProfessionId = mapped.id;
+        formProfessionName = mapped.name || formProfessionName;
+      }
+    }
 
     const showSubmission =
       String(jobRow.source_type ?? "")
@@ -164,6 +181,10 @@ export async function GET(
     return NextResponse.json({
       job: {
         ...jobRow,
+        profession_id: formProfessionId || jobRow.profession_id || null,
+        professions: formProfessionName
+          ? { name: formProfessionName }
+          : jobRow.professions ?? null,
         status: normalizeJobRequisitionStatus(String(jobRow.status ?? "")),
         tags: normalizeJobTags(jobRow.tags),
         assigned_recruiter_user_id: jobRow.assigned_recruiter_user_id ?? null,

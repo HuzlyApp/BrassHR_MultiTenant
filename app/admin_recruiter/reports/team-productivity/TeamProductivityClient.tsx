@@ -289,6 +289,7 @@ export default function TeamProductivityClient() {
             </button>
             <a
               href={`/api/admin/reports/team-productivity/export?${queryString}&format=csv`}
+              role="button"
               className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 font-[Inter,sans-serif] text-[12px] text-[#374151] hover:bg-[#F9FAFB]"
             >
               <Download className="h-4 w-4" aria-hidden />
@@ -706,6 +707,7 @@ export default function TeamProductivityClient() {
           </p>
           <a
             href={`/api/admin/reports/team-productivity/export?${queryString}&format=csv`}
+            role="button"
             className="inline-flex items-center gap-2 rounded-lg bg-[#012352] px-4 py-2 font-[Inter,sans-serif] text-[12px] font-semibold text-white"
           >
             <Download className="h-4 w-4" aria-hidden />

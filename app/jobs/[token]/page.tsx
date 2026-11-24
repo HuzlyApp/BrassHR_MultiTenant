@@ -127,10 +127,13 @@ export default async function PublicJobDetailPage({
   const applyUrl = `/apply?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(String(job.public_job_token))}`;
   const canApply = Boolean(job.workflow_id);
   const employmentType = job.employment_type?.trim() || "";
+  const jobType = String((job as { shift_type?: string | null }).shift_type ?? "").trim();
+  const workplaceType = String(job.location_type ?? "").trim() || String(job.schedule ?? "").trim();
   const facts = [
     relationName(job.professions),
     relationName(job.specialties),
-    job.schedule,
+    jobType || null,
+    workplaceType && workplaceType !== jobType ? workplaceType : null,
     job.hours_per_week != null ? `${job.hours_per_week} hours per week` : null,
   ].filter(Boolean);
 

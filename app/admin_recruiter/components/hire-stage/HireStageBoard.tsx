@@ -61,6 +61,7 @@ export function HireStageBoard({
   onRetry,
   onScheduled,
   onWorkflowChanged,
+  onStatusChanged,
 }: {
   workerId?: string;
   lifecycle: HireStageLifecycle;
@@ -86,6 +87,7 @@ export function HireStageBoard({
   onScheduled?: () => void | Promise<void>;
   /** Called after staff change a step's status so the journey can refresh without unmounting. */
   onWorkflowChanged?: () => void | Promise<void>;
+  onStatusChanged?: (next: { statusName: string; statusId: string }) => void;
 }) {
   const stages = useMemo(() => groupStepsIntoHireStages(steps, lifecycle), [steps, lifecycle]);
   const progressMeta = useMemo(() => hireStageProgressMeta(stages), [stages]);
@@ -327,7 +329,10 @@ export function HireStageBoard({
                 onInspectStep={openStep}
                 onScheduleInterview={openSchedule}
                 onRefresh={onWorkflowChanged}
-                onStatusChanged={() => void onWorkflowChanged?.()}
+                onStatusChanged={(next) => {
+                  if (next) onStatusChanged?.(next);
+                  void onWorkflowChanged?.();
+                }}
               />
             </div>
 
