@@ -63,7 +63,7 @@ export function slugifySkillCategoryName(name: string, fallback = "category"): s
 }
 
 function uniqueSlug(base: string, used: Set<string>): string {
-  let slug = slugifySkillCategoryName(base);
+  const slug = slugifySkillCategoryName(base);
   if (!used.has(slug)) {
     used.add(slug);
     return slug;

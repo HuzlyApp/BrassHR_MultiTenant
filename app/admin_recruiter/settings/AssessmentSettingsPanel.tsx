@@ -58,8 +58,14 @@ type IndustryOption = {
   description?: string | null;
 };
 
+const brandFocusClassName =
+  "outline-none transition-colors focus:border-[color:var(--brand-secondary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] focus-visible:border-[color:var(--brand-secondary)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)]";
+
 const fieldInputClassName =
-  "h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)] disabled:bg-[#F8FAFC]";
+  `h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] disabled:bg-[#F8FAFC] ${brandFocusClassName}`;
+
+const editorFieldClassName =
+  `w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] disabled:bg-[#F8FAFC] ${brandFocusClassName}`;
 
 function BrandCheckbox({
   checked,
@@ -250,7 +256,7 @@ function QuestionEditor({
           value={question.text}
           disabled={disabled}
           onChange={(e) => onChange({ ...question, text: e.target.value })}
-          className="min-h-16 w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm"
+          className={`min-h-16 py-2 ${editorFieldClassName}`}
         />
       </label>
       <label className="block space-y-1">
@@ -259,7 +265,7 @@ function QuestionEditor({
           value={question.description ?? ""}
           disabled={disabled}
           onChange={(e) => onChange({ ...question, description: e.target.value || null })}
-          className="h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+          className={`h-9 ${editorFieldClassName}`}
         />
       </label>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -269,7 +275,7 @@ function QuestionEditor({
             value={question.type}
             disabled={disabled}
             onChange={(e) => setType(e.target.value as SkillQuestionType)}
-            className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm"
+            className={`h-9 px-2 ${editorFieldClassName}`}
           >
             {SKILL_QUESTION_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -286,7 +292,7 @@ function QuestionEditor({
             value={question.points}
             disabled={disabled}
             onChange={(e) => onChange({ ...question, points: Number(e.target.value) || 0 })}
-            className="h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+            className={`h-9 ${editorFieldClassName}`}
           />
         </label>
         <label className="flex items-end gap-2 pb-1 text-sm text-[#0F172A]">
@@ -320,7 +326,7 @@ function QuestionEditor({
                       ),
                     })
                   }
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm"
+                  className={`h-9 min-w-0 flex-1 ${editorFieldClassName}`}
                 />
                 {choiceType ? (
                   <input
@@ -338,7 +344,7 @@ function QuestionEditor({
                         ),
                       })
                     }
-                    className="h-9 w-20 rounded-lg border border-[#CBD5E1] px-2 text-sm"
+                    className={`h-9 w-20 px-2 ${editorFieldClassName}`}
                   />
                 ) : null}
                 <label className="flex items-center gap-1 text-xs text-[#334155]">
@@ -832,7 +838,7 @@ export default function AssessmentSettingsPanel({
                         updateProfessionProfile({ description: e.target.value || null })
                       }
                       placeholder="Describe this profession assessment…"
-                      className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm leading-6 text-[#0F172A] outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_35%,transparent)]"
+                      className={`mt-1 min-h-[4.5rem] py-2 leading-6 ${editorFieldClassName}`}
                     />
                   ) : (
                     <p className="mt-1 text-sm leading-6 text-[#0F172A]">{professionDescription}</p>
@@ -1309,7 +1315,7 @@ export default function AssessmentSettingsPanel({
                           value={category.name}
                           disabled={!canManage}
                           onChange={(e) => updateCategory(category.id, { name: e.target.value })}
-                          className="h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+                          className={`h-9 ${editorFieldClassName}`}
                         />
                       </label>
                       <label className="block space-y-1">
@@ -1320,7 +1326,7 @@ export default function AssessmentSettingsPanel({
                           value={category.sortOrder}
                           disabled={!canManage}
                           onChange={(e) => updateCategory(category.id, { sortOrder: Number(e.target.value) || 1 })}
-                          className="h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+                          className={`h-9 ${editorFieldClassName}`}
                         />
                       </label>
                       {!professionId ? (
@@ -1334,7 +1340,7 @@ export default function AssessmentSettingsPanel({
                                 professionId: e.target.value.trim() || null,
                               })
                             }
-                            className="h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"
+                            className={`h-9 ${editorFieldClassName}`}
                           >
                             <option value="">Shared (all professions)</option>
                             {professions.map((row) => (
@@ -1351,7 +1357,7 @@ export default function AssessmentSettingsPanel({
                           value={category.description ?? ""}
                           disabled={!canManage}
                           onChange={(e) => updateCategory(category.id, { description: e.target.value })}
-                          className="h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"
+                          className={`h-9 ${editorFieldClassName}`}
                         />
                       </label>
                       <label className="block space-y-1 sm:col-span-2">
@@ -1360,7 +1366,7 @@ export default function AssessmentSettingsPanel({
                           value={category.instructions ?? ""}
                           disabled={!canManage}
                           onChange={(e) => updateCategory(category.id, { instructions: e.target.value || null })}
-                          className="min-h-16 w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm"
+                          className={`min-h-16 py-2 ${editorFieldClassName}`}
                         />
                       </label>
                     </div>

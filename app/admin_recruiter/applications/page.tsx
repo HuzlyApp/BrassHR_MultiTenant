@@ -2500,7 +2500,7 @@ export default function JobApplicationsPage() {
       toast.success("Candidate is already archived");
       return;
     }
-    const label = row.candidateName?.trim() || "this candidate";
+    const label = applicantName(row).trim() || "this candidate";
     if (!window.confirm(`Archive ${label}? They will move to the Archived list.`)) return;
     void applyApplicationStatus(applicationId, archivedOption, "Archived from candidates list", {
       switchToArchivedTab: true,
